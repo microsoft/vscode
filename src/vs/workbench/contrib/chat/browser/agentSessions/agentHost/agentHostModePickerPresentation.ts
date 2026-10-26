@@ -9,7 +9,9 @@ import { Gesture, EventType as TouchEventType } from '../../../../../../base/bro
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListAccessibilityProvider } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
+import { equals } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -17,26 +19,12 @@ import { localize } from '../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { getSessionApprovalProperty, getSessionModeProperty } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
-import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
+import { ChatPermissionLevel } from '../../../common/constants.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { renderChatInputPickerSplit } from '../../widget/input/chatInputPickerActionItem.js';
+import { organizationDefaultLabel } from '../../widget/input/modelPicker/modelPickerBadges.js';
 
-export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = `@id:${[
-	ChatConfiguration.DefaultConfiguration,
-	ChatConfiguration.DefaultPermissionLevel,
-	ChatConfiguration.GlobalAutoApprove,
-	ChatConfiguration.AutoApproveEdits,
-	ChatConfiguration.AutoApprovedUrls,
-	ChatConfiguration.EligibleForAutoApproval,
-	'chat.tools.riskAssessment.*',
-	TerminalContribSettingId.EnableAutoApprove,
-	TerminalContribSettingId.AutoApprove,
-	TerminalContribSettingId.AutoApproveWorkspaceNpmScripts,
-	TerminalContribSettingId.IgnoreDefaultAutoApproveRules,
-	TerminalContribSettingId.BlockDetectedFileWrites,
-	'chat.agent.sandbox.*',
-].join(',')}`;
+export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = '@tag:chatPermissions';
 
 export interface IModePickerPermissions {
 	readonly label: string;
@@ -49,15 +37,74 @@ export interface IModePickerTrigger extends IDisposable {
 	readonly permissionsButton: HTMLElement;
 }
 
-const MODE_SECTION_ID = 'agentHostModePicker.mode';
-const PERMISSIONS_SECTION_ID = 'agentHostModePicker.permissions';
+export const MODE_SECTION_ID = 'agentHostModePicker.mode';
+export const PERMISSIONS_SECTION_ID = 'agentHostModePicker.permissions';
 export const MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE = 'data-mode-permissions-picker-open';
 
-export function getPermissionLevelBadge(level: string): { readonly badge?: string; readonly className?: string } {
-	return level === ChatPermissionLevel.Assisted ? {
-		badge: localize('agentHostModePicker.experimental', "Experimental"),
-		className: 'agent-host-assisted-permissions',
-	} : {};
+const PERMISSION_LEVEL_ORDER: readonly ChatPermissionLevel[] = [
+	ChatPermissionLevel.Default,
+	ChatPermissionLevel.Assisted,
+	ChatPermissionLevel.AutoApprove,
+	ChatPermissionLevel.Autopilot,
+];
+
+/** A supported permission level the session does not currently allow. */
+export interface IUnavailablePermissionLevel {
+	readonly level: ChatPermissionLevel;
+	/** Whether enterprise policy known to this client explains why the level is unavailable. */
+	readonly byPolicy: boolean;
+}
+
+export function equalsUnavailablePermissionLevels(a: readonly IUnavailablePermissionLevel[] | undefined, b: readonly IUnavailablePermissionLevel[] | undefined): boolean {
+	return equals(a, b, (x, y) => x.level === y.level && x.byPolicy === y.byPolicy);
+}
+
+export interface IPermissionLevelUnavailablePresentation {
+	/** Visible reason; policy reasons include the managed-policy indicator. */
+	readonly description: IMarkdownString;
+	readonly hover: IMarkdownString;
+	readonly ariaDescription: string;
+	/** The reason and explanation for plain-text surfaces. */
+	readonly plainText: string;
+}
+
+/** Explains why a supported permission level cannot be selected, attributing it to policy only when policy is known. */
+export function getPermissionLevelUnavailablePresentation(byPolicy: boolean): IPermissionLevelUnavailablePresentation {
+	const description = byPolicy
+		? new MarkdownString('$(briefcase) ', { supportThemeIcons: true }).appendMarkdown(localize('agentHostModePicker.policyDisabled', "Disabled by policy"))
+		: new MarkdownString(localize('agentHostModePicker.unavailable', "Unavailable"));
+	const hover = byPolicy
+		? new MarkdownString(localize('agentHostModePicker.policyDisabledHover', "Your organization's policy doesn't allow this permission level."))
+		: new MarkdownString(localize('agentHostModePicker.unavailableHover', "The agent host doesn't allow this permission level for this session."));
+	const plainText = byPolicy
+		? localize('agentHostModePicker.policyDisabledPlain', "Disabled by policy. Your organization's policy doesn't allow this permission level.")
+		: localize('agentHostModePicker.unavailablePlain', "Unavailable. The agent host doesn't allow this permission level for this session.");
+	return {
+		description,
+		hover,
+		ariaDescription: plainText,
+		plainText,
+	};
+}
+
+/** Orders selectable and unavailable levels together; unsupported levels stay hidden. */
+export function getOfferedPermissionLevels(available: readonly ChatPermissionLevel[], unavailable: readonly IUnavailablePermissionLevel[] = []): readonly ChatPermissionLevel[] {
+	return PERMISSION_LEVEL_ORDER.filter(level => available.includes(level) || unavailable.some(entry => entry.level === level));
+}
+
+export function getPermissionLevelBadge(level: string, disabled = false, organizationDefault?: ChatPermissionLevel): Pick<IActionListItem<unknown>, 'badge' | 'className' | 'additionalBadges'> {
+	const additionalBadges = organizationDefault !== undefined && level === organizationDefault ? [{
+		label: organizationDefaultLabel,
+		className: 'agent-host-org-default-badge',
+		tooltip: localize('agentHostModePicker.organizationDefaultDescription', "Your organization sets this as the default for new sessions. You can choose other permissions for this session."),
+	}] : undefined;
+	return {
+		...(level === ChatPermissionLevel.Assisted && !disabled ? {
+			badge: localize('agentHostModePicker.new', "New"),
+			className: 'agent-host-assisted-permissions',
+		} : {}),
+		...(additionalBadges ? { additionalBadges } : {}),
+	};
 }
 
 export function getModePermissionsPickerOptions(openPermissions = false, initialFocusItemId?: string): IActionListOptions {
@@ -197,7 +244,7 @@ export function getModePickerAriaLabel(mode: string, permissions: IModePickerPer
 }
 
 export function getModePickerAccessibilityHelp(): string {
-	return localize('agentHostModePicker.accessibilityHelp', "When the experimental combined picker is enabled for a Copilot Agent Host session, Tab reaches separate Mode and Permissions buttons. Press Enter or Space on Mode to open the picker with Agent Mode expanded, or on Permissions to open it with Permissions expanded. Each section header shows its current selection, and the opened section initially focuses that selection. Press Enter or Space on a section header to expand or collapse it, or use Right Arrow to expand and Left Arrow to collapse. Hover or keyboard navigation moves the single row highlight without changing the selection until you activate a choice. Focus the Permissions header and press Tab to reach Configure Permissions, which opens the related settings. Use Up and Down Arrow to navigate and Enter to select a mode, permission level, or terminal sandboxing. Assisted permissions is experimental and evaluates risk before running tools. Enterprise policy can disable Assisted permissions and Allow all. When the session's host requires terminal sandboxing, its sandbox toggle is checked and disabled. If your organization permits bypassing, a supported outside-sandbox permission prompt can offer Allow in this Session. After that action succeeds, you can use the toggle to enable sandboxing again. This restriction applies only to that session. Escape closes the picker and returns focus to the button that opened it.");
+	return localize('agentHostModePicker.accessibilityHelp', "When the experimental combined picker is enabled for a Copilot Agent Host session or a new Cloud session, Tab reaches separate Mode and Permissions buttons. Press Enter or Space on Mode to open the picker with Agent Mode expanded, or on Permissions to open it with Permissions expanded. Each section header shows its current selection, and the opened section initially focuses that selection. Press Enter or Space on a section header to expand or collapse it, or use Right Arrow to expand and Left Arrow to collapse. Hover or keyboard navigation moves the single row highlight without changing the selection until you activate a choice. Focus the Permissions header and press Tab to reach Configure Permissions, which opens the related settings. Use Up and Down Arrow to navigate and Enter to select a mode, permission level, or terminal sandboxing. Assisted permissions is experimental and evaluates risk before running tools. When Assisted permissions or Allow all is unavailable for a session, the option remains visible but cannot be selected, with a reason such as Disabled by policy. Its hover also explains the restriction. When the session's host requires terminal sandboxing, its sandbox toggle is checked and disabled. If your organization permits bypassing, a supported outside-sandbox permission prompt can offer Allow in this Session. After that action succeeds, you can use the toggle to enable sandboxing again. This restriction applies only to that session. Cloud draft choices are locked while the first request starts the session. Escape closes the picker and returns focus to the button that opened it.");
 }
 
 function getPermissionLevelStyle(level: ChatPermissionLevel): string | undefined {

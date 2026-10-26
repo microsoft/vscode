@@ -159,7 +159,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		if (!hasKnownRunAttempt(run)) {
 			return [];
 		}
-		const { jobs } = await context.apiClient.actions.listJobsForAttempt({ owner: context.ref.owner, name: context.ref.repo }, run.id, run.run_attempt, context.signal, {
+		const { jobs } = await context.apiClient.actions.listJobsForAttempt(context.ref, run.id, run.run_attempt, context.signal, {
 			caller: 'agentHost.agentMerge', maxPages: 100, query: { per_page: 100 },
 		});
 		this._assertCurrentCIContext(context);
@@ -234,7 +234,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			let evidenceId: string | undefined;
 			if (index < checks.length) {
 				const check = checks[index];
-				const annotations = check.type === 'checkRun' ? await context.apiClient.checks.listAnnotations({ owner: context.ref.owner, name: context.ref.repo }, Number(check.id), context.signal, {
+				const annotations = check.type === 'checkRun' ? await context.apiClient.checks.listAnnotations(context.ref, Number(check.id), context.signal, {
 					caller: 'agentHost.agentMerge', maxPages: 100, query: { per_page: 100 },
 				}) : [];
 				const shown = annotations.slice(0, 3).map(annotation => ({
@@ -451,7 +451,7 @@ function hasKnownRunAttempt(run: WorkflowRun): run is WorkflowRun & { readonly r
 
 /** Reads the complete bounded workflow inventory used by CI evidence and deferred reruns. */
 export async function getWorkflowRuns(client: IGitHubAccountClient, ref: PullRequestRef, headSha: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly WorkflowRun[]> {
-	const { workflow_runs } = await client.actions.listRuns({ owner: ref.owner, name: ref.repo }, signal, {
+	const { workflow_runs } = await client.actions.listRuns(ref, signal, {
 		caller: 'agentHost.agentMerge', ...options, maxPages: 100, query: { head_sha: headSha, per_page: 100 },
 	});
 	return workflow_runs;

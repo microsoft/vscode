@@ -86,7 +86,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 
 	// Builds the contribution without running its constructor so that `processExperimentalSettings`
 	// can be driven directly, resolving treatments from the given (mutable) record.
-	function createTestContribution(treatments: Record<string, string | number | boolean | undefined>): TestContribution {
+	function createTestContribution(treatments: Record<string, unknown>): TestContribution {
 		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
 		contribution._store = store.add(new DisposableStore());
 		contribution.processedExperimentalSettings = new Set();
@@ -132,6 +132,182 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		}
 	};
 
+	const arraySetting = 'test.arrayExperimentalSetting';
+	const arrayConfiguration: IConfigurationNode = {
+		properties: {
+			[arraySetting]: {
+				type: 'array',
+				items: { type: 'string' },
+				default: [],
+				scope: ConfigurationScope.APPLICATION,
+				experiment: { mode: 'auto' },
+			}
+		}
+	};
+
+	test('decodes and refetches array experiment defaults while preserving explicit empty user settings', async () => {
+		const treatments: Record<string, unknown> = {};
+		const contribution = createTestContribution(treatments);
+		configurationRegistry.registerConfiguration(arrayConfiguration);
+		try {
+			const fileService = store.add(new FileService(contribution.logService));
+			store.add(fileService.registerProvider('test-experiments', store.add(new InMemoryFileSystemProvider())));
+			const settingsResource = URI.from({ scheme: 'test-experiments', path: '/settings.json' });
+			await fileService.writeFile(settingsResource, VSBuffer.fromString(JSON.stringify({ [arraySetting]: [] })));
+			const configurationService = store.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), contribution.logService));
+			await configurationService.initialize();
+
+			const cases = [
+				{ treatment: undefined, defaultValue: [], assigned: false, overrides: 0 },
+				{ treatment: '[]', defaultValue: [], assigned: true, overrides: 0 },
+				{ treatment: '["owner/first"]', defaultValue: ['owner/first'], assigned: true, overrides: 1 },
+				{ treatment: '["owner/first"]', defaultValue: ['owner/first'], assigned: true, overrides: 1 },
+				{ treatment: '["team/second"]', defaultValue: ['team/second'], assigned: true, overrides: 1 },
+				{ treatment: undefined, defaultValue: [], assigned: false, overrides: 0 },
+				{ treatment: ['owner/native'], defaultValue: ['owner/native'], assigned: true, overrides: 1 },
+				{ treatment: '[]', defaultValue: [], assigned: true, overrides: 1 },
+			];
+			const results = [];
+			for (const { treatment } of cases) {
+				treatments[`config.${arraySetting}`] = treatment;
+				await contribution.processExperimentalSettings([arraySetting], results.length > 0);
+				const { defaultValue, userValue, value } = configurationService.inspect<string[]>(arraySetting);
+				results.push({
+					defaultValue, userValue, value,
+					assigned: contribution.experimentalSettingsService.hasAssignment(arraySetting),
+					overrides: contribution.registeredExperimentalDefaults.size,
+				});
+			}
+			assert.deepStrictEqual(results, cases.map(({ defaultValue, assigned, overrides }) => ({
+				defaultValue, userValue: [], value: [], assigned, overrides,
+			})));
+		} finally {
+			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([arrayConfiguration]);
+		}
+	});
+
+	test('logs invalid array treatments and removes stale defaults without discarding assignment metadata', async () => {
+		const treatments: Record<string, unknown> = {};
+		const contribution = createTestContribution(treatments);
+		const errors: unknown[][] = [];
+		contribution.logService = new class extends NullLogService {
+			override error(...args: unknown[]): void { errors.push(args); }
+		}();
+		configurationRegistry.registerConfiguration(arrayConfiguration);
+		try {
+			const invalidTreatments = ['["private/repo"', '{"repository":"private/repo"}', '"private/repo"', 'null', 'true', '1', { repository: 'private/repo' }, null, true, 1];
+			const results = [];
+			for (const treatment of invalidTreatments) {
+				treatments[`config.${arraySetting}`] = '["owner/first"]';
+				await contribution.processExperimentalSettings([arraySetting], true);
+				treatments[`config.${arraySetting}`] = treatment;
+				await contribution.processExperimentalSettings([arraySetting], true);
+				results.push({
+					default: configurationRegistry.getConfigurationProperties()[arraySetting].default,
+					source: configurationRegistry.getConfigurationProperties()[arraySetting].defaultValueSource,
+					assigned: contribution.experimentalSettingsService.hasAssignment(arraySetting),
+					overrides: contribution.registeredExperimentalDefaults.size,
+					errors: errors.splice(0),
+				});
+			}
+			assert.deepStrictEqual(results, invalidTreatments.map(() => ({
+				default: [], source: undefined, assigned: true, overrides: 0,
+				errors: [['ConfigurationService#processExperimentalSettings', arraySetting, 'Expected an array or a JSON-encoded array treatment.']],
+			})));
+		} finally {
+			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([arrayConfiguration]);
+		}
+	});
+
+	test('preserves scalar treatments including JSON-looking strings for non-array settings', async () => {
+		const values = [
+			['boolean', false, true],
+			['number', 0, 42],
+			['string', 'control', '["owner/repo"]'],
+			['string', 'control', '{"repository":"owner/repo"}'],
+		] as const;
+		const properties = Object.fromEntries(values.map(([type, defaultValue], index) => [`test.scalarTreatment${index}`, {
+			type, default: defaultValue, experiment: { mode: 'auto' as const },
+		}]));
+		const scalarConfiguration: IConfigurationNode = { properties };
+		const contribution = createTestContribution(Object.fromEntries(Object.keys(properties).map((key, index) => [`config.${key}`, values[index][2]])));
+		configurationRegistry.registerConfiguration(scalarConfiguration);
+		try {
+			await contribution.processExperimentalSettings(Object.keys(properties), false);
+			assert.deepStrictEqual(Object.keys(properties).map(key => configurationRegistry.getConfigurationProperties()[key].default), values.map(([, , treatment]) => treatment));
+		} finally {
+			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([scalarConfiguration]);
+		}
+	});
+
+	test('decodes array treatments and preserves values of the other types of union settings', async () => {
+		const key = 'test.unionArrayExperimentalSetting';
+		const unionConfiguration: IConfigurationNode = {
+			properties: { [key]: { type: ['boolean', 'array'], items: { type: 'string' }, default: false, experiment: { mode: 'auto' } } },
+		};
+		const treatments: Record<string, unknown> = {};
+		const contribution = createTestContribution(treatments);
+		const errors: unknown[][] = [];
+		contribution.logService = new class extends NullLogService {
+			override error(...args: unknown[]): void { errors.push(args); }
+		}();
+		configurationRegistry.registerConfiguration(unionConfiguration);
+		try {
+			const treatmentValues = [true, '["pub.first"]', ['pub.native'], 'false', '{"id":"pub.first"}'];
+			const results = [];
+			for (const treatment of treatmentValues) {
+				treatments[`config.${key}`] = treatment;
+				await contribution.processExperimentalSettings([key], results.length > 0);
+				results.push({ default: configurationRegistry.getConfigurationProperties()[key].default, errors: errors.splice(0) });
+			}
+			assert.deepStrictEqual(results, [
+				{ default: true, errors: [] },
+				{ default: ['pub.first'], errors: [] },
+				{ default: ['pub.native'], errors: [] },
+				{ default: false, errors: [] },
+				{ default: false, errors: [['ConfigurationService#processExperimentalSettings', key, 'Expected an array or a JSON-encoded array treatment.']] },
+			]);
+		} finally {
+			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([unionConfiguration]);
+		}
+	});
+
+	test('retries invalid startup array treatments until a valid value resolves, then latches it', async () => {
+		const key = 'test.startupArrayExperimentalSetting';
+		const startupConfiguration: IConfigurationNode = {
+			properties: { [key]: { type: 'array', default: [], experiment: { mode: 'startup' } } },
+		};
+		const treatments: Record<string, unknown> = {};
+		const contribution = createTestContribution(treatments);
+		configurationRegistry.registerConfiguration(startupConfiguration);
+		try {
+			const results = [];
+			for (const treatment of [undefined, 'not JSON', '["owner/first"]', '["team/second"]', undefined]) {
+				treatments[`config.${key}`] = treatment;
+				await contribution.processExperimentalSettings([key], results.length > 0);
+				results.push({
+					default: configurationRegistry.getConfigurationProperties()[key].default,
+					pending: contribution.pendingStartupExperimentalSettings.has(key),
+					assigned: contribution.experimentalSettingsService.hasAssignment(key),
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ default: [], pending: true, assigned: false },
+				{ default: [], pending: true, assigned: true },
+				{ default: ['owner/first'], pending: false, assigned: true },
+				{ default: ['owner/first'], pending: false, assigned: true },
+				{ default: ['owner/first'], pending: false, assigned: true },
+			]);
+		} finally {
+			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([startupConfiguration]);
+		}
+	});
+
 	test('applies and refetches hidden experiments through configuration change events', async () => {
 		const key = 'test.hiddenAutoExperiment';
 		const hiddenConfiguration: IConfigurationNode = {
@@ -167,9 +343,10 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			logService,
 			store.add(new ExperimentalSettingsService()),
 		));
+		// Experiment defaults reach the configuration service through a DEFAULT change event.
 		const waitForDefault = async (value: boolean) => {
-			for (let i = 0; i < 100 && configurationService.inspect(key).defaultValue !== value; i++) {
-				await timeout(0);
+			if (configurationService.inspect(key).defaultValue !== value) {
+				await Event.toPromise(Event.filter(configurationService.onDidChangeConfiguration, e => e.source === ConfigurationTarget.DEFAULT && configurationService.inspect(key).defaultValue === value));
 			}
 			defaults.push(configurationService.inspect<boolean>(key).defaultValue);
 		};
@@ -717,7 +894,9 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			}),
 		} as unknown as IWorkbenchAssignmentService;
 		const extensionService = { whenInstalledExtensionsRegistered: async () => true } as unknown as IExtensionService;
-		const workspaceService = { reloadConfiguration: async () => { } } as unknown as WorkspaceService;
+		// The constructor's initial resolution ends by reloading the defaults.
+		const initialResolution = new DeferredPromise<void>();
+		const workspaceService = { reloadConfiguration: async () => { initialResolution.complete(); } } as unknown as WorkspaceService;
 		const environmentService = { isSessionsWindow: false } as unknown as IWorkbenchEnvironmentService;
 
 		configurationRegistry.registerConfiguration(startupConfiguration);
@@ -728,21 +907,20 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
 		};
 		const readDefault = () => configurationRegistry.getConfigurationProperties()[startupSetting].default;
-		const waitFor = async (predicate: () => boolean) => {
-			for (let i = 0; i < 100 && !predicate(); i++) {
-				await timeout(0);
-			}
-		};
+		const isResolved = () => readDefault() === 'treatment' && experimentalSettingsService.hasAssignment(startupSetting);
 
 		try {
 			// The constructor's initial resolution finds no value, so the setting becomes pending.
-			await waitFor(() => internals.pendingStartupExperimentalSettings.has(startupSetting));
+			await initialResolution.p;
 			const afterInitial = { default: readDefault(), pending: internals.pendingStartupExperimentalSettings.has(startupSetting), assigned: experimentalSettingsService.hasAssignment(startupSetting) };
 
 			// A value arrives; firing the event must re-resolve the pending setting through the wiring.
 			treatments.testWiredStartupExperimentalSetting = 'treatment';
 			onDidRefetchAssignments.fire();
-			await waitFor(() => readDefault() === 'treatment' && experimentalSettingsService.hasAssignment(startupSetting));
+			// The assignment is published after the default override is registered.
+			if (!isResolved()) {
+				await Event.toPromise(Event.filter(experimentalSettingsService.onDidChangeAssignments, isResolved));
+			}
 
 			assert.deepStrictEqual({ afterInitial, afterRefetch: { default: readDefault(), pending: internals.pendingStartupExperimentalSettings.has(startupSetting), assigned: experimentalSettingsService.hasAssignment(startupSetting) } }, {
 				afterInitial: { default: 'control', pending: true, assigned: false },
@@ -1838,11 +2016,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	}));
 
 	test('policy value override all', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const result = await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policySetting": "policyValue" }'));
-			return promise;
-		});
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policySetting": "policyValue" }'));
+		const result = await promise;
 		assert.deepStrictEqual([...result.affectedKeys], ['configurationService.folder.policySetting']);
 		assert.strictEqual(testObject.getValue('configurationService.folder.policySetting'), 'policyValue');
 		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, 'policyValue');
@@ -1857,11 +2033,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	}));
 
 	test('policy value override all for object type setting', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policyObjectSetting": {"a": true} }'));
-			return promise;
-		});
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policyObjectSetting": {"a": true} }'));
+		await promise;
 
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.policyObjectSetting": {"b": true} }'));
 		await testObject.reloadConfiguration();

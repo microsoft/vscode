@@ -38,6 +38,7 @@ export class SessionCanvasesControl extends Disposable {
 				closeCanvas: canvas => sessionsManagementService.closeCanvas(currentSession, currentChat, canvas),
 			};
 		});
-		this.sections = this._register(instantiationService.createInstance(CanvasesPillControl, context)).sections;
+		const control = this._register(instantiationService.createInstance(CanvasesPillControl, context));
+		this.sections = control.sections;
 	}
 }

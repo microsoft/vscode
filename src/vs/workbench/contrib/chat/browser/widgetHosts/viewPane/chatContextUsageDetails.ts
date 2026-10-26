@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { WorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { formatCopilotCreditsLabel, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel } from '../../../common/chatService/chatService.js';
 import type { IChatWidget } from '../../chat.js';
 
 const $ = dom.$;
@@ -28,8 +28,6 @@ export interface IChatContextUsagePromptTokenDetail {
 }
 
 export interface IChatContextUsageData {
-	/** False for aggregate billing received before any context-window usage. */
-	hasContextUsage?: boolean;
 	usedTokens: number;
 	completionTokens: number;
 	totalContextWindow: number;
@@ -37,7 +35,6 @@ export interface IChatContextUsageData {
 	outputBufferPercentage?: number;
 	promptTokenDetails?: readonly IChatContextUsagePromptTokenDetail[];
 	sessionCost?: number;
-	sessionCostStatus?: IChatUsage['sessionCopilotCreditsStatus'];
 }
 
 /**
@@ -50,7 +47,6 @@ export class ChatContextUsageDetails extends Disposable {
 
 	private readonly sessionCostSection: HTMLElement;
 	private readonly sessionCostValue: HTMLElement;
-	private readonly contextHeader: HTMLElement;
 	private readonly quotaItem: HTMLElement;
 	private readonly percentageLabel: HTMLElement;
 	private readonly tokenCountLabel: HTMLElement;
@@ -88,8 +84,8 @@ export class ChatContextUsageDetails extends Disposable {
 		this.quotaItem = this.domNode.appendChild($('.quota-indicator'));
 
 		// Context Window header
-		this.contextHeader = this.domNode.insertBefore($('div.header'), this.quotaItem);
-		this.contextHeader.textContent = localize('contextWindow', "Context Window");
+		const header = this.domNode.insertBefore($('div.header'), this.quotaItem);
+		header.textContent = localize('contextWindow', "Context Window");
 
 		// Quota label row with token count + percentage
 		const quotaLabel = this.quotaItem.appendChild($('.quota-label'));
@@ -167,27 +163,14 @@ export class ChatContextUsageDetails extends Disposable {
 	}
 
 	private _render(data: IChatContextUsageData): void {
-		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails, sessionCost, sessionCostStatus } = data;
+		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails, sessionCost } = data;
 
 		// Update session cost — hide section when no cost data is available
-		if (typeof sessionCost === 'number' && (sessionCost > 0 || sessionCostStatus !== undefined)) {
-			this.sessionCostValue.textContent = sessionCostStatus === 'unavailable'
-				? localize('sessionCost.unavailable', "Unavailable")
-				: sessionCostStatus === 'partial'
-					? localize('sessionCost.partial', "{0} (partial)", formatCopilotCreditsLabel(sessionCost))
-					: formatCopilotCreditsLabel(sessionCost);
+		if (typeof sessionCost === 'number' && sessionCost > 0) {
+			this.sessionCostValue.textContent = formatCopilotCreditsLabel(sessionCost);
 			this.sessionCostSection.style.display = '';
 		} else {
 			this.sessionCostSection.style.display = 'none';
-		}
-
-		const hasContextUsage = data.hasContextUsage !== false;
-		this.contextHeader.style.display = hasContextUsage ? '' : 'none';
-		this.quotaItem.style.display = hasContextUsage ? '' : 'none';
-		if (!hasContextUsage) {
-			this.tokenDetailsContainer.style.display = 'none';
-			this.warningMessage.style.display = 'none';
-			return;
 		}
 
 		// Update token count and percentage — reflects actual usage only

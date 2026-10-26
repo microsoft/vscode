@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { derived, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -17,12 +17,12 @@ import { IGitHubAccountClient } from '../../../github/common/account/account.js'
 import { IActionsClient, ListWorkflowRunsOptions, WorkflowJob, WorkflowRun } from '../../../github/common/core/actions.js';
 import { IChecksClient } from '../../../github/common/core/checks.js';
 import { GitHubWorkflowRerunOptions, GitHubWorkflowRun, PullRequestMutationApi, PullRequestMutationResult } from '../../../github/common/githubPullRequestMutationService.js';
-import { PullRequestCheck, PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
+import { PullRequestCheck, PullRequestCheckSuite, PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { createTestGitHubService, createTestWorkflowJob, createTestWorkflowRun } from './testGitHubService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentMergeConfigKey, readAgentMergeSessionState, withAgentMergeFolderControllerState } from '../../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeFolderControllerState, agentMergeDisableReasons, readAgentMergeSessionState, withAgentMergeFolderControllerState } from '../../common/agentMerge.js';
 import { parseAgentMergePrompt } from '../../common/agentMergePrompt.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -41,12 +41,13 @@ import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const ref: PullRequestRef = { host: 'api.github.com', accountId: '1', owner: 'octo', repo: 'repo', number: 1 };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/1';
+const unchangedRepairCooldown = 10 * 60_000;
 
 suite('Agent Merge workflow reruns', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function withController(fn: (harness: RerunTestHarness) => Promise<void>): Promise<void> {
-		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
 			const harness = disposables.add(new RerunTestHarness());
 			try {
 				await timeout(1);
@@ -394,6 +395,241 @@ suite('Agent Merge workflow reruns', () => {
 	}
 });
 
+suite('Agent Merge repair pacing', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function withHarness(fn: (harness: RerunTestHarness) => Promise<void>): Promise<void> {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const harness = disposables.add(new RerunTestHarness(false));
+			try {
+				await fn(harness);
+				assert.deepStrictEqual(harness.errors, []);
+			} finally {
+				harness.dispose();
+			}
+		});
+	}
+
+	function seedControllerState(h: RerunTestHarness, controller: AgentMergeFolderControllerState): void {
+		const values = h.configurationService.getSessionConfigValues(h.session);
+		const folderKey = getWorkingDirectoryKey('file:///repo');
+		h.configurationService.updateSessionConfig(h.session, withAgentMergeFolderControllerState(values, folderKey, folderKey, {
+			target: readAgentMergeSessionState(values)?.target,
+			lastPromptFingerprint: 'previous',
+			lastPromptAt: new Date(0).toISOString(),
+			...controller,
+		}));
+	}
+
+	test('starts CI-only repair immediately when enabled while an approval check is pending', () => withHarness(async h => {
+		await h.controller.setEnabled(h.session, false);
+		h.snapshot.set(readySnapshot([
+			check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
+			check('other-workflow', 'Approval', 'IN_PROGRESS', undefined, '2'),
+		]), undefined);
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		await h.controller.setEnabled(h.session, true);
+		await timeout(1);
+
+		assert.deepStrictEqual(h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.failedChecks), [['macOS']]);
+	}));
+
+	test('starts CI repair for a new head immediately after the previous repair', () => withHarness(async h => {
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		h.snapshot.set(readySnapshot([
+			check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
+			check('windows', 'Windows', 'IN_PROGRESS'),
+		], 'fixed-head'), undefined);
+		await h.completeTurn();
+
+		assert.deepStrictEqual({
+			heads: h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.headSha),
+			state: h.controllerState(),
+		}, {
+			heads: ['head', 'fixed-head'],
+			state: { enabled: true, totalPromptCount: 1, repeatedPromptCount: 0 },
+		});
+	}));
+
+	test('starts repair for a new failure without waiting for other checks to settle', () => withHarness(async h => {
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		await h.completeTurn();
+		h.snapshot.set(readySnapshot([
+			check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
+			check('windows', 'Windows', 'COMPLETED', 'FAILURE'),
+			check('other-workflow', 'Slow unrelated workflow', 'IN_PROGRESS', undefined, '2'),
+		]), undefined);
+		await timeout(31_000);
+
+		assert.deepStrictEqual(h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.failedChecks), [['macOS'], ['macOS', 'Windows']]);
+	}));
+
+	test('starts the next repair immediately when a previous blocker was resolved on the same head', () => withHarness(async h => {
+		h.snapshot.set(readySnapshot([
+			check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
+			check('windows', 'Windows', 'COMPLETED', 'FAILURE'),
+		]), undefined);
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		h.snapshot.set(readySnapshot([
+			check('mac', 'macOS', 'COMPLETED', 'SUCCESS'),
+			check('windows', 'Windows', 'COMPLETED', 'FAILURE'),
+		]), undefined);
+		await h.completeTurn();
+
+		assert.deepStrictEqual({
+			failures: h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.failedChecks),
+			state: h.controllerState(),
+		}, {
+			failures: [['macOS', 'Windows'], ['Windows']],
+			state: { enabled: true, totalPromptCount: 1, repeatedPromptCount: 0 },
+		});
+	}));
+
+	test('polls fresh pull request state within 60 seconds without a snapshot notification', () => withHarness(async h => {
+		h.snapshot.set(readySnapshot([check('windows', 'Windows', 'IN_PROGRESS')]), undefined);
+		let failureAvailable = false;
+		const subscribe = h.client.pullRequests.subscribePullRequest;
+		h.client.pullRequests.subscribePullRequest = (ref, options) => {
+			const subscription = subscribe(ref, options);
+			const refresh = subscription.refresh;
+			subscription.refresh = async (...args) => {
+				await refresh(...args);
+				if (failureAvailable) {
+					h.snapshot.set(readySnapshot([
+						check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
+						check('windows', 'Windows', 'IN_PROGRESS'),
+					]), undefined);
+				}
+			};
+			return subscription;
+		};
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		await timeout(59_998);
+		const beforeFirstPoll = { refreshes: h.authoritativeRefreshes.count, prompts: h.prompts.length };
+		await timeout(1);
+		const afterFirstPoll = { refreshes: h.authoritativeRefreshes.count, prompts: h.prompts.length };
+		failureAvailable = true;
+		await timeout(59_999);
+		const beforeSecondPoll = { refreshes: h.authoritativeRefreshes.count, prompts: h.prompts.length };
+		await timeout(1);
+
+		assert.deepStrictEqual({
+			beforeFirstPoll,
+			afterFirstPoll,
+			beforeSecondPoll,
+			afterSecondPoll: { refreshes: h.authoritativeRefreshes.count, prompts: h.prompts.length },
+		}, {
+			beforeFirstPoll: { refreshes: 1, prompts: 0 },
+			afterFirstPoll: { refreshes: 2, prompts: 0 },
+			beforeSecondPoll: { refreshes: 2, prompts: 0 },
+			afterSecondPoll: { refreshes: 3, prompts: 1 },
+		});
+	}));
+
+	test('keeps polling every 60 seconds while unchanged repairs wait for the 10-minute cooldown', () => withHarness(async h => {
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		await h.completeTurn();
+		const initialRefreshes = h.authoritativeRefreshes.count;
+		await timeout(60_000);
+		const afterPoll = { prompts: h.prompts.length, refreshes: h.authoritativeRefreshes.count - initialRefreshes };
+		await timeout(unchangedRepairCooldown - 60_000 - 3);
+		const beforeCooldown = h.prompts.length;
+		await timeout(60_000);
+
+		assert.deepStrictEqual({
+			afterPoll,
+			beforeCooldown,
+			afterCooldown: h.prompts.length,
+		}, {
+			afterPoll: { prompts: 1, refreshes: 1 },
+			beforeCooldown: 1,
+			afterCooldown: 2,
+		});
+	}));
+
+	const pendingWithoutRequiredChecks: readonly { readonly name: string; readonly snapshot: () => PullRequestSnapshot }[] = [
+		{
+			name: 'a check suite that has not reported check runs yet',
+			snapshot: () => readySnapshot([check('mac', 'macOS', 'COMPLETED', 'FAILURE')], 'head', [
+				{ id: 'suite', name: 'analysis', status: 'QUEUED', checkRunsReported: false },
+			]),
+		},
+		{
+			name: 'an optional check',
+			snapshot: () => readySnapshot([
+				check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
+				{ ...check('other-workflow', 'Lint', 'IN_PROGRESS', undefined, '2'), required: false },
+			]),
+		},
+	];
+	for (const { name, snapshot } of pendingWithoutRequiredChecks) {
+		test(`starts CI-only repair immediately while ${name} is still running`, () => withHarness(async h => {
+			h.snapshot.set(snapshot(), undefined);
+			h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+			await timeout(1);
+			assert.deepStrictEqual(h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.failedChecks), [['macOS']]);
+		}));
+	}
+
+	test('does not hold repair that also addresses other blockers', () => withHarness(async h => {
+		const snapshot = h.snapshot.get();
+		h.snapshot.set({ ...snapshot, mergeability: { ...snapshot.mergeability, value: { ...snapshot.mergeability.value!, mergeable: 'CONFLICTING' } } }, undefined);
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+
+		assert.deepStrictEqual(h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.actions), [['fixCI', 'resolveConflicts']]);
+	}));
+
+	const settledFailure = () => readySnapshot([check('mac', 'macOS', 'COMPLETED', 'FAILURE')]);
+	const cases: readonly { readonly name: string; readonly seeded: AgentMergeFolderControllerState; readonly expected: { readonly prompts: number; readonly notices: readonly string[]; readonly state: ReturnType<RerunTestHarness['controllerState']> } }[] = [
+		{
+			name: 'resets the repair budget when the head changed since the last repair',
+			seeded: { totalPromptCount: 6, repeatedPromptCount: 0, lastPromptHeadSha: 'previous-head', lastPromptBlockers: ['check:macOS'] },
+			expected: { prompts: 1, notices: [], state: { enabled: true, totalPromptCount: 1, repeatedPromptCount: 0 } },
+		},
+		{
+			name: 'resets the repair budget when a blocker of the last repair was resolved',
+			seeded: { totalPromptCount: 6, repeatedPromptCount: 0, lastPromptHeadSha: 'head', lastPromptBlockers: ['check:macOS', 'conflicting'] },
+			expected: { prompts: 1, notices: [], state: { enabled: true, totalPromptCount: 1, repeatedPromptCount: 0 } },
+		},
+		{
+			name: 'disables after repeated repairs without progress',
+			seeded: { totalPromptCount: 6, repeatedPromptCount: 0, lastPromptHeadSha: 'head', lastPromptBlockers: ['check:macOS'] },
+			expected: { prompts: 0, notices: [agentMergeDisableReasons.repairWithoutProgress(6).notice], state: { enabled: false, totalPromptCount: undefined, repeatedPromptCount: undefined } },
+		},
+		{
+			name: 'disables at the lifetime repair limit even when the last repair made progress',
+			seeded: { totalPromptCount: 1, repeatedPromptCount: 0, lifetimePromptCount: 20, lastPromptHeadSha: 'previous-head', lastPromptBlockers: ['check:macOS'] },
+			expected: { prompts: 0, notices: [agentMergeDisableReasons.repairLimitReached(20).notice], state: { enabled: false, totalPromptCount: undefined, repeatedPromptCount: undefined } },
+		},
+	];
+	const budgetNotices = [
+		agentMergeDisableReasons.repairBudgetExhausted().notice,
+		agentMergeDisableReasons.repairWithoutProgress(6).notice,
+		agentMergeDisableReasons.repairLimitReached(20).notice,
+	];
+	for (const { name, seeded, expected } of cases) {
+		test(name, () => withHarness(async h => {
+			h.snapshot.set(settledFailure(), undefined);
+			seedControllerState(h, seeded);
+			h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+			await timeout(1);
+
+			assert.deepStrictEqual({
+				prompts: h.prompts.length,
+				notices: h.notices.filter(notice => budgetNotices.includes(notice)),
+				state: h.controllerState(),
+			}, expected);
+		}));
+	}
+});
+
 suite('Agent Merge evaluation authorization', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -523,7 +759,8 @@ class RerunTestHarness extends Disposable {
 	]));
 	readonly mutations = new TestMutations();
 	readonly prompts: string[] = [];
-	/** Authoritative pull request refreshes, which follow the end of every repair turn. */
+	readonly notices: string[] = [];
+	/** Authoritative pull request refreshes at startup, on polling, and after repair turns. */
 	readonly authoritativeRefreshes = { count: 0 };
 	readonly controller: AgentMergeController;
 	readonly tools: AgentMergeTools;
@@ -579,9 +816,15 @@ class RerunTestHarness extends Disposable {
 				}
 			}();
 			override readonly pullRequests = new class extends mock<IPullRequestResources>() {
-				override subscribePullRequest(): PullRequestSubscription {
+				override subscribePullRequest(_ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription {
+					// Like the query service, only an interest in optional checks reports them.
+					const visible = options.checks?.includeOptional ? snapshot : derived(reader => {
+						const value = snapshot.read(reader);
+						const checks = value.checks.value;
+						return checks ? { ...value, checks: { ...value.checks, value: { ...checks, checks: checks.checks.filter(check => check.required !== false) } } } : value;
+					});
 					return {
-						resource: { ref, snapshot },
+						resource: { ref, snapshot: visible },
 						refresh: async (_fragment, _signal, options) => {
 							if (options?.authoritative) {
 								authoritativeRefreshes.count++;
@@ -618,7 +861,7 @@ class RerunTestHarness extends Disposable {
 					turnId,
 					duration: 0,
 				}),
-				postNotice: () => { },
+				postNotice: (_chat, _kind, content) => { this.notices.push(content); },
 			},
 			this.stateManager,
 			createTestChatOwnershipService(this.stateManager),
@@ -702,7 +945,7 @@ function check(id: string, name: string, status: string, conclusion?: string, ru
 	return { id: numericId, name, type: 'checkRun', required: true, status, conclusion, detailsUrl: `https://github.com/octo/repo/actions/runs/${runId}/job/${numericId}` };
 }
 
-function readySnapshot(checks: readonly PullRequestCheck[], headSha = 'head'): PullRequestSnapshot {
+function readySnapshot(checks: readonly PullRequestCheck[], headSha = 'head', expectedSuites: readonly PullRequestCheckSuite[] = []): PullRequestSnapshot {
 	return {
 		ref,
 		generation: 1,
@@ -731,7 +974,7 @@ function readySnapshot(checks: readonly PullRequestCheck[], headSha = 'head'): P
 			status: 'ready',
 			complete: true,
 			headSha,
-			value: { headSha, requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true, checks },
+			value: { headSha, requirednessComplete: true, expectedSuites, expectedSuitesComplete: true, checks },
 		},
 		mergeability: {
 			status: 'ready',

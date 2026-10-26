@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReaderWithStore } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getHighestPriorityPullRequestIcon, IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
-import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
+import { computePullRequestIcon, getPullRequestDisplayState, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
 import { IGitHubService, isGitHubReferenceSupported } from './githubService.js';
 import { IPullRequestIconCache } from './pullRequestIconCache.js';
 
@@ -44,7 +44,7 @@ export class SessionPullRequestPresentationModel extends Disposable {
 				: undefined;
 			const status = pullRequest ? computePullRequestIconStatus(reader, gitHubService, ref.owner, ref.repo, pullRequest, ciStatus) : {};
 			const icon = pullRequest
-				? computePullRequestIcon(pullRequest.isDraft ? 'draft' : pullRequest.state, status)
+				? computePullRequestIcon(getPullRequestDisplayState(pullRequest.state, pullRequest.isDraft), status)
 				: ref.icon ?? (index === 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined);
 			return {
 				ref,
@@ -88,7 +88,7 @@ export function computePullRequestIconStatus(reader: IReaderWithStore, gitHubSer
  */
 export function computeLivePullRequestIcon(reader: IReaderWithStore, gitHubService: IGitHubService, owner: string, repo: string, livePR: IGitHubPullRequest): ThemeIcon {
 	const status = computePullRequestIconStatus(reader, gitHubService, owner, repo, livePR);
-	return computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state, status);
+	return computePullRequestIcon(getPullRequestDisplayState(livePR.state, livePR.isDraft), status);
 }
 
 /** Computes the live title and icon used to present a pull request reference. */
@@ -100,10 +100,15 @@ export function computePullRequestRefPresentation(reader: IReaderWithStore, gitH
 	const prModelRef = reader.store.add(gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 	const livePullRequest = prModelRef.object.pullRequest.read(reader);
 	if (!livePullRequest) {
+		const cached = iconCache.getEntry(prLink);
+		const cachedState = cached?.pullRequest;
+		const state = pullRequest.state === GitHubPullRequestState.Merged ? GitHubPullRequestState.Merged : cachedState?.state;
 		return {
-			icon: iconCache.get(prLink) ?? pullRequest.icon ?? fallbackIcon,
+			icon: state === GitHubPullRequestState.Merged
+				? computePullRequestIcon(GitHubPullRequestState.Merged)
+				: cached?.icon ?? (cachedState ? computePullRequestIcon(getPullRequestDisplayState(cachedState.state, cachedState.isDraft)) : pullRequest.icon ?? fallbackIcon),
 			title: pullRequest.title,
-			liveState: undefined,
+			liveState: state,
 		};
 	}
 

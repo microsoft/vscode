@@ -4,11 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
+import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
 
 suite('git', () => {
+	suite('Git process input', () => {
+		let git: Git;
+		let logger: LogOutputChannel;
+
+		suiteSetup(async () => {
+			logger = window.createOutputChannel('git process input test', { log: true });
+			const foundGit = await findGit(['git'], () => true, logger);
+			git = new Git({ gitPath: foundGit.path, userAgent: 'git-process-input-test', version: foundGit.version });
+		});
+
+		suiteTeardown(() => {
+			logger?.dispose();
+		});
+
+		test('does not raise an uncaught error when git exits before reading its input', async () => {
+			// The input exceeds the pipe buffer, so the write fails with EPIPE once git exits.
+			const result = await git.exec2(['--version'], { input: 'x'.repeat(8 * 1024 * 1024) });
+			assert.match(result.stdout, /^git version /);
+		});
+	});
+
 	suite('GitStatusParser', () => {
 		test('empty parser', () => {
 			const parser = new GitStatusParser();

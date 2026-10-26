@@ -18,6 +18,15 @@ suite('AhpJsonlLogger', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('redacts direct and fragmented channel payloads without changing messages', () => {
+		for (const method of ['tcp/data', 'channel/frame']) {
+			const message = { jsonrpc: '2.0', method, params: { channel: 'ahp-tcp:/test', data: 'private bytes', final: true } };
+			const logged = JSON.parse(stringifyAhpLogEntry(message));
+			assert.deepStrictEqual(logged, { ...message, params: { ...message.params, data: '<redacted channel payload>' } });
+			assert.strictEqual(message.params.data, 'private bytes');
+		}
+	});
+
 	test('does not record inspection of its own logs or log-only file-watch changes', async () => {
 		const files = store.add(new FileService(new NullLogService()));
 		store.add(files.registerProvider('file', store.add(new InMemoryFileSystemProvider())));

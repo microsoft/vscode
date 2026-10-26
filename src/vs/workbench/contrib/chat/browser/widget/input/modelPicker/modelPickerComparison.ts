@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../../../base/common/observable.js';
+import { RawContextKey } from '../../../../../../../platform/contextkey/common/contextkey.js';
+
+export const ModelComparisonAvailableContext = new RawContextKey<boolean>('chatModelComparisonAvailable', false);
+export const ModelComparisonPickerFocusedContext = new RawContextKey<boolean>('chatModelComparisonPickerFocused', false);
 
 /** Comparison selection controller rendered by the shared tabbed model picker. */
 export interface IModelPickerComparison {
 	readonly available: IObservable<boolean>;
 	/** Composer label for the committed selection, independent of the open setup draft. */
 	readonly summary: IObservable<string | undefined>;
-	/**
-	 * One model id per attempt in the committed selection (duplicated for extra variant
-	 * attempts of the same model), parallel to `summary`. When all ids are distinct, the
-	 * composer shows each attempt's own icon; repeated ids retain the labeled summary.
-	 */
-	readonly summaryModelIds?: IObservable<readonly string[] | undefined>;
 	readonly state: IObservable<IModelPickerComparisonState | undefined>;
 	readonly label: string;
+	readonly description?: IObservable<string>;
+	readonly startCommandId?: string;
+	readonly showPickerHint?: IObservable<boolean>;
 	start(): void;
 	cancel(): void;
 	reset(): void;
@@ -64,6 +65,8 @@ export interface IModelPickerComparisonState {
 	readonly canFinish: boolean;
 	/** Whether this step is followed by another; Next then stays visible and is disabled until `canGoNext`. Defaults to `canGoNext`. */
 	readonly hasNextStep?: boolean;
+	readonly backLabel?: string;
+	readonly nextLabel?: string;
 	/** A short footer status, such as how many models are selected or what must change before continuing. */
 	readonly status?: { readonly text: string; readonly warning?: boolean };
 	readonly count?: { readonly label: string; readonly value: number; readonly min: number; readonly max: number };

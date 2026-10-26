@@ -122,6 +122,8 @@ export interface ITabBarAction {
 	readonly useManagedHover?: boolean;
 	/** When true, the button renders in its pressed state. */
 	readonly checked?: boolean;
+	/** When set, the button is disabled and its managed hover explains why instead of showing {@link tooltip}. */
+	readonly disabledReason?: string;
 	run(): void;
 }
 
@@ -158,8 +160,12 @@ export interface ITabbedActionListShowOptions<T> {
 	 * while the popup stays open is not replayed stale on a tab switch.
 	 */
 	readonly widgetClassNames?: (activeTab: string) => readonly string[];
+	/** Attaches behavior scoped to the popup's `.action-widget` element for its lifetime. */
+	renderWidget?(container: HTMLElement): IDisposable;
 	/** Tab whose contents fix the popup's height, so switching tabs scrolls instead of resizing. */
 	readonly sizingTab?: string;
+	/** Remeasures the popup when its content mode changes, without dismissing it or changing its anchor side. */
+	readonly sizingKey?: string;
 	/** Show the checked item's hover after the popup has been positioned. */
 	readonly showCheckedItemHover?: boolean;
 	/** Optional icon buttons rendered after the tabs. */
@@ -235,6 +241,7 @@ export class TabbedActionListWidget extends Disposable {
 	private _fixedListHeight: number | undefined;
 	private _fixedPopupHeight: number | undefined;
 	private _hasMeasuredSizingTab = false;
+	private _sizingKey: string | undefined;
 	/** Side of the anchor the popup opened on, kept across tab swaps so it cannot jump sides. */
 	private _anchorPosition: AnchorPosition | undefined;
 
@@ -274,6 +281,12 @@ export class TabbedActionListWidget extends Disposable {
 			this._hasMeasuredSizingTab = false;
 			this._anchorPosition = undefined;
 		}
+		if (this._sizingKey !== options.sizingKey) {
+			this._fixedListHeight = undefined;
+			this._fixedPopupHeight = undefined;
+			this._hasMeasuredSizingTab = false;
+		}
+		this._sizingKey = options.sizingKey;
 
 		let activeTab = options.initialTab;
 		const popupDisposables = new DisposableStore();
@@ -303,6 +316,9 @@ export class TabbedActionListWidget extends Disposable {
 				let pendingRefresh: ITabbedActionListRefreshOptions | undefined;
 
 				const widget = dom.append(container, dom.$('.action-widget'));
+				if (options.renderWidget) {
+					renderDisposables.add(options.renderWidget(widget));
+				}
 				// Programmatic page focus can match :focus-visible even after a pointer click.
 				renderDisposables.add(dom.addDisposableListener(widget, dom.EventType.KEY_DOWN, () => widget.classList.add('keyboard-navigation'), true));
 				renderDisposables.add(dom.addDisposableListener(widget, dom.EventType.POINTER_DOWN, () => widget.classList.remove('keyboard-navigation'), true));
@@ -393,10 +409,19 @@ export class TabbedActionListWidget extends Disposable {
 					button.classList.toggle('checked', !!tabAction.checked);
 					button.dataset.id = tabAction.id;
 					button.ariaLabel = tabAction.tooltip;
-					if (tabAction.useManagedHover) {
-						renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tabAction.tooltip));
+					// `aria-disabled` rather than `disabled`, so the button stays focusable and hoverable to explain why.
+					const disabledReason = tabAction.disabledReason;
+					button.classList.toggle('disabled', !!disabledReason);
+					if (disabledReason) {
+						button.setAttribute('aria-disabled', 'true');
+						button.setAttribute('aria-description', disabledReason);
+					}
+					const hover = disabledReason ?? tabAction.tooltip;
+					// A disabled reason always uses a managed hover: a native title is easy to miss and never shows on keyboard focus.
+					if (tabAction.useManagedHover || disabledReason) {
+						renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, hover));
 					} else {
-						button.title = tabAction.tooltip;
+						button.title = hover;
 					}
 					// Only an action with a real on/off state announces as a toggle. A
 					// momentary one would otherwise read as a toggle that is switched off.
@@ -406,7 +431,9 @@ export class TabbedActionListWidget extends Disposable {
 					dom.append(button, dom.$(`span${ThemeIcon.asCSSSelector(tabAction.icon)}`));
 					renderDisposables.add(dom.addDisposableListener(button, dom.EventType.CLICK, e => {
 						dom.EventHelper.stop(e, true);
-						tabAction.run();
+						if (!disabledReason) {
+							tabAction.run();
+						}
 					}));
 				}
 
@@ -486,6 +513,7 @@ export class TabbedActionListWidget extends Disposable {
 						this._fixedPopupHeight = undefined;
 					}
 					list.updateItems(refreshed.items, refreshOptions?.focusItemId, {
+						focusFilter: refreshOptions?.focusFilter,
 						preserveHover: refreshOptions?.preserveHover,
 						preserveScrollPosition: refreshOptions?.preserveScrollPosition,
 						animateItemMove: refreshOptions?.animateItemMove && !this._accessibilityService.isMotionReduced(),

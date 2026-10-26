@@ -13,6 +13,16 @@ export type TaskState = 'queued' | 'in_progress' | 'completed' | 'failed' | 'idl
 /** The current state of a session. */
 export type SessionState = TaskState;
 
+/** Receive-only feed credentials. The URL must not be persisted or logged. */
+export interface SessionFeedConnection {
+	readonly url: string;
+	readonly subprotocol: 'json.webpubsub.azure.v1';
+	readonly group: string;
+	readonly expires_at: string;
+	readonly reconnect_after: string;
+	readonly frame_schema_version: 1;
+}
+
 /** The visibility of a task to its collaborators, repository readers, and listings. */
 export type TaskSharingStatus = 'unshared' | 'shared' | 'unlisted';
 
@@ -130,6 +140,13 @@ export interface ExperimentAssignmentResponse {
 	readonly assignment_context: string;
 }
 
+/** An authenticated application that created or participated in a task or session. */
+export interface TaskClient {
+	readonly integration_id: string;
+	readonly slug: string;
+	readonly creator: boolean;
+}
+
 /** Task metadata returned by listings and task lifecycle operations. */
 export interface Task {
 	/** The unique task identifier. */
@@ -144,6 +161,8 @@ export interface Task {
 	readonly creator?: User;
 	/** The type of the task creator. */
 	readonly creator_type?: 'user' | 'organization';
+	/** Creating and participating applications, independent of agent integrations. */
+	readonly clients?: readonly TaskClient[];
 	/** Collaborating users, represented by user references or numeric IDs. */
 	readonly user_collaborators?: readonly (User | number)[];
 	/** Agent integrations that have worked on the task. */
@@ -216,6 +235,8 @@ export interface Session {
 	readonly id: string;
 	/** The session name. */
 	readonly name?: string;
+	/** Creating and participating applications; creator attribution can differ from the task's. */
+	readonly clients?: readonly TaskClient[];
 	/** The user who created the session. */
 	readonly user?: User;
 	/** The account that owns the repository. */
@@ -546,6 +567,9 @@ export interface TaskAHPEventsResponse {
 
 /** Operations for creating and managing tasks, sending input, and reading task history. */
 export interface ITasksClient {
+	/** Negotiate a receive-only task feed through the approved GitHub gateway. */
+	connectFeed(signal: AbortSignal, options?: ApiRequestOptions): Promise<SessionFeedConnection>;
+
 
 	/** GET /agents/tasks: list one page of the authenticated user's tasks. */
 	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>>;

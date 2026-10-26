@@ -169,7 +169,8 @@ declare module 'vscode' {
 	 * Provides the timelines of files and folders.
 	 *
 	 * Commands contributed to the `timeline/title` menu are run with the {@link Uri} of the file or folder whose
-	 * timeline is shown, or `undefined` for the workspace timeline.
+	 * timeline is shown, or `undefined` for the workspace timeline. Use the `timelineForWorkspace` context key in
+	 * their `when` clauses to tell whether the workspace timeline is shown.
 	 */
 	export interface TimelineProvider {
 		/**
@@ -208,6 +209,8 @@ declare module 'vscode' {
 	/**
 	 * Provides the timeline of the whole workspace, for example the history of the workspace's repositories.
 	 * In a multi-root workspace, the timeline covers all workspace folders.
+	 *
+	 * While the workspace timeline is shown, the `timelineForWorkspace` context key is `true`.
 	 */
 	export interface WorkspaceTimelineProvider {
 		/**

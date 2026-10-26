@@ -8,6 +8,7 @@ import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { IAction } from '../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -61,8 +62,6 @@ export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
 export abstract class AbstractChatView extends Disposable implements ISerializableView {
 
 	readonly element: HTMLElement = $('.chat-view');
-	/** Content-only inset kept on each side; scrollable viewports retain the leaf's full width. */
-	protected contentInset = 0;
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
@@ -87,6 +86,15 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
 
+	get activityBarActions(): IObservable<readonly IAction[]> {
+		return constObservable([]);
+	}
+
+	/** Retain the composer while it clears a draft as part of an in-place selection change. */
+	get preserveOnSessionClear(): boolean {
+		return false;
+	}
+
 	focusWorkspacePicker(): void {
 		// no-op by default
 	}
@@ -94,6 +102,24 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	focusHarnessPicker(): void {
 		// no-op by default
 	}
+
+	focusEnvironmentPicker(): void {
+		// no-op by default
+	}
+
+	focusBranchPicker(): void {
+		// no-op by default
+	}
+
+	focusWorktreePicker(): void {
+		// no-op by default
+	}
+
+	focusSyncAction(): void {
+		// no-op by default
+	}
+
+	openModelComparison(): void { }
 
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote
@@ -228,11 +254,8 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * to the allocated dimensions and then delegates to {@link doLayout} so
 	 * subclasses can forward sizing to their hosted widget.
 	 */
-	layout(width: number, height: number, top: number, left: number, contentInset = 0): void {
+	layout(width: number, height: number, top: number, left: number): void {
 		size(this.element, width, height);
-		this.contentInset = contentInset;
-		this.element.classList.toggle('has-session-activity-bar', contentInset > 0);
-		this.element.style.setProperty('--session-activity-bar-reserved-width', `${contentInset}px`);
 		this.doLayout(width, height, top, left);
 	}
 

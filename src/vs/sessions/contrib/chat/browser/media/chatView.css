@@ -18,51 +18,12 @@
 	min-height: 0;
 }
 
-/* With the Session Activity Bar, content keeps an equal inset on both sides (`--session-activity-bar-content-inset`) so it
- * stays centered and clear of the strip; the scroll viewport keeps the full width. Row content is inset,
- * including rows replicated by sticky scroll. */
-.agent-sessions-workbench .chat-view-chat .interactive-list > .monaco-list > .monaco-scrollable-element > :is(.monaco-list-rows, .monaco-tree-sticky-container) > .monaco-list-row > .monaco-tl-row > .monaco-tl-contents {
-	box-sizing: border-box;
-	padding: 0 var(--session-activity-bar-content-inset, 0px);
-}
-
-/* The new-session and new-chat composers keep the same even inset. */
-.chat-view-new > .sessions-chat-widget {
-	width: calc(100% - 2 * var(--session-activity-bar-content-inset, 0px));
-	margin: 0 auto;
-}
-
-/* The inset leaves the activity bar clear only beside the standard content padding, which the
- * new-chat-in-session composer otherwise narrows. */
-.chat-view-new.has-session-activity-bar .new-chat-in-session .new-chat-widget-content {
-	padding-left: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)) !important;
-	padding-right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)) !important;
-}
-
-/* Their existing auto margins center them. */
+/* Full width; their existing auto margins center them. */
 .agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .interactive-input-part,
 .agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .chat-suggest-next-widget {
-	width: calc(100% - 2 * var(--session-activity-bar-content-inset, 0px));
+	width: 100%;
 	margin-left: auto;
 	margin-right: auto;
-}
-
-.agent-sessions-workbench .part.sessionspart .chat-view-chat > .external-session-banner {
-	width: calc(100% - 2 * var(--session-activity-bar-content-inset, 0px) - 2 * var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)));
-}
-
-/* The ruler prompt timeline shares the Session Activity Bar's column, so the content keeps the same even inset as without
- * it; the activity bar sits above the rail where they overlap. The rail is offset so its resting marks (12px bars, 4px
- * inside the rail's right edge) are centered on the strip, which is centered half the column's width plus its
- * 12px scrollbar clearance from the edge. */
-.agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-activity-bar .interactive-session.prompt-timeline-host.prompt-timeline-with-rail {
-	--prompt-timeline-scrollbar-gutter: calc((var(--session-activity-bar-column-width, 0px) + var(--vscode-spacing-size120)) / 2 - var(--vscode-spacing-size40) - var(--vscode-spacing-size60));
-}
-
-/* The column already sits beside the content's even inset, so the ruler's own right-side reservation is not needed. */
-.agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-activity-bar .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
-.agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-activity-bar .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget {
-	padding-right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
@@ -98,7 +59,7 @@
  * to the opaque session view rather than `button.secondaryBackground`, which is
  * transparent in the default dark themes. */
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .chat-context-usage-widget {
 	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
 	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder);
@@ -107,7 +68,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label:not(.agent-host-mode-permissions-trigger):hover,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget:hover {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .chat-context-usage-widget:hover {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
@@ -137,7 +98,7 @@
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground), var(--vscode-chat-requestBubbleHoverBackground));
 }
 
-.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .chat-agent-merge > .chat-agent-merge-card {
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .chat-action-request > .chat-action-request-card {
 	background-color: var(--session-view-background);
 	background-image: linear-gradient(var(--vscode-chat-statusBackground), var(--vscode-chat-statusBackground));
 }
@@ -202,10 +163,10 @@
 }
 
 .agent-sessions-workbench .interactive-session .chat-scroll-down {
-	right: calc(max(
-		var(--session-activity-bar-content-inset, 0px),
-		calc((100% - var(--session-view-centered-content-max-width, 950px)) / 2)
-	) + var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)));
+	/* Keep the arrow inside a short transcript (`.interactive-list` is its containing block) when a tall composer leaves little room. */
+	bottom: max(0px, min(calc(var(--vscode-spacing-size80) + var(--vscode-chat-persistent-content-height, 0px)), calc(100% - var(--vscode-spacing-size240))));
+	/* Keep the arrow clickable above the prompt timeline rail (15). */
+	z-index: 16;
 }
 
 .agent-sessions-workbench .interactive-session.chat-transcript-progress-active > .interactive-list,
@@ -216,8 +177,8 @@
 .agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-context {
 	position: absolute;
 	top: var(--vscode-spacing-size320);
-	left: var(--session-activity-bar-content-inset, 0px);
-	right: var(--session-activity-bar-content-inset, 0px);
+	left: 0;
+	right: 0;
 	z-index: 1;
 	display: flex;
 	justify-content: flex-end;

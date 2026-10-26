@@ -198,7 +198,7 @@ suite('Copilot SDK Connector reconciliation', function () {
 		assert.ok(mail && calendar);
 		assert.deepStrictEqual({
 			reconciled: targeted.reconciled, initializations,
-			name: targeted.displayNames?.get(mail.runtimeServerId),
+			name: targeted.connectorServers?.servers.get(mail.runtimeServerId)?.displayName,
 			tools: (await session.rpc.mcp.listTools({ serverName: mail.runtimeServerId })).tools.map(tool => tool.name),
 			sdkSessionId: session.sessionId,
 		}, {

@@ -278,47 +278,6 @@ suite('SettingsTree managed sandbox', () => {
 				managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY] = value;
 				return read();
 			});
-
-			test('composes managed filesystem presentation with local paths and restores preferences on removal', () => {
-				const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
-				const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
-				const initial = read();
-				managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = '["managed.deny"]';
-				const denied = read();
-				managed[COPILOT_SANDBOX_READONLY_PATHS_KEY] = '[]';
-				const restricted = read();
-				delete managed[COPILOT_SANDBOX_DENIED_PATHS_KEY];
-				delete managed[COPILOT_SANDBOX_READONLY_PATHS_KEY];
-				const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
-				assert.deepStrictEqual({ initial, denied, restricted, removed: read(), stored: configuration.getValue(key) }, {
-					initial: [{ value: local, managed: false, policyFilter: false }],
-					denied: [{ value: { ...local, deniedPaths: ['local.deny', 'managed.deny'] }, managed: true, policyFilter: true }],
-					restricted: [{ value: { ...local, readonlyPaths: [], deniedPaths: ['local.deny', 'managed.deny'] }, managed: true, policyFilter: true }],
-					removed: initial,
-					stored: local,
-				});
-			});
-
-			test('ignores malformed managed filesystem paths without hiding saved local paths', () => {
-				const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
-				const consoleWarn = stub(console, 'warn');
-				try {
-					const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key], {
-						[COPILOT_SANDBOX_DENIED_PATHS_KEY]: 'private.enterprise.path',
-					});
-					const settings = ['private.enterprise.path', '[123]', '{}', 'null', false].map(value => {
-						managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = value;
-						return read();
-					});
-					const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
-					assert.deepStrictEqual({ settings, stored: configuration.getValue(key) }, {
-						settings: Array.from({ length: 5 }, () => [{ value: local, managed: false, policyFilter: false }]),
-						stored: local,
-					});
-				} finally {
-					consoleWarn.restore();
-				}
-			});
 			assert.deepStrictEqual({
 				settings,
 				stored: configuration.getValue(key),
@@ -327,6 +286,47 @@ suite('SettingsTree managed sandbox', () => {
 				settings: Array.from({ length: 5 }, () => [{ value: ['local.example'], managed: false, policyFilter: false }]),
 				stored: ['local.example'],
 				warnings: 5,
+			});
+		} finally {
+			consoleWarn.restore();
+		}
+	});
+
+	test('composes managed filesystem presentation with local paths and restores preferences on removal', () => {
+		const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
+		const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
+		const initial = read();
+		managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = '["managed.deny"]';
+		const denied = read();
+		managed[COPILOT_SANDBOX_READONLY_PATHS_KEY] = '[]';
+		const restricted = read();
+		delete managed[COPILOT_SANDBOX_DENIED_PATHS_KEY];
+		delete managed[COPILOT_SANDBOX_READONLY_PATHS_KEY];
+		const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
+		assert.deepStrictEqual({ initial, denied, restricted, removed: read(), stored: configuration.getValue(key) }, {
+			initial: [{ value: local, managed: false, policyFilter: false }],
+			denied: [{ value: { ...local, deniedPaths: ['local.deny', 'managed.deny'] }, managed: true, policyFilter: true }],
+			restricted: [{ value: { ...local, readonlyPaths: [], deniedPaths: ['local.deny', 'managed.deny'] }, managed: true, policyFilter: true }],
+			removed: initial,
+			stored: local,
+		});
+	});
+
+	test('ignores malformed managed filesystem paths without hiding saved local paths', () => {
+		const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
+		const consoleWarn = stub(console, 'warn');
+		try {
+			const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key], {
+				[COPILOT_SANDBOX_DENIED_PATHS_KEY]: 'private.enterprise.path',
+			});
+			const settings = ['private.enterprise.path', '[123]', '{}', 'null', false].map(value => {
+				managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = value;
+				return read();
+			});
+			const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
+			assert.deepStrictEqual({ settings, stored: configuration.getValue(key) }, {
+				settings: Array.from({ length: 5 }, () => [{ value: local, managed: false, policyFilter: false }]),
+				stored: local,
 			});
 		} finally {
 			consoleWarn.restore();

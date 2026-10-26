@@ -236,8 +236,11 @@ export class AgentHostCatalogSourceResolver {
 		const isRead = aggregateChats.length === 1 && aggregateChats[0].isRead !== undefined
 			? chatIsRead(aggregateChats[0]) ?? persistedSessionIsRead
 			: persistedSessionIsRead && !aggregateChats.some(chat => chatIsRead(chat) === false);
+		const ehcliAdoptable = readSessionEhcliAdoptable(state.meta);
+		const ehcliAdopted = readSessionEhcliAdopted(state.meta) || sessionMetadata.ehcliAdopted.read(metadata) === true;
 		const persistedArchived = sessionMetadata.isArchived.read(metadata) ?? sessionMetadata.isDone.read(metadata);
-		const isArchived = preferPersistedMetadata && persistedArchived !== undefined
+		// Until adoption, the provider's legacy marker owns archive state rather than the host's partial metadata.
+		const isArchived = preferPersistedMetadata && persistedArchived !== undefined && !(ehcliAdoptable && !ehcliAdopted)
 			? persistedArchived
 			: (state.status & SessionStatus.IsArchived) !== 0;
 		const persistedChanges = sessionMetadata.changes.read(metadata);
@@ -246,8 +249,6 @@ export class AgentHostCatalogSourceResolver {
 		// Its own recorded worktree, else a shared worktree a move recorded as its primary folder: never a path's shape.
 		const worktreeProject = this._dependencies.worktreeProjectFromRepositoryRoot(sessionMetadata.worktreeRepositoryRoot.read(metadata)
 			?? sessionWorktreeFolderRepositoryRoot(sessionMetadata.worktreeFolders.read(metadata), workingDirectories[0]));
-		const ehcliAdoptable = readSessionEhcliAdoptable(state.meta);
-		const ehcliAdopted = readSessionEhcliAdopted(state.meta) || sessionMetadata.ehcliAdopted.read(metadata) === true;
 		const persistedDevContainerWorktree = sessionMetadata.devContainerWorktree.read(metadata);
 		const devContainerWorktree = preferPersistedMetadata && sessionMetadata.devContainerWorktree.has(metadata)
 			? persistedDevContainerWorktree

@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { AgentProvider } from '../../common/agent.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
-import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, CATALOG_VERIFICATION_VERSION, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
+import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, CATALOG_VERIFICATION_VERSION, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
@@ -876,6 +876,31 @@ suite('AgentHostCatalogReconciliationService', () => {
 				['agenthost:one', 'agenthost:three'],
 				['agenthost:two', 'agenthost:one'],
 			],
+		});
+	});
+
+	test('an upgraded verification version repairs clean catalogs once and persists the new version', async () => {
+		const harness = await createHarness(['one']);
+		const session = registered('one');
+		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
+		const storage = new TestStorageService();
+		storage.set(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION - 1);
+		const resolveSource = async (): Promise<AgentHostCatalogReconciliationSourceResult> => ({
+			status: 'available',
+			request: { data: { ...catalogData('one'), isArchived: true }, legacyMetadata: { customTitle: 'one', isArchived: 'true' } },
+		});
+		const upgraded = harness.createService(resolveSource, undefined, storage);
+		await upgraded.runPass();
+		const restarted = harness.createService(resolveSource, undefined, storage);
+		const afterRestart = await restarted.runPass();
+		const row = await harness.central.getSessionV2(session.session.toString());
+		assert.deepStrictEqual({
+			archived: row && JSON.parse(row.payload).data.isArchived,
+			markAllCalls: harness.central.markAllCalls,
+			verificationVersion: storage.get(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY),
+			afterRestart: afterRestart.outcomes,
+		}, {
+			archived: true, markAllCalls: 1, verificationVersion: CATALOG_VERIFICATION_VERSION, afterRestart: [],
 		});
 	});
 

@@ -30,6 +30,8 @@ const DEFAULT_PORT = 3000;
 const DEFAULT_STATE_FILE = path.join(os.homedir(), '.mock-policy-server', 'state.json');
 const SETUP_PROBE_PARAM = 'mockPolicySetupProbe';
 const MOCK_SERVER_HEADER = 'X-Mock-Policy-Server';
+/** Largest delay a Node.js timer can wait without firing immediately. */
+const MAX_DELAY_MS = 2_147_483_647;
 
 const args = parseArgs(process.argv.slice(2));
 const PORT = args.port ?? DEFAULT_PORT;
@@ -57,6 +59,8 @@ interface EndpointState {
 	status: number;
 	body: unknown;
 	mode: EndpointResponseMode;
+	/** Milliseconds to wait before delivering a mocked response. */
+	delayMs: number;
 	/** When false the endpoint is proxied upstream instead of mocked. */
 	active: boolean;
 }
@@ -71,6 +75,7 @@ interface EndpointUpdate {
 	status?: number;
 	body?: unknown;
 	mode?: EndpointResponseMode;
+	delayMs?: number;
 	active?: boolean;
 }
 
@@ -80,6 +85,8 @@ interface LogEntry {
 	path: string;
 	outcome: 'mocked' | 'passthrough' | 'upstream-error';
 	status: number;
+	/** Delay applied before a mocked response was delivered. */
+	delayMs?: number;
 }
 
 const CONTROL_ROUTES = [
@@ -202,15 +209,17 @@ function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: s
 					status: { type: 'integer', minimum: 200, maximum: 599 },
 					body: { type: 'any JSON value' },
 					mode: { type: 'string', enum: ['json', 'malformed-json', 'disconnect', 'timeout'] },
+					delayMs: { type: 'integer', minimum: 0, maximum: MAX_DELAY_MS, default: 0, description: 'Milliseconds to hold a mocked response before delivering it with the configured mode. Use a positive value to simulate a slow policy service.' },
 					active: { type: 'boolean', description: 'true mocks the endpoint; false proxies it upstream.' }
 				},
 				semantics: [
 					'A preset sets status and body and enables mocking.',
-					'Explicit status, body, mode, and active values override preset values.',
+					'Explicit status, body, mode, delayMs, and active values override preset values.',
+					'Presets do not change delayMs.',
 					'Bulk updates are validated first and applied atomically.'
 				],
-				single: { endpoint: 'managedSettings', preset: 'empty', status: 200, body: {}, mode: 'json', active: true },
-				bulk: { endpoints: [{ endpoint: 'managedSettings', active: true }, { endpoint: 'entitlements', active: false }] }
+				single: { endpoint: 'managedSettings', preset: 'empty', status: 200, body: {}, mode: 'json', delayMs: 0, active: true },
+				bulk: { endpoints: [{ endpoint: 'managedSettings', active: true, delayMs: 5000 }, { endpoint: 'entitlements', active: false }] }
 			},
 			routes: CONTROL_ROUTES
 		});
@@ -348,7 +357,7 @@ function applyEndpointUpdates(payload: unknown, persist = true): { ok: true } | 
 			return { ok: false, error: `${prefix} must be a JSON object.` };
 		}
 
-		const unknownKeys = Object.keys(rawUpdate).filter(key => !['endpoint', 'preset', 'status', 'body', 'mode', 'active'].includes(key));
+		const unknownKeys = Object.keys(rawUpdate).filter(key => !['endpoint', 'preset', 'status', 'body', 'mode', 'delayMs', 'active'].includes(key));
 		if (unknownKeys.length) {
 			return { ok: false, error: `${prefix} has unknown field${unknownKeys.length > 1 ? 's' : ''}: ${unknownKeys.join(', ')}.` };
 		}
@@ -364,8 +373,8 @@ function applyEndpointUpdates(payload: unknown, persist = true): { ok: true } | 
 		if (!def) {
 			return { ok: false, error: `Unknown endpoint "${rawUpdate.endpoint}". Valid endpoints: ${endpoints.map(endpoint => endpoint.id).join(', ')}.` };
 		}
-		if (!['preset', 'status', 'body', 'mode', 'active'].some(key => Object.hasOwn(rawUpdate, key))) {
-			return { ok: false, error: `${prefix} must include preset, status, body, mode, or active.` };
+		if (!['preset', 'status', 'body', 'mode', 'delayMs', 'active'].some(key => Object.hasOwn(rawUpdate, key))) {
+			return { ok: false, error: `${prefix} must include preset, status, body, mode, delayMs, or active.` };
 		}
 		if (Object.hasOwn(rawUpdate, 'preset')) {
 			if (typeof rawUpdate.preset !== 'string') {
@@ -386,6 +395,9 @@ function applyEndpointUpdates(payload: unknown, persist = true): { ok: true } | 
 		if (Object.hasOwn(rawUpdate, 'mode') && !isEndpointResponseMode(rawUpdate.mode)) {
 			return { ok: false, error: `${prefix}.mode must be one of: json, malformed-json, disconnect, timeout.` };
 		}
+		if (Object.hasOwn(rawUpdate, 'delayMs') && !isDelayMs(rawUpdate.delayMs)) {
+			return { ok: false, error: `${prefix}.delayMs must be an integer from 0 to ${MAX_DELAY_MS}.` };
+		}
 
 		const update: EndpointUpdate = { endpoint: rawUpdate.endpoint };
 		if (typeof rawUpdate.preset === 'string') {
@@ -400,6 +412,9 @@ function applyEndpointUpdates(payload: unknown, persist = true): { ok: true } | 
 		if (isEndpointResponseMode(rawUpdate.mode)) {
 			update.mode = rawUpdate.mode;
 		}
+		if (isDelayMs(rawUpdate.delayMs)) {
+			update.delayMs = rawUpdate.delayMs;
+		}
 		if (typeof rawUpdate.active === 'boolean') {
 			update.active = rawUpdate.active;
 		}
@@ -408,7 +423,7 @@ function applyEndpointUpdates(payload: unknown, persist = true): { ok: true } | 
 
 	const nextState = new Map<string, EndpointState>();
 	for (const [id, entry] of state) {
-		nextState.set(id, { status: entry.status, body: clone(entry.body), mode: entry.mode, active: entry.active });
+		nextState.set(id, { status: entry.status, body: clone(entry.body), mode: entry.mode, delayMs: entry.delayMs, active: entry.active });
 	}
 
 	for (const update of updates) {
@@ -428,6 +443,9 @@ function applyEndpointUpdates(payload: unknown, persist = true): { ok: true } | 
 		}
 		if (update.mode !== undefined) {
 			entry.mode = update.mode;
+		}
+		if (update.delayMs !== undefined) {
+			entry.delayMs = update.delayMs;
 		}
 		if (update.active !== undefined) {
 			entry.active = update.active;
@@ -455,6 +473,7 @@ function createDefaultEndpointState(): Map<string, EndpointState> {
 			status: preset?.status ?? 200,
 			body: preset ? clone(preset.body) : {},
 			mode: 'json',
+			delayMs: 0,
 			active: endpoint.mockedByDefault === true
 		});
 	}
@@ -495,6 +514,7 @@ function persistEndpointState(endpointState: Map<string, EndpointState>): void {
 				status: entry.status,
 				body: entry.body,
 				mode: entry.mode,
+				delayMs: entry.delayMs,
 				active: entry.active
 			};
 		})
@@ -705,8 +725,8 @@ function clearManagedSettingsCache(): { cleared: { dir: string; files: number }[
 }
 
 /** Append to the rolling request log, newest first. */
-function record(req: IncomingMessage, pathname: string, outcome: LogEntry['outcome'], status: number): void {
-	requestLog.unshift({ at: Date.now(), method: req.method ?? 'GET', path: pathname, outcome, status });
+function record(req: IncomingMessage, pathname: string, outcome: LogEntry['outcome'], status: number, delayMs = 0): void {
+	requestLog.unshift({ at: Date.now(), method: req.method ?? 'GET', path: pathname, outcome, status, ...(delayMs > 0 ? { delayMs } : {}) });
 	if (requestLog.length > REQUEST_LOG_LIMIT) {
 		requestLog.length = REQUEST_LOG_LIMIT;
 	}
@@ -812,6 +832,7 @@ function getState() {
 			status: state.get(e.id)!.status,
 			body: state.get(e.id)!.body,
 			mode: state.get(e.id)!.mode,
+			delayMs: state.get(e.id)!.delayMs,
 			active: state.get(e.id)!.active
 		})),
 		baseUrl: `http://${HOST}:${PORT}`,
@@ -901,23 +922,36 @@ function sendJson(res: ServerResponse, status: number, obj: unknown): void {
 	res.end(JSON.stringify(obj, null, 2));
 }
 
+/**
+ * Serves the mocked response after the endpoint's configured delay. The entry
+ * is a snapshot of the state when the request arrived, so a delayed request
+ * delivers what was configured then. Nothing is sent if the client gives up.
+ */
 function sendMockedResponse(req: IncomingMessage, res: ServerResponse, pathname: string, entry: EndpointState): void {
+	if (entry.delayMs <= 0) {
+		return deliverMockedResponse(req, res, pathname, entry);
+	}
+	const timer = setTimeout(() => deliverMockedResponse(req, res, pathname, entry), entry.delayMs);
+	res.on('close', () => clearTimeout(timer));
+}
+
+function deliverMockedResponse(req: IncomingMessage, res: ServerResponse, pathname: string, entry: EndpointState): void {
 	switch (entry.mode) {
 		case 'json':
-			record(req, pathname, 'mocked', entry.status);
+			record(req, pathname, 'mocked', entry.status, entry.delayMs);
 			sendJson(res, entry.status, entry.body);
 			return;
 		case 'malformed-json':
-			record(req, pathname, 'mocked', entry.status);
+			record(req, pathname, 'mocked', entry.status, entry.delayMs);
 			res.writeHead(entry.status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
 			res.end('{"unterminated":');
 			return;
 		case 'disconnect':
-			record(req, pathname, 'mocked', 0);
+			record(req, pathname, 'mocked', 0, entry.delayMs);
 			res.destroy();
 			return;
 		case 'timeout': {
-			record(req, pathname, 'mocked', 0);
+			record(req, pathname, 'mocked', 0, entry.delayMs);
 			const timer = setTimeout(() => res.destroy(), 10_000);
 			timer.unref();
 			res.on('close', () => clearTimeout(timer));
@@ -928,6 +962,10 @@ function sendMockedResponse(req: IncomingMessage, res: ServerResponse, pathname:
 
 function isEndpointResponseMode(value: unknown): value is EndpointResponseMode {
 	return value === 'json' || value === 'malformed-json' || value === 'disconnect' || value === 'timeout';
+}
+
+function isDelayMs(value: unknown): value is number {
+	return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= MAX_DELAY_MS;
 }
 
 function readBody(req: IncomingMessage, cb: (err: Error | null, raw: string) => void): void {

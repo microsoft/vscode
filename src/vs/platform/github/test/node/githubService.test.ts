@@ -126,7 +126,7 @@ suite('GitHubService', () => {
 		}, { accounts: ['101', '202'], aborted: [true, false], invalidations: 1, sameSecond: true });
 	});
 
-	test('shares admission across clients while isolating pending work on release', async () => {
+	test('shares account concurrency across clients while isolating pending work on release', async () => {
 		const started = new DeferredPromise<void>();
 		const response = new DeferredPromise<Response>();
 		let calls = 0;
@@ -142,8 +142,10 @@ suite('GitHubService', () => {
 		const first = disposables.add(service.acquireClient(clientOptions(undefined, 'first')));
 		const second = disposables.add(service.acquireClient(clientOptions(undefined, 'second')));
 		const request = { method: 'GET' as const, url: 'https://api.github.com/resource' };
-		const pending = getGitHubClientInternals(first.object).transport.rest(account, 'token', request, signal());
-		const rejected = assert.rejects(pending, /disposed/);
+		const pending = Array.from({ length: 10 }, (_, index) => getGitHubClientInternals(first.object).transport.rest(account, 'token', {
+			...request, url: `${request.url}?page=${index}`, caller: `caller-${index % 2}`,
+		}, signal()));
+		const rejected = Promise.all(pending.map(request => assert.rejects(request, /disposed/)));
 		await started.p;
 		const peer = getGitHubClientInternals(second.object).transport.rest(account, 'token', request, signal());
 		await timeout(0);
@@ -152,7 +154,7 @@ suite('GitHubService', () => {
 		await rejected;
 		await response.complete(new Response('{}'));
 		await peer;
-		assert.deepStrictEqual({ beforeRelease, calls }, { beforeRelease: 1, calls: 2 });
+		assert.deepStrictEqual({ beforeRelease, calls }, { beforeRelease: 10, calls: 11 });
 	});
 
 	test('retained-request limits cover all clients rather than each transport separately', async () => {

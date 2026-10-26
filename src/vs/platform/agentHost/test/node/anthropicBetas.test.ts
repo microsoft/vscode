@@ -34,6 +34,15 @@ suite('filterSupportedBetas', () => {
 		);
 	});
 
+	test('forwards the thinking-display-updates beta that SDK thinking.display "updates" requires', () => {
+		// Header the Claude Agent SDK 0.3.304 sends alongside `thinking: { type: 'adaptive', display: 'updates' }`.
+		// CAPI rejects `display: 'updates'` with a 400 unless this beta reaches it.
+		assert.strictEqual(
+			filterSupportedBetas('claude-code-20250219,interleaved-thinking-2025-05-14,thinking-token-count-2026-05-13,context-management-2025-06-27,prompt-caching-scope-2026-01-05,mid-conversation-tool-changes-2026-07-01,advanced-tool-use-2025-11-20,effort-2025-11-24,thinking-display-updates-2026-08-18'),
+			'interleaved-thinking-2025-05-14,context-management-2025-06-27,advanced-tool-use-2025-11-20,thinking-display-updates-2026-08-18',
+		);
+	});
+
 	test('filters out unsupported betas', () => {
 		assert.strictEqual(filterSupportedBetas('unsupported-beta-123'), undefined);
 	});

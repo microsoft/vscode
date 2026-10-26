@@ -1599,6 +1599,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		const metadata = {
 			...getCloudSessionItemMetadata(entry.repo, entry.diffRefs, pr),
 			event_type: entry.eventType || this._ownership.getApplication(entry.taskId) || (external ? 'github/autopilot' : 'vscode'),
+			...(entry.application ? { application: entry.application } : {}),
 			...(entry.automationId ? { isAutomation: true } : {}),
 			...(external ? { external: true } : {}),
 		};

@@ -817,7 +817,7 @@ const defaultServerProcessOperations: IServerProcessOperations = {
 			// Only terminate verified descendants, never let taskkill /T follow stale PPIDs.
 			process.kill(pid);
 		} else {
-			await killTree(pid, forceful);
+			await killTree(pid, forceful, message => logServerCleanup(pid, message));
 		}
 	},
 	killProcess: pid => { process.kill(pid); },

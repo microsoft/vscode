@@ -82,7 +82,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		}));
 		this._controller = this._register(instantiationService.createInstance(AgentHostSessionListController,
 			this.sessionType, CLOUD_SANDBOX_AGENT_PROVIDER, this._sessionListStore,
-			'', authority));
+			'', authority, true));
 		const sessionsChanged = observableSignalFromEvent(this, this._controller.onDidChangeChatSessionItems);
 		this._items = derived(this, reader => {
 			sessionsChanged.read(reader);
