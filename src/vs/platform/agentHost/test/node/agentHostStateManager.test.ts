@@ -3601,12 +3601,14 @@ suite('AgentHostStateManager', () => {
 			return changes;
 		}
 
-		test('moving chats leaves each session read exactly when all its counted chats are', () => {
+		test('moving an unread chat makes the source read when its remaining counted chats are, and the destination unread', () => {
 			const { peer, sub, other } = setupTwoSessions();
 			const stays = buildChatUri(sessionUri, 'stays');
 			manager.addChat(sessionUri, stays, creationTimeChatStorageResource(sessionUri, stays, sessionChatUri));
-			// The subagent moving along does not count toward either session's read state.
-			markChatsRead([sessionChatUri, stays, targetDefault, other], [peer, sub]);
+			const hidden = buildChatUri(sessionUri, 'hidden');
+			manager.addChat(sessionUri, hidden, creationTimeChatStorageResource(sessionUri, hidden, sessionChatUri), { interactivity: ChatInteractivity.Hidden });
+			// Neither the subagent moving along nor the hidden chat staying counts toward either session's read state.
+			markChatsRead([sessionChatUri, stays, targetDefault, other], [peer, sub, hidden]);
 			const sessions = { source: sessionUri, target };
 			const before = sessionsRead(sessions);
 			const changes = recordSessionReadChanges(sessions);
@@ -3620,9 +3622,12 @@ suite('AgentHostStateManager', () => {
 			});
 		});
 
-		test('moving a read chat makes sessions marked unread read when all their counted chats are', () => {
+		test('sessions marked unread as a whole stay unread when a read chat moves out of one and into the other', () => {
 			const { peer, sub, other } = setupTwoSessions();
-			markChatsRead([sessionChatUri, peer, targetDefault, other], [sub]);
+			const stays = buildChatUri(sessionUri, 'stays');
+			manager.addChat(sessionUri, stays, creationTimeChatStorageResource(sessionUri, stays, sessionChatUri));
+			// The unread subagent moving along does not count: only read chats move.
+			markChatsRead([sessionChatUri, stays, peer, targetDefault, other], [sub]);
 			// Marked unread as a whole, as Mark as Unread does: the chats of a multi-chat session stay read.
 			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: false });
 			manager.dispatchServerAction(target, { type: ActionType.SessionIsReadChanged, isRead: false });
@@ -3634,12 +3639,12 @@ suite('AgentHostStateManager', () => {
 
 			assert.deepStrictEqual({ before, after: sessionsRead(sessions), changes }, {
 				before: { source: false, target: false },
-				after: { source: true, target: true },
-				changes: ['source true', 'target true'],
+				after: { source: false, target: false },
+				changes: [],
 			});
 		});
 
-		test('moving a session under another leaves the destination read exactly when all its counted chats are', () => {
+		test('moving an unread session under another makes the destination unread; moving a read one leaves it alone', () => {
 			manager.createSession(makeSessionSummary(target));
 			const other = buildChatUri(target, 'other');
 			manager.addChat(target, other, creationTimeChatStorageResource(target, other, targetDefault));
