@@ -62,6 +62,21 @@ suite('PromptFileParser', () => {
 		assert.deepEqual(result.header.tools, ['tool1', 'tool2']);
 	});
 
+	test('agent with reasoning-effort', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			`model: [claude-sonnet-4.5, 'Claude Sonnet 4.5 (copilot)']`,
+			'reasoning-effort: high',
+			'---',
+			'Body',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+		assert.deepEqual(result.header.model, ['claude-sonnet-4.5', 'Claude Sonnet 4.5 (copilot)']);
+		assert.strictEqual(result.header.reasoningEffort, 'high');
+	});
+
 	test('mode with handoff', async () => {
 		const uri = URI.parse('file:///test/test.agent.md');
 		const content = [

@@ -183,6 +183,10 @@ export class PromptHeader {
 		return this.getStringOrStringArrayAttribute(PromptHeaderAttributes.model);
 	}
 
+	public get reasoningEffort(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.reasoningEffort);
+	}
+
 	public get applyTo(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.applyTo);
 	}

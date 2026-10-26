@@ -18,7 +18,8 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { CustomizationType, type SkillCustomization } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationType, type SkillCustomization } from '../../common/state/sessionState.js';
+import { readAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { readSkillArgumentHint } from '../../common/meta/skillCustomizationMeta.js';
 import { SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
 
@@ -249,6 +250,45 @@ suite('SessionCustomizationDiscovery', () => {
 				],
 			}],
 		});
+	});
+
+	test('surfaces agent model and reasoning-effort pins from frontmatter', async () => {
+		const pinnedAgent = await seed('/workspace/.github/agents/pinned.agent.md', `---\nname: pinned\nmodel: [claude-sonnet-4.5, 'Claude Sonnet 4.5 (copilot)']\nreasoning-effort: high\n---\n`);
+		const unpinnedAgent = await seed('/workspace/.github/agents/unpinned.agent.md', '---\nname: unpinned\n---\n');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = {
+			rpc: {
+				agents: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({
+						agents: [
+							{ id: 'pinned', name: 'pinned', description: '', path: pinnedAgent.path, source: 'project', userInvocable: true },
+							{ id: 'unpinned', name: 'unpinned', description: '', path: unpinnedAgent.path, source: 'project', userInvocable: true },
+						],
+					}),
+				},
+				instructions: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ sources: [] }),
+				},
+				skills: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ skills: [] }),
+				},
+			},
+		} as unknown as CopilotClient;
+
+		const customizations = await discovery.discover(client, CancellationToken.None);
+		const agents = customizations
+			.flatMap(customization => customization.type === CustomizationType.Directory ? customization.children ?? [] : [])
+			.filter((child): child is AgentCustomization => child.type === CustomizationType.Agent)
+			.map(child => ({ name: child.name, model: child.model, meta: readAgentCustomizationMeta(child) }))
+			.sort((a, b) => a.name.localeCompare(b.name));
+
+		assert.deepStrictEqual(agents, [
+			{ name: 'pinned', model: 'claude-sonnet-4.5', meta: { userInvocable: true, 'vscode.models': ['claude-sonnet-4.5', 'Claude Sonnet 4.5 (copilot)'], 'vscode.reasoningEffort': 'high' } },
+			{ name: 'unpinned', model: undefined, meta: { userInvocable: true } },
+		]);
 	});
 
 	test('discover includes hooks from recursive and fixed hook locations', async () => {

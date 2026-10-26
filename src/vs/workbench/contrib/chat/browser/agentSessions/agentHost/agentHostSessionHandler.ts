@@ -116,7 +116,7 @@ import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { readAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
-import { readAgentModelConfigurationReport, type IAgentModelConfigurationReport } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { modelConfigurationSourceKey, readAgentModelConfigurationReport, type IAgentModelConfigurationReport } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { ChatSessionForkError, getChatSessionInitialMessageVariables, IChatSession, IChatSessionContentProvider, IChatSessionForkOptions, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionInitialMessage, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
@@ -129,7 +129,8 @@ import { IChatSessionReviewPreferencesService } from '../../../common/editing/ch
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
-import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatInputStateOrigin, reviveAgentPinOverrides, reviveSerializableInputState, type IChatAgentPinOverrides, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { PresentedConfigurationSource, presentedUnderlyingSourceKey, presentedUnderlyingValueKey } from '../../widget/input/chatModelConfigurationStore.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -185,6 +186,49 @@ const MAX_INLINED_UNSAVED_EDITOR_BYTES = 1024 * 1024;
  * 0.8.0 — the cloud sandbox image was still on 0.7.0, and those hosts lose client customizations.
  */
 const CUSTOMIZATION_ENABLEMENT_PROTOCOL_VERSION = '0.8.0';
+
+/** Draft `_meta` key syncing the user's overrides of the draft agent's pins between clients. */
+export const AgentPinOverridesDraftMetaKey = 'vscode.agentPinOverrides';
+
+function withoutAgentPinOverridesMeta(draft: Message | undefined): Message | undefined {
+	if (!draft?._meta || !Object.hasOwn(draft._meta, AgentPinOverridesDraftMetaKey)) {
+		return draft;
+	}
+	const { [AgentPinOverridesDraftMetaKey]: _overrides, ...meta } = draft._meta;
+	const { _meta: _previous, ...rest } = draft;
+	return Object.keys(meta).length > 0 ? { ...rest, _meta: meta } : rest;
+}
+
+/**
+ * The channel's model with this client's agent-applied configuration for the same model: keys either side
+ * marks with the presented (`agent`) source take this client's value, provenance and underlying markers,
+ * so applying or removing a custom agent's pinned effort is published while other remote choices are kept.
+ */
+function withAgentAppliedConfiguration(remote: ModelSelection, local: ModelSelection | undefined): ModelSelection {
+	const keys = new Set<string>();
+	for (const config of [remote.config, local?.config]) {
+		for (const key of Object.keys(config ?? {})) {
+			if (config?.[modelConfigurationSourceKey(key)] === PresentedConfigurationSource) {
+				keys.add(key);
+			}
+		}
+	}
+	if (keys.size === 0) {
+		return remote;
+	}
+	const config: Record<string, JsonPrimitive> = { ...remote.config };
+	for (const key of keys) {
+		for (const entry of [key, modelConfigurationSourceKey(key), presentedUnderlyingValueKey(key), presentedUnderlyingSourceKey(key)]) {
+			const value = local?.config?.[entry];
+			if (value === undefined) {
+				delete config[entry];
+			} else {
+				config[entry] = value;
+			}
+		}
+	}
+	return Object.keys(config).length > 0 ? { ...remote, config } : { id: remote.id };
+}
 
 export const UNOBSERVED_CLIENT_TOOL_GRACE_MS = 5000;
 type AgentHostInvocationFailureStage = 'resolveSession' | 'provisionalSession' | 'sessionState' | 'authentication' | 'createSession' | 'subscribeSession' | 'prepareTurn' | 'dispatchTurn' | 'observeTurn';
@@ -7165,16 +7209,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// compare, which matters because it runs on every chat state change
 		// (each streaming delta), not just draft changes.
 		let lastRemoteDraft = draftState.synced;
+		/** The draft this client publishes for `state`; incoming peer drafts are compared against the same form. */
+		const toOutgoingDraft = (state: IChatModelInputState | undefined): Message | undefined => {
+			const draft = this._inputStateToDraft(sessionResource, state);
+			// Don't overwrite the channel's model with one we only fell back to. The same model still keeps this
+			// client's agent-applied configuration (a custom agent's pinned effort), which is not a fallback.
+			if (!draft || !draftState.remoteModel || isInConversationModelChoice(state?.selectedModelReason)) {
+				return draft;
+			}
+			const remoteModel = draftState.remoteModel;
+			return { ...draft, model: draft.model?.id === remoteModel.id ? withAgentAppliedConfiguration(remoteModel, draft.model) : remoteModel };
+		};
 		const syncDraft = (state: IChatModelInputState | undefined): void => {
 			if (state?.origin === ChatInputStateOrigin.Remote) {
 				return;
 			}
-			let draft = this._inputStateToDraft(sessionResource, state);
+			const draft = toOutgoingDraft(state);
 			const chosen = isInConversationModelChoice(state?.selectedModelReason);
-			// Don't overwrite the channel's model with one we only fell back to.
-			if (draft && draftState.remoteModel && !chosen) {
-				draft = { ...draft, model: draftState.remoteModel };
-			}
 			if (!draftState.shouldPublish(draft, chosen)) {
 				return;
 			}
@@ -7197,8 +7248,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (equals(draftState.synced, remoteDraft)) {
 				return;
 			}
-			const localDraft = this._inputStateToDraft(sessionResource, inputModel.state.get());
-			if (!equals(draftState.synced, localDraft)) {
+			const localDraft = toOutgoingDraft(inputModel.state.get());
+			// Overrides derived from a synced draft that doesn't sync them aren't a local edit; when it does, they are compared.
+			const synced = draftState.synced;
+			const syncsOverrides = !!synced?._meta && Object.hasOwn(synced._meta, AgentPinOverridesDraftMetaKey);
+			if (!equals(synced, syncsOverrides ? localDraft : withoutAgentPinOverridesMeta(localDraft))) {
 				// The pending outbound debounce will publish the local edit (last writer wins).
 				return;
 			}
@@ -7222,7 +7276,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			});
 			return;
 		}
-		const serializedState = this._draftToInputState(sessionResource, draft);
+		const serializedState = this._draftToInputState(sessionResource, draft, { currentAgentPinOverrides: inputModel.state.get()?.agentPinOverrides });
 		if (!serializedState) {
 			return;
 		}
@@ -7238,7 +7292,42 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			partialState.selectedModel = state.selectedModel;
 			partialState.modelConfiguration = state.modelConfiguration;
 		}
+		// Always replaced: the overrides are judged from this draft (its agent, synced intent and
+		// effort provenance), never from this client's own merged configuration.
+		partialState.agentPinOverrides = state.agentPinOverrides;
 		inputModel.setState(partialState);
+	}
+
+	/**
+	 * The user's overrides of the draft agent's pins. Up-to-date clients always sync them in a custom-agent
+	 * draft's `_meta` (`null` when there are none), which is authoritative. For peers that don't, and only
+	 * when there are `current` overrides to layer on (live drafts, not the first transferred draft, where
+	 * the locally saved overrides are recovered instead), they are derived from the draft's own effort
+	 * provenance: an explicitly sourced effort is the peer's choice over the pin, while an
+	 * `agent`-sourced one means the pin applies again. Returns `null` when synced intent says there are
+	 * none, so restores can tell that apart from a draft that doesn't sync them (`undefined`).
+	 */
+	private _draftAgentPinOverrides(draft: Message, modeId: string, current: IChatAgentPinOverrides | undefined, derive: boolean): IChatAgentPinOverrides | null | undefined {
+		if (draft._meta && Object.hasOwn(draft._meta, AgentPinOverridesDraftMetaKey)) {
+			const synced = reviveAgentPinOverrides(draft._meta[AgentPinOverridesDraftMetaKey]);
+			return synced?.modeId === modeId ? synced : null;
+		}
+		if (!derive) {
+			return undefined;
+		}
+		const base = current?.modeId === modeId ? current : undefined;
+		const configKeys = new Set(base?.configKeys);
+		for (const key of ['reasoningEffort', 'thinkingLevel']) {
+			const source = draft.model?.config?.[modelConfigurationSourceKey(key)];
+			if (source === 'explicit' && draft.model?.config?.[key] !== undefined) {
+				configKeys.add(key);
+			} else if (source === PresentedConfigurationSource) {
+				configKeys.delete(key);
+			}
+		}
+		return base?.model || configKeys.size > 0
+			? { modeId, ...(base?.model ? { model: true } : {}), ...(configKeys.size > 0 ? { configKeys: [...configKeys] } : {}) }
+			: undefined;
 	}
 
 	private _inputStateToDraft(sessionResource: URI, state: IChatModelInputState | undefined): Message | undefined {
@@ -7252,7 +7341,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return undefined;
 		}
 		const previous = this._getSessionState(this._resolveSessionUri(sessionResource).toString(), this._getChatURI(sessionResource))?.draft;
-		const metadata = previous?.text === state.inputText ? readAgentMessageRoundTripMetadata(previous) : undefined;
+		const roundTrip = previous?.text === state.inputText ? readAgentMessageRoundTripMetadata(previous) : undefined;
+		// Other clients adopt the user's overrides of this agent's pins from the draft, so a re-armed pin applies again everywhere.
+		// Always present for a custom agent (`null` when none), so receivers can tell "no overrides" from "doesn't sync them".
+		const { [AgentPinOverridesDraftMetaKey]: _staleOverrides, ...carried } = roundTrip ?? {};
+		const overrides = agentUri ? (state.agentPinOverrides?.modeId === agentUri ? state.agentPinOverrides : null) : undefined;
+		const metadata = overrides !== undefined ? { ...carried, [AgentPinOverridesDraftMetaKey]: overrides } : Object.keys(carried).length > 0 ? carried : undefined;
 		return {
 			...requestMessage(state.inputText, attachments, metadata, false),
 			...(model ? { model } : {}),
@@ -7297,7 +7391,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return Object.keys(config).length > 0 ? { id: rawModelId, config } : { id: rawModelId };
 	}
 
-	private _draftToInputState(sessionResource: URI, draft: Message | undefined): ISerializableChatModelInputState | undefined {
+	private _draftToInputState(sessionResource: URI, draft: Message | undefined, live?: { readonly currentAgentPinOverrides: IChatAgentPinOverrides | undefined }): ISerializableChatModelInputState | undefined {
 		if (!draft) {
 			return undefined;
 		}
@@ -7306,14 +7400,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority, draft.text);
 		const cursor = offsetToPosition(draft.text, draft.text.length);
 		const agent = draft.agent && this._customizationService.getCustomAgents(sessionResource).find(agent => agent.uri === draft.agent?.uri);
+		const modeId = draft.agent?.uri ?? ChatMode.Agent.id;
+		const agentPinOverrides = this._draftAgentPinOverrides(draft, modeId, live?.currentAgentPinOverrides, !!live);
 		return {
 			attachments: variableData?.variables ?? [],
 			contrib: {},
 			inputText: draft.text,
 			mode: {
-				id: draft.agent?.uri ?? ChatMode.Agent.id,
+				id: modeId,
 				kind: agent && readAgentCustomizationMeta(agent)['vscode.chatMode'] === 'ask' ? ChatModeKind.Ask : ChatModeKind.Agent,
 			},
+			...(agentPinOverrides !== undefined ? { agentPinOverrides } : {}),
 			selectedModel: modelId && metadata ? {
 				identifier: modelId,
 				metadata,
