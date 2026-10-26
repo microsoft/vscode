@@ -2836,6 +2836,7 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 			const result = await automationDialogService.showAutomationDialog({
 				initialValues: {
 					name,
+					...(automation.ownership ? { ownership: automation.ownership } : {}),
 					prompt: automation.prompt,
 					schedule: automation.schedule,
 					target: automation.target,
