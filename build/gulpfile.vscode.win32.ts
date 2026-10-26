@@ -29,11 +29,11 @@ function packageInnoSetup(iss: string, options: { definitions?: Record<string, u
 	const definitions = options.definitions || {};
 
 	if (process.argv.some(arg => arg === '--debug-inno')) {
-		definitions['Debug'] = 'true';
+		definitions.Debug = 'true';
 	}
 
 	if (process.argv.some(arg => arg === '--sign')) {
-		definitions['Sign'] = 'true';
+		definitions.Sign = 'true';
 	}
 
 	const keys = Object.keys(definitions);
@@ -79,7 +79,7 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 		const originalProductJsonPath = path.join(sourcePath, productJsonRelativePath);
 		const productJsonPath = path.join(outputPath, 'product.json');
 		const productJson = JSON.parse(fs.readFileSync(originalProductJsonPath, 'utf8'));
-		productJson['target'] = target;
+		productJson.target = target;
 
 		const definitions: Record<string, unknown> = {
 			NameLong: product.nameLong,
@@ -114,12 +114,12 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 		};
 
 		if (quality === 'stable' || quality === 'insider') {
-			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
-			definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
-			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
+			definitions.AppxPackage = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
+			definitions.AppxPackageDll = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
+			definitions.AppxPackageName = `${product.win32AppUserModelId}`;
 			const ctxMenu = (product as { win32ContextMenu?: Record<string, { clsid: string }> }).win32ContextMenu;
 			if (ctxMenu && ctxMenu[arch]) {
-				definitions['FileExplorerContextMenuCLSID'] = ctxMenu[arch].clsid;
+				definitions.FileExplorerContextMenuCLSID = ctxMenu[arch].clsid;
 			}
 		}
 
