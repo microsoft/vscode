@@ -66,6 +66,7 @@ const path = require('path');
 const glob = require('glob');
 const util = require('util');
 const coverage = require('../coverage');
+const { trackTestFiles, distributeTestFiles } = require('../parallel.ts');
 const { pathToFileURL } = require('url');
 
 // Disabled custom inspect. See #38847
@@ -489,7 +490,14 @@ async function runTests(opts) {
 		mocha.timeout(opts.timeout);
 	}
 
+	// a worker process of a parallel run (see parallel.ts) only runs the test files it claims
+	const testFiles = opts.workerDir ? trackTestFiles(mocha.suite) : undefined;
+
 	await loadTests(opts);
+
+	if (testFiles) {
+		distributeTestFiles(mocha.suite, testFiles, { workerId: opts.worker, workerDir: opts.workerDir });
+	}
 
 	const runner = mocha.run(async () => {
 		await createCoverageReport(opts);

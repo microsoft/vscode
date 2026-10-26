@@ -118,7 +118,7 @@ import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { getWorktreesRoot, SessionWorkingDirectoryMissingError, WorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { getWorktreesRoot, type IWorktreeMetadata, SessionWorkingDirectoryMissingError, WorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { OLDER_BUILD_WORKTREE_WITHHELD_KEY } from '../../node/agentHostSessionStateMirror.js';
 import { parseSessionWorktreeFolders, WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
@@ -27979,6 +27979,8 @@ suite('AgentService (node dispatcher)', () => {
 				internals._catalogReconciliationService.runPass = runReconciliation;
 				internals._catalogSyncSuppressedSessions.delete(sessionKey);
 				await runReconciliation();
+				// What central session state holds reaches session.db with its debounced mirror: settle it before reading session.db.
+				await getTestSessionStateStore(svc).whenIdle(undefined);
 
 				const snapshot = (await database.readCatalogSnapshot([sessionKey]))[0];
 				results.push({
@@ -30136,6 +30138,35 @@ suite('AgentService (node dispatcher)', () => {
 				unknownSlot: undefined,
 				devContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
 			});
+		});
+
+		test('createSession marks editor and terminal inline chat surfaces for the provider', async () => {
+			class OptionsAgent extends MockAgent {
+				readonly createChatOptions: (IAgentCreateChatOptions | undefined)[] = [];
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => {
+						this.createChatOptions.push(options);
+						return base.createChat(chat, context, options);
+					},
+				}));
+			}
+			const agent = disposables.add(new OptionsAgent('copilot'));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, agent);
+
+			for (const _meta of [
+				withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId: 'typescript' }),
+				withChatSurfaceMeta(undefined, { surface: 'terminal', shellType: 'zsh', osName: 'macOS' }),
+				undefined,
+			]) {
+				await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')], _meta });
+			}
+
+			assert.deepStrictEqual(agent.createChatOptions.map(options => ({ hasScopedEditSurface: options?.hasScopedEditSurface, isInlineChatSurface: options?.isInlineChatSurface })), [
+				{ hasScopedEditSurface: true, isInlineChatSurface: true },
+				{ hasScopedEditSurface: undefined, isInlineChatSurface: true },
+				{ hasScopedEditSurface: undefined, isInlineChatSurface: undefined },
+			]);
 		});
 
 		test('ephemeral session teardown clears its discovery tombstone', async () => {
@@ -35635,10 +35666,10 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				async function createSessionWithChats(service: AgentService, names: readonly string[]): Promise<{ readonly session: URI; readonly defaultChat: URI; readonly chats: readonly URI[] }> {
-					const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const session = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const chats = names.map(name => URI.parse(buildChatUri(session, name)));
 					for (const chat of chats) {
-						await service.createChat(session, chat);
+						await createStartedChat(service, session, chat);
 					}
 					await timeout(0);
 					return { session, defaultChat: URI.parse(buildDefaultChatUri(session)), chats };
@@ -35694,8 +35725,6 @@ suite('AgentService (node dispatcher)', () => {
 					const first = createService();
 					const source = await createSessionWithChats(first, ['stays', 'unread']);
 					const [stays, unread] = source.chats;
-					// A chat becomes its own session only once it has a turn.
-					completeTurn(first, unread);
 					markChatsRead(first, [source.defaultChat, stays], [unread]);
 					const before = await listedRead(first, { source: source.session });
 
@@ -35933,6 +35962,25 @@ suite('AgentService (node dispatcher)', () => {
 						target: (await readSessionAdditionalWorktrees(store, target)).map(entry => entry.handle).sort(),
 						source: (await readSessionAdditionalWorktrees(store, source)).length,
 					}, { target: [concurrent.handle, handle].sort(), source: 0 });
+				});
+
+				test('a chat whose own worktree transfers with it is marked as having it announced already', async () => {
+					const { service, source, target, peer } = await setupFolders();
+					completeTurn(service, peer);
+					const store = getTestSessionStateStore(service);
+					const handle = generateUuid();
+					setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+						readDetachedWorktreeForRemoval: async candidate => candidate === handle ? { worktree: other, repositoryRoot: URI.file('/main'), branchName: 'agents/other' } : undefined,
+					}));
+					await writeSessionAdditionalWorktrees(store, source, [{ handle, workingDirectory: other.toString(), repositoryRoot: URI.file('/main').toString(), chat: peer.toString() }]);
+					await timeout(0);
+					const handedOver: { session: string; chat: string }[] = [];
+					const contributions = (service as unknown as { _chatContributions: { didHandOverWorktree(session: string, chat: string): void } })._chatContributions;
+					contributions.didHandOverWorktree = (session, chat) => { handedOver.push({ session, chat }); };
+
+					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+
+					assert.deepStrictEqual(handedOver, [{ session: target.toString(), chat: peer.toString() }]);
 				});
 
 				test('a move shares the worktree a descendant of the moved chat works in, though the chat itself doesn\'t (L6, Block 5)', async () => {
@@ -37516,6 +37564,8 @@ suite('AgentService (node dispatcher)', () => {
 				const { service, source, target } = await setupMove();
 				const defaultChat = getStateManager(service).getSessionState(source.toString())!.defaultChat!;
 				await service.disposeChat(source, URI.parse(buildChatUri(source, 'mover')));
+				getStateManager(service).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'before-nest', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+				getStateManager(service).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'before-nest', duration: 1 });
 				const handle = generateUuid();
 				const events: string[] = [];
 				setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
@@ -37535,6 +37585,38 @@ suite('AgentService (node dispatcher)', () => {
 					events: ['prepare:true', 'released', 'complete:true:true:true'],
 					targetWorktrees: [{ handle, workingDirectory: URI.file('/repo').toString(), repositoryRoot: URI.file('/main').toString(), chat: defaultChat }],
 				});
+			});
+
+			test('a session that moves under another with its worktree already announced does not announce it again on its next turn', async () => {
+				const { service, source, target } = await setupMove();
+				const defaultChat = getStateManager(service).getSessionState(source.toString())!.defaultChat!;
+				await service.disposeChat(source, URI.parse(buildChatUri(source, 'mover')));
+				getStateManager(service).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'before-nest', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+				getStateManager(service).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'before-nest', duration: 1 });
+				const handle = generateUuid();
+				setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+					readSessionWorktreeForRemoval: async session => session.toString() === source.toString() ? { worktree: URI.file('/repo'), repositoryRoot: URI.file('/main'), branchName: 'agents/source' } : undefined,
+					prepareWorktreeHandOver: async () => ({ handle, workingDirectory: URI.file('/repo').toString(), repositoryRoot: URI.file('/main').toString(), dispose: () => { } }),
+					completeWorktreeHandOver: async () => { },
+					readWorktreeMetadata: async () => ({ branchName: 'agents/source' } as IWorktreeMetadata),
+				}));
+				await service.moveSession(source, target, undefined);
+
+				const announcements: string[] = [];
+				disposables.add(getStateManager(service).onDidEmitEnvelope(envelope => {
+					if (envelope.action.type === ActionType.ChatResponsePart && envelope.action.part.kind === ResponsePartKind.Markdown) {
+						announcements.push(envelope.action.part.content);
+					}
+				}));
+				service.dispatchAction(defaultChat, {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'after-nest',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'hello', origin: { kind: MessageKind.User } },
+				}, 'test-client', 1);
+				await timeout(50);
+
+				assert.deepStrictEqual(announcements, []);
 			});
 
 			suite('credential owners', () => {
