@@ -135,13 +135,13 @@ function getGroupDescription(group: IAgentsWindowExtensionsGroup): string {
 	switch (group.group) {
 		case AgentsWindowExtensionGroup.Suggested:
 			return hasAutomaticallyEnabled
-				? localize('agentsWindowExtensions.aiFeaturesGroupDescriptionAutoEnabled', "Extensions that add AI features, such as tools, MCP servers, or skills. They haven't declared support for the Agents window, so they might not work as expected. Those that don't rely on views, debugging, or other features that the Agents window doesn't have are enabled automatically.")
+				? localize('agentsWindowExtensions.aiFeaturesGroupDescriptionAutoEnabled', "Extensions that add AI features, such as tools, MCP servers, or skills. They haven't declared support for the Agents window, so they might not work as expected. Those that don't rely on views, debugging, or other features that are unavailable in the Agents window are enabled automatically.")
 				: localize('agentsWindowExtensions.aiFeaturesGroupDescription', "Extensions that add AI features, such as tools, MCP servers, or skills. They haven't declared support for the Agents window, so they are disabled by default and might not work as expected.");
 		case AgentsWindowExtensionGroup.Supported:
 			return localize('agentsWindowExtensions.supportedGroupDescription', "Extensions that support the Agents window. They are enabled by default.");
 		case AgentsWindowExtensionGroup.Other:
 			return hasAutomaticallyEnabled
-				? localize('agentsWindowExtensions.otherGroupDescriptionAutoEnabled', "Extensions that haven't declared support for the Agents window. They might not work as expected. Those that add AI features and don't rely on views, debugging, or other features that the Agents window doesn't have are enabled automatically. The others are disabled by default.")
+				? localize('agentsWindowExtensions.otherGroupDescriptionAutoEnabled', "Extensions that haven't declared support for the Agents window. They might not work as expected. Those that add AI features and don't rely on views, debugging, or other features that are unavailable in the Agents window are enabled automatically. The others are disabled by default.")
 				: localize('agentsWindowExtensions.otherGroupDescription', "Extensions that haven't declared support for the Agents window. They are disabled by default and might not work as expected.");
 	}
 }
@@ -622,7 +622,7 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 
 	private updateDescription(): void {
 		this.description.textContent = this.configurationService.getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE) === true
-			? localize('agentsWindowExtensions.descriptionAutoEnabled', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window might not work as expected. They are disabled by default, unless they could be useful there and don't rely on features that the Agents window doesn't have. Changes only apply to the Agents window.")
+			? localize('agentsWindowExtensions.descriptionAutoEnabled', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window might not work as expected. They are disabled by default, unless they could be useful there and don't rely on features that are unavailable in the Agents window. Changes only apply to the Agents window.")
 			: localize('agentsWindowExtensions.description', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window are disabled by default and might not work as expected. Changes only apply to the Agents window.");
 	}
 

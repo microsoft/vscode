@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -187,6 +187,8 @@ suite('AgentsWindowExtensionsWidget', () => {
 		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 		container.style.width = '800px';
 		container.style.height = '600px';
+		// Unit tests don't define the design tokens, and the section's content is only as wide as this one allows.
+		container.style.setProperty('--vscode-spacing-size400', '40px');
 		disposables.add(toDisposable(() => container.remove()));
 		const local = [
 			anExtension('Pub.Tools', { displayName: 'Tools', contributes: { languageModelTools: [{}], chatSkills: [{}], views: { explorer: [{}] } } }),
@@ -233,8 +235,12 @@ suite('AgentsWindowExtensionsWidget', () => {
 		widget.setVisible(true);
 
 		for (const name of ['Tools', 'Theme', 'Cancelled']) {
-			const toggle = container.querySelector<HTMLElement>(`[aria-label="Run ${name} in the Agents window"]`);
-			assert.ok(toggle, name);
+			// Browser tests load component CSS asynchronously, and the tree only renders its rows once the CSS gives it a height.
+			const toggle = await retry(async () => {
+				const element = container.querySelector<HTMLElement>(`[aria-label="Run ${name} in the Agents window"]`);
+				assert.ok(element, name);
+				return element;
+			}, 10, 100);
 			toggle.click();
 			await timeout(0);
 		}

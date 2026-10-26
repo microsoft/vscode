@@ -59,9 +59,16 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+/* A row, like the search boxes of other Customizations sections, so WebKit doesn't stretch the input box's percentage height to the whole section. */
 .agents-window-extensions-search {
+	display: flex;
+	align-items: center;
 	flex-shrink: 0;
 	margin-block: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.agents-window-extensions-search > .monaco-inputbox {
+	flex: 1;
 }
 
 .agents-window-extensions-tree {

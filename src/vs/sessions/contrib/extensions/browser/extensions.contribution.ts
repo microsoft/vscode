@@ -50,7 +50,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE]: {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: localize('extensions.experimental.agentsWindowAutoEnable', "When enabled, installed extensions that haven't declared support for the Agents window are enabled there automatically when they add AI features, such as tools, MCP servers, or skills, and don't rely on views, debugging, or other features that the Agents window doesn't have. You can still disable them from the Extensions section of Agent Customizations. Requires `#{0}#`.", EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
+			markdownDescription: localize('extensions.experimental.agentsWindowAutoEnable', "When enabled, installed extensions that haven't declared support for the Agents window are enabled there automatically when they add AI features, such as tools, MCP servers, or skills, and don't rely on views, debugging, or other features that are unavailable in the Agents window. You can still disable them from the Extensions section of Agent Customizations. Requires `#{0}#`.", EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
 			default: false,
 			tags: ['experimental'],
 			// Takes effect on startup, so assignment changes do not start or stop extensions while the window is open.
