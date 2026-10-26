@@ -332,7 +332,7 @@ suite('Detect Changes', () => {
 
 	test('a job that the changes can skip has a name without expressions', () => {
 		// GitHub neither expands the matrix of a skipped job nor evaluates the expressions in its name, so a skipped
-		// "chat-lib tests (${{ matrix.os }})" job would report under that name.
+		// "chat-lib - Test (${{ matrix.os }})" job would report under that name.
 		const alwaysRun = ['${{ !cancelled() }}', '${{ always() }}'];
 		const workflows = ['pr.yml', 'pr-linux-test.yml', 'pr-darwin-test.yml', 'pr-win32-test.yml', 'pr-linux-cli-test.yml'];
 		assert.deepStrictEqual(workflows.flatMap(workflow => Object.entries(loadWorkflow(workflow).jobs)
