@@ -37,6 +37,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	constructor(
 		private readonly webContents: WebContents,
 		private readonly windowOptions: BrowserWindowConstructorOptions | undefined,
+		private readonly windowMode: WindowMode | undefined,
 		private readonly disableMaximize: boolean,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
@@ -69,12 +70,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 				y: effectiveOptions.y,
 				width: effectiveOptions.width,
 				height: effectiveOptions.height,
-				// We currently do not support restoring fullscreen state for auxiliary
-				// windows because we do not get hold of the original `features` string
-				// that contains that info in `window-fullscreen`. However, we can
-				// probe the `options.show` value for whether the window should be maximized
-				// or not because we never show maximized windows initially to reduce flicker.
-				mode: effectiveOptions.show === false ? WindowMode.Maximized : WindowMode.Normal
+				// Prefer the mode requested at creation: `options.show` is also false
+				// for windows that are hidden with `--hidden-window`. Otherwise probe
+				// `options.show`, because maximized windows are never shown initially
+				// to reduce flicker.
+				mode: this.windowMode ?? (effectiveOptions.show === false ? WindowMode.Maximized : WindowMode.Normal)
 			});
 		}
 	}
