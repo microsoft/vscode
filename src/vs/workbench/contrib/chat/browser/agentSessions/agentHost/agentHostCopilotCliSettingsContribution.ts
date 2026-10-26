@@ -118,10 +118,7 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 			{
 				key: CopilotCliConfigKey.HydraFusion,
 				computeValue: () => this._getHydraFusionSettingValue() !== false,
-				registerTriggers: (store, push) => {
-					this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId);
-					store.add(this._defaultAccountService.onDidChangePolicyData(push));
-				},
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.HydraFusionV2,
@@ -129,18 +126,12 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 					const hydraFusion = this._getHydraFusionSettingValue();
 					return hydraFusion === 'v2' || hydraFusion === 'multiRoot';
 				},
-				registerTriggers: (store, push) => {
-					this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId);
-					store.add(this._defaultAccountService.onDidChangePolicyData(push));
-				},
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.HydraFusionMultiRoot,
 				computeValue: () => this._getHydraFusionSettingValue() === 'multiRoot',
-				registerTriggers: (store, push) => {
-					this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId);
-					store.add(this._defaultAccountService.onDidChangePolicyData(push));
-				},
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.Memory,
@@ -229,11 +220,8 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		return !isConfigured(inspected) && inspected.policyValue === undefined && inspected.memoryValue === undefined;
 	}
 
-	/** Resolves the HydraFusion setting to `false`, `true` (v1), `'v2'`, or `'multiRoot'`; preview-feature policy turns it off. */
+	/** Resolves the HydraFusion setting to `false`, `true` (v1), `'v2'`, or `'multiRoot'`. */
 	private _getHydraFusionSettingValue(): AgentHostHydraFusionSettingValue {
-		if (this._defaultAccountService.policyData?.chat_preview_features_enabled === false) {
-			return false;
-		}
 		const value = this._configurationService.getValue<AgentHostHydraFusionSettingValue>(AgentHostHydraFusionEnabledSettingId);
 		return value === true || value === 'v2' || value === 'multiRoot' ? value : false;
 	}
