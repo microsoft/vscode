@@ -132,7 +132,7 @@ suite('AgentsWindowExtensionAutoEnablementTelemetry', () => {
 		const telemetry = createTelemetry({
 			extensions: [
 				{ name: 'auto', contributes: { languageModelTools: [{}], languages: [{ id: 'autoLanguage' }] }, enablementState: EnablementState.EnabledGlobally },
-				{ name: 'user', contributes: { grammars: [{ language: 'userLanguage' }] }, enablementState: EnablementState.EnabledWorkspace },
+				{ name: 'user', contributes: { chatSkills: [{}], grammars: [{ language: 'userLanguage' }] }, enablementState: EnablementState.EnabledWorkspace },
 				{ name: 'disabled', contributes: { languageModelTools: [{}] }, enablementState: EnablementState.DisabledWorkspace },
 				{ name: 'unrelated', contributes: { languageModelTools: [{}] }, enablementState: EnablementState.EnabledGlobally, candidate: false },
 			],
@@ -154,7 +154,7 @@ suite('AgentsWindowExtensionAutoEnablementTelemetry', () => {
 		assert.deepStrictEqual(telemetry.events, [
 			TRIGGER,
 			{ eventName: 'agentsWindowAutoEnableCandidateEnabled', data: { extensionId: 'pub.auto', enabledBy: 'automatic', suggestedContributions: 'languageModelTools' } },
-			{ eventName: 'agentsWindowAutoEnableCandidateEnabled', data: { extensionId: 'pub.user', enabledBy: 'user', suggestedContributions: 'grammars' } },
+			{ eventName: 'agentsWindowAutoEnableCandidateEnabled', data: { extensionId: 'pub.user', enabledBy: 'user', suggestedContributions: 'chatSkills' } },
 			used('pub.auto', 'automatic', 'activated', 'onLanguageModelTool'),
 			used('pub.user', 'user', 'languageUsed'),
 			used('pub.auto', 'automatic', 'toolInvoked'),

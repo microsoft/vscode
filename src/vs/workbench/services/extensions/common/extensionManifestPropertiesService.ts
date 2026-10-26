@@ -15,10 +15,13 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ExtensionUntrustedWorkspaceSupport } from '../../../../base/common/product.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from '../../workspaces/common/workspaceTrust.js';
-import { isBoolean } from '../../../../base/common/types.js';
+import { isBoolean, isObject } from '../../../../base/common/types.js';
 import { IWorkspaceTrustEnablementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { localize } from '../../../../nls.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 
 export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
 
@@ -38,9 +41,9 @@ const SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS: ReadonlySet<keyof IExtensionC
 ]);
 
 /**
- * Contribution points that make an extension worth enabling in the sessions window.
+ * Contribution points that make an extension worth enabling in the sessions window, in a stable order.
  */
-const SESSIONS_WINDOW_SUGGESTED_CONTRIBUTION_POINTS: ReadonlySet<string> = new Set([
+const SESSIONS_WINDOW_LLM_CONTRIBUTION_POINTS = [
 	// Agent capabilities and customizations, which the sessions window forwards to its agents.
 	'languageModelTools',
 	'languageModelToolSets',
@@ -50,45 +53,64 @@ const SESSIONS_WINDOW_SUGGESTED_CONTRIBUTION_POINTS: ReadonlySet<string> = new S
 	'chatInstructions',
 	'chatPromptFiles',
 	'chatPlugins',
-	// Reviewing the files and changes that agents produce.
-	'grammars',
-	'customEditors',
-	'notebooks',
-	'notebookRenderer',
-	'markdown.markdownItPlugins',
-	'markdown.previewScripts',
-	'markdown.previewStyles',
-]);
+] as const satisfies readonly (keyof IExtensionContributions)[];
+
+/**
+ * A contribution point that makes an extension worth enabling in the sessions window.
+ */
+export type SessionsWindowLLMContributionPoint = typeof SESSIONS_WINDOW_LLM_CONTRIBUTION_POINTS[number];
+
+/**
+ * Features that the sessions window lacks, which some extensions rely on.
+ */
+export const enum SessionsWindowMissingFeature {
+	Views = 'views',
+	Debugging = 'debugging',
+	StatusBar = 'statusBar',
+	Walkthroughs = 'walkthroughs',
+}
 
 /**
  * Contribution points that rely on features the sessions window lacks, so the extension might not behave well there.
  */
-const SESSIONS_WINDOW_WARNING_SIGN_CONTRIBUTION_POINTS: ReadonlySet<string> = new Set([
+const SESSIONS_WINDOW_WARNING_SIGN_CONTRIBUTION_POINTS: ReadonlyMap<string, SessionsWindowMissingFeature> = new Map([
 	// There is no Activity Bar, and the sidebar and panel only host views of the sessions window.
-	'viewsContainers',
-	'views',
-	'viewsWelcome',
+	['viewsContainers', SessionsWindowMissingFeature.Views],
+	['views', SessionsWindowMissingFeature.Views],
+	['viewsWelcome', SessionsWindowMissingFeature.Views],
 	// Debugging is not available.
-	'debuggers',
-	'breakpoints',
-	'debugVisualizers',
+	['debuggers', SessionsWindowMissingFeature.Debugging],
+	['breakpoints', SessionsWindowMissingFeature.Debugging],
+	['debugVisualizers', SessionsWindowMissingFeature.Debugging],
 	// There is no Status Bar.
-	'statusBarItems',
+	['statusBarItems', SessionsWindowMissingFeature.StatusBar],
 	// There is no Getting Started page.
-	'walkthroughs',
+	['walkthroughs', SessionsWindowMissingFeature.Walkthroughs],
 ]);
 
-function getContributedPoints(manifest: IExtensionManifest, points: ReadonlySet<string>): string[] {
+function isContributed(value: unknown): boolean {
+	return Array.isArray(value) ? value.length > 0 : isObject(value) ? Object.keys(value).length > 0 : !!value;
+}
+
+function getContributedPoints(manifest: IExtensionManifest, points: { has(point: string): boolean }): string[] {
 	return Object.entries(manifest.contributes ?? {})
-		.filter(([point, value]) => points.has(point) && (Array.isArray(value) ? value.length > 0 : !!value))
+		.filter(([point, value]) => points.has(point) && isContributed(value))
 		.map(([point]) => point);
 }
 
 /**
- * Returns the contribution points of an extension that make it worth enabling in the sessions window.
+ * Returns the contribution points of an extension that make it worth enabling in the sessions window, in a stable order.
  */
-export function getSessionsWindowSuggestedContributions(manifest: IExtensionManifest): string[] {
-	return getContributedPoints(manifest, SESSIONS_WINDOW_SUGGESTED_CONTRIBUTION_POINTS);
+export function getSessionsWindowSuggestedContributions(manifest: IExtensionManifest): SessionsWindowLLMContributionPoint[] {
+	return SESSIONS_WINDOW_LLM_CONTRIBUTION_POINTS.filter(point => isContributed(manifest.contributes?.[point]));
+}
+
+/**
+ * Returns the features that the sessions window lacks and that an extension's contributions rely on, in a stable order.
+ */
+export function getSessionsWindowMissingFeatures(manifest: IExtensionManifest): SessionsWindowMissingFeature[] {
+	const contributed = new Set(getContributedPoints(manifest, SESSIONS_WINDOW_WARNING_SIGN_CONTRIBUTION_POINTS).map(point => SESSIONS_WINDOW_WARNING_SIGN_CONTRIBUTION_POINTS.get(point)));
+	return [...new Set(SESSIONS_WINDOW_WARNING_SIGN_CONTRIBUTION_POINTS.values())].filter(feature => contributed.has(feature));
 }
 
 export interface IExtensionManifestPropertiesService {
@@ -159,14 +181,13 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 	}
 
 	canExecuteOnSessionsWindow(manifest: IExtensionManifest, isBuiltin: boolean = false): boolean {
-		// Allow-listed extensions are always supported in the sessions window.
-		if (this._productSessionsWindowAllowedExtensions.has(getGalleryExtensionId(manifest.publisher, manifest.name))) {
-			return true;
-		}
-
 		const configuredSessionsWindowSupport = this.getConfiguredSessionsWindowSupport(manifest);
 		if (configuredSessionsWindowSupport !== undefined) {
 			return configuredSessionsWindowSupport;
+		}
+
+		if (this._productSessionsWindowAllowedExtensions.has(getGalleryExtensionId(manifest.publisher, manifest.name))) {
+			return true;
 		}
 
 		const declaredSessionsWindowSupport = manifest.capabilities?.agentsWindow?.supported;
@@ -197,7 +218,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		if (manifest.capabilities?.agentsWindow?.supported === false || this.getConfiguredSessionsWindowSupport(manifest) === false) {
 			return false;
 		}
-		return getSessionsWindowSuggestedContributions(manifest).length > 0 && getContributedPoints(manifest, SESSIONS_WINDOW_WARNING_SIGN_CONTRIBUTION_POINTS).length === 0;
+		return getSessionsWindowSuggestedContributions(manifest).length > 0 && getSessionsWindowMissingFeatures(manifest).length === 0;
 	}
 
 	prefersExecuteOnUI(manifest: IExtensionManifest): boolean {
@@ -511,3 +532,27 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 }
 
 registerSingleton(IExtensionManifestPropertiesService, ExtensionManifestPropertiesService, InstantiationType.Delayed);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'extensions',
+	properties: {
+		[EXTENSIONS_SUPPORT_AGENTS_WINDOW]: {
+			type: 'object',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('extensions.supportAgentsWindow', "Override the Agents window support of an extension. Set an extension to `true` to enable it even when it would otherwise be disabled, or to `false` to disable it even when it is supported by default. This does not affect editor windows. Reload the Agents window to apply changes."),
+			patternProperties: {
+				'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+					type: 'boolean',
+					default: false
+				}
+			},
+			additionalProperties: false,
+			default: {},
+			defaultSnippets: [{
+				'body': {
+					'pub.name': true
+				}
+			}]
+		}
+	}
+});

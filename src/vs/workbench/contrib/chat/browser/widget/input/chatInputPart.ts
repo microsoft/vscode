@@ -5231,6 +5231,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const store = this._sessionWorkingSetView.value = new DisposableStore();
 					const sessionKeep = derived(r => this._sessionFileChanges.read(r)?.keep.read(r));
 					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed, {
+						editingSession: () => this._widget?.viewModel?.model.editingSession,
 						keep: async (diffs, automatic) => {
 							const keep = sessionKeep.read(undefined);
 							if (keep) {

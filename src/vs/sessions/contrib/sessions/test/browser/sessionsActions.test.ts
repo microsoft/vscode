@@ -1929,6 +1929,7 @@ suite('Sessions - Actions', () => {
 		const providers = [
 			{ id: 'local-provider', environment: { id: 'local', label: 'This Computer' } },
 			{ id: 'cloud-provider', environment: { id: 'cloud', label: 'Cloud' } },
+			{ id: 'sandbox-provider', environment: { id: 'cloud', label: 'Cloud' } },
 			{ id: 'host-provider', environment: { id: 'host', label: 'My Host', isConnected: constObservable(false) } },
 		].map(provider => upcastPartial<ISessionsProvider>(provider));
 		const session = (title: string, environment: string, minutesAgo: number) => createTestSession(title, {
@@ -1939,9 +1940,15 @@ suite('Sessions - Actions', () => {
 			createdAt: new Date(Date.now() - minutesAgo * 60_000),
 		}).session;
 		// The newest session runs on a host that is disconnected, so it can't start new sessions.
+		// A cloud sandbox session names only its repository URL, which has no checkout to start in.
+		const sandbox = createTestSession('sandbox', { providerId: 'sandbox-provider', environment: 'cloud', createdAt: new Date() }).session;
+		const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
 		const section = upcastPartial<ISessionSection>({
 			repository: { owner: 'microsoft', name: 'vscode' },
-			sessions: [session('host', 'host', 1), session('older-local', 'local', 4), session('cloud', 'cloud', 3), session('local', 'local', 2)],
+			sessions: [
+				session('host', 'host', 1), session('older-local', 'local', 4), session('cloud', 'cloud', 3), session('local', 'local', 2),
+				{ ...sandbox, workspace: constObservable({ uri: sandboxRoot, label: 'microsoft/vscode', icon: Codicon.repo, folders: [{ root: sandboxRoot, workingDirectory: sandboxRoot, name: 'microsoft/vscode', description: undefined }], requiresWorkspaceTrust: true, isVirtualWorkspace: false }) },
+			],
 		});
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const selections: string[] = [];
@@ -1970,6 +1977,47 @@ suite('Sessions - Actions', () => {
 		await run(NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, section, 'host');
 
 		assert.deepStrictEqual(selections, ['local-provider /local', 'cloud-provider /cloud']);
+	});
+
+	test('New Session never starts like a session that only names its repository by URL', async () => {
+		const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
+		const sandbox = (title: string) => {
+			const { session } = createTestSession(title, { providerId: 'sandbox-provider', environment: 'cloud' });
+			return { ...session, workspace: constObservable({ uri: sandboxRoot, label: 'microsoft/vscode', icon: Codicon.repo, folders: [{ root: sandboxRoot, workingDirectory: sandboxRoot, name: 'microsoft/vscode', description: undefined }], requiresWorkspaceTrust: true, isVirtualWorkspace: false }) };
+		};
+		const local = createTestSession('local', { providerId: 'local-provider', repository: 'microsoft/vscode', workspaceResource: URI.file('/local') }).session;
+		const instantiationService = disposables.add(new TestInstantiationService());
+		let opened = 0;
+		const selections: string[] = [];
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+			getProvider: <T extends ISessionsProvider>(providerId: string) => upcastPartial<ISessionsProvider>({ id: providerId, environment: { id: providerId === 'local-provider' ? 'local' : 'cloud', label: providerId } }) as T,
+		}));
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			activeSession: constObservable(undefined),
+			openNewSession: async () => {
+				opened++;
+				return { session: undefined, trustDeclined: false };
+			},
+		}));
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+			getSessionView: () => upcastPartial<SessionView>({
+				selectWorkspace: (folder, options) => {
+					selections.push(`${options?.providerId} ${folder.toString()}`);
+					return 'applied';
+				},
+			}),
+			focusSession: () => { },
+		}));
+		instantiationService.stub(ICommandService, new TestCommandService());
+		const run = (section: Partial<ISessionSection>) => CommandsRegistry.getCommand(NEW_SESSION_FOR_WORKSPACE_ACTION_ID)!.handler(instantiationService, upcastPartial<ISessionSection>(section));
+
+		// A repository section of only cloud sandbox sessions opens a new session in the composer's own workspace.
+		await run({ repository: { owner: 'microsoft', name: 'vscode' }, sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
+		// A workspace section starts like its first session that it can start like.
+		await run({ sessions: [sandbox('sandbox'), local] });
+
+		assert.deepStrictEqual({ opened, selections }, { opened: 2, selections: ['local-provider file:///local'] });
 	});
 
 	test('New Session propagates opening failures', async () => {
