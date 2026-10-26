@@ -30,6 +30,7 @@ import { RemoteRunningLocation } from './extensionRunningLocation.js';
 import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from './extensions.js';
 
 export interface IRemoteExtensionHostInitData {
+	readonly os: platform.OperatingSystem;
 	readonly connectionData: IRemoteConnectionData | null;
 	readonly pid: number;
 	readonly appRoot: URI;
@@ -48,6 +49,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly pid = null;
 	public readonly remoteAuthority: string;
+	public remoteOS: platform.OperatingSystem | undefined;
 	public readonly startup = ExtensionHostStartup.EagerAutoStart;
 	public extensions: ExtensionHostExtensions | null = null;
 
@@ -205,6 +207,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	private async _createExtHostInitData(isExtensionDevelopmentDebug: boolean): Promise<IExtensionHostInitData> {
 		const remoteInitData = await this._initDataProvider.getInitData();
+		this.remoteOS = remoteInitData.os;
 		this.extensions = remoteInitData.extensions;
 		const workspace = this._contextService.getWorkspace();
 		return {

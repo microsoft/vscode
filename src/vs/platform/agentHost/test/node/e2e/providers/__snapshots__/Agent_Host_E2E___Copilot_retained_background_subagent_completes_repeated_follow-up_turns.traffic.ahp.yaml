@@ -91,21 +91,6 @@ rounds:
           toolCallId: ${toolCall_2}
           result:
             success: true
-      - channel: ${chat_1}
-        action:
-          type: chat/turnStarted
-          turnId: ${turn_2}
-          message:
-            text: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
-            origin:
-              kind: user
-      - channel: ${chat_1}
-        action:
-          type: chat/responsePart
-          turnId: ${turn_2}
-          part:
-            kind: markdown
-            content: CHILD_FOLLOWUP_ONE_DONE
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
@@ -123,6 +108,21 @@ rounds:
       - channel: ${chat_0}
         action:
           type: chat/isReadChanged
+      - channel: ${chat_1}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_2}
+          message:
+            text: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+            origin:
+              kind: user
+      - channel: ${chat_1}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_2}
+          part:
+            kind: markdown
+            content: CHILD_FOLLOWUP_ONE_DONE
       - responseTo: subscribe
         result: success
   - clientToServer:
@@ -151,21 +151,6 @@ rounds:
           toolCallId: ${toolCall_4}
           result:
             success: true
-      - channel: ${chat_1}
-        action:
-          type: chat/turnStarted
-          turnId: ${turn_4}
-          message:
-            text: Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools.
-            origin:
-              kind: user
-      - channel: ${chat_1}
-        action:
-          type: chat/responsePart
-          turnId: ${turn_4}
-          part:
-            kind: markdown
-            content: CHILD_FOLLOWUP_TWO_DONE
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
@@ -183,5 +168,20 @@ rounds:
       - channel: ${chat_0}
         action:
           type: chat/isReadChanged
+      - channel: ${chat_1}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_4}
+          message:
+            text: Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools.
+            origin:
+              kind: user
+      - channel: ${chat_1}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_4}
+          part:
+            kind: markdown
+            content: CHILD_FOLLOWUP_TWO_DONE
       - responseTo: subscribe
         result: success

@@ -16,6 +16,8 @@ import { GitRefType, IAgentHostGitService } from '../common/agentHostGitService.
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 
 export class AgentHostSyncOperationHandler implements IChangesetOperationHandler {
 
@@ -23,14 +25,22 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
-		private readonly _onSynced: (sessionKey: string) => Promise<void>,
+		private readonly _onSynced: (sessionKey: string, source?: IAgentHostCredentialSource) => Promise<void>,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 	) { }
 
-	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+	captureCredentialSource(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
+		const parsed = parseChangesetUri(params.channel);
+		const scope = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri) : undefined;
+		return scope ? this._gitHubService.captureSessionCredentialSource(scope.sourceUri, source, scope.sessionUri, true) : source;
+	}
+
+	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
+		source = this.captureCredentialSource(params, source);
 		const parsed = parseChangesetUri(params.channel);
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a changeset URI: ${params.channel}`);
@@ -95,7 +105,7 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		}
 
 		try {
-			await this._onSynced(parsed.ownerUri);
+			await this._onSynced(parsed.ownerUri, source);
 		} catch (err) {
 			this._logService.warn(`[AgentHostSyncOperationHandler] Post-sync refresh failed for ${parsed.ownerUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}

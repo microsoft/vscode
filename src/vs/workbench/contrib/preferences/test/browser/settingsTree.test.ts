@@ -16,7 +16,7 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../..
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { IUserDataSyncEnablementService } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { ISetting } from '../../../../services/preferences/common/preferences.js';
@@ -30,6 +30,8 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { TestContextMenuService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IManagedSettingsPresentationService, ManagedSettingsPresentationService } from '../../../../services/configuration/common/managedSettingsPresentation.js';
 import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
+import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
+import { chatNetworkDomainConfigurationProperties } from '../../../chat/browser/chatNetworkConfiguration.js';
 
 class TestSettingRenderer extends AbstractSettingRenderer {
 	readonly templateId = 'test';
@@ -114,7 +116,7 @@ suite('SettingsTree renderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	assert.ok(terminalContribConfiguration);
-	const configurationNode = { id: 'sandboxRendererPresentationTest', properties: Object.fromEntries(Object.entries(terminalContribConfiguration).filter(([, property]) => property.managedSettingsPresentation)) };
+	const configurationNode = { id: 'sandboxRendererPresentationTest', properties: Object.fromEntries(Object.entries({ ...terminalContribConfiguration, ...chatNetworkDomainConfigurationProperties }).filter(([, property]) => property.managedSettingsPresentation)) };
 	suiteSetup(() => registry.registerConfiguration(configurationNode));
 	suiteTeardown(() => registry.deregisterConfigurations([configurationNode]));
 
@@ -307,6 +309,72 @@ suite('SettingsTree renderer', () => {
 				managed: { disabled: true, value: isEnabled ? 'on' : isServerSandbox, indicator: true },
 				bypassAllowed: { disabled: isEnabled, value: isEnabled ? 'on' : !isServerSandbox, indicator: isEnabled },
 				removed: { disabled: false, value: isEnabled ? 'off' : !isServerSandbox, indicator: false },
+			});
+		});
+	}
+
+	for (const allowedHosts of [[], ['managed.example', '*.managed.example']]) {
+		test(`makes managed allowed domains ${JSON.stringify(allowedHosts)} read-only and restores editing after removal`, () => {
+			const key = AgentNetworkDomainSettingId.AllowedNetworkDomains;
+			const localHosts = ['local.example'];
+			const configuration = new class extends TestConfigurationService {
+				isSettingAppliedForAllProfiles(): boolean { return false; }
+			}({ [key]: localHosts, [APPLY_ALL_PROFILES_SETTING]: [] });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
+			let managedHosts: string | undefined;
+			instantiationService.stub(IManagedSettingsService, new class extends mock<IManagedSettingsService>() {
+				override readonly onDidChangeManagedSettings = Event.None;
+				override getManagedSettingValue(key: string) { return key === COPILOT_SANDBOX_ALLOWED_HOSTS_KEY ? managedHosts : undefined; }
+			}());
+			instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+			instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+			instantiationService.stub(IUserDataSyncEnablementService, { isEnabled: () => false });
+			const model = store.add(instantiationService.createInstance(SettingsTreeModel, { settingsTarget: ConfigurationTarget.USER_LOCAL }, true));
+			model.update({
+				id: 'test', label: 'Test',
+				settings: [new class extends mock<ISetting>() {
+					override key = key;
+					override type = 'array';
+					override arrayItemType = 'string';
+					override description = [];
+					override scope = ConfigurationScope.APPLICATION;
+				}()],
+			});
+			const element = model.getElementsByName(key)![0];
+			const renderers = store.add(instantiationService.createInstance(SettingTreeRenderers));
+			const changes: ISettingChangeEvent[] = [];
+			store.add(renderers.onDidChangeSetting(change => changes.push(change)));
+			const renderer = renderers.allRenderers.find(renderer => renderer.templateId === 'settings.array.template')!;
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			store.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const node = new class extends mock<ITreeNode<SettingsTreeElement, never>>() { override element = element; }();
+			const render = () => {
+				renderer.renderElement(node, 0, template);
+				return {
+					values: Array.from(container.querySelectorAll('.setting-list-value'), row => row.textContent),
+					addHidden: !!container.querySelector('.setting-list-hide-add-button'),
+					actions: container.querySelectorAll('[aria-label="Edit Item"], [aria-label="Remove Item"]').length,
+					draggable: Array.from(container.querySelectorAll<HTMLElement>('.setting-list-row'), row => row.draggable),
+					indicator: container.textContent?.includes('Managed by organization'),
+				};
+			};
+			const initial = render();
+			container.querySelector<HTMLElement>('.setting-list-row')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+			assert.ok(container.querySelector('input'), 'The local list should be editable before policy arrives');
+			managedHosts = JSON.stringify(allowedHosts);
+			const locked = render();
+			container.querySelector<HTMLElement>('.setting-list-row')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+			const editing = !!container.querySelector('input');
+			managedHosts = undefined;
+			assert.deepStrictEqual({ initial, locked, editing, removed: render(), changes, stored: configuration.getValue(key) }, {
+				initial: { values: localHosts, addHidden: false, actions: 2, draggable: [true], indicator: false },
+				locked: { values: allowedHosts, addHidden: true, actions: 0, draggable: allowedHosts.map(() => false), indicator: true },
+				editing: false,
+				removed: initial,
+				changes: [],
+				stored: localHosts,
 			});
 		});
 	}

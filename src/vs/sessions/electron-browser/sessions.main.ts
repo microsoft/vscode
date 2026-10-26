@@ -28,6 +28,7 @@ import { RemoteAgentService } from '../../workbench/services/remote/electron-bro
 import { IRemoteAgentService } from '../../workbench/services/remote/common/remoteAgentService.js';
 import { FileService } from '../../platform/files/common/fileService.js';
 import { IFileService } from '../../platform/files/common/files.js';
+import { BrowserResourceService, IBrowserResourceService } from '../../platform/files/browser/browserResourceService.js';
 import { RemoteFileSystemProviderClient } from '../../workbench/services/remote/common/remoteFileSystemProviderClient.js';
 import { ISignService } from '../../platform/sign/common/sign.js';
 import { IProductService } from '../../platform/product/common/productService.js';
@@ -57,7 +58,7 @@ import { UserDataProfileService } from '../../workbench/services/userDataProfile
 import { IUserDataProfileService } from '../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { BrowserSocketFactory } from '../../platform/remote/browser/browserSocketFactory.js';
 import { RemoteSocketFactoryService, IRemoteSocketFactoryService } from '../../platform/remote/common/remoteSocketFactoryService.js';
-import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-browser/electronRemoteResourceLoader.js';
+import { createBrowserResourceUriProvider, ElectronRemoteResourceLoader } from '../../platform/remote/electron-browser/electronRemoteResourceLoader.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { applyZoom } from '../../platform/window/electron-browser/window.js';
 import { mainWindow } from '../../base/browser/window.js';
@@ -263,7 +264,9 @@ export class SessionsMain extends Disposable {
 		serviceCollection.set(IFileService, fileService);
 
 		// Remote
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(productService, new ElectronRemoteResourceLoader(environmentService.window.id, mainProcessService, fileService));
+		const browserResourceService = this._register(new BrowserResourceService(createBrowserResourceUriProvider(environmentService.window.id), fileService));
+		serviceCollection.set(IBrowserResourceService, browserResourceService);
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(productService, this._register(new ElectronRemoteResourceLoader(environmentService.window.id, mainProcessService, fileService, browserResourceService)));
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Local Files

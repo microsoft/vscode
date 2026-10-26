@@ -52,6 +52,8 @@ export interface IChatBackgroundShell {
 	readonly attachmentMode?: 'attached' | 'detached';
 	/** The shell's live output, when the agent can show it. Only subscribes while read. */
 	readonly output?: IObservable<ChatBackgroundShellOutput>;
+	/** Stops the shell, when the agent offers it. Resolves false when the shell had already finished. */
+	readonly stop?: () => Promise<boolean>;
 }
 
 /** What a background shell's live output view shows. */
@@ -143,6 +145,11 @@ const defaultHiddenKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Customizations,
 	SessionChatPillKind.Subagents,
 ];
+
+/** Whether a pill kind starts hidden until the user turns it on. */
+export function isSessionChatPillHiddenByDefault(kind: SessionChatPillKind): boolean {
+	return defaultHiddenKinds.includes(kind);
+}
 
 const hiddenSessionChatPills = observableMemento<readonly string[]>({
 	defaultValue: defaultHiddenKinds,

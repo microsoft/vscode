@@ -273,7 +273,7 @@
 	margin-top: var(--vscode-spacing-size100);
 	font-size: var(--vscode-agents-fontSize-body2);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 }
 
 .ai-customization-management-editor .welcome-prompts-card-footer {

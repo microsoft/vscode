@@ -17,8 +17,6 @@ export interface INormalizedSessionModelPickerOptions extends ISessionModelPicke
 }
 
 const DEFAULT_MODEL_PICKER_OPTIONS: INormalizedSessionModelPickerOptions = {
-	useGroupedModelPicker: true,
-	showFeatured: true,
 	showUnavailableFeatured: false,
 	showManageModelsAction: false,
 	showAutoModel: true,

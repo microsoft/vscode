@@ -69,6 +69,30 @@ suite('Workbench - Terminal Typeahead', () => {
 			}
 		});
 
+		test('sorts latencies numerically', () => {
+			const stubs = createPredictionStubs(3);
+			const clock = useFakeTimers();
+			try {
+				for (const s of stubs) { add.fire(s); }
+
+				clock.tick(5);
+				succeed.fire(stubs[0]);
+				clock.tick(45);
+				succeed.fire(stubs[1]);
+				clock.tick(150);
+				succeed.fire(stubs[2]);
+
+				assert.deepStrictEqual(stats.latency, {
+					count: 3,
+					min: 5,
+					max: 200,
+					median: 50
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
 		test('circular buffer', () => {
 			const bufferSize = 24;
 			const stubs = createPredictionStubs(bufferSize * 2);

@@ -14,8 +14,13 @@ import { IObservable, autorun } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { localize } from '../../nls.js';
 import { FileKind, IFileService } from '../../platform/files/common/files.js';
-import { ChatPillActionViewItemBase, createChatPillImagePreview, getChatPillEntryHoverActions, type IChatPillEntry } from './chatPills.js';
+import { IHoverService } from '../../platform/hover/browser/hover.js';
+import { ChatPillActionViewItemBase, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, type IChatPillEntry } from './chatPills.js';
 import { ResourceLabels } from './labels.js';
+
+interface IChatResourcePillActionViewItemOptions extends IActionViewItemOptions {
+	readonly promotedActionIcon?: ThemeIcon;
+}
 
 /**
  * A pill showing a single resource as a themed file icon and name. The
@@ -29,12 +34,13 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 
 	constructor(
 		action: IAction,
-		options: IActionViewItemOptions,
+		private readonly _resourcePillOptions: IChatResourcePillActionViewItemOptions,
 		private readonly _entry: IObservable<IChatPillEntry | undefined>,
 		private readonly _resourceLabels: ResourceLabels,
 		@IFileService private readonly _fileService: IFileService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
-		super(undefined, action, options);
+		super(undefined, action, _resourcePillOptions);
 	}
 
 	protected override renderContent(button: Button): void {
@@ -52,6 +58,7 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 			} else {
 				button.element.removeAttribute('aria-description');
 			}
+			this.updatePromotedAction(this._resourcePillOptions.promotedActionIcon ? entry?.promotedAction : undefined, this._resourcePillOptions.promotedActionIcon, this._hoverService);
 		}));
 	}
 
@@ -65,34 +72,12 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
-		const entry = this._entry.get();
-		if (!entry?.imagePreview) {
-			return entry?.pillHover ?? super.getHoverContents();
-		}
-		const imagePreview = entry.imagePreview;
-		let content = this._imageHoverContents.get(entry);
-		if (!content) {
-			content = {
-				element: token => createChatPillImagePreview({ ...entry, imagePreview }, this._fileService, token).element,
-				contentOwnsPadding: true,
-			};
-			this._imageHoverContents.set(entry, content);
-		}
-		return content;
+		return getChatPillEntryHoverContents(this._entry.get(), this._fileService, this._imageHoverContents) ?? super.getHoverContents();
 	}
 
 	protected override getHoverOptions(): IManagedHoverOptions | undefined {
 		const entry = this._entry.get();
-		const hoverActions = entry ? getChatPillEntryHoverActions(entry) : undefined;
-		return hoverActions?.length ? {
-			trapFocus: true,
-			actions: hoverActions.map(action => ({
-				commandId: action.id,
-				label: action.hoverLabel ?? action.label,
-				iconClass: action.class,
-				run: () => { void action.run(); },
-			})),
-		} : undefined;
+		return getChatPillEntryHoverOptions(entry && this._resourcePillOptions.promotedActionIcon ? { ...entry, promotedAction: undefined } : entry);
 	}
 
 	protected override onDidClickButton(): void {

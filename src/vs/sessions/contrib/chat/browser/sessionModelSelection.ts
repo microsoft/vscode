@@ -17,10 +17,10 @@ import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel 
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IntendedModelSlot } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IModelPickerWorkflow } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
+import { IModelPickerComparison } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatModelSource, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatModelSource, ISessionType, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, INormalizedSessionModelPickerOptions, ISessionModelSelectionState, normalizeModelPickerOptions } from './sessionModelPickerState.js';
@@ -65,11 +65,19 @@ class ConversationModelSelection {
 export const ISessionModelSelection = createDecorator<ISessionModelSelection>('sessionModelSelection');
 
 export interface ISessionModelSelection {
-	readonly workflow?: IModelPickerWorkflow;
+	readonly comparison?: IModelPickerComparison;
+	readonly comparisonBusy?: IObservable<boolean>;
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<ISessionModelSelectionState>;
 	readonly modelConfiguration?: IModelConfigurationAccess;
+	getComparisonModels?(): readonly ILanguageModelChatMetadataAndIdentifier[];
+	resolveComparisonModel?(modelIdentifier: string): IResolvedSessionComparisonModel | undefined;
 	selectModel(modelIdentifier: string, isUserAction?: boolean): boolean;
+}
+
+export interface IResolvedSessionComparisonModel {
+	readonly sessionType: ISessionType;
+	readonly model: ILanguageModelChatMetadataAndIdentifier;
 }
 
 /**
@@ -88,7 +96,8 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	private readonly _state = observableValue<ISessionModelSelectionState>(this, EMPTY_MODEL_SELECTION_STATE);
 	readonly state: IObservable<ISessionModelSelectionState> = this._state;
 	readonly modelConfiguration: IModelConfigurationAccess | undefined;
-	readonly workflow: IModelPickerWorkflow | undefined;
+	readonly comparison: IModelPickerComparison | undefined;
+	readonly comparisonBusy: IObservable<boolean> | undefined;
 
 	private readonly _providerListener = this._register(new MutableDisposable());
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
@@ -117,21 +126,28 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
-		options: { readonly modelConfiguration?: boolean; readonly workflow?: IModelPickerWorkflow },
+		options: {
+			readonly modelConfiguration?: boolean;
+			readonly fallbackModelConfiguration?: IModelConfigurationAccess;
+			readonly comparison?: IModelPickerComparison;
+			readonly comparisonBusy?: IObservable<boolean>;
+		},
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 	) {
 		super();
-		this.workflow = options.workflow;
+		this.comparison = options.comparison;
+		this.comparisonBusy = options.comparisonBusy;
+		const configurationAccess = () => this._modelConfigurationAccess ?? options.fallbackModelConfiguration;
 		this.modelConfiguration = options.modelConfiguration ? {
-			getModelConfiguration: modelId => this._modelConfigurationAccess?.getModelConfiguration(modelId),
-			getModelConfigurationSchema: modelId => this._modelConfigurationAccess?.getModelConfigurationSchema?.(modelId),
+			getModelConfiguration: modelId => configurationAccess()?.getModelConfiguration(modelId),
+			getModelConfigurationSchema: modelId => configurationAccess()?.getModelConfigurationSchema?.(modelId),
 			setModelConfiguration: async (modelId, values) => {
-				await this._modelConfigurationAccess?.setModelConfiguration(modelId, values);
+				await configurationAccess()?.setModelConfiguration(modelId, values);
 			},
-			getModelConfigurationActions: modelId => this._modelConfigurationAccess?.getModelConfigurationActions(modelId) ?? [],
+			getModelConfigurationActions: modelId => configurationAccess()?.getModelConfigurationActions(modelId) ?? [],
 			onDidChange: this._onDidChangeModelConfiguration.event,
 		} : undefined;
 		this._diagnostics = new ChatModelSelectionDiagnostics(logService, this._storageService, () => {
@@ -204,7 +220,9 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			if (isUserAction) {
 				this._controller.applySelection(model, () => {
 					provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, ChatModelSource.Chosen);
-					storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
+					if (this._controller.currentModel.get()?.identifier === model.identifier) {
+						storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
+					}
 				}, true, true);
 			} else {
 				this._controller.applyProgrammaticSelection(model);
@@ -229,6 +247,61 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			storedModelAfter: this._storageService.get(storageKey, StorageScope.PROFILE),
 		}, 'info');
 		return true;
+	}
+
+	getComparisonModels(): readonly ILanguageModelChatMetadataAndIdentifier[] {
+		const models = this._getComparisonModels();
+		return models.length > 0 ? models.map(entry => entry.presentation) : this._models;
+	}
+
+	resolveComparisonModel(modelIdentifier: string): IResolvedSessionComparisonModel | undefined {
+		const session = this._activeSession;
+		const provider = this._activeProvider;
+		const workspace = session?.workspace.get();
+		if (!session || !provider || !provider.getModelsSnapshotForCreation) {
+			return undefined;
+		}
+		const entry = this._getComparisonModels().find(entry => entry.presentation.identifier === modelIdentifier);
+		if (!entry) {
+			return undefined;
+		}
+		const resolution = provider.getModelsSnapshotForCreation(workspace?.uri, entry.sessionType.id, entry.model.identifier).desiredModelResolution;
+		return resolution.kind === 'available' ? { sessionType: entry.sessionType, model: resolution.model } : undefined;
+	}
+
+	private _getComparisonModels(): readonly {
+		readonly presentation: ILanguageModelChatMetadataAndIdentifier;
+		readonly sessionType: ISessionType;
+		readonly model: ILanguageModelChatMetadataAndIdentifier;
+	}[] {
+		const session = this._activeSession;
+		const provider = this._activeProvider;
+		const workspace = session?.workspace.get();
+		if (!session || !provider || !provider.getModelsSnapshotForCreation || !workspace && !session.isQuickChat?.get()) {
+			return [];
+		}
+		const models = new Map<string, {
+			readonly presentation: ILanguageModelChatMetadataAndIdentifier;
+			readonly sessionType: ISessionType;
+			readonly model: ILanguageModelChatMetadataAndIdentifier;
+		}>();
+		for (const sessionType of workspace ? provider.getSessionTypes(workspace.uri) : provider.sessionTypes) {
+			for (const model of provider.getModelsSnapshotForCreation(workspace?.uri, sessionType.id).models) {
+				models.set(model.identifier, {
+					presentation: {
+						...model,
+						metadata: {
+							...model.metadata,
+							// Only BYOK models keep upstream provider tabs; other models compare execution harnesses.
+							modelGroup: (model.metadata.isBYOK || model.metadata.byokModelIdentifier ? model.metadata.modelGroup : undefined) ?? { id: sessionType.id },
+						},
+					},
+					sessionType,
+					model,
+				});
+			}
+		}
+		return [...models.values()];
 	}
 
 	private _createRuntime(): IChatInputModelSelectionRuntime {
@@ -334,7 +407,9 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			this._controller.beginConversationSwitch();
 		}
 
-		if (this.modelConfiguration && chatModelId && snapshot.desiredModelResolution.kind === 'unavailable') {
+		const hasManagedFallback = this._models.some(model => model.metadata.managedModelDefaults?.model);
+		if (this.modelConfiguration && chatModelId && snapshot.desiredModelResolution.kind === 'unavailable'
+			&& (this._chatIsEmpty || !hasManagedFallback)) {
 			// An unavailable saved model must not lose its preferences merely by opening its Automation.
 			this._conversation().seeded = false;
 			this._publish(options, { reference: chatModelId });
@@ -394,6 +469,8 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			if (chatModel) {
 				// A model the chat already runs on outranks `chat.defaultModel`.
 				this._claimChatModel(chatModel, chatModelSource, conversationKey);
+			} else if (chatModelId && !this._chatIsEmpty && this._models.some(model => model.metadata.managedModelDefaults?.model)) {
+				this._controller.selectDefault();
 			} else {
 				this._controller.initialize(rememberedId);
 			}

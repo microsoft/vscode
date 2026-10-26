@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -14,10 +13,11 @@ import { SessionServerToolName } from '../../../../common/serverToolNames.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, readSessionWorkspaceless, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
+import { readSessionWorkspaceless, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
 import { driveChatTurnToCompletion, getMarkdownResponseText, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineWorkspaceConversionTests(context: IAgentHostE2ETestContext): void {
 	if (context.tier !== 'parity' || context.config.provider === 'claude') {
@@ -27,7 +27,7 @@ export function defineWorkspaceConversionTests(context: IAgentHostE2ETestContext
 
 	test('workspace conversion: first prompt converts a workspaceless session', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-workspace-conversion-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-workspace-conversion-'));
 		context.tempDirs.push(workspace);
 		context.client.setWorkingDirectory(workspace);
 		await context.client.call('initialize', {
@@ -59,7 +59,7 @@ export function defineWorkspaceConversionTests(context: IAgentHostE2ETestContext
 		const initialSession = await context.client.call<SubscribeResult>('subscribe', { channel: session });
 		const initialSetWorkspace = (initialSession.snapshot!.state as SessionState).serverTools?.find(tool => tool.name === SessionServerToolName.SetWorkspace);
 		assert.ok(initialSetWorkspace, 'workspaceless session should advertise set_workspace');
-		const chat = buildDefaultChatUri(session);
+		const chat = defaultChatChannel(session);
 		await context.client.call<SubscribeResult>('subscribe', { channel: chat });
 		context.client.clearReceived();
 		context.client.dispatch({

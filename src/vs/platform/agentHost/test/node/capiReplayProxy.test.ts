@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
+import type { IncomingMessage, ServerResponse } from 'http';
+import type { AddressInfo } from 'net';
 import { tmpdir } from 'os';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CapiReplayProxy } from './e2e/harness/capiReplayProxy.js';
@@ -44,6 +47,54 @@ suite('CapiReplayProxy', () => {
 			}
 			assert.ok(!readFileSync(fixturePath, 'utf8').includes('policy-a'), 'Managed settings must not enter model recordings');
 		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('records an exchange whose client left before its upstream finished, and aborts one that never finishes instead of writing a partial fixture', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-drain-'));
+		// The upstream streams a first chunk at once; `/v1/messages` finishes later, `/responses` never does.
+		const stalledClosed = new DeferredPromise<void>();
+		const { createServer } = await import('http');
+		const upstream = createServer((req: IncomingMessage, res: ServerResponse) => {
+			req.resume();
+			res.writeHead(200, { 'content-type': 'text/plain' });
+			res.write('first ');
+			if (req.url === '/responses') {
+				res.once('close', () => stalledClosed.complete());
+			} else {
+				setTimeout(() => res.end('last'), 50);
+			}
+		});
+		await new Promise<void>(resolve => upstream.listen(0, '127.0.0.1', resolve));
+		const upstreamUrl = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
+		/** Sends `path` through a recorder and leaves as soon as the response starts, then stops the recorder. */
+		const record = async (path: string) => {
+			const fixturePath = join(directory, `${path.replace(/\W/g, '')}.yaml`);
+			const recorder = new CapiReplayProxy({ fixturePath, mode: 'record', upstreamUrl, recordingDrainTimeoutMs: 200 });
+			const url = await recorder.start();
+			const abort = new AbortController();
+			const response = await fetch(`${url}${path}`, { method: 'POST', body: '{}', signal: abort.signal });
+			await response.body?.getReader().read();
+			abort.abort();
+			let stopped: string;
+			try {
+				await recorder.stop();
+				stopped = 'stopped';
+			} catch (error) {
+				stopped = error instanceof Error && error.message.includes('the recording is incomplete') ? 'incomplete' : String(error);
+			}
+			return { stopped, recorded: existsSync(fixturePath) ? readFileSync(fixturePath, 'utf8').includes('first last') : 'not written' };
+		};
+		try {
+			assert.deepStrictEqual({ finished: await record('/v1/messages'), stalled: await record('/responses'), aborted: await raceTimeout(stalledClosed.p.then(() => true), 5_000) }, {
+				finished: { stopped: 'stopped', recorded: true },
+				stalled: { stopped: 'incomplete', recorded: 'not written' },
+				aborted: true,
+			});
+		} finally {
+			upstream.closeAllConnections();
+			await new Promise<void>(resolve => upstream.close(() => resolve()));
 			rmSync(directory, { recursive: true, force: true });
 		}
 	});
@@ -90,6 +141,85 @@ suite('CapiReplayProxy', () => {
 				]);
 			} finally {
 				await replay.stop();
+			}
+		} finally {
+			await recorder.stop();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('normalizes known tool-call references in permission-judge text without eliding content or wiring', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-permission-ids-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		const recorder = new CapiReplayProxy({ fixturePath, mode: 'record' });
+		const request = (text: string) => JSON.stringify({
+			model: 'claude-sonnet-5',
+			system: 'system',
+			messages: [{ role: 'user', content: [{ type: 'text', text }] }],
+		});
+		const judgeText = (first: string, second: string, separator = '/') => {
+			const fileDiff = JSON.stringify({
+				fileName: `\${workdir}${separator}file`,
+				diff: `\ndiff --git a\${workdir}${separator}file b\${workdir}${separator}file\ncreate file mode 100644\n+preserved-content\n`,
+			}, null, 2);
+			return [
+				'Keep the authored question and opaque-first text.',
+				JSON.stringify({ toolCallId: first, managedApprovalRequired: true }),
+				JSON.stringify({ toolCallId: second }, null, 2),
+				JSON.stringify({ toolCallId: 'authored-id' }),
+				'```json', fileDiff, '```',
+				'  ```json', fileDiff, '  ```',
+				'Unfenced JSON:', fileDiff,
+			].join('\n');
+		};
+		try {
+			const url = await recorder.start();
+			recorder.setRecordingModelResponse({
+				status: 200,
+				headers: { 'content-type': 'text/event-stream' },
+				body: anthropicMessageToSse({
+					content: [
+						{ type: 'tool_use', id: 'opaque-first', name: 'view', input: { path: 'input.txt' } },
+						{ type: 'tool_use', id: 'opaque-second', name: 'create', input: { path: 'output.txt' } },
+					],
+					stopReason: 'tool_use',
+				}),
+			});
+			await (await fetch(`${url}/v1/messages`, { method: 'POST', body: request('Read and write') })).text();
+			recorder.setRecordingModelResponse({
+				status: 200,
+				headers: { 'content-type': 'text/event-stream' },
+				body: anthropicMessageToSse({ content: [{ type: 'text', text: 'ALLOW' }], stopReason: 'end_turn' }),
+			});
+			await (await fetch(`${url}/v1/messages`, { method: 'POST', body: request(judgeText('opaque-first', 'opaque-second')) })).text();
+			await recorder.stop();
+
+			const normalized = judgeText('toolcall_0', 'toolcall_1');
+			const texts = [
+				normalized,
+				judgeText('toolcall_0', 'toolcall_1', '\\'),
+				normalized.replaceAll('```', '  ```'),
+				judgeText('toolcall_1', 'toolcall_0'),
+				normalized.replace('authored question', 'different question'),
+				normalized.replace('"managedApprovalRequired":true', '"managedApprovalRequired":false'),
+				normalized.replace('authored-id', 'different-id'),
+				normalized.replace('preserved-content', 'different-content'),
+			];
+			for (const [index, text] of texts.entries()) {
+				const replay = new CapiReplayProxy({ fixturePath, mode: 'replay' });
+				try {
+					const replayUrl = await replay.start();
+					for (const body of [request('Read and write'), request(text)]) {
+						await (await fetch(`${replayUrl}/v1/messages`, { method: 'POST', body })).text();
+					}
+					if (index < 2) {
+						replay.assertNoReplayMismatches();
+					} else {
+						assert.throws(() => replay.assertNoReplayMismatches(), /model request mismatch/);
+					}
+				} finally {
+					await replay.close();
+				}
 			}
 		} finally {
 			await recorder.stop();

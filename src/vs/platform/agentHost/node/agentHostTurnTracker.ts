@@ -8,6 +8,7 @@ import { getErrorMessage } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, type IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import { AgentHostProviderTiming } from '../common/agentHostProviderTiming.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
 import type { AgentModelCallFinishedOutcome, AgentSubagentKind, AgentSubagentTaskModelSource, IAgent, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
@@ -15,13 +16,13 @@ import type { SessionMode } from '../common/agentHostSchema.js';
 import { type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
-import { ILogService } from '../../log/common/log.js';
+import { ILogService, LogLevel } from '../../log/common/log.js';
 import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleController.js';
 import { captureProviderTurnTelemetryContext, getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
-import { isSubagentChatUri, isSubagentSession, parseChatUri, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
-import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelSelectionKind, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type AgentHostTurnSendStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
+import { isSubagentSession, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
+import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelSelectionKind, type AgentHostModelTelemetryKind, type IAgentHostFusionTurnTelemetry, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type AgentHostTurnSendStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
  * How long a turn must go without any observed activity before the watchdog
@@ -42,6 +43,16 @@ const MAX_HANG_CHECK_WINDOWS = 6;
 
 /** Sentinel `lastActivityKind` for a turn that never produced any activity. */
 export const TURN_ACTIVITY_NONE = 'none';
+
+/**
+ * A HydraFusion phase chat presents part of its root turn: the root turn owns the
+ * phase's model calls, cost and duration, and `agentHost.fusionPhaseCompleted` reports
+ * the phase itself. Its tracked turn only gives tool-call and input-request telemetry
+ * the phase's model and kind, so it is never reported as a turn or watched for hangs.
+ */
+function isPresentationOnlyTurn(timing: { readonly subagentKind: AgentSubagentKind | undefined }): boolean {
+	return timing.subagentKind === 'fusionPhase';
+}
 
 /** Identity of a tool call that has started but not yet completed. */
 interface IInFlightToolCall {
@@ -65,8 +76,11 @@ interface IRootTurnTiming {
 /** Per-turn timing state, keyed by `session:turnId`. */
 interface ITurnTiming {
 	readonly stopWatch: StopWatch;
+	readonly providerTiming: AgentHostProviderTiming;
 	readonly agent: IAgent;
 	readonly session: string;
+	/** Owning session of the chat, recorded when the turn started. */
+	readonly owner: string;
 	readonly providerChat: URI;
 	readonly turnId: string;
 	readonly parentTurnId: string | undefined;
@@ -74,6 +88,8 @@ interface ITurnTiming {
 	readonly rootTiming: IRootTurnTiming | undefined;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+	/** The Auto tier the turn was sent with and the HydraFusion model that routed it, when known. */
+	fusion: IAgentHostFusionTurnTelemetry;
 	readonly selectedModel: string | undefined;
 	readonly selectedModelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	readonly modelSelectionKind: AgentHostModelSelectionKind;
@@ -85,7 +101,7 @@ interface ITurnTiming {
 	readonly subagentKind: AgentSubagentKind | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	telemetryContext: IAgentTelemetryContext | undefined;
-	readonly providerTelemetryContext: IAgentProviderTurnTelemetryContext | undefined;
+	providerTelemetryContext: IAgentProviderTurnTelemetryContext | undefined;
 	codexModelProvider?: CodexModelProvider;
 	readonly initiatorClientId: string | undefined;
 	readonly completedModelCallIds: Set<string>;
@@ -167,7 +183,7 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	readonly _serviceBrand: undefined;
 	readonly onDidStartTurn: Event<string>;
 	readonly onDidDispatchTurn: Event<{ readonly chat: string; readonly turnId: string }>;
-	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext?: IAgentHostClientTelemetryContext, initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat?: URI, subagentKind?: AgentSubagentKind): void;
+	turnStarted(agent: IAgent, session: string, owner: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext?: IAgentHostClientTelemetryContext, initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat?: URI, subagentKind?: AgentSubagentKind): void;
 	setTitleGenerationStrategy(session: string, turnId: string, strategy: AutomaticTitleGenerationStrategy): void;
 	markFirstProgress(session: string, turnId: string): void;
 	markFirstSubstantiveProgress(session: string, turnId: string): void;
@@ -183,6 +199,8 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	turnBlocked(session: string, turnId: string, requestId: string, kind: SessionInputRequestKind, toolCallId: string | undefined): void;
 	turnUnblocked(session: string, requestId: string): void;
 	updateModel(session: string, turnId: string, model: string, modelTelemetryKind: AgentHostModelTelemetryKind): void;
+	/** Records the turn's Auto tier or the HydraFusion model that routed it; unset fields are kept. */
+	updateFusionTelemetry(session: string, turnId: string, fusion: IAgentHostFusionTurnTelemetry): void;
 	updateBilledNanoAiu(session: string, turnId: string, billedNanoAiu: number | undefined): void;
 	updateDirectUsage(session: string, turnId: string, tokenTotals: readonly ITurnTokenTotal[] | undefined, billedNanoAiu: number | undefined): void;
 	modelCallCompleted(session: string, turnId: string, modelCallId: string): void;
@@ -192,6 +210,8 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	getClientTelemetryContext(session: string, turnId: string): IAgentHostClientTelemetryContext | undefined;
 	getTelemetryContext(session: string, turnId: string): IAgentTelemetryContext | undefined;
 	setCodexModelProvider(session: string, turnId: string, provider: CodexModelProvider): void;
+	/** Records that the turn's send used a pre-warmed provider session, or, with a reason, that it discarded one. */
+	markPrewarmedSession(session: string, turnId: string, discardReason: string | undefined): void;
 	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined;
 	getSubagentKind(session: string, turnId: string): AgentSubagentKind | undefined;
 	getMessageOriginKind(session: string, turnId: string): AgentHostMessageOriginTelemetryKind | undefined;
@@ -241,6 +261,9 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 	) {
 		super();
 		this._register(toDisposable(() => {
+			for (const timing of this._turnTimings.values()) {
+				timing.providerTiming.finish(timing.stopWatch.elapsed());
+			}
 			this._turnTimings.clear();
 			this._rootTurnTimings.clear();
 			this._turnUsages.clear();
@@ -248,10 +271,10 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		}));
 	}
 
-	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat = URI.parse(session), subagentKind?: AgentSubagentKind): void {
+	turnStarted(agent: IAgent, session: string, owner: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat = URI.parse(session), subagentKind?: AgentSubagentKind): void {
 		const key = this._key(session, turnId);
 		let rootTiming = this._rootTurnTimings.get(key);
-		const isNewRootTurn = !parentTurnId && !isSubagentChatUri(session) && !isSubagentSession(parseChatUri(session)?.session ?? session) && !rootTiming;
+		const isNewRootTurn = !parentTurnId && parentToolCallId === undefined && subagentKind === undefined && !isSubagentSession(owner) && !rootTiming;
 		if (isNewRootTurn) {
 			rootTiming = {
 				hostRootTurnOrdinal: ++this._hostRootTurnOrdinal,
@@ -260,10 +283,13 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			};
 			this._rootTurnTimings.set(key, rootTiming);
 		}
+		const stopWatch = StopWatch.create(false);
 		const timing: ITurnTiming = {
-			stopWatch: StopWatch.create(false),
+			stopWatch,
+			providerTiming: new AgentHostProviderTiming(() => stopWatch.elapsed()),
 			agent,
 			session,
+			owner,
 			providerChat,
 			turnId,
 			parentTurnId,
@@ -271,6 +297,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			rootTiming,
 			model,
 			modelTelemetryKind,
+			fusion: {},
 			selectedModel: model,
 			selectedModelTelemetryKind: modelTelemetryKind,
 			modelSelectionKind,
@@ -278,7 +305,8 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			interactionMode,
 			messageOriginKind,
 			subagentTaskModelSource,
-			subagentKind,
+			// A tool-spawned turn is a subagent turn even when the spawner names no kind; reports read the role from this.
+			subagentKind: subagentKind ?? (parentToolCallId !== undefined ? 'task' : undefined),
 			clientContext,
 			telemetryContext: agent.getTelemetryContext?.(),
 			providerTelemetryContext: captureProviderTurnTelemetryContext(agent),
@@ -328,7 +356,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 
 	private _logTurnTiming(timing: ITurnTiming): void {
 		this._logService.info(`[AgentHostTurnTiming] ${JSON.stringify({
-			schemaVersion: 1, sessionId: parseChatUri(timing.session)?.session ?? timing.session,
+			schemaVersion: 1, sessionId: timing.owner,
 			chatId: timing.session, turnId: timing.turnId, provider: timing.agent.id,
 			...timing.rootTiming,
 		})}`);
@@ -373,11 +401,18 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		const elapsed = timing.stopWatch.elapsed();
 		if (timing.firstProgressMs === undefined) {
 			timing.firstProgressMs = elapsed;
+			timing.providerTiming.markFirstProgress(elapsed);
+			if (timing.providerTiming.hasTimings) {
+				timing.providerTiming.markMilestone('hostProgress');
+			}
 			this._closeProviderStage(timing, elapsed);
 			this._logProviderStages(timing);
 		}
 		if (substantive && timing.firstSubstantiveProgressMs === undefined) {
 			timing.firstSubstantiveProgressMs = elapsed;
+			if (timing.providerTiming.hasTimings) {
+				timing.providerTiming.markMilestone('hostSubstantiveProgress');
+			}
 		}
 	}
 
@@ -455,7 +490,22 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 
 	/** Creates a recorder that forwards a provider's stage marks for one turn. */
 	createProviderStageRecorder(session: string, turnId: string): IAgentProviderSendStageRecorder {
-		return { mark: stage => this.markProviderStage(session, turnId, stage) };
+		const key = this._key(session, turnId);
+		const timing = this._turnTimings.get(key);
+		const active = () => timing && this._turnTimings.get(key) === timing;
+		return {
+			mark: stage => {
+				if (active()) {
+					this.markProviderStage(session, turnId, stage);
+				}
+			},
+			startOperation: operation => active() ? timing?.providerTiming.startOperation(operation) : undefined,
+			markMilestone: milestone => {
+				if (active()) {
+					timing?.providerTiming.markMilestone(milestone);
+				}
+			},
+		};
 	}
 
 	private _closeProviderStage(timing: ITurnTiming, now: number): void {
@@ -612,6 +662,16 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		}
 	}
 
+	updateFusionTelemetry(session: string, turnId: string, fusion: IAgentHostFusionTurnTelemetry): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing) {
+			timing.fusion = {
+				autoTier: fusion.autoTier ?? timing.fusion.autoTier,
+				fusionModel: fusion.fusionModel ?? timing.fusion.fusionModel,
+			};
+		}
+	}
+
 	updateBilledNanoAiu(session: string, turnId: string, billedNanoAiu: number | undefined): void {
 		const usage = this._turnUsages.get(this._key(session, turnId));
 		if (usage && typeof billedNanoAiu === 'number' && Number.isFinite(billedNanoAiu) && billedNanoAiu >= 0) {
@@ -684,6 +744,16 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		}
 	}
 
+	markPrewarmedSession(session: string, turnId: string, discardReason: string | undefined): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing) {
+			timing.providerTelemetryContext = Object.freeze({
+				...timing.providerTelemetryContext,
+				...(discardReason === undefined ? { usedPrewarmedSession: true } : { prewarmedSessionDiscardReason: discardReason }),
+			});
+		}
+	}
+
 	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined {
 		return this._turnTimings.get(this._key(session, turnId))?.providerTelemetryContext;
 	}
@@ -712,6 +782,10 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		if (!timing) {
 			return false;
 		}
+		if (isPresentationOnlyTurn(timing)) {
+			this._disposeTurn(key, timing);
+			return true;
+		}
 		// Close the open stage first so its duration is sampled no later than
 		// `totalTime`. A turn can end mid-stage (a failed checkpoint, a cancel
 		// during model selection), and sampling the other way round lets a clock
@@ -719,6 +793,10 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		this._closeSendStage(timing);
 		// Capture terminal timing before collecting or reporting additional telemetry.
 		const totalTime = timing.stopWatch.elapsed();
+		const providerTimings = timing.providerTiming.finish(totalTime);
+		if (providerTimings.length > 0 && this._logService.getLevel() <= LogLevel.Debug) {
+			this._logService.debug(`[AgentHostProviderTiming] ${JSON.stringify({ schemaVersion: 1, provider: timing.agent.id, turnId, result, timings: providerTimings })}`);
+		}
 		// A turn that ends before first progress retains its partial provider stage.
 		this._closeProviderStage(timing, totalTime);
 		const timeAfterHangMs = timing.lastHangStopWatch?.elapsed() ?? 0;
@@ -745,6 +823,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			codexModelProvider: timing.codexModelProvider,
 			provider: timing.agent.id,
 			session: timing.session,
+			owner: timing.owner,
 			turnId,
 			parentTurnId: timing.parentTurnId,
 			parentToolCallId: timing.parentToolCallId,
@@ -759,11 +838,13 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			sendStageDurationsMs: timing.sendStageDurationsMs,
 			sendDispatchedMs: timing.sendDispatchedMs,
 			providerStageDurationsMs: timing.providerStageDurationsMs,
+			providerTimings,
 			totalTime,
 			result,
 			model: timing.model,
 			modelTelemetryKind: timing.modelTelemetryKind,
 			modelSelectionKind: timing.modelSelectionKind,
+			...timing.fusion,
 			permissionLevel: timing.permissionLevel,
 			interactionMode: timing.interactionMode,
 			messageOriginKind: timing.messageOriginKind,
@@ -788,6 +869,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 				telemetryContext: timing.telemetryContext,
 				provider: timing.agent.id,
 				session: timing.session,
+				owner: timing.owner,
 				turnId,
 				subagentKind: timing.subagentKind,
 				messageOriginKind: timing.messageOriginKind,
@@ -796,6 +878,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 				hangReportCount: timing.hangReportCount,
 				totalTimeMs: totalTime,
 				timeAfterHangMs,
+				...timing.fusion,
 			});
 		}
 		for (const summary of summaries ?? []) {
@@ -803,7 +886,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 				this._reporter.requestTokenUsage({
 					clientContext: timing.clientContext, provider: timing.agent.id,
 					telemetryContext: timing.telemetryContext,
-					session, requestId: turnId, parentTurnId: timing.parentTurnId, parentToolCallId: timing.parentToolCallId, subagentKind: timing.subagentKind,
+					session, owner: timing.owner, requestId: turnId, parentTurnId: timing.parentTurnId, parentToolCallId: timing.parentToolCallId, subagentKind: timing.subagentKind,
 					selectedModel: timing.selectedModel, selectedModelTelemetryKind: timing.selectedModelTelemetryKind,
 					modelTelemetryKind: summary.model ? getModelTelemetryContext(timing.agent, summary.model).modelTelemetryKind : undefined,
 					result, summary,
@@ -860,6 +943,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 	}
 
 	private _disposeTurn(key: string, timing: ITurnTiming): void {
+		timing.providerTiming.finish(timing.stopWatch.elapsed());
 		this._turnTimings.delete(key);
 		this._turnUsages.delete(key);
 		this._hangWatchdogs.deleteAndDispose(key);
@@ -869,6 +953,10 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 	}
 
 	private _armHangWatchdog(key: string): void {
+		const timing = this._turnTimings.get(key);
+		if (timing && isPresentationOnlyTurn(timing)) {
+			return;
+		}
 		this._hangWatchdogs.set(key, disposableTimeout(() => this._onHangWatchdogFired(key), TURN_HANG_THRESHOLD_MS));
 	}
 
@@ -897,6 +985,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 				providerTelemetryContext: timing.providerTelemetryContext,
 				provider: timing.agent.id,
 				session: timing.session,
+				owner: timing.owner,
 				turnId: timing.turnId,
 				subagentKind: timing.subagentKind,
 				messageOriginKind: timing.messageOriginKind,
@@ -915,6 +1004,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 				model: timing.model,
 				modelTelemetryKind: timing.modelTelemetryKind,
 				modelSelectionKind: timing.modelSelectionKind,
+				...timing.fusion,
 				permissionLevel: timing.permissionLevel,
 			});
 		}

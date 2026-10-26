@@ -68,13 +68,12 @@ export const enum AgentHostMcpServerSourceKind {
 
 export const enum AgentHostMcpSupportReason {
 	UnsupportedSourceLocation = 'unsupportedSourceLocation',
+	CopilotHomeNotForwarded = 'copilotHomeNotForwarded',
 	RequiresUserInteraction = 'requiresUserInteraction',
 	UnresolvedConfiguration = 'unresolvedConfiguration',
 	LaunchNotRepresentable = 'launchNotRepresentable',
 	EnvironmentFileIgnored = 'environmentFileIgnored',
 	WorkingDirectoryNotPortable = 'workingDirectoryNotPortable',
-	GalleryMetadataNotPortable = 'galleryMetadataNotPortable',
-	ServerVersionNotPortable = 'serverVersionNotPortable',
 	SseTransportNotPortable = 'sseTransportNotPortable',
 	SandboxConfigurationIgnored = 'sandboxConfigurationIgnored',
 	DevelopmentModeIgnored = 'developmentModeIgnored',
@@ -270,11 +269,13 @@ async function resolveMcpServerForAgentHostDelivery(
 		);
 	}
 
-	// Only the window's own Copilot runtime is known to read the same machine's Copilot-home config.
-	if (source.kind === AgentHostMcpServerSourceKind.CopilotHome
-		&& sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE
-		&& collection?.remoteAuthority === windowRemoteAuthority) {
-		return createResolution(server, definition, source, applicability, AgentHostMcpServerDelivery.RuntimeDiscovered, supported());
+	if (source.kind === AgentHostMcpServerSourceKind.CopilotHome) {
+		// Only the window's own Copilot runtime is known to read the same machine's Copilot-home config.
+		if (sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE && collection?.remoteAuthority === windowRemoteAuthority) {
+			return createResolution(server, definition, source, applicability, AgentHostMcpServerDelivery.RuntimeDiscovered, supported());
+		}
+		// Copilot-home discovery is on by default and its servers may hold literal credentials, so never copy them to another provider or host.
+		return createResolution(server, definition, source, applicability, AgentHostMcpServerDelivery.NotDelivered, unsupported([AgentHostMcpSupportReason.CopilotHomeNotForwarded]));
 	}
 
 	if (collection && McpCollectionDefinition.isWorkspaceDiscovered(collection) && !McpCollectionDefinition.isVscodeMcpJson(collection)) {
@@ -315,7 +316,7 @@ async function resolveMcpServerForAgentHostDelivery(
 		}
 	}
 
-	const partialReasons = getPartialSupportReasons(definition.launch, definition.sandboxEnabled, definition.devMode, definition.gallery, definition.version);
+	const partialReasons = getPartialSupportReasons(definition.launch, definition.sandboxEnabled, definition.devMode);
 	const unknownReasons = source.kind === AgentHostMcpServerSourceKind.Unknown ? [AgentHostMcpSupportReason.SourceUnknown] : [];
 	const delivery = applicability === AgentHostMcpServerApplicability.Applicable
 		? AgentHostMcpServerDelivery.ClientForwarded
@@ -615,8 +616,6 @@ async function assessInstalledMcpServerConfiguration(
 		launch,
 		server.configuration.type === McpServerType.LOCAL ? server.configuration.sandboxEnabled : undefined,
 		server.configuration.dev,
-		server.configuration.gallery,
-		server.configuration.version,
 	);
 	const unknownReasons = sourceKind === AgentHostMcpServerSourceKind.Unknown ? [AgentHostMcpSupportReason.SourceUnknown] : [];
 	return {
@@ -722,7 +721,7 @@ function getExpressionUnresolvedReason(expression: ConfigurationResolverExpressi
 	return hasUnresolved ? AgentHostMcpSupportReason.UnresolvedConfiguration : undefined;
 }
 
-function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boolean | undefined, devMode: McpServerDefinition['devMode'], gallery: McpServerDefinition['gallery'], version: string | undefined): AgentHostMcpSupportReason[] {
+function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boolean | undefined, devMode: McpServerDefinition['devMode']): AgentHostMcpSupportReason[] {
 	const reasons: AgentHostMcpSupportReason[] = [];
 	if (launch.type === McpServerTransportType.Stdio) {
 		if (launch.envFile) {
@@ -744,12 +743,6 @@ function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boole
 	}
 	if (devMode) {
 		reasons.push(AgentHostMcpSupportReason.DevelopmentModeIgnored);
-	}
-	if (gallery !== undefined) {
-		reasons.push(AgentHostMcpSupportReason.GalleryMetadataNotPortable);
-	}
-	if (version !== undefined) {
-		reasons.push(AgentHostMcpSupportReason.ServerVersionNotPortable);
 	}
 	return reasons;
 }

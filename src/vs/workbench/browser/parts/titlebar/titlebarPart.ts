@@ -430,6 +430,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.menubar.setAttribute('role', 'menubar');
 
 		this.customMenubarDisposables.add(customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+		this.customMenubarDisposables.add(customMenubar.onFocusStateChange(focused => this.element.classList.toggle('menubar-focused', focused)));
 
 		customMenubar.create(this.menubar);
 	}
@@ -437,6 +438,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private uninstallMenubar(): void {
 		this.customMenubarDisposables.clear();
 		this.customMenubar.clear();
+		this.element.classList.remove('menubar-focused');
 
 		this.menubar?.remove();
 		this.menubar = undefined;

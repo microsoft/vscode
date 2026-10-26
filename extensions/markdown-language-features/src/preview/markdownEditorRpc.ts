@@ -3,8 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isResponse, type IMessageTransport, type JsonRpcMessage } from '@vscode/hubrpc';
+import { Channel, HubRpcConnection, JsonRpcChannel, isResponse, type IMessageTransport, type JsonRpcMessage } from '@vscode/hubrpc';
 import * as z from 'zod/mini';
+
+export function createMarkdownEditorRpcConnection(
+	transport: IMessageTransport,
+	report: (operation: string, error: unknown) => void,
+): HubRpcConnection<undefined> {
+	const channel = JsonRpcChannel.create(transport);
+	// HubRPC 0.0.2-20 drops notification send promises and catches synchronous handler errors.
+	// Notifications have no response, so report failures at the endpoint that observes them.
+	return new HubRpcConnection(new Channel({
+		sendRequest: (method, params, options) => channel.sender.sendRequest(method, params, options),
+		sendRequestWithStream: (method, params, options) => channel.sender.sendRequestWithStream(method, params, options),
+		sendNotification: async (method, params, options) => {
+			try {
+				await channel.sender.sendNotification(method, params, options);
+			} catch (error) {
+				report(`Send notification ${method}`, error);
+			}
+		},
+		close: () => channel.sender.close(),
+	}, handler => channel.setRequestHandler(handler && {
+		handleRequest: call => handler.handleRequest(call),
+		handleNotification: call => {
+			try {
+				handler.handleNotification(call);
+			} catch (error) {
+				report(`Handle notification ${call.method}`, error);
+			}
+		},
+	}), (observer, isInspectionMethod) => channel.setWireMessageObserver(observer, isInspectionMethod)));
+}
 
 interface IDisposable {
 	dispose(): void;

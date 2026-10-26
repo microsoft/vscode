@@ -41,14 +41,12 @@ export enum ToolName {
 	RunNotebookCell = 'run_notebook_cell',
 	GetNotebookSummary = 'copilot_getNotebookSummary',
 	ReadCellOutput = 'read_notebook_cell_output',
-	InstallExtension = 'install_extension',
 	FetchWebPage = 'fetch_webpage',
 	Memory = 'memory',
 	FindTestFiles = 'test_search',
 	GithubSemanticRepoSearch = 'github_repo',
 	GithubTextSearch = 'github_text_search',
 	CreateDirectory = 'create_directory',
-	RunVscodeCmd = 'run_vscode_command',
 	CoreManageTodoList = 'manage_todo_list',
 	CoreRunInTerminal = 'run_in_terminal',
 	CoreGetTerminalOutput = 'get_terminal_output',
@@ -126,14 +124,12 @@ export enum ContributedToolName {
 	RunNotebookCell = 'copilot_runNotebookCell',
 	GetNotebookSummary = 'copilot_getNotebookSummary',
 	ReadCellOutput = 'copilot_readNotebookCellOutput',
-	InstallExtension = 'copilot_installExtension',
 	FetchWebPage = 'copilot_fetchWebPage',
 	Memory = 'copilot_memory',
 	FindTestFiles = 'copilot_findTestFiles',
 	GithubSemanticRepoSearch = 'copilot_githubRepo',
 	GithubTextSearch = 'copilot_githubTextSearch',
 	CreateDirectory = 'copilot_createDirectory',
-	RunVscodeCmd = 'copilot_runVscodeCommand',
 	EditFilesPlaceholder = 'copilot_editFiles',
 	SwitchAgent = 'copilot_switchAgent',
 	ResolveMemoryFileUri = 'copilot_resolveMemoryFileUri',
@@ -241,9 +237,7 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.VSCodeAPI]: ToolCategory.VSCodeInteraction,
 	[ToolName.GetScmChanges]: ToolCategory.VSCodeInteraction,
 	[ToolName.CreateNewWorkspace]: ToolCategory.VSCodeInteraction,
-	[ToolName.InstallExtension]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreCreateAndRunTask]: ToolCategory.VSCodeInteraction,
-	[ToolName.RunVscodeCmd]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreTerminalSelection]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreTerminalLastCommand]: ToolCategory.VSCodeInteraction,
 
@@ -265,15 +259,6 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.Skill]: ToolCategory.Core,
 	[ToolName.SessionStoreSql]: ToolCategory.Core,
 } as const;
-
-
-
-/**
- * Get the category for a tool, checking both ToolName enum and external tools.
- */
-export function getToolCategory(toolName: string): ToolCategory | undefined {
-	return toolCategories.hasOwnProperty(toolName) ? toolCategories[toolName as ToolName] : undefined;
-}
 
 /**
  * Get all tools for a specific category.

@@ -4,4 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export type { ISessionSandboxState } from './vscode/agentSandboxStateMeta.js';
-export { readSessionSandboxState, withSessionSandboxState } from './vscode/agentSandboxStateMeta.js';
+export { readChatSandboxState, readChatSandboxStates, readSessionSandboxState, withChatSandboxState, withSessionSandboxState } from './vscode/agentSandboxStateMeta.js';

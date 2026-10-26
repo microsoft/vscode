@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem } from '../../../../base/common/platform.js';
-import { AgentSandboxEnabledValue, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, type IAgentSandboxMaskedCredentials, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
+import type { ISessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
 
 /**
  * ToDo: This will be removed as the SDK's built-in sandbox configuration types are exported.
@@ -31,6 +32,9 @@ export interface SandboxConfig {
 
 	/** Credential injection available while sandboxing is enabled. */
 	auth?: SandboxAuthConfig;
+
+	/** Environment credentials masked by the sandbox and injected at authorized HTTPS hosts. */
+	credentials?: Required<IAgentSandboxMaskedCredentials>;
 
 	/** User-defined filesystem, network, and macOS policies. */
 	userPolicy?: SandboxUserPolicy;
@@ -116,12 +120,14 @@ export interface SandboxSeatbeltPolicy {
  * Credential authentication defaults to enabled and uses the effective Copilot-only preferences.
  *
  * `extraReadonlyPaths` grants read access to session attachments and generated
- * shell init scripts when the effective sandbox is applied before each turn.
+ * shell init scripts when the effective sandbox is applied before each turn,
+ * unless a managed read-only list is present.
  */
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
 	sandbox: ISandboxConfigValue | undefined,
 	extraReadonlyPaths?: readonly string[],
+	managedPolicy?: ISessionSandboxPolicy,
 ): SandboxConfig | undefined {
 	const enabledRaw = sandbox?.[AgentHostSandboxKey.Enabled];
 	if (enabledRaw !== AgentSandboxEnabledValue.On) {
@@ -146,7 +152,7 @@ export function buildSandboxConfigForSdk(
 		}
 	}
 	// User denies win over host-generated read grants; existing read/write grants are preserved.
-	for (const path of extraReadonlyPaths ?? []) {
+	for (const path of managedPolicy?.readonlyPaths !== undefined ? [] : extraReadonlyPaths ?? []) {
 		const p = normalizeSandboxFileSystemPath(path, os);
 		if (!denied.has(p) && !readonly.has(p) && !readwrite.has(p)) {
 			readonly.add(p);
@@ -155,15 +161,16 @@ export function buildSandboxConfigForSdk(
 
 	const allowNetwork = sandbox?.[AgentHostSandboxKey.AllowNetwork];
 	const allowLocalNetwork = sandbox?.[AgentHostSandboxKey.AllowLocalNetwork];
-	const allowedHosts = sandbox?.[AgentHostSandboxKey.AllowedNetworkDomains] ?? [];
-	const blockedHosts = sandbox?.[AgentHostSandboxKey.DeniedNetworkDomains] ?? [];
+	const allowedHosts = sandbox?.[AgentHostSandboxKey.AllowedNetworkDomains];
+	const blockedHosts = sandbox?.[AgentHostSandboxKey.DeniedNetworkDomains];
 	const allowBypass = sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands];
 	const sandboxMcpServers = sandbox?.[AgentHostSandboxKey.SandboxMcpServers];
 	const sandboxLspServers = sandbox?.[AgentHostSandboxKey.SandboxLspServers];
 	const allowDevToolAccess = sandbox?.[AgentHostSandboxKey.AllowDevToolAccess];
+	const maskedCredentials = sandbox?.[AgentHostSandboxKey.MaskedCredentials];
 	const sandboxConfig: SandboxConfig = {
 		enabled: true,
-		addCurrentWorkingDirectory: true,
+		addCurrentWorkingDirectory: sandbox?.[AgentHostSandboxKey.AddCurrentWorkingDirectory] ?? true,
 		...(sandboxMcpServers !== undefined ? { sandboxMcpServers } : {}),
 		...(sandboxLspServers !== undefined ? { sandboxLspServers } : {}),
 		...(allowDevToolAccess !== undefined ? { allowDevToolAccess } : {}),
@@ -172,6 +179,7 @@ export function buildSandboxConfigForSdk(
 			git: sandbox?.[AgentHostSandboxKey.AuthenticateGit] ?? true,
 			gh: sandbox?.[AgentHostSandboxKey.AuthenticateGh] ?? true,
 		},
+		...(maskedCredentials !== undefined ? { credentials: { envVars: maskedCredentials.envVars ?? {} } } : {}),
 		userPolicy: {
 			...(denied.size || readonly.size || readwrite.size ? {
 				filesystem: {
@@ -180,12 +188,14 @@ export function buildSandboxConfigForSdk(
 					...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
 				},
 			} : {}),
-			...(typeof allowNetwork === 'boolean' || allowLocalNetwork !== undefined || allowedHosts.length || blockedHosts.length ? {
+			...(typeof allowNetwork === 'boolean' || allowLocalNetwork !== undefined || allowedHosts?.length || blockedHosts?.length ? {
 				network: {
 					...(typeof allowNetwork === 'boolean' ? { allowOutbound: allowNetwork } : {}),
 					...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}),
-					...(allowedHosts.length ? { allowedHosts: [...allowedHosts] } : {}),
-					...(blockedHosts.length ? { blockedHosts: [...blockedHosts] } : {}),
+					...(allowedHosts?.length || blockedHosts?.length ? {
+						allowedHosts: [...(allowedHosts ?? [])],
+						blockedHosts: [...(blockedHosts ?? [])],
+					} : {}),
 				},
 			} : {}),
 		},

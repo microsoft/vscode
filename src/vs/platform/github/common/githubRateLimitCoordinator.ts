@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { parseHeaderNumber, parseRetryAfter } from './client/headers.js';
 import { CooldownState } from './cooldownState.js';
-import { parseHeaderNumber, parseRetryAfter } from './httpHeaders.js';
 import { RequestQueue } from './requestQueue.js';
 import { RequestAccount } from './types.js';
+import { isRetryableMissionControlError, parseMissionControlError } from './missionControl/missionControlError.js';
 
 /** GitHub's documented floor for retrying a rate limit it gave no reset hint for. */
 const unhintedRateLimitCooldown = 60_000;
@@ -18,7 +19,9 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 	/** Adds REST admission waits without changing the bucket-specific identity cooldown checks. */
 	getRequestDelay(account: RequestAccount, resource: string): number {
 		let delay = super.getDelay(account, resource);
-		if (resource !== 'graphql') {
+		if (resource.startsWith('agents:')) {
+			delay = Math.max(delay, super.getDelay(account, 'agents'));
+		} else if (resource !== 'graphql' && resource !== 'agents') {
 			delay = Math.max(delay, super.getDelay(account, unclassifiedRestResource));
 			for (const alias of restResourceAliases(resource)) {
 				delay = Math.max(delay, super.getDelay(account, alias));
@@ -44,9 +47,9 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 		const previous = this._states.get(key);
 		const previousBlockedUntil = previous?.blockedUntil ?? (previous?.remaining === 0 ? previous.resetAt : undefined);
 		const now = this._scheduler.now();
-		const retryAfter = parseRetryAfter(response.headers.get('retry-after'), now, true);
-		const resetSeconds = parseHeaderNumber(response.headers.get('x-ratelimit-reset'), true);
-		const remaining = parseHeaderNumber(response.headers.get('x-ratelimit-remaining'), true);
+		const retryAfter = parseRetryAfter(response.headers.get('retry-after'), now);
+		const resetSeconds = parseHeaderNumber(response.headers.get('x-ratelimit-reset'));
+		const remaining = parseHeaderNumber(response.headers.get('x-ratelimit-remaining'));
 		const rateLimit = classifyGitHubHttpRateLimit(response, responseBody);
 		const secondaryLimited = rateLimit === 'secondary';
 		// A secondary limit can report an unspent primary quota window.
@@ -66,15 +69,28 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 		}
 		this._states.set(key, {
 			...(resource === unclassifiedRestResource ? {} : {
-				limit: parseHeaderNumber(response.headers.get('x-ratelimit-limit'), true) ?? previous?.limit,
+				limit: parseHeaderNumber(response.headers.get('x-ratelimit-limit')) ?? previous?.limit,
 				remaining: remaining ?? previous?.remaining,
-				used: parseHeaderNumber(response.headers.get('x-ratelimit-used'), true) ?? previous?.used,
+				used: parseHeaderNumber(response.headers.get('x-ratelimit-used')) ?? previous?.used,
 				resetAt: resetSeconds !== undefined ? resetSeconds * 1000 : previous?.resetAt,
 			}),
 			blockedUntil: previousBlockedUntil !== undefined && previousBlockedUntil > now
 				? Math.max(previousBlockedUntil, blockedUntil ?? 0) : blockedUntil,
 		});
 		this._onDidChange.fire();
+	}
+
+	/** Mission Control uses refusal/service hints, not GitHub REST counters or successful polling hints. */
+	updateFromAgentsResponse(account: RequestAccount, response: Response, responseBody?: string): void {
+		const retryAfter = parseRetryAfter(response.headers.get('retry-after'), this._scheduler.now());
+		const metadata = parseMissionControlError(responseBody);
+		if (metadata.code === 'rate_limit_exceeded'
+			|| (metadata.code === undefined || isRetryableMissionControlError(response.status, metadata.code)) && classifyGitHubHttpRateLimit(response, responseBody)) {
+			const resource = metadata.limitedResource === 'sandbox' || metadata.limitedResource === 'token_mint' ? `agents:${metadata.limitedResource}` : 'agents';
+			this.updateCooldown(account, resource, retryAfter !== undefined && retryAfter > 0 ? retryAfter * 1000 : 5_000);
+		} else if (response.status >= 500 && retryAfter !== undefined && isRetryableMissionControlError(response.status, metadata.code)) {
+			this.updateCooldown(account, 'agents', retryAfter * 1000);
+		}
 	}
 
 	updateFromGraphQL(account: RequestAccount, rateLimit: { readonly limit?: number; readonly remaining?: number; readonly used?: number; readonly resetAt?: string } | undefined): void {
@@ -100,7 +116,7 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 		const key = this._key(account, 'graphql');
 		const previous = this._states.get(key);
 		const now = this._scheduler.now();
-		const retryAfterSeconds = parseRetryAfter(retryAfter, now, true);
+		const retryAfterSeconds = parseRetryAfter(retryAfter, now);
 		const hinted = retryAfterSeconds !== undefined ? now + retryAfterSeconds * 1000 : previous?.resetAt;
 		const blockedUntil = hinted !== undefined && hinted > now ? hinted : now + unhintedRateLimitCooldown;
 		this._states.set(key, {
@@ -145,9 +161,9 @@ export function classifyGitHubHttpRateLimit(response: Pick<Response, 'status' | 
 		|| /\bsecondary rate limit\b|\babuse detection mechanism\b/i.test(body ?? '')) {
 		return 'secondary';
 	}
-	const remaining = parseHeaderNumber(response.headers.get('x-ratelimit-remaining'), true);
+	const remaining = parseHeaderNumber(response.headers.get('x-ratelimit-remaining'));
 	if (response.status === 429 || remaining === 0
-		|| parseRetryAfter(response.headers.get('retry-after'), 0, true) !== undefined
+		|| parseRetryAfter(response.headers.get('retry-after'), 0) !== undefined
 		|| remaining === undefined && /\bAPI rate limit exceeded\b/i.test(body ?? '')) {
 		return 'primary';
 	}

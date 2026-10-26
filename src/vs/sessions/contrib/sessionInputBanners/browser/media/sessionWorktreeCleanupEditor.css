@@ -16,12 +16,6 @@
 	container-type: inline-size;
 }
 
-.session-worktree-cleanup-content h1 {
-	font-size: var(--vscode-fontSize-heading1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	margin: 0 0 var(--vscode-spacing-size80);
-}
-
 .session-worktree-cleanup-intro,
 .session-worktree-cleanup-automatic > p {
 	color: var(--vscode-descriptionForeground);
@@ -42,7 +36,17 @@
 	gap: var(--vscode-spacing-size80);
 }
 
-.session-worktree-cleanup-age,
+.session-worktree-cleanup-controls label {
+	cursor: default;
+}
+
+.session-worktree-cleanup-controls select {
+	cursor: pointer;
+	max-width: 100%;
+	min-width: 0;
+}
+
+.session-worktree-cleanup-controls select,
 .session-worktree-cleanup-setting input[type="number"] {
 	color: var(--vscode-input-foreground);
 	background: var(--vscode-input-background);
@@ -95,14 +99,60 @@
 	overflow: hidden;
 }
 
+.session-worktree-cleanup-summary-row.hidden,
+.session-worktree-cleanup-list.hidden,
+.session-worktree-cleanup-unavailable.hidden,
+.session-worktree-cleanup-empty.hidden {
+	display: none;
+}
+
+.session-worktree-cleanup-unavailable {
+	margin-top: var(--vscode-spacing-size160);
+}
+
+.session-worktree-cleanup-unavailable > summary {
+	padding: var(--vscode-spacing-size80) 0;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.session-worktree-cleanup-unavailable > summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.session-worktree-cleanup-empty {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size120);
+	color: var(--vscode-foreground);
+	background: var(--vscode-editorWidget-background);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.session-worktree-cleanup-empty .codicon {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
 .session-worktree-cleanup-row {
 	display: grid;
-	grid-template-columns: 28px minmax(0, 1fr) 120px 100px;
+	grid-template-columns: 28px minmax(120px, 2fr) minmax(80px, 1fr) minmax(80px, 120px) minmax(70px, 100px);
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 	min-height: 36px;
 	padding: 0 var(--vscode-spacing-size120);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.session-worktree-cleanup-reason {
+	display: block;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .session-worktree-cleanup-session-link {
@@ -124,25 +174,35 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-/*
- * The editor hides horizontal scrolling, so the fixed table columns cannot fit in a narrow
- * Agents window. Below the full table width, keep the checkbox in its own column and stack the
- * remaining cells so the storage and the session link stay reachable instead of being clipped.
- */
 @container (max-width: 600px) {
 	.session-worktree-cleanup-row {
-		grid-template-columns: 28px minmax(0, 1fr);
+		grid-template-columns: 28px minmax(0, 1fr) auto;
 		row-gap: var(--vscode-spacing-size40);
 		padding-top: var(--vscode-spacing-size80);
 		padding-bottom: var(--vscode-spacing-size80);
 	}
 
-	.session-worktree-cleanup-row > *:not(:first-child) {
+	.session-worktree-cleanup-row > :first-child {
+		grid-row: 1 / 4;
+	}
+
+	.session-worktree-cleanup-row > :nth-child(2) {
 		grid-column: 2;
 	}
 
-	.session-worktree-cleanup-row.header {
-		display: none;
+	.session-worktree-cleanup-row > :nth-child(3) {
+		grid-column: 2;
+		grid-row: 2;
+	}
+
+	.session-worktree-cleanup-row > :nth-child(4) {
+		grid-column: 2;
+		grid-row: 3;
+	}
+
+	.session-worktree-cleanup-row > :nth-child(5) {
+		grid-column: 3;
+		grid-row: 3;
 	}
 }
 
@@ -152,7 +212,8 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.session-worktree-cleanup-row .title {
+.session-worktree-cleanup-row .title,
+.session-worktree-cleanup-row .workspace {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -172,50 +233,8 @@
 	margin: 0 0 var(--vscode-spacing-size80);
 }
 
-.session-worktree-cleanup-settings-heading {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-}
-
 .session-worktree-cleanup-setting {
 	min-height: 36px;
-}
-
-.session-worktree-cleanup-setting .disabled {
-	color: var(--vscode-disabledForeground);
-}
-
-.session-worktree-cleanup-configure {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex-shrink: 0;
-	width: 20px;
-	height: 20px;
-	margin-left: auto;
-	padding: 0;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
-	cursor: pointer;
-	color: var(--vscode-icon-foreground);
-	background: transparent;
-	outline: none;
-}
-
-.session-worktree-cleanup-configure:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.session-worktree-cleanup-configure:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.session-worktree-cleanup-setting-description {
-	margin: calc(-1 * var(--vscode-spacing-size40)) 0 var(--vscode-spacing-size80) 28px;
-	color: var(--vscode-descriptionForeground);
-	line-height: 18px;
 }
 
 .session-worktree-cleanup-setting input[type="number"] {

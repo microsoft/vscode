@@ -7,20 +7,19 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { IListContextMenuEvent, IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Delayer } from '../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { IMatch, matchesContiguousSubString } from '../../../../../base/common/filters.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -33,21 +32,20 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { IExtensionManifestPropertiesService } from '../../../../services/extensions/common/extensionManifestPropertiesService.js';
+import { defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
-import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { countEnabledCustomizationTools, getToolSetTriState, IAgentHostToolSetEnablementService, isToolEnabledInSet, IToolEnablementState } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { COPILOT_CLI_BUILTIN_TOOL_SET_ID, getCustomizationToolSets } from '../agentSessions/agentHost/copilotCliBuiltinToolSet.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { authenticateMcpServer, createAgentHostMcpServerDetailInput, createInstalledPluginItem, getActiveSessionServerPresentation, getAgentHostMcpServerSource, getMcpErrorMessage, getMcpStatusPresentation, isPrimaryMcpServerEnabled, renderMcpServerStatusActions, setPrimaryMcpServerEnablement } from './mcpListWidget.js';
 import { IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
@@ -520,58 +518,7 @@ class ToolsConnectedRowRenderer implements IListRenderer<IToolsConnectedRowEntry
 
 //#endregion
 
-/**
- * Marketplace search used when browsing for tool-contributing extensions. The marketplace cannot
- * be filtered server-side by contributed feature, so this is a text query.
- */
-const TOOLS_MARKETPLACE_QUERY = 'language model tools';
-
-const TOOLS_GALLERY_ITEM_HEIGHT = 62;
-
-const TOOLS_GALLERY_ITEM_TEMPLATE_ID = 'toolsGalleryItem';
-
-class ToolsGalleryItemDelegate implements IListVirtualDelegate<IExtension> {
-	getHeight(): number { return TOOLS_GALLERY_ITEM_HEIGHT; }
-	getTemplateId(): string { return TOOLS_GALLERY_ITEM_TEMPLATE_ID; }
-}
-
-/** Adapts an extension from the gallery to the shared gallery row renderer. */
-class ToolsGalleryItemProvider implements IGalleryItemProvider<IExtension> {
-
-	constructor(private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService) { }
-
-	getLabel(extension: IExtension): string {
-		return extension.displayName;
-	}
-
-	getPublisherDisplayName(extension: IExtension): string | undefined {
-		return extension.publisherDisplayName;
-	}
-
-	getDescription(extension: IExtension): string | undefined {
-		return extension.description;
-	}
-
-	getInstallState(extension: IExtension): GalleryItemInstallState {
-		switch (extension.state) {
-			case ExtensionState.Installed: return GalleryItemInstallState.Installed;
-			case ExtensionState.Installing: return GalleryItemInstallState.Installing;
-			default: return GalleryItemInstallState.Uninstalled;
-		}
-	}
-
-	async install(extension: IExtension): Promise<void> {
-		await this._extensionsWorkbenchService.install(extension);
-	}
-
-	onDidChangeInstallState(extension: IExtension, listener: () => void) {
-		return this._extensionsWorkbenchService.onChange(changed => {
-			if (!changed || changed.identifier.id === extension.identifier.id) {
-				listener();
-			}
-		});
-	}
-}
+const TOOLS_MARKETPLACE_QUERY = '@tag:language-model-tools';
 
 /** A searchable tree of agent tool sets and session-published plugins and MCP servers. */
 export class ToolsListWidget extends Disposable {
@@ -580,9 +527,6 @@ export class ToolsListWidget extends Disposable {
 
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
 	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
-
-	private readonly _onDidSelectExtension = this._register(new Emitter<IExtension>());
-	readonly onDidSelectExtension = this._onDidSelectExtension.event;
 
 	private readonly _onDidSelectServer = this._register(new Emitter<IMcpServerDetailInput>());
 	readonly onDidSelectServer = this._onDidSelectServer.event;
@@ -599,17 +543,10 @@ export class ToolsListWidget extends Disposable {
 	private _treeContainer!: HTMLElement;
 	private _tree!: WorkbenchObjectTree<IToolsTreeEntry>;
 	private _emptyState!: HTMLElement;
-	private _backButtonContainer!: HTMLElement;
-	private _galleryContainer!: HTMLElement;
-	private _galleryEmpty!: HTMLElement;
-	private _galleryListContainer!: HTMLElement;
-	private _galleryList!: WorkbenchList<IExtension>;
-
 	private _lastCount = -1;
-	private _browseMode = false;
-	private _galleryCts: CancellationTokenSource | undefined;
 	private _lastHeight = 0;
 	private _lastWidth = 0;
+	private _closeCustomizationEditor: () => Promise<boolean> = () => Promise.resolve(true);
 
 	private readonly _collapsedGroups = new Set<string>();
 	private _currentModel: readonly IToolSetViewModel[] = [];
@@ -622,9 +559,6 @@ export class ToolsListWidget extends Disposable {
 	private readonly _pendingAutoExpand = new Set<string>();
 	private readonly _agentHostCustomizationsChanged: IObservable<void>;
 
-	/** Read-only tool sets injected for the current session type (e.g. the Copilot CLI built-ins). */
-	private readonly _staticReadOnlySets: readonly IToolSet[];
-
 	constructor(
 		private readonly _sessionType: string,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
@@ -635,7 +569,6 @@ export class ToolsListWidget extends Disposable {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
@@ -649,7 +582,6 @@ export class ToolsListWidget extends Disposable {
 		super();
 
 		this._agentHostCustomizationsChanged = observableSignalFromEvent(this, this._agentHostCustomizationService.onDidChangeCustomizations);
-		this._staticReadOnlySets = this._createStaticReadOnlySets();
 
 		this.element = $('.tools-list-widget');
 		this._createHeader();
@@ -659,9 +591,6 @@ export class ToolsListWidget extends Disposable {
 		this._createTree();
 		this._emptyState = DOM.append(this.element, $('.list-empty-state'));
 		this._emptyState.style.display = 'none';
-
-		this._createGallery();
-		this._register(toDisposable(() => this._galleryCts?.dispose(true)));
 
 		const viewModel = this._createViewModel();
 		const connectedModel = derived(this, reader => {
@@ -735,12 +664,16 @@ export class ToolsListWidget extends Disposable {
 		}));
 		this._register(autorun(reader => {
 			// Badge counts enabled individual tools across all visible sets, ignoring the search filter.
-			const count = countEnabledCustomizationTools(this._toolsService.toolSets.read(reader), this._readState(reader), reader);
+			const count = countEnabledCustomizationTools(getCustomizationToolSets(this._toolsService.toolSets.read(reader)), this._readState(reader), reader);
 			if (count !== this._lastCount) {
 				this._lastCount = count;
 				this._onDidChangeItemCount.fire(count);
 			}
 		}));
+	}
+
+	setCloseCustomizationEditor(closeCustomizationEditor: () => Promise<boolean>): void {
+		this._closeCustomizationEditor = closeCustomizationEditor;
 	}
 
 	private _createHeader(): void {
@@ -771,20 +704,9 @@ export class ToolsListWidget extends Disposable {
 		}));
 		this._register(this._searchInput.onDidChange(() => {
 			this._delayedSearch.trigger(() => {
-				if (this._browseMode) {
-					void this._queryGallery();
-				} else {
-					this._searchQuery.set(this._searchInput.value, undefined);
-				}
+				this._searchQuery.set(this._searchInput.value, undefined);
 			}).catch(() => { /* delayer disposed */ });
 		}));
-
-		const backLabel = localize('toolsBrowseBack', "Back");
-		this._backButtonContainer = DOM.append(this._searchRow, $('.tools-list-browse-button-container'));
-		this._backButtonContainer.style.display = 'none';
-		const backButton = this._register(new Button(this._backButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: backLabel, ariaLabel: backLabel }));
-		backButton.label = `$(${Codicon.arrowLeft.id}) ${backLabel}`;
-		this._register(backButton.onDidClick(() => this._setBrowseMode(false)));
 	}
 
 	private _createTree(): void {
@@ -877,63 +799,8 @@ export class ToolsListWidget extends Disposable {
 		}));
 	}
 
-	private _createGallery(): void {
-		this._galleryContainer = DOM.append(this.element, $('.tools-gallery-container'));
-		this._galleryContainer.style.display = 'none';
-		const header = DOM.append(this._galleryContainer, $('.tools-marketplace-header'));
-		DOM.append(header, $('h3.tools-marketplace-title')).textContent = localize('toolsMarketplaceTitle', "Marketplace Tools");
-		DOM.append(header, $('p.tools-marketplace-description')).textContent = localize('toolsMarketplaceDescription', "Install extensions that contribute additional tools.");
-		this._galleryEmpty = DOM.append(this._galleryContainer, $('.list-empty-state'));
-		this._galleryEmpty.style.display = 'none';
-		this._galleryListContainer = DOM.append(this._galleryContainer, $('.tools-gallery-list'));
-		this._galleryList = this._register(this._instantiationService.createInstance(
-			WorkbenchList<IExtension>,
-			'ToolsMarketplaceList',
-			this._galleryListContainer,
-			new ToolsGalleryItemDelegate(),
-			[new GalleryItemRenderer<IExtension>(TOOLS_GALLERY_ITEM_TEMPLATE_ID, new ToolsGalleryItemProvider(this._extensionsWorkbenchService))],
-			{
-				multipleSelectionSupport: false,
-				horizontalScrolling: false,
-				accessibilityProvider: {
-					getAriaLabel: (extension: IExtension) => extension.displayName,
-					getWidgetAriaLabel: () => localize('toolsMarketplaceAria', "Tool extensions"),
-				},
-				identityProvider: { getId: (extension: IExtension) => extension.identifier.id },
-			},
-		)) as WorkbenchList<IExtension>;
-
-		this._register(this._galleryList.onDidOpen(e => {
-			if (e.element) {
-				this._onDidSelectExtension.fire(e.element);
-			}
-		}));
-
-		this._register(this._galleryList.onContextMenu(e => this._onGalleryContextMenu(e)));
-	}
-
 	private _readState(reader: IReader): IToolEnablementState {
 		return this._enablementService.observe(this._sessionType).read(reader);
-	}
-
-	private _createStaticReadOnlySets(): readonly IToolSet[] {
-		const tools: IToolData[] = COPILOT_CLI_TOOLS.map(t => ({
-			id: `copilot-cli:${t.name}`,
-			displayName: t.name,
-			modelDescription: t.description,
-			source: ToolDataSource.Internal,
-			canBeReferencedInPrompt: false,
-		}));
-		const copilotCliSet: IToolSet = {
-			id: 'copilot-cli',
-			referenceName: 'copilotCli',
-			icon: Codicon.copilot,
-			source: ToolDataSource.Internal,
-			description: localize('clientToolSet.copilotCli.description', "Copilot"),
-			detail: localize('clientToolSet.copilotCli.detail', "Built-in tools the Copilot agent runs inside its own runtime."),
-			getTools: () => tools,
-		};
-		return [copilotCliSet];
 	}
 
 	private _createViewModel(): IObservable<readonly IToolSetViewModel[]> {
@@ -944,7 +811,7 @@ export class ToolsListWidget extends Disposable {
 			const query = this._searchQuery.read(reader).trim();
 
 			const result: IToolSetViewModel[] = [];
-			for (const ts of [...this._toolsService.toolSets.read(reader), ...this._staticReadOnlySets]) {
+			for (const ts of getCustomizationToolSets(this._toolsService.toolSets.read(reader))) {
 				const vm = this._toViewModel(reader, ts, query);
 				if (vm) {
 					result.push(vm);
@@ -999,7 +866,7 @@ export class ToolsListWidget extends Disposable {
 			visibleTools,
 			nameMatches,
 			forceExpanded: query !== '',
-			readOnly: ts.id === 'copilot-cli',
+			readOnly: ts.id === COPILOT_CLI_BUILTIN_TOOL_SET_ID,
 			detail: this._resolveSetDetail(ts)
 		};
 	}
@@ -1015,124 +882,6 @@ export class ToolsListWidget extends Disposable {
 		const treeHeight = getCustomizationTreeContentHeight(this.element, this._treeContainer, height);
 		this._treeContainer.style.height = `${treeHeight}px`;
 		this._tree.layout(treeHeight, width);
-
-		const galleryOffset = this._galleryContainer.getBoundingClientRect().top - this.element.getBoundingClientRect().top;
-		this._galleryList.layout(Math.max(0, height - galleryOffset), width);
-	}
-
-	/** Enters/leaves marketplace browse mode, swapping the tree for the gallery list. */
-	private _setBrowseMode(browse: boolean): void {
-		if (browse && this._environmentService.isSessionsWindow) {
-			return;
-		}
-		if (this._browseMode === browse) {
-			return;
-		}
-		this._browseMode = browse;
-
-		this._treeContainer.style.display = browse ? 'none' : '';
-		this._emptyState.style.display = 'none';
-		this._galleryContainer.style.display = browse ? '' : 'none';
-		this._backButtonContainer.style.display = browse ? '' : 'none';
-
-		this._searchInput.setPlaceHolder(browse
-			? localize('toolsBrowsePlaceholder', "Search the Marketplace...")
-			: localize('searchPlaceholder', "Type to search..."));
-		this._searchInput.value = '';
-
-		if (browse) {
-			void this._queryGallery();
-		} else {
-			this._galleryCts?.dispose(true);
-			this._galleryCts = undefined;
-			this._galleryList.splice(0, this._galleryList.length, []);
-			this._searchQuery.set('', undefined);
-			this._renderTreeGroups();
-		}
-
-		this._searchInput.focus();
-		if (this._lastHeight > 0) {
-			this.layout(this._lastHeight, this._lastWidth);
-		}
-	}
-
-	/** Queries the Extensions gallery for tool-contributing extensions. */
-	private async _queryGallery(): Promise<void> {
-		this._galleryCts?.dispose(true);
-		const cts = this._galleryCts = new CancellationTokenSource();
-
-		const userText = this._searchInput.value.trim();
-		const text = userText ? `${TOOLS_MARKETPLACE_QUERY} ${userText}` : TOOLS_MARKETPLACE_QUERY;
-
-		this._setGalleryMessage(localize('toolsBrowseLoading', "Loading marketplace..."));
-		try {
-			const pager = await this._extensionsWorkbenchService.queryGallery({ text }, cts.token);
-			if (cts.token.isCancellationRequested) {
-				return;
-			}
-			const items = pager.firstPage;
-			const filteredItems = await this._filterGalleryResults(items, cts.token);
-			if (cts.token.isCancellationRequested) {
-				return;
-			}
-			if (filteredItems.length === 0) {
-				this._setGalleryMessage(
-					localize('toolsBrowseNoResults', "No tool extensions match '{0}'", userText || TOOLS_MARKETPLACE_QUERY),
-					localize('tryDifferentSearch', "Try a different search term"));
-				return;
-			}
-			this._galleryEmpty.style.display = 'none';
-			this._galleryListContainer.style.display = '';
-			this._galleryList.splice(0, this._galleryList.length, filteredItems);
-		} catch {
-			if (!cts.token.isCancellationRequested) {
-				this._setGalleryMessage(
-					localize('toolsBrowseError', "Unable to load marketplace"),
-					localize('toolsBrowseTryAgain', "Check your connection and try again"));
-			}
-		}
-	}
-
-	/**
-	 * Keeps only extensions that contribute language model tools and, in the Agents window, can run there
-	 * ({@link IExtensionManifestPropertiesService.canExecuteOnSessionsWindow}); the `executesCode` hint skips
-	 * manifest fetches for extensions that can never run.
-	 */
-	private async _filterGalleryResults(extensions: readonly IExtension[], token: CancellationToken): Promise<IExtension[]> {
-		const requireAgentsWindowSupport = this._environmentService.isSessionsWindow;
-		const results = await Promise.all(extensions.map(async extension => {
-			// In the Agents window, code-executing extensions can never run: reject before fetching the manifest.
-			if (requireAgentsWindowSupport && extension.gallery?.properties.executesCode) {
-				return undefined;
-			}
-			try {
-				const manifest = await extension.getManifest(token);
-				if (!manifest?.contributes?.languageModelTools?.length) {
-					return undefined;
-				}
-				if (requireAgentsWindowSupport && !this._extensionManifestPropertiesService.canExecuteOnSessionsWindow(manifest)) {
-					return undefined;
-				}
-				return extension;
-			} catch {
-				// Ignore extensions whose manifest cannot be resolved.
-				return undefined;
-			}
-		}));
-		return results.filter((extension): extension is IExtension => !!extension);
-	}
-
-	private _setGalleryMessage(text: string, subtext?: string): void {
-		// Drop any stale rows so only the message shows.
-		this._galleryList.splice(0, this._galleryList.length, []);
-		this._galleryListContainer.style.display = 'none';
-		DOM.clearNode(this._galleryEmpty);
-		this._galleryEmpty.style.display = 'flex';
-		const header = DOM.append(this._galleryEmpty, $('.empty-state-header'));
-		DOM.append(header, $('.empty-state-text')).textContent = text;
-		if (subtext) {
-			DOM.append(this._galleryEmpty, $('.empty-state-subtext')).textContent = subtext;
-		}
 	}
 
 	/** Move keyboard focus to the search box. */
@@ -1141,13 +890,17 @@ export class ToolsListWidget extends Disposable {
 		this._searchInput.select();
 	}
 
+	setSearchQuery(query: string): void {
+		this._searchInput.value = query;
+	}
+
 	/** Re-emit the current item count. Called once at startup to seed the section badge. */
 	fireItemCount(): void {
 		this._onDidChangeItemCount.fire(this._lastCount === -1 ? 0 : this._lastCount);
 	}
 
 	private _renderTreeGroups(): void {
-		if (!this._tree || this._browseMode) {
+		if (!this._tree) {
 			return;
 		}
 		const query = this._searchQuery.get().trim();
@@ -1368,17 +1121,29 @@ export class ToolsListWidget extends Disposable {
 		if (this._environmentService.isSessionsWindow) {
 			return;
 		}
-		const browseLabel = localize('toolsBrowseMarketplace', "Browse Marketplace");
+		const browseLabel = localize('toolsBrowseExtensions', "Browse Extensions");
 		const actions = DOM.append(container, $('.tools-inventory-section-actions'));
 		const browseButton = disposables.add(new Button(actions, {
-			...defaultButtonStyles,
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
-			supportIcons: true,
 			title: browseLabel,
 			ariaLabel: browseLabel,
 		}));
-		browseButton.label = `$(${Codicon.library.id}) ${browseLabel}`;
-		disposables.add(browseButton.onDidClick(() => this._setBrowseMode(true)));
+		browseButton.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
+		browseButton.label = browseLabel;
+		disposables.add(browseButton.onDidClick(() => void this._browseMarketplace()));
+	}
+
+	private async _browseMarketplace(): Promise<void> {
+		if (this._environmentService.isSessionsWindow || !await this._closeCustomizationEditor()) {
+			return;
+		}
+		await this._extensionsWorkbenchService.openSearch(TOOLS_MARKETPLACE_QUERY);
 	}
 
 	private _showTreeEmptyState(text: string, subtext: string): void {
@@ -1525,14 +1290,6 @@ export class ToolsListWidget extends Disposable {
 		return extension;
 	}
 
-	private _onGalleryContextMenu(e: IListContextMenuEvent<IExtension>): void {
-		const extension = e.element;
-		if (!extension || extension.state !== ExtensionState.Installed || extension.local?.isBuiltin) {
-			return;
-		}
-		this._showExtensionContextMenu(e.anchor, extension);
-	}
-
 	private _showExtensionContextMenu(anchor: HTMLElement | StandardMouseEvent | IAnchor, extension: IExtension): void {
 		const disposables = new DisposableStore();
 		const uninstallAction = disposables.add(new Action(
@@ -1562,37 +1319,8 @@ export class ToolsListWidget extends Disposable {
 	}
 }
 
-/**
- * The Copilot CLI's built-in tools, surfaced read-only for reference. Mirrored from the published
- * "Tool availability values" table (the SDK does not expose this list at runtime); keep in sync:
- * https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#tool-availability-values
- */
-const COPILOT_CLI_TOOLS: readonly { readonly name: string; readonly description: string }[] = [
-	// Shell tools
-	{ name: 'bash / powershell', description: localize('copilotCliTool.shell', "Execute commands") },
-	{ name: 'list_bash / list_powershell', description: localize('copilotCliTool.listShell', "List active shell sessions") },
-	{ name: 'read_bash / read_powershell', description: localize('copilotCliTool.readShell', "Read output from a shell session") },
-	{ name: 'stop_bash / stop_powershell', description: localize('copilotCliTool.stopShell', "Terminate a shell session") },
-	{ name: 'write_bash / write_powershell', description: localize('copilotCliTool.writeShell', "Send input to a shell session") },
-	// File operation tools
-	{ name: 'apply_patch', description: localize('copilotCliTool.applyPatch', "Apply patches (used by some models instead of edit/create)") },
-	{ name: 'create', description: localize('copilotCliTool.create', "Create new files") },
-	{ name: 'edit', description: localize('copilotCliTool.edit', "Edit files via string replacement") },
-	{ name: 'view', description: localize('copilotCliTool.view', "Read files or directories") },
-	// Agent and task delegation tools
-	{ name: 'list_agents', description: localize('copilotCliTool.listAgents', "List available agents") },
-	{ name: 'read_agent', description: localize('copilotCliTool.readAgent', "Check background agent status") },
-	{ name: 'task', description: localize('copilotCliTool.task', "Run subagents") },
-	// Other tools
-	{ name: 'ask_user', description: localize('copilotCliTool.askUser', "Ask the user a question") },
-	{ name: 'glob', description: localize('copilotCliTool.glob', "Find files matching patterns") },
-	{ name: 'grep (or rg)', description: localize('copilotCliTool.grep', "Search for text in files") },
-	{ name: 'skill', description: localize('copilotCliTool.skill', "Invoke custom skills") },
-	{ name: 'web_fetch', description: localize('copilotCliTool.webFetch', "Fetch and parse web content") },
-];
-
 const CUSTOM_TOOL_SET_ORDER: Record<string, number> = {
-	'copilot-cli': 0,
+	[COPILOT_CLI_BUILTIN_TOOL_SET_ID]: 0,
 	'vscode-general': 1,
 	'vscode-tasks': 2,
 	'vscode-browser': 3,

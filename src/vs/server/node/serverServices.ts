@@ -47,7 +47,7 @@ import { RequestService } from '../../platform/request/node/requestService.js';
 import { resolveCommonProperties } from '../../platform/telemetry/common/commonProperties.js';
 import { ITelemetryService, TelemetryLevel } from '../../platform/telemetry/common/telemetry.js';
 import { ITelemetryServiceConfig } from '../../platform/telemetry/common/telemetryService.js';
-import { getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, ITelemetryAppender, NullAppender, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
+import { getPiiPathsFromEnvironment, getUserContentPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, ITelemetryAppender, NullAppender, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
 import ErrorTelemetry from '../../platform/telemetry/node/errorTelemetry.js';
 import { IPtyService, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
@@ -81,7 +81,8 @@ import { RemoteExtensionsScannerChannelName } from '../../platform/remote/common
 import { RemoteUserDataProfilesServiceChannel } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStarter.js';
 import { NodeAgentHostStarter } from '../../platform/agentHost/node/nodeAgentHostStarter.js';
-import { ServerAgentHostManager } from './serverAgentHostManager.js';
+import '../../platform/agentHost/common/agentHostStarter.config.contribution.js';
+import { readGithubEnvironmentOptions, ServerAgentHostManager } from './serverAgentHostManager.js';
 import { AgentHostChannel, UnavailableAgentHostChannel } from './agentHostChannel.js';
 import { AgentHostIpcChannels } from '../../platform/agentHost/common/agentService.js';
 import { IServerLifetimeService, ServerLifetimeService } from './serverLifetimeService.js';
@@ -110,6 +111,10 @@ import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelper.
 const eventPrefix = 'monacoworkbench';
 
 export async function setupServerServices(connectionToken: ServerConnectionToken, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, agentHostBridgeConnectionToken: string | undefined, disposables: DisposableStore) {
+	const githubEnvironment = readGithubEnvironmentOptions(process.env);
+	if (githubEnvironment && !(args['agent-host-port'] || args['agent-host-path'])) {
+		throw new Error('GitHub environment hosting requires an explicitly spawned agent host');
+	}
 	const services = new ServiceCollection();
 	const socketServer = new SocketServer<RemoteAgentConnectionContext>();
 
@@ -190,7 +195,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const config: ITelemetryServiceConfig = {
 			appenders: [oneDsAppender, new TelemetryLogAppender('', true, loggerService, environmentService, productService)],
 			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, devDeviceId, isInternal, productService.date, 'remoteAgent'),
-			piiPaths: getPiiPathsFromEnvironment(environmentService)
+			piiPaths: getPiiPathsFromEnvironment(environmentService),
+			userContentPaths: getUserContentPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
 		let injectedTelemetryLevel: TelemetryLevel = TelemetryLevel.USAGE;
@@ -259,6 +265,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	//    agent host lifecycle).
 	// 3. DEFAULT: without either set of flags, lazily start a local agent host
 	//    on a fresh socket when the first renderer connects.
+	//    Resolver environment overrides are retained for this launch and crash recovery.
 	//
 	// The explicit configurations are deliberately separable so that scenarios
 	// with an externally-managed agent host don't accidentally fork a duplicate.
@@ -274,7 +281,23 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			host: args.host || 'localhost',
 			connectionToken: connectionToken.type === ServerConnectionTokenType.Mandatory ? connectionToken.value : undefined,
 		});
-		disposables.add(instantiationService.createInstance(ServerAgentHostManager, agentHostStarter, {}));
+		const agentHostManager = disposables.add(instantiationService.createInstance(ServerAgentHostManager, agentHostStarter, {
+			githubEnvironment,
+			onGithubEnvironmentReady: environmentId => console.log(`__VSCODE_GITHUB_ENVIRONMENT_READY__:${environmentId}`),
+			onRestartLimitReached: githubEnvironment ? () => process.exit(1) : undefined,
+		}));
+		if (githubEnvironment) {
+			const shutdown = () => {
+				void agentHostManager.shutdown().then(() => process.exit(0), error => {
+					logService.error('GitHub environment shutdown failed', error);
+					process.exit(1);
+				});
+			};
+			process.stdin.once('end', shutdown);
+			disposables.add(toDisposable(() => process.stdin.removeListener('end', shutdown)));
+			process.stdin.resume();
+			await agentHostManager.ensureStarted();
+		}
 
 		// The bridge upstream defaults to the agent host this server just
 		// spawned, but ONLY when that endpoint is dialable at configuration
@@ -354,7 +377,10 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			));
 			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
 				socketServer,
-				async () => {
+				async options => {
+					if (options?.env || options?.debugEnv) {
+						agentHostStarter.setEnvironment(options.env ?? {}, options.debugEnv);
+					}
 					await agentHostManager.ensureStarted();
 					return { socketPath, connectionToken };
 				},

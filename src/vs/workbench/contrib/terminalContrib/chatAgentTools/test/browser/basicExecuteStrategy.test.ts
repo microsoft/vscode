@@ -12,6 +12,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import type { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { BasicExecuteStrategy } from '../../browser/executeStrategy/basicExecuteStrategy.js';
+import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 
@@ -59,7 +60,8 @@ suite('BasicExecuteStrategy', () => {
 			instance,
 			() => false,
 			commandDetection,
-			new TestConfigurationService(),
+			// The mocked process exits immediately; don't wait a real second for its output to go idle.
+			new TestConfigurationService({ [TerminalChatAgentToolsSettingId.IdlePollInterval]: 1 }),
 			createLogService(),
 		));
 
