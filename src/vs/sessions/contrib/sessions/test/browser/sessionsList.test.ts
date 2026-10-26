@@ -6085,7 +6085,7 @@ suite('Sessions - SessionsList', () => {
 
 			test(`continues the comparison trunk through an expanded middle participant's chats (${mode})`, () => {
 				const { attempt1, container, harness, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, undefined, false, presentation);
-				const nested = buildTestSession({ id: 'nested-middle', chats: [{ id: 'one', title: 'First chat' }, { id: 'two', title: 'Last chat' }] });
+				const nested = buildTestSession({ id: 'nested-middle', title: 'Middle participant', chats: [{ id: 'one', title: 'First chat' }, { id: 'two', title: 'Last chat' }] });
 				const session: ISession = {
 					...attempt1.session,
 					chats: nested.session.chats,
