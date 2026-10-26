@@ -66,7 +66,12 @@ jobs:
     # as "<calling job> / Windows", for example "Electron-Unit / Windows", whether the job runs or not.
     name: Windows
     if: ${{ inputs.affected }}
-    runs-on: vscode-large-runners-windows-8-core
+    # GitHub-hosted Windows runners intermittently freeze while WSL2 provisions a distribution
+    # (https://github.com/actions/runner-images/issues/14938): the step timeout never fires, no log is
+    # kept, and the job only fails when GitHub notices that it lost the runner, about 45 minutes later.
+    # That happened in 3 of about 90 runs of the WSL smoke test shard on the larger runners, and in none
+    # of about 740 on the 1ES pool, so that shard runs on the 1ES pool. JobId must be unique per job.
+    runs-on: ${{ (inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1) && fromJSON(format('["self-hosted", "1ES.Pool=1es-vscode-oss-windows-2022-x64", "JobId=windows-test-wsl-smoke-{0}-{1}-{2}"]', github.run_id, github.run_number, github.run_attempt)) || 'vscode-large-runners-windows-8-core' }}
     env:
       ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.agent_host_e2e_shard_total > 1 && format('-{0}', inputs.agent_host_e2e_shard_index) || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
       NPM_ARCH: x64
@@ -77,8 +82,8 @@ jobs:
       # extracting node_modules, takes twice as long as on the 1ES runners' temporary disk. A Dev Drive in
       # a VHDX on the same disk is faster than both. It is mounted at the parent of the workspace, so that
       # the workspace keeps its path and is an ordinary, empty folder for actions/checkout, which cannot
-      # clear the root of a volume. WSL cannot open folders on a volume that is mounted in a folder of
-      # drive C:, so the smoke test shard with the WSL suite keeps its workspace on the OS disk.
+      # clear the root of a volume. The smoke test shard with the WSL suite runs on the 1ES pool (see
+      # runs-on), and WSL cannot open folders on a volume that is mounted in a folder of drive C: anyway.
       - name: Move the workspace to a Dev Drive
         if: ${{ !(inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1) }}
         shell: pwsh
