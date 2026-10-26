@@ -54,14 +54,14 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 		documentation: { label: localize('remotes.docs.wsl', "Install WSL"), href: WSL_INSTALL_DOCS_URL },
 	},
 	tunnel: {
-		label: localize('remotes.empty.tunnels', "No tunnels found for this account."),
-		description: localize('remotes.empty.tunnels.description', "Enable a tunnel on another computer, then sign in with the same account."),
-		documentation: { label: localize('remotes.docs.tunnels', "Remote Tunnels Guide"), href: 'https://aka.ms/vscode-agent-tunnel' },
+		label: localize('remotes.empty.tunnels', "No dev tunnels found for this account."),
+		description: localize('remotes.empty.tunnels.description', "Enable a dev tunnel on another computer, then sign in with the same account."),
+		documentation: { label: localize('remotes.docs.tunnels', "Dev Tunnels Guide"), href: 'https://aka.ms/vscode-agent-tunnel' },
 	},
 	environment: {
-		label: localize('remotes.empty.environments', "No environments available."),
+		label: localize('remotes.empty.environments', "No GitHub environments available."),
 		description: localize('remotes.empty.environments.description', "Sign in to GitHub and enable environment sharing on another machine."),
-		documentation: { label: localize('remotes.docs.environments', "Environments Setup Guide"), href: 'https://aka.ms/vscode-agent-environments' },
+		documentation: { label: localize('remotes.docs.environments', "GitHub Environments Setup Guide"), href: 'https://aka.ms/vscode-agent-environments' },
 	},
 	devContainer: {
 		label: localize('remotes.empty.devContainers', "No Dev Containers found."),
@@ -152,7 +152,7 @@ export class RemotesWidget extends Disposable {
 		}));
 		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
 
-		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Connection, Actions.");
+		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Status, Actions.");
 		const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
@@ -160,7 +160,7 @@ export class RemotesWidget extends Disposable {
 		const columnDefinitions = [
 			{ id: 'gutter', label: '', weight: 0, minimumWidth: 64, maximumWidth: 64 },
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.8, minimumWidth: 220 },
-			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 144 },
+			{ id: 'connection', label: localize('remotes.connectionColumn', "Status"), weight: 0.2, minimumWidth: 144 },
 			{ id: 'actions', label: '', weight: 0, minimumWidth: 144, maximumWidth: 144 },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
@@ -581,7 +581,7 @@ export class RemotesWidget extends Disposable {
 		const name = remote.pickerUnavailableReason
 			? localize('remotes.unavailablePickerName', "{0} (not shown in Environment picker: {1})", remote.name, remote.pickerUnavailableReason)
 			: remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from Environment picker)", remote.name) : remote.name;
-		let label = localize('remotes.accessibleRow', "{0}. Connection: {1}", name,
+		let label = localize('remotes.accessibleRow', "{0}. Status: {1}", name,
 			getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
 		const error = remote.lastConnectionError;
 		if (!this.pendingConnections.has(remote.id) && error) {

@@ -47,7 +47,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 suite('Remote Agent Host actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Tunnels uses the standard remote icon', () => {
+	test('Dev Tunnels uses the standard remote icon', () => {
 		assert.deepStrictEqual(MenuRegistry.getCommand(RemoteAgentHostCommandIds.connectViaTunnel)?.icon, Codicon.remote);
 	});
 
@@ -61,7 +61,7 @@ suite('Remote Agent Host actions', () => {
 			const command = MenuRegistry.getMenuItems(Menus.SessionWorkspaceManage).filter(isIMenuItem).find(item => item.command.id === id)?.command;
 			const title = command?.shortTitle ?? command?.title;
 			return typeof title === 'string' ? title : title?.value;
-		}), ['Environments...', 'Tunnels...', 'SSH...', 'WSL...']);
+		}), ['GitHub Environments...', 'Dev Tunnels...', 'SSH...', 'WSL...']);
 	});
 
 	for (const outcome of ['selected', 'cancelled-connection', 'cancelled-folder', 'missing-provider', 'empty-workspace'] as const) {

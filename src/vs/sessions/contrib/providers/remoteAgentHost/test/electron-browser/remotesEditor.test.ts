@@ -152,7 +152,7 @@ suite('RemotesEditor', () => {
 		}, {
 			counts: [1, 1],
 			titles: ['Manage Remote Environments', 'Manage Remote Environments'],
-			overflowGroup: 'manage',
+			overflowGroup: '2_manage',
 			visibility: [[true, true], [false, false], [false, false], [false, false], [false, false], [true, false], [false, false]],
 		});
 	});

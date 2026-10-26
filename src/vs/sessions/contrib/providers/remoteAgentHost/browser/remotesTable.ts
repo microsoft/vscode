@@ -329,8 +329,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.action.class = ThemeIcon.asClassName(entry.remote.pickerUnavailableReason || entry.remote.hidden ? Codicon.eyeClosed : Codicon.eye);
 				} else if (showConfig) {
 					template.action.label = entry.kind === 'ssh' ? localize('remotes.openSSHConfig', "Open SSH Configuration")
-						: entry.kind === 'environment' ? localize('remotes.openEnvironmentSettings', "Open Environment Settings")
-							: localize('remotes.openTunnelSettings', "Open Tunnel Settings");
+						: entry.kind === 'environment' ? localize('remotes.openEnvironmentSettings', "Open GitHub Environments Settings")
+							: localize('remotes.openTunnelSettings', "Open Dev Tunnels Settings");
 					template.action.class = ThemeIcon.asClassName(Codicon.settingsGear);
 				} else if (showConnection) {
 					const connected = RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus);

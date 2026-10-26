@@ -41,8 +41,8 @@ export type RemoteKind = typeof remoteKinds[number];
 export const remoteKindLabels: Record<RemoteKind, string> = {
 	ssh: localize('remotes.ssh', "SSH"),
 	wsl: localize('remotes.wsl', "WSL"),
-	tunnel: localize('remotes.tunnels', "Tunnels"),
-	environment: localize('remotes.environments', "Environments"),
+	tunnel: localize('remotes.tunnels', "Dev Tunnels"),
+	environment: localize('remotes.environments', "GitHub Environments"),
 	devContainer: localize('remotes.devContainers', "Dev Containers"),
 };
 
