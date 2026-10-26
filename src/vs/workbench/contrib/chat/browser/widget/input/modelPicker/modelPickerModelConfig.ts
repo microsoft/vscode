@@ -141,13 +141,12 @@ export function getModelConfigValueLabel(schema: IModelConfigPropertySchema, val
 	return label ?? (typeof value === 'number' ? formatTokenCount(value) : String(value));
 }
 
-/**
- * Whether the context property is set to its largest value. Producers order the
- * context enum from smallest window to largest, so the last entry is the
- * extended one.
- */
+/** Named tiers use their wire value; other context enums retain the producer's smallest-to-largest ordering. */
 export function isExtendedContext(property: IModelConfigProperty): boolean {
 	const values = property.schema.enum ?? [];
+	if (property.key === 'contextTier') {
+		return property.value === 'long_context' && values.includes('long_context');
+	}
 	return values.length > 1 && property.value === values[values.length - 1];
 }
 
