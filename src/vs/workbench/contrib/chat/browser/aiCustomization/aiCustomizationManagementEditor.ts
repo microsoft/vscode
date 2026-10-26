@@ -264,6 +264,7 @@ interface ISectionItem {
 	readonly id: AICustomizationManagementSection;
 	readonly label: string;
 	readonly description: string;
+	readonly separatorBefore?: boolean;
 	count: number;
 	/** Describes why the entry shows a badge, if it does. */
 	badge?: string;
@@ -333,6 +334,7 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 
 	renderElement(element: ISectionItem, index: number, templateData: ISectionItemTemplateData): void {
 		templateData.templateDisposables.clear();
+		templateData.container.classList.toggle('section-separator-before', element.separatorBefore === true);
 		templateData.label.textContent = element.label;
 		templateData.badge.style.display = element.badge ? '' : 'none';
 		if (element.count > 0) {
@@ -637,7 +639,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const contribution = aiCustomizationManagementSectionRegistry.get(id, activeHarnessId) ?? aiCustomizationManagementSectionRegistry.getDefault(id);
 			const info = contribution ?? sectionInfo[id];
 			if (info) {
-				this.allSections.push({ id, label: info.label, description: info.description, count: 0 });
+				this.allSections.push({ id, label: info.label, description: info.description, separatorBefore: contribution?.separatorBefore, count: 0 });
 			}
 		}
 		this.rebuildVisibleSections();
@@ -797,7 +799,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
 			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
 			if (!hidden.has(s.id) && (!contributed || !!contribution) && this.isContributedSectionEnabled(s.id)) {
-				this.sections.push(contribution ? { ...s, label: contribution.label, description: contribution.description, badge: this.sectionBadges.get(s.id) } : s);
+				this.sections.push(contribution ? {
+					...s,
+					label: contribution.label,
+					description: contribution.description,
+					separatorBefore: contribution.separatorBefore,
+					badge: this.sectionBadges.get(s.id),
+				} : s);
 			}
 		}
 

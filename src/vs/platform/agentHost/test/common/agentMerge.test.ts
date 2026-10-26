@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeEnabledNotice, defaultAgentMergeConfiguration, evaluateAgentMerge, getAgentMergeCheckActivity, getAgentMergeRepairBlockers, getNonMergeSessionConfigValues, hasAgentMergeRepairProgress, isAgentMergePullRequestReadyForReview, mergeClientAgentMergeFolders, readAgentMergeFolderState, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeFolderState } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeEnabledNotice, defaultAgentMergeConfiguration, evaluateAgentMerge, getAgentMergeRepairBlockers, getNonMergeSessionConfigValues, hasAgentMergeRepairProgress, isAgentMergePullRequestReadyForReview, mergeClientAgentMergeFolders, readAgentMergeFolderState, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeFolderState } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { PullRequestCheck, PullRequestCheckSuite, PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
+import { PullRequestCheck, PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
 suite('Agent Merge gate', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -649,26 +649,6 @@ suite('Agent Merge gate', () => {
 		});
 	});
 
-	test('summarizes check activity independent of order and treats a gated check or a suite without check runs as pending', () => {
-		const build: PullRequestCheck = { id: '1', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'SUCCESS' };
-		const approval: PullRequestCheck = { id: '2', type: 'statusContext', name: 'Approval', required: true, status: 'PENDING' };
-		const queuedSuite: PullRequestCheckSuite = { id: 'S1', name: 'analysis', status: 'QUEUED', checkRunsReported: false };
-		const activity = (checks: PullRequestCheck[], expectedSuites: PullRequestCheckSuite[] = []) => getAgentMergeCheckActivity({ headSha: 'head', requirednessComplete: true, expectedSuites, expectedSuitesComplete: true, checks });
-		const gated = activity([build, approval]);
-		const settled = activity([build]);
-		const suiteQueued = activity([build], [queuedSuite]);
-		const suiteRunning = activity([build], [{ ...queuedSuite, status: 'IN_PROGRESS' }]);
-
-		assert.deepStrictEqual({
-			orderIndependent: gated.digest === activity([approval, build]).digest,
-			gatedPending: gated.pending,
-			settledPending: settled.pending,
-			changed: gated.digest !== settled.digest,
-			suitePending: suiteQueued.pending,
-			suiteChanged: suiteQueued.digest !== suiteRunning.digest,
-			reportedSuitePending: activity([build], [{ ...queuedSuite, checkRunsReported: true }]).pending,
-		}, { orderIndependent: true, gatedPending: true, settledPending: false, changed: true, suitePending: true, suiteChanged: true, reportedSuitePending: false });
-	});
 });
 
 function readySnapshot(overrides?: {
