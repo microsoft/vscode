@@ -319,7 +319,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
 				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions,
-				isSessionsWindow: this._environmentService.isSessionsWindow
+				isSessionsWindow: this._environmentService.isSessionsWindow,
+				isCustomUserDataDir: this._environmentService.isCustomUserDataDir
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration || undefined,
