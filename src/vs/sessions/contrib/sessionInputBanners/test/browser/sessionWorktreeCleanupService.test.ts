@@ -30,6 +30,19 @@ import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, SessionWorktreeClean
 suite('SessionWorktreeCleanupService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('refreshes the measurement snapshot when an existing session changes', async () => {
+		const updatedAt = observableValue('updatedAt', oldDate());
+		const session = upcastPartial<ISession>({ ...createSession('changed', oldDate()), updatedAt });
+		let scans = 0;
+		const service = disposables.add(createService([session], true, () => ++scans));
+		await service.getWorktrees(0);
+		await service.getWorktrees(0);
+		const unchangedScans = scans;
+		updatedAt.set(new Date(), undefined);
+		const worktrees = await service.getWorktrees(0);
+		assert.deepStrictEqual({ unchangedScans, scans, size: worktrees[0].sizeBytes }, { unchangedScans: 1, scans: 2, size: 2 });
+	});
+
 	test('uses the existing cleanup suggestion for low disk space with a recent worktree', async () => {
 		const commands: { id: string; args: readonly unknown[] }[] = [];
 		const service = disposables.add(createService(

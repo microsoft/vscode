@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execFile } from 'child_process';
-import { link, lstat, mkdir, mkdtemp, open, opendir, rm, symlink, writeFile } from 'fs/promises';
+import { link, lstat, mkdir, mkdtemp, open, opendir, rename, rm, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -14,8 +14,10 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { measureWorktreeDiskUsage } from '../../node/worktreeDiskUsage.js';
+import { AgentHostDatabase, IAgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostWorktreeDiskUsageService, measureWorktreeDiskUsage } from '../../node/worktreeDiskUsage.js';
 
 suite('HostWorktreeDiskUsage', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,6 +29,113 @@ suite('HostWorktreeDiskUsage', () => {
 
 	teardown(async () => {
 		await rm(root, { recursive: true, force: true });
+	});
+
+	test('persists sizes across host restarts and only scans changed sessions', async () => {
+		const worktree = URI.file(join(root, 'worktree'));
+		await mkdir(worktree.fsPath);
+		await writeFile(join(worktree.fsPath, 'file'), 'contents');
+		const expectedSize = Number((await lstat(join(worktree.fsPath, 'file'), { bigint: true })).blocks * 512n);
+		const databasePath = join(root, 'agent-host.db');
+		let database = new AgentHostDatabase(databasePath);
+		const session = URI.parse('ahp-session:/cached');
+		const other = URI.parse('ahp-session:/other');
+		let scans = 0;
+		const fileSystem = {
+			lstat: (path: string) => lstat(path, { bigint: true }),
+			opendir: (path: string) => { scans++; return opendir(path); },
+		};
+		try {
+			for (const resource of [session, other]) {
+				await database.registerSessionV2(resource.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+			}
+			const service = disposables.add(new AgentHostWorktreeDiskUsageService(fileSystem, database));
+			const [initial] = await Promise.all([
+				service.measure(worktree, CancellationToken.None, session),
+				service.measure(worktree, CancellationToken.None, session),
+				service.measure(worktree, CancellationToken.None, session),
+			]);
+			await database.close();
+			database = new AgentHostDatabase(databasePath);
+			const restarted = disposables.add(new AgentHostWorktreeDiskUsageService(fileSystem, database));
+			const restored = await restarted.measure(worktree, CancellationToken.None, session);
+			await database.updateSessionModifiedTime(other.toString(), 2);
+			await restarted.measure(worktree, CancellationToken.None, session);
+			const unchangedScans = scans;
+			await database.updateSessionModifiedTime(session.toString(), 2);
+			const changed = await restarted.measure(worktree, CancellationToken.None, session);
+			await rm(worktree.fsPath, { recursive: true });
+			const removed = await restarted.measure(worktree, CancellationToken.None, session);
+			assert.deepStrictEqual({ initial, restored, changed, unchangedScans, scans, removed }, {
+				initial: expectedSize, restored: expectedSize, changed: expectedSize, unchangedScans: 1, scans: 2, removed: undefined,
+			});
+		} finally {
+			await database.close();
+		}
+	});
+
+	for (const failure of ['cancelled', 'failed'] as const) {
+		test(`does not persist ${failure} measurements`, async () => {
+			let writes = 0;
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const database = new class extends mock<IAgentHostDatabase>() {
+				override async getWorktreeDiskUsageRevision() { return 'revision'; }
+				override async readWorktreeDiskUsage() { return undefined; }
+				override async writeWorktreeDiskUsage() { writes++; }
+			}();
+			const service = disposables.add(new AgentHostWorktreeDiskUsageService({
+				lstat: path => lstat(path, { bigint: true }),
+				opendir: async path => {
+					if (failure === 'cancelled') {
+						cancellation.cancel();
+						return opendir(path);
+					}
+					throw new Error('Cannot read directory');
+				},
+			}, database));
+			await assert.rejects(service.measure(URI.file(root), cancellation.token, URI.parse('session:/test')),
+				failure === 'cancelled' ? isCancellationError : /Cannot read directory/);
+			assert.strictEqual(writes, 0);
+		});
+	}
+
+	test('does not cache a measurement when the session changes during its scan', async () => {
+		let revision = 'before';
+		let writes = 0;
+		const database = new class extends mock<IAgentHostDatabase>() {
+			override async getWorktreeDiskUsageRevision() { return revision; }
+			override async readWorktreeDiskUsage() { return undefined; }
+			override async writeWorktreeDiskUsage() { writes++; }
+		}();
+		const service = disposables.add(new AgentHostWorktreeDiskUsageService({
+			lstat: path => lstat(path, { bigint: true }),
+			opendir: async path => { revision = 'after'; return opendir(path); },
+		}, database));
+		assert.deepStrictEqual({
+			size: await service.measure(URI.file(root), CancellationToken.None, URI.parse('session:/test')),
+			writes,
+		}, { size: 0, writes: 0 });
+	});
+
+	test('does not reuse a cached size after the worktree is recreated', async () => {
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const session = URI.parse('ahp-session:/recreated');
+		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		const worktree = URI.file(join(root, 'worktree'));
+		await mkdir(worktree.fsPath);
+		let scans = 0;
+		const service = disposables.add(new AgentHostWorktreeDiskUsageService({
+			lstat: path => lstat(path, { bigint: true }),
+			opendir: path => { scans++; return opendir(path); },
+		}, database));
+		await service.measure(worktree, CancellationToken.None, session);
+		// Keep the original inode allocated so recreating the path cannot reuse it.
+		await rename(worktree.fsPath, join(root, 'old-worktree'));
+		await mkdir(worktree.fsPath);
+		await writeFile(join(worktree.fsPath, 'new-file'), 'contents');
+		const expectedSize = Number((await lstat(join(worktree.fsPath, 'new-file'), { bigint: true })).blocks * 512n);
+		const size = await service.measure(worktree, CancellationToken.None, session);
+		assert.deepStrictEqual({ size, scans }, { size: expectedSize, scans: 2 });
 	});
 
 	test('sums allocated bytes including dependencies without following directory symlinks', async () => {

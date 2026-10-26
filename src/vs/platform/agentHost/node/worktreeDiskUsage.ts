@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { promises as fs, type BigIntStats, type Dir } from 'fs';
-import { Limiter, Promises } from '../../../base/common/async.js';
+import { Limiter, Promises, SequencerByKey } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorCode } from '../../../base/common/errors.js';
 import { join } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IAgentHostDatabase } from './agentHostDatabase.js';
 
 interface IWorktreeFileSystem {
 	lstat(path: string): Promise<BigIntStats>;
@@ -32,20 +33,52 @@ export const IAgentHostWorktreeDiskUsageService = createDecorator<IAgentHostWork
 
 export interface IAgentHostWorktreeDiskUsageService {
 	readonly _serviceBrand: undefined;
-	measure(root: URI, token: CancellationToken): Promise<number | undefined>;
+	measure(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined>;
 }
 
 /** Owns the scan limit shared by every protocol endpoint in one host runtime. */
 export class AgentHostWorktreeDiskUsageService extends Disposable implements IAgentHostWorktreeDiskUsageService {
 	declare readonly _serviceBrand: undefined;
 	private readonly _limiter = this._register(new Limiter<number | undefined>(2));
+	private readonly _measurements = new SequencerByKey<string>();
 
-	constructor(private readonly _fileSystem: IWorktreeFileSystem = nodeFileSystem) {
+	constructor(
+		private readonly _fileSystem: IWorktreeFileSystem | undefined,
+		@IAgentHostDatabase private readonly _database: IAgentHostDatabase,
+	) {
 		super();
 	}
 
-	measure(root: URI, token: CancellationToken): Promise<number | undefined> {
-		return this._limiter.queue(() => measureWorktreeDiskUsage(root, token, this._fileSystem));
+	measure(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
+		const measure = () => this._limiter.queue(async () => {
+			throwIfCancelled(token);
+			const fileSystem = this._fileSystem ?? nodeFileSystem;
+			if (!session) {
+				return measureWorktreeDiskUsage(root, token, fileSystem);
+			}
+			const rootStat = await statPath(root.fsPath, fileSystem);
+			if (!rootStat?.isDirectory() || rootStat.isSymbolicLink()) {
+				return undefined;
+			}
+			const sessionKey = session.toString();
+			const sessionRevision = await this._database.getWorktreeDiskUsageRevision(sessionKey, root.toString());
+			const revision = sessionRevision === undefined ? undefined : `${sessionRevision}\0${rootStat.dev}:${rootStat.ino}`;
+			if (revision !== undefined) {
+				const cached = await this._database.readWorktreeDiskUsage(sessionKey, root.toString(), revision);
+				throwIfCancelled(token);
+				if (cached !== undefined) {
+					return cached;
+				}
+			}
+			const sizeBytes = await measureWorktreeDiskUsage(root, token, fileSystem);
+			if (revision !== undefined && sizeBytes !== undefined
+				&& await this._database.getWorktreeDiskUsageRevision(sessionKey, root.toString()) === sessionRevision) {
+				throwIfCancelled(token);
+				await this._database.writeWorktreeDiskUsage(sessionKey, root.toString(), revision, sizeBytes);
+			}
+			return sizeBytes;
+		});
+		return session ? this._measurements.queue(root.toString(), measure) : measure();
 	}
 }
 

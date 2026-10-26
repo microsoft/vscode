@@ -418,7 +418,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			.flatMap(session => session.workspace.get()?.folders
 				.map(folder => folder.gitRepository?.workTreeUri)
 				.filter(worktreeUri => worktreeUri !== undefined)
-				.map(worktreeUri => `${session.sessionId}\0${worktreeUri.toString()}`) ?? [])
+				.map(worktreeUri => `${session.sessionId}\0${worktreeUri.toString()}\0${session.updatedAt.get().getTime()}\0${session.status.get()}`) ?? [])
 			.sort()
 			.join('\n');
 	}

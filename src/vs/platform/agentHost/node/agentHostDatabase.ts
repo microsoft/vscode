@@ -441,6 +441,10 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	updateSessionModifiedTimes(updates: readonly IAgentHostDatabaseModifiedTimeUpdate[]): Promise<void>;
 	getSession(session: string): Promise<IAgentHostDatabaseSession | undefined>;
 	listSessions(): Promise<readonly IAgentHostDatabaseSession[]>;
+	/** Revision of a worktree's session and any recorded co-owners, for disk usage caching. */
+	getWorktreeDiskUsageRevision(session: string, worktree: string): Promise<string | undefined>;
+	readWorktreeDiskUsage(session: string, worktree: string, revision: string): Promise<number | undefined>;
+	writeWorktreeDiskUsage(session: string, worktree: string, revision: string, sizeBytes: number): Promise<void>;
 	isSessionRegistryEmpty(): Promise<boolean>;
 	/**
 	 * @deprecated superseded by per-provider {@link isProviderBackfilled}.
@@ -846,6 +850,16 @@ const migrations = [
 		version: SCRATCH_FOLDER_MIGRATION_VERSION,
 		sql: SCRATCH_FOLDER_SCHEMA_SQL,
 	},
+	{
+		version: 22,
+		sql: `CREATE TABLE IF NOT EXISTS worktree_disk_usage (
+			session_uri TEXT NOT NULL REFERENCES sessions_v2(session_uri) ON DELETE CASCADE,
+			worktree_uri TEXT NOT NULL,
+			revision TEXT NOT NULL,
+			size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0),
+			PRIMARY KEY (session_uri, worktree_uri)
+		) WITHOUT ROWID`,
+	},
 ] as const;
 
 async function normalizePreReleaseCatalogSchema(database: Database, currentVersion: number): Promise<number> {
@@ -1180,6 +1194,45 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	/** A plain database stores every session as addressed, so there is no storage spelling to map. */
 	toRuntimeSession(session: string): string {
 		return session;
+	}
+
+	async getWorktreeDiskUsageRevision(session: string, worktree: string): Promise<string | undefined> {
+		const rows = await all(await this._ensureDatabase(), `SELECT
+			v.session_uri, s.modified_time, v.session_generation, v.source_revision,
+			v.modified_time AS catalog_modified_time,
+			state.revision, state.rows_revision, chats.revision AS chats_revision
+			FROM sessions_v2 v
+			LEFT JOIN sessions s ON s.session_uri = v.session_uri
+			LEFT JOIN session_state state ON state.session_uri = v.session_uri
+			LEFT JOIN session_chat_catalogs chats ON chats.session_uri = v.session_uri
+			WHERE v.session_uri = ? OR v.session_uri IN (
+				SELECT session_uri FROM worktree_co_owners WHERE worktree_path = ?
+			)
+			ORDER BY v.session_uri`, [session, worktree]);
+		return rows.some(row => row.session_uri === session) ? stableStringify(rows) : undefined;
+	}
+
+	async readWorktreeDiskUsage(session: string, worktree: string, revision: string): Promise<number | undefined> {
+		const row = await get(await this._ensureDatabase(), 'SELECT size_bytes FROM worktree_disk_usage WHERE session_uri = ? AND worktree_uri = ? AND revision = ?', [session, worktree, revision]);
+		if (!row) {
+			return undefined;
+		}
+		if (typeof row.size_bytes !== 'number' || !Number.isSafeInteger(row.size_bytes) || row.size_bytes < 0) {
+			throw new Error('Invalid stored worktree disk usage');
+		}
+		return row.size_bytes;
+	}
+
+	async writeWorktreeDiskUsage(session: string, worktree: string, revision: string, sizeBytes: number): Promise<void> {
+		if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 0) {
+			throw new RangeError('Invalid worktree disk usage');
+		}
+		await this._transactionSequencer.queue(async () => {
+			await run(await this._ensureDatabase(), `INSERT INTO worktree_disk_usage (session_uri, worktree_uri, revision, size_bytes)
+				SELECT session_uri, ?, ?, ? FROM sessions_v2 WHERE session_uri = ?
+				ON CONFLICT(session_uri, worktree_uri) DO UPDATE SET revision = excluded.revision, size_bytes = excluded.size_bytes`,
+			[worktree, revision, sizeBytes, session]);
+		});
 	}
 
 	/** Reads the storage identity records under `prefix` with an indexed key-range scan. */

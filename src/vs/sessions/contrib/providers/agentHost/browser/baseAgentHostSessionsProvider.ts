@@ -7202,8 +7202,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		const sizes: (number | undefined)[] = [];
+		const cacheSession = session.status.get() === SessionStatus.InProgress || session.status.get() === SessionStatus.NeedsInput ? undefined : session.backendUri;
 		for (const worktreeUri of worktrees.values()) {
-			sizes.push(await connection.measureWorktreeDiskUsage?.(worktreeUri, token));
+			sizes.push(await connection.measureWorktreeDiskUsage?.(worktreeUri, token, cacheSession));
 		}
 		if (sizes.every(size => size === undefined)) {
 			return undefined;
