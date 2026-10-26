@@ -1543,6 +1543,7 @@ class TestableCopilotAgent extends CopilotAgent {
 				fake.dispose();
 			},
 			onDidRequireAuth: Event.None,
+			onDidChangeRuntimePlugins: Event.None,
 			hasRunningDetachedShells: async () => false,
 			resetTurnState: (newTurnId: string) => { turnId = newTurnId; },
 			emitInitialMarkdown: (content: string) => {
@@ -8313,6 +8314,7 @@ suite('CopilotAgent', () => {
 			sessionId: 'initializing-connector-session',
 			hasPendingConnectorRefresh: false,
 			extensionLaunchDirectories: [],
+			onDidChangeRuntimePlugins: Event.None,
 			setExtensionLaunchAdmission(admission: IDisposable) { extensionLaunchAdmission = admission; },
 			async initializeSession() {
 				calls.push('initialize');
@@ -19026,6 +19028,7 @@ suite('CopilotAgent', () => {
 				clientToolsRequireRestart: () => false,
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
+				onDidChangeRuntimePlugins: Event.None,
 				mcpServerStates: observableValue('test', []),
 				setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 				async initializeSession(): Promise<void> { },
@@ -21351,6 +21354,7 @@ suite('CopilotAgent', () => {
 					clientToolsRequireRestart: () => false,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
+					onDidChangeRuntimePlugins: Event.None,
 					mcpServerStates: observableValue('test', []),
 					setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 					async initializeSession(): Promise<void> {
@@ -24167,6 +24171,7 @@ suite('CopilotAgent', () => {
 				hasActiveTurn: false,
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
+				onDidChangeRuntimePlugins: Event.None,
 				mcpServerStates: observableValue('test', []),
 				setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 				async initializeSession(): Promise<void> { rec.initialized = true; },
@@ -24255,6 +24260,42 @@ suite('CopilotAgent', () => {
 					included: true,
 					events: 'persisted event',
 					liveSession: [{ outputDirectory: 'file:///debug-output', includeSessionLogs: false }],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('applies managed plugins that become ready while the chat initializes', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'managed-plugins-ready');
+				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				const calls: string[] = [];
+				(agent as unknown as { _slashCommandProvider: { clearCache(): void } })._slashCommandProvider.clearCache = () => calls.push('clearAgentCommandCache');
+				const runtimePlugins = disposables.add(new Emitter<void>());
+				(agent as unknown as ChatInternals)._createAgentSession = (launchPlan, _dir, activeClient, identity) => {
+					(activeClient as unknown as { pluginController: { refreshDiscovery(): void } }).pluginController.refreshDiscovery = () => calls.push('refreshDiscovery');
+					const built = makeFakeChatSession(session, launchPlan.sessionId, undefined, launchPlan.shellManager);
+					Object.assign(built.fake, {
+						chatChannelUri: identity?.chatChannelUri,
+						onDidChangeRuntimePlugins: runtimePlugins.event,
+						initializeSession: async () => {
+							runtimePlugins.fire();
+							calls.push('initialized');
+						},
+					});
+					return built.fake;
+				};
+
+				await agent.chats.createChat(URI.parse(buildChatUri(session, 'peer-a')), session, { model: { id: 'gpt-x' }, workingDirectories: [URI.file('/workspace')] });
+				const afterRegistration = [...calls];
+				runtimePlugins.fire();
+
+				assert.deepStrictEqual({ afterRegistration, afterLaterChange: calls.slice(afterRegistration.length) }, {
+					afterRegistration: ['initialized', 'clearAgentCommandCache', 'refreshDiscovery'],
+					afterLaterChange: ['clearAgentCommandCache', 'refreshDiscovery'],
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -26292,6 +26333,7 @@ suite('CopilotAgent', () => {
 					clientToolsRequireRestart: () => false,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
+					onDidChangeRuntimePlugins: Event.None,
 					mcpServerStates: observableValue('test', []),
 					setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 					async initializeSession(): Promise<void> { },

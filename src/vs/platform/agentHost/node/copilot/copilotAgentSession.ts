@@ -1986,6 +1986,13 @@ export class CopilotAgentSession extends Disposable {
 	readonly onMcpNotification = this._onMcpNotification.event;
 	private readonly _onDidRequireAuth = this._register(new Emitter<void>());
 	readonly onDidRequireAuth = this._onDidRequireAuth.event;
+	/**
+	 * Fires when the runtime finishes preparing organization-required plugins,
+	 * which it installs in the background after the session starts. Their
+	 * skills, agents and commands are only visible to discovery afterwards.
+	 */
+	private readonly _onDidChangeRuntimePlugins = this._register(new Emitter<void>());
+	readonly onDidChangeRuntimePlugins = this._onDidChangeRuntimePlugins.event;
 
 	/** In-flight server and MCP App sampling executions, keyed by their SDK cancellation handle. */
 	private readonly _pendingMcpSamplings = new Set<string>();
@@ -11729,6 +11736,8 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (e.data.infoType === MANAGED_PLUGINS_COMPLETE_EVENT_TYPE && !e.agentId) {
 				this._unshownManagedPluginFailure = undefined;
+				this._slashCommandProvider.clearCache();
+				this._onDidChangeRuntimePlugins.fire();
 			}
 		}));
 
