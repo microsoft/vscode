@@ -21,7 +21,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IEditorGroupView, IEditorPartsView } from './editor.js';
+import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView } from './editor.js';
 import { EditorPart, IEditorPartUIState } from './editorPart.js';
 import { GroupActivationReason, GroupDirection, GroupsOrder, IFloatingEditorPart, IFloatingEditorPartOptions } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -99,6 +99,7 @@ export class FloatingEditorPart {
 			label,
 			options.size,
 			titleElement,
+			options.groupViewOptions,
 		));
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
@@ -231,6 +232,7 @@ class FloatingEditorPartImpl extends EditorPart implements IFloatingEditorPart {
 		groupsLabel: string,
 		size: IDimension | undefined,
 		private readonly titleElement: HTMLElement,
+		private readonly groupViewOptions: IEditorGroupViewOptions | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -242,6 +244,10 @@ class FloatingEditorPartImpl extends EditorPart implements IFloatingEditorPart {
 		super(editorPartsView, `workbench.parts.floatingEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 
 		this._size = size ?? FloatingEditorPart.getDefaultSize(layoutService);
+	}
+
+	protected override getGroupViewOptions(): IEditorGroupViewOptions | undefined {
+		return this.groupViewOptions;
 	}
 
 	setTitle(title: string): void {
