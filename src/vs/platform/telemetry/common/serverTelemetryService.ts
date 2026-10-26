@@ -30,6 +30,10 @@ export class ServerTelemetryService extends TelemetryService implements IServerT
 		this._injectedTelemetryLevel = injectedTelemetryLevel;
 	}
 
+	override get telemetryLevel(): TelemetryLevel {
+		return Math.min(super.telemetryLevel, this._injectedTelemetryLevel);
+	}
+
 	override publicLog(eventName: string, data?: ITelemetryData) {
 		if (this._injectedTelemetryLevel < TelemetryLevel.USAGE) {
 			return;
@@ -58,7 +62,7 @@ export class ServerTelemetryService extends TelemetryService implements IServerT
 			throw new Error('Telemetry level cannot be undefined. This will cause infinite looping!');
 		}
 		// We always take the most restrictive level because we don't want multiple clients to connect and send data when one client does not consent
-		this._injectedTelemetryLevel = this._injectedTelemetryLevel ? Math.min(this._injectedTelemetryLevel, telemetryLevel) : telemetryLevel;
+		this._injectedTelemetryLevel = Math.min(this._injectedTelemetryLevel, telemetryLevel);
 		if (this._injectedTelemetryLevel === TelemetryLevel.NONE) {
 			this.dispose();
 		}

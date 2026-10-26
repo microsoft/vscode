@@ -40,6 +40,60 @@ suite('htmlToMarkdown', () => {
 		);
 	});
 
+	suite('internal links', () => {
+		test('converts targets that only resolve in this window to inline code', () => {
+			assert.deepStrictEqual(
+				[
+					convertHtmlToMarkdown('<a href="vscode-file://vscode-app/c:/Users/user/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-browser/workbench/workbench.html">foo-bar.md</a>'),
+					convertHtmlToMarkdown('<a href="file:///home/user/project/DefaultMeshInterpolator.java#46,62">mx:text</a>'),
+					convertHtmlToMarkdown('<a href="code-oss://file/c:/repo/src/config.ts">src/config.ts</a>'),
+					convertHtmlToMarkdown('<a href="http://_vscodecontentref_/0">index.ts</a>'),
+					// The agent host prompt asks models for bare absolute paths.
+					convertHtmlToMarkdown('<a href="/Users/me/repo/src/a.ts">a.ts</a>'),
+					convertHtmlToMarkdown('<a href="command:workbench.action.files.save">Save</a>'),
+					convertHtmlToMarkdown('<img src="/Users/me/shot.png" alt="screenshot">'),
+				],
+				['`foo-bar.md`', '`mx:text`', '`src/config.ts`', '`index.ts`', '`a.ts`', '`Save`', '`screenshot`']);
+		});
+
+		test('prefers data-href only when href cannot be shared', () => {
+			assert.deepStrictEqual(
+				[
+					convertHtmlToMarkdown('<a href="" data-href="file:///home/user/project/a.ts">a.ts</a>'),
+					convertHtmlToMarkdown('<a href="vscode-file://vscode-app/resources/app/out/workbench.html" data-href="https://example.com">Example</a>'),
+					// A page of unknown origin must not redirect a link it displayed as safe.
+					convertHtmlToMarkdown('<a href="https://real.example" data-href="https://evil.example">docs</a>'),
+				],
+				['`a.ts`', '[Example](https://example.com)', '[docs](https://real.example)']);
+		});
+
+		test('uses the plain label when the target cannot be shared', () => {
+			// Emphasis markers would be read literally inside a code span.
+			assert.deepStrictEqual(
+				[
+					convertHtmlToMarkdown('<a href="file:///x"><strong>Foo</strong></a>'),
+					convertHtmlToMarkdown('<a href="https://example.com"><strong>Kept</strong></a>'),
+				],
+				['`Foo`', '[**Kept**](https://example.com)']);
+		});
+
+		test('keeps internal links inside surrounding markdown formatting', () => {
+			assert.strictEqual(
+				convertHtmlToMarkdown('<p>This is <strong>inherited</strong> from the <a href="vscode-file://vscode-app/resources/app/out/workbench.html">FooBar</a> class.</p>'),
+				'This is **inherited** from the `FooBar` class.'
+			);
+		});
+
+		test('keeps document-relative links', () => {
+			assert.deepStrictEqual(
+				[
+					convertHtmlToMarkdown('<a href="#details">details</a>'),
+					convertHtmlToMarkdown('<a href="../CONTRIBUTING.md">guide</a>'),
+				],
+				['[details](#details)', '[guide](../CONTRIBUTING.md)']);
+		});
+	});
+
 	test('converts bold and italic', () => {
 		assert.strictEqual(convertHtmlToMarkdown('<strong>bold</strong>'), '**bold**');
 		assert.strictEqual(convertHtmlToMarkdown('<b>bold</b>'), '**bold**');

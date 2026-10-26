@@ -19,6 +19,7 @@
  */
 
 const http: typeof import('http') = require('http');
+const https: typeof import('https') = require('https');
 const path: typeof import('path') = require('path');
 const { EventEmitter }: typeof import('events') = require('events');
 
@@ -55,7 +56,23 @@ function _indentVerbose(text: string): string {
 interface StreamChunk {
 	content: string;
 	delayMs: number;
+	/** Optional test-controlled barrier before this chunk is sent. */
+	waitFor?: Promise<void>;
 }
+
+type ScenarioToolCallArguments = Record<string, any> | ((request: readonly any[]) => Record<string, any>);
+
+type ScenarioToolCall = {
+	toolNamePattern: RegExp;
+	namespace?: string;
+	kind?: 'function';
+	arguments: ScenarioToolCallArguments;
+} | {
+	toolNamePattern: RegExp;
+	namespace?: string;
+	kind: 'custom';
+	input: string;
+};
 
 /**
  * A single turn in a multi-turn scenario.
@@ -63,7 +80,7 @@ interface StreamChunk {
 type ScenarioTurn =
 	| {
 		kind: 'tool-calls';
-		toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>;
+		toolCalls: ScenarioToolCall[];
 	}
 	| {
 		kind: 'content';
@@ -76,6 +93,9 @@ type ScenarioTurn =
 	}
 	| {
 		kind: 'echo-last-message';
+	}
+	| {
+		kind: 'echo-last-tool-result';
 	}
 	| {
 		kind: 'user';
@@ -88,7 +108,7 @@ type ScenarioTurn =
 type ModelScenarioTurn =
 	| {
 		kind: 'tool-calls';
-		toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>;
+		toolCalls: ScenarioToolCall[];
 	}
 	| {
 		kind: 'content';
@@ -101,6 +121,9 @@ type ModelScenarioTurn =
 	}
 	| {
 		kind: 'echo-last-message';
+	}
+	| {
+		kind: 'echo-last-tool-result';
 	};
 
 /**
@@ -186,14 +209,122 @@ const DEFAULT_SCENARIO = 'text-only';
 function getDefaultScenarioChunks(): StreamChunk[] {
 	const scenario = SCENARIOS[DEFAULT_SCENARIO];
 	if (isMultiTurnScenario(scenario)) {
-		throw new Error(`Default scenario '${DEFAULT_SCENARIO}' must be content-only`);
+		return [{ content: 'Mock response', delayMs: 0 }];
 	}
-	return scenario;
+	return scenario ?? [{ content: 'Mock response', delayMs: 0 }];
 }
 
 // -- SSE chunk builder -------------------------------------------------------
 
 const MODEL = 'gpt-4o-2024-08-06';
+
+// -- Model shape -------------------------------------------------------------
+// Shared types describing the CAPI `/models` response shape the mock returns.
+// Centralized here so all model fixtures stay in sync and can be tweaked in one
+// place when the backend billing/capabilities contract changes. Mirrors the
+// `CCAModel*` interfaces in `src/typings/copilot-api.d.ts`.
+
+/**
+ * Per-tier token pricing (prices are in 1/1,000,000ths of a USD per token, i.e.
+ * scaled by `token_prices.batch_size`). A model may expose a `default` tier and
+ * an optional `long_context` tier with higher prices for large prompts.
+ */
+interface ModelTokenPriceTier {
+	input_price?: number;
+	/** Cache read price (per cached input token). */
+	cache_price?: number;
+	/** Cache write price (per token written to the prompt cache). */
+	cache_write_price?: number;
+	output_price?: number;
+	context_max?: number;
+}
+
+/**
+ * The set of pricing tiers advertised for a model.
+ */
+interface ModelTokenPrices {
+	batch_size?: number;
+	default?: ModelTokenPriceTier;
+	long_context?: ModelTokenPriceTier;
+}
+
+/**
+ * Billing metadata: entitlement gating plus the token price tiers consumed by
+ * the model picker's cost table.
+ */
+interface ModelBilling {
+	restricted_to?: string[];
+	is_premium?: boolean;
+	multiplier?: number;
+	token_prices?: ModelTokenPrices;
+}
+
+/**
+ * Vision-related prompt limits.
+ */
+interface ModelVisionLimits {
+	max_prompt_image_size: number;
+	max_prompt_images: number;
+	supported_media_types: string[];
+}
+
+/**
+ * Token/context window limits for a model.
+ */
+interface ModelLimits {
+	max_prompt_tokens?: number;
+	max_output_tokens?: number;
+	max_context_window_tokens?: number;
+	max_non_streaming_output_tokens?: number;
+	vision?: ModelVisionLimits;
+}
+
+/**
+ * Feature flags advertised by a model.
+ */
+interface ModelSupports {
+	streaming?: boolean;
+	tool_calls?: boolean;
+	parallel_tool_calls?: boolean;
+	vision?: boolean;
+	structured_outputs?: boolean;
+	reasoning_effort?: string[];
+	max_thinking_budget?: number;
+	min_thinking_budget?: number;
+}
+
+/**
+ * Model capabilities (family, tokenizer, limits, supported features).
+ */
+interface ModelCapabilities {
+	type: string;
+	family: string;
+	tokenizer: string;
+	object: string;
+	limits: ModelLimits;
+	supports: ModelSupports;
+}
+
+/**
+ * A single entry in the mock's `/models` list. Matches the CAPI `/models`
+ * response shape closely enough for the extension and CLI SDK to consume.
+ */
+interface MockModel {
+	id: string;
+	name: string;
+	object: string;
+	version: string;
+	vendor: string;
+	model_picker_enabled: boolean;
+	model_picker_category?: string;
+	model_picker_price_category?: string;
+	is_chat_default: boolean;
+	is_chat_fallback: boolean;
+	preview: boolean;
+	billing: ModelBilling;
+	capabilities: ModelCapabilities;
+	supported_endpoints: string[];
+}
 
 /**
  * Additional model definitions the mock advertises beyond `MODEL` and
@@ -201,7 +332,7 @@ const MODEL = 'gpt-4o-2024-08-06';
  * model; smoke tests/automation that exercise the CLI need it in the mock's
  * /models list, otherwise the SDK fails with "No model available".
  */
-const EXTRA_MODELS = [
+const EXTRA_MODELS: MockModel[] = [
 	// gpt-5.3-codex — the Copilot CLI SDK's default model.
 	// Shape matches real CAPI /models response exactly.
 	{
@@ -216,7 +347,7 @@ const EXTRA_MODELS = [
 		is_chat_default: true,
 		is_chat_fallback: false,
 		preview: false,
-		billing: { restricted_to: ['pro', 'edu', 'pro_plus', 'individual_trial', 'business', 'enterprise', 'max'], token_prices: { batch_size: 1000000, default: { cache_price: 17, context_max: 272000, input_price: 175, output_price: 1400 } } },
+		billing: { restricted_to: ['pro', 'edu', 'pro_plus', 'individual_trial', 'business', 'enterprise', 'max'], token_prices: { batch_size: 1000000, default: { cache_price: 17, cache_write_price: 219, context_max: 272000, input_price: 175, output_price: 1400 } } },
 		capabilities: {
 			type: 'chat',
 			family: 'gpt-5.3-codex',
@@ -240,7 +371,7 @@ const EXTRA_MODELS = [
 		is_chat_default: false,
 		is_chat_fallback: false,
 		preview: false,
-		billing: { restricted_to: ['pro', 'pro_plus', 'max', 'business', 'enterprise'], token_prices: { batch_size: 1000000, default: { cache_price: 30, input_price: 300, output_price: 1500 } } },
+		billing: { restricted_to: ['pro', 'pro_plus', 'max', 'business', 'enterprise'], token_prices: { batch_size: 1000000, default: { cache_price: 30, cache_write_price: 375, input_price: 300, output_price: 1500 } } },
 		capabilities: {
 			type: 'chat',
 			family: 'claude-sonnet-4.5',
@@ -251,13 +382,58 @@ const EXTRA_MODELS = [
 		},
 		supported_endpoints: ['/chat/completions', '/v1/messages'],
 	},
+	// mock-config-model — a Responses-API model that advertises BOTH a reasoning
+	// effort picker (capabilities.supports.reasoning_effort) AND a context size
+	// picker (a `long_context` billing tier whose context_max exceeds the default
+	// tier). Used by the `Chat Model Configuration` smoke tests to verify that the
+	// reasoning effort and context size selected in the model-picker UI are
+	// forwarded to the server (as `reasoning.effort` and the context-management
+	// `compact_threshold` in the /responses request body) and surfaced in the
+	// context-usage gauge. The `mock-config` family is intentionally absent from
+	// `modelsWithoutResponsesContextManagement` so context management stays enabled.
+	// Numbers mirror a GPT-5.5-class model: the default tier exposes a 272K prompt
+	// window (`default.context_max`) and the long tier the full window minus the
+	// 128K output reserve — `max_context_window_tokens` (1050000) - 128000 = 922000.
+	// Note `formatTokenCount` renders 922000 as "1M" (its `>900K → 1M` branch), so
+	// the long option/label reads "1M" even though the value is 922K. Output is
+	// 128K, so the context-usage gauge totals (input + output) read 400K and 1M.
+	{
+		id: 'mock-config-model',
+		name: 'Mock Config Model',
+		object: 'model',
+		version: 'mock-config-model',
+		vendor: 'OpenAI',
+		model_picker_enabled: true,
+		model_picker_category: 'versatile',
+		model_picker_price_category: 'medium',
+		is_chat_default: false,
+		is_chat_fallback: false,
+		preview: false,
+		billing: {
+			restricted_to: ['pro', 'edu', 'pro_plus', 'individual_trial', 'business', 'enterprise', 'max'],
+			token_prices: {
+				batch_size: 1000000,
+				default: { cache_price: 17, cache_write_price: 219, input_price: 175, output_price: 1400, context_max: 272000 },
+				long_context: { cache_price: 34, cache_write_price: 438, input_price: 350, output_price: 2800, context_max: 1050000 },
+			},
+		},
+		capabilities: {
+			type: 'chat',
+			family: 'mock-config',
+			tokenizer: 'o200k_base',
+			object: 'model_capabilities',
+			limits: { max_prompt_tokens: 922000, max_output_tokens: 128000, max_context_window_tokens: 1050000 },
+			supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: false, structured_outputs: true, reasoning_effort: ['low', 'medium', 'high'] },
+		},
+		supported_endpoints: ['/responses'],
+	},
 ];
 
 /**
  * Complete model list used by both GET /models and GET /models/{id}.
  * Kept in a single array so the two handlers always return consistent data.
  */
-const ALL_MODELS: any[] = [
+const ALL_MODELS: MockModel[] = [
 	{
 		id: MODEL,
 		name: 'GPT-4o (Mock)',
@@ -480,7 +656,7 @@ function makeThinkingIdChunk(cotId: string) {
 
 // -- Request handler ---------------------------------------------------------
 
-function handleRequest(req: import('http').IncomingMessage, res: import('http').ServerResponse): void {
+function handleRequest(req: import('http').IncomingMessage, res: import('http').ServerResponse, protocol: 'http' | 'https'): void {
 	const contentLength = req.headers['content-length'] || '0';
 	const ts = new Date().toISOString().slice(11, -1); // HH:MM:SS.mmm
 	_log(`[mock-llm] ${ts} ${req.method} ${req.url} (${contentLength} bytes)`);
@@ -491,7 +667,7 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 	res.setHeader('Access-Control-Allow-Headers', '*');
 	if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-	const reqUrl = new URL(req.url || '/', `http://${req.headers.host}`);
+	const reqUrl = new URL(req.url || '/', `${protocol}://${req.headers.host}`);
 	const path = reqUrl.pathname;
 	const json = (status: number, data: any) => {
 		res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -518,8 +694,8 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 				individual: true,
 				copilot_plan: 'free',
 				endpoints: {
-					api: `http://${req.headers.host}`,
-					proxy: `http://${req.headers.host}`,
+					api: reqUrl.origin,
+					proxy: reqUrl.origin,
 				},
 			});
 		} else {
@@ -629,7 +805,10 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 
 	// -- Chat Completions (DomainService.capiChatURL = /chat/completions) --
 	if (path === '/chat/completions' && req.method === 'POST') {
-		readBody().then((body: string) => handleChatCompletions(body, res));
+		readBody().then((body: string) => {
+			serverEvents.emit('capturedRequest', { path, method: 'POST', body });
+			return handleChatCompletions(body, res);
+		});
 		return;
 	}
 
@@ -638,7 +817,10 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 	// The SDK expects events like response.created, response.output_item.added,
 	// response.output_text.delta, response.output_item.done, response.completed.
 	if (path === '/responses' && req.method === 'POST') {
-		readBody().then((body: string) => handleResponsesApi(body, res));
+		readBody().then((body: string) => {
+			serverEvents.emit('capturedRequest', { path, method: 'POST', body });
+			return handleResponsesApi(body, res);
+		});
 		return;
 	}
 
@@ -740,6 +922,22 @@ function resolveCurrentTurn(turns: ScenarioTurn[], messages: any[]): { turn: Mod
 	return { turn: modelTurns[idx], turnIndex: idx };
 }
 
+function findLastToolResult(items: any[]): any {
+	for (let i = items.length - 1; i >= 0; i--) {
+		const item = items[i];
+		if (item?.role === 'tool' || item?.type === 'function_call_output' || item?.type === 'custom_tool_call_output') {
+			return item;
+		}
+		if (Array.isArray(item?.content)) {
+			const toolResult = item.content.findLast((part: any) => part?.type === 'tool_result');
+			if (toolResult) {
+				return toolResult;
+			}
+		}
+	}
+	return undefined;
+}
+
 async function handleChatCompletions(body: string, res: import('http').ServerResponse): Promise<void> {
 	if (_verbose) {
 		_log(`[mock-llm]   chat/completions request body:`);
@@ -816,7 +1014,7 @@ async function handleChatCompletions(body: string, res: import('http').ServerRes
 		_log(`[mock-llm]   ${ts} → multi-turn scenario ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind}), ${countCompletedModelTurns(messages)} completed turns in history`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamToolCalls(res, turn.toolCalls, requestToolNames, scenarioId);
+			await streamToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, messages);
 			return;
 		}
 
@@ -828,6 +1026,12 @@ async function handleChatCompletions(body: string, res: import('http').ServerRes
 		if (turn.kind === 'echo-last-message') {
 			const lastMsg = messages[messages.length - 1];
 			const payload = '```json\n' + JSON.stringify(lastMsg ?? null, null, 2) + '\n```';
+			await streamContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
+			return;
+		}
+
+		if (turn.kind === 'echo-last-tool-result') {
+			const payload = '```json\n' + JSON.stringify(findLastToolResult(messages) ?? null, null, 2) + '\n```';
 			await streamContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
 			return;
 		}
@@ -872,6 +1076,7 @@ async function streamContent(res: import('http').ServerResponse, chunks: StreamC
 	res.write(`data: ${JSON.stringify(makeInitialChunk())}\n\n`);
 
 	for (const chunk of chunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		res.write(`data: ${JSON.stringify(makeChunk(chunk.content, 0, false))}\n\n`);
 	}
@@ -909,8 +1114,11 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 	let isScenarioRequest = false;
 	let requestToolNames: string[] = [];
 	let input: any[] = [];
+	let streaming = true;
 	try {
 		const parsed = JSON.parse(body);
+		// Resumed turns omit `stream` and expect the Responses API's default non-streaming JSON payload.
+		streaming = parsed.stream === true;
 		// Responses API uses `input` array and `tools` array
 		input = parsed.input || [];
 		const tools = parsed.tools || [];
@@ -925,7 +1133,9 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 				: Array.isArray(item.content)
 					? item.content.map((c: any) => c.text || '').join('')
 					: '';
-			const match = content.match(/\[scenario:([^\]]+)\]/);
+			// Codex reviews can include the earlier conversation and the planned
+			// action in one message. The final tag selects the current review.
+			const match = [...content.matchAll(/\[scenario:([^\]]+)\]/g)].at(-1);
 			if (match && SCENARIOS[match[1]]) {
 				scenarioId = match[1];
 				isScenarioRequest = true;
@@ -938,6 +1148,11 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 	} catch { }
 
 	const scenario = SCENARIOS[scenarioId] || SCENARIOS[DEFAULT_SCENARIO];
+
+	if (!streaming) {
+		await sendResponsesNonStreaming(res, scenario, input, requestToolNames, scenarioId, isScenarioRequest);
+		return;
+	}
 
 	res.writeHead(200, {
 		'Content-Type': 'text/event-stream',
@@ -956,13 +1171,19 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 		_log(`[mock-llm]   ${ts} → responses-api multi-turn ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind})`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamResponsesApiToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest);
+			await streamResponsesApiToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest, input);
 			return;
 		}
 
 		if (turn.kind === 'echo-last-message') {
 			const lastItem = input[input.length - 1];
 			const payload = '```json\n' + JSON.stringify(lastItem ?? null, null, 2) + '\n```';
+			await streamResponsesContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
+			return;
+		}
+
+		if (turn.kind === 'echo-last-tool-result') {
+			const payload = '```json\n' + JSON.stringify(findLastToolResult(input) ?? null, null, 2) + '\n```';
 			await streamResponsesContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
 			return;
 		}
@@ -980,11 +1201,109 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 	await streamResponsesContent(res, chunks, isScenarioRequest);
 }
 
+/** Emits a non-streaming Responses API payload for resumed turns. */
+async function sendResponsesNonStreaming(
+	res: import('http').ServerResponse,
+	scenario: StreamChunk[] | MultiTurnScenario,
+	input: any[],
+	requestToolNames: string[],
+	scenarioId: string,
+	isScenarioRequest: boolean
+): Promise<void> {
+	const responseId = `resp_mock_${Date.now()}`;
+	const model = 'gpt-5.3-codex';
+	let output: any[];
+	let outputTokens: number;
+
+	if (isMultiTurnScenario(scenario) && requestToolNames.length > 0) {
+		const { turn } = resolveCurrentResponsesApiTurn(scenario.turns, input);
+
+		if (turn.kind === 'tool-calls') {
+			output = turn.toolCalls.map((call, i) => {
+				let toolName = requestToolNames.find(name => call.toolNamePattern.test(name));
+				if (!toolName) {
+					toolName = call.toolNamePattern.source.replace(/[\\.|?*+^${}()\[\]]/g, '');
+				}
+				const callId = `call_${scenarioId}_${i}_${Date.now()}`;
+				if (call.kind === 'custom') {
+					return { id: `ctc_${callId}`, type: 'custom_tool_call', status: 'completed', call_id: callId, name: toolName, namespace: call.namespace, input: call.input };
+				}
+				const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call, input));
+				return {
+					id: `fc_${callId}`,
+					type: 'function_call',
+					status: 'completed',
+					call_id: callId,
+					name: toolName,
+					namespace: call.namespace,
+					arguments: argsJson,
+				};
+			});
+			outputTokens = 1;
+		} else {
+			let text: string;
+			if (turn.kind === 'echo-last-message') {
+				const lastItem = input[input.length - 1];
+				text = '```json\n' + JSON.stringify(lastItem ?? null, null, 2) + '\n```';
+			} else if (turn.kind === 'echo-last-tool-result') {
+				text = '```json\n' + JSON.stringify(findLastToolResult(input) ?? null, null, 2) + '\n```';
+			} else {
+				text = turn.chunks.map(chunk => chunk.content).join('');
+			}
+			output = [{
+				id: `msg_mock_${Date.now()}`,
+				type: 'message',
+				role: 'assistant',
+				status: 'completed',
+				content: [{ type: 'output_text', text }],
+			}];
+			outputTokens = Math.max(1, Math.ceil(text.length / 4));
+		}
+	} else {
+		const chunks = isMultiTurnScenario(scenario)
+			? getFirstContentTurn(scenario)
+			: scenario as StreamChunk[];
+		const text = chunks.map(chunk => chunk.content).join('');
+		output = [{
+			id: `msg_mock_${Date.now()}`,
+			type: 'message',
+			role: 'assistant',
+			status: 'completed',
+			content: [{ type: 'output_text', text }],
+		}];
+		outputTokens = Math.max(1, Math.ceil(text.length / 4));
+	}
+
+	res.writeHead(200, {
+		'Content-Type': 'application/json',
+		'X-Request-Id': 'perf-benchmark-' + Date.now(),
+	});
+	res.end(JSON.stringify({
+		id: responseId,
+		object: 'response',
+		created_at: Math.floor(Date.now() / 1000),
+		model,
+		status: 'completed',
+		output,
+		usage: {
+			input_tokens: 100,
+			output_tokens: outputTokens,
+			total_tokens: 100 + outputTokens,
+			input_tokens_details: { cached_tokens: 0 },
+			output_tokens_details: { reasoning_tokens: 0 },
+		},
+	}));
+
+	if (isScenarioRequest) {
+		serverEvents.emit('scenarioCompletion');
+	}
+}
+
 /**
  * Count completed assistant turns in a Responses API `input` array, after the
  * last user message carrying a `[scenario:X]` tag. Consecutive assistant
- * output items (`role === 'assistant'` messages or `type === 'function_call'`
- * items) are grouped into a single turn so multi-tool-call turns count once.
+ * output items (assistant messages, function calls, or custom tool calls)
+ * are grouped into a single turn so multi-tool-call turns count once.
  */
 function countCompletedResponsesApiModelTurns(input: any[]): number {
 	let scenarioIdx = -1;
@@ -1007,7 +1326,7 @@ function countCompletedResponsesApiModelTurns(input: any[]): number {
 	const startIdx = scenarioIdx >= 0 ? scenarioIdx + 1 : 0;
 	for (let i = startIdx; i < input.length; i++) {
 		const item = input[i];
-		const isAssistantOutput = item.role === 'assistant' || item.type === 'function_call';
+		const isAssistantOutput = item.role === 'assistant' || item.type === 'function_call' || item.type === 'custom_tool_call';
 		if (isAssistantOutput) {
 			if (!inAssistantBlock) {
 				turns++;
@@ -1032,14 +1351,15 @@ function resolveCurrentResponsesApiTurn(turns: ScenarioTurn[], input: any[]): { 
 
 /**
  * Stream tool calls as Responses API SSE events. Emits one
- * `function_call` output item per requested tool call.
+ * function or custom-tool output item per requested tool call.
  */
 async function streamResponsesApiToolCalls(
 	res: import('http').ServerResponse,
-	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	toolCalls: ScenarioToolCall[],
 	requestToolNames: string[],
 	scenarioId: string,
-	isScenarioRequest: boolean
+	isScenarioRequest: boolean,
+	request: readonly any[]
 ): Promise<void> {
 	const responseId = `resp_mock_${Date.now()}`;
 	const model = 'gpt-5.3-codex';
@@ -1080,15 +1400,19 @@ async function streamResponsesApiToolCalls(
 
 		const callId = `call_${scenarioId}_${i}_${Date.now()}`;
 		const itemId = `fc_${callId}`;
-		const argsJson = JSON.stringify(call.arguments);
+		const custom = call.kind === 'custom';
+		const argumentField = custom ? 'input' : 'arguments';
+		const eventName = custom ? 'custom_tool_call_input' : 'function_call_arguments';
+		const argsJson = custom ? call.input : JSON.stringify(resolveScenarioToolCallArguments(call, request));
 
 		const item = {
 			id: itemId,
-			type: 'function_call',
+			type: custom ? 'custom_tool_call' : 'function_call',
 			status: 'in_progress',
 			call_id: callId,
 			name: toolName,
-			arguments: '',
+			namespace: call.namespace,
+			[argumentField]: '',
 		};
 
 		res.write(`event: response.output_item.added\ndata: ${JSON.stringify({
@@ -1098,23 +1422,23 @@ async function streamResponsesApiToolCalls(
 			item,
 		})}\n\n`);
 
-		res.write(`event: response.function_call_arguments.delta\ndata: ${JSON.stringify({
-			type: 'response.function_call_arguments.delta',
+		res.write(`event: response.${eventName}.delta\ndata: ${JSON.stringify({
+			type: `response.${eventName}.delta`,
 			sequence_number: nextSeq(),
 			item_id: itemId,
 			output_index: i,
 			delta: argsJson,
 		})}\n\n`);
 
-		res.write(`event: response.function_call_arguments.done\ndata: ${JSON.stringify({
-			type: 'response.function_call_arguments.done',
+		res.write(`event: response.${eventName}.done\ndata: ${JSON.stringify({
+			type: `response.${eventName}.done`,
 			sequence_number: nextSeq(),
 			item_id: itemId,
 			output_index: i,
-			arguments: argsJson,
+			[argumentField]: argsJson,
 		})}\n\n`);
 
-		const doneItem = { ...item, status: 'completed', arguments: argsJson };
+		const doneItem = { ...item, status: 'completed', [argumentField]: argsJson };
 		finalOutput.push(doneItem);
 
 		res.write(`event: response.output_item.done\ndata: ${JSON.stringify({
@@ -1198,6 +1522,7 @@ async function streamResponsesContent(res: import('http').ServerResponse, chunks
 	// 4. Stream text deltas
 	let fullText = '';
 	for (const chunk of chunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		fullText += chunk.content;
 		res.write(`data: ${JSON.stringify({
@@ -1325,6 +1650,7 @@ async function streamAnthropicContent(res: import('http').ServerResponse, chunks
 
 	let totalOutputTokens = 0;
 	for (const chunk of chunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		writeAnthropicEvent(res, 'content_block_delta', {
 			index: 0,
@@ -1443,13 +1769,19 @@ async function handleMessagesApi(body: string, res: import('http').ServerRespons
 		_log(`[mock-llm]   ${ts} → messages-api multi-turn ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind})`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamAnthropicToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest);
+			await streamAnthropicToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest, messages);
 			return;
 		}
 
 		if (turn.kind === 'echo-last-message') {
 			const lastMsg = messages[messages.length - 1];
 			const payload = '```json\n' + JSON.stringify(lastMsg ?? null, null, 2) + '\n```';
+			await streamAnthropicContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
+			return;
+		}
+
+		if (turn.kind === 'echo-last-tool-result') {
+			const payload = '```json\n' + JSON.stringify(findLastToolResult(messages) ?? null, null, 2) + '\n```';
 			await streamAnthropicContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
 			return;
 		}
@@ -1474,10 +1806,11 @@ async function handleMessagesApi(body: string, res: import('http').ServerRespons
  */
 async function streamAnthropicToolCalls(
 	res: import('http').ServerResponse,
-	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	toolCalls: ScenarioToolCall[],
 	requestToolNames: string[],
 	scenarioId: string,
-	isScenarioRequest: boolean
+	isScenarioRequest: boolean,
+	request: readonly any[]
 ): Promise<void> {
 	const messageId = `msg_mock_${Date.now()}`;
 	const model = 'claude-sonnet-4.5';
@@ -1509,7 +1842,7 @@ async function streamAnthropicToolCalls(
 			content_block: { type: 'tool_use', id: callId, name: toolName, input: {} },
 		});
 
-		const argsJson = JSON.stringify(call.arguments);
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call, request));
 		const fragmentSize = Math.max(20, Math.ceil(argsJson.length / 4));
 		for (let pos = 0; pos < argsJson.length; pos += fragmentSize) {
 			const fragment = argsJson.slice(pos, pos + fragmentSize);
@@ -1550,6 +1883,7 @@ async function streamThinkingThenContent(
 
 	// Stream thinking text
 	for (const chunk of thinkingChunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		res.write(`data: ${JSON.stringify(makeThinkingChunk(chunk.content))}\n\n`);
 	}
@@ -1561,6 +1895,7 @@ async function streamThinkingThenContent(
 
 	// Stream content
 	for (const chunk of contentChunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		res.write(`data: ${JSON.stringify(makeChunk(chunk.content, 0, false))}\n\n`);
 	}
@@ -1579,9 +1914,10 @@ async function streamThinkingThenContent(
  */
 async function streamToolCalls(
 	res: import('http').ServerResponse,
-	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	toolCalls: ScenarioToolCall[],
 	requestToolNames: string[],
-	scenarioId: string
+	scenarioId: string,
+	request: readonly any[]
 ): Promise<void> {
 	res.write(`data: ${JSON.stringify(makeToolCallInitialChunk())}\n\n`);
 
@@ -1600,7 +1936,7 @@ async function streamToolCalls(
 		res.write(`data: ${JSON.stringify(makeToolCallStartChunk(i, callId, toolName))}\n\n`);
 		await sleep(10);
 
-		const argsJson = JSON.stringify(call.arguments);
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call, request));
 		const fragmentSize = Math.max(20, Math.ceil(argsJson.length / 4));
 		for (let pos = 0; pos < argsJson.length; pos += fragmentSize) {
 			const fragment = argsJson.slice(pos, pos + fragmentSize);
@@ -1612,6 +1948,13 @@ async function streamToolCalls(
 	res.write(`data: ${JSON.stringify(makeToolCallFinishChunk())}\n\n`);
 	res.write('data: [DONE]\n\n');
 	res.end();
+}
+
+function resolveScenarioToolCallArguments(call: ScenarioToolCall, request: readonly any[]): Record<string, any> {
+	if (call.kind === 'custom') {
+		throw new Error('Custom tool calls require the Responses API');
+	}
+	return typeof call.arguments === 'function' ? call.arguments(request) : call.arguments;
 }
 
 interface MockLlmServerHandle {
@@ -1626,11 +1969,50 @@ interface MockLlmServerHandle {
 	completionCount(): number;
 	/** Wait until at least `n` scenario chat completions have been served. */
 	waitForCompletion(n: number, timeoutMs: number): Promise<void>;
+	/**
+	 * Return the parsed bodies of the chat requests received so far (one entry
+	 * per POST to `/chat/completions` or `/responses`, in arrival order). The
+	 * `body` is the JSON-parsed request payload (or the raw string when parsing
+	 * fails). Used by tests to assert what the client forwarded to the server
+	 * (e.g. `reasoning.effort` or the context-management `compact_threshold`).
+	 *
+	 * Returns an empty array unless the server was started with
+	 * {@link StartServerOptions.captureRequests} set — request capture is off by
+	 * default so perf/mem-leak harnesses don't retain request bodies.
+	 */
+	getRequests(): CapturedRequest[];
+}
+
+/**
+ * A captured chat request, exposed via {@link MockLlmServerHandle.getRequests}.
+ */
+interface CapturedRequest {
+	path: string;
+	method: string;
+	body: any;
 }
 
 interface StartServerOptions {
 	logger?: (msg: string) => void;
 	verbose?: boolean;
+	/** Address to listen on. Defaults to loopback. */
+	host?: string;
+	tls?: { cert: string; key: string };
+	/** Reject requests that do not carry this exact header. */
+	requiredRequestHeader?: {
+		name: string;
+		value: string;
+	};
+	trustedRequestHost?: string;
+	/**
+	 * When `true`, the server retains the parsed body of every `/chat/completions`
+	 * and `/responses` POST so tests can assert what the client forwarded (see
+	 * {@link MockLlmServerHandle.getRequests}). Defaults to `false`: perf/mem-leak
+	 * harnesses generate large volumes of traffic, so capture stays off to avoid
+	 * unbounded in-memory retention of request bodies. Only the smoke suites that
+	 * call `getRequests()` enable it.
+	 */
+	captureRequests?: boolean;
 }
 
 /**
@@ -1653,22 +2035,52 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 			completions++;
 			completionWaiters = completionWaiters.filter(fn => !fn());
 		};
-		serverEvents.on('scenarioCompletion', onCompletion);
 
-		const server = http.createServer((req, res) => {
+		// Accumulate the parsed bodies of chat requests so tests can assert what
+		// the client forwarded (see MockLlmServerHandle.getRequests). Off by default
+		// so the listener (and its JSON.parse + unbounded retention) is never wired
+		// up for perf/mem-leak harnesses that don't assert on request bodies.
+		const capturedRequests: CapturedRequest[] = [];
+		const captureRequests = options?.captureRequests ?? false;
+		const onCapturedRequest = (info: { path: string; method: string; body: string }) => {
+			let parsed: any = info.body;
+			try {
+				parsed = JSON.parse(info.body);
+			} catch {
+				// Keep the raw string when the body is not valid JSON.
+			}
+			capturedRequests.push({ path: info.path, method: info.method, body: parsed });
+		};
+		const listener: import('http').RequestListener = (req, res) => {
+			const requiredRequestHeader = options?.requiredRequestHeader;
+			const requestHost = req.headers.host?.replace(/:\d+$/, '').toLowerCase();
+			const isTrustedProxy = options?.trustedRequestHost && requestHost === options.trustedRequestHost;
+			if (requiredRequestHeader && req.headers[requiredRequestHeader.name.toLowerCase()] !== requiredRequestHeader.value && !isTrustedProxy) {
+				res.writeHead(403);
+				res.end('Request must use the configured test proxy');
+				return;
+			}
 			reqCount++;
 			requestWaiters = requestWaiters.filter(fn => !fn());
-			handleRequest(req, res);
-		});
-		server.listen(port, '127.0.0.1', () => {
+			handleRequest(req, res, options?.tls ? 'https' : 'http');
+		};
+		const server = options?.tls ? https.createServer(options.tls, listener) : http.createServer(listener);
+		serverEvents.on('scenarioCompletion', onCompletion);
+		if (captureRequests) {
+			serverEvents.on('capturedRequest', onCapturedRequest);
+		}
+		server.listen(port, options?.host ?? '127.0.0.1', () => {
 			const addr = server.address();
 			const actualPort = typeof addr === 'object' && addr ? addr.port : port;
-			const url = `http://127.0.0.1:${actualPort}`;
+			const url = `${options?.tls ? 'https' : 'http'}://127.0.0.1:${actualPort}`;
 			resolve({
 				port: actualPort,
 				url,
 				close: () => new Promise<void>((resolve, reject) => {
 					serverEvents.removeListener('scenarioCompletion', onCompletion);
+					if (captureRequests) {
+						serverEvents.removeListener('capturedRequest', onCapturedRequest);
+					}
 					server.close(err => err ? reject(err) : resolve(undefined));
 				}),
 				requestCount: () => reqCount,
@@ -1689,6 +2101,7 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 						return false;
 					});
 				}),
+				getRequests: () => capturedRequests.slice(),
 			});
 		});
 		server.on('error', reject);
@@ -1768,6 +2181,7 @@ export type {
 	MultiTurnScenario,
 	MockLlmServerHandle,
 	StartServerOptions,
+	CapturedRequest,
 };
 
 export declare const startServer: typeof _startServer;

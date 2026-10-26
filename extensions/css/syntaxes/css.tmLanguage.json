@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-css/commit/9a07d76cb0e7a56f9bfc76328a57227751e4adb4",
+	"version": "https://github.com/microsoft/vscode-css/commit/de9e6beee756760f31b15efbd782735fc25de3db",
 	"name": "CSS",
 	"scopeName": "source.css",
 	"patterns": [
@@ -15,7 +15,7 @@
 			"include": "#escapes"
 		},
 		{
-			"include": "#combinators"
+			"include": "#combinator-invalid"
 		},
 		{
 			"include": "#selector"
@@ -28,6 +28,10 @@
 		}
 	],
 	"repository": {
+		"arithmetic-operators": {
+			"match": "[*/]|(?<=\\s|^)[-+](?=\\s|$)",
+			"name": "keyword.operator.arithmetic.css"
+		},
 		"at-rules": {
 			"patterns": [
 				{
@@ -135,6 +139,12 @@
 							"include": "#url"
 						},
 						{
+							"match": "\\s+"
+						},
+						{
+							"include": "#layer-import"
+						},
+						{
 							"include": "#media-query-list"
 						}
 					]
@@ -218,6 +228,9 @@
 							},
 							"name": "meta.at-rule.media.body.css",
 							"patterns": [
+								{
+									"include": "#rule-list-innards"
+								},
 								{
 									"include": "$self"
 								}
@@ -508,6 +521,61 @@
 					]
 				},
 				{
+					"begin": "(?i)(?=@layer(?:[\\s{;]|/\\*|$))",
+					"end": "(?<=})(?!\\G)|;",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.terminator.rule.css"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "(?i)\\G(@)layer",
+							"beginCaptures": {
+								"0": {
+									"name": "keyword.control.at-rule.layer.css"
+								},
+								"1": {
+									"name": "punctuation.definition.keyword.css"
+								}
+							},
+							"end": "(?=\\s*[{;])",
+							"name": "meta.at-rule.layer.header.css",
+							"patterns": [
+								{
+									"include": "#layer-name-list"
+								},
+								{
+									"include": "#comment-block"
+								},
+								{
+									"include": "#escapes"
+								}
+							]
+						},
+						{
+							"begin": "{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.section.layer.begin.bracket.curly.css"
+								}
+							},
+							"end": "}",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.section.layer.end.bracket.curly.css"
+								}
+							},
+							"name": "meta.at-rule.layer.body.css",
+							"patterns": [
+								{
+									"include": "$self"
+								}
+							]
+						}
+					]
+				},
+				{
 					"begin": "(?i)((@)(-(ms|o)-)?viewport)(?=[\\s'\"{;]|/\\*|$)",
 					"beginCaptures": {
 						"1": {
@@ -662,11 +730,83 @@
 							"name": "meta.at-rule.body.css",
 							"patterns": [
 								{
+									"include": "#rule-list-innards"
+								},
+								{
 									"include": "$self"
 								}
 							]
 						}
 					]
+				}
+			]
+		},
+		"layer-import": {
+			"patterns": [
+				{
+					"begin": "(?i)(?<![\\w-])(layer)(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "support.function.layer.css"
+						},
+						"2": {
+							"name": "punctuation.section.function.begin.bracket.round.css"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.function.end.bracket.round.css"
+						}
+					},
+					"name": "meta.function.layer.css",
+					"patterns": [
+						{
+							"include": "#layer-name-list"
+						},
+						{
+							"include": "#comment-block"
+						},
+						{
+							"include": "#escapes"
+						}
+					]
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.other.layer.css"
+						}
+					},
+					"match": "(?i)(?<![\\w-])(layer)(?![\\w-])"
+				}
+			]
+		},
+		"layer-name-list": {
+			"patterns": [
+				{
+					"include": "#comment-block"
+				},
+				{
+					"match": ",",
+					"name": "punctuation.separator.list.comma.css"
+				},
+				{
+					"match": "\\.",
+					"name": "punctuation.accessor.layer.css"
+				},
+				{
+					"captures": {
+						"0": {
+							"patterns": [
+								{
+									"include": "#escapes"
+								}
+							]
+						}
+					},
+					"match": "(?x)\n(?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # First letter\n(?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Remainder of identifier\n  |\\\\(?:[0-9a-fA-F]{1,6}|.)\n)*",
+					"name": "variable.parameter.layer-name.css"
 				}
 			]
 		},
@@ -693,14 +833,17 @@
 		"combinators": {
 			"patterns": [
 				{
-					"match": "/deep/|>>>",
-					"name": "invalid.deprecated.combinator.css"
+					"include": "#combinator-invalid"
 				},
 				{
 					"match": ">>|>|\\+|~",
 					"name": "keyword.operator.combinator.css"
 				}
 			]
+		},
+		"combinator-invalid": {
+			"match": "/deep/|>>>",
+			"name": "invalid.deprecated.combinator.css"
 		},
 		"commas": {
 			"match": ",",
@@ -841,11 +984,13 @@
 					"name": "meta.function.calc.css",
 					"patterns": [
 						{
-							"match": "[*/]|(?<=\\s|^)[-+](?=\\s|$)",
-							"name": "keyword.operator.arithmetic.css"
+							"include": "#arithmetic-operators"
 						},
 						{
 							"include": "#property-values"
+						},
+						{
+							"include": "#function-nesting"
 						}
 					]
 				},
@@ -945,7 +1090,7 @@
 					]
 				},
 				{
-					"begin": "(?xi) (?<![\\w-])\n(annotation|attr|blur|brightness|character-variant|clamp|contrast|counters?\n|cross-fade|drop-shadow|element|fit-content|format|grayscale|hue-rotate|color-mix\n|image-set|invert|local|max|min|minmax|opacity|ornaments|repeat|saturate|sepia\n|styleset|stylistic|swash|symbols\n|cos|sin|tan|acos|asin|atan|atan2|hypot|sqrt|pow|log|exp|abs|sign)\n(\\()",
+					"begin": "(?xi) (?<![\\w-])\n(annotation|attr|blur|brightness|character-variant|clamp|contrast|counters?\n|cross-fade|drop-shadow|element|fit-content|format|grayscale|hue-rotate|color-mix\n|image-set|invert|local|max|min|minmax|opacity|ornaments|repeat|saturate|sepia\n|styleset|stylistic|swash|symbols\n|cos|sin|tan|acos|asin|atan|atan2|hypot|sqrt|pow|log|exp|abs|sign|if|style)\n(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "support.function.misc.css"
@@ -965,6 +1110,9 @@
 						{
 							"match": "(?i)(?<=[,\\s\"]|\\*/|^)\\d+x(?=[\\s,\"')]|/\\*|$)",
 							"name": "constant.numeric.other.density.css"
+						},
+						{
+							"include": "#arithmetic-operators"
 						},
 						{
 							"include": "#property-values"
@@ -1055,6 +1203,29 @@
 					"include": "#url"
 				},
 				{
+					"begin": "(?x) (?<![\\w-])\n(\n  --\n  (?:[-a-zA-Z_]    | [^\\x00-\\x7F])     # First letter\n  (?:[-a-zA-Z0-9_] | [^\\x00-\\x7F]      # Remainder of identifier\n    |\\\\(?:[0-9a-fA-F]{1,6}|.)\n  )*\n)\n(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "support.function.custom.css"
+						},
+						"2": {
+							"name": "punctuation.section.function.begin.bracket.round.css"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.function.end.bracket.round.css"
+						}
+					},
+					"name": "meta.function.custom.css",
+					"patterns": [
+						{
+							"include": "#property-values"
+						}
+					]
+				},
+				{
 					"begin": "(?i)(?<![\\w-])(var)(\\()",
 					"beginCaptures": {
 						"1": {
@@ -1080,6 +1251,31 @@
 							"include": "#property-values"
 						}
 					]
+				}
+			]
+		},
+		"function-nesting": {
+			"begin": "\\(",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.function.begin.bracket.round.css"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.function.end.bracket.round.css"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#arithmetic-operators"
+				},
+				{
+					"include": "#property-values"
+				},
+				{
+					"include": "#function-nesting"
 				}
 			]
 		},
@@ -1348,6 +1544,9 @@
 						},
 						{
 							"include": "#comment-block"
+						},
+						{
+							"include": "#functions"
 						}
 					]
 				}
@@ -1422,16 +1621,35 @@
 			"patterns": [
 				{
 					"match": "(?xi) (?<![\\w-])\n(?:\n  # Standard CSS\n  accent-color|additive-symbols|align-content|align-items|align-self|all|animation|animation-delay|animation-direction|animation-duration\n  | animation-fill-mode|animation-iteration-count|animation-name|animation-play-state|animation-timing-function|aspect-ratio|backdrop-filter\n  | backface-visibility|background|background-attachment|background-blend-mode|background-clip|background-color|background-image\n  | background-origin|background-position|background-position-[xy]|background-repeat|background-size|bleed|block-size|border\n  | border-block-end|border-block-end-color|border-block-end-style|border-block-end-width|border-block-start|border-block-start-color\n  | border-block-start-style|border-block-start-width|border-bottom|border-bottom-color|border-bottom-left-radius|border-bottom-right-radius\n  | border-bottom-style|border-bottom-width|border-collapse|border-color|border-end-end-radius|border-end-start-radius|border-image\n  | border-image-outset|border-image-repeat|border-image-slice|border-image-source|border-image-width|border-inline-end\n  | border-inline-end-color|border-inline-end-style|border-inline-end-width|border-inline-start|border-inline-start-color\n  | border-inline-start-style|border-inline-start-width|border-left|border-left-color|border-left-style|border-left-width\n  | border-radius|border-right|border-right-color|border-right-style|border-right-width|border-spacing|border-start-end-radius\n  | border-start-start-radius|border-style|border-top|border-top-color|border-top-left-radius|border-top-right-radius|border-top-style\n  | border-top-width|border-width|bottom|box-decoration-break|box-shadow|box-sizing|break-after|break-before|break-inside|caption-side\n  | caret-color|clear|clip|clip-path|clip-rule|color|color-adjust|color-interpolation-filters|color-scheme|column-count|column-fill|column-gap\n  | column-rule|column-rule-color|column-rule-style|column-rule-width|column-span|column-width|columns|contain|container|container-name|container-type|content|counter-increment\n  | counter-reset|cursor|direction|display|empty-cells|enable-background|fallback|fill|fill-opacity|fill-rule|filter|flex|flex-basis\n  | flex-direction|flex-flow|flex-grow|flex-shrink|flex-wrap|float|flood-color|flood-opacity|font|font-display|font-family\n  | font-feature-settings|font-kerning|font-language-override|font-optical-sizing|font-size|font-size-adjust|font-stretch\n  | font-style|font-synthesis|font-variant|font-variant-alternates|font-variant-caps|font-variant-east-asian|font-variant-ligatures\n  | font-variant-numeric|font-variant-position|font-variation-settings|font-weight|gap|glyph-orientation-horizontal|glyph-orientation-vertical\n  | grid|grid-area|grid-auto-columns|grid-auto-flow|grid-auto-rows|grid-column|grid-column-end|grid-column-gap|grid-column-start\n  | grid-gap|grid-row|grid-row-end|grid-row-gap|grid-row-start|grid-template|grid-template-areas|grid-template-columns|grid-template-rows\n  | hanging-punctuation|height|hyphens|image-orientation|image-rendering|image-resolution|ime-mode|initial-letter|initial-letter-align\n  | inline-size|inset|inset-block|inset-block-end|inset-block-start|inset-inline|inset-inline-end|inset-inline-start|isolation\n  | justify-content|justify-items|justify-self|kerning|left|letter-spacing|lighting-color|line-break|line-clamp|line-height|list-style\n  | list-style-image|list-style-position|list-style-type|margin|margin-block|margin-block-end|margin-block-start|margin-bottom|margin-inline|margin-inline-end|margin-inline-start\n  | margin-left|margin-right|margin-top|marker-end|marker-mid|marker-start|marks|mask|mask-border|mask-border-mode|mask-border-outset\n  | mask-border-repeat|mask-border-slice|mask-border-source|mask-border-width|mask-clip|mask-composite|mask-image|mask-mode\n  | mask-origin|mask-position|mask-repeat|mask-size|mask-type|max-block-size|max-height|max-inline-size|max-lines|max-width\n  | max-zoom|min-block-size|min-height|min-inline-size|min-width|min-zoom|mix-blend-mode|negative|object-fit|object-position\n  | offset|offset-anchor|offset-distance|offset-path|offset-position|offset-rotation|opacity|order|orientation|orphans\n  | outline|outline-color|outline-offset|outline-style|outline-width|overflow|overflow-anchor|overflow-block|overflow-inline\n  | overflow-wrap|overflow-[xy]|overscroll-behavior|overscroll-behavior-block|overscroll-behavior-inline|overscroll-behavior-[xy]\n  | pad|padding|padding-block|padding-block-end|padding-block-start|padding-bottom|padding-inline|padding-inline-end|padding-inline-start|padding-left\n  | padding-right|padding-top|page-break-after|page-break-before|page-break-inside|paint-order|perspective|perspective-origin\n  | place-content|place-items|place-self|pointer-events|position|prefix|quotes|range|resize|right|rotate|row-gap|ruby-align\n  | ruby-merge|ruby-position|scale|scroll-behavior|scroll-margin|scroll-margin-block|scroll-margin-block-end|scroll-margin-block-start\n  | scroll-margin-bottom|scroll-margin-inline|scroll-margin-inline-end|scroll-margin-inline-start|scroll-margin-left|scroll-margin-right\n  | scroll-margin-top|scroll-padding|scroll-padding-block|scroll-padding-block-end|scroll-padding-block-start|scroll-padding-bottom\n  | scroll-padding-inline|scroll-padding-inline-end|scroll-padding-inline-start|scroll-padding-left|scroll-padding-right\n  | scroll-padding-top|scroll-snap-align|scroll-snap-coordinate|scroll-snap-destination|scroll-snap-stop|scroll-snap-type\n  | scrollbar-color|scrollbar-gutter|scrollbar-width|shape-image-threshold|shape-margin|shape-outside|shape-rendering|size\n  | speak-as|src|stop-color|stop-opacity|stroke|stroke-dasharray|stroke-dashoffset|stroke-linecap|stroke-linejoin|stroke-miterlimit\n  | stroke-opacity|stroke-width|suffix|symbols|system|tab-size|table-layout|text-align|text-align-last|text-anchor|text-combine-upright\n  | text-decoration|text-decoration-color|text-decoration-line|text-decoration-skip|text-decoration-skip-ink|text-decoration-style|text-decoration-thickness\n  | text-emphasis|text-emphasis-color|text-emphasis-position|text-emphasis-style|text-indent|text-justify|text-orientation\n  | text-overflow|text-rendering|text-shadow|text-size-adjust|text-transform|text-underline-offset|text-underline-position|top|touch-action|transform\n  | transform-box|transform-origin|transform-style|transition|transition-delay|transition-duration|transition-property|transition-timing-function\n  | translate|unicode-bidi|unicode-range|user-select|user-zoom|vertical-align|visibility|white-space|widows|width|will-change\n  | word-break|word-spacing|word-wrap|writing-mode|z-index|zoom\n\n  # SVG attributes\n  | alignment-baseline|baseline-shift|clip-rule|color-interpolation|color-interpolation-filters|color-profile\n  | color-rendering|cx|cy|dominant-baseline|enable-background|fill|fill-opacity|fill-rule|flood-color|flood-opacity\n  | glyph-orientation-horizontal|glyph-orientation-vertical|height|kerning|lighting-color|marker-end|marker-mid\n  | marker-start|r|rx|ry|shape-rendering|stop-color|stop-opacity|stroke|stroke-dasharray|stroke-dashoffset|stroke-linecap\n  | stroke-linejoin|stroke-miterlimit|stroke-opacity|stroke-width|text-anchor|width|x|y\n\n  # Not listed on MDN; presumably deprecated\n  | adjust|after|align|align-last|alignment|alignment-adjust|appearance|attachment|azimuth|background-break\n  | balance|baseline|before|bidi|binding|bookmark|bookmark-label|bookmark-level|bookmark-target|border-length\n  | bottom-color|bottom-left-radius|bottom-right-radius|bottom-style|bottom-width|box|box-align|box-direction\n  | box-flex|box-flex-group|box-lines|box-ordinal-group|box-orient|box-pack|break|character|collapse|column\n  | column-break-after|column-break-before|count|counter|crop|cue|cue-after|cue-before|decoration|decoration-break\n  | delay|display-model|display-role|down|drop|drop-initial-after-adjust|drop-initial-after-align|drop-initial-before-adjust\n  | drop-initial-before-align|drop-initial-size|drop-initial-value|duration|elevation|emphasis|family|fit|fit-position\n  | flex-group|float-offset|gap|grid-columns|grid-rows|hanging-punctuation|header|hyphenate|hyphenate-after|hyphenate-before\n  | hyphenate-character|hyphenate-lines|hyphenate-resource|icon|image|increment|indent|index|initial-after-adjust\n  | initial-after-align|initial-before-adjust|initial-before-align|initial-size|initial-value|inline-box-align|iteration-count\n  | justify|label|left-color|left-style|left-width|length|level|line|line-stacking|line-stacking-ruby|line-stacking-shift\n  | line-stacking-strategy|lines|list|mark|mark-after|mark-before|marks|marquee|marquee-direction|marquee-play-count|marquee-speed\n  | marquee-style|max|min|model|move-to|name|nav|nav-down|nav-index|nav-left|nav-right|nav-up|new|numeral|offset|ordinal-group\n  | orient|origin|overflow-style|overhang|pack|page|page-policy|pause|pause-after|pause-before|phonemes|pitch|pitch-range\n  | play-count|play-during|play-state|point|presentation|presentation-level|profile|property|punctuation|punctuation-trim\n  | radius|rate|rendering-intent|repeat|replace|reset|resolution|resource|respond-to|rest|rest-after|rest-before|richness\n  | right-color|right-style|right-width|role|rotation|rotation-point|rows|ruby|ruby-overhang|ruby-span|rule|rule-color\n  | rule-style|rule-width|shadow|size|size-adjust|sizing|space|space-collapse|spacing|span|speak|speak-header|speak-numeral\n  | speak-punctuation|speech|speech-rate|speed|stacking|stacking-ruby|stacking-shift|stacking-strategy|stress|stretch\n  | string-set|style|style-image|style-position|style-type|target|target-name|target-new|target-position|text|text-height\n  | text-justify|text-outline|text-replace|text-wrap|timing-function|top-color|top-left-radius|top-right-radius|top-style\n  | top-width|trim|unicode|up|user-select|variant|voice|voice-balance|voice-duration|voice-family|voice-pitch|voice-pitch-range\n  | voice-rate|voice-stress|voice-volume|volume|weight|white|white-space-collapse|word|wrap\n)\n(?![\\w-])",
-					"name": "support.type.property-name.css"
+					"name": "meta.property-name.css support.type.property-name.css"
 				},
 				{
 					"match": "(?<![\\w-])(?i:-(?:ah|apple|atsc|epub|hp|khtml|moz|ms|o|rim|ro|tc|wap|webkit|xv)|(?:mso|prince))-[a-zA-Z-]+",
-					"name": "support.type.vendored.property-name.css"
+					"name": "meta.property-name.css support.type.vendored.property-name.css"
 				}
 			]
 		},
 		"property-values": {
 			"patterns": [
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.group.begin.bracket.curly.css"
+						}
+					},
+					"end": "}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.group.end.bracket.curly.css"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#property-values"
+						}
+					]
+				},
 				{
 					"include": "#commas"
 				},
@@ -1506,6 +1724,9 @@
 			"patterns": [
 				{
 					"include": "#rule-list-innards"
+				},
+				{
+					"include": "$self"
 				}
 			]
 		},
@@ -1525,14 +1746,18 @@
 					"name": "variable.css"
 				},
 				{
+					"include": "#shared-names"
+				},
+				{
+					"include": "#property-names"
+				},
+				{
+					"include": "#selector"
+				},
+				{
 					"begin": "(?<![-a-zA-Z])(?=[-a-zA-Z])",
 					"end": "$|(?![-a-zA-Z])",
-					"name": "meta.property-name.css",
-					"patterns": [
-						{
-							"include": "#property-names"
-						}
-					]
+					"name": "meta.property-name.css"
 				},
 				{
 					"begin": "(:)\\s*",
@@ -1564,8 +1789,8 @@
 			]
 		},
 		"selector": {
-			"begin": "(?x)\n(?=\n  (?:\\|)?                    # Possible anonymous namespace prefix\n  (?:\n    [-\\[:.*\\#a-zA-Z_]       # Valid selector character\n    |\n    [^\\x00-\\x7F]            # Which can include non-ASCII symbols\n    |\n    \\\\                      # Or an escape sequence\n    (?:[0-9a-fA-F]{1,6}|.)\n  )\n)",
-			"end": "(?=\\s*[/@{)])",
+			"begin": "(?xi)\n# Match must be preceded by one of the following:\n(?<=\n    ^                             # Start of line\n  | (^|[^\\:])\\s                 # Whitespace, after the start of a line or any character except a colon (which denotes a property)\n  | ;                             # Semicolon (condensed property list syntax)\n  | [{}]                          # Opening or closing brace (condensed property list syntax)\n  | \\*/                          # Comment end\n  | \\\\(?:[0-9a-fA-F]{1,6}|.)    # Escape sequence\n)\n\n# Match may contain any of the following:\n(?=\n  (?:\n    # Match must start with one of the following:\n      &                           # Nesting selector\n    | \\*                         # Universal selector\n    | [>~+]                       # Selector combinator\n    | \\|                         # Selector namespace separator\n    | \\[                         # Attribute selector opening bracket\n    | [a-zA-Z]                    # Letter\n    | [^\\x00-\\x7F]              # Non-ASCII symbols\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)  # Escape sequence\n\n    # Or one of the following symbols, followed by a word character, hyphen, or escape sequence:\n    | (?:\n          \\.                     # Class selector\n        | \\#                     # ID selector\n      )\n      (?:\n          [\\w-]                  # Word character or hyphen\n        | \\\\(?:                 # Escape sequence\n                [0-9a-fA-F]{1,6}\n              | .\n            )\n      )\n\n    # Or one of the following symbols, followed a letter or hyphen:\n    | (?:\n          \\:                     # Pseudo-class\n        | \\:\\:                  # Pseudo-element\n      )\n      [a-zA-Z-]                   # Letter or hyphen\n  )\n)\n\n# Match must NOT contain any of the following:\n(?!\n    [\\w-]*[\\:]+\\s              # One or more colons immediately followed by a whitespace (denotes a property or invalid sequence)\n  | [^{]*;                        # Any characters and a semicolon before an opening bracket (denotes the end of a property)\n  | [^{]*}                        # A closing bracket before an opening bracket (denotes a property)\n  | [^\\:]+(\\:\\:):+             # More than two colons (invalid sequence)\n)",
+			"end": "(?x)\n# Match must end with:\n(?=\n  \\s*                            # Optional whitespace and one of the following:\n  (?:\n      \\/                         # Comment\n    | @                           # At-rule\n    | {                           # Opening property list brace\n    | \\)                         # Closing function brace (for passing test on `some-edgy-new-function(`)\n    | $                           # End of line\n  )\n)",
 			"name": "meta.selector.css",
 			"patterns": [
 				{
@@ -1596,10 +1821,14 @@
 							"name": "punctuation.separator.css"
 						}
 					},
-					"match": "(?x)\n(?:^|(?<=[\\s,(};]))         # Follows whitespace, comma, semicolon, or bracket\n(?!\n  [-\\w*]+\n  \\|\n  (?!\n      [-\\[:.*\\#a-zA-Z_]    # Make sure there's a selector to match\n    | [^\\x00-\\x7F]\n  )\n)\n(\n  (?: [-a-zA-Z_]    | [^\\x00-\\x7F] )   # First letter\n  (?: [-a-zA-Z0-9_] | [^\\x00-\\x7F]     # Remainder of identifier\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)\n  )*\n  |\n  \\*     # Universal namespace\n)?\n(\\|)     # Namespace separator"
+					"match": "(?x)\n(?:^|(?<=[\\s,(};]))         # Follows whitespace, comma, semicolon, or bracket\n(?!\n  [-\\w*]+\n  \\|\n  (?!\n      [-\\[:.*&\\#a-zA-Z_]   # Make sure there's a selector to match\n    | [^\\x00-\\x7F]\n  )\n)\n(\n  (?: [-a-zA-Z_]    | [^\\x00-\\x7F] )   # First letter\n  (?: [-a-zA-Z0-9_] | [^\\x00-\\x7F]     # Remainder of identifier\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)\n  )*\n  |\n  \\*     # Universal namespace\n)?\n(\\|)     # Namespace separator"
 				},
 				{
 					"include": "#tag-names"
+				},
+				{
+					"match": "&",
+					"name": "entity.name.tag.nesting.css"
 				},
 				{
 					"match": "\\*",
@@ -1618,7 +1847,7 @@
 							]
 						}
 					},
-					"match": "(?x) (?<![@\\w-])\n([.\\#])\n# Invalid identifier\n(\n  (?:\n    # Starts with ASCII digits, with possible hyphen preceding it\n    -?[0-9]\n    |\n    # Consists of a hyphen only\n    -                                      # Terminated by either:\n    (?= $                                  # - End-of-line\n      | [\\s,.\\#)\\[:{>+~|]               # - Followed by another selector\n      | /\\*                               # - Followed by a block comment\n    )\n    |\n    # Name contains unescaped ASCII symbol\n    (?:                                    # Check for acceptable preceding characters\n        [-a-zA-Z_0-9]|[^\\x00-\\x7F]       # - Valid selector character\n      | \\\\(?:[0-9a-fA-F]{1,6}|.)         # - Escape sequence\n    )*\n    (?:                                    # Invalid punctuation\n      [!\"'%&(*;<?@^`|\\]}]                 # - NOTE: We exempt `)` from the list of checked\n      |                                    #   symbols to avoid matching `:not(.invalid)`\n      / (?!\\*)                            # - Avoid invalidating the start of a comment\n    )+\n  )\n  # Mark remainder of selector invalid\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]         # - Otherwise valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)           # - Escape sequence\n  )*\n)",
+					"match": "(?x) (?<![@\\w-])\n([.\\#])\n# Invalid identifier\n(\n  (?:\n    # Starts with ASCII digits, with possible hyphen preceding it\n    -?[0-9]\n    |\n    # Consists of a hyphen only\n    -                                      # Terminated by either:\n    (?= $                                  # - End-of-line\n      | [\\s,.\\#)\\[:{>+~|&]              # - Followed by another selector\n      | /\\*                               # - Followed by a block comment\n    )\n    |\n    # Name contains unescaped ASCII symbol\n    (?:                                    # Check for acceptable preceding characters\n        [-a-zA-Z_0-9]|[^\\x00-\\x7F]       # - Valid selector character\n      | \\\\(?:[0-9a-fA-F]{1,6}|.)         # - Escape sequence\n    )*\n    (?:                                    # Invalid punctuation\n      [!\"'%(*;<?@^`|\\]}]                  # - NOTE: We exempt `)` from the list of checked\n      |                                    #   symbols to avoid matching `:not(.invalid)`\n      / (?!\\*)                            # - Avoid invalidating the start of a comment\n      |\n      &(?=[-a-zA-Z_0-9]|[^\\x00-\\x7F])    # - & followed by an identifier is invalid\n    )+\n  )\n  # Mark remainder of selector invalid\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]         # - Otherwise valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)           # - Escape sequence\n  )*\n)",
 					"name": "invalid.illegal.bad-identifier.css"
 				},
 				{
@@ -1634,7 +1863,7 @@
 							]
 						}
 					},
-					"match": "(?x)\n(\\.)                                  # Valid class-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n  )+\n)                                      # Followed by either:\n(?= $                                  # - End of the line\n  | [\\s,.\\#)\\[:{>+~|]               # - Another selector\n  | /\\*                               # - A block comment\n)",
+					"match": "(?x)\n(\\.)                                  # Valid class-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n  )+\n)                                      # Followed by either:\n(?= $                                  # - End of the line\n  | [\\s,.\\#)\\[:{>+~|&]              # - Another selector\n  | /\\*                               # - A block comment\n)",
 					"name": "entity.other.attribute-name.class.css"
 				},
 				{
@@ -1650,7 +1879,7 @@
 							]
 						}
 					},
-					"match": "(?x)\n(\\#)\n(\n  -?\n  (?![0-9])\n  (?:[-a-zA-Z0-9_]|[^\\x00-\\x7F]|\\\\(?:[0-9a-fA-F]{1,6}|.))+\n)\n(?=$|[\\s,.\\#)\\[:{>+~|]|/\\*)",
+					"match": "(?x)\n(\\#)\n(\n  -?\n  (?![0-9])\n  (?:[-a-zA-Z0-9_]|[^\\x00-\\x7F]|\\\\(?:[0-9a-fA-F]{1,6}|.))+\n)\n(?=$|[\\s,.\\#)\\[:{>+~|&]|/\\*)",
 					"name": "entity.other.attribute-name.id.css"
 				},
 				{
@@ -1749,6 +1978,28 @@
 				}
 			]
 		},
+		"shared-names": {
+			"patterns": [
+				{
+					"begin": "(?xi)\n# Selector match must be preceded by one of the following:\n(?<=\n    ^                           # Start of line\n  | (^|[^\\:])\\s               # Whitespace, after the start of a line or any character except a colon\n  | [{}]                        # Opening or closing brace (condensed property list syntax)\n  | \\*/                        # Comment end\n  | \\\\(?:[0-9a-fA-F]{1,6}|.)  # Escape sequence\n)\n\n(?=\n  # Selector must match:\n  (?:\n    # HTML elements\n    header|image|label|marquee|mask|nav|ruby|shadow|span|style\n    # SVG elements\n    |color-profile|line|text\n  )\n\n  # Selector must NOT be followed by any any of the following:\n  (?!\n      .*;                       # Any characters followed by a semicolon (denotes a property)\n    | [^{]*}                    # Any characters, except an opening brace, followed by a closing bracket (denotes a property)\n    | -                         # A dash (denotes a property name)\n    | \\:\\s+                   # A colon followed by whitespace (denotes a property name)\n  )\n)",
+					"end": "(?xi)\n# Selector match ends with one of the following:\n(?=\n    \\s                           # Whitespace\n  | \\/\\*                        # Comment\n  | ,                             # Comma\n  | {                             # Opening property list brace\n  | $                             # End of line\n)",
+					"patterns": [
+						{
+							"include": "#selector"
+						}
+					]
+				},
+				{
+					"begin": "(?xi)\n# Selector match must be preceded by one of the following:\n(?<=\n    ^                           # Start of line\n  | (^|[^\\:])\\s               # Whitespace, after the start of a line or any character except a colon\n  | [{}]                        # Opening or closing brace (condensed property list syntax)\n  | \\*/                        # Comment end\n  | \\\\(?:[0-9a-fA-F]{1,6}|.)  # Escape sequence\n)\n\n(?=\n  # Selector must match:\n  (?:\n    # HTML elements\n    content|font|mark\n    # SVG elements\n    |cursor|filter\n  )\n\n  # Selector must NOT be followed by any any of the following:\n  (?!\n      .*;                       # Any characters followed by a semicolon (denotes a property)\n    | [^{]*}                    # Any characters, except an opening brace, followed by a closing bracket (denotes a property)\n    | -                         # A dash (denotes a property name)\n    | \\:                     # A colon, unless it's with one of the following:\n    (?!\n      # An opening bracket before a closing bracket\n        [^}]*{\n      # A pseudo-class selectors\n      | active|any-link|checked|disabled|empty|enabled|first\n      | (?:first|last|only)-(?:child|of-type)|focus|focus-visible|focus-within|fullscreen|host|hover\n      | in-range|indeterminate|invalid|link|out-of-range\n      | read-only|read-write|required|root|scope|target|unresolved\n      | valid|visited\n\n      # A functional pseudo-class selectors\n      | (?: dir|lang\n          | not|has|matches|where|is\n          | nth-(?:last-)?(?:child|of-type)\n        )\\(\n\n      # A single-colon pseudo-element selectors\n      | after\n      | before\n      | first-letter\n      | first-line\n      | (?:\n          \\-\n          (?:\n              ah|apple|atsc|epub|hp|khtml|moz\n            | ms|o|rim|ro|tc|wap|webkit|xv\n          )\n          | (?:\n              mso|prince\n            )\n        )\n        -[a-z-]+\n    )\n  )\n)",
+					"end": "(?xi)\n# Selector match ends with one of the following:\n(?=\n    \\s                           # Whitespace\n  | \\/\\*                        # Comment\n  | ,                             # Comma\n  | {                             # Opening property list brace\n  | $                             # End of line\n)",
+					"patterns": [
+						{
+							"include": "#selector"
+						}
+					]
+				}
+			]
+		},
 		"string": {
 			"patterns": [
 				{
@@ -1814,7 +2065,7 @@
 			]
 		},
 		"tag-names": {
-			"match": "(?xi) (?<![\\w:-])\n(?:\n    # HTML\n    a|abbr|acronym|address|applet|area|article|aside|audio|b|base|basefont|bdi|bdo|bgsound\n  | big|blink|blockquote|body|br|button|canvas|caption|center|cite|code|col|colgroup|command\n  | content|data|datalist|dd|del|details|dfn|dialog|dir|div|dl|dt|element|em|embed|fieldset\n  | figcaption|figure|font|footer|form|frame|frameset|h[1-6]|head|header|hgroup|hr|html|i\n  | iframe|image|img|input|ins|isindex|kbd|keygen|label|legend|li|link|listing|main|map|mark\n  | marquee|math|menu|menuitem|meta|meter|multicol|nav|nextid|nobr|noembed|noframes|noscript\n  | object|ol|optgroup|option|output|p|param|picture|plaintext|pre|progress|q|rb|rp|rt|rtc\n  | ruby|s|samp|script|section|select|shadow|slot|small|source|spacer|span|strike|strong\n  | style|sub|summary|sup|table|tbody|td|template|textarea|tfoot|th|thead|time|title|tr\n  | track|tt|u|ul|var|video|wbr|xmp\n\n  # SVG\n  | altGlyph|altGlyphDef|altGlyphItem|animate|animateColor|animateMotion|animateTransform\n  | circle|clipPath|color-profile|cursor|defs|desc|discard|ellipse|feBlend|feColorMatrix\n  | feComponentTransfer|feComposite|feConvolveMatrix|feDiffuseLighting|feDisplacementMap\n  | feDistantLight|feDropShadow|feFlood|feFuncA|feFuncB|feFuncG|feFuncR|feGaussianBlur\n  | feImage|feMerge|feMergeNode|feMorphology|feOffset|fePointLight|feSpecularLighting\n  | feSpotLight|feTile|feTurbulence|filter|font-face|font-face-format|font-face-name\n  | font-face-src|font-face-uri|foreignObject|g|glyph|glyphRef|hatch|hatchpath|hkern\n  | line|linearGradient|marker|mask|mesh|meshgradient|meshpatch|meshrow|metadata\n  | missing-glyph|mpath|path|pattern|polygon|polyline|radialGradient|rect|set|solidcolor\n  | stop|svg|switch|symbol|text|textPath|tref|tspan|use|view|vkern\n\n  # MathML\n  | annotation|annotation-xml|maction|maligngroup|malignmark|math|menclose|merror|mfenced\n  | mfrac|mglyph|mi|mlabeledtr|mlongdiv|mmultiscripts|mn|mo|mover|mpadded|mphantom|mroot\n  | mrow|ms|mscarries|mscarry|msgroup|msline|mspace|msqrt|msrow|mstack|mstyle|msub|msubsup\n  | msup|mtable|mtd|mtext|mtr|munder|munderover|semantics\n)\n(?=[+~>\\s,.\\#|){:\\[]|/\\*|$)",
+			"match": "(?xi) (?<![\\w:-])\n(?:\n    # HTML\n    a|abbr|acronym|address|applet|area|article|aside|audio|b|base|basefont|bdi|bdo|bgsound\n  | big|blink|blockquote|body|br|button|canvas|caption|center|cite|code|col|colgroup|command\n  | content|data|datalist|dd|del|details|dfn|dialog|dir|div|dl|dt|element|em|embed|fieldset\n  | figcaption|figure|font|footer|form|frame|frameset|h[1-6]|head|header|hgroup|hr|html|i\n  | iframe|image|img|input|ins|isindex|kbd|keygen|label|legend|li|link|listing|main|map|mark\n  | marquee|math|menu|menuitem|meta|meter|multicol|nav|nextid|nobr|noembed|noframes|noscript\n  | object|ol|optgroup|option|output|p|param|picture|plaintext|pre|progress|q|rb|rp|rt|rtc\n  | ruby|s|samp|script|section|select|shadow|slot|small|source|spacer|span|strike|strong\n  | style|sub|summary|sup|table|tbody|td|template|textarea|tfoot|th|thead|time|title|tr\n  | track|tt|u|ul|var|video|wbr|xmp\n\n  # SVG\n  | altGlyph|altGlyphDef|altGlyphItem|animate|animateColor|animateMotion|animateTransform\n  | circle|clipPath|color-profile|cursor|defs|desc|discard|ellipse|feBlend|feColorMatrix\n  | feComponentTransfer|feComposite|feConvolveMatrix|feDiffuseLighting|feDisplacementMap\n  | feDistantLight|feDropShadow|feFlood|feFuncA|feFuncB|feFuncG|feFuncR|feGaussianBlur\n  | feImage|feMerge|feMergeNode|feMorphology|feOffset|fePointLight|feSpecularLighting\n  | feSpotLight|feTile|feTurbulence|filter|font-face|font-face-format|font-face-name\n  | font-face-src|font-face-uri|foreignObject|g|glyph|glyphRef|hatch|hatchpath|hkern\n  | line|linearGradient|marker|mask|mesh|meshgradient|meshpatch|meshrow|metadata\n  | missing-glyph|mpath|path|pattern|polygon|polyline|radialGradient|rect|set|solidcolor\n  | stop|svg|switch|symbol|text|textPath|tref|tspan|use|view|vkern\n\n  # MathML\n  | annotation|annotation-xml|maction|maligngroup|malignmark|math|menclose|merror|mfenced\n  | mfrac|mglyph|mi|mlabeledtr|mlongdiv|mmultiscripts|mn|mo|mover|mpadded|mphantom|mroot\n  | mrow|ms|mscarries|mscarry|msgroup|msline|mspace|msqrt|msrow|mstack|mstyle|msub|msubsup\n  | msup|mtable|mtd|mtext|mtr|munder|munderover|semantics\n)\n(?=[+~>\\s,.\\#|&){:\\[]|/\\*|$)",
 			"name": "entity.name.tag.css"
 		},
 		"unicode-range": {

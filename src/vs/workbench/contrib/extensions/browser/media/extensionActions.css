@@ -73,7 +73,7 @@
 }
 
 .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
-	background-color: var(--vscode-extensionButton-border, var(--vscode-extensionButton-separator));
+	background-color: var(--vscode-extensionButton-separator, var(--vscode-extensionButton-border));
 }
 
 .vscode-high-contrast .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {

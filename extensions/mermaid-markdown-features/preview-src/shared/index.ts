@@ -14,11 +14,35 @@ import { vsCodeMermaidTheme, VsCodeMermaidThemeTracker } from './vsCodeTheme';
  * Creates the `<pre class="mermaid-error">` node shown when a diagram fails to render.
  */
 export function createMermaidErrorElement(error: unknown): HTMLElement {
-	const message = error instanceof Error ? error.message : String(error);
 	const errorMessageNode = document.createElement('pre');
 	errorMessageNode.className = 'mermaid-error';
-	errorMessageNode.innerText = message;
+	errorMessageNode.innerText = getErrorMessage(error);
 	return errorMessageNode;
+}
+
+/**
+ * Extracts a human readable message from a thrown value.
+ *
+ * Mermaid rejects parse/render failures with a plain object of the shape
+ * `{ str, message, hash, error }` rather than a real `Error` instance, so a naive
+ * `String(error)` renders the unhelpful `[object Object]` instead of the actual
+ * syntax error. Prefer a `message` (or Mermaid's `str`) property when present
+ * before falling back.
+ */
+function getErrorMessage(error: unknown): string {
+	if (error instanceof Error) {
+		return error.message;
+	}
+	if (error && typeof error === 'object') {
+		const candidate = error as { message?: unknown; str?: unknown };
+		if (typeof candidate.message === 'string' && candidate.message) {
+			return candidate.message;
+		}
+		if (typeof candidate.str === 'string' && candidate.str) {
+			return candidate.str;
+		}
+	}
+	return String(error);
 }
 
 /**

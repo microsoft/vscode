@@ -3,71 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { type URI } from '../../../../../../base/common/uri.js';
-import { AgentHostEnabledSettingId, claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, isLocalAgentHostProviderDisabledByPolicy, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
-import { AgentHostSessionListController, IAgentHostSessionListConnection } from './agentHostSessionListController.js';
-
-/**
- * Shared session-list connection used by all local agent-host list controllers.
- *
- * The agent host exposes a single provider-agnostic `listSessions()` RPC, while
- * the workbench registers one {@link AgentHostSessionListController} per agent
- * provider. Those controllers can refresh at the same time during startup,
- * reconnect, or workspace changes. This wrapper keeps the controller coupled
- * only to the minimal list-session surface and joins concurrent refreshes onto
- * one in-flight `listSessions()` request so the agent host does not repeat the
- * same session enumeration work for every provider.
- */
-export class CoalescingAgentHostSessionListConnection implements IAgentHostSessionListConnection {
-
-	private _listSessionsInFlight: Promise<IAgentSessionMetadata[]> | undefined;
-
-	constructor(
-		private readonly _delegate: IAgentHostService,
-	) { }
-
-	get onDidNotification(): IAgentHostSessionListConnection['onDidNotification'] {
-		return this._delegate.onDidNotification;
-	}
-
-	disposeSession(session: URI): Promise<void> {
-		return this._delegate.disposeSession(session);
-	}
-
-	listSessions(): Promise<IAgentSessionMetadata[]> {
-		if (this._listSessionsInFlight) {
-			return this._listSessionsInFlight;
-		}
-
-		const request = this._delegate.listSessions();
-		this._listSessionsInFlight = request;
-		const clear = () => {
-			if (this._listSessionsInFlight === request) {
-				this._listSessionsInFlight = undefined;
-			}
-		};
-		request.then(clear, clear);
-		return request;
-	}
-}
+import { AgentHostSessionListController } from './agentHostSessionListController.js';
+import { MovedChatEditorRetargeter } from './agentHostChatMoveEditors.js';
+import { AgentHostSessionListStore } from './agentHostSessionListStore.js';
 
 export class AgentHostSessionListContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.agentHostSessionListContribution';
 
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
-	private readonly _listControllers = new Map<AgentProvider, AgentHostSessionListController>();
-	private readonly _sessionListConnection: CoalescingAgentHostSessionListConnection;
+
+	private readonly _historyRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 
 	private readonly _isSessionsWindow: boolean;
+	private readonly _movedChatEditors: MovedChatEditorRetargeter;
+	private _initialized = false;
+	private _sessionListStore: AgentHostSessionListStore | undefined;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -76,40 +42,59 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
 	) {
 		super();
+		this._movedChatEditors = new MovedChatEditorRetargeter(editorGroupsService, editorService);
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
-		this._sessionListConnection = new CoalescingAgentHostSessionListConnection(this._agentHostService);
 
-		if (this._isSessionsWindow || !this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		if (this._isSessionsWindow) {
 			return;
 		}
+		this._register(autorun(reader => {
+			if (this._agentHostEnablementService.enabled.read(reader)) {
+				const wasInitialized = this._initialized;
+				this._initialize();
+				const current = this._agentHostService.rootState.value;
+				if (wasInitialized && this._sessionListStore) {
+					this._handleRootStateChange(current, this._sessionListStore);
+				}
+			} else {
+				this._agentRegistrations.clearAndDisposeAll();
+				this._historyRegistrations.clearAndDisposeAll();
+			}
+		}));
+	}
+
+	private _initialize(): void {
+		if (this._initialized) {
+			return;
+		}
+		this._initialized = true;
+		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { retainUnlistedProvider: provider => isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService) }));
+		this._sessionListStore = sessionListStore;
 
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
-			this._handleRootStateChange(rootState);
+			this._handleRootStateChange(rootState, sessionListStore);
 		}));
 
 		this._register(this._agentHostService.onAgentHostStart(() => {
-			for (const controller of this._listControllers.values()) {
-				controller.resetCache();
-			}
+			sessionListStore.resetCache();
+			void sessionListStore.refresh(CancellationToken.None);
 		}));
 
 		const initialRootState = this._agentHostService.rootState.value;
-		if (initialRootState && !(initialRootState instanceof Error)) {
-			this._handleRootStateChange(initialRootState);
-		}
+		this._handleRootStateChange(initialRootState, sessionListStore);
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			const relevantSetting = claudePreferAgentHostSettingId(this._isSessionsWindow);
-			if (!e.affectsConfiguration(relevantSetting)) {
+			if (!affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
 				return;
 			}
 			const current = this._agentHostService.rootState.value;
-			if (current && !(current instanceof Error)) {
-				this._handleRootStateChange(current);
-			}
+			this._handleRootStateChange(current, sessionListStore);
 		}));
 	}
 
@@ -117,33 +102,58 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
 	}
 
-	private _handleRootStateChange(rootState: RootState): void {
-		const allowed = rootState.agents.filter(agent => this._shouldRegisterAgent(agent.provider));
-		const incoming = new Set(allowed.map(agent => agent.provider));
+	private _handleRootStateChange(rootState: RootState | Error | undefined, sessionListStore: AgentHostSessionListStore): void {
+		if (!this._agentHostEnablementService.enabled.get()) {
+			return;
+		}
+		const allowed = rootState && !(rootState instanceof Error) ? rootState.agents.filter(agent => this._shouldRegisterAgent(agent.provider)) : undefined;
+		const incoming = allowed ? new Set(allowed.map(agent => agent.provider)) : undefined;
 
 		for (const [provider] of this._agentRegistrations) {
-			if (!incoming.has(provider)) {
+			if (!this._shouldRegisterAgent(provider) || incoming?.has(provider) === false) {
 				this._agentRegistrations.deleteAndDispose(provider);
 			}
 		}
 
+		const unavailable = new Set(getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._isSessionsWindow));
+		for (const [provider] of this._historyRegistrations) {
+			if (!unavailable.has(provider)) {
+				this._historyRegistrations.deleteAndDispose(provider);
+			}
+		}
+		for (const provider of unavailable) {
+			if (!this._historyRegistrations.has(provider)) {
+				const store = new DisposableStore();
+				this._historyRegistrations.set(provider, store);
+				const sessionType = `agent-host-${provider}`;
+				const controller = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, undefined, 'local', false));
+				store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, {
+					onDidChangeChatSessionItems: controller.onDidChangeChatSessionItems,
+					get items() { return controller.items; },
+					refresh: token => controller.refresh(token),
+				}));
+			}
+		}
+		if (!allowed) {
+			return;
+		}
+
 		for (const agent of allowed) {
 			if (!this._agentRegistrations.has(agent.provider)) {
-				this._registerAgent(agent);
+				this._registerAgent(agent, sessionListStore);
 			}
 		}
 	}
 
-	private _registerAgent(agent: AgentInfo): void {
+	private _registerAgent(agent: AgentInfo, sessionListStore: AgentHostSessionListStore): void {
 		const store = new DisposableStore();
 		this._agentRegistrations.set(agent.provider, store);
 
 		const sessionType = `agent-host-${agent.provider}`;
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._sessionListConnection, undefined, 'local'));
-		this._listControllers.set(agent.provider, listController);
-		store.add(toDisposable(() => this._listControllers.delete(agent.provider)));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, sessionListStore, undefined, 'local', false));
 
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
+		store.add(listController.onDidMoveChat(({ from, to }) => this._movedChatEditors.retarget(from.chat, to.chat).catch(onUnexpectedError)));
 		store.add(this._workingDirectoryResolver.registerResolver(sessionType, _sessionResource => undefined, sessionResource => listController.isNewSession(sessionResource)));
 	}
 }

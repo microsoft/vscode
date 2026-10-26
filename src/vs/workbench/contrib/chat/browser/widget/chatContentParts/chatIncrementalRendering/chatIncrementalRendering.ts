@@ -5,6 +5,7 @@
 
 import './media/chatIncrementalRendering.css';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
@@ -62,6 +63,10 @@ export class IncrementalDOMMorpher extends Disposable {
 	private _pendingMarkdown: string | undefined;
 	private _rafHandle: number | undefined;
 	private _renderCallback: ((newMarkdown: string) => void) | undefined;
+	private _isDrained = true;
+
+	private readonly _onDidDrain = this._register(new Emitter<void>());
+	readonly onDidDrain: Event<void> = this._onDidDrain.event;
 
 	private _buffer: IIncrementalRenderingBuffer;
 	private _animation: IIncrementalRenderingAnimation;
@@ -104,6 +109,10 @@ export class IncrementalDOMMorpher extends Disposable {
 	}
 
 	// ---- public API ----
+
+	get isDrained(): boolean {
+		return this._isDrained;
+	}
 
 	/**
 	 * Register the callback that performs the actual markdown re-render.
@@ -148,6 +157,7 @@ export class IncrementalDOMMorpher extends Disposable {
 		// doRenderMarkdown() ran to initialize pipeline state but
 		// the visible content should be built up by the buffer.
 		if (this._buffer.handlesFlush && markdown.length > 0) {
+			this._isDrained = false;
 			this._renderedMarkdown = '';
 			this._revealedChildCount = 0;
 			// Clear the DOM so the buffer starts from empty.
@@ -161,6 +171,7 @@ export class IncrementalDOMMorpher extends Disposable {
 		}
 
 		this._renderedMarkdown = markdown;
+		this._isDrained = true;
 		this._revealedChildCount = animateInitial ? 0 : this._domNode.children.length;
 		if (animateInitial) {
 			this._animateNewChildren();
@@ -183,6 +194,7 @@ export class IncrementalDOMMorpher extends Disposable {
 		}
 
 		this._lastMarkdown = newMarkdown;
+		this._isDrained = false;
 
 		// Buffers that handle flushing themselves (e.g. line buffer)
 		// don't update _renderedMarkdown here — _flushRender decides.
@@ -251,6 +263,9 @@ export class IncrementalDOMMorpher extends Disposable {
 		if (this._buffer.needsNextFrame) {
 			this._pendingMarkdown = this._lastMarkdown;
 			this._scheduleRender();
+		} else if (this._renderedMarkdown === this._lastMarkdown && !this._isDrained) {
+			this._isDrained = true;
+			this._onDidDrain.fire();
 		}
 	}
 

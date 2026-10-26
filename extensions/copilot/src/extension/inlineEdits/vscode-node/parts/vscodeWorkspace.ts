@@ -360,6 +360,14 @@ export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable 
 		return internalDoc.obsDoc.get();
 	}
 
+	/**
+	 * Whether next edit suggestions are enabled for the given language according to the
+	 * per-language `github.copilot.enable` setting. See {@link DocumentFilter.isLanguageEnabled}.
+	 */
+	public isLanguageEnabled(languageId: string): boolean {
+		return this._filter.isLanguageEnabled(languageId);
+	}
+
 	public getWorkspaceRoot(documentId: DocumentId): URI | undefined {
 		let uri = documentId.toUri();
 		if (uri.scheme === Schemas.vscodeNotebookCell) {

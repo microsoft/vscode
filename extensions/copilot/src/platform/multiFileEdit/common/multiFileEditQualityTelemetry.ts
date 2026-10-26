@@ -10,6 +10,7 @@ import { ResourceMap } from '../../../util/vs/base/common/map';
 import { IChatSessionService } from '../../chat/common/chatSessionService';
 import { IGitService } from '../../git/common/gitService';
 import { ILogService } from '../../log/common/logService';
+import { gitHubCopilotRequestTeProperty } from '../../networking/common/fetch';
 import { IAlternativeNotebookContentService } from '../../notebook/common/alternativeContent';
 import { INotebookService } from '../../notebook/common/notebookService';
 import { resolveWorkspaceOTelMetadata } from '../../otel/common/workspaceOTelMetadata';
@@ -32,6 +33,8 @@ export interface IMultiFileEditTelemetry {
 	readonly chatSessionId?: string;
 	readonly chatRequestId: string;
 	readonly speculationRequestId: string;
+	/** Raw `X-GitHub-Copilot-Request-Te` value of the speculation model call, when known. */
+	readonly gitHubCopilotRequestTe?: string;
 }
 
 export const IMultiFileEditInternalTelemetryService = createServiceIdentifier<IMultiFileEditInternalTelemetryService>('IMultiFileEditInternalTelemetryService');
@@ -168,8 +171,9 @@ export class MultiFileEditInternalTelemetryService extends Disposable implements
 			);
 
 			const workspace = resolveWorkspaceOTelMetadata(this.gitService, uri);
-			const gitHubEnhancedTelemetryProperties = multiplexProperties({
+			void multiplexProperties({
 				headerRequestId: edit.speculationRequestId,
+				...gitHubCopilotRequestTeProperty(edit.gitHubCopilotRequestTe),
 				providerId: edit.mapper,
 				languageId: languageId,
 				messageText: edit.prompt,
@@ -181,8 +185,7 @@ export class MultiFileEditInternalTelemetryService extends Disposable implements
 				headCommitHash: workspace.headCommitHash,
 				remoteUrl: workspace.remoteUrl,
 				fileRelativePath: workspace.fileRelativePath,
-			});
-			this.telemetryService.sendEnhancedGHTelemetryEvent('fastApply/editOutcome', gitHubEnhancedTelemetryProperties);
+			}).then(gitHubEnhancedTelemetryProperties => this.telemetryService.sendEnhancedGHTelemetryEvent('fastApply/editOutcome', gitHubEnhancedTelemetryProperties)).catch(() => { /* best-effort telemetry */ });
 			this.logService.debug(`Sent telemetry for ${uri.toString()} with request ID ${edit.chatRequestId}, SD request ID ${edit.speculationRequestId}, and outcome ${outcome}`);
 		} catch (e) {
 			this.logService.error('Error sending multi-file edit telemetry', JSON.stringify(e));

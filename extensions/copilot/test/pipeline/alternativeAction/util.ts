@@ -11,6 +11,14 @@ export function log(...args: any[]) {
 	}
 }
 
+/**
+ * Find an index `i` such that `compare(array[i]) === 0`, or — when no exact
+ * match exists — the index of the greatest element with `compare < 0`
+ * (`-1` if none). Assumes `array` is sorted ascending by `compare`.
+ *
+ * NOTE: when several elements compare equal (e.g. share a timestamp) this
+ * returns an *arbitrary* one of them, not necessarily the first or last.
+ */
 export function binarySearch<T>(
 	array: readonly T[],
 	compare: (element: T) => number

@@ -21,6 +21,7 @@ import { IRemoteAuthorityResolverService, RemoteConnectionType } from '../../pla
 import { IRemoteAgentService } from '../services/remote/common/remoteAgentService.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { FileService } from '../../platform/files/common/fileService.js';
+import { BrowserResourceService, IBrowserResourceService } from '../../platform/files/browser/browserResourceService.js';
 import { Schemas, connectionTokenCookieName } from '../../base/common/network.js';
 import { IAnyWorkspaceIdentifier, IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, isTemporaryWorkspace, isWorkspaceIdentifier } from '../../platform/workspace/common/workspace.js';
 import { IWorkbenchConfigurationService } from '../services/configuration/common/configuration.js';
@@ -69,6 +70,7 @@ import { DelayedLogChannel } from '../services/output/common/delayedLogChannel.j
 import { dirname, joinPath } from '../../base/common/resources.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
+import { IFileManagedSettingsService, IManagedSettingsService, INativeManagedSettingsService, NullFileManagedSettingsService, NullNativeManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
 import { IRemoteExplorerService } from '../services/remote/common/remoteExplorerService.js';
 import { DisposableTunnel, TunnelProtocol } from '../../platform/tunnel/common/tunnel.js';
 import { ILabelService } from '../../platform/label/common/label.js';
@@ -321,7 +323,12 @@ export class BrowserMain extends Disposable {
 
 
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
-		const remoteResourceLoader = this.configuration.remoteResourceProvider ? new BrowserRemoteResourceLoader(fileService, this.configuration.remoteResourceProvider) : undefined;
+		const resourceProvider = this.configuration.remoteResourceProvider;
+		const browserResourceService = this._register(new BrowserResourceService(resourceProvider ? (resourceId, resource) => URI.parse(document.location.href).with({
+			path: resourceProvider.path, query: new URLSearchParams({ resourceId }).toString(), fragment: resource.fragment,
+		}) : undefined, fileService));
+		serviceCollection.set(IBrowserResourceService, browserResourceService);
+		const remoteResourceLoader = resourceProvider ? this._register(new BrowserRemoteResourceLoader(resourceProvider, fileService, browserResourceService)) : undefined;
 		const resourceUriProvider = this.configuration.resourceUriProvider ?? remoteResourceLoader?.getResourceUriProvider();
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!environmentService.expectsResolverExtension, connectionToken, resourceUriProvider, this.configuration.serverBasePath, productService, logService);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
@@ -367,9 +374,14 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
 
 		// Policies
+		const nativeManagedSettings = new NullNativeManagedSettingsService();
+		const fileManagedSettings = new NullFileManagedSettingsService();
+		serviceCollection.set(INativeManagedSettingsService, nativeManagedSettings);
+		serviceCollection.set(IFileManagedSettingsService, fileManagedSettings);
 		const policyService = new AccountPolicyService(logService, defaultAccountService);
 		serviceCollection.set(IPolicyService, policyService);
 		serviceCollection.set(IAccountPolicyGateService, policyService);
+		serviceCollection.set(IManagedSettingsService, policyService);
 
 		const configurationService = await this.createWorkspaceAndDependentServices(serviceCollection, workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, policyService, logService, loggerService, remoteAuthorityResolverService, productService);
 

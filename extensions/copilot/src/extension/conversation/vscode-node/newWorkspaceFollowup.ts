@@ -6,6 +6,7 @@ import * as l10n from '@vscode/l10n';
 import { ChatResponseFileTreePart, Disposable, MarkdownString, ProgressLocation, SaveDialogOptions, Tab, TabInputText, Uri, commands, env, interactive, window, workspace } from 'vscode';
 import { IConversationOptions } from '../../../platform/chat/common/conversationOptions';
 import { ILogService } from '../../../platform/log/common/logService';
+import { getSafeNotificationMessage } from '../../../platform/notification/common/notificationMessage';
 import * as path from '../../../util/vs/base/common/path';
 import { CopilotFileScheme, CopilotWorkspaceScheme, CreateFileCommand, CreateProjectCommand, GithubWorkspaceScheme, INewWorkspacePreviewContentManager, OpenFileCommand } from '../../intents/node/newIntent';
 import { NewWorkspacePreviewFileSystemProvider } from '../../intents/vscode-node/newWorkspacePreviewFileSystemProvider';
@@ -103,7 +104,7 @@ async function createWorkspace(logService: ILogService, workspaceRoot: Uri | und
 					logService.warn(`[newIntent] Skipping file outside of workspace: ${file}`);
 					continue;
 				}
-				progress.report({ message: l10n.t(`Creating file {0}...`, fileUri.fsPath) });
+				progress.report({ message: getFileCreationProgressMessage(fileUri) });
 				const content = await workspace.fs.readFile(Uri.joinPath(fileTreePart.baseUri, file));
 				await workspace.fs.createDirectory(Uri.joinPath(fileUri, '..'));
 				await workspace.fs.writeFile(fileUri, content);
@@ -135,9 +136,13 @@ async function createWorkspace(logService: ILogService, workspaceRoot: Uri | und
 	catch (error) {
 		const errorMessage = l10n.t('Failed to create workspace: {0}', projectName);
 		logService.error(error, errorMessage);
-		window.showErrorMessage(errorMessage);
+		window.showErrorMessage(getSafeNotificationMessage(errorMessage, l10n.t('Failed to create workspace.')));
 		await workspace.fs.delete(workspaceUri, { recursive: true });
 	}
+}
+
+export function getFileCreationProgressMessage(file: Uri): string {
+	return getSafeNotificationMessage(l10n.t('Creating file {0}...', file.fsPath), l10n.t('Creating file...'));
 }
 
 /**

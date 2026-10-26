@@ -4,44 +4,65 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from '../../../../../base/common/path.js';
 import type { SessionAddedParams, SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
+import { ActionType } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { ReconnectResult } from '../../../common/state/sessionProtocol.js';
-import { ROOT_STATE_URI, buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
+import { defaultChatChannel } from '../hostDefaultChats.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
 	fetchSessionWithChat,
+	getAgentHostE2ETestTimeout,
 	getActionEnvelope,
 	IServerHandle,
 	isActionNotification,
 	nextSessionUri,
 	startServer,
+	stopServer,
 	TestProtocolClient,
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket — Multi-Client', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
+	let userDataDir: string;
+	const secondaryClients: TestProtocolClient[] = [];
+
+	function createSecondaryClient(): TestProtocolClient {
+		const secondaryClient = new TestProtocolClient(server.port);
+		secondaryClients.push(secondaryClient);
+		return secondaryClient;
+	}
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
-		server = await startServer();
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
+		userDataDir = mkdtempSync(join(tmpdir(), 'agent-host-proto-multi-client-user-data-'));
+		server = await startServer({ userDataDir });
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
+		rmSync(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 	});
 
 	setup(async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 		client = new TestProtocolClient(server.port);
 		await client.connect();
 	});
 
 	teardown(function () {
 		client.close();
+		for (const secondaryClient of secondaryClients.splice(0)) {
+			secondaryClient.close();
+		}
 	});
 
 	test('sessionAdded notification is broadcast to all connected clients', async function () {
@@ -49,7 +70,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-add-1' });
 
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-add-2' });
 
@@ -71,15 +92,14 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		const uri2 = (n2.params as SessionAddedParams).summary.resource;
 		assert.strictEqual(uri1, uri2, 'both clients should see the same session URI');
 
-		client2.close();
 	});
 
 	test('sessionRemoved notification is broadcast to all connected clients', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-broadcast-remove-1');
 
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-remove-2' });
 		client2.clearReceived();
@@ -100,7 +120,6 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		assert.strictEqual(removed1.session.toString(), sessionUri.toString());
 		assert.strictEqual(removed2.session.toString(), sessionUri.toString());
 
-		client2.close();
 	});
 
 	test('two clients on same session both see actions', async function () {
@@ -108,11 +127,11 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-multi-client-1');
 
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-multi-client-2' });
 		await client2.call('subscribe', { channel: sessionUri });
-		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await client2.call('subscribe', { channel: defaultChatChannel(sessionUri) });
 		client2.clearReceived();
 
 		dispatchTurnStarted(client, sessionUri, 'turn-mc', 'hello', 1);
@@ -125,7 +144,6 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
-		client2.close();
 	});
 
 	test('client B sends message on session created by client A', async function () {
@@ -133,11 +151,11 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-cross-msg-1');
 
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-msg-2' });
 		await client2.call('subscribe', { channel: sessionUri });
-		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await client2.call('subscribe', { channel: defaultChatChannel(sessionUri) });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -152,7 +170,6 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
-		client2.close();
 	});
 
 	test('both clients receive full tool progress updates', async function () {
@@ -160,11 +177,11 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-tool-progress-1');
 
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-tool-progress-2' });
 		await client2.call('subscribe', { channel: sessionUri });
-		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await client2.call('subscribe', { channel: defaultChatChannel(sessionUri) });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -179,39 +196,41 @@ suite('Protocol WebSocket — Multi-Client', function () {
 			await c.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 		}
 
-		client2.close();
 	});
 
 	test('unsubscribe stops receiving session actions', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-unsubscribe');
 		client.notify('unsubscribe', { channel: sessionUri });
-		await new Promise(resolve => setTimeout(resolve, 100));
+		await client.call('ping');
 		client.clearReceived();
 
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-unsub-helper' });
 		await client2.call('subscribe', { channel: sessionUri });
-		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		client2.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: { type: ActionType.SessionTitleChanged, title: 'Updated by subscribed client' },
+		});
+		await client2.waitForNotification(n =>
+			isActionNotification(n, ActionType.SessionTitleChanged)
+			&& getActionEnvelope(n).channel === sessionUri
+		);
 
-		dispatchTurnStarted(client2, sessionUri, 'turn-unsub', 'hello', 1);
-		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
-
-		await new Promise(resolve => setTimeout(resolve, 300));
-		const sessionActions = client.receivedNotifications(n => isActionNotification(n, 'session/'));
+		await client.call('ping');
+		const sessionActions = client.receivedNotifications(n => n.method === 'action' && getActionEnvelope(n).channel === sessionUri);
 		assert.strictEqual(sessionActions.length, 0, 'unsubscribed client should not receive session actions');
-
-		client2.close();
 	});
 
 	test('unsubscribed client receives no actions but still gets notifications', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-scoping-1');
 
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-scoping-2' });
 		// Client 2 does NOT subscribe to the session
@@ -220,8 +239,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-scoped', 'hello', 1);
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
-		// Give some time for any stray actions to arrive
-		await new Promise(resolve => setTimeout(resolve, 300));
+		await client2.call('ping');
 		const sessionActions = client2.receivedNotifications(n => n.method === 'action');
 		assert.strictEqual(sessionActions.length, 0, 'unsubscribed client should receive no session actions');
 
@@ -234,7 +252,6 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		);
 		assert.ok(removed, 'unsubscribed client should still receive sessionRemoved notification');
 
-		client2.close();
 	});
 
 	test('late subscriber gets current state via snapshot', async function () {
@@ -245,7 +262,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		// Client 2 joins after the turn has completed
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-late-sub-2' });
 
@@ -254,7 +271,6 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		assert.strictEqual(state.turns[0].id, 'turn-late');
 		assert.strictEqual(state.turns[0].state, 'complete');
 
-		client2.close();
 	});
 
 	test('permission flow: client B confirms tool started by client A', async function () {
@@ -262,11 +278,11 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-cross-perm-1');
 
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-perm-2' });
 		await client2.call('subscribe', { channel: sessionUri });
-		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await client2.call('subscribe', { channel: defaultChatChannel(sessionUri) });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -281,7 +297,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		// Client B confirms the tool call
 		client2.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 1,
 			action: {
 				type: 'chat/toolCallConfirmed',
@@ -297,7 +313,6 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
-		client2.close();
 	});
 
 	test('reconnect replays missed actions', async function () {
@@ -313,7 +328,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		client.close();
 
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		const result = await client2.call<ReconnectResult>('reconnect', {
 			clientId: 'test-reconnect',
@@ -326,6 +341,5 @@ suite('Protocol WebSocket — Multi-Client', function () {
 			assert.ok(result.actions.length > 0, 'should have replayed actions');
 		}
 
-		client2.close();
 	});
 });

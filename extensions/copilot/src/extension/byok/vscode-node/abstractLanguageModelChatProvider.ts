@@ -11,6 +11,7 @@ import { IFetcherService } from '../../../platform/networking/common/fetcherServ
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IStringDictionary } from '../../../util/vs/base/common/collections';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { LanguageModelChatApiType } from '../../../vscodeTypes';
 import { CopilotLanguageModelWrapper } from '../../conversation/vscode-node/languageModelAccess';
 import { BYOKAuthType, BYOKKnownModels, BYOKModelCapabilities, resolveModelInfo } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
@@ -20,6 +21,13 @@ import { IBYOKStorageService } from './byokStorageService';
 export interface LanguageModelChatConfiguration {
 	readonly apiKey?: string;
 }
+
+// Published hosts may not yet expose this proposed API.
+const apiTypes = LanguageModelChatApiType && {
+	chatCompletions: LanguageModelChatApiType.ChatCompletions,
+	responses: LanguageModelChatApiType.Responses,
+	messages: LanguageModelChatApiType.Messages,
+};
 
 export interface ExtendedLanguageModelChatInformation<C extends LanguageModelChatConfiguration> extends LanguageModelChatInformation {
 	readonly configuration?: C;
@@ -98,6 +106,21 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 	) {
 		super(id, name, knownModels, byokStorageService, logService);
 		this._lmWrapper = this._instantiationService.createInstance(CopilotLanguageModelWrapper);
+	}
+
+	override async provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): Promise<OpenAICompatibleLanguageModelChatInformation<T>[]> {
+		const models = await super.provideLanguageModelChatInformation(options, token);
+		return Promise.all(models.map(async model => {
+			const endpoint = await this.createOpenAIEndPoint(model);
+			return {
+				...model,
+				capabilities: {
+					...model.capabilities,
+					apiType: apiTypes?.[endpoint.apiType],
+					adaptiveThinking: endpoint.supportsAdaptiveThinking,
+				},
+			};
+		}));
 	}
 
 	async provideLanguageModelChatResponse(model: OpenAICompatibleLanguageModelChatInformation<T>, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Promise<void> {

@@ -13,6 +13,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { safeIntl } from '../../../../../base/common/date.js';
@@ -21,6 +22,9 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { isAgentHostSession } from './agentHostLogSources.js';
+import { isChatDebugLoggingEnabledForSession, renderChatDebugLoggingDisabledMessage } from './chatDebugEnablement.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 
 const $ = DOM.$;
@@ -33,6 +37,7 @@ export const enum OverviewNavigation {
 	Logs = 'logs',
 	FlowChart = 'flowchart',
 	CacheExplorer = 'cache',
+	WireLog = 'wirelog',
 }
 
 export class ChatDebugOverviewView extends Disposable {
@@ -56,6 +61,8 @@ export class ChatDebugOverviewView extends Disposable {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-overview'));
@@ -224,15 +231,24 @@ export class ChatDebugOverviewView extends Disposable {
 	}
 
 	private renderDerivedOverview(events: readonly IChatDebugEvent[], showShimmer: boolean): void {
-		const metricsSection = DOM.append(this.content, $('.chat-debug-overview-section'));
-		DOM.append(metricsSection, $('h3.chat-debug-overview-section-label', undefined, localize('chatDebug.summary', "Summary")));
-
-		this.metricsContainer = DOM.append(metricsSection, $('.chat-debug-overview-metrics'));
-
-		if (showShimmer) {
-			this.renderMetricsShimmer(this.metricsContainer);
+		// When agent debug logging is disabled for this session, no metrics are
+		// captured. Surface a hint to enable the setting instead of an empty
+		// summary, while still keeping the navigation buttons below.
+		if (!isChatDebugLoggingEnabledForSession(this.configurationService, this.currentSessionResource)) {
+			this.metricsContainer = undefined;
+			const disabledSection = DOM.append(this.content, $('.chat-debug-overview-section'));
+			renderChatDebugLoggingDisabledMessage(disabledSection, this.currentSessionResource, this.preferencesService, this.loadDisposables);
 		} else {
-			this.renderMetricsContent(this.metricsContainer, events);
+			const metricsSection = DOM.append(this.content, $('.chat-debug-overview-section'));
+			DOM.append(metricsSection, $('h3.chat-debug-overview-section-label', undefined, localize('chatDebug.summary', "Summary")));
+
+			this.metricsContainer = DOM.append(metricsSection, $('.chat-debug-overview-metrics'));
+
+			if (showShimmer) {
+				this.renderMetricsShimmer(this.metricsContainer);
+			} else {
+				this.renderMetricsContent(this.metricsContainer, events);
+			}
 		}
 
 		// Explore actions
@@ -261,6 +277,16 @@ export class ChatDebugOverviewView extends Disposable {
 		this.loadDisposables.add(cacheBtn.onDidClick(() => {
 			this._onNavigate.fire(OverviewNavigation.CacheExplorer);
 		}));
+
+		// The AHP log is only meaningful for Agent Host sessions.
+		if (isAgentHostSession(this.currentSessionResource)) {
+			const wireLogBtn = this.loadDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('chatDebug.ahpLog', "AHP Log") }));
+			wireLogBtn.element.classList.add('chat-debug-overview-action-button');
+			wireLogBtn.label = `$(arrow-swap) ${localize('chatDebug.ahpLog', "AHP Log")}`;
+			this.loadDisposables.add(wireLogBtn.onDidClick(() => {
+				this._onNavigate.fire(OverviewNavigation.WireLog);
+			}));
+		}
 
 	}
 

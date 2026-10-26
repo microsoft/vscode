@@ -28,8 +28,8 @@ function ensureSetTimeoutOriginalFn(fn: TimeApi['setTimeout'], previousFn: TimeA
 
 /**
  * Replace the global time APIs (`setTimeout`, `setInterval`, …, `Date`,
- * optionally `requestAnimationFrame`) with the ones from `api`. Returns a
- * disposable that restores the previous globals.
+ * `performance.now`, optionally `requestAnimationFrame`) with the ones from
+ * `api`. Returns a disposable that restores the previous globals.
  *
  * The previous globals are captured *at install time*, so nested installs
  * compose correctly (the disposable restores to whatever was current when
@@ -43,12 +43,28 @@ function ensureSetTimeoutOriginalFn(fn: TimeApi['setTimeout'], previousFn: TimeA
  */
 export function pushGlobalTimeApi(api: TimeApi): IDisposable {
 	const previous = captureGlobalTimeApi();
+	const previousPerformanceNowDescriptor = globalThis.performance
+		? Object.getOwnPropertyDescriptor(globalThis.performance, 'now')
+		: undefined;
+	const previousPerformanceTimeOriginDescriptor = globalThis.performance
+		? Object.getOwnPropertyDescriptor(globalThis.performance, 'timeOrigin')
+		: undefined;
 
 	globalThis.setTimeout = ensureSetTimeoutOriginalFn(api.setTimeout, previous.setTimeout) as unknown as AsGlobal<'setTimeout'>;
 	globalThis.clearTimeout = api.clearTimeout as unknown as AsGlobal<'clearTimeout'>;
 	globalThis.setInterval = api.setInterval as unknown as AsGlobal<'setInterval'>;
 	globalThis.clearInterval = api.clearInterval as unknown as AsGlobal<'clearInterval'>;
 	globalThis.Date = api.Date;
+	if (globalThis.performance) {
+		Object.defineProperty(globalThis.performance, 'now', {
+			configurable: true,
+			value: api.performanceNow,
+		});
+		Object.defineProperty(globalThis.performance, 'timeOrigin', {
+			configurable: true,
+			value: api.performanceTimeOrigin,
+		});
+	}
 
 	if (api.requestAnimationFrame) {
 		globalThis.requestAnimationFrame = api.requestAnimationFrame as unknown as AsGlobal<'requestAnimationFrame'>;
@@ -64,6 +80,18 @@ export function pushGlobalTimeApi(api: TimeApi): IDisposable {
 			globalThis.setInterval = previous.setInterval as unknown as AsGlobal<'setInterval'>;
 			globalThis.clearInterval = previous.clearInterval as unknown as AsGlobal<'clearInterval'>;
 			globalThis.Date = previous.Date;
+			if (globalThis.performance) {
+				if (previousPerformanceNowDescriptor) {
+					Object.defineProperty(globalThis.performance, 'now', previousPerformanceNowDescriptor);
+				} else {
+					Reflect.deleteProperty(globalThis.performance, 'now');
+				}
+				if (previousPerformanceTimeOriginDescriptor) {
+					Object.defineProperty(globalThis.performance, 'timeOrigin', previousPerformanceTimeOriginDescriptor);
+				} else {
+					Reflect.deleteProperty(globalThis.performance, 'timeOrigin');
+				}
+			}
 			if (previous.requestAnimationFrame) {
 				globalThis.requestAnimationFrame = previous.requestAnimationFrame as unknown as AsGlobal<'requestAnimationFrame'>;
 			}

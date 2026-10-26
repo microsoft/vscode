@@ -26,6 +26,9 @@ import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/br
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl', false, localize('browser.hasUrl', "Whether the browser has a URL loaded"));
@@ -125,6 +128,16 @@ export abstract class BrowserEditorContribution extends Disposable {
 	get urlPickerActionProviders(): readonly IBrowserUrlPickerActionProvider[] { return []; }
 
 	/**
+	 * Creates a custom action view item, or returns `undefined` to use the default.
+	 */
+	getActionViewItem(_action: IAction, _options: IActionViewItemOptions, _instantiationService: IInstantiationService): IActionViewItem | undefined { return undefined; }
+
+	/**
+	 * Fires when {@link getActionViewItem} may return a different result.
+	 */
+	readonly onDidChangeActionViewItems: Event<void> = Event.None;
+
+	/**
 	 * Called when the editor is laid out with a new dimension.
 	 */
 	onPaneResized(_width: number): void { }
@@ -144,10 +157,8 @@ export abstract class BrowserEditorContribution extends Disposable {
 	onPaneVisibilityChanged(_visible: boolean): void { }
 
 	/**
-	 * Called when the editor wants focus. Contributions are tried in
-	 * registration order; the first to return `true` claims the focus. The
-	 * renderer-providing contribution typically handles this when a page is
-	 * loaded; the navbar handles it as a fallback by focusing the URL input.
+	 * Called when the editor wants focus; the first contribution returning `true` claims it.
+	 * Otherwise, the editor focuses the browser container.
 	 */
 	tryFocus(): boolean { return false; }
 
@@ -431,6 +442,8 @@ export class BrowserEditor extends EditorPane {
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private _currentPadding: { top: number; right: number; bottom: number; left: number } = { top: 0, right: 0, bottom: 0, left: 0 };
 
+	override get input(): BrowserEditorInput | undefined { return super.input as BrowserEditorInput | undefined; }
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -622,6 +635,7 @@ export class BrowserEditor extends EditorPane {
 	 */
 	ensureBrowserFocus(): void {
 		originalHtmlElementFocus.call(this._browserContainer);
+		this.window.document.getSelection()?.removeAllRanges();
 	}
 
 	/**

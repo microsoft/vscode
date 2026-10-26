@@ -8,6 +8,7 @@ import { LanguageModelChat, LanguageModelChatTool } from 'vscode';
 import { ITokenizer } from '../../../util/common/tokenizer';
 import { assertNever } from '../../../util/vs/base/common/assert';
 import { calculateImageTokenCost, estimateDocumentTokenCost } from '../../tokenizer/node/tokenizer';
+import { modelVendorHandlesCacheBreakpoints } from '../common/endpointTypes';
 import { convertToApiChatMessage } from './extChatEndpoint';
 
 /**
@@ -65,8 +66,11 @@ export class ExtensionContributedChatTokenizer implements ITokenizer {
 	}
 
 	async countMessageTokens(message: Raw.ChatMessage): Promise<number> {
-		// Convert to VS Code message format and use the language model's countTokens
-		const apiMessages = convertToApiChatMessage([message]);
+		// Convert to VS Code message format and use the language model's countTokens.
+		// Mirror the request path so only cache-aware providers ever see the internal sentinel (#313920).
+		const apiMessages = convertToApiChatMessage([message], {
+			emitCacheBreakpoints: modelVendorHandlesCacheBreakpoints(this.languageModel.vendor),
+		});
 		if (apiMessages.length === 0) {
 			return 0;
 		}

@@ -13,6 +13,7 @@ import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from './storedFil
 import { LinkedList } from '../../../../base/common/linkedList.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { localize } from '../../../../nls.js';
 
 export class StoredFileWorkingCopySaveParticipant extends Disposable {
@@ -49,6 +50,7 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 
 		// create an "inner" progress to allow to skip over long running save participants
 		await this.progressService.withProgress({
+			telemetry: NotificationTelemetryId.WorkingCopySaveParticipants,
 			priority: NotificationPriority.URGENT,
 			location: ProgressLocation.Notification,
 			cancellable: localize('skip', "Skip"),

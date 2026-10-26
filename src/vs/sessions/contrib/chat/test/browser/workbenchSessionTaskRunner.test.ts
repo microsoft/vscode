@@ -39,14 +39,15 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		resource: chat.resource,
 		providerId: 'test',
 		sessionType: 'background',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.copilot,
 		createdAt: new Date(),
 		workspace: observableValue('workspace', workspace as ISessionWorkspace | undefined),
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', SessionStatus.Untitled),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
 		loading: observableValue('loading', false),
@@ -56,7 +57,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		description: observableValue('description', undefined),
 		chats: observableValue('chats', [chat]),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 

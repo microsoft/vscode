@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
@@ -18,6 +19,7 @@ suite('AccessibilityService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let configurationService: TestConfigurationService;
 	let container: HTMLElement;
+	let onDidAddContainerEmitter: Emitter<{ readonly container: HTMLElement; readonly disposables: DisposableStore }>;
 
 	function createService(config: Record<string, unknown> = {}): AccessibilityService {
 		const instantiationService = store.add(new TestInstantiationService());
@@ -34,10 +36,13 @@ suite('AccessibilityService', () => {
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
 
 		container = document.createElement('div');
+		onDidAddContainerEmitter = store.add(new Emitter());
 		instantiationService.stub(ILayoutService, {
 			mainContainer: container,
 			activeContainer: container,
+			containers: [container],
 			getContainer() { return container; },
+			onDidAddContainer: onDidAddContainerEmitter.event,
 			onDidLayoutContainer: Event.None,
 		});
 
@@ -107,6 +112,20 @@ suite('AccessibilityService', () => {
 			createService({ 'workbench.reduceMotion': 'off' });
 			assert.strictEqual(container.classList.contains('monaco-reduce-motion'), false);
 			assert.strictEqual(container.classList.contains('monaco-enable-motion'), true);
+		});
+
+		test('adds CSS classes to new containers', () => {
+			createService({ 'workbench.reduceMotion': 'off' });
+			const auxiliaryContainer = document.createElement('div');
+			onDidAddContainerEmitter.fire({ container: auxiliaryContainer, disposables: store.add(new DisposableStore()) });
+
+			assert.deepStrictEqual({
+				reduceMotion: auxiliaryContainer.classList.contains('monaco-reduce-motion'),
+				enableMotion: auxiliaryContainer.classList.contains('monaco-enable-motion')
+			}, {
+				reduceMotion: false,
+				enableMotion: true
+			});
 		});
 	});
 });

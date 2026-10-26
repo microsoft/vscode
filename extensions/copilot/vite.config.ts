@@ -19,6 +19,12 @@ export default defineConfig(({ mode }) => ({
 		include: ['**/*.spec.ts', '**/*.spec.tsx'],
 		exclude,
 		env: loadEnv(mode, process.cwd(), ''),
+		// Vitest defaults (5s test / 10s hook) are below the scheduling noise floor of loaded CI
+		// agents, where even trivial synchronous tests have been observed taking >5s and failing
+		// with `Test timed out in 5000ms`. Keep these generous enough to absorb that jitter while
+		// still catching genuinely hung tests.
+		testTimeout: 30_000,
+		hookTimeout: 30_000,
 		alias: {
 			// similar to aliasing in the esbuild config `.esbuild.mts`
 			// vitest requires aliases to be absolute paths. reference: https://vitejs.dev/config/shared-options#resolve-alias

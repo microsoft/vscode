@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { CancellationToken, ChatRequest } from 'vscode';
+import type { CancellationToken, ChatRequest, LanguageModelToolInformation } from 'vscode';
 import { IChatHookService } from '../../../../platform/chat/common/chatHookService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
@@ -12,6 +12,7 @@ import { IChatModelInformation } from '../../../../platform/endpoint/common/endp
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
 import { SEARCH_AGENT_FAMILY, SearchAgentChatEndpoint } from '../../../../platform/endpoint/node/searchAgentChatEndpoint';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { mock } from '../../../../util/common/test/simpleMock';
 import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
@@ -26,6 +27,19 @@ import {
 	isContextOverflowBadRequest,
 } from '../../../prompt/node/searchSubagentToolCallingLoop';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+import { ToolName } from '../../../tools/common/toolNames';
+import { IToolsService } from '../../../tools/common/toolsService';
+
+class TestToolsService extends mock<IToolsService>() {
+	override getEnabledTools(): LanguageModelToolInformation[] {
+		return [
+			{ name: ToolName.Codebase },
+			{ name: ToolName.FindFiles },
+			{ name: ToolName.FindTextInFiles },
+			{ name: ToolName.ReadFile },
+		] as LanguageModelToolInformation[];
+	}
+}
 
 class TestSearchSubagentToolCallingLoop extends SearchSubagentToolCallingLoop {
 	public buildPromptCalls = 0;
@@ -73,6 +87,10 @@ class TestSearchSubagentToolCallingLoop extends SearchSubagentToolCallingLoop {
 			},
 			token,
 		);
+	}
+
+	public callGetAvailableTools(): Promise<LanguageModelToolInformation[]> {
+		return this.getAvailableTools();
 	}
 }
 
@@ -315,6 +333,63 @@ describe('SearchSubagentToolCallingLoop.shouldAutoRetry', () => {
 	});
 });
 
+describe('SearchSubagentToolCallingLoop.getAvailableTools', () => {
+	let disposables: DisposableStore;
+	let instantiationService: IInstantiationService;
+	let configurationService: IConfigurationService;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const serviceCollection = disposables.add(createExtensionUnitTestingServices());
+		serviceCollection.define(IChatHookService, new MockChatHookService());
+		serviceCollection.define(IToolsService, new TestToolsService());
+		const accessor = serviceCollection.createTestingAccessor();
+		instantiationService = accessor.get(IInstantiationService);
+		configurationService = accessor.get(IConfigurationService);
+	});
+
+	afterEach(() => {
+		disposables.dispose();
+	});
+
+	function createLoop(): TestSearchSubagentToolCallingLoop {
+		const options: ISearchSubagentToolCallingLoopOptions = {
+			conversation: createTestConversation(),
+			toolCallLimit: 10,
+			request: createMockChatRequest(),
+			location: ChatLocation.Panel,
+			promptText: 'find things',
+		};
+		const loop = instantiationService.createInstance(TestSearchSubagentToolCallingLoop, options);
+		(loop as any).getEndpoint = async () => loop.fakeEndpoint;
+		disposables.add(loop);
+		return loop;
+	}
+
+	it('includes semantic_search when enabled', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SubagentSemanticSearchEnabled, true);
+		const tools = await createLoop().callGetAvailableTools();
+
+		expect(tools.map(tool => tool.name)).toEqual([
+			ToolName.Codebase,
+			ToolName.FindFiles,
+			ToolName.FindTextInFiles,
+			ToolName.ReadFile,
+		]);
+	});
+
+	it('excludes only semantic_search when disabled', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SubagentSemanticSearchEnabled, false);
+		const tools = await createLoop().callGetAvailableTools();
+
+		expect(tools.map(tool => tool.name)).toEqual([
+			ToolName.FindFiles,
+			ToolName.FindTextInFiles,
+			ToolName.ReadFile,
+		]);
+	});
+});
+
 describe('SearchSubagentToolCallingLoop.getEndpoint (agentic proxy)', () => {
 	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
@@ -438,5 +513,168 @@ describe('SearchSubagentToolCallingLoop.getEndpoint (agentic proxy)', () => {
 
 		expect(endpoint).toBeInstanceOf(SearchAgentChatEndpoint);
 		expect(endpoint.model).toBe('search-model-a');
+	});
+});
+
+describe('SearchSubagentToolCallingLoop.getEndpoint (non-proxy resolution)', () => {
+	let disposables: DisposableStore;
+	let instantiationService: IInstantiationService;
+	let configurationService: IConfigurationService;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const serviceCollection = disposables.add(createExtensionUnitTestingServices());
+		serviceCollection.define(IChatHookService, new MockChatHookService());
+		const accessor = serviceCollection.createTestingAccessor();
+		instantiationService = accessor.get(IInstantiationService);
+		configurationService = accessor.get(IConfigurationService);
+	});
+
+	afterEach(() => {
+		disposables.dispose();
+	});
+
+	const mainEndpoint = { model: 'main-agent' } as IChatEndpoint;
+
+	function endpoint(model: string, family: string, supportsToolCalls: boolean): IChatEndpoint {
+		return { model, name: `${model} display name`, family, supportsToolCalls } as IChatEndpoint;
+	}
+
+	/** Records how the mock endpoint provider was called so tests can assert the resolution path. */
+	interface IEndpointProviderProbe {
+		getAllCalls: number;
+		familyCalls: string[];
+		mainCalls: number;
+	}
+
+	function createLoop(options: {
+		allEndpoints?: IChatEndpoint[];
+		familyEndpoint?: IChatEndpoint;
+		familyThrows?: boolean;
+	}): { loop: SearchSubagentToolCallingLoop; probe: IEndpointProviderProbe } {
+		const loopOptions: ISearchSubagentToolCallingLoopOptions = {
+			conversation: createTestConversation(),
+			toolCallLimit: 10,
+			request: createMockChatRequest(),
+			location: ChatLocation.Panel,
+			promptText: 'find things',
+		};
+		const loop = instantiationService.createInstance(SearchSubagentToolCallingLoop, loopOptions);
+		disposables.add(loop);
+		const probe: IEndpointProviderProbe = { getAllCalls: 0, familyCalls: [], mainCalls: 0 };
+		(loop as any).endpointProvider = {
+			getAllChatEndpoints: async () => {
+				probe.getAllCalls++;
+				return options.allEndpoints ?? [];
+			},
+			getChatEndpoint: async (arg: unknown) => {
+				if (typeof arg === 'string') {
+					probe.familyCalls.push(arg);
+					if (options.familyThrows) {
+						throw new Error(`Unable to resolve chat model with CAPI family selection: ${arg}`);
+					}
+					return options.familyEndpoint;
+				}
+				probe.mainCalls++;
+				return mainEndpoint;
+			},
+		};
+		return { loop, probe };
+	}
+
+	it('uses the exact model-id endpoint when it resolves and supports tool calls', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, false);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'mai-code-1-flash-picker');
+		const { loop, probe } = createLoop({
+			allEndpoints: [
+				endpoint('lark-debug-picker', 'oswe-vscode-modelD', true),
+				endpoint('mai-code-1-flash-picker', 'oswe-vscode-modelD', true),
+			],
+		});
+
+		const resolved = await (loop as any).getEndpoint();
+
+		expect(resolved.model).toBe('mai-code-1-flash-picker');
+		expect(await loop.getModelName()).toBe('mai-code-1-flash-picker display name');
+		expect(await (loop as any).getEndpoint()).toBe(resolved);
+		expect(probe.getAllCalls).toBe(1);
+		expect(probe.familyCalls).toEqual([]);
+		expect(probe.mainCalls).toBe(0);
+	});
+
+	it('falls back to the main agent endpoint when the exact model-id endpoint does not support tool calls', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, false);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'mai-code-1-flash-picker');
+		const { loop, probe } = createLoop({
+			allEndpoints: [
+				endpoint('mai-code-1-flash-picker', 'oswe-vscode-modelD', false),
+			],
+		});
+
+		const resolved = await (loop as any).getEndpoint();
+
+		expect(resolved.model).toBe('main-agent');
+		expect(probe.getAllCalls).toBe(1);
+		expect(probe.familyCalls).toEqual([]);
+		expect(probe.mainCalls).toBe(1);
+	});
+
+	it('falls back to family resolution when there is no exact model-id match', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, false);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'oswe-vscode-modelD');
+		const { loop, probe } = createLoop({
+			allEndpoints: [endpoint('lark-debug-picker', 'oswe-vscode-modelD', true)],
+			familyEndpoint: endpoint('lark-debug-picker', 'oswe-vscode-modelD', true),
+		});
+
+		const resolved = await (loop as any).getEndpoint();
+
+		expect(resolved.model).toBe('lark-debug-picker');
+		expect(probe.getAllCalls).toBe(1);
+		expect(probe.familyCalls).toEqual(['oswe-vscode-modelD']);
+		expect(probe.mainCalls).toBe(0);
+	});
+
+	it('falls back to the main agent endpoint when the family-resolved model does not support tool calls', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, false);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'oswe-vscode-modelD');
+		const { loop, probe } = createLoop({
+			allEndpoints: [],
+			familyEndpoint: endpoint('lark-debug-picker', 'oswe-vscode-modelD', false),
+		});
+
+		const resolved = await (loop as any).getEndpoint();
+
+		expect(resolved.model).toBe('main-agent');
+		expect(probe.familyCalls).toEqual(['oswe-vscode-modelD']);
+		expect(probe.mainCalls).toBe(1);
+	});
+
+	it('falls back to the main agent endpoint when neither id nor family resolution succeeds', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, false);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'does-not-exist');
+		const { loop, probe } = createLoop({ allEndpoints: [], familyThrows: true });
+
+		const resolved = await (loop as any).getEndpoint();
+
+		expect(resolved.model).toBe('main-agent');
+		expect(probe.getAllCalls).toBe(1);
+		expect(probe.familyCalls).toEqual(['does-not-exist']);
+		expect(probe.mainCalls).toBe(1);
+	});
+
+	it('uses the main agent endpoint without any lookups when no model is configured', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, false);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, '');
+		const { loop, probe } = createLoop({
+			allEndpoints: [endpoint('should-not-be-used', 'oswe-vscode-modelD', true)],
+		});
+
+		const resolved = await (loop as any).getEndpoint();
+
+		expect(resolved.model).toBe('main-agent');
+		expect(probe.getAllCalls).toBe(0);
+		expect(probe.familyCalls).toEqual([]);
+		expect(probe.mainCalls).toBe(1);
 	});
 });

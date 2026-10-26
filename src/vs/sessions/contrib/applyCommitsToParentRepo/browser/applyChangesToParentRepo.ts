@@ -22,7 +22,7 @@ import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/action
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IsActiveSessionArchivedContext } from '../../../common/contextkeys.js';
+import { SessionIsArchivedContext } from '../../../common/contextkeys.js';
 
 const hasWorktreeAndRepositoryContextKey = new RawContextKey<boolean>('agentSessionHasWorktreeAndRepository', false, {
 	type: 'boolean',
@@ -172,5 +172,5 @@ MenuRegistry.appendMenuItem(MenuId.AgentsChangesToolbar, {
 	order: 1,
 	when: ContextKeyExpr.and(
 		IsSessionsWindowContext,
-		IsActiveSessionArchivedContext.isEqualTo(false))
+		SessionIsArchivedContext.isEqualTo(false))
 });

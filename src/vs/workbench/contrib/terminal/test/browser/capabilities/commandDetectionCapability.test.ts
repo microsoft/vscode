@@ -16,7 +16,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 type TestTerminalCommandMatch = Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode'> & { marker: { line: number } };
 
 class TestCommandDetectionCapability extends CommandDetectionCapability {
-	clearCommands() {
+	clearCommandsForTest() {
 		this._commands.length = 0;
 	}
 }
@@ -41,7 +41,7 @@ suite('CommandDetectionCapability', () => {
 		deepStrictEqual(addEvents, capability.commands);
 		// Clear the commands to avoid re-asserting past commands
 		addEvents.length = 0;
-		capability.clearCommands();
+		capability.clearCommandsForTest();
 	}
 
 	async function printStandardCommand(prompt: string, command: string, output: string, cwd: string | undefined, exitCode: number) {
@@ -93,6 +93,19 @@ suite('CommandDetectionCapability', () => {
 		}]);
 	});
 
+	test('should invalidate all commands when cleared', async () => {
+		await printStandardCommand('$ ', 'echo foo', 'foo', undefined, 0);
+		await printStandardCommand('$ ', 'echo bar', 'bar', undefined, 0);
+		strictEqual(capability.commands.length, 2);
+
+		const invalidatedCommands: ITerminalCommand[] = [];
+		store.add(capability.onCommandInvalidated(commands => invalidatedCommands.push(...commands)));
+		capability.clearCommands();
+
+		deepStrictEqual(capability.commands, []);
+		deepStrictEqual(invalidatedCommands.map(e => e.command), ['echo foo', 'echo bar']);
+	});
+
 	test('should trim the command when command executed appears on the following line', async () => {
 		await printStandardCommand('$ ', 'echo foo\r\n', 'foo', undefined, 0);
 		await printCommandStart('$ ');
@@ -132,6 +145,48 @@ suite('CommandDetectionCapability', () => {
 				{ command: 'echo bar', exitCode: 0, cwd: '/home', marker: { line: 2 } }
 			]);
 		});
+	});
+
+	test('should not inherit the previous exit code when a duplicate command is interrupted', async () => {
+		await printStandardCommand('$ ', 'echo test', 'test', undefined, 0);
+
+		capability.handlePromptStart();
+		await writeP(xterm, `\r$ `);
+		capability.handleCommandStart();
+		await writeP(xterm, 'echo test');
+		xterm.input('\x03');
+		await writeP(xterm, '^C');
+		capability.setCommandLine('echo test', true);
+		capability.handleCommandExecuted();
+		await writeP(xterm, `\r\n`);
+		capability.handleCommandFinished(undefined);
+
+		await printCommandStart('$ ');
+
+		assertCommands([
+			{ command: 'echo test', exitCode: 0, cwd: undefined, marker: { line: 0 } },
+			{ command: 'echo test', exitCode: undefined, cwd: undefined, marker: { line: 2 } }
+		]);
+	});
+
+	test('should inherit the previous exit code for duplicate commands without interruption', async () => {
+		await printStandardCommand('$ ', 'echo ^C', 'test', undefined, 0);
+
+		capability.handlePromptStart();
+		await writeP(xterm, `\r$ `);
+		capability.handleCommandStart();
+		await writeP(xterm, 'echo ^C');
+		capability.setCommandLine('echo ^C', true);
+		capability.handleCommandExecuted();
+		await writeP(xterm, `\r\ntest\r\n`);
+		capability.handleCommandFinished(undefined);
+
+		await printCommandStart('$ ');
+
+		assertCommands([
+			{ command: 'echo ^C', exitCode: 0, cwd: undefined, marker: { line: 0 } },
+			{ command: 'echo ^C', exitCode: 0, cwd: undefined, marker: { line: 2 } }
+		]);
 	});
 
 	test('should preserve explicit newlines at 80-column wrap boundaries in command output', async () => {

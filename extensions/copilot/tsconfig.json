@@ -23,7 +23,8 @@
 	"include": [
 		"./src",
 		"./test",
-		".vscode/extensions/test-extension"
+		".vscode/extensions/test-extension",
+		"../../src/vscode-dts/vscode.proposed.envIsConnectionMetered.d.ts"
 	],
 	"exclude": [
 		"test/scenarios/**/*",

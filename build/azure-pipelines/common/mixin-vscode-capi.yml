@@ -1,4 +1,27 @@
 steps:
+  # Check out the private microsoft/vscode-capi repository using the agent's
+  # GitHub App (Monaco) credentials instead of cloning it with a PAT. The
+  # repository resource is declared in the top-level pipeline (resources.repositories).
+  - checkout: capi
+    path: s/.build/vscode-capi
+    fetchDepth: 1
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-capi
+
+  # npm ci starts from a clean node_modules, so it is safe to retry; transient registry errors
+  # here (ENOTFOUND, ECONNRESET, E503, ETIMEDOUT) failed 8 main CI builds in 90 days.
+  - pwsh: |
+      $ErrorActionPreference = 'Stop'
+      Push-Location (Join-Path '$(Build.SourcesDirectory)' '.build/vscode-capi')
+      try {
+        npm ci
+        if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE" }
+      } finally {
+        Pop-Location
+      }
+    retryCountOnTaskFailure: 2
+    displayName: Install vscode-capi dependencies
+
   - pwsh: |
       $ErrorActionPreference = 'Stop'
 
@@ -10,25 +33,13 @@ steps:
         }
       }
 
-      $CapiPath = Join-Path '$(Agent.BuildDirectory)' 'vscode-capi'
-      if (Test-Path $CapiPath) {
-        Remove-Item -Recurse -Force $CapiPath
-      }
+      $CapiPath = Join-Path '$(Build.SourcesDirectory)' '.build/vscode-capi'
+      Push-Location $CapiPath
 
       try {
-        Invoke-CheckedCommand { git clone https://github.com/microsoft/vscode-capi.git --depth 1 $CapiPath }
-        Push-Location $CapiPath
-
-        try {
-          Invoke-CheckedCommand { npm ci }
-          $env:BUILD_SOURCESDIRECTORY = '$(Build.SourcesDirectory)'
-          Invoke-CheckedCommand { npm run mixin_vscode }
-        } finally {
-          Pop-Location
-        }
+        $env:BUILD_SOURCESDIRECTORY = '$(Build.SourcesDirectory)'
+        Invoke-CheckedCommand { npm run mixin_vscode }
       } finally {
-        if (Test-Path $CapiPath) {
-          Remove-Item -Recurse -Force $CapiPath
-        }
+        Pop-Location
       }
     displayName: Mixin vscode-capi

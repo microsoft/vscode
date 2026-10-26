@@ -156,6 +156,7 @@ export interface ITerminalConfiguration {
 	drawBoldTextInBrightColors: boolean;
 	fastScrollSensitivity: number;
 	fontFamily: string;
+	fontRendering?: 'inherit' | 'grayscale';
 	fontWeight: FontWeight;
 	fontWeightBold: FontWeight;
 	minimumContrastRatio: number;
@@ -183,6 +184,7 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsUseConptyDll?: boolean;
+	windowsReparentConsoleWindow?: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
 	allowedLinkSchemes: string[];
@@ -293,7 +295,7 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessReplayComplete: Event<void>;
-	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
+	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo | undefined>;
 	readonly onDidChangeProperty: Event<IProcessProperty>;
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onRestoreCommands: Event<ISerializedCommandDetectionCapability>;
@@ -308,6 +310,10 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	setDimensions(cols: number, rows: number, sync: false, pixelWidth?: number, pixelHeight?: number): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true, pixelWidth?: number, pixelHeight?: number): void;
 	clearBuffer(): Promise<void>;
+	/**
+	 * Sets the window hosting the terminal so the console window is owned by it (Windows only).
+	 */
+	setParentWindow(windowId: number): Promise<void>;
 	setUnicodeVersion(version: '6' | '11'): Promise<void>;
 	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
 	acknowledgeDataEvent(charCount: number): void;
@@ -605,6 +611,20 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.debug.stepInto',
 	'workbench.action.debug.stepOut',
 	'workbench.action.debug.stepOver',
+	'sessions.goBack',
+	'sessions.goForward',
+	'sessions.focusActiveSession',
+	'sessions.focusSessionInGrid1',
+	'sessions.focusSessionInGrid2',
+	'sessions.focusSessionInGrid3',
+	'sessions.focusSessionInGrid4',
+	'sessions.focusSessionInGrid5',
+	'sessions.focusSessionInGrid6',
+	'sessions.focusSessionInGrid7',
+	'sessions.focusSessionInGrid8',
+	'sessions.focusSessionInGrid9',
+	'sessionsViewPane.navigatePreviousSession',
+	'sessionsViewPane.navigateNextSession',
 	'workbench.action.nextEditor',
 	'workbench.action.previousEditor',
 	'workbench.action.nextEditorInGroup',

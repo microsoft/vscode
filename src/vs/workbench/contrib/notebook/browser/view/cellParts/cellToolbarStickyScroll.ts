@@ -12,6 +12,13 @@ export function registerCellToolbarStickyScroll(notebookEditor: INotebookEditor,
 	const min = opts?.min ?? 0;
 
 	const updateForScroll = () => {
+		// Re-resolve the captured cell against the editor's current view model. The
+		// scroll listener can outlive the cell's membership (e.g. the cell was removed
+		// or the pooled editor widget was reattached to a different notebook), in which
+		// case `getAbsoluteTopOfElement` below would throw an "Invalid index -1" ListError.
+		if (notebookEditor.getCellByHandle(cell.handle) !== cell) {
+			return;
+		}
 		if (cell.isInputCollapsed) {
 			element.style.top = '';
 		} else {

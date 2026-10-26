@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -12,8 +13,8 @@ import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { getSelectedModelIdentifier } from '../common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -27,6 +28,8 @@ import { TipEligibilityTracker } from './chatTipEligibilityTracker.js';
 import { ChatTipExperiment, ChatTipTier, extractCommandIds, ITipBuildContext, ITipDefinition, TIP_CATALOG } from './chatTipCatalog.js';
 import { ChatTipStorageKeys, TipTrackingCommands } from './chatTipStorageKeys.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { IChatWidgetService } from './chat.js';
 
 type ChatTipEvent = {
 	tipId: string;
@@ -63,6 +66,15 @@ export interface IChatTip {
 	readonly id: string;
 	readonly content: MarkdownString;
 	readonly enabledCommands?: readonly string[];
+	readonly icon?: URI;
+}
+
+export interface IChatTipProvider {
+	readonly onDidChange: Event<void>;
+	provideTip(): IChatTip | undefined;
+	dismissTip(tipId: string): void;
+	hasMultipleTips?(): boolean;
+	navigateTip?(direction: 1 | -1): IChatTip | undefined;
 }
 
 export interface IChatTipService {
@@ -87,6 +99,9 @@ export interface IChatTipService {
 	 * Fired when tips are disabled.
 	 */
 	readonly onDidDisableTips: Event<void>;
+	readonly onDidChangeTip: Event<void>;
+
+	registerTipProvider(provider: IChatTipProvider): IDisposable;
 
 	/**
 	 * Gets a tip to show on the welcome/getting-started view.
@@ -178,6 +193,11 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 	private readonly _onDidDisableTips = this._register(new Emitter<void>());
 	readonly onDidDisableTips = this._onDidDisableTips.event;
+	private readonly _onDidChangeTip = this._register(new Emitter<void>());
+	readonly onDidChangeTip = this._onDidChangeTip.event;
+	private readonly _tipProviders = new Set<IChatTipProvider>();
+	private _activeTipProvider: IChatTipProvider | undefined;
+	private _activeProvidedTip: IChatTip | undefined;
 
 	/**
 	 * The request ID that was assigned a tip (for stable rerenders).
@@ -216,6 +236,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this._tracker = this._register(instantiationService.createInstance(TipEligibilityTracker, TIP_CATALOG));
@@ -259,6 +280,21 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				}
 			}));
 		}
+
+		// Dynamic commands (e.g. 'workbench.action.chat.openPlan') are registered at
+		// WorkbenchPhase.Eventually and may be removed when the focused modes change.
+		// Re-evaluate the shown tip whenever any command is registered so that tips are
+		// neither shown with dead links nor permanently blocked from appearing due to a
+		// registration race at startup.
+		this._register(CommandsRegistry.onDidRegisterCommand(commandId => {
+			this._hideShownTipIfNowIneligible();
+			// If the newly registered command was a requirement that blocked a tip from
+			// being selected, reset the cached selection so the next getWelcomeTip call
+			// can re-pick the most suitable tip.
+			if (this._tipRequestId === 'welcome' && TIP_CATALOG.some(tip => tip.requiresCommands?.includes(commandId))) {
+				this._tipRequestId = undefined;
+			}
+		}));
 	}
 
 	private _hasFileOrFolderReference(message: IParsedChatRequest): boolean {
@@ -286,7 +322,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		const trimmed = message.text.trimStart();
-		const match = /^(?:@\S+\s+)?\/(init|create-(?:instructions|prompt|agent|skill)|fork)(?:\s|$)/.exec(trimmed);
+		const match = /^(?:@\S+\s+)?\/(init|create-(?:instructions|prompt|agent|skill)|fork|btw)(?:\s|$)/.exec(trimmed);
 		return match ? this._toSlashCommandTrackingId(match[1]) : undefined;
 	}
 
@@ -303,6 +339,8 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				return CREATE_SKILL_TRACKING_COMMAND;
 			case 'fork':
 				return FORK_CONVERSATION_TRACKING_COMMAND;
+			case 'btw':
+				return TipTrackingCommands.BtwUsed;
 			default:
 				return undefined;
 		}
@@ -318,14 +356,38 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._hideShownTipIfNowIneligible();
 	}
 
+	registerTipProvider(provider: IChatTipProvider): IDisposable {
+		const store = new DisposableStore();
+		this._tipProviders.add(provider);
+		store.add(provider.onDidChange(() => this._onDidChangeTip.fire()));
+		store.add(toDisposable(() => {
+			this._tipProviders.delete(provider);
+			if (this._activeTipProvider === provider) {
+				this._activeTipProvider = undefined;
+				this._activeProvidedTip = undefined;
+				this._onDidChangeTip.fire();
+			}
+		}));
+		return store;
+	}
+
 	resetSession(): void {
 		this._shownTip = undefined;
 		this._tipRequestId = undefined;
 		this._contextKeyService = undefined;
 		this._tipsHiddenForSession = false;
+		this._activeTipProvider = undefined;
+		this._activeProvidedTip = undefined;
 	}
 
 	dismissTip(): void {
+		if (this._activeTipProvider && this._activeProvidedTip) {
+			this._activeTipProvider.dismissTip(this._activeProvidedTip.id);
+			this._activeTipProvider = undefined;
+			this._activeProvidedTip = undefined;
+			this._onDidDismissTip.fire();
+			return;
+		}
 		if (this._shownTip) {
 			this._logTipTelemetry(this._shownTip.id, 'dismissed');
 			const dismissed = new Set(this._getDismissedTipIds());
@@ -444,9 +506,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return undefined;
 		}
 
-		// Only show tips when there is exactly one foreground chat session visible.
-		const foregroundSessionCount = contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key);
-		if (foregroundSessionCount !== 1) {
+		if (!this._hasSingleForegroundChatSurface(contextKeyService)) {
 			return undefined;
 		}
 
@@ -454,6 +514,17 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		if (this._isChatQuotaExceeded(contextKeyService)) {
 			return undefined;
 		}
+
+		for (const provider of this._tipProviders) {
+			const tip = provider.provideTip();
+			if (tip) {
+				this._activeTipProvider = provider;
+				this._activeProvidedTip = tip;
+				return tip;
+			}
+		}
+		this._activeTipProvider = undefined;
+		this._activeProvidedTip = undefined;
 
 		// Return the already-shown tip for stable rerenders
 		if (this._tipRequestId === 'welcome' && this._shownTip) {
@@ -497,6 +568,12 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		const tip = this._pickTip('welcome', contextKeyService);
 
 		return tip;
+	}
+
+	private _hasSingleForegroundChatSurface(contextKeyService: IContextKeyService): boolean {
+		const foregroundSessionCount = contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key);
+		return foregroundSessionCount === 1
+			|| (foregroundSessionCount === 0 && contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) === true);
 	}
 
 	private _findNextEligibleTip(currentTipId: string, contextKeyService: IContextKeyService): ITipDefinition | undefined {
@@ -648,6 +725,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	hasMultipleTips(): boolean {
+		if (this._activeProvidedTip) {
+			return this._activeTipProvider?.hasMultipleTips?.() ?? false;
+		}
 		if (!this._contextKeyService) {
 			return false;
 		}
@@ -657,6 +737,14 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	private _navigateTip(direction: 1 | -1, contextKeyService: IContextKeyService): IChatTip | undefined {
+		if (this._activeTipProvider && this._activeProvidedTip) {
+			const tip = this._activeTipProvider.navigateTip?.(direction);
+			if (tip) {
+				this._activeProvidedTip = tip;
+				this._onDidNavigateTip.fire(tip);
+			}
+			return tip;
+		}
 		this._createSlashCommandsUsageTracker.syncContextKey(contextKeyService);
 		if (!this._shownTip) {
 			return undefined;
@@ -755,6 +843,14 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			this._logService.debug('#ChatTips: tip is not eligible due to when clause', tip.id, tip.when.serialize());
 			return false;
 		}
+		if (tip.requiresModeNames?.some(modeName => !this._isModeAvailable(modeName, contextKeyService))) {
+			this._logService.debug('#ChatTips: tip is not eligible because a required mode is not available', tip.id, tip.requiresModeNames);
+			return false;
+		}
+		if (tip.requiresCommands?.some(commandId => !CommandsRegistry.getCommand(commandId))) {
+			this._logService.debug('#ChatTips: tip is not eligible because a required command is not registered', tip.id, tip.requiresCommands);
+			return false;
+		}
 		if (this._tracker.isExcluded(tip)) {
 			return false;
 		}
@@ -762,7 +858,28 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			this._logService.debug('#ChatTips: tip excluded because thinking phrases setting was previously modified', tip.id);
 			return false;
 		}
+		if (!this._areTipCommandsRegistered(tip)) {
+			return false;
+		}
 		this._logService.debug('#ChatTips: tip is eligible', tip.id);
+		return true;
+	}
+
+	private _isModeAvailable(modeName: string, contextKeyService: IContextKeyService): boolean {
+		const widget = this._chatWidgetService.getAllWidgets().find(widget => widget.scopedContextKeyService === contextKeyService);
+		return !!widget?.input.currentChatModesObs.get().findModeByName(modeName);
+	}
+
+	private _areTipCommandsRegistered(tip: ITipDefinition): boolean {
+		const ctx: ITipBuildContext = { keybindingService: this._keybindingService, experimentalTipMessages: this._experimentalTipMessages };
+		const rawMessage = tip.buildMessage(ctx);
+		const commandIds = extractCommandIds(rawMessage.value);
+		for (const commandId of commandIds) {
+			if (!CommandsRegistry.getCommand(commandId)) {
+				this._logService.debug('#ChatTips: tip excluded because command is not registered', tip.id, commandId);
+				return false;
+			}
+		}
 		return true;
 	}
 

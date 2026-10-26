@@ -139,9 +139,9 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 
 	function _rewriteOrInlineUrls(contents: string, forceBase64: boolean): string {
 		return _replaceURL(contents, (url) => {
-			const fontMatch = url.match(/^(.*).ttf\?(.*)$/);
+			const fontMatch = url.match(/^(.*)\.ttf(\?.*)?$/);
 			if (fontMatch) {
-				const relativeFontPath = `${fontMatch[1]}.ttf`; // trim the query parameter
+				const relativeFontPath = `${fontMatch[1]}.ttf`; // trim the optional query parameter
 				const fontPath = path.join(path.dirname(module), relativeFontPath);
 				enqueue(fontPath);
 				return relativeFontPath;

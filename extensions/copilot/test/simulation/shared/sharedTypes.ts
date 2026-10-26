@@ -274,6 +274,43 @@ export type Output = IDetectedTestOutput
 	| IDeviceCodeCallbackOutput
 	;
 
+/**
+ * Describes a single adhoc chat request sent from the simulation workbench
+ * "Adhoc request sender" mode. Serialized to a temp file and passed to the
+ * simulation CLI via `--adhoc-request-file`.
+ */
+export interface IAdhocRequest {
+	readonly system: string;
+	readonly user: string;
+	readonly model: string;
+}
+
+export enum AdhocResponseType {
+	/** A streamed chunk of the response text. */
+	delta = 'adhocResponseDelta',
+	/** The final, full response text. */
+	done = 'adhocResponseDone',
+	/** The request failed. */
+	error = 'adhocResponseError',
+}
+
+export interface IAdhocResponseDelta {
+	readonly type: AdhocResponseType.delta;
+	readonly value: string;
+}
+
+export interface IAdhocResponseDone {
+	readonly type: AdhocResponseType.done;
+	readonly value: string;
+}
+
+export interface IAdhocResponseError {
+	readonly type: AdhocResponseType.error;
+	readonly value: string;
+}
+
+export type AdhocResponseOutput = IAdhocResponseDelta | IAdhocResponseDone | IAdhocResponseError;
+
 export interface IRange {
 	readonly start: IPosition;
 	readonly end: IPosition;

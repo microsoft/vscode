@@ -1,0 +1,117 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
+import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { NullLogService, ILogService } from '../../../log/common/log.js';
+import { IAgentHostChangesetOperationService, IChangesetOperationContribution } from '../../common/agentHostChangesetOperationService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
+import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+
+class FailingChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
+	declare readonly _serviceBrand: undefined;
+
+	private _registrationCount = 0;
+	disposedRegistrationCount = 0;
+
+	registerContribution(contribution: IChangesetOperationContribution) {
+		this._registrationCount++;
+		if (this._registrationCount === 2) {
+			contribution.dispose();
+			throw new Error('Contribution registration failed');
+		}
+		return toDisposable(() => {
+			this.disposedRegistrationCount++;
+			contribution.dispose();
+		});
+	}
+	updateOperations(): void { }
+	scheduleRelatedOperationsUpdate(): void { }
+	scheduleOwnerOperationsUpdate(): void { }
+	getOperations() { return []; }
+	async invokeChangesetOperation(): Promise<never> { throw new Error('Not implemented'); }
+}
+
+const nullGitStateService: IAgentHostGitStateService = {
+	_serviceBrand: undefined,
+	onDidRefreshSessionGitState: Event.None,
+	onDidChangeSessionGitHubState: Event.None,
+	async refreshSessionGitState() { },
+	getMaterializedWorktreeMeta() { return undefined; },
+	async setFolderGitState() { },
+	async resolveSessionBaseBranchName() { return undefined; },
+	async setSessionGitHubState() { },
+	async recordSessionMerge() { },
+	async attachSessionGitHubPullRequest() { },
+};
+
+const nullPullRequestStatusService: IAgentHostPullRequestStatusService = {
+	_serviceBrand: undefined,
+	onDidChangePullRequestStatus: Event.None,
+	getPullRequestStatus() { return undefined; },
+	markPullRequestMerged() { },
+	async refresh() { },
+	async resolveForLifecycle() { return undefined; },
+	dispose() { },
+};
+
+suite('AgentHostContributions', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('disposes earlier registrations when activation fails', () => {
+		const changesetOperationService = disposables.add(new FailingChangesetOperationService());
+		const logService = new NullLogService();
+		const sessionDataService = createNullSessionDataService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const artifacts = disposables.add(new ArtifactIntegrationRegistry());
+		const github = new class extends mock<IAgentHostGitHubService>() {
+			override readonly onDidChangeRepositoryClient = Event.None;
+		}();
+		const services = new ServiceCollection(
+			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
+			[IAgentHostChangesetOperationService, changesetOperationService],
+			[IAgentHostGitStateService, nullGitStateService],
+			[IAgentHostPullRequestStatusService, nullPullRequestStatusService],
+			[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
+			[IArtifactIntegrationRegistry, artifacts],
+			[IAgentHostGitHubService, github],
+			[IAgentHostGitHubEndpointService, new class extends mock<IAgentHostGitHubEndpointService>() { }()],
+			[IAgentHostGitService, new class extends mock<IAgentHostGitService>() { }()],
+			[IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService())],
+			[ISessionDataService, sessionDataService],
+			[IAgentHostSessionStateStore, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService)],
+			[ILogService, logService],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+
+		assert.throws(
+			() => instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)),
+			/Contribution registration failed/,
+		);
+		assert.deepStrictEqual({ disposedChangesets: changesetOperationService.disposedRegistrationCount, remainingArtifactIntegrations: artifacts.integrations.get().length },
+			{ disposedChangesets: 1, remainingArtifactIntegrations: 0 });
+	});
+});

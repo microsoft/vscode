@@ -7,8 +7,8 @@ import './media/chatStatus.css';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../../services/statusbar/browser/statusbar.js';
-import { ChatEntitlement, ChatEntitlementContextKeys, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, StatusbarEntryKind, ToggleTooltipCommand } from '../../../../services/statusbar/browser/statusbar.js';
+import { ChatEntitlement, ChatEntitlementContextKeys, ChatEntitlementService, getQuotaReset, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { disposableLongTimeout, disposableTimeout } from '../../../../../base/common/async.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -17,7 +17,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+
 import { ChatStatusDashboard } from './chatStatusDashboard.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { $ as h, disposableWindowInterval } from '../../../../../base/browser/dom.js';
@@ -28,7 +28,12 @@ import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
+import { UpdateTitleBarEditorVisibleContext } from '../../../update/common/update.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { ChatStatusPromo } from './chatStatusPromo.js';
+import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 
 /**
  * Tracks whether Copilot is currently blocked by a reached quota limit, has
@@ -106,7 +111,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	static readonly ID = 'workbench.contrib.chatStatusBarEntry';
 
-	private static readonly TITLE_BAR_CONTEXT_KEYS = new Set(['updateTitleBar', InEditorZenModeContext.key, ChatEntitlementContextKeys.hasByokModels.key]);
+	private static readonly TITLE_BAR_CONTEXT_KEYS = new Set([...UpdateTitleBarEditorVisibleContext.keys(), ChatEntitlementContextKeys.hasByokModels.key]);
 
 	private static readonly QUOTA_RESUME_STATE_KEY = 'chat.quotaResumeState';
 	private static readonly QUOTA_RESET_RETRY_DELAY = 5 * 60 * 1000; // re-check 5 min after a passed reset time
@@ -116,8 +121,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private readonly activeCodeEditorListener = this._register(new MutableDisposable());
 	private readonly entryAnchor = h('span');
 	private readonly dashboardTooltip: IStatusbarEntry['tooltip'];
-
-	private runningSessionsCount: number;
+	private promo: ChatStatusPromo | undefined;
 
 	private quotaResumeState: ChatQuotaResumeState;
 	private readonly quotaResetTimer = this._register(new MutableDisposable());
@@ -131,15 +135,31 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInlineCompletionsService private readonly completionsService: IInlineCompletionsService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
 
-		this.runningSessionsCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
-
 		this.quotaResumeState = this.readPersistedQuotaResumeState();
+		lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			if (!this._store.isDisposed) {
+				this.promo = this._register(this.instantiationService.createInstance(ChatStatusPromo));
+				this._register(this.promo.onDidChange(() => this.update()));
+				this.update();
+			}
+		}).catch(onUnexpectedError);
+		this._register(this.statusbarService.onDidChangeEntryVisibility(e => {
+			if (e.id === 'chat.statusBarEntry') {
+				this.update();
+			}
+		}));
+		this._register(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.STATUSBAR_PART) {
+				this.update();
+			}
+		}));
 
 		this.dashboardTooltip = {
 			element: (token: CancellationToken) => {
@@ -197,14 +217,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		this._register(this.completionsService.onDidChangeIsSnoozing(() => this.update()));
 
-		this._register(this.chatSessionsService.onDidChangeInProgress(() => {
-			const oldSessionsCount = this.runningSessionsCount;
-			this.runningSessionsCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
-			if (this.runningSessionsCount !== oldSessionsCount) {
-				this.update();
-			}
-		}));
-
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -249,20 +261,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private getQuotaResetTime(): number | undefined {
 		const quotas = this.chatEntitlementService.quotas;
-
-		const premiumResetAt = quotas.premiumChat?.resetAt;
-		if (typeof premiumResetAt === 'number') {
-			return premiumResetAt * 1000;
-		}
-
-		if (quotas.resetDate) {
-			const parsed = Date.parse(quotas.resetDate);
-			if (!isNaN(parsed)) {
-				return parsed;
-			}
-		}
-
-		return undefined;
+		return getQuotaReset(quotas.premiumChat, quotas)?.date.getTime();
 	}
 
 	private scheduleQuotaResetRefresh(): void {
@@ -346,6 +345,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatusAria', "Copilot status");
 		let kind: StatusbarEntryKind | undefined;
+		let tooltip = this.dashboardTooltip;
 
 		if (isNewUser(this.chatEntitlementService)) {
 			const entitlement = this.chatEntitlementService.entitlement;
@@ -366,16 +366,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
 				text = '$(copilot-unavailable)';
 				ariaLabel = localize('copilotDisabledStatus', "Copilot disabled");
-			}
-
-			// Sessions in progress
-			else if (this.runningSessionsCount > 0) {
-				text = '$(copilot-in-progress)';
-				if (this.runningSessionsCount > 1) {
-					ariaLabel = localize('chatSessionsInProgressStatus', "{0} agent sessions in progress", this.runningSessionsCount);
-				} else {
-					ariaLabel = localize('chatSessionInProgressStatus', "1 agent session in progress");
-				}
 			}
 
 			// Signed out — keep showing Sign-in affordance even when BYOK models are present
@@ -411,17 +401,27 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				text = '$(copilot-snooze)';
 				ariaLabel = localize('completionsSnoozedStatus', "Inline suggestions snoozed");
 			}
+
+			else {
+				const promo = this.promo?.getEntryProps(this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow)
+					&& this.statusbarService.isEntryVisible('chat.statusBarEntry'));
+				if (promo) {
+					text = promo.showPip ? '$(copilot-dot)' : '$(copilot)';
+					ariaLabel = promo.ariaLabel;
+					tooltip = promo.tooltip;
+				}
+			}
 		}
 
 		const baseResult = {
 			name: localize('chatStatus', "Copilot Status"),
 			text,
 			ariaLabel,
-			command: ShowTooltipCommand,
+			command: ToggleTooltipCommand,
 			showInAllWindows: true,
 			kind,
 			content: this.entryAnchor,
-			tooltip: this.dashboardTooltip
+			tooltip
 		} satisfies IStatusbarEntry;
 
 		return baseResult;
@@ -455,8 +455,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			return false;
 		}
 
-		const hasTitleBarUpdate = Boolean(this.contextKeyService.getContextKeyValue('updateTitleBar'));
-		if (hasTitleBarUpdate) {
+		if (this.contextKeyService.contextMatchesRules(UpdateTitleBarEditorVisibleContext)) {
 			return false;
 		}
 

@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { streamToBuffer } from '../../../base/common/buffer.js';
+import { streamToBuffer, VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { getErrorMessage } from '../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { listenStream } from '../../../base/common/stream.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { localize } from '../../../nls.js';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -83,6 +84,15 @@ class LoggableHeaders {
 
 }
 
+/** The code (`ECONNRESET`) or else the name of a thrown value: never its message, which may echo the URL. */
+function loggableErrorCode(error: unknown): string {
+	const code = error && typeof error === 'object' ? (error as { readonly code?: unknown }).code : undefined;
+	if (typeof code === 'string' && /^[A-Za-z0-9_.-]{1,64}$/.test(code)) {
+		return code;
+	}
+	return error instanceof Error && /^[A-Za-z0-9_.-]{1,64}$/.test(error.name) ? error.name : 'error';
+}
+
 export abstract class AbstractRequestService extends Disposable implements IRequestService {
 
 	declare readonly _serviceBrand: undefined;
@@ -97,6 +107,9 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 	}
 
 	protected async logAndRequest(options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
+		if (options.logUrl === false) {
+			return this._logHostAndRequest(options, request);
+		}
 		const prefix = `#${++this.counter}: ${options.url}`;
 		this.logService.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
 		const startTime = Date.now();
@@ -110,7 +123,41 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 			});
 			return result;
 		} catch (error) {
-			this.logService.error(`${prefix} - error`, options.type, getErrorMessage(error));
+			if (isCancellationError(error)) {
+				this.logService.trace(`${prefix} - cancelled`, options.type);
+			} else {
+				this.logService.error(`${prefix} - error`, options.type, getErrorMessage(error));
+			}
+			throw error;
+		}
+	}
+
+	/** {@link logAndRequest} for `logUrl: false`: logs the host, the status and the error's name or code only. */
+	private async _logHostAndRequest(options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
+		let host = '<invalid url>';
+		try {
+			host = new URL(options.url ?? '').host;
+		} catch {
+			// Logged as invalid.
+		}
+		const prefix = `#${++this.counter}: ${host}`;
+		this.logService.trace(`${prefix} - begin`, options.type);
+		const startTime = Date.now();
+		try {
+			const result = await request();
+			this.logService.trace(`${prefix} - end`, options.type, result.res.statusCode);
+			this._onDidCompleteRequest.fire({
+				callSite: options.callSite,
+				latency: Date.now() - startTime,
+				statusCode: result.res.statusCode,
+			});
+			return result;
+		} catch (error) {
+			if (isCancellationError(error)) {
+				this.logService.trace(`${prefix} - cancelled`, options.type);
+			} else {
+				this.logService.error(`${prefix} - error`, options.type, loggableErrorCode(error));
+			}
 			throw error;
 		}
 	}
@@ -174,6 +221,27 @@ export async function asText(context: IRequestContext): Promise<string | null> {
 	return buffer.toString();
 }
 
+/** Reads a response without buffering more than the caller's maximum size. */
+export function readBoundedResponse(context: IRequestContext, maxBytes: number, onLimitExceeded: () => Error): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const chunks: VSBuffer[] = [];
+		let bytes = 0;
+		listenStream(context.stream, {
+			onData: chunk => {
+				bytes += chunk.byteLength;
+				if (bytes > maxBytes) {
+					reject(onLimitExceeded());
+					context.stream.destroy();
+				} else {
+					chunks.push(chunk);
+				}
+			},
+			onError: reject,
+			onEnd: () => resolve(VSBuffer.concat(chunks).toString()),
+		});
+	});
+}
+
 export async function asTextOrError(context: IRequestContext): Promise<string | null> {
 	if (!isSuccess(context)) {
 		throw new Error('Server returned ' + context.res.statusCode);
@@ -216,7 +284,7 @@ export const USER_LOCAL_AND_REMOTE_SETTINGS = [
 	'http.experimental.networkInterfaceCheckInterval',
 ];
 
-export const systemCertificatesNodeDefault = false;
+export const systemCertificatesNodeDefault = true;
 
 let proxyConfiguration: IConfigurationNode[] = [];
 let previousUseHostProxy: boolean | undefined = undefined;
@@ -273,7 +341,8 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					type: 'string',
 					pattern: '^(https?|socks|socks4a?|socks5h?)://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
 					markdownDescription: localize('proxy', "The proxy setting to use. If not set, will be inherited from the `http_proxy` and `https_proxy` environment variables. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
-					restricted: true
+					restricted: true,
+					agentHost: { key: 'http.proxy', scope: AgentHostConfigurationSyncScope.Ambient, transform: value => typeof value === 'string' ? value : '' },
 				},
 				'http.proxyStrictSSL': {
 					type: 'boolean',
@@ -284,13 +353,15 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 				'http.proxyKerberosServicePrincipal': {
 					type: 'string',
 					markdownDescription: localize('proxyKerberosServicePrincipal', "Overrides the principal service name for Kerberos authentication with the HTTP proxy. A default based on the proxy hostname is used when this is not set. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
-					restricted: true
+					restricted: true,
+					agentHost: { key: 'http.proxyKerberosServicePrincipal', scope: AgentHostConfigurationSyncScope.Ambient, transform: value => typeof value === 'string' ? value : '' },
 				},
 				'http.noProxy': {
 					type: 'array',
 					items: { type: 'string' },
 					markdownDescription: localize('noProxy', "Specifies domain names for which proxy settings should be ignored for HTTP/HTTPS requests. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
-					restricted: true
+					restricted: true,
+					agentHost: { key: 'http.noProxy', scope: AgentHostConfigurationSyncScope.Ambient, transform: value => Array.isArray(value) ? value : [] },
 				},
 				'http.proxyAuthorization': {
 					type: ['null', 'string'],

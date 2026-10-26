@@ -4,25 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { truncate } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { BrowserViewSharingState, INavigateOptions, IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
-import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
+import { BrowserViewSharingState, INavigateOptions, IBrowserEditorViewState, IBrowserViewSessionRequest, IBrowserViewWorkbenchService, BrowserViewEditorId, IBrowserViewModel } from './browserView.js';
+import { EditorInputCapabilities, GroupIdentifier, IEditorSerializer, IMoveResult, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { TAB_ACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IBrowserViewModel } from '../common/browserView.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, isObject, isString } from '../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { BrowserViewStorageScope, IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -38,11 +39,47 @@ const LOADING_SPINNER_SVG = (color: string | undefined) => `
  */
 const MAX_TITLE_LENGTH = 30;
 
-/**
- * JSON-serializable type used during browser state serialization/deserialization
- */
+/** Data used to create and serialize a browser editor input. */
 export interface IBrowserEditorInputData extends IBrowserEditorViewState {
 	readonly id: string;
+	readonly associatedResource?: URI;
+}
+
+/**
+ * Reads browser view state saved or carried in editor options by any build,
+ * ignoring values this build does not understand.
+ */
+export function reviveBrowserEditorViewState(value: object | undefined): IBrowserEditorViewState {
+	const state: { readonly [K in keyof IBrowserEditorViewState]?: unknown } = value ?? {};
+	return {
+		url: isString(state.url) ? state.url : undefined,
+		title: isString(state.title) ? state.title : undefined,
+		favicon: isString(state.favicon) ? state.favicon : undefined,
+		session: reviveBrowserViewSession(state.session),
+		...(state.isDefaultLinkOpen === true ? { isDefaultLinkOpen: true } : {}),
+	};
+}
+
+/** A session this build cannot read is resolved again when the view is created, like a missing one. */
+function reviveBrowserViewSession(session: unknown): IBrowserViewSessionRequest | undefined {
+	if (!isObject(session)) {
+		return undefined;
+	}
+	const { scope, affinity, network } = session as { scope?: unknown; affinity?: unknown; network?: unknown };
+	const revivedAffinity = isString(affinity) ? affinity : undefined;
+	const authority = isObject(network) ? (network as { readonly authority?: unknown }).authority : undefined;
+	const revivedNetwork = isString(authority) ? { authority } : undefined;
+	switch (scope) {
+		case undefined:
+			return { ...(revivedAffinity !== undefined ? { affinity: revivedAffinity } : {}), ...(revivedNetwork ? { network: revivedNetwork } : {}) };
+		case BrowserViewStorageScope.Global:
+		case BrowserViewStorageScope.Workspace:
+		case BrowserViewStorageScope.Ephemeral:
+		case BrowserViewStorageScope.Agent:
+			return toBrowserViewSessionOptions(scope, revivedAffinity, revivedNetwork);
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -54,31 +91,21 @@ export interface IBeforeDisposeBrowserEditorEvent {
 }
 
 /**
- * Slice the fragment off a raw URL. A literal `#` always starts the fragment,
- * so a plain substring keeps the rest of the URL byte-for-byte intact (no
- * re-encoding), matching what the navbar displays.
- */
-function stripUrlFragment(url: string): string {
-	const hash = url.indexOf('#');
-	return hash === -1 ? url : url.slice(0, hash);
-}
-
-/**
  * Slice both the query and fragment off a raw URL, preserving the exact
  * encoding of the remaining scheme/authority/path.
  */
 function stripUrlQueryAndFragment(url: string): string {
-	const stripped = stripUrlFragment(url);
-	const query = stripped.indexOf('?');
-	return query === -1 ? stripped : stripped.slice(0, query);
+	const suffix = url.search(/[?#]/);
+	return suffix === -1 ? url : url.slice(0, suffix);
 }
 
 export class BrowserEditorInput extends EditorInput {
 	static readonly ID = 'workbench.editorinputs.browser';
-	static readonly EDITOR_ID = 'workbench.editor.browser';
+	static readonly EDITOR_ID = BrowserViewEditorId;
 	static readonly DEFAULT_LABEL = localize('browser.editorLabel', "Browser");
 
 	private readonly _id: string;
+	private readonly _associatedResource: URI | undefined;
 	private _initialData: IBrowserEditorInputData;
 
 	private _model: IBrowserViewModel | undefined;
@@ -95,12 +122,12 @@ export class BrowserEditorInput extends EditorInput {
 		options: IBrowserEditorInputData,
 		private _resolveModel: () => Promise<IBrowserViewModel>,
 		@IThemeService private readonly themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		super();
 		this._id = options.id;
+		this._associatedResource = options.associatedResource;
 		this._initialData = options;
 	}
 
@@ -131,7 +158,10 @@ export class BrowserEditorInput extends EditorInput {
 		this._modelStore.add(this._model.onDidChangeTitle(() => this._onDidChangeLabel.fire()));
 		this._modelStore.add(this._model.onDidChangeFavicon(() => this._onDidChangeLabel.fire()));
 		this._modelStore.add(this._model.onDidChangeLoadingState(() => this._onDidChangeLabel.fire()));
-		this._modelStore.add(this._model.onDidNavigate(() => this._onDidChangeLabel.fire()));
+		this._modelStore.add(this._model.onDidNavigate(() => {
+			this._initialData = { ...this._initialData, title: undefined, favicon: undefined };
+			this._onDidChangeLabel.fire();
+		}));
 
 		this._onDidChangeLabel.fire();
 		this._onDidResolveModel.fire(model);
@@ -150,19 +180,31 @@ export class BrowserEditorInput extends EditorInput {
 		return this._id;
 	}
 
+	get associatedResource(): URI | undefined {
+		return this._associatedResource;
+	}
+
+	/** The saved session request, which may differ from the model's session under current restrictions. */
+	get session(): IBrowserViewSessionRequest | undefined {
+		return this._initialData.session;
+	}
+
+	/** The remote network this view was opened for, or `undefined` for the local network. */
+	get network(): IBrowserViewNetwork | undefined {
+		const session = this._initialData.session;
+		return session?.scope === BrowserViewStorageScope.Global ? undefined : session?.network;
+	}
+
 	get url(): string | undefined {
-		// Use model URL if available, otherwise fall back to initial data
-		return this._model ? this._model.url : this._initialData.url;
+		return this._model?.url || this._initialData.url;
 	}
 
 	get title(): string | undefined {
-		// Use model title if available, otherwise fall back to initial data
-		return this._model ? this._model.title : this._initialData.title;
+		return this._model?.title || this._initialData.title;
 	}
 
 	get favicon(): string | undefined {
-		// Use model favicon if available, otherwise fall back to initial data
-		return this._model ? this._model.favicon : this._initialData.favicon;
+		return this._model?.favicon ?? this._initialData.favicon;
 	}
 
 	/**
@@ -174,7 +216,9 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	get isSharingAvailable(): boolean {
-		return this._model ? this._model.sharingState !== BrowserViewSharingState.Unavailable : this.browserViewWorkbenchService.isSharingAvailable;
+		return this._model
+			? this._model.sharingState === BrowserViewSharingState.Shared || this._model.sharingState === BrowserViewSharingState.Available
+			: this.browserViewWorkbenchService.isSharingAvailable;
 	}
 
 	navigate(url: string, options?: INavigateOptions): void {
@@ -182,10 +226,10 @@ export class BrowserEditorInput extends EditorInput {
 		if (this._model) {
 			void this._model.loadURL(destination, options);
 		} else {
-			// If the model isn't created yet, update the initial data so that the URL is correct when the model is created
 			this._initialData = {
 				id: this._id,
-				url: destination
+				url: destination,
+				session: this._initialData.session,
 			};
 			this._onDidChangeLabel.fire();
 		}
@@ -194,10 +238,13 @@ export class BrowserEditorInput extends EditorInput {
 	override async resolve(): Promise<IBrowserViewModel> {
 		if (!this._model && !this._modelPromise) {
 			this._modelPromise = (async () => {
-				this._model = await this._resolveModel();
-				this._modelPromise = undefined;
-
-				return this._model;
+				try {
+					this._model = await this._resolveModel();
+					return this._model;
+				} finally {
+					// A failed resolution (e.g. a proxy that did not start) is retried on the next call.
+					this._modelPromise = undefined;
+				}
 			})();
 		}
 		return this._model || this._modelPromise!;
@@ -219,8 +266,13 @@ export class BrowserEditorInput extends EditorInput {
 		return BrowserViewUri.forId(this._id);
 	}
 
+	get preferredResource(): URI {
+		return this._associatedResource ?? this.resource;
+	}
+
 	override getIcon(): ThemeIcon | URI | undefined {
-		// Use model data if available, otherwise fall back to initial data
+		const defaultIcon = this._associatedResource ? undefined : Codicon.globe;
+
 		if (this._model) {
 			if (this._model.loading) {
 				const color = this.themeService.getColorTheme().getColor(TAB_ACTIVE_FOREGROUND);
@@ -229,26 +281,25 @@ export class BrowserEditorInput extends EditorInput {
 			if (this._model.favicon) {
 				return URI.parse(this._model.favicon);
 			}
-			// Model exists but no favicon yet, use default
-			return Codicon.globe;
 		}
-		// Model not created yet, use initial data if available
 		if (this._initialData.favicon) {
 			return URI.parse(this._initialData.favicon);
 		}
-		return Codicon.globe;
+		return defaultIcon;
 	}
 
 	override getName(): string {
-		const hasTitle = this._model ? !!this._model.title : !!this._initialData.title;
-		const name = hasTitle ? this.title! : this.getDescription(Verbosity.SHORT) || BrowserEditorInput.DEFAULT_LABEL;
+		if (this.title) {
+			return truncate(this.title!, MAX_TITLE_LENGTH);
+		}
+
+		const name = this._associatedResource ? basename(this._associatedResource) : this.url && this.getURLTitles.get(this.url)[Verbosity.SHORT] || BrowserEditorInput.DEFAULT_LABEL;
 		return truncate(name, MAX_TITLE_LENGTH);
 	}
 
 	override getTitle(verbosity = Verbosity.MEDIUM): string {
-		const hasTitle = this._model ? !!this._model.title : !!this._initialData.title;
-		const description = this.getDescription(verbosity);
-		const title = hasTitle ? `${this.title} (${description})` : description;
+		const description = this.url && this.getURLTitles.get(this.url)[verbosity];
+		const title = this.title ? `${this.title} (${description})` : description;
 		return title || BrowserEditorInput.DEFAULT_LABEL;
 	}
 
@@ -258,15 +309,19 @@ export class BrowserEditorInput extends EditorInput {
 
 	private readonly getURLTitles = new LRUCachedFunction((url: string) => {
 		let _short: string | undefined = undefined;
-		let _medium: string | undefined = undefined;
-		let _long: string | undefined = undefined;
+		let _mediumlong: string | undefined = undefined;
+		const mediumlong = () => {
+			if (_mediumlong === undefined) {
+				_mediumlong = stripUrlQueryAndFragment(url);
+			}
+			return _mediumlong;
+		};
 		return {
-			// Host only. Derived via the WHATWG URL parser so it matches the
-			// host shown by the navbar's raw URL (e.g. punycode for IDNs).
+			// Host only for network URLs, path only for file URLs.
 			get [Verbosity.SHORT]() {
 				if (_short === undefined) {
 					const parsed = URL.parse(url);
-					_short = parsed ? parsed.host : stripUrlQueryAndFragment(url);
+					_short = parsed ? parsed.protocol === 'file:' ? parsed.pathname : parsed.host : stripUrlQueryAndFragment(url);
 				}
 				return _short;
 			},
@@ -274,18 +329,11 @@ export class BrowserEditorInput extends EditorInput {
 			// (not a URI round-trip) so the displayed text stays byte-for-byte
 			// consistent with the canonical URL shown in the navbar.
 			get [Verbosity.MEDIUM]() {
-				if (_medium === undefined) {
-					_medium = stripUrlQueryAndFragment(url);
-				}
-				return _medium;
+				return mediumlong();
 			},
-			// Raw URL without the fragment, sliced from the canonical string for
-			// the same consistency reason as the medium form.
+			// Raw URL without the query/fragment.
 			get [Verbosity.LONG]() {
-				if (_long === undefined) {
-					_long = stripUrlFragment(url);
-				}
-				return _long;
+				return mediumlong();
 			}
 		};
 	});
@@ -295,6 +343,10 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+		if (this._associatedResource && !(otherInput instanceof EditorInput) && hasKey(otherInput, { resource: true }) && isEqual(this._associatedResource, otherInput.resource)) {
+			return otherInput.options?.override === BrowserEditorInput.EDITOR_ID;
+		}
+
 		if (super.matches(otherInput)) {
 			return true;
 		}
@@ -321,27 +373,47 @@ export class BrowserEditorInput extends EditorInput {
 	override copy(): EditorInput {
 		logBrowserOpen(this.telemetryService, 'copyToNewWindow');
 
-		return this.instantiationService.invokeFunction((accessor) => {
-			const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
-			return browserViewWorkbenchService.getOrCreateLazy(generateUuid(), {
-				url: this.url,
-				title: this.title,
-				favicon: this.favicon
-			});
+		return this.browserViewWorkbenchService.getOrCreateLazy({
+			id: generateUuid(),
+			url: this.url,
+			title: this.title,
+			favicon: this.favicon,
+			session: this._initialData.session,
+			associatedResource: this._associatedResource
 		});
 	}
 
 	override toUntyped(): IUntypedEditorInput {
-		const viewState: IBrowserEditorViewState = {
-			url: this.url,
-			title: this.title,
-			favicon: this.favicon
-		};
 		return {
-			resource: this.resource,
+			resource: this.preferredResource,
 			options: {
 				override: BrowserEditorInput.EDITOR_ID,
-				viewState
+				viewState: this.getViewState()
+			}
+		};
+	}
+
+	override async rename(_group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined> {
+		if (!this._associatedResource) {
+			return undefined;
+		}
+
+		const currentUrl = this.url;
+		let renamedUrl = currentUrl;
+		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl)) {
+			const currentResource = URI.parse(currentUrl);
+			renamedUrl = target.with({ query: currentResource.query, fragment: currentResource.fragment }).toString();
+		}
+		return {
+			editor: {
+				resource: target,
+				options: {
+					override: BrowserEditorInput.EDITOR_ID,
+					viewState: {
+						...this.getViewState(),
+						url: renamedUrl,
+					}
+				}
 			}
 		};
 	}
@@ -362,7 +434,8 @@ export class BrowserEditorInput extends EditorInput {
 				id: this._id,
 				url: this._model.url,
 				title: this._model.title,
-				favicon: this._model.favicon
+				favicon: this._model.favicon,
+				session: this._initialData.session,
 			};
 			this._model.dispose();
 			this._model = undefined;
@@ -372,9 +445,17 @@ export class BrowserEditorInput extends EditorInput {
 	serialize(): IBrowserEditorInputData {
 		return {
 			id: this._id,
+			associatedResource: this._associatedResource,
+			...this.getViewState(),
+		};
+	}
+
+	private getViewState(): IBrowserEditorViewState {
+		return {
 			url: this.url,
 			title: this.title,
-			favicon: this.favicon
+			favicon: this.favicon,
+			session: this.session,
 		};
 	}
 }
@@ -395,9 +476,17 @@ export class BrowserEditorSerializer implements IEditorSerializer {
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
 		try {
 			const data: IBrowserEditorInputData = JSON.parse(serializedEditor);
+			const { url, title, favicon, session } = reviveBrowserEditorViewState(data);
 			return instantiationService.invokeFunction((accessor) => {
 				const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
-				return browserViewWorkbenchService.getOrCreateLazy(data.id, data);
+				return browserViewWorkbenchService.getOrCreateLazy({
+					id: data.id,
+					url,
+					title,
+					favicon,
+					session,
+					associatedResource: URI.revive(data.associatedResource)
+				});
 			});
 		} catch {
 			return undefined;

@@ -16,35 +16,78 @@ export interface InlineSuggestionEdit {
  * which is required for VS Code to render ghost text.
  */
 export function toInlineSuggestion(cursorPos: Position, doc: TextDocument, range: Range, newText: string, advanced: boolean = true): InlineSuggestionEdit | undefined {
-	// Special case: a multi-line insertion that starts on the line *after* the cursor
-	// can be re-expressed as a pure insertion at the cursor.
+	if (range.start.line === range.end.line && range.start.line === cursorPos.line) {
+		const sameLineEdit = validateSameLineGhostText(cursorPos, doc, range, newText);
+		if (sameLineEdit) {
+			return sameLineEdit;
+		}
+	}
+
+	if (advanced) {
+		const cursorEdit = tryRebaseAsCursorEdit(cursorPos, doc, range, newText);
+		if (cursorEdit) {
+			return cursorEdit;
+		}
+	}
+
+	// Preserve the established behavior for empty-range insertions at the start of
+	// the next line (the target line itself may be non-empty, e.g. `\t) {`).
 	const nextLineInsertion = tryAdjustNextLineInsertion(cursorPos, doc, range, newText);
 	if (nextLineInsertion) {
 		return nextLineInsertion;
 	}
 
-	// If the range spans multiple lines, try to collapse it to a single line by
-	// trimming a shared prefix up to a newline boundary.
-	if (advanced && range.start.line !== range.end.line) {
-		({ range, newText } = stripCommonLinePrefix(doc, range, newText));
-	}
+	return undefined;
+}
 
-	// Ghost text requires the edit to be on the cursor's line.
-	if (range.start.line !== range.end.line || range.start.line !== cursorPos.line) {
+/**
+ * Re-express an edit as an equivalent edit from the cursor to the end of its
+ * line. If any equivalent inline suggestion exists, one exists in this form.
+ */
+function tryRebaseAsCursorEdit(cursorPos: Position, doc: TextDocument, range: Range, newText: string): InlineSuggestionEdit | undefined {
+	const cursorOffset = doc.offsetAt(cursorPos);
+	const lineEnd = doc.lineAt(cursorPos.line).range.end;
+	const lineEndOffset = doc.offsetAt(lineEnd);
+	const rangeStartOffset = doc.offsetAt(range.start);
+	const rangeEndOffset = doc.offsetAt(range.end);
+	const affectedStart = doc.positionAt(Math.min(cursorOffset, rangeStartOffset));
+	const affectedEnd = doc.positionAt(Math.max(lineEndOffset, rangeEndOffset));
+
+	const editedText = doc.getText(new Range(affectedStart, range.start)) + newText + doc.getText(new Range(range.end, affectedEnd));
+	const unchangedPrefix = doc.getText(new Range(affectedStart, cursorPos));
+	const unchangedSuffix = doc.getText(new Range(lineEnd, affectedEnd));
+	const cursorEditTextEnd = editedText.length - unchangedSuffix.length;
+	if (
+		cursorEditTextEnd < unchangedPrefix.length
+		|| !editedText.startsWith(unchangedPrefix)
+		|| !editedText.endsWith(unchangedSuffix)
+	) {
 		return undefined;
 	}
 
-	return validateSameLineGhostText(cursorPos, doc, range, newText);
+	const cursorEdit = {
+		range: new Range(cursorPos, lineEnd),
+		newText: editedText.substring(unchangedPrefix.length, cursorEditTextEnd),
+	};
+	return validateSameLineGhostText(cursorPos, doc, cursorEdit.range, cursorEdit.newText);
 }
 
 /**
  * If the cursor is at the end of a line and the edit is an empty-range insertion
  * at column 0 of the next line, rewrite it as a pure insertion at the cursor
- * position. This is allowed when either:
- *  - `newText` ends with a newline (any existing content on the target line is
- *    pushed onto the following line), or
- *  - `newText` contains a newline and the target line is fully consumed by the
- *    insertion (no leftover content after the insertion).
+ * position.
+ *
+ * This is the ungated fallback for when `advanced` rebasing is disabled; when it
+ * is enabled, {@link tryRebaseAsCursorEdit} already subsumes this case.
+ *
+ * The line terminator between the cursor and `range.start` (`lineBreak`) lives in
+ * the document, not in the edit, so a cursor insertion always leaves it *after*
+ * the inserted text. Inserting `N` at the start of the next line therefore equals
+ * inserting `lineBreak + N'` at the cursor iff `N === N' + lineBreak` — i.e. `N`
+ * must end with the document's own line break (then `N'` is `N` with that break
+ * dropped). Requiring the document break (not merely '\n') keeps this exact for
+ * CRLF documents. Otherwise a pure cursor insertion cannot reproduce the edit
+ * without a spurious blank line, so we bail and let it render as an inline edit.
  */
 function tryAdjustNextLineInsertion(cursorPos: Position, doc: TextDocument, range: Range, newText: string): InlineSuggestionEdit | undefined {
 	if (!range.isEmpty) {
@@ -57,45 +100,17 @@ function tryAdjustNextLineInsertion(cursorPos: Position, doc: TextDocument, rang
 		return undefined; // cursor is not at the end of the line
 	}
 
-	const targetLineFullyConsumed = doc.lineAt(range.end.line).text.length === range.end.character;
-	const noLeftoverAfterInsertion = newText.endsWith('\n') || (newText.includes('\n') && targetLineFullyConsumed);
-	if (!noLeftoverAfterInsertion) {
+	// Use an empty range at the cursor so the suggestion is a pure insertion.
+	// `lineBreak` is the document's own terminator between the cursor and the next
+	// line; the pull-up is exact only when `newText` ends with exactly that break,
+	// which we drop and re-prepend at the cursor. Matching the document break (not
+	// just '\n') keeps CRLF documents exact and never leaks a dangling '\r'.
+	const lineBreak = doc.getText(new Range(cursorPos, range.start));
+	if (!newText.endsWith(lineBreak)) {
 		return undefined;
 	}
-
-	// Use an empty range at the cursor so the suggestion is a pure insertion.
-	// The original line terminator between the cursor and `range.start` is preserved
-	// in the document, so:
-	//  - prepend that terminator to `newText` (it lives in the doc, not in the edit), and
-	//  - drop a single trailing line ending from `newText` to avoid an extra blank line.
-	// CRLF-safe so we don't leak a dangling '\r' into the suggestion.
-	const lineBreak = doc.getText(new Range(cursorPos, range.start));
-	const trimmedNewText = newText.replace(/\r?\n$/, '');
+	const trimmedNewText = newText.substring(0, newText.length - lineBreak.length);
 	return { range: new Range(cursorPos, cursorPos), newText: lineBreak + trimmedNewText };
-}
-
-/**
- * Strip the longest shared prefix that ends on a newline boundary from both sides
- * of a multi-line edit. This often shrinks the range so it fits on a single line,
- * which is required for ghost text rendering.
- */
-function stripCommonLinePrefix(doc: TextDocument, range: Range, newText: string): { range: Range; newText: string } {
-	const replacedText = doc.getText(range);
-	const maxLen = Math.min(replacedText.length, newText.length);
-	let commonLen = 0;
-	while (commonLen < maxLen && replacedText[commonLen] === newText[commonLen]) {
-		commonLen++;
-	}
-	if (commonLen === 0) {
-		return { range, newText };
-	}
-	const lastNewline = replacedText.lastIndexOf('\n', commonLen - 1);
-	if (lastNewline < 0) {
-		return { range, newText };
-	}
-	const strippedLen = lastNewline + 1;
-	const newStart = doc.positionAt(doc.offsetAt(range.start) + strippedLen);
-	return { range: new Range(newStart, range.end), newText: newText.substring(strippedLen) };
 }
 
 /**
@@ -133,4 +148,3 @@ export function isSubword(a: string, b: string): boolean {
 	}
 	return true;
 }
-

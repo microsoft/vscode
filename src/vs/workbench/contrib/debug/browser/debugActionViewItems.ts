@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { selectBorder, selectBackground, asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ADD_CONFIGURATION_ID } from './debugCommands.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions, SelectActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { debugStart } from './debugIcons.js';
@@ -81,6 +81,18 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		this.container = container;
 		container.classList.add('start-debug-action-item');
+		let titleElement: Element | null = null;
+		let isDisposed = false;
+		this.toDispose.push(toDisposable(() => {
+			isDisposed = true;
+			titleElement?.classList.remove('has-start-debug-action-item');
+		}));
+		queueMicrotask(() => {
+			if (!isDisposed) {
+				titleElement = container.closest('.part > .title');
+				titleElement?.classList.add('has-start-debug-action-item');
+			}
+		});
 		this.start = dom.append(container, dom.$(ThemeIcon.asCSSSelector(debugStart)));
 		const title = this.keybindingService.appendKeybinding(this.action.label, this.action.id);
 		this.toDispose.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.start, title));

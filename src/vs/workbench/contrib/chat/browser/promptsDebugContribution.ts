@@ -11,6 +11,8 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatDebugCustomizationLogEntry, IChatDebugEventFileListContent, IChatDebugResolvedEventContent, IChatDebugService } from '../common/chatDebugService.js';
+import { isAgentHostTarget } from '../common/chatSessionsService.js';
+import { getChatSessionType } from '../common/model/chatUri.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { ChatRequestHooks, formatHookCommandLabel } from '../common/promptSyntax/hookSchema.js';
@@ -68,7 +70,16 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			if (isFirstInvocation) {
 				const cts = new CancellationTokenSource();
 				try {
-					const discoveryInfos = await Promise.all([PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook].map(type => this.promptsService.getDiscoveryInfo(type, cts.token)));
+					// For agent-host (Copilot CLI) sessions, VS Code core still collects
+					// instructions and hooks and passes them into the agent-host request,
+					// so those discovery events are relevant. Agent / skill / slash-command
+					// discovery reflects VS Code's own chat-participant discovery, which the
+					// agent host does not consume (the agent host surfaces its actually loaded
+					// customizations separately), so we suppress those to avoid noise.
+					const discoveryTypes = isAgentHostTarget(getChatSessionType(sessionResource))
+						? [PromptsType.instructions, PromptsType.hook]
+						: [PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook];
+					const discoveryInfos = await Promise.all(discoveryTypes.map(type => this.promptsService.getDiscoveryInfo(type, cts.token)));
 					for (const discoveryInfo of discoveryInfos) {
 						const { name, details } = this.getDiscoveryLogEntry(discoveryInfo);
 						const eventId = generateUuid();

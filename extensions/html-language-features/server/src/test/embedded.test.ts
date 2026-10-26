@@ -34,6 +34,14 @@ suite('HTML Embedded Support', () => {
 		assert.strictEqual(content.getText(), expectedContent);
 	}
 
+	function assertEmbeddedLanguageContents(value: string, languageId: string, expectedContents: string[]): void {
+		const document = TextDocument.create('test://test/test.html', 'html', 0, value);
+
+		const docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
+		const contents = docRegions.getEmbeddedDocuments(languageId).map(content => content.getText());
+		assert.deepStrictEqual(contents, expectedContents);
+	}
+
 	test('Styles', function (): any {
 		assertLanguageId('|<html><style>foo { }</style></html>', 'html');
 		assertLanguageId('<html|><style>foo { }</style></html>', 'html');
@@ -123,9 +131,28 @@ suite('HTML Embedded Support', () => {
 		assertEmbeddedLanguageContent('<script><!--this comment should not give error--> console.log("logging");</script>', 'javascript', '        /* this comment should not give error */ console.log("logging");         ');
 
 		assertEmbeddedLanguageContent('<script>var data=100; <!--this comment should not give error--> </script>', 'javascript', '        var data=100; /* this comment should not give error */          ');
+		assertEmbeddedLanguageContent('<script>/* --> */</script>', 'javascript', '        /* --> */         ');
+		assertEmbeddedLanguageContent('<script>/* --> ----------------------------- */</script>', 'javascript', '        /* --> ----------------------------- */         ');
+		assertEmbeddedLanguageContent('<script><!--commnet1-->\n<!--conment2--></script>', 'javascript', '        /* commnet1 */\n/* conment2 */         ');
+		assertEmbeddedLanguageContent('<script><!--a--> foo(); <!--b--></script>', 'javascript', '        /* a */ foo(); /* b */         ');
 		assertEmbeddedLanguageContent('<div onKeyUp="foo()" onkeydown="bar()"/>', 'javascript', '              foo();            bar();  ');
 		assertEmbeddedLanguageContent('<div onKeyUp="return"/>', 'javascript', '              return;  ');
 		assertEmbeddedLanguageContent('<div onKeyUp=return\n/><script>foo();</script>', 'javascript', '             return;\n          foo();         ');
+	});
+
+	test('Scripts with type module', function (): any {
+		assertLanguageId('<script type="module">var| i = 0;</script>', 'javascript');
+		assertLanguageId('<script type=module>var| i = 0;</script>', 'javascript');
+		assertLanguageId('<script type="Module">var| i = 0;</script>', 'javascript');
+		assertLanguageId('<script type=MODULE>var| i = 0;</script>', 'javascript');
+	});
+
+	test('Script content - module validation documents', function (): any {
+		assertEmbeddedLanguageContent('<script>let a = 1;</script><script type="module">let a = 2;</script>', 'javascript', '        let a = 1;                               let a = 2;         ');
+		assertEmbeddedLanguageContents('<script>let a = 1;</script><script type="module">let a = 2;</script>', 'javascript', [
+			'        let a = 1;                                                  ',
+			'                                                 let a = 2;         \nexport {};'
+		]);
 	});
 
 	test('Script content - HTML escape characters', function (): any {

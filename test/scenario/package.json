@@ -1,0 +1,20 @@
+{
+  "name": "vscode-scenario-runner",
+  "version": "0.1.0",
+  "description": "Runs UI validation scenarios against VS Code and records evidence",
+  "license": "MIT",
+  "main": "./out/index.js",
+  "private": true,
+  "scripts": {
+    "compile": "cd ../automation && npm run compile && cd ../scenario && node ../../node_modules/typescript/bin/tsc6",
+    "watch-automation": "cd ../automation && npm run watch",
+    "watch-scenario": "node ../../node_modules/typescript/bin/tsc6 --watch --preserveWatchOutput",
+    "watch": "npm-run-all2 -lp watch-automation watch-scenario"
+  },
+  "dependencies": {
+    "minimist": "^1.2.8"
+  },
+  "devDependencies": {
+    "npm-run-all2": "^8.0.4"
+  }
+}

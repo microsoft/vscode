@@ -12,7 +12,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
-import { EditorInputCapabilities, GroupIdentifier, IResourceDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput, isEditorInput, isResourceEditorInput, isResourceDiffEditorInput, Verbosity } from '../../../common/editor.js';
+import { EditorInputCapabilities, GroupIdentifier, IEditorInputWithDiffResources, IResourceDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput, isEditorInput, isResourceEditorInput, isResourceDiffEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput, IUntypedEditorOptions } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -41,7 +41,7 @@ function getCustomEditorSideBySideDiffInputResource(init: CustomEditorSideBySide
 	return init.side === 'original' ? init.originalResource : init.modifiedResource;
 }
 
-export class CustomEditorDiffInput extends LazilyResolvedWebviewEditorInput {
+export class CustomEditorDiffInput extends LazilyResolvedWebviewEditorInput implements IEditorInputWithDiffResources {
 
 	private readonly _modelRef = this._register(new MutableDisposable<IReference<ICustomEditorModel>>());
 
@@ -111,6 +111,13 @@ export class CustomEditorDiffInput extends LazilyResolvedWebviewEditorInput {
 
 	get modifiedResource(): URI {
 		return this.init.modifiedResource;
+	}
+
+	get diffResources(): IEditorInputWithDiffResources['diffResources'] {
+		return {
+			original: this.originalResource,
+			modified: this.modifiedResource,
+		};
 	}
 
 	override getName(): string {

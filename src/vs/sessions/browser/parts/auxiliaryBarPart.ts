@@ -37,6 +37,7 @@ import { getFlatContextMenuActions } from '../../../platform/actions/browser/men
 import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { getSidePaneBottomFrameInset } from './agentsPartCard.js';
 
 /**
  * Auxiliary bar part specifically for agent sessions workbench.
@@ -49,10 +50,10 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	static readonly placeholderViewContainersKey = 'workbench.agentsession.auxiliarybar.placeholderPanels';
 	static readonly viewContainersWorkspaceStateKey = 'workbench.agentsession.auxiliarybar.viewContainersWorkspaceState';
 
-	/** Visual margin values for the card-like appearance */
+	/** Visual margin values for the card-like appearance (non-docked layout). */
 	static readonly MARGIN_TOP = 0;
-	static readonly MARGIN_BOTTOM = 5;
-	static readonly MARGIN_LEFT = 5;
+	static readonly MARGIN_BOTTOM = 0;
+	static readonly CONTENT_PADDING_LEFT = 5;
 
 	// Action ID for run script - defined here to avoid layering issues
 	private static readonly RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
@@ -169,11 +170,13 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 		const container = assertReturnsDefined(this.getContainer());
 
+		const backgroundColor = this.getPartBackgroundColor();
+
 		// Store background and border as CSS variables for the card styling on .part
-		container.style.setProperty('--part-background', this.getColor(agentsPanelBackground) || '');
+		container.style.setProperty('--part-background', backgroundColor);
 		container.style.setProperty('--part-border-color', this.getColor(agentsPanelBorder) || 'transparent');
 		container.style.setProperty('--part-foreground', this.getColor(agentsPanelForeground) || '');
-		container.style.backgroundColor = this.getColor(agentsPanelBackground) || '';
+		container.style.backgroundColor = backgroundColor;
 
 		// Clear borders - the card appearance uses border-radius instead
 		container.style.borderLeftColor = '';
@@ -182,6 +185,11 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		container.style.borderRightStyle = '';
 		container.style.borderLeftWidth = '';
 		container.style.borderRightWidth = '';
+	}
+
+	/** The part background color. Overridden by the desktop variant to match the editor. */
+	protected getPartBackgroundColor(): string {
+		return this.getColor(agentsPanelBackground) || '';
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
@@ -295,23 +303,16 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			return;
 		}
 
-		const borderTotal = 2; // 1px border on each side
-
-		// The right gutter is provided by the workbench grid (see Workbench.layout).
-		// The bottom margin is 5px when the panel is visible (paired with the panel's
-		// 5px top margin to center the sash) and 0 when the panel is hidden (so the card
-		// fills its cell; the workbench grid's 10px bottom gutter provides the visible gap).
-		// When the editor is visible, padding-left: 5px keeps the inner content position
-		// invariant (matching the editor-hidden state where margin-left: 5px applies instead).
+		const compact = this.layoutService.isModernUICompact();
+		const borderTotal = compact ? 0 : 2;
 		const editorVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
-		const marginLeft = editorVisible ? 0 : AuxiliaryBarPart.MARGIN_LEFT;
-		const paddingLeft = editorVisible ? AuxiliaryBarPart.MARGIN_LEFT : 0;
-		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART)
-			? AuxiliaryBarPart.MARGIN_BOTTOM
-			: 0;
+		const paddingLeft = editorVisible && !compact ? AuxiliaryBarPart.CONTENT_PADDING_LEFT : 0;
+		const marginBottom = !this.layoutService.mainContainer.classList.contains('dock-detail-panel')
+			? getSidePaneBottomFrameInset(this.layoutService.mainContainer)
+			: AuxiliaryBarPart.MARGIN_BOTTOM;
 
 		super.layout(
-			width - marginLeft - borderTotal - paddingLeft,
+			width - borderTotal - paddingLeft,
 			height - AuxiliaryBarPart.MARGIN_TOP - marginBottom - borderTotal,
 			top, left
 		);

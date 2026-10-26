@@ -12,6 +12,7 @@ import { HistoryWithInstructions } from '../../prompts/node/panel/conversationHi
 import { ChatToolCalls } from '../../prompts/node/panel/toolCalling';
 import { CopilotToolMode } from '../../tools/common/toolsRegistry';
 import { McpPickRef, QuickInputTool, QuickPickTool } from './mcpToolCallingTools';
+import { McpTargetFormat } from './mcpConfigurationGeneration';
 
 export interface IMcpToolCallingLoopPromptContext {
 	packageName: string;
@@ -19,6 +20,7 @@ export interface IMcpToolCallingLoopPromptContext {
 	packageReadme: string | undefined;
 	packageVersion: string | undefined;
 	targetSchema: JsonSchema;
+	targetFormat: McpTargetFormat;
 	pickRef: McpPickRef;
 }
 
@@ -60,35 +62,39 @@ export class McpToolCallingLoopPrompt extends PromptElement<IMcpToolCallingLoopP
 						<Tag name='instructions'>
 							You are an expert in reading documentation and extracting relevant results.<br />
 							A developer is setting up a Model Context Protocol (MCP) server based on a {packageType} package. Your task is to create a configuration for the server matching the provided JSON schema.<br />
+							The destination is {this.props.targetFormat}. Return exactly one named server, not a complete configuration file. Preserve the documented stdio, HTTP, or SSE transport.<br />
+							Use the preferred package runner only for a documented stdio setup. Do not replace a documented remote endpoint with a local command.<br />
+							{this.props.targetFormat === 'copilotGlobal'
+								? <>For user-specific values, ask for the name of an environment variable to set on the agent-host machine, never the value. Use the returned environment reference verbatim. VS Code input variables are not supported.<br /></>
+								: <>The input tool returns references, not literal values. Use these references verbatim, including inside URLs, headers, and arguments. Do not transform, escape, or encode them. Workspace-root configurations needing inputs require the user's approval to use VS Code configuration instead.<br /></>}
 							{hasMcpJson ? <InstructionsWithMcpJson command={command} packageVersion={packageVersion} /> : <InstructionsWithout command={command} packageVersion={packageVersion} />}
 							<br />
 							<br />
 							When using a tool, follow the JSON schema very carefully and make sure to include all required fields. DO NOT write out a JSON codeblock with the tool inputs.<br />
 						</Tag>
-						<Tag name='example'>
+						{this.props.targetFormat === 'vscode' && <Tag name='example'>
 							<Tag name='request'>
 								User: I want to run the npm package `@modelcontextprotocol/server-redis` as an MCP server. This is its readme:<br /><br />
 								{redisExampleReadme}
 							</Tag>
 							<Tag name='response'>
-								{hasMcpJson && <>The readme has an example confirmation I'll work off of:<br />${clauseExampleConfiguration}</>}<br />
+								{hasMcpJson && <>I will adapt the Redis configuration from the readme.<br /></>}<br />
 								Based on {hasMcpJson ? 'this example' : 'the documentation'}, I need the following information to run the MCP server:<br />
 								- Redis hostname<br />
 								- Redis port number<br />
 								- Redis password (optional)<br />
 								<br />
 								I will now ask for this information.<br />
-								[[`{QuickInputTool.ID}` called requesting Redis hostname]]: "redis.example.com"<br />
-								[[`{QuickInputTool.ID}` called requesting Redis port number]]: "3000"<br />
+								[[`{QuickInputTool.ID}` called requesting Redis hostname]]: {'${input:hostname}'}<br />
+								[[`{QuickInputTool.ID}` called requesting Redis port number]]: {'${input:port}'}<br />
 								[[`{QuickInputTool.ID}` called requesting Redis port password]]: ""<br />
 								<br />
-								{!hasMcpJson && <>Based on this data, the command needed to run the MCP server is `npx @modelcontextprotocol/server-redis redis://example.com:6379`</>}
-								Based on this data, the command needed to run the MCP server is `npx @modelcontextprotocol/server-redis redis://example.com:6379`<br />
+								Use the returned references verbatim inside the Redis URL.<br />
 								<br />
 								Here is the JSON object that matches the provided schema:<br />
 								{redisExampleConfig}
 							</Tag>
-						</Tag>
+						</Tag>}
 					</InstructionMessage>
 				</HistoryWithInstructions>
 				<UserMessage flexGrow={3}>
@@ -114,7 +120,7 @@ class InstructionsWithMcpJson extends PromptElement<{ command: string; packageVe
 		const [command, ...args] = this.props.command.split(' ');
 		return <>
 			Think step by step:<br />
-			1. Read the documentation for the MCP server and find the section that discusses setting up a configuration with `mcpServers`. If there are multiple such examples, find the one that works best when run as `{`{"command":"${command}", "args": ["${args.join('", "')}", ...], , "env": { ... } }`}. State this configuration in your response.<br />
+			1. Read the documentation for the MCP server and find the section that discusses setting up a configuration with `mcpServers`. For a stdio server, prefer the example that runs as `{`{"command":"${command}", "args": ["${args.join('", "')}", ...], "env": { ... } }`}. Use it as a starting point, but do not emit intermediate JSON.<br />
 			2. Determine what placeholders are used in that example that the user would need to fill, such as configuration options, credentials, or API keys.<br />
 			3. Call the tool `{QuickInputTool.ID}` a maximum of 5 times to gather the placeholder information. You may make multiple calls using this tool in parallel, but the maximum number of questions must be 5.<br />
 			4. Transform that example configuration entry, replacing or adding any additional information the user gave you, into a JSON object matching the provided schema.<br />
@@ -222,7 +228,7 @@ const redisExampleConfig = `
 	"command": "npx",
 	"args": [
 		"@modelcontextprotocol/server-redis",
-		"redis://redis.example.com:3000"
+		"redis://\${input:hostname}:\${input:port}"
 	]
 }
 \`\`\`

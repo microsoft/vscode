@@ -310,12 +310,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._providerTypes = new Map<number, string>();
 		this._taskSystemInfos = new Map<string, ITaskSystemInfo[]>();
 		this._register(this._contextService.onDidChangeWorkspaceFolders(() => {
+			const taskServiceInitialized = !!this._taskSystem || !!this._workspaceTasksPromise;
 			const folderSetup = this._computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
 				this._disposeTaskSystemListeners();
 				this._taskSystem = undefined;
 			}
 			this._updateSetup(folderSetup);
+			if (!taskServiceInitialized) {
+				return;
+			}
 			return this._updateWorkspaceTasks(TaskRunSource.FolderOpen);
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(async (e) => {
@@ -2633,8 +2637,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		await ProblemMatcherRegistry.onReady();
 		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
 		const problemReporter = new ProblemReporter(this._outputChannel);
-		this._register(problemReporter.onDidError(error => this._showOutput(runSource, undefined, error)));
+		const problemReporterListener = problemReporter.onDidError(error => this._showOutput(runSource, undefined, error));
 		const parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this._contextKeyService);
+		problemReporterListener.dispose();
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
 			hasErrors = true;

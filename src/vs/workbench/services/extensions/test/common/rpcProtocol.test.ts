@@ -36,6 +36,7 @@ suite('RPCProtocol', () => {
 
 	let delegate: (a1: any, a2: any) => any;
 	let bProxy: BClass;
+	let bProtocol: RPCProtocol;
 	class BClass {
 		$m(a1: any, a2: any): Promise<any> {
 			return Promise.resolve(delegate.call(null, a1, a2));
@@ -51,11 +52,11 @@ suite('RPCProtocol', () => {
 		b_protocol.setPair(a_protocol);
 
 		const A = disposables.add(new RPCProtocol(a_protocol));
-		const B = disposables.add(new RPCProtocol(b_protocol));
+		bProtocol = disposables.add(new RPCProtocol(b_protocol));
 
 		const bIdentifier = new ProxyIdentifier<BClass>('bb');
 		const bInstance = new BClass();
-		B.set(bIdentifier, bInstance);
+		bProtocol.set(bIdentifier, bInstance);
 		bProxy = A.getProxy(bIdentifier);
 	});
 
@@ -158,6 +159,42 @@ suite('RPCProtocol', () => {
 		tokenSource.cancel();
 	});
 
+	test('releases cancellation handler when the invoked call does not settle', async function () {
+		let resolveRemoteToken!: (token: CancellationToken) => void;
+		const remoteToken = new Promise<CancellationToken>(resolve => resolveRemoteToken = resolve);
+		delegate = (_a1: number, token: CancellationToken) => {
+			resolveRemoteToken(token);
+			return new Promise(() => { });
+		};
+
+		const tokenSource = disposables.add(new CancellationTokenSource());
+		void bProxy.$m(4, tokenSource.token);
+		const token = await remoteToken;
+		const cancellationRequested = new Promise<void>(resolve => {
+			disposables.add(token.onCancellationRequested(() => resolve()));
+		});
+		tokenSource.cancel();
+		await cancellationRequested;
+
+		const cancelInvokedHandlers = Reflect.get(bProtocol, '_cancelInvokedHandlers') as Record<string, () => void>;
+		assert.deepStrictEqual(Object.keys(cancelInvokedHandlers), []);
+	});
+
+	test('does not track uncancellable calls that do not settle', async function () {
+		let resolveInvoked!: () => void;
+		const invoked = new Promise<void>(resolve => resolveInvoked = resolve);
+		delegate = () => {
+			resolveInvoked();
+			return new Promise(() => { });
+		};
+
+		void bProxy.$m(4, 1);
+		await invoked;
+
+		const cancelInvokedHandlers = Reflect.get(bProtocol, '_cancelInvokedHandlers') as Record<string, () => void>;
+		assert.deepStrictEqual(Object.keys(cancelInvokedHandlers), []);
+	});
+
 	test('throwing an error', function (done) {
 		delegate = (a1: number, a2: number) => {
 			throw new Error(`nope`);
@@ -227,7 +264,7 @@ suite('RPCProtocol', () => {
 		});
 	});
 
-	test('SerializableObjectWithBuffers is correctly transfered', function (done) {
+	test('SerializableObjectWithBuffers is correctly transferred', function (done) {
 		delegate = (a1: SerializableObjectWithBuffers<{ string: string; buff: VSBuffer }>, a2: number) => {
 			return new SerializableObjectWithBuffers({ string: a1.value.string + ' world', buff: a1.value.buff });
 		};

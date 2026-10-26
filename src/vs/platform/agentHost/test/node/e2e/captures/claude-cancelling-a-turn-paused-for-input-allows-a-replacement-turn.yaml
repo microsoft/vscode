@@ -1,0 +1,87 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use AskUserQuestion exactly once to ask "Which fruit?" with options "Apple" and "Banana". After the answer, reply with only the selected fruit.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: AskUserQuestion
+          input:
+            questions:
+              - question: Which fruit?
+                header: Fruit
+                options:
+                  - label: Apple
+                    description: Choose apple.
+                  - label: Banana
+                    description: Choose banana.
+                multiSelect: false
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use AskUserQuestion exactly once to ask "Which fruit?" with options "Apple" and "Banana". After the answer, reply with only the selected fruit.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: AskUserQuestion
+              input:
+                questions:
+                  - question: Which fruit?
+                    header: Fruit
+                    options:
+                      - label: Apple
+                        description: Choose apple.
+                      - label: Banana
+                        description: Choose banana.
+                    multiSelect: false
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Tool permission request failed: AbortError: Tool permission stream closed before response received'
+            - type: text
+              text: Continue from where you left off.
+        - role: assistant
+          content: No response requested.
+        - role: user
+          content: Reply exactly "replacement".
+    response:
+      content: replacement
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use AskUserQuestion exactly once to ask "Which fruit?" with options "Apple" and "Banana". After the answer, reply with only the selected fruit.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: AskUserQuestion
+              input:
+                questions:
+                  - question: Which fruit?
+                    header: Fruit
+                    options:
+                      - label: Apple
+                        description: Choose apple.
+                      - label: Banana
+                        description: Choose banana.
+                    multiSelect: false
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Tool permission request failed: AbortError: Tool permission stream closed before response received'
+    response:
+      content: The question was cancelled, so no fruit was selected.
+      stopReason: end_turn

@@ -37,8 +37,8 @@ function createModel(overrides: Partial<ILanguageModelChatMetadata> = {}): ILang
 	} as ILanguageModel;
 }
 
-function createVendor(vendor: string, displayName: string): ILanguageModelProviderDescriptor {
-	return { vendor, displayName, isDefault: false } as ILanguageModelProviderDescriptor;
+function createVendor(vendor: string, displayName: string, deprecation?: { link?: string }): ILanguageModelProviderDescriptor {
+	return { vendor, displayName, isDefault: false, deprecation } as ILanguageModelProviderDescriptor;
 }
 
 suite('ChatModelsWidget', () => {
@@ -194,6 +194,44 @@ suite('ChatModelsWidget', () => {
 			});
 		});
 
+		test('prepends GitHub Copilot sign-in when signed out', async () => {
+			const ran: string[] = [];
+			const actions = buildAddModelsDropdownActions(
+				[createVendor('anthropic', 'Anthropic')],
+				true,
+				vendor => { ran.push(vendor.vendor); },
+				() => { ran.push('copilot'); },
+			);
+
+			for (const action of actions) {
+				if (!(action instanceof Separator)) {
+					await action.run();
+				}
+			}
+
+			assert.deepStrictEqual({
+				actions: actions.map(action => action instanceof Separator ? 'separator' : `${action.id}:${action.label}`),
+				ran,
+			}, {
+				actions: ['signIn-github-copilot:GitHub Copilot', 'separator', 'enable-anthropic:Anthropic'],
+				ran: ['copilot', 'anthropic'],
+			});
+		});
+
+		test('offers GitHub Copilot sign-in when BYOK model addition is unavailable', () => {
+			const actions = buildAddModelsDropdownActions(
+				[createVendor('anthropic', 'Anthropic')],
+				false,
+				() => assert.fail('vendor action should not run'),
+				() => { },
+			);
+
+			assert.deepStrictEqual(
+				actions.map(action => action instanceof Separator ? 'separator' : `${action.id}:${action.label}`),
+				['signIn-github-copilot:GitHub Copilot'],
+			);
+		});
+
 		test('with no configurable vendors: no actions are returned', async () => {
 			const actions = buildAddModelsDropdownActions(
 				[],
@@ -233,6 +271,22 @@ suite('ChatModelsWidget', () => {
 				ran: ['acme', 'customendpoint'],
 			});
 		});
+
+		test('sinks deprecated providers to the end of the sorted list', () => {
+			const vendors = [
+				createVendor('zebra', 'Zebra'),
+				createVendor('ollama', 'Ollama (Deprecated)', { link: 'vscode:extension/Ollama.ollama' }),
+				createVendor('acme', 'Acme'),
+				createVendor('customoai', 'OpenAI Compatible (Deprecated)'),
+				createVendor('customendpoint', 'Custom Endpoint'),
+			];
+
+			const actions = buildAddModelsDropdownActions(vendors, true, () => { });
+
+			assert.deepStrictEqual(
+				actions.map(a => a instanceof Separator ? 'separator' : a.id),
+				['enable-acme', 'enable-zebra', 'enable-ollama', 'enable-customoai', 'separator', 'enable-customendpoint'],
+			);
+		});
 	});
 });
-

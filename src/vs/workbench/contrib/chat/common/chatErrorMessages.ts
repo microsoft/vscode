@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { readErrorDetail } from '../../../../platform/agentHost/common/meta/errorMeta.js';
 import type { ErrorInfo } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatEntitlement } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatErrorLevel, IChatResponseErrorDetails } from './chatService/chatService.js';
@@ -128,7 +130,7 @@ function getRateLimitMessage(fetchError: IChatFetchErrorPayload, copilotPlan: st
 		return localize({ key: 'chatError.rateLimit.overloaded', comment: [`{Locked=']({'}`] }, "Sorry, the upstream model provider is currently experiencing high demand. Please try again in {0} or consider switching to Auto. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 	}
 	if (code?.startsWith('user_global_rate_limited')) {
-		if (copilotPlan === 'free' || copilotPlan === 'individual' || copilotPlan === 'individual_pro') {
+		if (copilotPlan === 'free' || copilotPlan === 'individual' || copilotPlan === 'individual_pro' || copilotPlan === 'edu') {
 			return localize({ key: 'chatError.rateLimit.sessionUpgrade', comment: [`{Locked=']({'}`] }, "You've hit your session rate limit. Please upgrade your plan or wait {0} for your limit to reset. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 		}
 		return localize({ key: 'chatError.rateLimit.session', comment: [`{Locked=']({'}`] }, "You've hit your session rate limit. Please wait {0} for your limit to reset. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
@@ -185,6 +187,10 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 				return resetDateString
 					? localize('chatError.quota.ubb.individualDate', "You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro+, or wait until your credits reset on {0}.", resetDateString)
 					: localize('chatError.quota.ubb.individual', "You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro+, or wait for your credits to reset.");
+			case 'edu':
+				return resetDateString
+					? localize('chatError.quota.ubb.eduDate', "You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro, or wait until your credits reset on {0}.", resetDateString)
+					: localize('chatError.quota.ubb.edu', "You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro, or wait for your credits to reset.");
 			case 'individual_pro':
 			case 'individual_max':
 				return resetDateString
@@ -207,6 +213,8 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 			return localize('chatError.quota.free', "You've reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.");
 		case 'individual':
 			return localize('chatError.quota.individual', "You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro+, or wait for your allowance to renew.");
+		case 'edu':
+			return localize('chatError.quota.edu', "You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro, or wait for your allowance to renew.");
 		case 'individual_pro':
 		case 'individual_max':
 			return localize('chatError.quota.pro', "You've exhausted your premium model quota. Please enable additional paid premium requests or wait for your allowance to renew.");
@@ -347,8 +355,24 @@ function isForwardedChatError(value: unknown): value is IForwardedChatError {
  * whose fields take precedence over the values forwarded in `_meta`.
  */
 export function getChatErrorDetailsFromMeta(error: ErrorInfo | undefined, context?: IChatErrorContext): IChatResponseErrorDetails | undefined {
-	const meta = error?._meta;
-	const chatError = meta?.chatError;
+	const detail = error && readErrorDetail(error);
+	if (error && detail?.kind === 'diagnostic') {
+		const message = new MarkdownString().appendText(error.message);
+		if (detail.url && URL.canParse(detail.url)) {
+			const url = new URL(detail.url);
+			if (url.protocol === 'https:' || url.protocol === 'http:') {
+				message.appendText(' ').appendLink(detail.url, localize('copilotError.learnMore', "Learn More"));
+			}
+		}
+		return {
+			message: message.value,
+			code: detail.errorCode,
+			isRateLimited: error.errorType === 'rate_limit' || detail.statusCode === 429,
+			isQuotaExceeded: error.errorType === 'quota',
+			isExpectedError: error.errorType === 'rate_limit' || error.errorType === 'quota',
+		};
+	}
+	const chatError = detail?.kind === 'fetch' ? detail.value : undefined;
 	if (!isForwardedChatError(chatError)) {
 		return undefined;
 	}
@@ -391,7 +415,7 @@ export function getCopilotPlanFromEntitlement(entitlement: ChatEntitlement): str
 		case ChatEntitlement.Enterprise:
 			return 'enterprise';
 		case ChatEntitlement.EDU:
-			return 'individual';
+			return 'edu';
 		default:
 			return undefined;
 	}

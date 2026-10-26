@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { PermissionMode, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
+import { CLAUDE_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { getClaudeToolPath, isClaudeFileEditTool } from './claudeToolDisplay.js';
 
@@ -54,26 +56,25 @@ export class ClaudeFileEditObserver extends Disposable {
 	 * per-subagent: when a subagent emits the `tool_use`, its model
 	 * (not the parent's) is what we record.
 	 */
-	private readonly _editToolPaths = new Map<string, { readonly filePath: string; readonly toolName: string; readonly toolInput: unknown; readonly modelId: string | undefined }>();
+	private readonly _editToolPaths = new Map<string, { readonly filePath: string; readonly toolName: string; readonly toolInput: unknown; readonly modelId: string | undefined; readonly clientContext?: IAgentHostClientTelemetryContext; readonly chatUri?: string }>();
 
 	constructor(
 		sessionUri: string,
+		/** The session that owns the chat, read when an edit is attributed. */
+		owner: () => string,
 		dbRef: IReference<ISessionDatabase>,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		// Own the DB reference for this observer's lifetime so
-		// {@link FileEditTracker.takeCompletedEdit}'s `storeFileEdit` write
-		// has a live database. Disposed first — ahead of any owning
-		// session's WarmQuery abort — so any in-flight write completes
-		// against an open DB.
+		// Keep the connection warm; the tracker owns references for its writes.
 		this._register(dbRef);
-		this._editTracker = instantiationService.createInstance(
+		this._editTracker = this._register(instantiationService.createInstance(
 			FileEditTracker,
 			sessionUri,
-			dbRef.object,
-		);
+			owner,
+			CLAUDE_AGENT_PROVIDER_ID,
+		));
 	}
 
 	/**
@@ -82,7 +83,7 @@ export class ClaudeFileEditObserver extends Disposable {
 	 * the SDK yields a canonical `'assistant'` message (full
 	 * `tool_use.input` available).
 	 */
-	observeAssistant(message: Extract<SDKMessage, { type: 'assistant' }>): void {
+	observeAssistant(message: Extract<SDKMessage, { type: 'assistant' }>, mode?: PermissionMode, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string): void {
 		const content = message.message.content;
 		if (!Array.isArray(content)) {
 			return;
@@ -96,8 +97,8 @@ export class ClaudeFileEditObserver extends Disposable {
 			if (!filePath) {
 				continue;
 			}
-			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId });
-			void this._editTracker.trackEditStart(filePath).catch(err =>
+			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId, clientContext, chatUri });
+			void this._editTracker.trackEditStart(filePath, mode).catch(err =>
 				this._logService.warn(`[ClaudeFileEditObserver] trackEditStart failed for ${filePath}: ${err}`));
 		}
 	}
@@ -114,6 +115,7 @@ export class ClaudeFileEditObserver extends Disposable {
 		message: Extract<SDKMessage, { type: 'user' }>,
 		turnId: string,
 		mapperState: ClaudeMapperState,
+		chat?: { readonly uri: string; readonly isSubagent: boolean },
 	): Promise<void> {
 		const content = message.message.content;
 		if (!Array.isArray(content)) {
@@ -130,7 +132,8 @@ export class ClaudeFileEditObserver extends Disposable {
 			this._editToolPaths.delete(block.tool_use_id);
 			try {
 				await this._editTracker.completeEdit(tracked.filePath);
-				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId);
+				const editChatUri = chat?.isSubagent ? chat.uri : tracked.chatUri ?? chat?.uri;
+				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, chat?.isSubagent ?? false, tracked.clientContext, editChatUri);
 				if (fileEdit) {
 					mapperState.cacheFileEdit(block.tool_use_id, fileEdit);
 				}
@@ -138,5 +141,12 @@ export class ClaudeFileEditObserver extends Disposable {
 				this._logService.warn(`[ClaudeFileEditObserver] file edit tracking failed for ${tracked.filePath}: ${err}`);
 			}
 		}
+	}
+
+	override dispose(): void {
+		void this._editTracker.flushAttribution().catch(error => {
+			this._logService.warn(`[ClaudeFileEditObserver] Failed to flush edit attribution: ${error}`);
+		});
+		super.dispose();
 	}
 }
