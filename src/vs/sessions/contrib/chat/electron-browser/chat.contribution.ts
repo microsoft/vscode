@@ -47,6 +47,7 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import '../../../../workbench/contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
+import './chatBackgroundTool.contribution.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 
 /** Revokes editor request ownership when the next request is submitted here. */

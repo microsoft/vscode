@@ -11195,8 +11195,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 					owners: [['peer-pr', peer.resource.toString()], ['main-pr', main.resource.toString()]],
 					restrictedMain: [1],
 					restrictedPeer: [2],
-					automaticMain: [1, 2],
-					automaticPeer: [2, 1],
+					// Each PR was recorded by one chat, so only that chat shows it.
+					automaticMain: [1],
+					automaticPeer: [2],
 				});
 			});
 		}
@@ -12346,6 +12347,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 				whileNew: SessionStatus.Untitled,
 				afterSent: SessionStatus.Completed,
 			});
+		});
+
+		test('a new peer chat stops being Untitled when the host reports a turn sent by another client', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-new-remote');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-new-remote').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			(session as AgentHostSessionAdapter).markChatAsNew('peer-1');
+			const state = (status: ProtocolSessionStatus) => makeState([makeChatSummary(defaultChat, ''), makeChatSummary(peerChat, 'Peer', status)], { defaultChat });
+			const peer = () => session.chats.get().find(c => c.resource.fragment === 'peer-1')!.status.get();
+
+			agentHost.setSessionState('multi-new-remote', 'copilotcli', state(ProtocolSessionStatus.Idle));
+			const idle = peer();
+			agentHost.setSessionState('multi-new-remote', 'copilotcli', state(ProtocolSessionStatus.InProgress));
+			const running = peer();
+			agentHost.setSessionState('multi-new-remote', 'copilotcli', state(ProtocolSessionStatus.Idle));
+
+			assert.deepStrictEqual({ idle, running, finished: peer() }, { idle: SessionStatus.Untitled, running: SessionStatus.InProgress, finished: SessionStatus.Completed });
 		});
 
 		test('a peer catalog collapsed while capabilities were absent re-expands when they hydrate', () => {

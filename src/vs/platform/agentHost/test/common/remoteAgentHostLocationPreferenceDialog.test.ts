@@ -20,6 +20,7 @@ import {
 /** Captures the last `prompt()` call so tests can assert its exact shape without a real dialog UI. */
 class CapturingDialogService implements IDialogService {
 	declare readonly _serviceBrand: undefined;
+	readonly hasDialog = false;
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;
 

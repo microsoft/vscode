@@ -3233,6 +3233,55 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	for (const [name, addChat] of [
+		['a tool-origin chat', (titles: ReturnType<typeof createSessionTitleContributions>, chat: string) => titles.stateManager.addChat(titles.session, chat, creationTimeChatStorageResource(titles.session, chat, titles.defaultChat), { title: 'Subagent', origin: { kind: ChatOriginKind.Tool, chat: titles.defaultChat, toolCallId: 'tool-call' } })],
+		['a hidden chat', (titles: ReturnType<typeof createSessionTitleContributions>, chat: string) => titles.stateManager.addChat(titles.session, chat, creationTimeChatStorageResource(titles.session, chat, titles.defaultChat), { title: 'Hidden', interactivity: ChatInteractivity.Hidden })],
+	] as const) {
+		test(`carries a session rename to the default chat when the only other chat is ${name}`, async () => {
+			const titles = createSessionTitleContributions(disposables);
+			titles.stateManager.removeChat(titles.session, titles.peerChat);
+			titles.stateManager.updateChatTitle(titles.session, titles.defaultChat, 'List folder files');
+			addChat(titles, buildChatUri(titles.session, 'other'));
+			const action = { type: ActionType.SessionTitleChanged, title: 'S4' } as const;
+			titles.stateManager.dispatchServerAction(titles.session, action);
+			titles.service.didApplyClientAction(appliedClientAction(titles.session, titles.session, action));
+
+			assert.deepStrictEqual({
+				sessionTitle: titles.stateManager.getSessionState(titles.session)?.title,
+				chatTitle: titles.stateManager.getChatState(titles.defaultChat)?.title,
+				catalogTitle: titles.stateManager.getSessionState(titles.session)?.chats.find(chat => chat.resource === titles.defaultChat)?.title,
+				persistedChatTitle: await titles.database.getMetadata(customChatTitleMetadataKey(titles.defaultChat)),
+				persistedChatSource: await titles.database.getMetadata(customChatTitleSourceMetadataKey(titles.defaultChat)),
+			}, {
+				sessionTitle: 'S4',
+				chatTitle: 'S4',
+				catalogTitle: 'S4',
+				persistedChatTitle: 'S4',
+				persistedChatSource: AGENT_HOST_TITLE_SOURCE_USER,
+			});
+		});
+	}
+
+	test('keeps the default chat title on a session rename when the session has a peer chat', async () => {
+		const titles = createSessionTitleContributions(disposables);
+		titles.stateManager.updateChatTitle(titles.session, titles.defaultChat, 'List folder files');
+		const action = { type: ActionType.SessionTitleChanged, title: 'S4' } as const;
+		titles.stateManager.dispatchServerAction(titles.session, action);
+		titles.service.didApplyClientAction(appliedClientAction(titles.session, titles.session, action));
+
+		assert.deepStrictEqual({
+			sessionTitle: titles.stateManager.getSessionState(titles.session)?.title,
+			defaultChatTitle: titles.stateManager.getChatState(titles.defaultChat)?.title,
+			peerChatTitle: titles.stateManager.getChatState(titles.peerChat)?.title,
+			persistedChatTitle: await titles.database.getMetadata(customChatTitleMetadataKey(titles.defaultChat)),
+		}, {
+			sessionTitle: 'S4',
+			defaultChatTitle: 'List folder files',
+			peerChatTitle: 'Peer',
+			persistedChatTitle: undefined,
+		});
+	});
+
 	test('persists a session channel title', async () => {
 		const titles = createSessionTitleContributions(disposables);
 		const action = { type: ActionType.SessionTitleChanged, title: 'Renamed session' } as const;

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout, Sequencer } from '../../../../../../base/common/async.js';
+import { raceCancellationError, raceTimeout, Sequencer } from '../../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, ITransaction, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { stripUTF8BOM } from '../../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../../base/common/types.js';
@@ -48,6 +48,7 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ChatEditingModifiedDocumentEntry } from '../../chatEditing/chatEditingModifiedDocumentEntry.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { AgentHostCheckpointReview, IAgentHostCheckpointReviewSource } from './agentHostCheckpointReview.js';
 
 /** How long diffs between versions of a file may take before the file is compared as a whole. */
 const DIFF_TIMEOUT_MS = 1000;
@@ -237,14 +238,26 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 
 	private readonly _entries = new ResourceMap<AgentHostEditReviewEntry>();
 	private readonly _entriesObs = observableValue<readonly AgentHostEditReviewEntry[]>(this, []);
-	readonly entries: IObservable<readonly IModifiedFileEntry[]> = this._entriesObs;
+	readonly entries: IObservable<readonly IModifiedFileEntry[]> = derived(this, reader => this._entriesObs.read(reader).filter(entry => this._isFileVisible(entry, reader)));
+	private readonly _checkpointReview = observableValue<AgentHostCheckpointReview | undefined>(this, undefined);
 
-	private readonly _workingSet: IObservable<(IWorkingSet & { readonly subscription: IAgentSubscription<ChangesetState>; readonly state: IObservable<ChangesetState | undefined> }) | undefined>;
+	private readonly _rawChanges = derived<IAgentHostCheckpointReviewSource | undefined>(this, reader => {
+		const workingSet = this._workingSet.read(reader);
+		const state = workingSet?.state.read(reader);
+		return workingSet ? { channel: workingSet.channel, ready: state?.status === ChangesetStatus.Ready, failed: workingSet.failed.read(reader) || state?.status === ChangesetStatus.Error, files: state ? toWorkingSetFileChanges(state, workingSet.connectionAuthority) : [] } : undefined;
+	});
+	readonly fileChanges = derived(this, reader => {
+		const current = this._rawChanges.read(reader);
+		return current ? (this._checkpointReview.read(reader)?.project(current.channel, current.files, reader) ?? current.files).map(file => file.diff) : [];
+	});
+
+	private readonly _workingSet: IObservable<(IWorkingSet & { readonly subscription: IAgentSubscription<ChangesetState>; readonly state: IObservable<ChangesetState | undefined>; readonly failed: IObservable<boolean> }) | undefined>;
 	/** Follows the Working Set one update at a time. */
 	private readonly _updates = new Sequencer();
 	/** Runs operations one at a time, since each one changes the Working Set the next one checks. */
 	private readonly _operations = new Sequencer();
 	private readonly _blockedFiles = new ResourceSet();
+	private readonly _lifetimeToken = cancelOnDispose(this._store);
 
 	constructor(
 		readonly chatSessionResource: URI,
@@ -298,7 +311,12 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				return undefined;
 			}
 			const subscription = reader.store.add(current.connection.getSubscription(StateComponents.Changeset, current.channel, 'AgentHostEditReview')).object;
-			return { ...current, subscription, state: observableFromSubscription(this, subscription) };
+			return {
+				...current,
+				subscription,
+				state: observableFromSubscription(this, subscription),
+				failed: observableFromEvent(this, Event.any(subscription.onDidChange, subscription.onDidError ?? Event.None), () => subscription.value instanceof Error),
+			};
 		});
 		const retryBlockedFiles = observableSignalFromEvent(this, Event.filter(Event.any(
 			Event.map(this._textFileService.files.onDidSave, event => event.model),
@@ -308,7 +326,8 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			retryBlockedFiles.read(reader);
 			const current = this._workingSet.read(reader);
 			const state = current?.state.read(reader);
-			const files = current && state ? toWorkingSetFileChanges(state, current.connectionAuthority) : [];
+			const rawFiles = current && state ? toWorkingSetFileChanges(state, current.connectionAuthority) : [];
+			const files = current ? this._checkpointReview.read(reader)?.project(current.channel, rawFiles, reader) ?? rawFiles : rawFiles;
 			for (const file of files) {
 				if (file.editing) {
 					// An edit starts immediately, even while an earlier update is being read or diffed.
@@ -325,12 +344,28 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 
 	getEntry(uri: URI): IModifiedFileEntry | undefined {
-		return this._entries.get(uri);
+		const entry = this._entries.get(uri);
+		return entry && this._isFileVisible(entry) ? entry : undefined;
+	}
+
+	setCheckpointReview(review: AgentHostCheckpointReview): void {
+		this._register(review.registerSource(this._rawChanges));
+		this._checkpointReview.set(review, undefined);
+	}
+
+	async resolveEntry(uri: URI): Promise<IModifiedFileEntry | undefined> {
+		const workingSet = this._workingSet.get();
+		if (workingSet && !await whenReady(workingSet.subscription)) {
+			throw new Error(localize('agentHostEditReview.notReady', "The session's changes couldn't be checked. Try again."));
+		}
+		await raceCancellationError(this._updates.queue(async () => { }), this._lifetimeToken);
+		return this.getEntry(uri);
 	}
 
 	readEntry(uri: URI, reader: IReader): IModifiedFileEntry | undefined {
 		this._entriesObs.read(reader);
-		return this._entries.get(uri);
+		const entry = this._entries.get(uri);
+		return entry && this._isFileVisible(entry, reader) ? entry : undefined;
 	}
 
 	async accept(...uris: URI[]): Promise<void> {
@@ -477,6 +512,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			const prepared = await this._prepareFile(file, entry.modifiedModel, token);
 			await entry.update(file, prepared.original, prepared.edit);
 			entry.updateTelemetryInfo(this._getTelemetryInfo());
+			this._entriesObs.set([...this._entries.values()], undefined);
 			return;
 		}
 		if (entry) {
@@ -650,6 +686,9 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				}
 				return done;
 			} catch (error) {
+				if (this._store.isDisposed && isCancellationError(error)) {
+					return false;
+				}
 				this._notificationService.error(failed(basename(entry.modifiedURI), toErrorMessage(error)));
 				return false;
 			}
@@ -692,6 +731,31 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			throw new Error(localize('agentHostEditReview.editing', "The agent is editing this file. Try again once it has finished."));
 		}
 		await this._invokeOperation(workingSet, entry, shown, operationId, state, change && !file.diff.isCreated ? change : undefined);
+		if (change) {
+			const isUpdated = (state: ChangesetState | Error | undefined) => {
+				if (state instanceof Error || state?.status === ChangesetStatus.Error) {
+					return true;
+				}
+				const current = state && this._findWorkingSetFile(state, workingSet, entry);
+				return state?.status === ChangesetStatus.Ready && (!current || !isSameWorkingSetFile(current, shown));
+			};
+			if (!isUpdated(workingSet.subscription.value)) {
+				const updated = Event.toPromise(Event.filter(Event.any(workingSet.subscription.onDidChange, workingSet.subscription.onDidError ?? Event.None), () => isUpdated(workingSet.subscription.value)));
+				try {
+					await raceCancellationError(raceTimeout(updated, WORKING_SET_READY_TIMEOUT_MS, () => updated.cancel()), this._lifetimeToken);
+				} finally {
+					updated.cancel();
+				}
+			}
+			const updated = workingSet.subscription.value;
+			if (!isUpdated(updated) || updated instanceof Error || updated?.status !== ChangesetStatus.Ready) {
+				throw new Error(localize('agentHostEditReview.updatePending', "The decision was sent, but the updated changes could not be loaded. Check the working set before trying again."));
+			}
+			await this._updates.queue(async () => { });
+			if (this._isReviewing(entry)) {
+				await entry.getDiffInfo();
+			}
+		}
 		return true;
 	}
 
@@ -754,11 +818,17 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 
 	private _isReviewing(entry: AgentHostEditReviewEntry): boolean {
-		return this._entries.get(entry.modifiedURI) === entry;
+		return this._entries.get(entry.modifiedURI) === entry && this._isFileVisible(entry);
+	}
+
+	private _isFileVisible(entry: AgentHostEditReviewEntry, reader?: IReader): boolean {
+		const review = this._checkpointReview.read(reader);
+		const current = this._workingSet.read(reader);
+		return !review || !current || review.project(current.channel, [entry.file], reader).length > 0;
 	}
 
 	private _removeEntry(entry: AgentHostEditReviewEntry): void {
-		if (!this._isReviewing(entry)) {
+		if (this._entries.get(entry.modifiedURI) !== entry) {
 			return;
 		}
 		this._entries.delete(entry.modifiedURI);
@@ -807,6 +877,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	 */
 	private _getEntries(uris: readonly URI[]): readonly AgentHostEditReviewEntry[] {
 		return [...this._entries.values()]
+			.filter(entry => this._isFileVisible(entry))
 			.filter(entry => uris.length === 0 || uris.some(uri => isEqual(entry.modifiedURI, uri)))
 			.filter(entry => !entry.isCurrentlyBeingModifiedBy.get())
 			.filter(entry => entry.state.get() === ModifiedFileEntryState.Modified);
@@ -927,8 +998,13 @@ async function whenReady(subscription: IAgentSubscription<ChangesetState>): Prom
 	const isSettled = (state: ChangesetState | Error | undefined) => state instanceof Error || state?.status === ChangesetStatus.Ready || state?.status === ChangesetStatus.Error;
 	let state = subscription.value;
 	if (!isSettled(state)) {
-		const settled = Event.toPromise(Event.filter(subscription.onDidChange, isSettled));
-		state = await raceTimeout(settled, WORKING_SET_READY_TIMEOUT_MS, () => settled.cancel());
+		const settled = Event.toPromise(Event.filter(Event.any(subscription.onDidChange, subscription.onDidError ?? Event.None), () => isSettled(subscription.value)));
+		try {
+			await raceTimeout(settled, WORKING_SET_READY_TIMEOUT_MS, () => settled.cancel());
+		} finally {
+			settled.cancel();
+		}
+		state = subscription.value;
 	}
 	return state instanceof Error || state?.status !== ChangesetStatus.Ready ? undefined : state;
 }
