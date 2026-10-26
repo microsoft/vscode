@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -329,6 +330,83 @@ suite('Session sandbox configuration', () => {
 			})),
 			stored: local,
 		});
+	});
+
+	test('broadcasts background conflicts per chat, preserving confirmed state and selections', () => {
+		const { manager, configuration, create } = setupSession();
+		for (const enabled of [true, false, undefined]) {
+			const owner = create(`conflict-${enabled}`, { sandboxEnabled: 'off' });
+			const target = { session: owner, chat: buildDefaultChatUri(owner) };
+			const sibling = { session: owner, chat: buildChatUri(owner, 'sibling') };
+			manager.addChat(owner, sibling.chat, creationTimeChatStorageResource(owner, sibling.chat, target.chat));
+			configuration.setChatSandboxEnabled(sibling, true);
+			if (enabled !== undefined) {
+				configuration.setChatSandboxEnabled(target, enabled);
+			}
+			const updates: ActionType[] = [];
+			store.add(manager.onDidEmitEnvelope(envelope => updates.push(envelope.action.type)));
+
+			configuration.reportChatSandboxConflict(target, 'Managed sandbox conflict');
+			const failed = readChatSandboxState(manager.getSessionState(owner), target.chat);
+			configuration.reportChatSandboxConflict(target, 'Managed sandbox conflict');
+
+			assert.deepStrictEqual({
+				enabled: failed?.enabled,
+				message: failed?.error?.message,
+				hasId: failed?.error !== undefined && hasKey(failed.error, { id: true }) && failed.error.id.length > 0,
+				rejectedSelection: failed?.rejectedSelection,
+				selection: configuration.getChatConfigValues(target)?.sandboxEnabled,
+				sibling: readChatSandboxState(manager.getSessionState(owner), sibling.chat),
+				updates,
+				sessionState: readSessionSandboxState(manager.getSessionState(owner)),
+			}, {
+				enabled,
+				message: 'Managed sandbox conflict',
+				hasId: true,
+				rejectedSelection: undefined,
+				selection: 'off',
+				sibling: { enabled: true },
+				updates: [ActionType.SessionMetaChanged],
+				sessionState: failed,
+			});
+		}
+	});
+
+	test('validates host sandbox conflicts without inventing confirmed enablement', () => {
+		const parse = (state: Record<string, unknown>) => readSessionSandboxState({ _meta: { 'vscode.sandboxState': state } });
+		const error = { id: 'conflict-1', message: 'Managed sandbox conflict' };
+		assert.deepStrictEqual([
+			parse({ error }),
+			parse({ enabled: false, error }),
+			parse({}),
+			parse({ enabled: 'off', error }),
+			parse({ error: { ...error, id: '' } }),
+			parse({ error: { ...error, id: 1 } }),
+			parse({ error: { ...error, message: 1 } }),
+			parse({ error: { ...error, clientId: 'client', clientSeq: 1 } }),
+			parse({ error: { clientId: 'client', clientSeq: 1, message: 'Rejected' } }),
+		], [
+			{ enabled: undefined, error },
+			{ enabled: false, error },
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+		]);
+	});
+
+	test('transfers a sandbox conflict with unknown enablement without authorizing rollback', () => {
+		const { manager, configuration, create } = setupSession();
+		const source = create('source-conflict');
+		const target = create('target-conflict', { sandboxEnabled: 'off' });
+		const sourceChat = { session: source, chat: buildDefaultChatUri(source) };
+		const targetChat = { session: target, chat: buildDefaultChatUri(target) };
+		configuration.reportChatSandboxConflict(sourceChat, 'Managed sandbox conflict');
+		const state = readChatSandboxState(manager.getSessionState(source), sourceChat.chat)!;
+		configuration.setChatSandboxEnabled(targetChat, state.enabled, state.error);
+		configuration.rejectChatSandboxChange(targetChat, configuration.getChatConfigValues(targetChat), { clientId: 'client', clientSeq: 1 }, 'Rejected');
+
+		assert.deepStrictEqual({
+			state: readChatSandboxState(manager.getSessionState(target), targetChat.chat),
+			selection: configuration.getChatConfigValues(targetChat)?.sandboxEnabled,
+		}, { state, selection: 'off' });
 	});
 
 	test('publishes the error to its client before restoring the last successful sandbox value', () => {

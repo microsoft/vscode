@@ -5,6 +5,7 @@
 
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { hasKey } from '../../../../base/common/types.js';
 import { useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -518,8 +519,59 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				attachedSession = session;
 			},
 		};
-		return { manager, configuration, owner, updates, commands, launcher, plan, runtime, sandbox, logService, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
+		return { manager, configuration, owner, updates, commands, launcher, plan, runtime, sandbox, logService, set sandboxUpdateError(error: Error | undefined) { sandboxUpdateError = error; }, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
 	}
+
+	test('background sandbox conflicts are broadcast without disconnecting or claiming the rejected state', async () => {
+		const fixture = setup('create');
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'on' });
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+		fixture.sandboxUpdateError = Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } });
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const published: Array<{ enabled: boolean | undefined; message: string | undefined }> = [];
+		store.add(fixture.manager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionMetaChanged) {
+				const state = readChatSandboxState(envelope.action, target.chat);
+				published.push({ enabled: state?.enabled, message: state?.error?.message });
+			}
+		}));
+
+		await fixture.sandbox.applyConfig();
+		await fixture.sandbox.applyConfig();
+		const failed = fixture.sandboxState;
+		fixture.sandboxUpdateError = undefined;
+		await fixture.sandbox.applyConfig();
+
+		assert.deepStrictEqual({
+			disconnected: fixture.disconnected,
+			published,
+			broadcast: failed?.error !== undefined && hasKey(failed.error, { id: true }),
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			recovered: fixture.sandboxState,
+		}, {
+			disconnected: false,
+			published: [{ enabled: true, message: 'Managed sandbox conflict' }, { enabled: false, message: undefined }, { enabled: false, message: undefined }],
+			broadcast: true,
+			selection: 'off',
+			applied: [true, false],
+			recovered: { enabled: false },
+		});
+	});
+
+	test('create broadcasts a sandbox conflict even before any enablement has been confirmed', async () => {
+		const error = Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } });
+		const fixture = setup('create', true, false, false, undefined, error);
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			disconnected: fixture.disconnected,
+			enabled: fixture.sandboxState?.enabled,
+			message: fixture.sandboxState?.error?.message,
+			broadcast: fixture.sandboxState?.error !== undefined && hasKey(fixture.sandboxState.error, { id: true }),
+		}, { disconnected: false, enabled: undefined, message: error.message, broadcast: true });
+	});
 
 	test('resume reconciles an old bypass with unchanged managed policy without changing sibling chats', async () => {
 		const fixture = setup('resume', true, true, true);
@@ -534,7 +586,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		store.add(fixture.manager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.SessionMetaChanged) {
 				const state = readChatSandboxState(envelope.action, target.chat);
-				if (state) {
+				if (state?.enabled !== undefined) {
 					published.push(state.enabled);
 				}
 			}
@@ -937,13 +989,17 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 
 				assert.deepStrictEqual({
 					disconnected: fixture.disconnected,
-					published: fixture.sandboxState,
+					published: fixture.sandboxState?.enabled,
+					conflict: fixture.sandboxState?.error?.message,
+					broadcast: fixture.sandboxState?.error !== undefined && hasKey(fixture.sandboxState.error, { id: true }),
 					applied: fixture.updates.filter(update => update.sandboxConfig),
 					warnings: fixture.logService.warnings,
 					loggedSuccess: fixture.logService.infos.some(message => message.includes('Applied SDK sandboxConfig')),
 				}, {
 					disconnected: kind === 'resume',
-					published: { enabled: true },
+					published: true,
+					conflict: kind === 'resume' ? undefined : error.message,
+					broadcast: kind === 'create',
 					applied: [],
 					warnings: [{
 						message: kind === 'resume'

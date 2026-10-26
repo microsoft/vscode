@@ -359,17 +359,22 @@ export class CopilotSessionSandbox extends Disposable {
 			if (!unchanged && reportMutation) {
 				this._options.onDidChangeRuntimeConfig?.();
 			}
-			if (unchanged || await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(session, sandboxConfig, this._options.sessionId, this._logService, isResume || requestedSelection !== undefined))) {
-				this._appliedConfig = serialized;
-				this._disabledForSession = false;
-				this._configurationService.setChatSandboxEnabled(target, sandboxConfig.enabled);
-				if (isResume && requestedSelection === undefined && sandboxConfig.enabled
-					&& values?.[SessionConfigKey.SandboxEnabled] === 'off'
-					&& this._configurationService.getChatConfigValues(writeTarget) === values) {
-					this._configurationService.updateChatConfig(writeTarget, { [SessionConfigKey.SandboxEnabled]: 'on' });
+			if (!unchanged) {
+				const result = await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(session, sandboxConfig, this._options.sessionId, this._logService, isResume || requestedSelection !== undefined));
+				if (!result.applied) {
+					this._configurationService.reportChatSandboxConflict(target, result.message);
+					return;
 				}
-				await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(sandboxConfig));
 			}
+			this._appliedConfig = serialized;
+			this._disabledForSession = false;
+			this._configurationService.setChatSandboxEnabled(target, sandboxConfig.enabled);
+			if (isResume && requestedSelection === undefined && sandboxConfig.enabled
+				&& values?.[SessionConfigKey.SandboxEnabled] === 'off'
+				&& this._configurationService.getChatConfigValues(writeTarget) === values) {
+				this._configurationService.updateChatConfig(writeTarget, { [SessionConfigKey.SandboxEnabled]: 'on' });
+			}
+			await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(sandboxConfig));
 		} catch (err) {
 			if (failOnError) {
 				throw err;
