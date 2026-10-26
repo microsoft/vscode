@@ -231,6 +231,10 @@ export class DesktopWorkbench extends Workbench {
 		this._layoutDockedAuxBar();
 	}
 
+	protected override _onSessionsPartLayout(): void {
+		(this.editorGroupService.mainPart as DesktopMainEditorPart).layoutSessionActivityBarHost();
+	}
+
 	protected override _layoutGrid(): void {
 		const sessionsSize = this.workbenchGrid.getViewSize(this.sessionsPartView);
 		const editorSize = this.workbenchGrid.getViewSize(this.editorPartView);

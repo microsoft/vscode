@@ -14,8 +14,9 @@ import { SessionLayoutMode } from '../../../common/sessionLayoutMode.js';
 
 /**
  * While the chat of a chat window is below its editor or hidden, the Session Activity Bar of the chat window shows at the
- * right edge of the window, below the editor's tabs, as the main window shows it at the right edge of its editor area;
- * the groups at the right edge of the window make room for it. Beside the editor or alone, the chat shows it.
+ * right edge of the window, below the editor's tabs, as the main window shows it. Stacked, it runs in a column of its own
+ * beside the editor and the chat, and all the groups, their tabs included, end before it; with the chat hidden, the
+ * editor makes room for it below its tabs. Beside the editor or alone, the chat shows it.
  *
  * `scope` is the element of the chat window's editor part, within which the host applies to the chat window's strip.
  */
@@ -73,9 +74,14 @@ export function registerChatWindowActivityBarHost(part: IEditorPart, scope: HTML
 
 	store.add(autorun(reader => {
 		const isOccupied = occupancy.occupied.read(reader);
+		const stacked = layout.read(reader) === SessionLayoutMode.Stacked;
 		element.classList.toggle('occupied', isOccupied);
-		part.setContentRightInset(isOccupied ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
+		part.setGridRightInset(isOccupied && stacked ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
+		part.setContentRightInset(isOccupied && !stacked ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
 	}));
-	store.add(toDisposable(() => part.setContentRightInset(0)));
+	store.add(toDisposable(() => {
+		part.setGridRightInset(0);
+		part.setContentRightInset(0);
+	}));
 	return store;
 }

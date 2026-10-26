@@ -238,6 +238,14 @@
 	margin-left: var(--agents-floating-panel-gap);
 }
 
+/* Stacked, the side pane and the Sessions Part end before a column at their right, beside both, such as the one the
+ * Session Activity Bar runs in (`getStackedSidePaneColumnWidth`). */
+.agent-sessions-workbench.side-pane-stacked.stacked-side-pane-column .monaco-grid-view .part.editor:not(.modal-editor-part),
+.agent-sessions-workbench.side-pane-stacked.stacked-side-pane-column .part.sessionspart.agents-part-card,
+.agent-sessions-workbench.side-pane-stacked.stacked-side-pane-column:not(.phone-layout):not(.modern-ui-compact):not(.noeditorpane) .part.sessionspart.agents-part-card {
+	margin-right: var(--agents-stacked-side-pane-column-width);
+}
+
 /* Compact surfaces share a single separator without reserving space for card frames. */
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-part-card,
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .part:is(.panel, .auxiliarybar),
@@ -306,6 +314,11 @@
 .agent-sessions-workbench.side-pane-stacked:not(.noeditorpane) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.horizontal {
 	height: max(var(--vscode-sash-size), var(--agents-floating-panel-gap));
 	transform: translateY(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--agents-floating-panel-gap)) + var(--agents-floating-panel-gap) - var(--agents-session-frame-inset) - var(--agents-session-frame-inset)) / 2));
+}
+
+/* The sash between the side pane and the Sessions Part ends with them, before the column beside both. */
+.agent-sessions-workbench.side-pane-stacked.stacked-side-pane-column:not(.noeditorpane) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.horizontal:first-child {
+	max-width: calc(100% - var(--agents-stacked-side-pane-column-width));
 }
 
 /*

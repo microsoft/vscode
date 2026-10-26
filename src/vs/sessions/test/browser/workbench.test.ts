@@ -21,7 +21,7 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, AGENTS_STACKED_SIDE_PANE_COLUMN_CLASS, getStackedSidePaneColumnWidth } from '../../browser/parts/agentsPartCard.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
@@ -4302,6 +4302,30 @@ suite('Sessions - Workbench', () => {
 		} finally {
 			store.dispose();
 		}
+	});
+
+	test('keeps a column at the right of the stacked side pane and the Sessions Part, laying the Sessions Part out again as its allocation does not change', () => {
+		const setColumn = Workbench.prototype.setStackedSidePaneColumnWidth as (this: object, width: number) => void;
+		const mainContainer = mainWindow.document.createElement('div');
+		const layouts: number[][] = [];
+		const sessionsPart = { dimension: { width: 900, height: 500 }, contentPosition: { top: 300, left: 260 }, layout: (...args: number[]) => layouts.push(args) };
+		const harness = { mainContainer, parts: new Map<string, unknown>([[Parts.SESSIONS_PART, sessionsPart]]), _stackedSidePaneColumnWidth: 0 };
+		const column = () => ({ width: getStackedSidePaneColumnWidth(mainContainer), marked: mainContainer.classList.contains(AGENTS_STACKED_SIDE_PANE_COLUMN_CLASS) });
+
+		const before = column();
+		setColumn.call(harness, 34);
+		const kept = column();
+		setColumn.call(harness, 34);
+		setColumn.call(harness, 0);
+		const givenBack = column();
+
+		assert.deepStrictEqual({ before, kept, givenBack, layouts }, {
+			before: { width: 0, marked: false },
+			kept: { width: 34, marked: true },
+			givenBack: { width: 0, marked: false },
+			// Once as the column is kept, not again for the same width, and once as it is given back.
+			layouts: [[900, 500, 300, 260], [900, 500, 300, 260]],
+		});
 	});
 
 	test('a stacked side pane keeps its width-based visibility and sizes out of the side-by-side memory', () => {

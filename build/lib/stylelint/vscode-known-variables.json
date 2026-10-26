@@ -1008,6 +1008,7 @@
 		"--agents-part-frame-border-width",
 		"--agents-session-frame-inset",
 		"--agents-side-pane-frame-inset",
+		"--agents-stacked-side-pane-column-width",
 		"--agents-window-corner-radius",
 		"--session-chat-base-height",
 		"--session-group-depth",

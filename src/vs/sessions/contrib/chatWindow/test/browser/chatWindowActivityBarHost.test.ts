@@ -12,6 +12,8 @@ import { MockScopableContextKeyService } from '../../../../../platform/keybindin
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { EditorGroupView } from '../../../../../workbench/browser/parts/editor/editorGroupView.js';
 import { createEditorPart, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { GroupDirection } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { findSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../browser/parts/sessionActivityBar.js';
 import { SessionLayoutMode } from '../../../../common/sessionLayoutMode.js';
 import { registerChatWindowActivityBarHost } from '../../browser/chatWindowActivityBarHost.js';
 
@@ -49,4 +51,31 @@ suite('Chat window - Session Activity Bar host', () => {
 			});
 		});
 	}
+
+	test('stacked, the editor and the chat end before one column beside both; with the chat hidden, the editor makes room for the strip below its tabs', async () => {
+		const results: Record<string, unknown> = {};
+		for (const mode of [SessionLayoutMode.Stacked, SessionLayoutMode.EditorOnly]) {
+			const store = disposables.add(new DisposableStore());
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, store);
+			instantiationService.stub(IWorkbenchLayoutService, new TestHostLayoutService());
+			const part = await createEditorPart(instantiationService, store);
+			const editor = part.activeGroup as EditorGroupView;
+			const chat = part.addGroup(editor, GroupDirection.DOWN) as EditorGroupView;
+			store.add(registerChatWindowActivityBarHost(part, part.element, constObservable(mode), () => editor));
+			// As the strip does once it shows in the host.
+			findSessionActivityBarExternalHost(part.element)!.setOccupied(store, true);
+			const widths = (group: EditorGroupView) => ({ group: part.getSize(group).width, content: parseInt(group.element.querySelector<HTMLElement>('.editor-container')!.style.width) });
+			results[mode] = { editor: widths(editor), chat: widths(chat) };
+			store.dispose();
+		}
+
+		const width = 1080;
+		const column = SESSION_ACTIVITY_BAR_COLUMN_WIDTH;
+		assert.deepStrictEqual(results, {
+			// Both groups, tabs included, end before the column, and their content fills them.
+			[SessionLayoutMode.Stacked]: { editor: { group: width - column, content: width - column }, chat: { group: width - column, content: width - column } },
+			// Below the editor's full-width tabs, the content of the groups at the right edge leaves the column.
+			[SessionLayoutMode.EditorOnly]: { editor: { group: width, content: width - column }, chat: { group: width, content: width - column } },
+		});
+	});
 });
