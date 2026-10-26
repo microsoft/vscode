@@ -294,6 +294,22 @@ suite('Detect Changes', () => {
 			.map(([id, job]) => `${workflow}: ${id}: ${job.name}`)), []);
 	});
 
+	test('compile, Monaco Editor and telemetry run after Detect Changes and appear first in the job group', () => {
+		const { jobs } = loadWorkflow();
+		assert.deepStrictEqual(Object.entries(jobs).slice(0, 4).map(([id, job]) => ({
+			id,
+			name: job.name,
+			needs: job.needs,
+			if: job.if,
+			uses: job.uses,
+		})), [
+			{ id: 'changes', name: 'Detect Changes', needs: undefined, if: undefined, uses: undefined },
+			{ id: 'compile', name: 'Compile & Hygiene', needs: 'changes', if: '${{ !cancelled() }}', uses: undefined },
+			{ id: 'monaco-editor', name: 'Monaco Editor', needs: 'changes', if: '${{ !cancelled() }}', uses: undefined },
+			{ id: 'telemetry', name: 'Telemetry', needs: 'changes', if: '${{ !cancelled() }}', uses: undefined },
+		]);
+	});
+
 	test('PR Gate reports the result of every other job of the workflow', () => {
 		const { jobs } = loadWorkflow();
 		const gate = jobs['pr-gate'];
