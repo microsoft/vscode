@@ -1236,6 +1236,11 @@ export async function resolveMcpServerAuthentication(
 				});
 			await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true, agentHostMeta);
 			return true;
+		}).catch(error => {
+			if (error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
+				throw new CancellationError();
+			}
+			throw error;
 		});
 		if (authenticated) {
 			return true;

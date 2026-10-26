@@ -1041,6 +1041,36 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 	});
 
+	for (const failure of ['Cancelled', new Error('Cancelled')]) {
+		test(`does not notify for legacy provider cancellation as ${typeof failure}`, async () => {
+			const notifications: string[] = [];
+			const sut = createSut(undefined, {
+				notifications,
+				configure: instantiationService => instantiationService.stub(IAuthenticationService, {
+					getOrActivateProviderIdForServer: async () => 'provider',
+					getSessions: async () => [],
+					getProvider: () => new class extends mock<IAuthenticationProvider>() {
+						override readonly supportsMultipleAccounts = false;
+					}(),
+					createSession: async () => { throw failure; },
+				}),
+			});
+			const session = URI.parse('vscode-agent-session:///session-1');
+			const target = new FakeTarget([{
+				...mcpServer('server-1', 'Server One'),
+				state: {
+					kind: McpServerStatus.AuthRequired,
+					reason: McpAuthRequiredReason.Required,
+					resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
+				},
+			}]);
+			sut.setTarget(session, target);
+			assert.deepStrictEqual({ result: await sut.authenticateMcpServer(session, 'server-1'), notifications, tokens: target.authenticateCalls }, {
+				result: false, notifications: [], tokens: [],
+			});
+		});
+	}
+
 	test('does not forward credentials or repeat the start when sign-in is cancelled', async () => {
 		const notifications: string[] = [];
 		const sut = createSut(new CancellationError(), { notifications });
