@@ -44,12 +44,12 @@ import { ITextResourceConfigurationService } from '../../../../editor/common/ser
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_ID } from '../common/changes.js';
+import { ActiveSessionContextKeys } from '../common/changes.js';
 import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { findSessionByResource } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { IChangesSessionScope, IChangesViewService } from '../common/changesViewService.js';
-import { ChangesActionsBar, createChangesSessionScope, DesktopChangesViewPane } from './changesView.js';
+import { ChangesActionsBar, createChangesSessionScope } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
