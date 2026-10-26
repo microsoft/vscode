@@ -117,6 +117,7 @@ export class TaskTurnStreamer {
 		const decision = baseline.permissionDecision;
 		let automation = false;
 		let decisionOutcomeReported = false;
+		let decisionOutcomeVerified = false;
 		const reportedPermissionErrors = new Set<string>();
 
 		const publishProgress = () => {
@@ -187,6 +188,7 @@ export class TaskTurnStreamer {
 							if (kind?.startsWith('denied')) {
 								stream.markdown(vscode.l10n.t('The cloud runtime denied the permission request.'));
 								decisionOutcomeReported = true;
+								decisionOutcomeVerified = true;
 							} else if (kind === 'approved') {
 								const toolCallId = completed.data.toolCallId ?? decision.toolCallId;
 								if (!toolCallId) {
@@ -201,6 +203,7 @@ export class TaskTurnStreamer {
 											stream.warning(vscode.l10n.t('The cloud runtime answered the permission request, but the tool call failed.'));
 										}
 										decisionOutcomeReported = true;
+										decisionOutcomeVerified = true;
 									}
 								}
 							} else {
@@ -210,7 +213,7 @@ export class TaskTurnStreamer {
 						}
 					}
 				}
-				if (decision && Date.now() - observationStarted >= (baseline.observationTimeoutMs ?? 60_000)) {
+				if (decision && !decisionOutcomeVerified && Date.now() - observationStarted >= (baseline.observationTimeoutMs ?? 60_000)) {
 					if (!decisionOutcomeReported) {
 						stream.warning(vscode.l10n.t('Decision submitted, but cloud resumption was not observed. Refresh the session to check its state; do not submit the decision again.'));
 					}
