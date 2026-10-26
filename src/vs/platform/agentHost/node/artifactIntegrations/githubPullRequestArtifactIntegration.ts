@@ -15,7 +15,7 @@ import { autorun, derived, IObservable, IReader, observableSignalFromEvent, obse
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ArtifactAction, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactAction, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactGroupPresentation, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactConfigurationConflictError, ArtifactRetryLimitError } from '../../../artifactIntegrations/common/artifactIntegrationStore.js';
 import { firstCredentialFailure, FragmentState, GitHubFragmentError, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestReviewThread, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
@@ -160,6 +160,7 @@ class GitHubPullRequestArtifactResource extends Disposable {
 export class GitHubPullRequestArtifactIntegration implements IArtifactIntegration<GitHubPullRequestArtifactResource> {
 	readonly id = gitHubPullRequestArtifactIntegrationId;
 	readonly label = localize('prArtifact.integration', "GitHub Pull Request");
+	readonly groupLabel = localize('prArtifact.groupLabel', "Pull Requests");
 	readonly description = 'GitHub pull request links recorded as artifacts rather than references';
 	readonly automationOptions = gitHubPullRequestArtifactOptions;
 	readonly onDidChange: Event<void>;
@@ -384,10 +385,11 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			const skipped = checkStates.filter(state => state === 'skipped').length;
 			const checksIcon = checkIcon(failed ? 'failed' : checkStates.includes('pending') ? 'pending' : passed ? 'passed' : 'skipped');
 			const mergeability = snapshot.mergeability;
+			const conflicting = hasPresentationData(mergeability, core?.headSha) && mergeability.value.mergeable === 'CONFLICTING';
 			const visibleActions = new Set([
 				...threads.length ? ['addressReviews'] : [],
 				...failed ? ['fixCI'] : [],
-				...hasPresentationData(mergeability, core?.headSha) && (mergeability.value.mergeable === 'CONFLICTING' || mergeability.value.mergeStateStatus === 'BEHIND') ? ['resolveConflicts'] : [],
+				...hasPresentationData(mergeability, core?.headSha) && (conflicting || mergeability.value.mergeStateStatus === 'BEHIND') ? ['resolveConflicts'] : [],
 				core?.draft ? 'markReady' : 'merge',
 			]);
 			const resourceAvailability = this.availability(snapshot);
@@ -395,6 +397,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			return {
 				availability,
 				main: { label: `#${resource.target.number}`, icon: this.mainIcon(snapshot), detailsId: 'main', description: core ? `${this.stateLabel(snapshot)}: ${core.title}` : localize('prArtifact.loading', "Loading pull request.") },
+				...(hasCore && core ? { group: getPullRequestGroupPresentation(core, { needsRepair: open && (failed > 0 || conflicting), hasComments: threads.length > 0 }) } : {}),
 				sections: [
 					...(showChecks ? [{
 						id: 'checks', detailsId: 'checks',
@@ -483,10 +486,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 
 	private mainIcon(snapshot: PullRequestSnapshot): ArtifactIcon {
 		const core = snapshot.core.value;
-		return core?.state === 'merged' ? { id: 'git-merge', colorId: 'charts.purple' }
-			: core?.state === 'closed' ? { id: 'git-pull-request-closed', colorId: 'charts.red' }
-				: core?.draft ? { id: 'git-pull-request-draft', colorId: 'descriptionForeground' }
-					: { id: 'git-pull-request', colorId: 'charts.green' };
+		return pullRequestStateIcons[core ? getPullRequestDisplayState(core) : 'open'];
 	}
 
 	private stateLabel(snapshot: PullRequestSnapshot): string {
@@ -1079,4 +1079,39 @@ function checkIcon(state: ReturnType<typeof checkPresentationState>): ArtifactIc
 		: state === 'failed' ? { id: 'error-compact', colorId: 'errorForeground' }
 			: state === 'skipped' ? { id: 'skip', colorId: 'descriptionForeground' }
 				: { id: 'sync-compact', colorId: 'editorWarning.foreground' };
+}
+
+type PullRequestDisplayState = 'open' | 'draft' | 'merged' | 'closed';
+
+/** GitHub keeps `draft` on closed pull requests, so only an open pull request is presented as a draft. */
+function getPullRequestDisplayState(core: Pick<PullRequestCore, 'state' | 'draft'>): PullRequestDisplayState {
+	return core.state === 'open' && core.draft ? 'draft' : core.state;
+}
+
+/** The state icons shared by a pull request's main part and its group presentation. */
+const pullRequestStateIcons: Readonly<Record<PullRequestDisplayState, ArtifactIcon>> = {
+	open: { id: 'git-pull-request', colorId: 'charts.green' },
+	draft: { id: 'git-pull-request-draft', colorId: 'descriptionForeground' },
+	merged: { id: 'git-pull-request-done', colorId: 'charts.purple' },
+	closed: { id: 'git-pull-request-closed', colorId: 'charts.red' },
+};
+
+/**
+ * Ranks a pull request within a group of pull requests: one that needs repair (failing checks or merge conflicts)
+ * comes first, then an open one with unresolved comments, open, draft, merged and closed.
+ */
+export function getPullRequestGroupPresentation(core: Pick<PullRequestCore, 'state' | 'draft'>, status: { readonly needsRepair: boolean; readonly hasComments: boolean }): ArtifactGroupPresentation {
+	const state = getPullRequestDisplayState(core);
+	if (state === 'merged' || state === 'closed') {
+		return { icon: pullRequestStateIcons[state], priority: state === 'merged' ? 2 : 1 };
+	}
+	if (status.needsRepair) {
+		return { icon: { id: 'git-pull-request-error', colorId: 'charts.orange' }, priority: 6 };
+	}
+	if (state === 'draft') {
+		return { icon: pullRequestStateIcons.draft, priority: 3 };
+	}
+	return status.hasComments
+		? { icon: { id: 'git-pull-request-comment', colorId: 'charts.green' }, priority: 5 }
+		: { icon: pullRequestStateIcons.open, priority: 4 };
 }
