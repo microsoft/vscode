@@ -487,6 +487,12 @@
 	overflow: hidden;
 }
 
+/* At the right edge of the editor part, the docked detail panel follows the part's bottom right corner: square, its own
+ * background would cover the part's border there. */
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar.docked-auxiliarybar-flush-right {
+	border-bottom-right-radius: inherit;
+}
+
 /* ---- Modal Editor ---- */
 
 .agent-sessions-workbench .monaco-modal-editor-block {

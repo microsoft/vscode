@@ -68,7 +68,9 @@ suite('Chat window - Session Activity Bar host', () => {
 			findSessionActivityBarExternalHost(part.element)!.setOccupied(store, true);
 			const widths = (group: EditorGroupView) => ({ group: part.getSize(group).width, content: parseInt(group.element.querySelector<HTMLElement>('.editor-container')!.style.width) });
 			const host = part.element.querySelector<HTMLElement>('.session-activity-bar-editor-host')!;
-			results[mode] = { editor: widths(editor), chat: widths(chat), host: { top: host.style.top, bottom: parseInt(host.style.top) + parseInt(host.style.height) === part.contentDimension.height, column: host.classList.contains('stacked-column') } };
+			// The grid's views take the width of its container, not the one it is laid out at: the container ends with the grid.
+			const groupsContainer = part.element.querySelector<HTMLElement>(':scope > .content')!;
+			results[mode] = { groupsContainer: groupsContainer.style.width, editor: widths(editor), chat: widths(chat), host: { top: host.style.top, bottom: parseInt(host.style.top) + parseInt(host.style.height) === part.contentDimension.height, column: host.classList.contains('stacked-column') } };
 			store.dispose();
 		}
 
@@ -76,9 +78,9 @@ suite('Chat window - Session Activity Bar host', () => {
 		const column = SESSION_ACTIVITY_BAR_COLUMN_WIDTH;
 		assert.deepStrictEqual(results, {
 			// Both groups, tabs included, end before the column, which runs from the top of the window to its bottom.
-			[SessionLayoutMode.Stacked]: { editor: { group: width - column, content: width - column }, chat: { group: width - column, content: width - column }, host: { top: '0px', bottom: true, column: true } },
+			[SessionLayoutMode.Stacked]: { groupsContainer: `${width - column}px`, editor: { group: width - column, content: width - column }, chat: { group: width - column, content: width - column }, host: { top: '0px', bottom: true, column: true } },
 			// Below the editor's full-width tabs, the content of the groups at the right edge leaves the column.
-			[SessionLayoutMode.EditorOnly]: { editor: { group: width, content: width - column }, chat: { group: width, content: width - column }, host: { top: '35px', bottom: true, column: false } },
+			[SessionLayoutMode.EditorOnly]: { groupsContainer: '', editor: { group: width, content: width - column }, chat: { group: width, content: width - column }, host: { top: '35px', bottom: true, column: false } },
 		});
 	});
 });

@@ -100,6 +100,8 @@ export class DockedAuxiliaryBarController extends Disposable {
 		auxiliaryBarContainer.style.display = '';
 		auxiliaryBarContainer.style.position = 'absolute';
 		auxiliaryBarContainer.style.right = `${reserved}px`;
+		// At the right edge of the editor part, it ends in the part's rounded corner rather than over its border.
+		auxiliaryBarContainer.classList.toggle('docked-auxiliarybar-flush-right', reserved === 0);
 		auxiliaryBarContainer.style.top = `${top}px`;
 		auxiliaryBarContainer.style.width = `${auxWidth}px`;
 		auxiliaryBarContainer.style.height = `${height}px`;

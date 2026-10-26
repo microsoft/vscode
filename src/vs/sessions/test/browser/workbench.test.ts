@@ -2944,6 +2944,41 @@ suite('Sessions - Workbench', () => {
 		controller.dispose();
 	});
 
+	test('docked detail panel follows the rounded corner of the editor part at its right edge, not beside a column it leaves free', () => {
+		const editorContainer = document.createElement('div');
+		const auxiliaryBarContainer = document.createElement('div');
+		editorContainer.getBoundingClientRect = () => ({ width: 800, height: 600, top: 0, right: 800, bottom: 600, left: 0, x: 0, y: 0, toJSON: () => undefined });
+		const auxiliaryBarPart = { getContainer: () => auxiliaryBarContainer, layout: () => { } } as unknown as Part;
+		let reserved = 0;
+		const host: IDockedAuxiliaryBarHost = {
+			getWidth: () => 260,
+			setWidth: () => { },
+			isEditorAreaVisible: () => true,
+			isEditorVisible: () => true,
+			isAuxiliaryBarVisible: () => true,
+			hideAuxiliaryBar: () => { },
+			setEditorContentRightInset: () => { },
+			getTabsHeight: () => 33,
+			getRightReservedWidth: () => reserved,
+		};
+		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
+		const corner = () => ({ right: auxiliaryBarContainer.style.right, followsCorner: auxiliaryBarContainer.classList.contains('docked-auxiliarybar-flush-right') });
+
+		controller.layout();
+		const flush = corner();
+		// Such as beside the Session Activity Bar at the edge of the editor area.
+		reserved = 34;
+		controller.layout();
+		const besideColumn = corner();
+
+		assert.deepStrictEqual({ flush, besideColumn }, {
+			flush: { right: '0px', followsCorner: true },
+			besideColumn: { right: '34px', followsCorner: false },
+		});
+
+		controller.dispose();
+	});
+
 	test('fills the narrowed docked detail node and disables its overlay sash when editor content is hidden', () => {
 
 		const editorContainer = document.createElement('div');
