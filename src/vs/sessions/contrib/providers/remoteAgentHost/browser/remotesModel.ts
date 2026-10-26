@@ -14,7 +14,7 @@ import { localize } from '../../../../../nls.js';
 import { IDiscoveredDevContainer } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION, TunnelAuthenticationRequiredError } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
@@ -32,7 +32,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { changeRemoteAgentHostLocationPreference, confirmTunnelDeletion, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, upgradeRemoteHost } from './remoteHostOptions.js';
+import { changeRemoteAgentHostLocationPreference, confirmTunnelDeletion, disconnectSSHEntry, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
 
 export const remoteKinds = ['ssh', 'wsl', 'tunnel', 'environment', 'devContainer'] as const;
@@ -77,6 +77,7 @@ export interface IRemotesModel extends IDisposable {
 	changePreferredAgentLocation(id: string): Promise<void>;
 	updateServer(id: string): Promise<void>;
 	deleteTunnel(id: string): Promise<void>;
+	deleteSSHHost(id: string): Promise<void>;
 	remove(id: string): Promise<void>;
 	setHidden(id: string, hidden: boolean): void;
 }
@@ -110,6 +111,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	private remoteTunnelStatus: TunnelStatus | undefined;
 	private receivedTunnelStatusEvent = false;
 	private tunnelDiscoveryVersion = 0;
+	private sshConfigAddresses: ReadonlySet<string> | undefined;
+	private sshDiscoveryVersion = 0;
 
 	constructor(
 		private readonly discoverDevContainers: (token: CancellationToken) => Promise<readonly IDiscoveredDevContainer[]>,
@@ -181,12 +184,14 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		}
 		const discover = async (kind: RemoteKind, task: () => Promise<readonly RemoteTarget[]>): Promise<RemoteKind | undefined> => {
 			const tunnelDiscoveryVersion = this.tunnelDiscoveryVersion;
+			const sshDiscoveryVersion = this.sshDiscoveryVersion;
 			progress?.report({ kind, refreshing: true });
 			let failed = false;
 			try {
 				const targets = await task();
 				if (!token.isCancellationRequested && !this._store.isDisposed && this.enabled
-					&& (kind !== 'tunnel' || tunnelDiscoveryVersion === this.tunnelDiscoveryVersion)) {
+					&& (kind !== 'tunnel' || tunnelDiscoveryVersion === this.tunnelDiscoveryVersion)
+					&& (kind !== 'ssh' || sshDiscoveryVersion === this.sshDiscoveryVersion)) {
 					for (const [id, target] of this.targets) {
 						if (target.kind === kind) {
 							this.targets.delete(id);
@@ -195,6 +200,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					for (const target of targets) {
 						this.targets.set(this.getId(target), target);
 					}
+					if (kind === 'ssh') {
+						this.sshConfigAddresses = new Set(targets.map(target => this.getId(target)));
+					}
 					if (kind === 'tunnel') {
 						this._tunnelAuthenticationRequired.set(undefined, undefined);
 					}
@@ -202,6 +210,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				}
 			} catch (error) {
 				if (!token.isCancellationRequested && !isCancellationError(error)) {
+					if (kind === 'ssh' && !this._store.isDisposed) {
+						this.sshConfigAddresses = undefined;
+						this.update();
+					}
 					if (kind === 'tunnel' && !this._store.isDisposed && this.enabled) {
 						this._tunnelAuthenticationRequired.set(error instanceof TunnelAuthenticationRequiredError ? error.authProvider : undefined, undefined);
 					}
@@ -428,6 +440,58 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		}
 	}
 
+	async deleteSSHHost(id: string): Promise<void> {
+		const connection = await this.checkSSHHostDeletion(id);
+		const remote = this._remotes.get().find(remote => remote.id === id);
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
+			message: localize('remotes.deleteSSHConfirmation', "Are you sure you want to delete saved SSH connection '{0}'?", remote?.name ?? id),
+			detail: localize('remotes.deleteSSHDetail', "This forgets the saved connection and disconnects this client. Your SSH configuration and files on the remote machine will not be deleted."),
+			primaryButton: localize('remotes.deleteSSHButton', "&&Delete"),
+		});
+		if (!confirmed) {
+			return;
+		}
+		const current = await this.checkSSHHostDeletion(id);
+		if (sshConnectionKey(current) !== sshConnectionKey(connection)) {
+			throw new CancellationError();
+		}
+		removeSSHRemoteAgentHostEntry(this.storageService, id);
+		this.sshDiscoveryVersion++;
+		try {
+			await disconnectSSHEntry(current, this.remoteAgentHostService, this.sshService);
+		} finally {
+			this.targets.delete(id);
+			if (!this._store.isDisposed) {
+				this.update();
+			}
+		}
+	}
+
+	private async checkSSHHostDeletion(id: string): Promise<IRemoteAgentHostSSHConnection> {
+		if (!this.enabled || this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		const hosts = await this.sshService.listSSHConfigHosts();
+		if (!this.enabled || this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		this.sshConfigAddresses = new Set(hosts.map(host => `ssh:${host}`));
+		this.update();
+		const entry = readSSHRemoteAgentHostEntries(this.storageService).find(entry => getEntryAddress(entry) === id);
+		if (!entry || entry.connection.type !== RemoteAgentHostEntryType.SSH) {
+			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
+		}
+		if (this.isSSHHostConfigured(entry.connection)) {
+			throw new Error(localize('remotes.sshConfigured', "This host is still in your SSH configuration. Remove it from the configuration before deleting its saved connection."));
+		}
+		return entry.connection;
+	}
+
+	private isSSHHostConfigured(connection: IRemoteAgentHostSSHConnection): boolean {
+		return this.sshConfigAddresses === undefined || this.sshConfigAddresses.has(`ssh:${connection.sshConfigHost ?? connection.hostName}`);
+	}
+
 	private checkTunnelDeletion(tunnel: ITunnelInfo): void {
 		if (!this.tunnelService.canDeleteTunnels) {
 			throw new Error(localize('remotes.tunnelDeleteUnsupported', "Deleting tunnels is not supported by this application."));
@@ -648,6 +712,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				...(target.kind === 'tunnel' ? {
 					canDelete: this.tunnelService.canDeleteTunnels && !!this.remoteTunnelStatus
 						&& !isTunnelHosted(this.remoteTunnelStatus.type === 'connected' ? this.remoteTunnelStatus.info : undefined, target.tunnel),
+				} : {}),
+				...(target.kind === 'ssh' ? {
+					canDelete: this.registered.has(id) && target.entry.connection.type === RemoteAgentHostEntryType.SSH && !this.isSSHHostConfigured(target.entry.connection),
 				} : {}),
 				hidden, pickerUnavailableReason: this.getPickerUnavailableReason(target, provider, hidden, reader),
 				connectionStatus: connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected,

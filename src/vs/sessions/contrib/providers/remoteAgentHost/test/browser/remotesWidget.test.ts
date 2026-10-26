@@ -53,6 +53,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly locationChanges: string[] = [];
 	readonly serverUpdates: string[] = [];
 	readonly tunnelDeletions: string[] = [];
+	readonly sshDeletions: string[] = [];
 	copyFailure: Error | undefined;
 	pendingConnection: DeferredPromise<void> | undefined;
 	pendingManagement: DeferredPromise<void> | undefined;
@@ -107,6 +108,12 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 
 	async deleteTunnel(id: string): Promise<void> {
 		this.tunnelDeletions.push(id);
+		await this.pendingManagement?.p;
+		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
+	}
+
+	async deleteSSHHost(id: string): Promise<void> {
+		this.sshDeletions.push(id);
 		await this.pendingManagement?.p;
 		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
 	}
@@ -642,6 +649,43 @@ suite('RemotesWidget', () => {
 			return !!parent.querySelector('[data-remote-id="tunnel:laptop"] .codicon-trash');
 		});
 		assert.deepStrictEqual(states, [false, true, false]);
+	});
+
+	test('SSH Delete appears only for eligible saved hosts and is keyboard accessible', async () => {
+		const { parent, model } = createWidget();
+		const ssh = model.remotes.get().find(remote => remote.kind === 'ssh')!;
+		const configuredDelete = !!parent.querySelector('[data-remote-id="ssh:build"] .codicon-trash');
+		model.remotes.set([{ ...ssh, canDelete: true }], undefined);
+		const row = parent.querySelector('[data-remote-id="ssh:build"]')!;
+		const location = row.querySelector<HTMLElement>('.codicon-server-process')!;
+		location.focus();
+		location.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		location.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		const deletion = row.querySelector<HTMLElement>('.codicon-trash')!;
+		assert.strictEqual(dom.getActiveElement(), deletion);
+		model.pendingManagement = new DeferredPromise<void>();
+		for (const type of ['keydown', 'keyup']) {
+			deletion.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		deletion.click();
+		const busy = deletion.getAttribute('aria-disabled');
+		await model.pendingManagement.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			configuredDelete, busy, deleted: model.sshDeletions, removed: model.managementChanges,
+			present: !!parent.querySelector('[data-remote-id="ssh:build"]'),
+			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
+		}, { configuredDelete: false, busy: 'true', deleted: ['ssh:build'], removed: [], present: false, focused: true });
+	});
+
+	test('SSH Delete disappears when the host becomes configured again', () => {
+		const { parent, model } = createWidget();
+		const ssh = model.remotes.get().find(remote => remote.kind === 'ssh')!;
+		const states = [true, false].map(canDelete => {
+			model.remotes.set([{ ...ssh, canDelete }], undefined);
+			return !!parent.querySelector('[data-remote-id="ssh:build"] .codicon-trash');
+		});
+		assert.deepStrictEqual(states, [true, false]);
 	});
 
 	test('Copy Address works on every visible remote without changing connections or focus', async () => {

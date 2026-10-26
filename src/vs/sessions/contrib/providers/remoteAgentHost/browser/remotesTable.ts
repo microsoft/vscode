@@ -294,7 +294,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment');
 				const showDocumentation = template.column === 'actions' && entry.type === 'group' && !!entry.documentation;
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
-				const showDelete = showConnection && (entry.remote.kind === 'environment' && entry.remote.canRemove || entry.remote.kind === 'tunnel' && !!entry.remote.canDelete);
+				const showDelete = showConnection && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh') && !!entry.remote.canDelete);
 				const showLocationPreference = showConnection && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh');
 				const showUpdate = showConnection && RemoteAgentHostConnectionStatus.isIncompatible(entry.remote.connectionStatus) && !!entry.remote.connectionStatus.vscodeUpgradeMethod;
 				const actionLayout = `${showConfig}:${showDocumentation}:${showConnection}:${showDelete}:${showLocationPreference}:${showUpdate}`;

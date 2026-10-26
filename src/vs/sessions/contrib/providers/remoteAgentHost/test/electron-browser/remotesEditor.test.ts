@@ -22,7 +22,7 @@ import { IEditorOptions } from '../../../../../../platform/editor/common/editor.
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISharedProcessService } from '../../../../../../platform/ipc/electron-browser/services.js';
-import { EditorInputCapabilities } from '../../../../../../workbench/common/editor.js';
+import { EditorInputCapabilities, IVisibleEditorPane } from '../../../../../../workbench/common/editor.js';
 import { AICustomizationManagementEditorInput } from '../../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { ModelsManagementEditorInput } from '../../../../../../workbench/contrib/chat/browser/chatManagement/chatManagementEditorInput.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -61,6 +61,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	async changePreferredAgentLocation(): Promise<void> { }
 	async updateServer(): Promise<void> { }
 	async deleteTunnel(): Promise<void> { }
+	async deleteSSHHost(): Promise<void> { }
 	async remove(): Promise<void> { }
 	setHidden(): void { }
 
@@ -126,8 +127,11 @@ suite('RemotesEditor', () => {
 		});
 	});
 
-	test('accessibility setup help uses the current Dev Tunnels action labels', () => {
-		const { editor, instantiation } = createEditor();
+	test('accessibility setup help uses the current Dev Tunnels action labels', async () => {
+		const { editor, instantiation, input } = createEditor();
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		const isVisibleEditor = (pane: RemotesEditor): pane is RemotesEditor & IVisibleEditorPane => pane.input !== undefined;
+		assert.ok(isVisibleEditor(editor));
 		instantiation.stub(IEditorService, { activeEditorPane: editor });
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'remotes' && implementation.type === AccessibleViewType.Help)!;
 		const content = store.add(help.getProvider(instantiation)!).provideContent();

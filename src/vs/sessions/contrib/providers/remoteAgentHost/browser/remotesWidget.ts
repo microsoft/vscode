@@ -275,7 +275,7 @@ export class RemotesWidget extends Disposable {
 				void this.manageRemote(entry.remote.id, 'locationPreference');
 			} else if (action === 'updateServer') {
 				void this.manageRemote(entry.remote.id, 'updateServer');
-			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || entry.remote.kind === 'tunnel' && entry.remote.canDelete)) {
+			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh') && entry.remote.canDelete)) {
 				void this.deleteRemote(entry.remote.id, entry.remote.kind);
 			}
 		}
@@ -526,7 +526,7 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private async deleteRemote(id: string, kind: 'environment' | 'tunnel'): Promise<void> {
+	private async deleteRemote(id: string, kind: 'environment' | 'tunnel' | 'ssh'): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
@@ -537,6 +537,8 @@ export class RemotesWidget extends Disposable {
 		try {
 			if (kind === 'tunnel') {
 				await this.model.deleteTunnel(id);
+			} else if (kind === 'ssh') {
+				await this.model.deleteSSHHost(id);
 			} else {
 				await this.model.remove(id);
 			}
