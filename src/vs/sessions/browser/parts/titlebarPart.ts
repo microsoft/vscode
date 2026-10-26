@@ -497,6 +497,24 @@ export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTit
 	private static COUNTER = 1;
 
 	private chromeless = false;
+	private sessionHeaderHost: HTMLElement | undefined;
+
+	/**
+	 * The element that hosts a session header in place of the content of this title bar, which it then hides; see
+	 * {@link setHostsSessionHeader}.
+	 */
+	getSessionHeaderHost(): HTMLElement {
+		if (!this.sessionHeaderHost) {
+			this.sessionHeaderHost = $('.session-header-host');
+			this.element.appendChild(this.sessionHeaderHost);
+		}
+		return this.sessionHeaderHost;
+	}
+
+	/** Shows the {@link getSessionHeaderHost} in place of the content of this title bar. The window title it sets stays. */
+	setHostsSessionHeader(hosts: boolean): void {
+		this.container.classList.toggle('hosts-session-header', hosts);
+	}
 
 	get height() { return this.chromeless ? 0 : this.minimumHeight; }
 

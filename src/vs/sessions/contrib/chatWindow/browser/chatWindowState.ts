@@ -8,6 +8,9 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ChatWindowLayout, ChatWindowSplitLayout, ChatWindowTerminalPosition, IChatWindowKind } from '../../../services/chatWindow/browser/chatWindowService.js';
 
+/** How the session header of a chat window takes the place of its title bar; see {@link ChatWindowState.headerChrome}. */
+export type ChatWindowHeaderChrome = 'none' | 'replace' | 'host';
+
 /**
  * The defaults of a kind of chat window, kept in the profile: what its chat windows were last left as, which a new one
  * of the kind opens with.
@@ -99,9 +102,15 @@ export class ChatWindowState {
 	/** The layouts it can show; see {@link IChatWindow.layouts}. */
 	readonly layouts: readonly ChatWindowLayout[];
 
+	/**
+	 * Whether the session header of the chat shows the chrome of the window, as its top row: in place of the window's title bar (`replace`),
+	 * or moved into it above the editor area (`host`).
+	 */
+	readonly headerChrome = observableValue<ChatWindowHeaderChrome>(this, 'none');
+	/** The element of the window's top row that can host the session header, for {@link headerChrome} `host`. */
+	readonly headerHost = observableValue<HTMLElement | undefined>(this, undefined);
+
 	/** The group of the terminal row across the bottom of the window, while it shows; see {@link IChatWindow.terminalGroup}. */
-	/** Whether the session header of the chat shows the chrome of the window, as its top row; the window's title bar is hidden then. */
-	readonly headerChrome = observableValue<boolean>(this, false);
 	readonly terminalGroup = observableValue<IEditorGroup | undefined>(this, undefined);
 
 	constructor(

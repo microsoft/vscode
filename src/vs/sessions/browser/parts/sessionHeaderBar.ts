@@ -7,7 +7,8 @@ import './media/chatCompositeBar.css';
 import { IAction } from '../../../base/common/actions.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { $, clearNode, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
+import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
+import { $, clearNode, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, getWindowId, isMouseEvent } from '../../../base/browser/dom.js';
 import { IconLabel } from '../../../base/browser/ui/iconLabel/iconLabel.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
@@ -86,6 +87,7 @@ export class SessionHeaderBar extends Disposable {
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
 	private readonly _windowChromeEl: HTMLElement;
+	private readonly _windowChromeLights = this._register(new MutableDisposable());
 	private readonly _windowChromeToolbars = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -245,8 +247,17 @@ export class SessionHeaderBar extends Disposable {
 	 */
 	setWindowChrome(shown: boolean): void {
 		this._container.classList.toggle('window-chrome', shown);
-		this._container.classList.toggle('has-traffic-lights', shown && isMacintosh && isNative);
 		this._container.draggable = !shown;
+		this._windowChromeLights.clear();
+		if (shown && isMacintosh && isNative) {
+			// The traffic lights are not shown in full screen.
+			const targetWindow = getWindow(this._container);
+			const update = () => this._container.classList.toggle('has-traffic-lights', !isFullscreen(targetWindow));
+			update();
+			this._windowChromeLights.value = onDidChangeFullscreen(windowId => windowId === getWindowId(targetWindow) && update());
+		} else {
+			this._container.classList.remove('has-traffic-lights');
+		}
 		if (!shown) {
 			this._windowChromeToolbars.clear();
 			clearNode(this._windowChromeEl);

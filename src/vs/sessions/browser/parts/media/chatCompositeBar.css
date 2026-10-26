@@ -810,3 +810,9 @@
 .session-header-bar.window-chrome .chat-composite-bar-window-chrome > .chat-composite-bar-toolbar {
 	margin-left: 0;
 }
+
+/* In the title bar of a chat window, above its editor area, the session header fills the row. */
+.session-header-host > .chat-composite-bar.session-header-bar,
+.session-header-host > .chat-composite-bar.session-header-bar > .chat-composite-bar-header {
+	height: 100%;
+}

@@ -278,3 +278,17 @@
 .agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container {
 	padding-top: env(safe-area-inset-top);
 }
+
+/* A title bar that hosts the session header of a chat window shows it in place of its own content. */
+.monaco-workbench .part.titlebar.hosts-session-header > :not(.session-header-host) {
+	display: none;
+}
+
+.monaco-workbench .part.titlebar:not(.hosts-session-header) > .session-header-host {
+	display: none;
+}
+
+.monaco-workbench .part.titlebar > .session-header-host {
+	height: 100%;
+	-webkit-app-region: drag;
+}

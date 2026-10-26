@@ -545,6 +545,38 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
+	test('takes no height for a session header hosted outside of it', () => {
+		const element = document.createElement('div');
+		const centeredContentContainer = document.createElement('div');
+		const headerElement = document.createElement('div');
+		centeredContentContainer.appendChild(headerElement);
+		const host = document.createElement('div');
+		const groupsLayout: number[][] = [];
+		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			_headerHeight: observableValue('headerHeight', 0),
+			element,
+			_isPartVisible: true,
+			_isLeafVisible: true,
+			_centeredContentContainer: centeredContentContainer,
+			_hostOptions: { hasWindowChrome: true },
+			_header: { visible: true, height: 35, element: headerElement, setWindowChrome: () => { } },
+			_groupsView: { layout: (...dimensions: number[]) => groupsLayout.push(dimensions) },
+			_standaloneView: { get: () => undefined },
+			_preparationView: constObservable(undefined),
+		});
+
+		view.layout(1200, 800, 10, 20);
+		view.setWindowChrome(true, host);
+		const hosted = { headerParent: headerElement.parentElement === host, headerHostHeight: centeredContentContainer.style.height };
+		view.setWindowChrome(false);
+
+		assert.deepStrictEqual({ hosted, restored: headerElement.parentElement === centeredContentContainer, groupsLayout }, {
+			hosted: { headerParent: true, headerHostHeight: '0px' },
+			restored: true,
+			groupsLayout: [[1200, 765, 45, 20, 0], [1200, 800, 10, 20, 0], [1200, 765, 45, 20, 0]],
+		});
+	});
+
 	test('deduplicates effective child sizes while respecting header and visibility changes', () => {
 		const layouts: number[][] = [];
 		const header = { visible: true, height: 35 };

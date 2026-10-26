@@ -164,6 +164,31 @@ suite('Sessions - Titlebar Part', () => {
 		});
 	});
 
+	test('an auxiliary title bar can host a session header in place of its content', () => {
+		const { instantiationService } = createTitlebar();
+		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
+			override getContainer(): HTMLElement { return container; }
+		}());
+		const titleService = store.add(instantiationService.createInstance(TitleService));
+		const part = store.add(titleService.createAuxiliaryTitlebarPart(container, new class extends mock<IEditorGroupsContainer>() { }(), instantiationService));
+		assert.ok(part instanceof AuxiliaryTitlebarPart);
+		const host = part.getSessionHeaderHost();
+		const read = () => ({ hosts: part.container.classList.contains('hosts-session-header'), height: part.height, sameHost: part.getSessionHeaderHost() === host, inTitlebar: host.parentElement === part.element });
+
+		const before = read();
+		part.setHostsSessionHeader(true);
+		const hosting = read();
+		part.setHostsSessionHeader(false);
+
+		assert.deepStrictEqual({ before, hosting, after: read() }, {
+			before: { hosts: false, height: 44, sameHost: true, inTitlebar: true },
+			hosting: { hosts: true, height: 44, sameHost: true, inTitlebar: true },
+			after: { hosts: false, height: 44, sameHost: true, inTitlebar: true },
+		});
+	});
+
 	test('shows a fixed title in an auxiliary title bar and uses it as the window title', () => {
 		const { instantiationService } = createTitlebar();
 		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
