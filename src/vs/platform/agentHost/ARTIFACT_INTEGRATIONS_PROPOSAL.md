@@ -502,6 +502,10 @@ interface ArtifactActionView {
 interface ArtifactContributionView {
 	readonly availability: ArtifactAvailability;
 	readonly main?: ArtifactPartPresentation;
+	readonly group?: {
+		readonly icon: ArtifactIcon;
+		readonly priority: number;
+	};
 	readonly sections: readonly ArtifactSectionPresentation[];
 	readonly stateActions: readonly ArtifactActionView[];
 	readonly generalActions: readonly ArtifactActionView[];
@@ -514,6 +518,8 @@ interface ArtifactContributionView {
 ```
 
 `ArtifactIcon.id` and `colorId` reference registered icons and theme colors; a missing color uses the normal foreground. This permits domain colors such as a merged PR's icon without accepting arbitrary CSS or hardcoded RGB values. Color always accompanies a text meaning.
+
+When several recorded artifacts share a main integration, the client may present them as one group whose members keep their own segmented controls in a list. The integration names such a group with a fixed, registration-level `groupLabel`, such as "Pull Requests"; each artifact's optional `group` supplies the icon the group shows and a priority, so a group of pull requests shows a failing pull request's icon over an open one's. Only the main integration's `group` is consulted, and priorities are compared only among that integration's artifacts; the client picks the highest priority and keeps the earlier artifact on ties. Without a `groupLabel` or `group`, the client falls back to the integration label and the first artifact's main icon. Grouping is presentation only: it never merges bindings, consent, runs, or details.
 
 The main part's label may be a provider-supplied display label, but it does not rewrite the recorded label, resource, or provenance. Its open target always comes from the artifact record. `main` is optional for integrations that only contribute sections/actions; the generic artifact presentation is the fallback.
 

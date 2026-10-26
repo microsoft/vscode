@@ -37,7 +37,7 @@ import { AgentConfigurationService } from '../../node/agentConfigurationService.
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
-import { GitHubPullRequestArtifactIntegration } from '../../node/artifactIntegrations/githubPullRequestArtifactIntegration.js';
+import { getPullRequestGroupPresentation, GitHubPullRequestArtifactIntegration } from '../../node/artifactIntegrations/githubPullRequestArtifactIntegration.js';
 import { createPullRequestArtifactSnapshot } from '../common/githubPullRequestArtifactTestUtils.js';
 import { createTestGitHubService } from './testGitHubService.js';
 
@@ -278,6 +278,45 @@ suite('GitHub pull request artifact integration', () => {
 		}, {
 			main: { title, description: body, format: 'markdown' }, lists: ['checks', 'comments'],
 			commentSection: false, comments: [], emptyDescription: '',
+		});
+	}));
+
+	test('ranks each pull request for a group: repair needed, comments, open, draft, merged, closed', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, base);
+		// The main part shows the same state icon as the group, except that the group also flags attention.
+		const group = () => {
+			const { group: value, main } = f.model.snapshot.get().contributions[0].view;
+			return value ? `${value.priority}:${value.icon.id}:${value.icon.colorId} main=${main?.icon.id}` : undefined;
+		};
+		const core = base.core.value!;
+		const states: Record<string, string | undefined> = { open: group() };
+		f.snapshot.set({ ...base, checks: { ...base.checks, value: { ...base.checks.value!, checks: [{ ...base.checks.value!.checks[0], conclusion: 'FAILURE' }] } } }, undefined);
+		states.failing = group();
+		f.snapshot.set({ ...base, mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeable: 'CONFLICTING' } } }, undefined);
+		states.conflicting = group();
+		f.snapshot.set({ ...base, core: { ...base.core, value: { ...core, draft: true } } }, undefined);
+		states.draft = group();
+		f.snapshot.set({ ...base, core: { ...base.core, value: { ...core, state: 'merged' } } }, undefined);
+		states.merged = group();
+		f.snapshot.set({ ...base, core: { ...base.core, value: { ...core, state: 'closed', draft: true } } }, undefined);
+		states.closedDraft = group();
+		f.snapshot.set({ ...base, core: { status: 'loading', complete: false } }, undefined);
+		states.loading = group();
+		assert.deepStrictEqual({ groupLabel: f.model.snapshot.get().contributions[0].groupLabel, states }, {
+			groupLabel: 'Pull Requests',
+			states: {
+				open: '4:git-pull-request:charts.green main=git-pull-request',
+				failing: '6:git-pull-request-error:charts.orange main=git-pull-request',
+				conflicting: '6:git-pull-request-error:charts.orange main=git-pull-request',
+				draft: '3:git-pull-request-draft:descriptionForeground main=git-pull-request-draft',
+				merged: '2:git-pull-request-done:charts.purple main=git-pull-request-done',
+				closedDraft: '1:git-pull-request-closed:charts.red main=git-pull-request-closed',
+				loading: undefined,
+			},
+		});
+		assert.deepStrictEqual(getPullRequestGroupPresentation({ state: 'open', draft: false }, { needsRepair: false, hasComments: true }), {
+			icon: { id: 'git-pull-request-comment', colorId: 'charts.green' }, priority: 5,
 		});
 	}));
 

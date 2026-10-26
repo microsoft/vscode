@@ -528,6 +528,7 @@ export class SessionArtifacts extends Disposable {
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 	/** Sections for the references pill: what the session points the user at. */
 	readonly referenceSections: IObservable<readonly IChatPillSection[]>;
+	/** Undecorated entries of the artifacts and references an integration presents; see {@link getPresentation}. */
 	readonly integratedEntries: IObservable<readonly IChatPillEntry[]>;
 
 	constructor(
@@ -717,7 +718,7 @@ export class SessionArtifacts extends Disposable {
 				}
 				const target = artifact.kind === SessionArtifactKind.Commit && artifact.link ? parseGitHubCommitTarget(artifact.link) : undefined;
 				const entry = toEntry(artifact, actions, this._labelService, target ? commitResolver.get(target).read(reader) : undefined);
-				return entry ? [this.decorateEntry(entry, reader)] : [];
+				return entry ? [entry] : [];
 			});
 		});
 
@@ -771,6 +772,10 @@ export class SessionArtifacts extends Disposable {
 
 	decorateEntry(entry: IChatPillEntry, reader: IReader): IChatPillEntry {
 		return this.presentations.read(reader).get(entry.id)?.decorate(entry, reader) ?? entry;
+	}
+
+	getPresentation(id: string, reader: IReader): ArtifactIntegrationPresentation | undefined {
+		return this.presentations.read(reader).get(id);
 	}
 
 	hasIntegration(id: string, reader: IReader): boolean {
