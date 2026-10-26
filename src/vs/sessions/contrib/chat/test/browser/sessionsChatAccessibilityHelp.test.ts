@@ -69,7 +69,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				instantiation.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 				const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 				assert.deepStrictEqual({
-					describesManage: content.includes('Choose Manage at the bottom of the Environment picker'),
+					describesManage: content.includes('Choose Manage Remote Environments at the bottom of the Environment picker'),
 					describesWebSocketManagement: content.includes('configured WebSocket hosts, keep their per-entry Manage submenu'),
 					triggers: telemetry.triggers.filter(name => name === `config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`),
 				}, {
@@ -133,7 +133,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			nestedReadState: content.includes('change only the targeted nested sessions, not their parent'),
 			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
 			applicationFilter: content.includes('Enter or Space to open Filter Sessions with Created In focused.'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, applicationFilter: true });
+			moveToSession: content.includes('choose Move to Session..., then pick the destination session from the list'),
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, applicationFilter: true, moveToSession: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
@@ -313,7 +314,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
 				githubEnvironment: content.includes('GitHub environment'),
-				sharingKeyboard: content.includes('Enter or Space to open it'),
+				sharingKeyboard: content.includes('Use Tab to reach the title bar, arrow keys to reach the button, Enter or Space to open it'),
 				fileSystemAccess: content.includes('read and modify files across this machine'),
 				backendPicker: content.includes('Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments when available'),
 				enabling: content.includes('Selecting a method updates the setting and enables sharing'),

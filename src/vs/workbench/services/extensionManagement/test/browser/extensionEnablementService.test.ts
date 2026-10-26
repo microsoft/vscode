@@ -1470,6 +1470,42 @@ suite('ExtensionEnablementService Test', () => {
 		});
 	});
 
+	test('test automatic enablement in the sessions window enables only listed extensions and disables them again when they are no longer listed', async () => {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, true);
+		await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, ['PUB.toolsWithViews', 'pub.disabledByUser']);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		const tools = aLocalExtension2('pub.tools', { main: 'main.js', contributes: someContributions({ languageModelTools: [{}] }) });
+		const toolsWithViews = aLocalExtension2('pub.toolsWithViews', { main: 'main.js', contributes: someContributions({ languageModelTools: [{}], views: { explorer: [{}] } }) });
+		const disabledByUser = aLocalExtension2('pub.disabledByUser', { main: 'main.js', contributes: someContributions({ chatSkills: [{}] }) });
+		installed.push(tools, toolsWithViews, disabledByUser);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+		await testObject.setEnablement([disabledByUser], EnablementState.DisabledWorkspace);
+		const changed: string[][] = [];
+		disposableStore.add(testObject.onEnablementChanged(extensions => changed.push(extensions.map(e => e.identifier.id))));
+		const getStates = () => [tools, toolsWithViews, disabledByUser].map(extension => testObject.getEnablementState(extension));
+		const update = async (value: boolean | string[]) => {
+			await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, value);
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE }));
+			return getStates();
+		};
+
+		const listed = getStates();
+		const relisted = await update(['pub.tools']);
+		const useful = await update(true);
+		const none = await update([]);
+
+		const all = ['pub.tools', 'pub.toolsWithViews', 'pub.disabledByUser'];
+		assert.deepStrictEqual({ listed, relisted, useful, none, changed }, {
+			listed: [EnablementState.DisabledWorkspace, EnablementState.EnabledGlobally, EnablementState.DisabledWorkspace],
+			relisted: [EnablementState.EnabledGlobally, EnablementState.DisabledWorkspace, EnablementState.DisabledWorkspace],
+			useful: [EnablementState.EnabledGlobally, EnablementState.DisabledWorkspace, EnablementState.DisabledWorkspace],
+			none: [EnablementState.DisabledWorkspace, EnablementState.DisabledWorkspace, EnablementState.DisabledWorkspace],
+			changed: [all, all, all],
+		});
+	});
+
 	for (const isSessionsWindow of [false, true]) {
 		test(`test built-in npm tasks are parsed in ${isSessionsWindow ? 'sessions' : 'editor'} window`, () => {
 			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });

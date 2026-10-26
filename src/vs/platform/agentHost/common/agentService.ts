@@ -1252,8 +1252,8 @@ export interface IAgentService {
 	 */
 	resourceList(uri: URI): Promise<ResourceListResult>;
 
-	/** Estimates reclaimable regular-file allocation using the host-wide scan budget across all protocol endpoints. */
-	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined>;
+	/** Estimates reclaimable allocation using the host-wide scan budget; an idle session enables persistent caching. */
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined>;
 
 	/** Reports background removal state, optionally retrying cleanup of an archived session. */
 	sessionWorktreeCleanup?(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
@@ -1533,8 +1533,8 @@ export interface IAgentConnection {
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 
 	// ---- Filesystem operations ----------------------------------------------
-	/** Estimates reclaimable regular-file allocation on local or remote hosts. Unsupported hosts must not fall back to per-file RPCs. */
-	measureWorktreeDiskUsage?(root: URI, token: CancellationToken): Promise<number | undefined>;
+	/** Estimates reclaimable allocation on local or remote hosts, optionally cached for an idle session. Unsupported hosts must not fall back to per-file RPCs. */
+	measureWorktreeDiskUsage?(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined>;
 	sessionWorktreeCleanup?(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;

@@ -107,7 +107,7 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
-import { getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListMoveNotice, SessionsListSessionDrop } from './sessionsListChatMove.js';
+import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListMoveNotice, SessionsListSessionDrop } from './sessionsListChatMove.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
@@ -177,6 +177,10 @@ export const SessionChatItemCanArchiveContext = new RawContextKey<boolean>('sess
 export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
 /** Whether the chat item's chat can move out of its session, e.g. into a new session: its provider moves chats and the chat is movable. */
 export const SessionChatItemCanMoveContext = new RawContextKey<boolean>('sessionChatItem.canMove', false);
+/** Whether another session can take the chat item's chat as its last chat. */
+export const SessionChatItemHasMoveDestinationContext = new RawContextKey<boolean>('sessionChatItem.hasMoveDestination', false);
+/** Whether another session can take the session item's session as its last chat. */
+export const SessionItemHasMoveDestinationContext = new RawContextKey<boolean>('sessionItem.hasMoveDestination', false);
 export const SessionChatItemIsArchivedContext = new RawContextKey<boolean>('sessionChatItem.isArchived', false);
 export const SessionChatItemIsReadContext = new RawContextKey<boolean>('sessionChatItem.isRead', true);
 /** Whether the chat item's chat can be marked read or unread on its own: it is its session's main chat, or its session tracks read state per chat. */
@@ -308,7 +312,7 @@ export class SessionChatItem {
 export type ISessionChatItem = SessionChatItem;
 
 export type SessionListItem = ISession | SessionChatItem | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder;
-type SessionGroupConnectorPosition = 'first' | 'middle' | 'last';
+type SessionGroupConnectorPosition = 'middle' | 'last';
 
 function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {
 	return item instanceof SessionChatItem;
@@ -1342,7 +1346,6 @@ interface ISessionItemTemplate {
 	readonly renderedSession: ISettableObservable<ISession | undefined>;
 	readonly pendingVoiceIndicator: HTMLElement;
 	readonly comparisonAttemptStatus: HTMLElement;
-	readonly comparisonAttemptStatusIcon: HTMLElement;
 	readonly comparisonAttemptStatusLabel: HTMLElement;
 	readonly detailsRow: HTMLElement;
 	readonly approvalRow: HTMLElement;
@@ -1471,6 +1474,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 
 		container.classList.add('session-item');
 
+		DOM.append(container, $('span.session-group-connector', { 'aria-hidden': 'true' }));
 		const iconContainer = DOM.append(container, $('.session-icon'));
 		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, iconContainer));
 		const mainCol = DOM.append(container, $('.session-main'));
@@ -1497,8 +1501,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 		// is held until it is (mirrors the main window's sessions viewer).
 		const pendingVoiceIndicator = DOM.append(titleRow, $('.session-pending-voice-indicator'));
 		const comparisonAttemptStatus = DOM.append(titleRow, $('span.session-comparison-attempt-status'));
-		const comparisonAttemptStatusIcon = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-icon'));
-		comparisonAttemptStatusIcon.setAttribute('aria-hidden', 'true');
 		const comparisonAttemptStatusLabel = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-label'));
 		// The list opens a session on click and on Gesture `tap` (touch).
 		// DOM event propagation stops only cover mouse/pointer events; the
@@ -1569,7 +1571,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			}));
 		}
 
-		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusIcon, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore | LabelFuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -1769,11 +1771,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			template.container.classList.toggle('unread', !isRead && !isArchived);
 			template.container.classList.toggle('quick-chat', isQuickChat && this.options.useCompactQuickChatRows);
 			let showComparisonAttemptStatus = comparisonAttemptLabel !== undefined && (this.options.shouldShowComparisonAttemptStatus?.(element, reader) ?? true);
-			template.comparisonAttemptStatusIcon.className = 'session-comparison-attempt-status-icon';
 			switch (sessionStatus) {
 				case SessionStatus.InProgress:
-					template.comparisonAttemptStatusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 					template.comparisonAttemptStatusLabel.textContent = '';
+					showComparisonAttemptStatus = false;
 					break;
 				case SessionStatus.NeedsInput:
 					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptNeedsInput', "Attention needed");
@@ -3442,6 +3443,8 @@ interface ISessionsListDndDelegate {
 	setHeaderInsertionDepth(depth: number | undefined): void;
 	/** The dragged chat row's chat, with its session, when moving chats by drag and drop is on and it can move. */
 	getMovableDraggedChat(item: ISessionChatItem): { readonly session: ISession; readonly chat: IChat } | undefined;
+	/** Whether nested chat rows are shown in their session's chat order, so that a position among them is a position in that order. */
+	areChatPositionsShown(): boolean;
 	/** Whether the session can move under another session, when moving chats by drag and drop is on. */
 	canMoveSessionUnder(session: ISession): boolean;
 	/** Move the chat of `session` as the drop says. */
@@ -3616,7 +3619,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (elements.length > 0 && elements.every(isSessionChatItem)) {
 			// Only the provider orders nested chats: a chat it can't move, or several chats, can't be dropped.
 			const movable = elements.length === 1 ? this.movableChat(elements[0]) : undefined;
-			return movable ? this.resolveChatMove(movable, target, sector) : undefined;
+			return movable ? this.resolveChatMove(movable, target, targetIndex, sector) : undefined;
 		}
 		const sessions = elements.filter(isSessionItem);
 		if (sessions.length === 0) {
@@ -3626,7 +3629,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (nest?.kind === 'nest') {
 			const session = sessions[0];
 			return {
-				reaction: nest.position === 'over' ? intoSessionDropReaction() : toDropReaction({ position: toEffectPosition(nest.position) }),
+				reaction: nest.position === 'over' ? this.intoSessionDropReaction(target, targetIndex) : toDropReaction({ position: toEffectPosition(nest.position) }),
 				moveFeedback: nest.position === 'over' ? 'move' : 'nested',
 				run: () => this.delegate.moveSessionUnder(session, nest.session, nest.after),
 			};
@@ -3677,14 +3680,14 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	 * Where a chat that its provider can move goes when dropped here (see {@link getSessionsListChatDrop}): within or
 	 * into a session, or into a new session. The provider then owns the chat order.
 	 */
-	private resolveChatMove(dragged: { readonly session: ISession; readonly chat: IChat }, targetElement: SessionListItem | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
+	private resolveChatMove(dragged: { readonly session: ISession; readonly chat: IChat }, targetElement: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
 		let target: ISessionsListChatDropTarget | undefined;
 		if (targetElement && isSessionChatItem(targetElement)) {
 			target = { session: targetElement.session, chat: targetElement.chat, position: sectorToPosition(sector) };
 		} else if (targetElement && isSessionItem(targetElement)) {
 			target = { session: targetElement, chat: undefined, position: 'before' };
 		}
-		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target);
+		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target, this.delegate.areChatPositionsShown());
 		if (!drop) {
 			return undefined;
 		}
@@ -3693,7 +3696,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			// The whole list shows it receives the chat as a new session.
 			reaction = { accept: true, feedback: [-1], effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
 		} else if (drop.position === 'over') {
-			reaction = intoSessionDropReaction();
+			reaction = this.intoSessionDropReaction(targetElement, targetIndex);
 		} else {
 			reaction = toDropReaction({ position: toEffectPosition(drop.position) });
 		}
@@ -3702,6 +3705,21 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			moveFeedback: drop.kind === 'session' && drop.position !== 'over' ? 'nested' : 'move',
 			run: () => this.delegate.moveChat(dragged.session, dragged.chat, drop),
 		};
+	}
+
+	/** Dropping into a session at its end highlights all of its rows, also when the pointer is over one of its nested chat rows. */
+	private intoSessionDropReaction(target: SessionListItem | undefined, targetIndex: number | undefined): ITreeDragOverReaction {
+		const reaction = intoSessionDropReaction();
+		if (!target || !isSessionChatItem(target) || targetIndex === undefined) {
+			return reaction;
+		}
+		const chatIndex = this.delegate.getVisibleChatRows(target.session).indexOf(target);
+		if (chatIndex < 0) {
+			return reaction;
+		}
+		const sessionIndex = targetIndex - chatIndex - 1;
+		const rowCount = this.delegate.getRenderedRowCount(target.session);
+		return { ...reaction, feedback: Array.from({ length: rowCount }, (_, i) => sessionIndex + i) };
 	}
 
 	/**
@@ -3724,7 +3742,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			isManuallyOrdered: () => this.delegate.isInManuallyOrderedSection(session),
 			isLastInSection: () => this.delegate.isLastRowOfSection(chatItem ?? session),
 			canPlace: position => !!this.resolveSessionDrop(sessions, session, undefined, position === 'before' ? ListViewTargetSector.TOP : ListViewTargetSector.BOTTOM),
-		});
+		}, this.delegate.areChatPositionsShown());
 	}
 
 	private resolveSessionDrop(sessions: readonly ISession[], target: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
@@ -4201,7 +4219,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * Maximum number of sessions shown per workspace section or user group.
 	 */
 	private readonly sessionGroupLimit = observableValue<number>(this, SessionsList.DEFAULT_SESSION_GROUP_LIMIT);
-	private readonly renderedComparisonAttemptConnectorPositions = new Map<string, SessionGroupConnectorPosition>();
+	private readonly renderedComparisonParticipantConnectorPositions = new Map<string, SessionGroupConnectorPosition>();
 	private readonly renderedComparisonAttemptLabels = new Map<string, string>();
 	/** How many groups each rendered custom group is nested in, by group id. */
 	private readonly groupDepths = new Map<string, number>();
@@ -4357,7 +4375,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				grouping: this.options.grouping,
 				isPinned: s => this.isSessionPinned(s),
 				isRenderedInCustomGroup: s => this.isRenderedInCustomGroup(s),
-				getGroupConnectorPosition: s => this.renderedComparisonAttemptConnectorPositions.get(s.sessionId),
+				getGroupConnectorPosition: s => this.renderedComparisonParticipantConnectorPositions.get(s.sessionId),
 				getComparisonAttemptLabel: s => this.renderedComparisonAttemptLabels.get(s.sessionId),
 				shouldShowComparisonAttemptStatus: (s, reader) => this.shouldShowComparisonAttemptStatus(s, reader),
 				isRenderedInExternalSection: s => this.isRenderedInExternalSection(s),
@@ -4604,6 +4622,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					getRenderedRowCount: element => this.tree.hasElement(element) ? this.tree.getListRenderCount(element) : 1,
 					moveHeader: (header, drop) => this.moveHeader(header, drop),
 					getMovableDraggedChat: item => this.getMovableDraggedChat(item),
+					areChatPositionsShown: () => this.areChatPositionsShown(),
 					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
 					moveChat: (session, chat, drop) => this.moveChatByDrop(session, chat, drop),
 					moveSessionUnder: (session, target, after) => this.moveSessionUnderByDrop(session, target, after),
@@ -5171,7 +5190,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				? sortComparisonGroupMembers(comparison, members, sorting, sortKeyForGrouping)
 				: sortSessions(members, sorting, sortKeyForGrouping)];
 		}));
-		this.renderedComparisonAttemptConnectorPositions.clear();
+		this.renderedComparisonParticipantConnectorPositions.clear();
 		this.renderedComparisonAttemptLabels.clear();
 		this.comparisonSectionIds.clear();
 		this.groupDepths.clear();
@@ -5266,6 +5285,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const members = sortedMembersByGroupId.get(group.id)!;
 			const comparison = comparisonsByGroupId.get(group.id);
 			if (comparison) {
+				const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+				const sameHarness = attempts.every(participant =>
+					participant.harness.providerId === attempts[0].harness.providerId
+					&& participant.harness.sessionTypeId === attempts[0].harness.sessionTypeId);
 				for (const participant of comparison.participants) {
 					if (participant.role !== SessionComparisonParticipantRole.Attempt) {
 						continue;
@@ -5274,7 +5297,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 						? members.find(member => isEqual(member.resource, participant.sessionResource))
 						: undefined;
 					if (session) {
-						this.renderedComparisonAttemptLabels.set(session.sessionId, getSessionComparisonHarnessLabel(participant));
+						this.renderedComparisonAttemptLabels.set(session.sessionId, getSessionComparisonHarnessLabel(participant, !sameHarness));
 					}
 				}
 			}
@@ -5496,14 +5519,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 					? { stateId: sectionId, expandedByDefault: true }
 					: undefined);
 			const visibleGroupSessions = sessionChildren.map(child => child.element).filter(isSessionItem);
-			const connectorSessions = groupItem.comparison
-				? visibleGroupSessions.filter(session => this.renderedComparisonAttemptLabels.has(session.sessionId))
-				: [];
-			if (connectorSessions.length > 1) {
+			const connectorSessions = groupItem.comparison ? visibleGroupSessions : [];
+			if (connectorSessions.length > 0) {
 				for (let index = 0; index < connectorSessions.length; index++) {
-					this.renderedComparisonAttemptConnectorPositions.set(
+					this.renderedComparisonParticipantConnectorPositions.set(
 						connectorSessions[index].sessionId,
-						index === 0 ? 'first' : index === connectorSessions.length - 1 ? 'last' : 'middle',
+						index === connectorSessions.length - 1 ? 'last' : 'middle',
 					);
 				}
 			}
@@ -6304,6 +6325,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		runSessionsListMove(move, this._sessionsManagementService, this.notificationService, this.logService, {
 			notice: this.options.getMoveNotice?.(),
 			watch: watched => this.watchMoveForReveal(watched),
+			placementServices: { sessionsListModelService: this._sessionsListModelService, sessionGroupsService: this._sessionGroupsService },
 		}).catch(onUnexpectedError);
 	}
 
@@ -6569,6 +6591,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.filter((element): element is ISessionChatItem => !!element && isSessionChatItem(element));
 	}
 
+	/** Nested chats are shown in their session's chat order, which the provider owns, only when sorting by creation. */
+	private areChatPositionsShown(): boolean {
+		return this.options.sorting() === SessionsSorting.Created;
+	}
+
 	/** The sibling chat row a nested chat swaps with when moved up or down, if any. */
 	private getAdjacentChatRow(item: ISessionChatItem, direction: 'up' | 'down'): ISessionChatItem | undefined {
 		const rows = this.getChatRows(item.session);
@@ -6581,9 +6608,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * there or its provider can't move the chat there. Only the provider orders nested chats.
 	 */
 	private getAdjacentChatMove(item: ISessionChatItem, direction: 'up' | 'down'): { readonly session: ISession; readonly chat: IChat; readonly drop: SessionsListChatDrop } | undefined {
-		const target = this.getAdjacentChatRow(item, direction);
+		const positionsShown = this.areChatPositionsShown();
+		const target = positionsShown ? this.getAdjacentChatRow(item, direction) : undefined;
 		const movable = target && this.getMovableDraggedChat(item);
-		const drop = target && movable && getSessionsListChatDrop(movable.session, movable.chat, { session: target.session, chat: target.chat, position: direction === 'up' ? 'before' : 'after' });
+		const drop = target && movable && getSessionsListChatDrop(movable.session, movable.chat, { session: target.session, chat: target.chat, position: direction === 'up' ? 'before' : 'after' }, positionsShown);
 		return movable && drop ? { session: movable.session, chat: movable.chat, drop } : undefined;
 	}
 
@@ -7333,6 +7361,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
+			[SessionItemHasMoveDestinationContext.key, getSessionMoveDestinations(element, this._sessionsManagementService.getSessions(), this._sessionsManagementService).length > 0],
 			[SessionItemHasUnreadNestedSessionsContext.key, selectedSessions.some(session =>
 				!session.isArchived.get()
 				&& session.capabilities.get().supportsIndependentChatReadState === true
@@ -7423,6 +7452,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionChatItemCanMoveUpContext.key, this.getAdjacentChatMove(element, 'up') !== undefined],
 			[SessionChatItemCanMoveDownContext.key, this.getAdjacentChatMove(element, 'down') !== undefined],
 			[SessionChatItemCanMoveContext.key, this._sessionsManagementService.canMoveChat(element.session, element.chat)],
+			[SessionChatItemHasMoveDestinationContext.key, getChatMoveDestinations(element.session, element.chat, this._sessionsManagementService.getSessions(), this._sessionsManagementService).length > 0],
 			[SessionProviderIdContext.key, element.session.providerId],
 		]);
 		const menu = this.menuService.createMenu(Menus.SessionChatItemContext, contextKeyService);

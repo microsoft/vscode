@@ -2325,6 +2325,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return folders.find(folder => !scratch?.has(folder));
 	}
 
+	/** The branch and repository label when the session's own folder is a git worktree; `undefined` otherwise. */
+	getNestedChatSessionFolderWorktree(reader: IReader | undefined): { readonly branch: string | undefined; readonly repositoryLabel: string | undefined } | undefined {
+		const workspace = this.workspace.read(reader);
+		const sessionFolder = this.getNestedChatSessionFolder(reader);
+		// The workspace aggregates every chat's folders, so pick the one the session folder refers to.
+		const gitRepository = sessionFolder && workspace?.folders.find(folder => isEqual(folder.workingDirectory, sessionFolder))?.gitRepository;
+		if (!gitRepository?.workTreeUri) {
+			return undefined;
+		}
+		return { branch: gitRepository.branchName, repositoryLabel: workspace?.label };
+	}
+
 	/** Whether `chat` is one of the backend chats this session's catalog lists. */
 	ownsBackendChat(chat: string): boolean {
 		const defaultChat = this._defaultChatBackendUri.get()?.toString();
@@ -7191,7 +7203,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sizes: (number | undefined)[] = [];
 		for (const worktreeUri of worktrees.values()) {
-			sizes.push(await connection.measureWorktreeDiskUsage?.(worktreeUri, token));
+			sizes.push(await connection.measureWorktreeDiskUsage?.(worktreeUri, token, session.backendUri));
 		}
 		if (sizes.every(size => size === undefined)) {
 			return undefined;
@@ -7603,6 +7615,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		return {
 			sessionFolder: cached.getNestedChatSessionFolder(reader),
+			sessionFolderWorktree: cached.getNestedChatSessionFolderWorktree(reader),
 			multipleFolders: !!this._agentCapabilities.read(reader)?.get(cached.agentProvider)?.multipleWorkingDirectories,
 			browseActions: this.browseActions,
 		};

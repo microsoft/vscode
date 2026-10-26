@@ -77,8 +77,9 @@ jobs:
       # extracting node_modules, takes twice as long as on the 1ES runners' temporary disk. A Dev Drive in
       # a VHDX on the same disk is faster than both. It is mounted at the parent of the workspace, so that
       # the workspace keeps its path and is an ordinary, empty folder for actions/checkout, which cannot
-      # clear the root of a volume. WSL cannot open folders on a volume that is mounted in a folder of
-      # drive C:, so the smoke test shard with the WSL suite keeps its workspace on the OS disk.
+      # clear the root of a volume. The smoke test shard with the WSL suite runs on the 1ES pool (see the
+      # runs-on of electron-smoke-1), and WSL cannot open folders on a volume that is mounted in a folder of
+      # drive C: anyway.
       - name: Move the workspace to a Dev Drive
         if: ${{ !(env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1') }}
         shell: pwsh
@@ -262,7 +263,7 @@ jobs:
         if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
         shell: pwsh
-        run: .\scripts\test.bat --tfs "Unit Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
+        run: .\scripts\test.bat --tfs "Unit Tests" --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
@@ -270,7 +271,7 @@ jobs:
         if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
         shell: pwsh
-        run: npm run test-node -- --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
+        run: npm run test-node -- --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
@@ -504,7 +505,12 @@ jobs:
   electron-smoke-1:
     name: Electron-Smoke (shard 1/3)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: vscode-large-runners-windows-8-core
+    # GitHub-hosted Windows runners intermittently freeze while WSL2 provisions a distribution
+    # (https://github.com/actions/runner-images/issues/14938): the step timeout never fires, no log is
+    # kept, and the job only fails when GitHub notices that it lost the runner, about 45 minutes later.
+    # That happened in 3 of about 90 runs of the WSL smoke test shard on the larger runners, and in none
+    # of about 740 on the 1ES pool, so this shard runs on the 1ES pool. JobId must be unique per job.
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-wsl-smoke-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
       ARTIFACT_NAME: electron-smoke-shard1
       ELECTRON_TESTS: 'true'
