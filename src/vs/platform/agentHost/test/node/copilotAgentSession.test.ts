@@ -31512,6 +31512,87 @@ Use the attached image as context.
 			});
 		});
 
+		test('MCP tool call started while authentication is pending transitions to auth required', async () => {
+			const { session, mockSession, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-auth');
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'auth-tool',
+				serverName: 'github',
+				serverUrl: 'https://api.githubcopilot.com/mcp/',
+				reason: 'upscope',
+				resourceMetadata: JSON.stringify({
+					resource: 'https://api.githubcopilot.com/mcp/',
+					resource_name: 'GitHub MCP Server',
+					authorization_servers: ['https://github.com/login/oauth'],
+					scopes_supported: ['repo', 'notifications'],
+				}),
+				wwwAuthenticateParams: { scope: 'repo notifications', error: 'insufficient_scope' },
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+
+			for (const serverName of ['github', 'slack']) {
+				mockSession.fire('tool.execution_start', {
+					toolCallId: `tool-${serverName}`,
+					toolName: 'mcp_tool',
+					mcpServerName: serverName,
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+			}
+
+			const beforeResolve = reduceTurnSignals(signals, 'turn-auth').activeTurn?.responseParts
+				.filter(part => part.kind === ResponsePartKind.ToolCall)
+				.map(part => ({
+					toolCallId: part.toolCall.toolCallId,
+					status: part.toolCall.status,
+					...(part.toolCall.status === ToolCallStatus.AuthRequired ? { auth: part.toolCall.auth } : {}),
+				}));
+			const resolved = await session.resolveMcpAuthentication({
+				resource: 'https://api.githubcopilot.com/mcp/',
+				scopes: ['repo', 'notifications'],
+				token: 'token',
+			});
+			const authResult = await authPromise;
+			const resolvedPart = reduceTurnSignals(signals, 'turn-auth').activeTurn?.responseParts
+				.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tool-github');
+			const afterResolve = getActions(signals)
+				.filter(action => action.type === ActionType.ChatToolCallAuthResolved)
+				.map(action => action.type === ActionType.ChatToolCallAuthResolved ? action : undefined);
+
+			assert.deepStrictEqual({
+				beforeResolve,
+				resolved,
+				authResult,
+				afterResolveStatus: resolvedPart?.kind === ResponsePartKind.ToolCall ? resolvedPart.toolCall.status : undefined,
+				afterResolve,
+			}, {
+				beforeResolve: [{
+					toolCallId: 'tool-github',
+					status: ToolCallStatus.AuthRequired,
+					auth: {
+						reason: McpAuthRequiredReason.InsufficientScope,
+						resource: {
+							resource: 'https://api.githubcopilot.com/mcp/',
+							resource_name: 'GitHub MCP Server',
+							authorization_servers: ['https://github.com/login/oauth'],
+							scopes_supported: ['repo', 'notifications'],
+						},
+						requiredScopes: ['repo', 'notifications'],
+						description: 'insufficient_scope',
+					},
+				}, {
+					toolCallId: 'tool-slack',
+					status: ToolCallStatus.Running,
+				}],
+				resolved: true,
+				authResult: { kind: 'token', accessToken: 'token' },
+				afterResolveStatus: ToolCallStatus.Running,
+				afterResolve: [{
+					type: ActionType.ChatToolCallAuthResolved,
+					turnId: 'turn-auth',
+					toolCallId: 'tool-github',
+				}],
+			});
+		});
+
 		test('client tool completion cancels a pending MCP authentication for that tool call', async () => {
 			const { session, mockSession, runtime } = await createAgentSession(disposables);
 			session.resetTurnState('turn-auth-cancel');
