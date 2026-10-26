@@ -213,7 +213,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			getAnalyserNode: () => {
 				const state = this.voiceSessionController.voiceState.get();
 				return this.ttsPlaybackService.analyserNode
-					?? (state === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? (state === 'listening' && !this.voiceSessionController.isMuted.get() ? this.micCaptureService.analyserNode : null)
 					?? null;
 			},
 			onResize: () => this._resizeWindow(auxiliaryWindow),

@@ -520,6 +520,11 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 		return readCachedWSLDistros(this._storageService);
 	}
 
+	cacheDistro(distro: IWSLCachedDistro): void {
+		storeCachedWSLDistros(this._storageService, [distro, ...this.getCachedDistros().filter(cached => cached.distro !== distro.distro)]);
+		this._onDidChangeConnections.fire();
+	}
+
 	private _removeCachedDistro(distro: string): void {
 		const cached = this.getCachedDistros();
 		const filtered = cached.filter(d => d.distro !== distro);

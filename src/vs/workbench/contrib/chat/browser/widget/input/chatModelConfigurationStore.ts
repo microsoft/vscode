@@ -11,7 +11,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
 import { AutoTierSourceConfigKey, isAutoModeRoutingTier, isInheritedAutoTier, parseManagedAutoTierDefault, type AutoModeTier } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { COPILOT_AUTO_TIER_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_AUTO_TIER_KEY, COPILOT_FUSION_TIER_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, createModelConfigurationActions, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
@@ -41,6 +41,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	private readonly _explicitAutoTiers = new Set<string>();
 	private readonly _sessionAutoTiers = new Set<string>();
 	private _managedAutoTier: AutoModeTier | undefined;
+	private _managedFusionTier = false;
 	private _autoTierSchema: { original: ILanguageModelConfigurationSchema; tier: string; effective: ILanguageModelConfigurationSchema } | undefined;
 	private _sessionConfiguration: IAgentModelConfigurationReport | undefined;
 
@@ -63,6 +64,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		super();
 
 		const readManagedTier = () => {
+			this._managedFusionTier = managedSettingsService.getManagedSettings()[COPILOT_FUSION_TIER_KEY] !== undefined;
 			try {
 				this._managedAutoTier = parseManagedAutoTierDefault(managedSettingsService.getManagedSettingValue(COPILOT_AUTO_TIER_KEY));
 			} catch (error) {
@@ -457,7 +459,8 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 	private _usesManagedDefault(vendor: string): boolean {
 		return vendor === COPILOT_VENDOR_ID
-			|| (this.agentHostManagedDefaultScope.get() && vendor === SessionType.AgentHostCopilot);
+			// The Agent Host runtime ignores legacy Auto policy once a Fusion tier is managed.
+			|| (this.agentHostManagedDefaultScope.get() && vendor === SessionType.AgentHostCopilot && !this._managedFusionTier);
 	}
 
 	private _schemaDefaults(modelId: string): IStringDictionary<unknown> {

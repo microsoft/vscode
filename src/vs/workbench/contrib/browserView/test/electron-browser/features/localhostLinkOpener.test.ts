@@ -30,7 +30,7 @@ suite('Localhost Link Opener', () => {
 				'workbench.browser.openLocalhostLinks': true
 			}));
 			instantiationService.stub(IBrowserViewWorkbenchService, {
-				willUseRemoteProxy: () => false,
+				resolveNetwork: () => undefined,
 				getPreferredGroup: async group => {
 					placements.push(group);
 					return group;

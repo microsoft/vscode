@@ -15,6 +15,7 @@ import { type ISessionAdditionalWorktree, readSessionAdditionalWorktrees, writeS
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostSessionStateDatabase } from '../../node/agentHostSessionStateDatabase.js';
+import type { IAgentHostScratchFolderDatabase } from '../../node/agentHostScratchFolderDatabase.js';
 import type { IAgentHostWorktreeRemovalDatabase } from '../../node/agentHostWorktreeRemovalDatabase.js';
 import { AgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import type { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -149,7 +150,7 @@ export function disposeTestSessionStateDatabases(): void {
 	}
 }
 
-export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessionStateDatabase, IAgentHostWorktreeRemovalDatabase {
+export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessionStateDatabase, IAgentHostWorktreeRemovalDatabase, IAgentHostScratchFolderDatabase {
 	private _sessionStateDatabase: IAgentHostDatabase | undefined;
 
 	private get _sessionState(): IAgentHostDatabase {
@@ -174,6 +175,10 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 	}
 
 	readSessionState(...args: Parameters<IAgentHostSessionStateDatabase['readSessionState']>): ReturnType<IAgentHostSessionStateDatabase['readSessionState']> { return this._sessionState.readSessionState(...args); }
+	getWorktreeDiskUsageRevision(...args: Parameters<IAgentHostDatabase['getWorktreeDiskUsageRevision']>): ReturnType<IAgentHostDatabase['getWorktreeDiskUsageRevision']> { return this._sessionState.getWorktreeDiskUsageRevision(...args); }
+	readWorktreeDiskUsage(...args: Parameters<IAgentHostDatabase['readWorktreeDiskUsage']>): ReturnType<IAgentHostDatabase['readWorktreeDiskUsage']> { return this._sessionState.readWorktreeDiskUsage(...args); }
+	writeWorktreeDiskUsage(...args: Parameters<IAgentHostDatabase['writeWorktreeDiskUsage']>): ReturnType<IAgentHostDatabase['writeWorktreeDiskUsage']> { return this._sessionState.writeWorktreeDiskUsage(...args); }
+	deleteWorktreeDiskUsage(...args: Parameters<IAgentHostDatabase['deleteWorktreeDiskUsage']>): ReturnType<IAgentHostDatabase['deleteWorktreeDiskUsage']> { return this._sessionState.deleteWorktreeDiskUsage(...args); }
 	readSessionStateValues(...args: Parameters<IAgentHostSessionStateDatabase['readSessionStateValues']>): ReturnType<IAgentHostSessionStateDatabase['readSessionStateValues']> { return this._sessionState.readSessionStateValues(...args); }
 	importSessionState(...args: Parameters<IAgentHostSessionStateDatabase['importSessionState']>): ReturnType<IAgentHostSessionStateDatabase['importSessionState']> { return this._sessionState.importSessionState(...args); }
 	writeSessionState(...args: Parameters<IAgentHostSessionStateDatabase['writeSessionState']>): ReturnType<IAgentHostSessionStateDatabase['writeSessionState']> { return this._sessionState.writeSessionState(...args); }
@@ -203,6 +208,15 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 	isSessionLive(...args: Parameters<IAgentHostWorktreeRemovalDatabase['isSessionLive']>): ReturnType<IAgentHostWorktreeRemovalDatabase['isSessionLive']> { return this._sessionState.isSessionLive(...args); }
 	pruneDeletedWorktreeCoOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['pruneDeletedWorktreeCoOwners']>): ReturnType<IAgentHostWorktreeRemovalDatabase['pruneDeletedWorktreeCoOwners']> { return this._sessionState.pruneDeletedWorktreeCoOwners(...args); }
 	clearStaleWorktreeCoOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['clearStaleWorktreeCoOwners']>): ReturnType<IAgentHostWorktreeRemovalDatabase['clearStaleWorktreeCoOwners']> { return this._sessionState.clearStaleWorktreeCoOwners(...args); }
+	insertScratchFolder(...args: Parameters<IAgentHostScratchFolderDatabase['insertScratchFolder']>): ReturnType<IAgentHostScratchFolderDatabase['insertScratchFolder']> { return this._sessionState.insertScratchFolder(...args); }
+	markScratchFolderOwned(...args: Parameters<IAgentHostScratchFolderDatabase['markScratchFolderOwned']>): ReturnType<IAgentHostScratchFolderDatabase['markScratchFolderOwned']> { return this._sessionState.markScratchFolderOwned(...args); }
+	markScratchFolderRemoving(...args: Parameters<IAgentHostScratchFolderDatabase['markScratchFolderRemoving']>): ReturnType<IAgentHostScratchFolderDatabase['markScratchFolderRemoving']> { return this._sessionState.markScratchFolderRemoving(...args); }
+	listScratchFolders(...args: Parameters<IAgentHostScratchFolderDatabase['listScratchFolders']>): ReturnType<IAgentHostScratchFolderDatabase['listScratchFolders']> { return this._sessionState.listScratchFolders(...args); }
+	hasScratchFolder(...args: Parameters<IAgentHostScratchFolderDatabase['hasScratchFolder']>): ReturnType<IAgentHostScratchFolderDatabase['hasScratchFolder']> { return this._sessionState.hasScratchFolder(...args); }
+	recordScratchFolderRemovalFailure(...args: Parameters<IAgentHostScratchFolderDatabase['recordScratchFolderRemovalFailure']>): ReturnType<IAgentHostScratchFolderDatabase['recordScratchFolderRemovalFailure']> { return this._sessionState.recordScratchFolderRemovalFailure(...args); }
+	deleteScratchFolder(...args: Parameters<IAgentHostScratchFolderDatabase['deleteScratchFolder']>): ReturnType<IAgentHostScratchFolderDatabase['deleteScratchFolder']> { return this._sessionState.deleteScratchFolder(...args); }
+	isScratchFolderInUse(...args: Parameters<IAgentHostScratchFolderDatabase['isScratchFolderInUse']>): ReturnType<IAgentHostScratchFolderDatabase['isScratchFolderInUse']> { return this._sessionState.isScratchFolderInUse(...args); }
+	markOrphanedScratchFolderRemoving(...args: Parameters<IAgentHostScratchFolderDatabase['markOrphanedScratchFolderRemoving']>): ReturnType<IAgentHostScratchFolderDatabase['markOrphanedScratchFolderRemoving']> { return this._sessionState.markOrphanedScratchFolderRemoving(...args); }
 }
 
 /** A real session state store over `database` and `service`, outside the leak check. */

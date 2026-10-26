@@ -38,6 +38,10 @@ suite('Sessions chat layout configuration', () => {
 		assert.deepStrictEqual(['sessions.experimental.chatSpecificLayout', 'sessions.layout.mode'].map(key => registeredProperties[key]), [undefined, undefined]);
 	});
 
+	test('does not register a separate PR activity action opt-in setting', () => {
+		assert.strictEqual(registeredProperties['sessions.sessionActivityBar.showGitHubActions'], undefined);
+	});
+
 	test('migrates the Session Toolbar setting to the Session Activity Bar setting unless that is already set', async () => {
 		const migration = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations
 			.find(migration => migration.key === LEGACY_SESSION_TOOLBAR_SETTING);

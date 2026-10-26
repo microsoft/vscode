@@ -1022,7 +1022,7 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._track(() => this._fileEditSequencer.queue(edit.filePath, () => this._queueMutation(db => insertFileEdit(db, edit))));
 	}
 
-	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void> {
+	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void> {
 		if (edits.length === 0) {
 			return Promise.resolve();
 		}
@@ -1034,7 +1034,7 @@ export class SessionDatabase implements ISessionDatabase {
 			for (const edit of edits) {
 				await insertFileEdit(db, edit);
 			}
-			await beforeCommit?.();
+			await beforeCommit?.((toolCallId, path) => this._readFileEditContent(db, toolCallId, path));
 		})));
 	}
 
@@ -1110,23 +1110,24 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	async readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined> {
-		return this._fileEditSequencer.queue(filePath, async () => {
-			const db = await this._ensureDb();
-			const row = await dbGet(
-				db,
-				`SELECT before_content, after_content
-					FROM file_edits
-					WHERE tool_call_id = ? AND file_path = ?`,
-				[toolCallId, filePath],
-			);
-			if (!row) {
-				return undefined;
-			}
-			return {
-				beforeContent: row.before_content ? toUint8Array(row.before_content) : undefined,
-				afterContent: row.after_content ? toUint8Array(row.after_content) : undefined,
-			};
-		});
+		return this._fileEditSequencer.queue(filePath, async () => this._readFileEditContent(await this._ensureDb(), toolCallId, filePath));
+	}
+
+	private async _readFileEditContent(db: Database, toolCallId: string, filePath: string): Promise<IFileEditContent | undefined> {
+		const row = await dbGet(
+			db,
+			`SELECT before_content, after_content
+				FROM file_edits
+				WHERE tool_call_id = ? AND file_path = ?`,
+			[toolCallId, filePath],
+		);
+		if (!row) {
+			return undefined;
+		}
+		return {
+			beforeContent: row.before_content ? toUint8Array(row.before_content) : undefined,
+			afterContent: row.after_content ? toUint8Array(row.after_content) : undefined,
+		};
 	}
 
 	// ---- Terminal outputs -----------------------------------------------

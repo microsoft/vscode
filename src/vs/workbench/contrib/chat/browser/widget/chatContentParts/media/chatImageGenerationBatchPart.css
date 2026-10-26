@@ -46,6 +46,8 @@
 		}
 
 		.chat-image-generation-placeholder {
+			/* Spans the preview, so that the loading square is sized against the width the image will have. */
+			width: 100%;
 			margin: 0;
 		}
 	}

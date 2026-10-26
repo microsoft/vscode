@@ -6,13 +6,20 @@ import { stat } from 'node:fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { run } from '../esbuild-webview-common.mts';
+import { markdownEditorOverridePlugin, resolveMarkdownEditorPackage } from './scripts/markdownEditorPackage.mts';
 
+const editorPackage = await resolveMarkdownEditorPackage();
+if (editorPackage.directory) {
+	console.log(`Markdown editor package override: ${editorPackage.directory}`);
+}
 const srcDir = path.join(import.meta.dirname, 'markdown-editor-src');
 const outDir = path.join(import.meta.dirname, 'markdown-editor-out');
 const updatePackageJsonModuleUrl = new URL('./scripts/updateMarkdownEditorPackageJson.mts', import.meta.url);
 const updatePackageJsonModulePath = fileURLToPath(updatePackageJsonModuleUrl);
 const taskProgressBuildModuleUrl = new URL('./scripts/buildTaskProgressHtml.mts', import.meta.url);
 const taskProgressBuildModulePath = fileURLToPath(taskProgressBuildModuleUrl);
+const mermaidBuildModuleUrl = new URL('./scripts/buildMermaidHtml.mts', import.meta.url);
+const mermaidBuildModulePath = fileURLToPath(mermaidBuildModuleUrl);
 
 async function updateMarkdownEditorPackageJsonFile(): Promise<unknown> {
 	const version = (await stat(updatePackageJsonModulePath)).mtimeMs;
@@ -27,15 +34,27 @@ run({
 	srcDir,
 	outdir: outDir,
 	additionalWatchPaths: [
-		path.dirname(fileURLToPath(import.meta.resolve('@vscode/markdown-editor/commands'))),
+		editorPackage.directory ?? path.dirname(fileURLToPath(editorPackage.commandsUrl)),
 		path.dirname(fileURLToPath(import.meta.resolve('@vscode/web-editors'))),
 		path.dirname(fileURLToPath(import.meta.resolve('@vscode/hubrpc'))),
 		updatePackageJsonModulePath,
+		fileURLToPath(new URL('./scripts/markdownEditorPackage.mts', import.meta.url)),
 		taskProgressBuildModulePath,
+		mermaidBuildModulePath,
 	],
 	beforeBuild: updateMarkdownEditorPackageJsonFile,
 	additionalOptions: {
-		plugins: [{
+		plugins: [...(editorPackage.directory ? [markdownEditorOverridePlugin(editorPackage.directory)] : []), {
+			name: 'mermaid-html',
+			setup(build) {
+				build.onLoad({ filter: /mermaid\.html$/ }, async ({ path: htmlPath }) => {
+					const version = (await stat(mermaidBuildModulePath)).mtimeMs;
+					const module = await import(`${mermaidBuildModuleUrl.href}?version=${version}`) as typeof import('./scripts/buildMermaidHtml.mts');
+					const html = await module.buildMermaidHtml(path.dirname(htmlPath));
+					return { contents: `export default ${JSON.stringify(html)};`, loader: 'js' };
+				});
+			},
+		}, {
 			name: 'task-progress-html',
 			setup(build) {
 				build.onLoad({ filter: /taskProgress\.html$/ }, async ({ path: htmlPath }) => {

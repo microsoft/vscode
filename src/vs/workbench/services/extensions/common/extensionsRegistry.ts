@@ -395,6 +395,11 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
 					},
 					{
+						label: 'onChatArtifactIntegration',
+						body: 'onChatArtifactIntegration',
+						description: nls.localize('vscode.extension.activationEvents.onChatArtifactIntegration', 'An activation event emitted when recorded chat artifacts are observed or an agent host that can use artifact integrations connects.'),
+					},
+					{
 						label: 'onChatContextProvider',
 						body: 'onChatContextProvider:${1:contextProviderId}',
 						description: nls.localize('vscode.extension.activationEvents.onChatContextProvider', 'An activation event emitted when the specified chat context provider is invoked.'),

@@ -256,16 +256,24 @@ suite('ChatEditorInput', () => {
 		});
 	}
 
-	for (const policyKey of ['permissions.allow', 'permissions.disableBypassPermissionsMode', 'permissions.defaultMode', 'sandbox.enabled', COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]) {
+	for (const [policyKey, policyValue, required] of [
+		['permissions.deny', '["Shell"]', true],
+		['permissions.deny', '[]', false],
+		['permissions.ask', '["Shell"]', false],
+		['permissions.allow', '[]', false],
+		['permissions.disableBypassPermissionsMode', 'disable', false],
+		['permissions.defaultMode', 'manual', false],
+		['sandbox.enabled', true, true],
+		[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, false, true],
+	] as const) {
 		for (const unavailable of [false, true]) {
-			const requiresAgentHost = policyKey === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
-			test(`${policyKey} settles before ${requiresAgentHost ? 'prohibiting' : 'preserving'} explicit Local (unavailable=${unavailable})`, async () => {
+			test(`${policyKey}=${policyValue} settles before ${required ? 'prohibiting' : 'preserving'} explicit Local (unavailable=${unavailable})`, async () => {
 				const ready = new DeferredPromise<void>();
 				let rules: string | boolean | undefined = undefined;
 				let localStarts = 0;
 				const selected: string[] = [];
 				const model = upcastPartial<IChatModel>({
-					sessionResource: LocalChatSessionUri.forSession('local-managed-settings'),
+					sessionResource: LocalChatSessionUri.forSession('local-policy'),
 					hasRequests: false, onDidDispose: Event.None, onDidChange: Event.None,
 				});
 				const input = disposables.add(new ChatEditorInput(
@@ -290,14 +298,14 @@ suite('ChatEditorInput', () => {
 				));
 				const pending = input.resolve();
 				const before = [...selected];
-				rules = policyKey === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? false : policyKey === 'sandbox.enabled' ? true : policyKey === 'permissions.defaultMode' ? 'manual' : policyKey === 'permissions.disableBypassPermissionsMode' ? 'disable' : '[]';
+				rules = policyValue;
 				ready.complete();
-				if (requiresAgentHost) {
+				if (required) {
 					await assert.rejects(pending, /organization requires the new Copilot experience/);
 				} else {
 					assert.strictEqual((await pending)?.model, model);
 				}
-				assert.deepStrictEqual({ before, selected, localStarts }, { before: [], selected: requiresAgentHost ? [SessionType.AgentHostCopilot] : [], localStarts: requiresAgentHost ? 0 : 1 });
+				assert.deepStrictEqual({ before, selected, localStarts }, { before: [], selected: required ? [SessionType.AgentHostCopilot] : [], localStarts: required ? 0 : 1 });
 			});
 		}
 	}

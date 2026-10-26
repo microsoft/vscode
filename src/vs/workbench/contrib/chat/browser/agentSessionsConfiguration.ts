@@ -6,6 +6,8 @@
 import * as nls from '../../../../nls.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { AgentHostActiveAgentTitleGenerationSettingId, AgentHostDeferredTitleGenerationSettingId, AgentHostTitleGenerationSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { migrateLegacyImageGenerationSetting } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { migrateLegacyTitleGenerationSettings } from '../../../../platform/agentHost/common/titleGenerationConfiguration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
@@ -43,7 +45,7 @@ export const agentsWindowHandoffConfigurationProperties = {
 	[ChatConfiguration.OpenInAgentsWindowTransferDraft]: {
 		type: 'boolean',
 		description: nls.localize('chat.openInAgentsWindow.transferDraft', "Copy the prompt and attachments from a new chat when explicitly opening the new-session view in the Agents Window. Existing drafts in the Agents Window are preserved."),
-		default: product.quality === 'insider',
+		default: true,
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},
@@ -113,7 +115,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: nls.localize('sessions.chat.unifiedWorkspacePicker.enabled', "Controls whether the Agents Window uses the unified workspace picker, which combines GitHub and remote workspaces, provides search, and, when supported, allows creating sessions with no workspace."),
-			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays]: {
@@ -178,3 +179,16 @@ for (const key of [AgentHostDeferredTitleGenerationSettingId, AgentHostActiveAge
 		},
 	}]);
 }
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([{
+	key: CopilotImageGenerationEnabledSettingId,
+	includeApplication: true,
+	migrateFn: (value, accessor) => {
+		const pairs: ConfigurationKeyValuePairs = [[CopilotImageGenerationEnabledSettingId, { value: undefined }]];
+		const model = migrateLegacyImageGenerationSetting(value);
+		if (model !== undefined && accessor(CopilotImageGenerationModelSettingId) === undefined) {
+			pairs.push([CopilotImageGenerationModelSettingId, { value: model }]);
+		}
+		return pairs;
+	},
+}]);

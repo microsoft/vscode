@@ -40,6 +40,7 @@ import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomiz
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { AgentHostSystemWakeService, IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
+import { AgentHostMacAccessibilityTrustService, IAgentHostMacAccessibilityTrustService } from './agentHostMacAccessibilityTrustService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
@@ -130,6 +131,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		);
 		services.set(IAgentHostClientConnectionService, infrastructure.add(new AgentHostClientConnectionService()));
 		services.set(IAgentHostSystemWakeService, new AgentHostSystemWakeService());
+		services.set(IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService());
 		const agentServiceOptions: IAgentServiceOptions = {
 			rootConfigResource: joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json'),
 			providerConfigurations: options.providerConfigurations,
@@ -226,6 +228,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		// without a full restart can be live-propagated into the shared host.
 		agentService.primeMigrateLegacyGate();
 		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
+		void agentServiceComposition.artifactRuntime.integrations.initialize().catch(error => logService.error('[ArtifactIntegrations] Failed to restore artifact automations', error));
 
 		const agentSdkDownloader = instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader));
 		const startupPerformance = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostStartupPerformance));

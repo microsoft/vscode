@@ -16,7 +16,8 @@
     "onLanguage:jsonc"
   ],
   "enabledApiProposals": [
-    "profileContentHandlers"
+    "profileContentHandlers",
+    "github"
   ],
   "main": "./out/configurationEditingMain",
   "browser": "./dist/browser/configurationEditingMain",
@@ -31,9 +32,7 @@
     "watch-typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
-    "@octokit/rest": "^21.1.1",
-    "jsonc-parser": "^3.2.0",
-    "tunnel": "^0.0.6"
+    "jsonc-parser": "^3.2.0"
   },
   "capabilities": {
     "virtualWorkspaces": true,

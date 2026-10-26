@@ -8,6 +8,7 @@ import { appendEscapedMarkdownInlineCode } from '../../../base/common/htmlConten
 import { structuralEquals } from '../../../base/common/equals.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { GitHubActor, PullRequestCheck, PullRequestChecks, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
+import { isPullRequestFeedbackAuthor } from '../../github/common/pullRequestFeedback.js';
 import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import type { URI as ProtocolURI } from './state/sessionState.js';
@@ -245,9 +246,6 @@ const maximumFailedChecks = 20;
 const maximumFeedbackBodyLength = 1_000;
 const maximumFeedbackBudget = 20_000;
 
-const maintainerAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
-const copilotPullRequestReviewerId = '175728472';
-const copilotPullRequestReviewerLogins = new Set(['copilot', 'copilot-pull-request-reviewer[bot]']);
 const successfulCheckConclusions = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
 const mergeableStates = new Set(['CLEAN', 'HAS_HOOKS', 'UNSTABLE']);
 
@@ -515,6 +513,14 @@ export function agentMergeDisabledNotice(): string {
  */
 export function agentMergeMergePullRequestDemotedNotice(): string {
 	return localize('agentMerge.notice.mergeDemoted', "Agent Merge changed this pull request, so automatic merging was disabled for this session. Review the changes, then enable it again if you want it merged automatically.");
+}
+
+/**
+ * The transcript notice shown when a chat that runs Agent Merge moves into a
+ * session where another chat already runs it for the same pull request.
+ */
+export function agentMergeMoveConflictNotice(): string {
+	return localize('agentMerge.notice.moveConflict', "Agent Merge was turned off for this chat: another chat in this session already runs it for this pull request.");
 }
 
 export function readAgentMergeSessionState(values: Record<string, unknown> | undefined, sessionFolderKey?: string): AgentMergeSessionState | undefined {
@@ -893,12 +899,7 @@ function toAgentMergeFolderControllerState(state: AgentMergeFolderControllerStat
 }
 
 export function isAgentMergeFeedbackAuthor(actor: GitHubActor | undefined): boolean {
-	if (!actor) {
-		return false;
-	}
-	return maintainerAssociations.has(actor.association?.toUpperCase() ?? '')
-		|| actor.id === copilotPullRequestReviewerId
-		|| copilotPullRequestReviewerLogins.has(actor.login.toLowerCase());
+	return isPullRequestFeedbackAuthor(actor);
 }
 
 function readOverrides(value: unknown): AgentMergeSessionOverrides | undefined {
@@ -1315,25 +1316,4 @@ function isSuccessfulCheck(check: PullRequestCheck): boolean {
 	return check.type === 'statusContext'
 		? status === 'SUCCESS'
 		: status === 'COMPLETED' && successfulCheckConclusions.has(check.conclusion?.toUpperCase() ?? '');
-}
-
-/**
- * Summarizes the checks of a head so a caller can tell when they last changed:
- * `digest` changes whenever any check or check suite changes state, and
- * `pending` is whether any of them has not finished. Covers all checks,
- * required or not, and suites that have not reported check runs yet, since any
- * of them moving means CI is still running.
- */
-export function getAgentMergeCheckActivity(checks: PullRequestChecks): { readonly digest: string; readonly pending: boolean } {
-	const states = [
-		...checks.checks.map(check => `check:${check.id}:${check.status?.toUpperCase() ?? ''}:${check.conclusion?.toUpperCase() ?? ''}`),
-		...checks.expectedSuites.map(suite => `suite:${suite.id}:${suite.status?.toUpperCase() ?? ''}:${suite.conclusion?.toUpperCase() ?? ''}:${suite.checkRunsReported}`),
-	].sort();
-	const pending = checks.checks.some(check => {
-		const status = check.status?.toUpperCase();
-		return check.type === 'statusContext'
-			? !status || status === 'PENDING' || status === 'EXPECTED'
-			: status !== 'COMPLETED';
-	}) || checks.expectedSuites.some(suite => !suite.checkRunsReported && suite.status?.toUpperCase() !== 'COMPLETED');
-	return { digest: states.join('|'), pending };
 }

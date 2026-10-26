@@ -8,11 +8,13 @@ import { mkdirSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { customizationId, CustomizationType, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { ActionType, type SessionCustomizationsChangedAction } from '../../../../common/state/sessionActions.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
-import { createRealSession, driveTurnToCompletion } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
+import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { defaultChatChannel, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -127,6 +129,74 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 			.map(file => ({ type: file.type, uri: URI.file(file.path).toString() }))
 			.sort((a, b) => a.uri.localeCompare(b.uri)));
 	});
+
+	if (config.provider === 'copilotcli') {
+		customizationDiscoveryTest('customization discovery: agents instructions and skills from multiple roots reach the model', async function () {
+			const workspace = createWorkspace('multiple-roots');
+			const roots = ['primary', 'secondary'].map(name => ({ name, path: join(workspace, name) }));
+			const files = roots.flatMap(root => {
+				const agent = join(root.path, '.github', 'agents', `${root.name}.agent.md`);
+				const instruction = join(root.path, '.github', 'instructions', 'policy.instructions.md');
+				const skillDirectory = join(root.path, '.github', 'skills', `${root.name}-skill`);
+				for (const directory of [join(root.path, '.git'), join(root.path, '.github', 'agents'), join(root.path, '.github', 'instructions'), skillDirectory]) {
+					mkdirSync(directory, { recursive: true });
+				}
+				writeFileSync(agent, `---\nname: ${root.name}-agent\ndescription: MULTIROOT_${root.name}_AGENT\n---\nYou are a test agent.`);
+				writeFileSync(instruction, `---\napplyTo: "**"\n---\nMULTIROOT_${root.name}_INSTRUCTION`);
+				writeFileSync(join(skillDirectory, 'SKILL.md'), `---\nname: ${root.name}-skill\ndescription: MULTIROOT_${root.name}_SKILL\n---\nReturn a greeting.`);
+				return [
+					{ type: CustomizationType.Agent, path: agent },
+					{ type: CustomizationType.Rule, path: instruction },
+					{ type: CustomizationType.Skill, path: join(skillDirectory, 'SKILL.md') },
+				];
+			});
+
+			context.client.setWorkingDirectory(workspace);
+			await context.client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'customizations-multiple-roots' }, 30_000);
+			await context.client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken ?? resolveGitHubToken() }, 30_000);
+			const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+			await context.client.call('createSession', {
+				channel: sessionUri,
+				provider: config.provider,
+				workingDirectories: roots.map(root => URI.file(root.path).toString()),
+				config: { isolation: 'folder', ...config.sessionConfig },
+			}, 30_000);
+			createdSessions.push(sessionUri);
+			await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
+
+			await driveTurnToCompletion(context.client, sessionUri, 'turn-multiple-roots', 'Reply exactly "READY". Do not call any tools.', 1);
+			const customizations = await sessionCustomizations(sessionUri);
+			assert.deepStrictEqual(discoveredFixtureFiles(customizations, files), files
+				.map(file => ({ type: file.type, uri: URI.file(file.path).toString() }))
+				.sort((a, b) => a.uri.localeCompare(b.uri)));
+
+			const body = context.observedModelRequestBodies[0];
+			assert.ok(body, 'The real runtime must send a model request');
+			const request: {
+				system: string | { type: string; text: string }[];
+				tools: { name: string; description: string }[];
+			} = JSON.parse(body);
+			const systemPrompt = typeof request.system === 'string'
+				? request.system
+				: request.system.filter(block => block.type === 'text').map(block => block.text).join('\n');
+			const taskTool = request.tools.find(tool => tool.name === 'task');
+			assert.ok(taskTool, 'The model must receive the task tool with the available agents');
+			const systemMarkers = roots.flatMap(root => ['INSTRUCTION', 'SKILL'].map(type => `MULTIROOT_${root.name}_${type}`));
+			const agentMarkers = roots.map(root => `MULTIROOT_${root.name}_AGENT`);
+			assert.deepStrictEqual(
+				{
+					systemPrompt: systemMarkers.map(marker => ({ marker, occurrences: systemPrompt.split(marker).length - 1 })),
+					agents: agentMarkers.map(marker => ({ marker, available: taskTool.description.includes(marker) })),
+				},
+				{
+					systemPrompt: systemMarkers.map(marker => ({ marker, occurrences: 1 })),
+					agents: agentMarkers.map(marker => ({ marker, available: true })),
+				},
+				'Each root\'s instructions and skill description must appear once in the system prompt, and its agent must be available in the task tool',
+			);
+		});
+	}
 
 	const fixedInstructionTitle = config.provider === 'copilotcli'
 		? 'customization discovery: discover groups fixed agent instruction files at the workspace root'

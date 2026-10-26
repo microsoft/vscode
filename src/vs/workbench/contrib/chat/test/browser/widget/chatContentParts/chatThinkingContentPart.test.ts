@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { $ } from '../../../../../../../base/browser/dom.js';
+import { $, EventType } from '../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -17,13 +17,15 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
-import { ChatThinkingContentPart, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, getFinishedThinkingTitle, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { getToolInvocationIcon } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
-import { IChatExternalEdit, IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { IChatExternalEdit, IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -2072,6 +2074,374 @@ suite('ChatThinkingContentPart', () => {
 				body: ['Consider how to update the progress renderer.'],
 				modelSelections: 1,
 			});
+		});
+
+		test('reports how long reasoning took in the generic title', async () => {
+			const first = createThinkingPart('Consider how to update the progress renderer.', 'first');
+			first.reasoningStartedAt = 1000;
+			first.reasoningDurationMs = 1200;
+			const part = createPersistentReasoning(first);
+			const second = createThinkingPart('Then check the tests.', 'second');
+			second.reasoningStartedAt = 2500;
+			second.reasoningDurationMs = 2000;
+			part.setupThinkingContainer(second);
+
+			part.finalizeTitleIfDefault();
+			await timeout(0);
+
+			assert.deepStrictEqual({ title: snapshot(part).title, ariaLabel: snapshot(part).ariaLabel }, {
+				title: 'Finished thinking after 3s',
+				ariaLabel: 'Finished thinking after 3s',
+			});
+		});
+	});
+
+	suite('Conversation sections', () => {
+		const readFile = { id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal };
+
+		function createConversationSection(content: IChatThinkingPart, complete = false): ChatThinkingContentPart {
+			const context = { ...createMockRenderContext(complete), suppressProgressShimmer: true, isConversation: true };
+			const markdownRenderer: IMarkdownRenderer = { render: (markdown, options, target) => renderMarkdown(markdown, options, target) };
+			const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, content, context, markdownRenderer, complete));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			return part;
+		}
+
+		function getButton(part: ChatThinkingContentPart): HTMLElement {
+			return part.domNode.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button')!;
+		}
+
+		function snapshot(part: ChatThinkingContentPart) {
+			const button = getButton(part);
+			return { title: button.textContent?.trim(), ariaLabel: button.ariaLabel, expanded: part.expanded.get() };
+		}
+
+		function appendTool(part: ChatThinkingContentPart, tool: IChatToolInvocation | IChatToolInvocationSerialized, label: string): void {
+			part.appendItem(() => ({ domNode: $('div.test-tool', undefined, label) }), tool.toolId, tool);
+		}
+
+		function createSerializedTool(toolCallId: string, startedAt?: number, completedAt?: number): IChatToolInvocationSerialized {
+			return {
+				kind: 'toolInvocationSerialized', toolId: 'read_file', toolCallId, invocationMessage: `Read ${toolCallId}`, pastTenseMessage: `Read ${toolCallId}`,
+				originMessage: undefined, presentation: undefined, isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded }, isComplete: true,
+				source: ToolDataSource.Internal, startedAt, completedAt,
+			};
+		}
+
+		test('collapses reasoning and tool calls into one section that names the current activity', async () => {
+			const clock = sinon.useFakeTimers({ now: 10_000, toFake: ['Date'] });
+			try {
+				const first = createThinkingPart('**Planning the fix**\n\nCheck the renderer.', 'first');
+				const part = createConversationSection(first);
+				const thinking = snapshot(part);
+				first.reasoningStartedAt = 10_000;
+				first.reasoningDurationMs = 1200;
+				clock.tick(1200);
+				const tool = new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {});
+				appendTool(part, tool, 'Read renderer.ts');
+				const reading = snapshot(part);
+				clock.tick(800);
+				await tool.didExecuteTool(undefined);
+				const second = createThinkingPart('Compare the results.', 'second');
+				part.setupThinkingContainer(second);
+				const thinkingAgain = snapshot(part);
+				second.reasoningStartedAt = 14_000;
+				second.reasoningDurationMs = 1500;
+
+				part.finalizeTitleIfDefault();
+				const finished = snapshot(part);
+				getButton(part).click();
+
+				assert.deepStrictEqual({
+					thinking,
+					reading,
+					thinkingAgain,
+					finished,
+					sectionClasses: ['chat-persistent-reasoning', 'chat-thinking-conversation'].filter(name => part.domNode.classList.contains(name)),
+					headerIcons: Array.from(getButton(part).querySelectorAll('.codicon'), icon => [...icon.classList].filter(name => name !== 'codicon').join(' ')),
+					body: Array.from(part.domNode.querySelectorAll('.chat-thinking-collapsible p, .chat-thinking-collapsible .test-tool'), element => element.textContent?.trim()),
+				}, {
+					thinking: { title: 'Planning the fix', ariaLabel: 'Planning the fix', expanded: false },
+					reading: { title: 'Reading renderer.ts', ariaLabel: 'Reading renderer.ts', expanded: false },
+					thinkingAgain: { title: 'Thinking', ariaLabel: 'Thinking', expanded: false },
+					finished: { title: 'Finished thinking after 5s', ariaLabel: 'Finished thinking after 5s', expanded: false },
+					sectionClasses: ['chat-thinking-conversation'],
+					headerIcons: ['codicon-chevron-right-compact'],
+					body: ['Planning the fix', 'Check the renderer.', 'Read renderer.ts', 'Compare the results.'],
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('only the current tool call updates the title, and collapsing shows the latest activity', () => {
+			const part = createConversationSection(createThinkingPart());
+			const search = ChatToolInvocation.createStreaming({ toolCallId: 'search', toolId: 'search', toolData: { ...readFile, id: 'search', displayName: 'Search' } });
+			appendTool(part, search, 'Search');
+			search.updateStreamingMessage('Searching for the renderer');
+			const searching = snapshot(part).title;
+			part.setupThinkingContainer(createThinkingPart('Compare the results.', 'next'));
+			search.updateStreamingMessage('Searching for the renderer tests');
+			const thinking = snapshot(part).title;
+
+			getButton(part).click();
+			const expanded = snapshot(part);
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {}), 'Read renderer.ts');
+			const appendedWhileExpanded = snapshot(part).title;
+			getButton(part).click();
+
+			assert.deepStrictEqual({ searching, thinking, expanded, appendedWhileExpanded, collapsed: snapshot(part) }, {
+				searching: 'Searching for the renderer',
+				thinking: 'Thinking',
+				expanded: { title: 'Working', ariaLabel: 'Working', expanded: true },
+				appendedWhileExpanded: 'Working',
+				collapsed: { title: 'Reading renderer.ts', ariaLabel: 'Reading renderer.ts', expanded: false },
+			});
+		});
+
+		test('wipes the header to the latest activity and then its summary, but not when the user toggles it', () => {
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			});
+			const container = $('.monaco-enable-motion');
+			mainWindow.document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const part = createConversationSection(createThinkingPart());
+			container.appendChild(part.domNode);
+			const getWiping = () => part.domNode.querySelector<HTMLElement>('.chat-activity-label-wipe-out, .chat-activity-label-wipe-in');
+			const state = () => ({ title: getButton(part).textContent?.trim(), wipe: getWiping()?.classList.contains('chat-activity-label-wipe-out') ? 'out' : getWiping() ? 'in' : undefined });
+			const endWipe = () => {
+				const wiping = getWiping()!;
+				wiping.dispatchEvent(new AnimationEvent(EventType.ANIMATION_END, { animationName: wiping.classList.contains('chat-activity-label-wipe-out') ? 'chat-activity-label-wipe-out' : 'chat-activity-label-wipe-in' }));
+			};
+
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {}), 'Read renderer.ts');
+			const first = state();
+			part.setupThinkingContainer(createThinkingPart('Compare the results.', 'next'));
+			const leaving = state();
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Searching the workspace' }, { ...readFile, id: 'search' }, 'search', undefined, {}), 'Search');
+			endWipe();
+			const arriving = state();
+			endWipe();
+			const settled = state();
+			getButton(part).click();
+			const expanded = state();
+			getButton(part).click();
+			const collapsed = state();
+			part.finalizeTitleIfDefault();
+			const finishing = state();
+			endWipe();
+			const summary = state();
+			endWipe();
+
+			assert.deepStrictEqual({ first, leaving, arriving, settled, expanded, collapsed, finishing, summary, finished: state() }, {
+				first: { title: 'Reading renderer.ts', wipe: undefined },
+				leaving: { title: 'Reading renderer.ts', wipe: 'out' },
+				arriving: { title: 'Searching the workspace', wipe: 'in' },
+				settled: { title: 'Searching the workspace', wipe: undefined },
+				expanded: { title: 'Working', wipe: undefined },
+				collapsed: { title: 'Searching the workspace', wipe: undefined },
+				finishing: { title: 'Searching the workspace', wipe: 'out' },
+				summary: { title: 'Finished thinking', wipe: 'in' },
+				finished: { title: 'Finished thinking', wipe: undefined },
+			});
+		});
+
+		test('places link titles beside the button only while they are shown', () => {
+			const part = createConversationSection(createThinkingPart());
+			const besideButton = () => part.domNode.querySelector(':scope > .chat-used-context-label')?.classList.contains('chat-thinking-title-beside-button');
+			appendTool(part, new ChatToolInvocation({ invocationMessage: new MarkdownString('Read [the guide](https://example.com/guide)') }, readFile, 'read', undefined, {}), 'Read the guide');
+			const linkTitle = { besideButton: besideButton(), title: part.domNode.querySelector(':scope > .chat-used-context-label > .chat-thinking-title-detail')?.textContent?.trim() };
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Searching the workspace' }, { ...readFile, id: 'search' }, 'search', undefined, {}), 'Search');
+			const plainTitle = besideButton();
+			appendTool(part, new ChatToolInvocation({ invocationMessage: new MarkdownString('Read [the notes](https://example.com/notes)') }, readFile, 'notes', undefined, {}), 'Read the notes');
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({ linkTitle, plainTitle, finished: besideButton() }, {
+				linkTitle: { besideButton: true, title: 'Read the guide' },
+				plainTitle: false,
+				finished: false,
+			});
+		});
+
+		test('follows the disclosure when its title text toggles it, beside or inside the button', () => {
+			const part = createConversationSection(createThinkingPart());
+			const getTitleText = () => part.domNode.querySelector<HTMLElement>(':scope > .chat-used-context-label .chat-thinking-title-detail')!;
+			const getPlainTitle = () => getButton(part).querySelector<HTMLElement>('.monaco-button-mdlabel > span')!;
+			appendTool(part, new ChatToolInvocation({ invocationMessage: new MarkdownString('Read [the guide](https://example.com/guide)') }, readFile, 'guide', undefined, {}), 'Read the guide');
+			getTitleText().click();
+			const expandedFromLinkTitle = snapshot(part);
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Searching the workspace' }, { ...readFile, id: 'search' }, 'search', undefined, {}), 'Search');
+			getPlainTitle().click();
+			const collapsed = snapshot(part);
+			getTitleText().click();
+
+			assert.deepStrictEqual({ expandedFromLinkTitle, collapsed, expandedFromTitle: snapshot(part) }, {
+				expandedFromLinkTitle: { title: 'Working', ariaLabel: 'Working', expanded: true },
+				collapsed: { title: 'Searching the workspace', ariaLabel: 'Searching the workspace', expanded: false },
+				expandedFromTitle: { title: 'Working', ariaLabel: 'Working', expanded: true },
+			});
+		});
+
+		test('keeps reasoning queued after the only tool call when the section ends', () => {
+			const response = $('div.test-response');
+			mainWindow.document.body.appendChild(response);
+			disposables.add(toDisposable(() => response.remove()));
+			const part = createConversationSection(createThinkingPart(), true);
+			part.appendItem(() => ({ domNode: $('div.test-tool', undefined, 'Read read') }), 'read_file', createSerializedTool('read'), response);
+			part.setupThinkingContainer(createThinkingPart('Compare the results.', 'compare'));
+			part.finalizeTitleIfDefault();
+			const visible = part.domNode.style.display !== 'none';
+			getButton(part).click();
+
+			assert.deepStrictEqual({
+				visible,
+				title: snapshot(part).title,
+				movedOut: response.querySelectorAll('.test-tool').length,
+				body: Array.from(part.domNode.querySelectorAll('.chat-thinking-collapsible p, .chat-thinking-collapsible .test-tool'), element => element.textContent?.trim()),
+			}, {
+				visible: true,
+				title: 'Finished thinking',
+				movedOut: 0,
+				body: ['Read read', 'Compare the results.'],
+			});
+		});
+
+		test('names reasoning once text follows a whitespace-only first chunk', () => {
+			const part = createConversationSection(createThinkingPart());
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {}), 'Read renderer.ts');
+			part.setupThinkingContainer(createThinkingPart('\n', 'compare'));
+			const whitespace = snapshot(part).title;
+			part.updateThinking(createThinkingPart('\nCompare the results.', 'compare'));
+
+			assert.deepStrictEqual({ whitespace, text: snapshot(part).title }, {
+				whitespace: 'Reading renderer.ts',
+				text: 'Thinking',
+			});
+		});
+
+		test('names reasoning by its latest summary heading while that reasoning is the current activity', () => {
+			const part = createConversationSection(createThinkingPart('**Inspecting', 'inspect'));
+			const partialHeading = snapshot(part).title;
+			const inspecting = '**Inspecting changes and sources**\n\nI need to read the source.';
+			part.updateThinking(createThinkingPart(inspecting, 'inspect'));
+			const heading = snapshot(part);
+			const reviewing = `${inspecting}\n\n**Reviewing \`chatModel.ts\`**\n\nThen the tests.`;
+			part.updateThinking(createThinkingPart(reviewing, 'inspect'));
+			const latestHeading = { title: snapshot(part).title, renderedAsMarkdown: !!getButton(part).querySelector('code') };
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Reading renderer.ts' }, readFile, 'read', undefined, {}), 'Read renderer.ts');
+			part.updateThinking(createThinkingPart(`${reviewing}\n\n**Revisiting the plan**\n\nLate text.`, 'inspect'));
+			const lateEarlierReasoning = snapshot(part).title;
+			part.setupThinkingContainer(createThinkingPart('**Comparing the results**\n\nBoth paths match.', 'compare'));
+
+			assert.deepStrictEqual({ partialHeading, heading, latestHeading, lateEarlierReasoning, nextReasoning: snapshot(part).title }, {
+				partialHeading: 'Thinking',
+				heading: { title: 'Inspecting changes and sources', ariaLabel: 'Inspecting changes and sources', expanded: false },
+				latestHeading: { title: 'Reviewing chatModel.ts', renderedAsMarkdown: false },
+				lateEarlierReasoning: 'Reading renderer.ts',
+				nextReasoning: 'Comparing the results',
+			});
+		});
+
+		test('stops naming a tool call that leaves the section, without disturbing earlier calls to the same tool', () => {
+			const part = createConversationSection(createThinkingPart());
+			appendTool(part, new ChatToolInvocation({ invocationMessage: 'Reading first.ts' }, readFile, 'first', undefined, {}), 'Read first.ts');
+			const second = new ChatToolInvocation({ invocationMessage: 'Reading second.ts' }, readFile, 'second', undefined, {});
+			appendTool(part, second, 'Read second.ts');
+			const removed = part.removeLazyItem(second.toolId, second.toolCallId);
+			const title = snapshot(part).title;
+			getButton(part).click();
+
+			assert.deepStrictEqual({
+				removed,
+				title,
+				body: Array.from(part.domNode.querySelectorAll('.chat-thinking-collapsible .test-tool'), element => element.textContent?.trim()),
+			}, {
+				removed: true,
+				title: 'Working',
+				body: ['Read first.ts'],
+			});
+		});
+
+		test('finished sections report their elapsed time only when every step was timed', () => {
+			type Case = { readonly reasoning: readonly { readonly startedAt?: number; readonly durationMs?: number; readonly text?: string }[]; readonly tools: readonly (readonly [startedAt?: number, completedAt?: number])[] };
+			const cases: Record<string, Case> = {
+				shortReasoning: { reasoning: [{ startedAt: 1000, durationMs: 400 }], tools: [] },
+				reasoningWithoutStart: { reasoning: [{ durationMs: 2600 }], tools: [] },
+				textlessReasoning: { reasoning: [{ startedAt: 1000, durationMs: 2400, text: '\n' }], tools: [] },
+				textlessReasoningAndTools: { reasoning: [{ startedAt: 1000, durationMs: 2000, text: ' ' }], tools: [[3000, 4500]] },
+				toolsOnly: { reasoning: [], tools: [[1000, 2000], [3000, 66_000]] },
+				reasoningAndTools: { reasoning: [{ startedAt: 1000, durationMs: 1500 }], tools: [[2500, 4000]] },
+				reasoningWithoutStartAndTools: { reasoning: [{ durationMs: 2600 }], tools: [[1000, 2000], [3000]] },
+				unfinishedTool: { reasoning: [{ startedAt: 1000, durationMs: 500 }], tools: [[1500]] },
+				restoredReasoning: { reasoning: [{}], tools: [] },
+				restoredTools: { reasoning: [], tools: [[], []] },
+				restoredReasoningThenLiveTool: { reasoning: [{}], tools: [[1000, 2000]] },
+				liveReasoningThenRestoredTool: { reasoning: [{ startedAt: 1000, durationMs: 1500 }], tools: [[]] },
+			};
+			const titles = Object.fromEntries(Object.entries(cases).map(([name, { reasoning, tools }]) => {
+				const [first, ...rest] = reasoning.length ? reasoning.map(({ startedAt, durationMs, text }, index) => ({ ...createThinkingPart(text ?? `Reasoning ${index}`, `reasoning-${index}`), reasoningStartedAt: startedAt, reasoningDurationMs: durationMs })) : [createThinkingPart()];
+				const part = createConversationSection(first, true);
+				for (const [index, [startedAt, completedAt]] of tools.entries()) {
+					appendTool(part, createSerializedTool(`tool-${index}`, startedAt, completedAt), `Read tool-${index}`);
+				}
+				for (const content of rest) {
+					part.setupThinkingContainer(content);
+				}
+				part.finalizeTitleIfDefault();
+				return [name, snapshot(part).title];
+			}));
+
+			assert.deepStrictEqual(titles, {
+				shortReasoning: 'Finished thinking after 1s',
+				reasoningWithoutStart: 'Finished thinking after 2s',
+				textlessReasoning: 'Finished thinking after 2s',
+				textlessReasoningAndTools: 'Finished thinking after 3s',
+				toolsOnly: 'Finished thinking after 1m 5s',
+				reasoningAndTools: 'Finished thinking after 3s',
+				reasoningWithoutStartAndTools: 'Finished thinking',
+				unfinishedTool: 'Finished thinking',
+				restoredReasoning: 'Finished thinking',
+				restoredTools: 'Finished thinking',
+				restoredReasoningThenLiveTool: 'Finished thinking',
+				liveReasoningThenRestoredTool: 'Finished thinking',
+			});
+		});
+
+		test('never generates a title or promotes a reasoning heading', async () => {
+			let modelSelections = 0;
+			mockLanguageModelsService.selectLanguageModels = async () => {
+				modelSelections++;
+				return [];
+			};
+			const part = createConversationSection(createThinkingPart('**Evaluating code**\n\nCheck the renderer.\n\n**Reviewing build processes**\n\nCheck the build.'), true);
+			part.finalizeTitleIfDefault();
+			await timeout(0);
+			part.expandContent();
+
+			assert.deepStrictEqual({
+				title: snapshot(part).title,
+				modelSelections,
+				body: Array.from(part.domNode.querySelectorAll('.chat-thinking-collapsible p'), paragraph => paragraph.textContent?.trim()),
+			}, {
+				title: 'Finished thinking',
+				modelSelections: 0,
+				body: ['Evaluating code', 'Check the renderer.', 'Reviewing build processes', 'Check the build.'],
+			});
+		});
+
+		test('formats finished thinking titles', () => {
+			assert.deepStrictEqual([undefined, 0, 400, 1000, 1999, 5200, 65_000, Number.NaN].map(getFinishedThinkingTitle), [
+				'Finished thinking',
+				'Finished thinking after 1s',
+				'Finished thinking after 1s',
+				'Finished thinking after 1s',
+				'Finished thinking after 1s',
+				'Finished thinking after 5s',
+				'Finished thinking after 1m 5s',
+				'Finished thinking',
+			]);
 		});
 	});
 
