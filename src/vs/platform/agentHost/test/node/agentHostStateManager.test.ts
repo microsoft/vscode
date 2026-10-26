@@ -3689,6 +3689,27 @@ suite('AgentHostStateManager', () => {
 			});
 		});
 
+		test('a session marked unread as a whole stays unread when a read chat is promoted out of it', () => {
+			const { peer, sub } = setupTwoSessions();
+			const stays = buildChatUri(sessionUri, 'stays');
+			manager.addChat(sessionUri, stays, creationTimeChatStorageResource(sessionUri, stays, sessionChatUri));
+			// The unread subagent promoted along does not count: only read chats leave.
+			markChatsRead([sessionChatUri, stays, peer], [sub]);
+			// Marked unread as a whole, as Mark as Unread does: the chats of a multi-chat session stay read.
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: false });
+			const sessions = { source: sessionUri };
+			const before = sessionsRead(sessions);
+			const changes = recordSessionReadChanges(sessions);
+
+			manager.promoteChats(sessionUri, { ...makeSessionSummary(URI.from({ scheme: 'copilot', path: '/promoted' }).toString()), defaultChat: peer }, undefined, [peer, sub]);
+
+			assert.deepStrictEqual({ before, after: sessionsRead(sessions), changes }, {
+				before: { source: false },
+				after: { source: false },
+				changes: [],
+			});
+		});
+
 		test('places the chat first without an anchor and refuses the default chat or a foreign chat', () => {
 			const { peer, other } = setupTwoSessions();
 			assert.throws(() => manager.transferChats(sessionUri, target, [sessionChatUri], undefined), /default chat/);
