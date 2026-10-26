@@ -757,6 +757,7 @@ suite('Sessions - Headers', () => {
 			}
 		});
 		instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
 			override lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
 				return menu === Menus.ChatWindowSessionActions && commandId === 'sessions.test.sessionAction'
 					? (action, options, scopedInstantiationService) => {
