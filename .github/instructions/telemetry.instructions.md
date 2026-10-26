@@ -136,7 +136,8 @@ The producer contract is in [notificationTelemetry.ts](../../src/vs/platform/not
 - `INotification.id` remains an equality/deduplication key, not a telemetry ID. Never derive telemetry identity from that key, content, titles, labels, paths, URLs, errors, remote progress tokens, command arguments, or hashes of those values.
 - The shared helper accepts only allowlisted built-in IDs. Missing, invalid, or forged metadata becomes explicit `unknown` attribution; it is never recovered from the display source.
 - Extension message/progress bridges issue opaque metadata using the extension-description identifier. Only those bridges should call `extensionNotificationTelemetry`. Valid identifiers are lowercased; missing/invalid identifiers become `unknown`. Copying a capability object does not copy its attribution.
-- `extensionId` identifies the originating extension, not an extension mentioned, installed, profiled, or blamed in a core notification. Development-extension progress whose bridge omits the identifier remains unattributed. There is no public extension API change and no extension message/progress content or operation-title collection.
+- `extensionId` identifies the originating extension, not an extension mentioned, installed, profiled, or blamed in a core notification. Development-extension progress whose bridge omits the identifier remains unattributed. No extension message/progress content or operation titles are collected.
+- The `notificationTelemetry` proposed API adds optional `notificationId` to extension `MessageOptions` and `ProgressOptions`. Enable the proposal in the producer's manifest and include its declaration in the extension's TypeScript project. If a product declares an API-proposal allowlist for that extension, enable the proposal there too: product lists override manifests, including built-in extensions, and an unapproved proposal throws at the producer API call. IDs are constant semantic types, not localized strings or deduplication keys; register each in `ExtensionNotificationTelemetryId` and its originating-extension/message-or-progress allowlist. Unsupported, foreign, or wrong-kind IDs retain generic `extension.message`/`extension.progress` attribution, and cannot claim a core notification type.
 - For audited built-in actions, add a semantic `NotificationActionTelemetryId` and use prompt choice `telemetryId` or `withNotificationActionTelemetry`. Never use an arbitrary `IAction.id`. Unannotated actions still report their primary/secondary role with `actionId: 'unknown'`.
 - The progress service annotates its explicit cancellation control automatically, including localized cancellation labels such as "Skip". Other custom progress buttons remain primary actions: neither their labels nor their callback outcomes establish cancellation semantics.
 
@@ -147,7 +148,7 @@ Both events have the following fields. All are `SystemMetaData` / `FeatureInsigh
 | Field | Runtime type | Meaning |
 | --- | --- | --- |
 | `origin` | string | `core`, `extension`, or `unknown` |
-| `notificationId` | string | Allowlisted built-in type, `extension.message`, `extension.progress`, or `unknown` |
+| `notificationId` | string | Allowlisted core or extension semantic type, `extension.message`, `extension.progress`, or `unknown` |
 | `extensionId` | string | Trusted `publisher.extension`, `none` for core, or `unknown` |
 | `instanceId` | number, measurement | Renderer-local sequence; joins a logical notification's events within the existing telemetry session |
 | `surface` | string | `toast`, `center`, `accessibleView`, or `unknown` |
@@ -199,7 +200,21 @@ This is a partial migration of **38 built-in types**, not comprehensive built-in
 
 `agentHost.progress` identifies the forwarding UI, **not** a claimed download, provider, connection, or authentication operation: the host's arbitrary message/token does not establish an audited operation type.
 
-Unannotated producers, including many generic `info`/`warn`/`error` calls and debug, profile, theme, notebook, localization, update, and other workbench notices, remain `origin: 'unknown'`. Their exposure/interactions still carry bounded mechanism, severity, and progress dimensions. Many ordinary action semantics also remain `unknown`. Extension progress is attributable to its extension, not to an operation inside that extension.
+Unannotated producers, including many generic `info`/`warn`/`error` calls and debug, profile, theme, notebook, localization, update, and other workbench notices, remain `origin: 'unknown'`. Their exposure/interactions still carry bounded mechanism, severity, and progress dimensions. Many ordinary action semantics also remain `unknown`. Extension progress without an approved producer ID is attributable to its extension, not to an operation inside that extension.
+
+### Extension Message Coverage
+
+The initial proposed-API migration tags 21 semantic types; `ExtensionNotificationTelemetryId` and its per-extension/per-kind allowlist are authoritative:
+
+| Extension | Tagged notification types |
+| --- | --- |
+| `vscode.github-authentication` | Browser sign-in and device-code progress; alternate sign-in prompts after cancellation/failure; sign-in/sign-out failures; invalid Enterprise URI, Enterprise update failure, and Enterprise initialization failure |
+| `vscode.git` | Missing Git, legacy/affected Windows Git versions, parent repositories, unsafe repositories, submodule/worktree limits, and auto-fetch opt-in |
+| `vscode.typescript-language-features` | Workspace TypeScript version, workspace Node installation, TypeScript native-preview suggestion, and invalid TS Server path fallback |
+
+For example, a Git producer supplies `{ notificationId: 'git.parentRepository' }` as message options. Both exposure and interaction events retain `origin: 'extension'` and `extensionId: 'vscode.git'`, with `notificationId: 'git.parentRepository'`; button positions remain positional rather than inferred action semantics. Message updates retain the type, and dedup replacement inherits exposure/correlation state only when the complete attribution matches.
+
+Third-party extensions such as vscode-icons and Java still require producer adoption and audited allowlist entries; this change does not infer their messages from text or button labels. Historical generic events cannot be retroactively identified, and the proposed API does not add modal-dialog telemetry or bypass existing consent/policy controls.
 
 Status-bar-only progress (including chat setup progress that supplies a command), editor/view progress that never produces a notification, modal extension messages, and chat-input notices are deliberately outside these events. Nothing here retroactively identifies operations behind historical generic cancellation events.
 
