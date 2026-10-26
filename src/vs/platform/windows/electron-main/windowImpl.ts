@@ -564,6 +564,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private joinNativeFullScreenTransition: DeferredPromise<boolean> | undefined = undefined;
 
 	toggleFullScreen(): void {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // entering fullscreen would reveal the window (and switch Spaces on macOS)
+		}
+
 		this.setFullScreen(!this.isFullScreen, false);
 	}
 
