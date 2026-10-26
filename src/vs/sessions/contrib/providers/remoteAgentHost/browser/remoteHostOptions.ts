@@ -101,19 +101,17 @@ export function hasUpgradeReconnectStarted(status: RemoteAgentHostConnectionStat
  * surfaced error). All user-facing errors are reported via the
  * notification service.
  */
-export async function runServerUpgrade(
-	accessor: ServicesAccessor,
+export async function upgradeRemoteHost(
 	provider: IAgentHostSessionsProvider,
 	upgradeMethod: string,
+	remoteAgentHostService: IRemoteAgentHostService,
+	notificationService: INotificationService,
+	progressService: IProgressService,
 ): Promise<void> {
 	const address = provider.remoteAddress;
 	if (!address) {
 		return;
 	}
-	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
-	const notificationService = accessor.get(INotificationService);
-	const progressService = accessor.get(IProgressService);
-
 	await progressService.withProgress(
 		{
 			location: ProgressLocation.Notification,
@@ -192,6 +190,10 @@ export async function runServerUpgrade(
 			}
 		},
 	);
+}
+
+export async function runServerUpgrade(accessor: ServicesAccessor, provider: IAgentHostSessionsProvider, upgradeMethod: string): Promise<void> {
+	await upgradeRemoteHost(provider, upgradeMethod, accessor.get(IRemoteAgentHostService), accessor.get(INotificationService), accessor.get(IProgressService));
 }
 
 /**

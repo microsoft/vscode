@@ -161,7 +161,7 @@ export class RemotesWidget extends Disposable {
 			{ id: 'gutter', label: '', weight: 0, minimumWidth: 64, maximumWidth: 64 },
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.8, minimumWidth: 220 },
 			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 144 },
-			{ id: 'actions', label: '', weight: 0, minimumWidth: 96, maximumWidth: 96 },
+			{ id: 'actions', label: '', weight: 0, minimumWidth: 120, maximumWidth: 120 },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
@@ -271,8 +271,10 @@ export class RemotesWidget extends Disposable {
 				void this.manageRemote(entry.remote.id, 'rename');
 			} else if (action === 'copyAddress') {
 				void this.copyAddress(entry.remote.id);
-			} else if (action === 'locationPreference' && entry.remote.kind === 'tunnel') {
+			} else if (action === 'locationPreference' && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh')) {
 				void this.manageRemote(entry.remote.id, 'locationPreference');
+			} else if (action === 'updateServer') {
+				void this.manageRemote(entry.remote.id, 'updateServer');
 			} else if (action === 'delete' && entry.remote.kind === 'environment' && entry.remote.canRemove) {
 				void this.deleteEnvironment(entry.remote.id);
 			}
@@ -488,15 +490,19 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private async manageRemote(id: string, action: 'rename' | 'locationPreference'): Promise<void> {
+	private async manageRemote(id: string, action: 'rename' | 'locationPreference' | 'updateServer'): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
+		const focusedAction = dom.getActiveElement();
+		const restoreFocus = dom.isHTMLElement(focusedAction) && this.domNode.contains(focusedAction) && focusedAction.closest<HTMLElement>('[data-remote-id]')?.dataset.remoteId === id;
 		this.pendingActions.add(id);
 		this.render();
 		try {
 			if (action === 'locationPreference') {
 				await this.model.changePreferredAgentLocation(id);
+			} else if (action === 'updateServer') {
+				await this.model.updateServer(id);
 			} else {
 				await this.model.rename(id);
 			}
@@ -511,7 +517,8 @@ export class RemotesWidget extends Disposable {
 				const active = dom.getActiveElement();
 				const activeRow = dom.isHTMLElement(active) && this.domNode.contains(active) ? active.closest<HTMLElement>('[data-remote-id]') : undefined;
 				const index = this.rows.findIndex(row => row.id === id);
-				if (activeRow && activeRow.dataset.remoteId !== id && index >= 0) {
+				if (index >= 0 && (activeRow && activeRow.dataset.remoteId !== id
+					|| restoreFocus && !focusedAction?.isConnected && active === this.domNode.ownerDocument.body)) {
 					this.table.setFocus([index]);
 					this.table.domFocus();
 				}

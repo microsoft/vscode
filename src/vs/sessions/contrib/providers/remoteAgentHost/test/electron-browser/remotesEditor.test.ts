@@ -57,6 +57,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	async rename(): Promise<void> { }
 	async copyAddress(): Promise<void> { }
 	async changePreferredAgentLocation(): Promise<void> { }
+	async updateServer(): Promise<void> { }
 	async remove(): Promise<void> { }
 	setHidden(): void { }
 

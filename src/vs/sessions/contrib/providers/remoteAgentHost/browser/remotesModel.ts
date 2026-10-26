@@ -31,7 +31,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { changeRemoteAgentHostLocationPreference, reconnectRemoteHost, removeRemoteHost, renameRemoteHost } from './remoteHostOptions.js';
+import { changeRemoteAgentHostLocationPreference, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, upgradeRemoteHost } from './remoteHostOptions.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
 
 export const remoteKinds = ['ssh', 'wsl', 'tunnel', 'environment', 'devContainer'] as const;
@@ -73,6 +73,7 @@ export interface IRemotesModel extends IDisposable {
 	rename(id: string): Promise<void>;
 	copyAddress(id: string): Promise<void>;
 	changePreferredAgentLocation(id: string): Promise<void>;
+	updateServer(id: string): Promise<void>;
 	remove(id: string): Promise<void>;
 	setHidden(id: string, hidden: boolean): void;
 }
@@ -281,12 +282,13 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		if (!this.enabled || this._store.isDisposed || !remote) {
 			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
 		}
-		if (this.targets.get(id)?.kind !== 'tunnel') {
-			throw new Error(localize('remotes.locationUnavailable', "Preferred agent location can only be changed for tunnels here."));
+		const target = this.targets.get(id);
+		if (target?.kind !== 'tunnel' && target?.kind !== 'ssh') {
+			throw new Error(localize('remotes.locationUnavailable', "Preferred agent location can only be changed for SSH hosts and tunnels here."));
 		}
 		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
 		await changeRemoteAgentHostLocationPreference({
-			preferenceKey: id,
+			preferenceKey: provider?.remoteLocationPreferenceKey ?? this.getLocationPreferenceKey(target),
 			hostLabel: remote.name,
 			productName: this.productService.nameShort,
 			provider,
@@ -296,6 +298,19 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			remoteAgentHostService: this.remoteAgentHostService,
 			progressService: this.progressService,
 		});
+	}
+
+	async updateServer(id: string): Promise<void> {
+		const remote = this._remotes.get().find(remote => remote.id === id);
+		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
+		if (!this.enabled || this._store.isDisposed || !remote || !provider) {
+			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
+		}
+		const status = provider.connectionStatus?.get() ?? remote.connectionStatus;
+		if (!RemoteAgentHostConnectionStatus.isIncompatible(status) || !status.vscodeUpgradeMethod) {
+			throw new Error(localize('remotes.updateUnavailable', "This remote does not support updating its server."));
+		}
+		await upgradeRemoteHost(provider, status.vscodeUpgradeMethod, this.remoteAgentHostService, this.notificationService, this.progressService);
 	}
 
 	async rename(id: string): Promise<void> {
@@ -460,13 +475,17 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	}
 
 	private getPickerKey(target: RemoteTarget): string {
+		return getRemoteAgentHostPickerKey(this.getLocationPreferenceKey(target), target.kind === 'environment' ? target.account : undefined);
+	}
+
+	private getLocationPreferenceKey(target: RemoteTarget): string {
 		if (target.kind === 'ssh' && target.entry.connection.type === RemoteAgentHostEntryType.SSH) {
 			const connection = target.entry.connection;
-			return getRemoteAgentHostPickerKey(computeSSHConnectionKey({
+			return computeSSHConnectionKey({
 				sshConfigHost: connection.sshConfigHost, host: connection.hostName, username: connection.user, port: connection.port,
-			}));
+			});
 		}
-		return getRemoteAgentHostPickerKey(this.getId(target), target.kind === 'environment' ? target.account : undefined);
+		return this.getId(target);
 	}
 
 	private update(reader?: IReader): void {

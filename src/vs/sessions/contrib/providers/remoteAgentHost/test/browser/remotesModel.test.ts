@@ -13,6 +13,7 @@ import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IDiscoveredDevContainer } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
@@ -20,6 +21,7 @@ import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgen
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { IVscodeUpgradeResult } from '../../../../../../platform/agentHost/common/state/protocolUpgrade.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -86,6 +88,8 @@ suite('RemotesModel', () => {
 		const locationPromptResult: { result: RemoteAgentHostLocationPreference | undefined } = { result: undefined };
 		const locationPreferences = new Map<string, RemoteAgentHostLocationPreference>();
 		const notifications: INotification[] = [];
+		const upgrades: { address: string; method: string }[] = [];
+		const upgrade: { result: IVscodeUpgradeResult; failure?: Error } = { result: { ok: true, upgradeNeeded: false } };
 		const environmentConnections: string[] = [];
 		const environmentNames: { id: string; name: string | undefined }[] = [];
 		const environmentDeletions: string[] = [];
@@ -134,6 +138,13 @@ suite('RemotesModel', () => {
 			getDisplayNameOverride: address => displayNames.get(address),
 			setDisplayName,
 			reconnect: address => { reconnects.push(address); },
+			triggerServerUpgrade: async (address, method) => {
+				upgrades.push({ address, method });
+				if (upgrade.failure) {
+					throw upgrade.failure;
+				}
+				return upgrade.result;
+			},
 			waitForConnection: async address => {
 				if (connectionFailure) {
 					throw connectionFailure;
@@ -214,9 +225,10 @@ suite('RemotesModel', () => {
 			removeWorkspace: async () => { workspaces = []; removals.push('container'); },
 		});
 		const pickerVisibility = store.add(new RemoteAgentHostPickerVisibility(storage));
-		const createProvider = (address: string) => new class extends mock<IAgentHostSessionsProvider>() {
+		const createProvider = (address: string, preferenceKey?: string) => new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = `agenthost-${address}`;
 			override readonly remoteAddress = address;
+			override readonly remoteLocationPreferenceKey = preferenceKey;
 			override readonly environment = { id: 'remote', label: 'Remote' };
 			override supportsWorkspaceSelection = true;
 			override hostGroup: IAgentHostSessionsProvider['hostGroup'];
@@ -266,7 +278,7 @@ suite('RemotesModel', () => {
 		const model = store.add(instantiationService.createInstance(RemotesModel, discover));
 		return {
 			model, storage, configuration, removals, logEntries, initializationReentered, providers, providersChanged, connectionChanges, reconnects, signIns,
-			copiedAddresses, locationPromptResult, locationPreferences, notifications,
+			copiedAddresses, locationPromptResult, locationPreferences, notifications, upgrades, upgrade,
 			setConnections: (value: readonly IRemoteAgentHostConnectionInfo[]) => { connections = value; connectionsChanged.fire(); },
 			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
 			failConnection: (error: Error) => { connectionFailure = error; },
@@ -353,18 +365,96 @@ suite('RemotesModel', () => {
 		});
 	});
 
-	for (const preference of [undefined, 'editor', 'dedicated'] as const) {
-		test(`tunnel location action reuses preference persistence and reconnect (${preference})`, async () => {
-			const { model, locationPromptResult, locationPreferences, connectionChanges } = setup();
-			await model.refresh(CancellationToken.None);
-			locationPromptResult.result = preference;
-			await model.changePreferredAgentLocation('tunnel:laptop');
+	for (const id of ['ssh:build', 'tunnel:laptop']) {
+		for (const preference of [undefined, 'editor', 'dedicated'] as const) {
+			test(`${id} location action reuses preference persistence and reconnect (${preference})`, async () => {
+				const { model, locationPromptResult, locationPreferences, connectionChanges } = setup();
+				await model.refresh(CancellationToken.None);
+				locationPromptResult.result = preference;
+				await model.changePreferredAgentLocation(id);
+				assert.deepStrictEqual({ preferences: [...locationPreferences], connectionChanges }, {
+					preferences: preference ? [[id, preference]] : [],
+					connectionChanges: preference ? [{ id, connected: true }] : [],
+				});
+			});
+		}
+	}
+
+	for (const sshConfigHost of ['remote', undefined]) {
+		test(`SSH location uses a stable ${sshConfigHost ? 'alias' : 'credential'} key, including without a provider`, async () => {
+			const { model, storage, providers, providersChanged, createProvider, locationPromptResult, locationPreferences, connectionChanges } = setup();
+			const address = 'localhost:4321';
+			addSSHRemoteAgentHostEntry(storage, {
+				name: 'Forwarded SSH', connection: {
+					type: RemoteAgentHostEntryType.SSH, address, sshConfigHost,
+					hostName: 'remote.example.com', user: 'user', port: 2222,
+				},
+			});
+			const key = sshConfigHost ? 'ssh:remote' : 'user@remote.example.com:2222';
+			providers.set(address, createProvider(address, key));
+			providersChanged.fire({ added: [], removed: [] });
+			locationPromptResult.result = 'editor';
+			await model.changePreferredAgentLocation(address);
+			providers.delete(address);
+			providersChanged.fire({ added: [], removed: [] });
+			locationPromptResult.result = 'dedicated';
+			await model.changePreferredAgentLocation(address);
 			assert.deepStrictEqual({ preferences: [...locationPreferences], connectionChanges }, {
-				preferences: preference ? [['tunnel:laptop', preference]] : [],
-				connectionChanges: preference ? [{ id: 'tunnel:laptop', connected: true }] : [],
+				preferences: [[key, 'dedicated']], connectionChanges: [{ id: address, connected: true }],
 			});
 		});
 	}
+
+	test('Update Server uses the advertised method and waits before reconnecting', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, providers, upgrade, upgrades, connectionChanges } = setup();
+		await model.refresh(CancellationToken.None);
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.incompatible('Update required', ['1'], ['2'], 'vendor/update'), undefined);
+		upgrade.result = { ok: true, upgradeStarted: true, restartDelayMs: 1000 };
+		const start = Date.now();
+		await model.updateServer('tunnel:laptop');
+		assert.deepStrictEqual({ upgrades, connectionChanges, elapsed: Date.now() - start }, {
+			upgrades: [{ address: 'tunnel:laptop', method: 'vendor/update' }],
+			connectionChanges: [{ id: 'tunnel:laptop', connected: true }], elapsed: 3000,
+		});
+	}));
+
+	test('Update Server preserves already-current and failure notifications', async () => {
+		const { model, providers, upgrade, upgrades, notifications, connectionChanges } = setup();
+		await model.refresh(CancellationToken.None);
+		providers.get('tunnel:laptop')!.connectionStatus.set(RemoteAgentHostConnectionStatus.incompatible('Update required', ['1'], undefined, 'vendor/update'), undefined);
+		await model.updateServer('tunnel:laptop');
+		upgrade.result = { ok: false, error: 'Download failed' };
+		await model.updateServer('tunnel:laptop');
+		upgrade.failure = new Error('Connection lost');
+		await model.updateServer('tunnel:laptop');
+		assert.deepStrictEqual({ calls: upgrades.length, messages: notifications.map(notification => notification.message), connectionChanges }, {
+			calls: 3, messages: ['Laptop is already on the latest version.', 'Failed to update Laptop: Download failed', 'Failed to update Laptop: Connection lost'], connectionChanges: [],
+		});
+	});
+
+	test('Update Server rejects unsupported, stale, removed, disabled and disposed targets', async () => {
+		const { model, providers, setConfiguration, upgrades } = setup();
+		await model.refresh(CancellationToken.None);
+		const provider = providers.get('tunnel:laptop')!;
+		for (const status of [RemoteAgentHostConnectionStatus.disconnected, RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'])]) {
+			provider.connectionStatus.set(status, undefined);
+			await assert.rejects(model.updateServer('tunnel:laptop'), /does not support updating/);
+		}
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], undefined, 'vendor/update'), undefined);
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		await assert.rejects(model.updateServer('tunnel:laptop'), /does not support updating/);
+		await assert.rejects(model.updateServer('missing'), /no longer available/);
+		providers.delete('tunnel:laptop');
+		await assert.rejects(model.updateServer('tunnel:laptop'), /no longer available/);
+		providers.set('tunnel:laptop', provider);
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], undefined, 'vendor/update'), undefined);
+		await setConfiguration(RemoteAgentHostsEnabledSettingId, false);
+		await assert.rejects(model.updateServer('tunnel:laptop'), /no longer available/);
+		await setConfiguration(RemoteAgentHostsEnabledSettingId, true);
+		model.dispose();
+		await assert.rejects(model.updateServer('tunnel:laptop'), /no longer available/);
+		assert.deepStrictEqual(upgrades, []);
+	});
 
 	test('tunnel location saves without a provider and reports reconnect failures', async () => {
 		const { model, providers, locationPromptResult, locationPreferences, notifications, failConnection } = setup();
@@ -383,7 +473,7 @@ suite('RemotesModel', () => {
 	test('new management actions reject absent, disabled and unsupported targets', async () => {
 		const { model, setConfiguration, copiedAddresses, locationPreferences } = setup();
 		await model.refresh(CancellationToken.None);
-		await assert.rejects(model.changePreferredAgentLocation('ssh:build'), /only be changed for tunnels/);
+		await assert.rejects(model.changePreferredAgentLocation('wsl:Ubuntu'), /only be changed for SSH hosts and tunnels/);
 		await assert.rejects(model.copyAddress('missing'), /no longer available/);
 		await assert.rejects(model.changePreferredAgentLocation('missing'), /no longer available/);
 		await setConfiguration(RemoteAgentHostsEnabledSettingId, false);

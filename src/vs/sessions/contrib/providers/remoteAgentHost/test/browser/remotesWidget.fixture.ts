@@ -34,7 +34,7 @@ const remotes: ICustomizationRemote[] = [
 	{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connecting },
 	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, pickerUnavailableReason: 'Connect once to add this remote to the picker.' },
 	{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
-	{ id: 'tunnel:home', kind: 'tunnel', name: 'Home workstation', detail: 'home-workstation', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.incompatible('The remote host needs an update.', ['1']) },
+	{ id: 'tunnel:home', kind: 'tunnel', name: 'Home workstation', detail: 'home-workstation', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.incompatible('The remote host needs an update.', ['1'], undefined, 'vscode/upgrade') },
 	{ id: 'environment:desktop', kind: 'environment', name: 'Shared desktop', detail: 'env-desktop', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	{ id: 'environment:laptop', kind: 'environment', name: 'Shared laptop', detail: 'env-laptop', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'This environment is not online. Start its owning application before connecting.', pickerUnavailableReason: 'Available in the picker when the owning application is online.' },
 	{ id: 'container:project', kind: 'devContainer', name: 'Project development container', detail: '/Users/developer/projects/example-project-with-a-long-source-folder-name', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
@@ -108,6 +108,9 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		}
 		async changePreferredAgentLocation(id: string) {
 			await promptRemoteAgentHostLocationPreference(instantiationService.get(IDialogService), id, 'Code - OSS');
+		}
+		async updateServer(id: string) {
+			await this.setConnected(id, true);
 		}
 		async remove(id: string) {
 			this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
