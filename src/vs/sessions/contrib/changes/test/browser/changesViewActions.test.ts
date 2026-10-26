@@ -987,7 +987,9 @@ suite('Changes View Actions', () => {
 		const getGroups = (menuId: MenuId) => [...new Set(MenuRegistry.getMenuItems(menuId).flatMap(item => item.group ? [item.group] : []))].sort();
 		const overflowGroups = getGroups(Menus.SessionsEditorTitle).filter(group => group !== 'navigation');
 		assert.deepStrictEqual({
+			// The chat window's file list toggle is gated to chat windows, so the main window header stays empty.
 			oldHeaderItems: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+				.filter(item => !isIMenuItem(item) || item.command.id !== 'multiDiffEditor.toggleFileList')
 				.map(item => isIMenuItem(item) ? item.command.id : item.submenu.id),
 			lastOverflowGroup: overflowGroups.at(-1),
 			filesViewGroupItems: MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
