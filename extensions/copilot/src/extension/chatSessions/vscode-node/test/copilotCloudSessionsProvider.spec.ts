@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, it, MockInstance, vi } from 'vitest';
+import MarkdownIt = require('markdown-it');
 import * as vscode from 'vscode';
 import type { AgentTask, AgentTaskCreateRequest, AgentTaskGetResponse, AgentTaskListEventsResponse, AgentTaskListResponse, AgentTaskSessionEvent, AgentTaskState, AgentTaskSteerRequest, AgentTaskCreatePullRequestResponse } from '@vscode/copilot-api';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
@@ -43,7 +44,7 @@ import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
 import { MockOctoKitService } from '../../../agents/vscode-node/test/mockOctoKitService';
 import { MockChatResponseStream } from '../../../test/node/testHelpers';
 import { TaskTurnStreamer } from '../taskTurnStreamer';
-import { getCloudTaskPermissions } from '../cloudTaskPermissions';
+import { cloudPermissionPart, getCloudTaskPermissions } from '../cloudTaskPermissions';
 
 vi.mock('vscode', async () => {
 	const actual = await import('../../../../vscodeTypes');
@@ -490,6 +491,68 @@ describe('cloud session visibility', () => {
 				CancellationToken.None,
 			);
 			expect({ sends: send.mock.calls.length, warnings: stream.output.length }).toEqual({ sends: 0, warnings: 1 });
+		});
+
+		it.each([
+			['approve', 'yield'], ['deny', 'yield'], ['follow-up', 'yield'],
+			['approve', 'cancel'], ['deny', 'cancel'], ['follow-up', 'cancel'],
+		] as const)('interrupts local %s observation on %s without stopping the remote task', async (mode, interruption) => {
+			vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+			const task = automationPermissionTask();
+			let decided = false;
+			const initialEvents = permissionEvents();
+			const completedEvents = [...initialEvents, evt('permission.completed', {
+				requestId: 'prompt-1', toolCallId: 'tool-1',
+				result: { kind: mode === 'deny' ? 'denied-interactively-by-user' : 'approved' },
+			}), evt('tool.execution_complete', { toolCallId: 'tool-1', success: true })];
+			vi.spyOn(TaskApiBackend.prototype, 'fetchTaskContent').mockResolvedValue({ task, turns: [] });
+			vi.spyOn(TaskApiBackend.prototype, 'fetchTaskEvents').mockImplementation(async () => decided || mode === 'follow-up' ? completedEvents : initialEvents);
+			const send = vi.spyOn(TaskApiBackend.prototype, 'sendPermissionResponse').mockImplementation(async () => { decided = true; });
+			const steer = vi.spyOn(TaskApiBackend.prototype, 'sendFollowUpToTask').mockResolvedValue(true);
+			createProvider();
+			const handler = vi.mocked(vscode.chat.createChatParticipant).mock.calls.at(-1)![1];
+			const resource = getCloudSessionResources(task.id, undefined).resource;
+			const confirmation = { kind: 'cloudAutomationPermission', taskId: task.id, requestId: 'prompt-1', sessionId: 's-0', eventId: 'permission-1' };
+			let yieldRequested = false;
+			const context = {
+				history: [],
+				chatSessionContext: { chatSessionItem: { resource, label: 'automation' }, isUntitled: false },
+				get yieldRequested() { return yieldRequested; },
+			} as unknown as vscode.ChatContext;
+			const parent = store.add(new vscode.CancellationTokenSource());
+			let finished = false;
+			const running = Promise.resolve(handler(
+				{ prompt: 'Continue', sessionResource: resource, ...(mode === 'follow-up' ? {} : mode === 'approve' ? { acceptedConfirmationData: [confirmation] } : { rejectedConfirmationData: [confirmation] }) } as vscode.ChatRequest,
+				context, new MockChatResponseStream(), parent.token,
+			)).then(() => { finished = true; });
+			try {
+				await vi.advanceTimersByTimeAsync(0);
+				expect(finished).toBe(false);
+				if (interruption === 'yield') {
+					yieldRequested = true;
+				} else {
+					parent.cancel();
+				}
+				await vi.advanceTimersByTimeAsync(100);
+				expect({
+					finished, parentCancelled: parent.token.isCancellationRequested,
+					decisions: send.mock.calls, steers: steer.mock.calls,
+				}).toEqual({
+					finished: true, parentCancelled: interruption === 'cancel',
+					decisions: mode === 'follow-up' ? [] : [[task.id, 'prompt-1', mode === 'approve']],
+					steers: mode === 'follow-up' ? [[task.id, 'Continue']] : [],
+				});
+				if (interruption === 'yield') {
+					yieldRequested = false;
+					const next = handler({ prompt: 'Queued steering', sessionResource: resource } as vscode.ChatRequest, { ...context, yieldRequested: true }, new MockChatResponseStream(), parent.token);
+					await vi.advanceTimersByTimeAsync(100);
+					await next;
+					expect(steer.mock.calls.at(-1)).toEqual([task.id, 'Queued steering']);
+				}
+			} finally {
+				parent.cancel();
+				await running;
+			}
 		});
 
 		it('does not replay a native decision after uncertain delivery or retry', async () => {
@@ -1462,6 +1525,46 @@ describe('TaskTurnStreamer automation permissions', () => {
 });
 
 describe('cloud automation permission projection', () => {
+	it('renders Markdown-bearing request details literally', () => {
+		const args = { body: '[label](https://example.com) **text** `code` <script>bad()</script>\n```json\nnested', path: 'C:\\repo\\file' };
+		const events = [permissionEvents()[0], evt('permission.requested', {
+			requestId: 'prompt-1',
+			permissionRequest: { kind: 'mcp', serverName: '**github**', toolName: '[comment](https://example.com/tool)', args },
+		}, { id: 'permission-1', parentId: 'start-1' })];
+		const part = cloudPermissionPart(getCloudTaskPermissions(automationPermissionTask(), events)[0]);
+		const message = typeof part.message === 'string' ? new vscode.MarkdownString(part.message) : part.message;
+		const parser = new MarkdownIt();
+		const tokens = parser.parse(message.value, {});
+		const text = tokens.flatMap(token => token.children ?? [])
+			.filter(token => token.type === 'text').map(token => token.content.replace(/\u00a0/g, ' ')).join('\n');
+		const rendered = parser.render(message.value);
+		expect({
+			json: tokens.filter(token => token.type === 'fence').map(token => token.content.trimEnd()),
+			literalServer: text.includes('Server: **github**'),
+			literalTool: text.includes('Tool: [comment](https://example.com/tool)'),
+			argumentLink: rendered.includes('href="https://example.com"'),
+			trusted: message.isTrusted === true,
+		}).toEqual({
+			json: [JSON.stringify(args, null, 2)], literalServer: true, literalTool: true, argumentLink: false, trusted: false,
+		});
+	});
+
+	it.each([undefined, 'https://github.com/owner/repo/agents/tasks/task-1'])('adds only the authoritative GitHub task link when available: %s', taskUrl => {
+		const task = { ...automationPermissionTask(), html_url: taskUrl };
+		const part = cloudPermissionPart(getCloudTaskPermissions(task, permissionEvents())[0]);
+		const message = typeof part.message === 'string' ? new vscode.MarkdownString(part.message) : part.message;
+		const links = new MarkdownIt().parse(message.value, {}).flatMap(token =>
+			token.children?.filter(child => child.type === 'link_open').map(child => child.attrGet('href')) ?? []);
+		expect({
+			links, buttons: part.buttons, data: part.data, trusted: message.isTrusted === true,
+		}).toEqual({
+			links: taskUrl ? [taskUrl] : [],
+			buttons: ['Allow Once', 'Deny'],
+			data: { kind: 'cloudAutomationPermission', taskId: task.id, sessionId: 's-0', requestId: 'prompt-1', eventId: 'permission-1' },
+			trusted: false,
+		});
+	});
+
 	it('keeps request and tool identities distinct and removes matching completions', () => {
 		const task = automationPermissionTask();
 		const events = permissionEvents();

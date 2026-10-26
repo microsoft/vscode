@@ -28,7 +28,7 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry'
 import { IntervalTimer, Limiter, RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
 import { Event } from '../../../util/vs/base/common/event';
 import { CancellationError } from '../../../util/vs/base/common/errors';
-import { Disposable, DisposableStore, toDisposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { LRUCache, ResourceMap } from '../../../util/vs/base/common/map';
 import { joinPath } from '../../../util/vs/base/common/resources';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -2557,10 +2557,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			submitted = true;
 			await backend.sendPermissionResponse(data.taskId, data.requestId, approved);
 			stream.markdown(vscode.l10n.t('Permission decision submitted. Waiting for the cloud runtime to confirm the outcome.'));
-			await this._createTaskStreamCallback(data.taskId, {
+			await this.streamTaskWithYield(data.taskId, {
 				mode: 'current', seedEventIds: new Set(events.map(event => event.id)),
 				permissionDecision: { requestId: data.requestId, toolCallId: permission.toolCallId, approved },
-			})(stream, token);
+			}, stream, token, context);
 		} catch (error) {
 			this.logService.error(`[CloudPermissions] Permission response failed for ${data.taskId}: ${error}`);
 			if (error instanceof TaskApiError && [400, 401, 403, 404, 409, 422, 429].includes(error.status)) {
@@ -2618,11 +2618,17 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return {};
 		}
 
-		// Stay yield-aware (mirrors the CLI provider): steering must cancel only this local streamer,
-		// so the chat service can flush the next steer while the remote turn keeps running server-side.
-		const yieldCts = new vscode.CancellationTokenSource();
+		const baseline: StreamBaseline = isMidTurnSteer
+			? { mode: 'current', seedEventIds }
+			: { mode: 'next', seedEventIds, priorTurnCount };
+		await this.streamTaskWithYield(taskId, baseline, stream, token, context);
+		return {};
+	}
+
+	private async streamTaskWithYield(taskId: string, baseline: StreamBaseline, stream: vscode.ChatResponseStream, token: vscode.CancellationToken, context: vscode.ChatContext): Promise<void> {
+		// Yield cancels only local observation so the next steer can reach the running task.
 		const disposables = new DisposableStore();
-		disposables.add(toDisposable(() => yieldCts.dispose()));
+		const yieldCts = disposables.add(new vscode.CancellationTokenSource());
 		disposables.add(token.onCancellationRequested(() => yieldCts.cancel()));
 		const interval = disposables.add(new IntervalTimer());
 		interval.cancelAndSet(() => {
@@ -2631,14 +2637,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}
 		}, 100);
 		try {
-			const baseline: StreamBaseline = isMidTurnSteer
-				? { mode: 'current', seedEventIds }
-				: { mode: 'next', seedEventIds, priorTurnCount };
 			await this._createTaskStreamCallback(taskId, baseline)(stream, yieldCts.token);
 		} finally {
 			disposables.dispose();
 		}
-		return {};
 	}
 
 	private async handleFollowUp(request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken) {

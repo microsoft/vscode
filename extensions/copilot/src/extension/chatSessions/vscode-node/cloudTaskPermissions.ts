@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { AgentTaskSessionEvent } from '@vscode/copilot-api';
-import { l10n } from 'vscode';
+import { l10n, MarkdownString, Uri } from 'vscode';
 import { ChatResponseConfirmationPart } from '../../../vscodeTypes';
 import { TaskContent } from '../vscode/cloudAgentBackend';
 
@@ -18,6 +18,7 @@ export interface CloudPermissionConfirmation {
 
 export interface CloudTaskPermission {
 	readonly confirmation: CloudPermissionConfirmation;
+	readonly taskUrl?: string;
 	readonly toolCallId?: string;
 	readonly serverName: string;
 	readonly toolName: string;
@@ -90,6 +91,7 @@ export function getCloudTaskPermissions(task: TaskContent['task'], events: reado
 		}
 		return {
 			confirmation: { kind: 'cloudAutomationPermission', taskId: task.id, sessionId, requestId: event.data.requestId, eventId: event.id },
+			taskUrl: task.html_url,
 			toolCallId: request.toolCallId,
 			serverName: request.serverName,
 			toolName: request.toolName,
@@ -99,9 +101,15 @@ export function getCloudTaskPermissions(task: TaskContent['task'], events: reado
 }
 
 export function cloudPermissionPart(permission: CloudTaskPermission): ChatResponseConfirmationPart {
+	const message = new MarkdownString()
+		.appendText(l10n.t('Cloud automation requests this tool once.\n\nServer: {0}\nTool: {1}\n\nArguments:', permission.serverName, permission.toolName))
+		.appendCodeblock(JSON.stringify(permission.arguments, null, 2), 'json');
+	if (permission.taskUrl) {
+		message.appendMarkdown(l10n.t('\n\n[Open on GitHub]({0})', `<${Uri.parse(permission.taskUrl).toString()}>`));
+	}
 	return new ChatResponseConfirmationPart(
 		l10n.t('Allow {0}?', permission.toolName),
-		l10n.t('Cloud automation requests this tool once.\n\nServer: {0}\nTool: {1}\n\nArguments:\n{2}', permission.serverName, permission.toolName, JSON.stringify(permission.arguments, null, 2)),
+		message,
 		permission.confirmation,
 		[l10n.t('Allow Once'), l10n.t('Deny')],
 	);
