@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { renderCopilotSlashCommandOutput, type CopilotSlashCommandOutput, type ICopilotSlashCommandHandler, type RuntimeSlashCommandInfo } from '../../node/copilot/copilotSlashCommand.js';
 import { CopilotSlashCommandProvider } from '../../node/copilot/copilotSlashCommandProvider.js';
-import { getCopilotCustomizationCommandHandler, invokeCopilotPluginCommand, type ICopilotPluginCommandApi } from '../../node/copilot/copilotCustomizationCommandDisplay.js';
+import { getCopilotCustomizationCommandHandler, invokeCopilotPluginCommand, type ICopilotPluginCommandApi, type ReloadCopilotPlugins } from '../../node/copilot/copilotCustomizationCommandDisplay.js';
 
 function pluginApi(calls: string[]): ICopilotPluginCommandApi {
 	return {
@@ -38,9 +38,6 @@ function pluginApi(calls: string[]): ICopilotPluginCommandApi {
 		disable: async ({ names }) => {
 			calls.push(`disable:${names.join(',')}`);
 		},
-		reload: async () => {
-			calls.push('reload');
-		},
 		marketplaces: {
 			add: async ({ source }) => {
 				calls.push(`marketplace.add:${source}`);
@@ -68,6 +65,12 @@ function pluginApi(calls: string[]): ICopilotPluginCommandApi {
 				return { results: [{ name: 'anthropic-agent-skills', success: true }] };
 			},
 		},
+	};
+}
+
+function reloadPlugins(calls: string[]): ReloadCopilotPlugins {
+	return async reason => {
+		calls.push(`reload:${reason}`);
 	};
 }
 
@@ -496,7 +499,7 @@ suite('Copilot slash command handlers', () => {
 		});
 
 		test('provides progress messages for plugin mutations', () => {
-			const handler = getCopilotCustomizationCommandHandler(command, pluginApi([]));
+			const handler = getCopilotCustomizationCommandHandler(command, { api: pluginApi([]), reload: reloadPlugins([]) });
 
 			assert.deepStrictEqual({
 				install: handler?.getProgressMessage?.('install github/example'),
@@ -528,10 +531,10 @@ suite('Copilot slash command handlers', () => {
 			const plugins = pluginApi(calls);
 
 			assert.deepStrictEqual({
-				install: await invokeCopilotPluginCommand('install document-skills@anthropic', plugins),
-				update: await invokeCopilotPluginCommand('update document-skills@anthropic', plugins),
-				disable: await invokeCopilotPluginCommand('disable document-skills@anthropic', plugins),
-				uninstall: await invokeCopilotPluginCommand('remove document-skills@anthropic', plugins),
+				install: await invokeCopilotPluginCommand('install document-skills@anthropic', plugins, reloadPlugins(calls)),
+				update: await invokeCopilotPluginCommand('update document-skills@anthropic', plugins, reloadPlugins(calls)),
+				disable: await invokeCopilotPluginCommand('disable document-skills@anthropic', plugins, reloadPlugins(calls)),
+				uninstall: await invokeCopilotPluginCommand('remove document-skills@anthropic', plugins, reloadPlugins(calls)),
 				calls,
 			}, {
 				install: {
@@ -555,15 +558,15 @@ suite('Copilot slash command handlers', () => {
 					runtimeSettingsChanged: true,
 				},
 				calls: [
-					'install:document-skills@anthropic', 'reload',
-					'update:document-skills@anthropic', 'reload',
-					'list', 'disable:document-skills', 'reload',
-					'uninstall:document-skills@anthropic', 'reload',
+					'install:document-skills@anthropic', 'reload:install',
+					'update:document-skills@anthropic', 'reload:update',
+					'list', 'disable:document-skills@anthropic', 'reload:enablement',
+					'uninstall:document-skills@anthropic', 'reload:uninstall',
 				],
 			});
 		});
 
-		test('disables built-in plugins but rejects direct-source plugins', async () => {
+		test('disables built-in and direct-source plugins and reloads', async () => {
 			const calls: string[] = [];
 			const plugins: ICopilotPluginCommandApi = {
 				...pluginApi(calls),
@@ -576,8 +579,8 @@ suite('Copilot slash command handlers', () => {
 			};
 
 			assert.deepStrictEqual({
-				builtin: await invokeCopilotPluginCommand('disable builtin-plugin', plugins),
-				direct: await invokeCopilotPluginCommand('disable direct-plugin', plugins),
+				builtin: await invokeCopilotPluginCommand('disable builtin-plugin', plugins, reloadPlugins(calls)),
+				direct: await invokeCopilotPluginCommand('disable direct-plugin', plugins, reloadPlugins(calls)),
 				calls,
 			}, {
 				builtin: {
@@ -587,9 +590,10 @@ suite('Copilot slash command handlers', () => {
 				},
 				direct: {
 					kind: 'text',
-					text: 'Plugin direct-plugin is installed directly and cannot be enabled or disabled. Uninstall it instead.',
+					text: 'Disabled plugin direct-plugin.',
+					runtimeSettingsChanged: true,
 				},
-				calls: ['disable:builtin-plugin', 'reload'],
+				calls: ['disable:builtin-plugin', 'reload:enablement', 'disable:direct-plugin-source', 'reload:enablement'],
 			});
 		});
 
@@ -601,7 +605,7 @@ suite('Copilot slash command handlers', () => {
 			};
 
 			assert.deepStrictEqual({
-				result: await invokeCopilotPluginCommand('enable azure', plugins),
+				result: await invokeCopilotPluginCommand('enable azure', plugins, reloadPlugins(calls)),
 				calls,
 			}, {
 				result: {
@@ -609,8 +613,24 @@ suite('Copilot slash command handlers', () => {
 					text: 'Enabled plugin azure.',
 					runtimeSettingsChanged: true,
 				},
-				calls: ['enable:azure', 'reload'],
+				calls: ['enable:azure', 'reload:enablement'],
 			});
+		});
+
+		test('enables a direct source without affecting a same-name marketplace install', async () => {
+			const calls: string[] = [];
+			const plugins: ICopilotPluginCommandApi = {
+				...pluginApi(calls),
+				list: async () => ({
+					plugins: [
+						{ name: 'canvas', marketplace: '', enabled: false, directSourceId: 'github-source' },
+						{ name: 'canvas', marketplace: 'awesome-copilot', enabled: false },
+					],
+				}),
+			};
+			await invokeCopilotPluginCommand('enable github-source', plugins, reloadPlugins(calls));
+			await invokeCopilotPluginCommand('enable canvas@awesome-copilot', plugins, reloadPlugins(calls));
+			assert.deepStrictEqual(calls, ['enable:github-source', 'reload:enablement', 'enable:canvas@awesome-copilot', 'reload:enablement']);
 		});
 
 		test('invokes plugin marketplace commands', async () => {
@@ -618,11 +638,11 @@ suite('Copilot slash command handlers', () => {
 			const plugins = pluginApi(calls);
 
 			assert.deepStrictEqual({
-				add: await invokeCopilotPluginCommand('marketplace add anthropics/skills', plugins),
-				list: await invokeCopilotPluginCommand('marketplace list', plugins),
-				browse: await invokeCopilotPluginCommand('marketplace browse [anthropic](command:unsafe)', plugins),
-				update: await invokeCopilotPluginCommand('marketplace update anthropic-agent-skills', plugins),
-				remove: await invokeCopilotPluginCommand('marketplace remove anthropic-agent-skills --force', plugins),
+				add: await invokeCopilotPluginCommand('marketplace add anthropics/skills', plugins, reloadPlugins(calls)),
+				list: await invokeCopilotPluginCommand('marketplace list', plugins, reloadPlugins(calls)),
+				browse: await invokeCopilotPluginCommand('marketplace browse [anthropic](command:unsafe)', plugins, reloadPlugins(calls)),
+				update: await invokeCopilotPluginCommand('marketplace update anthropic-agent-skills', plugins, reloadPlugins(calls)),
+				remove: await invokeCopilotPluginCommand('marketplace remove anthropic-agent-skills --force', plugins, reloadPlugins(calls)),
 				calls,
 			}, {
 				add: { kind: 'text', text: 'Added plugin marketplace anthropic-agent-skills.', runtimeSettingsChanged: true },
@@ -652,7 +672,7 @@ suite('Copilot slash command handlers', () => {
 					'marketplace.browse:[anthropic](command:unsafe)',
 					'marketplace.refresh:anthropic-agent-skills',
 					'marketplace.remove:anthropic-agent-skills:true',
-					'reload',
+					'reload:marketplaceRemove',
 				],
 			});
 		});
@@ -662,8 +682,8 @@ suite('Copilot slash command handlers', () => {
 			const plugins = pluginApi(calls);
 
 			assert.deepStrictEqual({
-				install: await invokeCopilotPluginCommand('install', plugins),
-				removeMarketplace: await invokeCopilotPluginCommand('marketplace remove', plugins),
+				install: await invokeCopilotPluginCommand('install', plugins, reloadPlugins(calls)),
+				removeMarketplace: await invokeCopilotPluginCommand('marketplace remove', plugins, reloadPlugins(calls)),
 				calls,
 			}, {
 				install: { kind: 'text', text: 'Usage: /plugin install <source>' },

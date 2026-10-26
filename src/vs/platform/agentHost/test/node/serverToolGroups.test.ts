@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { StringOrMarkdown } from '../../common/state/sessionState.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildServerToolGroups, getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 function text(value: StringOrMarkdown | undefined): string | undefined {
@@ -145,5 +146,16 @@ suite('serverToolGroups deferral budget', () => {
 		assert.deepStrictEqual(definitions.filter(def => def.deferLoading === false).map(def => def.name), [
 			'add_artifact_or_reference',
 		]);
+	});
+
+	test('move_session is in neither the eager nor the materialized baseline; it is displayed without a host', () => {
+		assert.deepStrictEqual({
+			// Its own group joins only with the host's accessor and limits, and offers it only while moving chats is enabled (see sessionServerTools.test.ts).
+			inBaseline: definitions.some(definition => definition.name === SessionServerToolName.MoveSession),
+			displayName: getServerToolDisplay(SessionServerToolName.MoveSession, undefined)?.displayName,
+		}, {
+			inBaseline: false,
+			displayName: 'Move Session',
+		});
 	});
 });

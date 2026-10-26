@@ -1993,7 +1993,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/markdown-editor": "0.0.2-130",
+    "@vscode/markdown-editor": "0.0.2-136",
     "@vscode/observables": "^0.1.1-0",
     "@vscode/web-editors": "^0.0.2-41",
     "dompurify": "^3.4.10",
@@ -2004,7 +2004,7 @@
     "morphdom": "^2.7.7",
     "picomatch": "^2.3.2",
     "punycode": "^2.3.1",
-    "vscode-languageclient": "^8.0.2",
+    "vscode-languageclient": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11",
     "vscode-markdown-languageserver": "0.5.0",
     "vscode-uri": "^3.0.3",

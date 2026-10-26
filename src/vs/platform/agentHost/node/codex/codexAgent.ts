@@ -7,11 +7,12 @@ import type { CCAModel } from '@vscode/copilot-api';
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { DeferredPromise, disposableTimeout, Limiter, raceCancellationError, raceTimeout, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../../base/common/async.js';
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { type IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -28,11 +29,12 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostWorkspaceTrustConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
+import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createContextSizeConfigSchemaPropertyFromLimits, getModelContextSize } from '../../common/agentModelConfiguration.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
-import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_REFRESH_REQUEST_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
@@ -53,7 +55,7 @@ import { CodexChatDiscovery } from './codexChatDiscovery.js';
 import { CodexChatHistory } from './codexChatHistory.js';
 import type { InitializeResponse } from './protocol/generated/InitializeResponse.js';
 import { applyMcpServerRuntimeStates, McpCustomizationController } from '../shared/mcpCustomizationController.js';
-import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
+import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpAuthToken, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
 import { CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
 import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
@@ -76,6 +78,7 @@ import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js'
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../shared/workspacelessInstructions.js';
+import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
@@ -102,10 +105,13 @@ import { resolveCodexInput } from './codexPromptResolver.js';
 import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from './codexUserInputMapper.js';
 import { replayThreadToTurns, type ICodexReplayedCommand } from './codexReplayMapper.js';
 import { codexRetainedCommandOutputContent, shouldRetainCodexCommandOutput } from './codexTerminalOutput.js';
+import { storeCodexTurnDiffs } from './codexTurnDiff.js';
+import { CodexTurnDiffTracker } from './codexTurnDiffTracker.js';
+import type { TurnDiffUpdatedNotification } from './protocol/generated/v2/TurnDiffUpdatedNotification.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileReadRoots, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileReadRoots, codexServiceTierOverride, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
 import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
@@ -113,7 +119,7 @@ import { codexAccountRateLimitsFromResponse, codexAccountStateFromResponse, type
 import { getCodexAccountTelemetryContext } from './codexAccountTelemetry.js';
 import type { IAgentProviderTurnTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { CodexProfileImageStore, fetchCodexProfileImage } from './codexProfileImage.js';
-import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, CODEX_PERMISSIONS_PRESET_LABELS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
 import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js';
 import type { Personality } from './protocol/generated/Personality.js';
@@ -152,6 +158,7 @@ import type { TurnCompletedNotification } from './protocol/generated/v2/TurnComp
 import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
 import type { ItemStartedNotification } from './protocol/generated/v2/ItemStartedNotification.js';
 import type { ItemCompletedNotification } from './protocol/generated/v2/ItemCompletedNotification.js';
+import type { CollabAgentTool } from './protocol/generated/v2/CollabAgentTool.js';
 import type { TurnStartParams } from './protocol/generated/v2/TurnStartParams.js';
 import type { UserInput } from './protocol/generated/v2/UserInput.js';
 import type { ListMcpServerStatusResponse } from './protocol/generated/v2/ListMcpServerStatusResponse.js';
@@ -166,9 +173,10 @@ import type { ItemGuardianApprovalReviewCompletedNotification } from './protocol
 import type { GuardianWarningNotification } from './protocol/generated/v2/GuardianWarningNotification.js';
 import type { ThreadApproveGuardianDeniedActionResponse } from './protocol/generated/v2/ThreadApproveGuardianDeniedActionResponse.js';
 import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadResponse.js';
+import type { TurnSettingsUpdateResponse } from './protocol/generated/v2/TurnSettingsUpdateResponse.js';
 import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
 import { ensurePortableCodexProxyProvider } from './codexProviderConfiguration.js';
-import { parseCodexModelSelection, toCodexModelSelectionId, toCodexModelProvider } from '../../common/codexModelSelection.js';
+import { CODEX_COPILOT_MODEL_PROVIDER, parseCodexModelSelection, toCodexModelSelectionId, toCodexModelProvider } from '../../common/codexModelSelection.js';
 export { parseCodexModelSelection, toCodexModelSelectionId } from '../../common/codexModelSelection.js';
 import { reportCodexProviderSwitch } from './codexProviderSwitchTelemetry.js';
 import { formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
@@ -189,6 +197,8 @@ const CODEX_DESKTOP_ROLLOUT_PREFIX_CONCURRENCY = 8;
 const CODEX_COLD_SESSION_READ_CONCURRENCY = 8;
 const CODEX_THREAD_TURNS_PAGE_SIZE = 100;
 const CODEX_ON_DEMAND_CONNECTION_TIMEOUT_MS = 30_000;
+/** Collab calls that give an existing child more work; the child's next turns belong to the caller's current host turn. */
+const CODEX_CHILD_REUSE_TOOLS: ReadonlySet<CollabAgentTool> = new Set(['sendInput', 'resumeAgent', 'sendMessage', 'followupTask']);
 const CODEX_DESKTOP_WORKSPACE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CODEX_DESKTOP_SESSION_META_PATTERN = /"type"\s*:\s*"session_meta".*"payload"\s*:\s*\{[^}]*"originator"\s*:\s*"Codex Desktop"/s;
 const CODEX_GUARDIAN_TURN_INTERRUPTION_PREFIX = 'Automatic approval review rejected too many approval requests for this turn';
@@ -202,6 +212,11 @@ function isCodexWriterLockError(error: unknown, threadId: string | undefined): e
 function isCodexArchivedThreadError(error: unknown, threadId: string): error is JsonRpcError {
 	return error instanceof JsonRpcError && error.code === JsonRpcErrorCode.InvalidRequest
 		&& error.message.startsWith(`session ${threadId} is archived.`);
+}
+
+/** The physical paths a native file change touched, including a move's destination. */
+function fileChangePaths(item: Extract<ItemCompletedNotification['item'], { type: 'fileChange' }>): string[] {
+	return item.changes.flatMap(change => change.kind.type === 'update' && change.kind.move_path ? [change.path, change.kind.move_path] : [change.path]);
 }
 
 function isCodexDesktopGeneratedWorkspace(cwd: string, userHome: URI): boolean {
@@ -274,7 +289,6 @@ const MCP_TOOL_APPROVAL_ANSWER_DECLINE = '__codex_mcp_decline__';
  * chat-only models carry `/chat/completions` (neither is usable by codex).
  */
 const CODEX_RESPONSES_ENDPOINT = '/responses';
-const CODEX_COPILOT_MODEL_PROVIDER = 'vscode-proxy';
 const CODEX_COPILOT_MODEL_GROUP = 'copilot';
 const CODEX_OPENAI_MODEL_PROVIDER = 'openai';
 const CODEX_MODEL_CATALOG_TIMEOUT_MS = 15_000;
@@ -388,11 +402,7 @@ const codexSessionConfigSchema = createSchema({
 		title: localize('codex.sessionConfig.permissionsPreset', "Approvals"),
 		description: localize('codex.sessionConfig.permissionsPresetDescription', "How much Codex can do on its own before asking for approval."),
 		enum: [...CODEX_PERMISSIONS_PRESETS],
-		enumLabels: [
-			localize('codex.sessionConfig.permissionsPreset.default', "Default Permissions"),
-			localize('codex.sessionConfig.permissionsPreset.autoReview', "Auto-Review"),
-			localize('codex.sessionConfig.permissionsPreset.fullAccess', "Full Access"),
-		],
+		enumLabels: CODEX_PERMISSIONS_PRESETS.map(preset => CODEX_PERMISSIONS_PRESET_LABELS[preset]),
 		enumDescriptions: [
 			localize('codex.sessionConfig.permissionsPreset.defaultDescription', "Codex can read and edit workspace files and run routine local commands under the platform sandbox. It asks before using the internet or requesting broader access."),
 			localize('codex.sessionConfig.permissionsPreset.autoReviewDescription', "Same sandboxed access as Default, but approval requests are routed through the auto-reviewer instead of prompting you."),
@@ -620,6 +630,8 @@ interface ICodexTargetChat {
 interface ICodexPendingSteering {
 	readonly pendingMessage: PendingMessage;
 	readonly inputText: string;
+	/** Set once codex accepts `turn/steer`. Until then, the turn it targets can still end and reject it. */
+	accepted?: boolean;
 }
 
 interface ICodexSessionHookTrust {
@@ -694,7 +706,7 @@ interface ICodexSession {
 	 * replaced with the host-resolved working directory (the isolated worktree
 	 * for worktree-isolation sessions) before `thread/start` locks the codex
 	 * subprocess `cwd`. When the client supplies none (e.g. an editor window
-	 * with no workspace folder open), a managed temp folder is lazily created
+	 * with no workspace folder open), a managed scratch directory is lazily created
 	 * as a fallback at materialize time (tracked by
 	 * {@link managedWorkingDirectory} for cleanup). Mutable so both the
 	 * worktree swap and the lazy assignment can happen after a provisional
@@ -710,7 +722,7 @@ interface ICodexSession {
 	 */
 	workingDirectories?: readonly URI[];
 	/**
-	 * Set to the temp folder created for this session when no working
+	 * Set to the scratch directory created for this session when no working
 	 * directory was supplied, so the chat-dispose ref-tracking reclaim
 	 * (see {@link CodexAgent._reclaimManagedWorkingDirectoryIfNotLive}) can
 	 * remove it. `undefined` when the client supplied a working directory.
@@ -814,6 +826,16 @@ interface ICodexSession {
 	turnStopWatch: StopWatch | undefined;
 	/** Codex app-server turn id for the active turn. */
 	currentAppTurnId: string | undefined;
+	/** App-server turn that rejected `turn/steer`. Later steering waits for the next turn instead of retrying it. */
+	steeringRejectedAppTurnId?: string;
+	/** Applied permissions stay with this turn when the saved preset changes. */
+	turnPermissions?: {
+		readonly turnId: string;
+		applied: Pick<TurnStartParams, 'approvalPolicy' | 'permissions' | 'approvalsReviewer'>;
+		readonly updates: Sequencer;
+	};
+	/** Request settings awaiting the native turn-start notification. */
+	pendingTurnPermissions?: Pick<TurnStartParams, 'approvalPolicy' | 'permissions' | 'approvalsReviewer'>;
 	/** Codex app-server turn id -> workbench-facing turn id. */
 	readonly hostTurnIdByAppTurnId: Map<string, string>;
 	/**
@@ -910,6 +932,8 @@ interface ICodexSubagent {
 	readonly parentSessionId: string;
 	/** Host-side toolCallId of the parent `spawnAgent` collab tool call (routing key). */
 	readonly toolCallId: string;
+	/** The host turn that spawned the child, retained across parent cancellation and replacement sends. */
+	readonly hostTurnId: string;
 	/**
 	 * Isolated session used to run the shared event mappers for the child
 	 * thread. Shares the parent's `sessionUri` and `acceptedForSession` memo so
@@ -1110,6 +1134,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	readonly onDidChatProgress = this._onDidChatProgress.event;
 	private readonly _pendingCommandOutputs = new WeakMap<ICodexSession, Map<string, Promise<ToolResultContent[]>>>();
 	private readonly _pendingChatProgress = new WeakMap<ICodexSession, Promise<void>>();
+	private readonly _turnDiffs = new WeakMap<ICodexSession, CodexTurnDiffTracker>();
+	private readonly _onDidStoreTurnEdits = this._register(new Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>());
+	readonly onDidStoreTurnEdits = this._onDidStoreTurnEdits.event;
 
 	private readonly _onDidMaterializeChat = this._register(new Emitter<IAgentMaterializeChatEvent>());
 	readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
@@ -1183,6 +1210,21 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link _sessionIdByThreadId}. Removed on the child's `turn/completed`.
 	 */
 	private readonly _subagentsByThreadId = new Map<string, ICodexSubagent>();
+	/**
+	 * `spawnAgent` calls that started but have not completed, keyed by calling
+	 * thread and item id, with the session that made each call. Codex starts a
+	 * child thread before the call's completion names it, so the child's first
+	 * notifications can arrive before the child is in {@link _subagentsByThreadId}.
+	 */
+	private readonly _spawnsInFlight = new Map<string, ICodexSession>();
+	/**
+	 * Notifications from unknown threads received while a spawn is in flight, replayed in order once their
+	 * thread is registered. Each keeps the edit-order position it reserved on arrival in the turn diff
+	 * tracker of every session that may own it.
+	 */
+	private readonly _unregisteredThreadNotifications = new Map<string, { readonly dispatch: () => void; readonly reserved: ReadonlyMap<ICodexSession, number> }[]>();
+	/** Which parent session and host turn own a child thread's edits; outlives the child's subagent conversation, so a reused child keeps recording. */
+	private readonly _childTurnDiffOwners = new Map<string, { readonly parentSessionId: string; hostTurnId: string }>();
 	private readonly _mcpInventory = new CodexMcpInventory();
 	private readonly _mcpPublisherSessionIdByConfiguration = new Map<string, string>();
 	private readonly _publishedMcpTopLevelIdsByConfiguration = new Map<string, Set<string>>();
@@ -1202,6 +1244,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * shared app-server).
 	 */
 	private readonly _mcpAuthTokens = new Map<string, string>();
+	private readonly _mcpAuthTokensBySession = new ResourceMap<Map<string, ICodexMcpAuthToken>>();
 	/**
 	 * Association from a normalized OAuth `resource` (what the workbench
 	 * authenticates) to the normalized MCP server URL(s) it unlocks. RFC 9728
@@ -1328,6 +1371,16 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}));
 		this._register(this._gitHubEndpointService.onDidChange(() => this._handleGitHubEndpointChange()));
+		this._register(this._configurationService.onDidChatConfigChange(event => {
+			if (![CodexSessionConfigKey.PermissionsPreset, CodexSessionConfigKey.ApprovalPolicy, CodexSessionConfigKey.SandboxMode].some(key => Object.hasOwn(event.config, key))) {
+				return;
+			}
+			const sessionId = this._sessionIdByChatUri.get(event.chat);
+			const session = sessionId ? this._sessions.get(sessionId) : undefined;
+			if (session?.chatChannel?.toString() === event.chat) {
+				this._updateTurnReviewer(session);
+			}
+		}));
 		this._register(this._customizationEnablementService.onDidChange(event => {
 			const affectedConfigurations = new Map<string, URI>();
 			for (const session of this._sessions.values()) {
@@ -1651,6 +1704,29 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (normalizedResource === undefined) {
 			return false;
 		}
+		if (params.target) {
+			const targetSession = URI.parse(params.target.session);
+			const session = this._sessionForMcpControl(targetSession);
+			if (!session || session.disposed || !isEqual(session.owner.get(), targetSession)) {
+				return false;
+			}
+			const serverName = this._resolveMcpServerName(session, params.target.customizationId);
+			const serverUrl = serverName === undefined ? undefined : this._httpMcpServerUrls(session).get(serverName);
+			if (serverName === undefined || serverUrl === undefined || (serverUrl !== normalizedResource
+				&& !this._mcpAuthServerUrlsByResource.get(normalizedResource)?.has(serverUrl))) {
+				return false;
+			}
+			let tokens = this._mcpAuthTokensBySession.get(targetSession);
+			if (!tokens) {
+				tokens = new Map();
+				this._mcpAuthTokensBySession.set(targetSession, tokens);
+			}
+			if (tokens.get(serverName)?.token !== params.token || tokens.get(serverName)?.url !== serverUrl) {
+				tokens.set(serverName, { url: serverUrl, token: params.token });
+				await this._reconnectSessionsForMcpAuth(new Set([serverUrl]), targetSession);
+			}
+			return true;
+		}
 		// The workbench authenticates the OAuth `resource`, which RFC 9728
 		// discovery may report as different from the configured server URL.
 		// Resolve the server URL(s) this resource unlocks: the association
@@ -1669,6 +1745,16 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (this._mcpAuthTokens.get(serverUrl) !== params.token) {
 				this._mcpAuthTokens.set(serverUrl, params.token);
 				changed = true;
+			}
+		}
+		for (const session of this._sessions.values()) {
+			const tokens = this._mcpAuthTokensBySession.get(session.owner.get());
+			if (tokens) {
+				for (const [name, url] of this._httpMcpServerUrls(session)) {
+					if (serverUrls.has(url)) {
+						changed = tokens.delete(name) || changed;
+					}
+				}
 			}
 		}
 		if (!changed) {
@@ -1698,9 +1784,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * (`thread/resume` carries the same `config` field, loading history from the
 	 * rollout) on its next turn via {@link ICodexSession.needsResume}.
 	 */
-	private async _reconnectSessionsForMcpAuth(normalizedUrls: ReadonlySet<string>): Promise<void> {
+	private async _reconnectSessionsForMcpAuth(normalizedUrls: ReadonlySet<string>, targetSession?: URI): Promise<void> {
 		for (const session of this._sessions.values()) {
-			if (session.disposed || session.threadId === undefined) {
+			if (session.disposed || session.threadId === undefined || (targetSession && !isEqual(session.owner.get(), targetSession))) {
 				continue;
 			}
 			if (![...this._httpMcpServerUrls(session).values()].some(url => normalizedUrls.has(url))) {
@@ -1970,6 +2056,58 @@ export class CodexAgent extends Disposable implements IAgent {
 			collaborationMode,
 			...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
 		};
+	}
+
+	private _updateTurnReviewer(session: ICodexSession): void {
+		const turn = session.turnPermissions;
+		const turnId = turn?.turnId;
+		const threadId = session.threadId;
+		const connection = this._connection;
+		if (!turn || !turnId || !threadId || connection.kind !== 'ready') {
+			return;
+		}
+		const owner = session.owner.get();
+		const resolved = this._resolveSessionPermissions(owner, session.chatChannel);
+		const requested = {
+			approvalPolicy: resolved.approvalPolicy,
+			permissions: this._permissionProfile(this._readSessionConfig(owner, session.chatChannel), resolved.sandboxMode, session.agentMergeTurn ? false : undefined),
+			approvalsReviewer: resolved.approvalsReviewer,
+		};
+		const isCurrent = () => !session.disposed && session.turnPermissions === turn
+			&& session.currentAppTurnId === turnId
+			&& session.threadId === threadId && this._isCurrentConnection(connection);
+		void turn.updates.queue(async () => {
+			if (!isCurrent() || requested.approvalPolicy !== turn.applied.approvalPolicy
+				|| requested.permissions !== turn.applied.permissions
+				|| requested.approvalsReviewer === turn.applied.approvalsReviewer) {
+				return;
+			}
+			// The live API changes only the reviewer for subsequent steps. Sandbox
+			// and approval-policy changes wait for the next turn; pending approvals
+			// retain the reviewer that originally handled them.
+			const result = await connection.client.request<'turn/settings/update', TurnSettingsUpdateResponse>('turn/settings/update', {
+				threadId,
+				turnId,
+				approvalsReviewer: requested.approvalsReviewer,
+			});
+			if (result.status === 'applied' && isCurrent()) {
+				turn.applied = requested;
+			}
+		}).catch(error => {
+			this._logService.warn(`[Codex:${session.sessionId}] Failed to update the active turn's approvals`, error);
+			const hostTurnId = session.currentTurnId;
+			if (isCurrent() && hostTurnId) {
+				this._fire(session.sessionUri, {
+					type: ActionType.ChatResponsePart,
+					turnId: hostTurnId,
+					part: {
+						kind: ResponsePartKind.SystemNotification,
+						content: localize('codex.turnApprovalsUpdateFailed', "Could not change approvals for the current turn. It will keep its previous permissions. {0}", error instanceof Error ? error.message : String(error)),
+						_meta: toAgentSystemNotificationMeta({ severity: AgentSystemNotificationSeverity.Warning }),
+					},
+				});
+			}
+		});
 	}
 
 	private _workingDirectories(session: ICodexSession): readonly URI[] {
@@ -2654,7 +2792,14 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}));
 		subscriptions.add(client.onNotification('skills/changed', () => this._queueSkillHookCustomizationRefresh(client)));
-		subscriptions.add(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => this._handleTurnStartedNotification(s, params))));
+		subscriptions.add(client.onNotification('turn/started', params => {
+			this._detachedChildTurnDiffs(params.threadId, params.turn.id);
+			this._dispatchByThread(params.threadId, s => this._handleTurnStartedNotification(s, params));
+		}));
+		subscriptions.add(client.onNotification('turn/diff/updated', params => {
+			this._detachedChildTurnDiffs(params.threadId, params.turnId)?.tracker.update(params);
+			this._dispatchByThread(params.threadId, s => this._handleTurnDiffUpdated(s, params));
+		}));
 		subscriptions.add(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => this._handleItemStarted(s, params))));
 		subscriptions.add(client.onNotification('item/agentMessage/delta', params => this._dispatchByThread(params.threadId, s => mapAgentMessageDelta(s.mapState, this._withHostTurnId(s, params)))));
 		subscriptions.add(client.onNotification('item/commandExecution/outputDelta', params => this._dispatchByThread(params.threadId, s => mapCommandExecutionOutputDelta(s.mapState, this._withHostTurnId(s, params)))));
@@ -2754,7 +2899,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			? Object.fromEntries(Object.entries(configuredServers).filter(([name, server]) => !isAgentMergeRestrictedMcpServer(name, server)))
 			: configuredServers;
 		const builtInGitHub = this._builtInGitHubMcpServer(session, enabledConfiguredServers);
-		return injectCodexMcpAuthTokens({ ...builtInGitHub, ...enabledConfiguredServers }, this._mcpAuthTokens);
+		return injectCodexMcpAuthTokens({ ...builtInGitHub, ...enabledConfiguredServers }, this._mcpAuthTokens, this._mcpAuthTokensBySession.get(this._launchOwner(session)));
 	}
 
 	private _builtInGitHubMcpServer(session: ICodexSession, configuredServers: Record<string, ICodexMcpServerConfigJson>): Record<string, ICodexMcpServerConfigJson> {
@@ -2910,22 +3055,30 @@ export class CodexAgent extends Disposable implements IAgent {
 				if (!chatChannel) {
 					return { result: this._toolFailure(`No chat channel for server tool ${params.tool}`) };
 				}
-				const { approvalPolicy, sandboxMode } = this._resolveSessionPermissions(session.owner.get(), session.chatChannel);
-				const fullAccess = !session.agentMergeTurn && approvalPolicy === 'never' && sandboxMode === 'danger-full-access';
+				const turnPermissions = session.turnPermissions;
+				let fullAccess: boolean;
+				if (turnPermissions) {
+					fullAccess = turnPermissions.turnId === params.turnId && turnPermissions.applied.approvalPolicy === 'never' && turnPermissions.applied.permissions === ':danger-full-access';
+				} else {
+					const { approvalPolicy, sandboxMode } = this._resolveSessionPermissions(session.owner.get(), session.chatChannel);
+					fullAccess = approvalPolicy === 'never' && sandboxMode === 'danger-full-access';
+				}
+				fullAccess &&= !session.agentMergeTurn;
 				if (host.requiresConfirmation(chatChannel, params.tool) && !fullAccess) {
 					const entry = session.mapState.itemToToolCall.get(params.callId);
 					if (!entry) {
 						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
 					}
+					const confirmation = host.getConfirmationDisplay(params.tool, params.arguments);
 					const display = getServerToolDisplay(params.tool, params.arguments);
-					const invocationMessage = display?.confirmationMessage ?? display?.invocationMessage ?? `Calling ${params.tool}`;
+					const invocationMessage = confirmation?.confirmationMessage ?? display?.confirmationMessage ?? display?.invocationMessage ?? `Calling ${params.tool}`;
 					const decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
 						this._fire(session.sessionUri, {
 							type: ActionType.ChatToolCallReady,
 							turnId: entry.turnId,
 							toolCallId: entry.toolCallId,
 							invocationMessage,
-							confirmationTitle: display?.confirmationTitle ?? localize('codex.serverToolConfirmation.title', "Allow tool call?"),
+							confirmationTitle: confirmation?.confirmationTitle ?? display?.confirmationTitle ?? localize('codex.serverToolConfirmation.title', "Allow tool call?"),
 						});
 					});
 					if (decision !== 'accept' && decision !== 'acceptForSession') {
@@ -3096,7 +3249,18 @@ export class CodexAgent extends Disposable implements IAgent {
 		const appTurnId = params.turn.id;
 		session.hostTurnIdByAppTurnId.set(appTurnId, session.currentTurnId ?? this._hostTurnId(session, appTurnId));
 		session.currentAppTurnId = appTurnId;
+		if (session.pendingTurnPermissions) {
+			session.turnPermissions = { turnId: appTurnId, applied: session.pendingTurnPermissions, updates: new Sequencer() };
+			session.pendingTurnPermissions = undefined;
+		}
+		this._updateTurnReviewer(session);
 		const mapped = this._withHostTurn(session, params);
+		const subagent = this._subagentsByThreadId.get(params.threadId);
+		const owner = this._turnDiffOwner(session);
+		if (owner) {
+			this._getTurnDiffTracker(owner).start(params.threadId, appTurnId, subagent?.hostTurnId ?? mapped.turn.id);
+		}
+		session.codexTurnIdByHostTurnId.set(mapped.turn.id, appTurnId);
 		this._persistTurnEventId(session, mapped.turn.id, appTurnId);
 		mapTurnStarted(session.mapState, mapped, session.lastPromptText);
 		return [];
@@ -3112,6 +3276,103 @@ export class CodexAgent extends Disposable implements IAgent {
 		ref.object.setTurnEventId(hostTurnId, appTurnId).catch(error => {
 			this._logService.warn(`[Codex:${session.threadId}] Failed to persist turn id mapping ${hostTurnId} -> ${appTurnId}`, error);
 		}).finally(() => ref.dispose());
+	}
+
+	private _handleTurnDiffUpdated(session: ICodexSession, params: TurnDiffUpdatedNotification): (SessionAction | ChatAction)[] {
+		const owner = this._turnDiffOwner(session);
+		if (owner) {
+			this._turnDiffs.get(owner)?.update(params);
+		}
+		return [];
+	}
+
+	private _turnDiffOwner(session: ICodexSession): ICodexSession | undefined {
+		const subagent = session.threadId ? this._subagentsByThreadId.get(session.threadId) : undefined;
+		return subagent ? this._sessions.get(subagent.parentSessionId) : session;
+	}
+
+	/**
+	 * Tracks a turn of a child whose subagent conversation already completed, such as one
+	 * resumed by `send_input`, under the host turn of the collab call that gave it the work.
+	 */
+	private _detachedChildTurnDiffs(threadId: string, nativeTurnId: string): { readonly parent: ICodexSession; readonly tracker: CodexTurnDiffTracker } | undefined {
+		const owner = this._subagentsByThreadId.has(threadId) ? undefined : this._childTurnDiffOwners.get(threadId);
+		const parent = owner && this._sessions.get(owner.parentSessionId);
+		if (!owner || !parent || parent.disposed) {
+			return undefined;
+		}
+		const tracker = this._getTurnDiffTracker(parent);
+		tracker.start(threadId, nativeTurnId, owner.hostTurnId);
+		return { parent, tracker };
+	}
+
+	/** Moves a reused child's later edits to the caller's current host turn. */
+	private _bindReusedChildren(session: ICodexSession, params: ItemStartedNotification | ItemCompletedNotification): void {
+		if (params.item.type !== 'collabAgentToolCall' || !CODEX_CHILD_REUSE_TOOLS.has(params.item.tool)) {
+			return;
+		}
+		const caller = session.threadId ? this._subagentsByThreadId.get(session.threadId) : undefined;
+		const hostTurnId = caller?.hostTurnId ?? this._hostTurnId(session, params.turnId);
+		for (const threadId of params.item.receiverThreadIds) {
+			const owner = this._childTurnDiffOwners.get(threadId);
+			if (owner) {
+				owner.hostTurnId = hostTurnId;
+			}
+		}
+	}
+
+	private _getTurnDiffTracker(session: ICodexSession): CodexTurnDiffTracker {
+		let tracker = this._turnDiffs.get(session);
+		if (!tracker) {
+			tracker = new CodexTurnDiffTracker(async (captures, relatedDiffs, discardedTurnIds) => {
+				if (!session.chatStorage || !session.workingDirectory || session.disposed) {
+					return;
+				}
+				const database = this._sessionDataService.openDatabase(session.chatStorage);
+				const cwd = session.workingDirectory;
+				try {
+					const nativeCwd = URI.file(await fs.promises.realpath(cwd.fsPath).catch(() => cwd.fsPath));
+					await storeCodexTurnDiffs(captures, {
+						relatedDiffs, cwd, nativeCwd, database: database.object, fileService: this._fileService, logService: this._logService, discardedTurnIds,
+					});
+				} finally {
+					database.dispose();
+				}
+				if (session.chatChannel) {
+					this._onDidStoreTurnEdits.fire({ chat: session.chatChannel, turnIds: [...new Set(captures.flatMap(capture => capture.snapshots.map(snapshot => snapshot.turnId)))] });
+				}
+			});
+			this._turnDiffs.set(session, tracker);
+		}
+		return tracker;
+	}
+
+	async waitForTurnEdits(chat: URI, turnId: string): Promise<void> {
+		const sessionId = this._sessionIdByChatUri.get(chat.toString());
+		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		if (session) {
+			const tracker = this._turnDiffs.get(session);
+			const ready = await raceTimeout(tracker?.waitForTurnEdits(turnId).then(() => true) ?? Promise.resolve(true), 30_000);
+			if (!ready) {
+				// The snapshots are still stored once the native turn completes, and storing them refreshes the turn's changesets.
+				throw new Error(localize('codex.turnSnapshotsTimeout', "Timed out waiting for Codex file snapshots."));
+			}
+		}
+	}
+
+	/** Completes native capture without blocking child progress; changeset reads wait on the tracker. */
+	private _stageTurnDiff(session: ICodexSession, appTurnId: string, publisher = session): void {
+		const tracker = this._turnDiffs.get(publisher);
+		if (!tracker) {
+			return;
+		}
+		const captured = tracker.complete(appTurnId).catch(error => {
+			this._logService.warn(`[Codex:${session.threadId}] Failed to capture turn diff`, error);
+		});
+		if (!tracker.isWaitingForRelatedTurns(appTurnId)) {
+			const previous = this._pendingChatProgress.get(publisher);
+			this._pendingChatProgress.set(publisher, Promise.all([previous, captured]).then(() => { }));
+		}
 	}
 
 	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification, retainRecoveredOutput = true): (SessionAction | ChatAction)[] {
@@ -3137,10 +3398,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.currentAppTurnId === appTurnId) {
 			session.currentAppTurnId = undefined;
 		}
+		if (session.turnPermissions?.turnId === appTurnId) {
+			session.turnPermissions = undefined;
+		}
 		session.hostTurnIdByAppTurnId.delete(appTurnId);
-		// Any steering still buffered was never echoed as a `userMessage`
-		// item; clear the pending bubble now that the turn is over.
-		this._drainPendingSteering(session);
+		// Any steering codex accepted but never echoed as a `userMessage` item
+		// is over with the turn; clear its pending bubble. Steering codex has not
+		// answered yet reached it after the turn ended, so its rejection hands it back.
+		this._drainPendingSteering(session, true);
 		// Unwind any still-pending "Approve anyway" guardian cards. codex does not
 		// block on them, so the reducer cancels the card when the turn ends; here
 		// we resolve the parked deferred (`cancel`) so the suspended
@@ -3176,8 +3441,12 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * other item kinds defer to {@link mapItemStarted}.
 	 */
 	private _handleItemStarted(session: ICodexSession, params: ItemStartedNotification): (SessionAction | ChatAction)[] {
+		this._bindReusedChildren(session, params);
 		if (params.item.type === 'userMessage') {
 			return this._handleSteeredUserMessage(session, params.item.content, params.item.clientId);
+		}
+		if (params.item.type === 'collabAgentToolCall' && params.item.tool === 'spawnAgent') {
+			this._spawnsInFlight.set(`${params.threadId}/${params.item.id}`, session);
 		}
 		return mapItemStarted(session.mapState, this._withHostTurnId(session, params));
 	}
@@ -3234,7 +3503,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const newHostTurnId = generateUuid();
 		if (appTurnId) {
+			this._turnDiffs.get(session)?.split(appTurnId, newHostTurnId);
 			session.hostTurnIdByAppTurnId.set(appTurnId, newHostTurnId);
+			session.codexTurnIdByHostTurnId.set(newHostTurnId, appTurnId);
+			this._persistTurnEventId(session, newHostTurnId, appTurnId);
 		}
 		session.currentTurnId = newHostTurnId;
 		actions.push({
@@ -3252,15 +3524,15 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * Clear any steering messages still buffered (never echoed by codex)
 	 * and fire `steering_consumed` for each so the chat UI removes the
 	 * lingering pending bubble. Called on turn completion, abort, dispose,
-	 * and connection loss.
+	 * and connection loss. With `keepUnanswered`, steering whose `turn/steer`
+	 * request codex has not answered stays buffered for that answer to settle.
 	 */
-	private _drainPendingSteering(session: ICodexSession): void {
-		if (session.pendingSteeringFlips.size === 0) {
-			return;
-		}
-		const ids = [...session.pendingSteeringFlips.keys()];
-		session.pendingSteeringFlips.clear();
-		for (const id of ids) {
+	private _drainPendingSteering(session: ICodexSession, keepUnanswered = false): void {
+		for (const [id, steering] of [...session.pendingSteeringFlips]) {
+			if (keepUnanswered && !steering.accepted) {
+				continue;
+			}
+			session.pendingSteeringFlips.delete(id);
 			this._fireSteeringConsumed(session, id);
 		}
 	}
@@ -3553,6 +3825,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sessionId = this._sessionIdByThreadId.get(threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (!session) {
+			if (this._deferUntilSpawned(threadId, () => this._dispatchByThread(threadId, mapFn))) {
+				return;
+			}
 			// Usually an unclaimed prewarm; ignore.
 			this._logService.trace(`[Codex] Ignoring notification for untracked threadId=${threadId}; likely unclaimed prewarm`);
 			return;
@@ -3560,6 +3835,64 @@ export class CodexAgent extends Disposable implements IAgent {
 		const actions = mapFn(session);
 		for (const action of actions) {
 			this._fire(session.sessionUri, action);
+		}
+	}
+
+	/** Keeps a notification from an unknown thread while a `spawnAgent` call that may name it is in flight. */
+	private _deferUntilSpawned(threadId: string, dispatch: () => void): boolean {
+		if (this._spawnsInFlight.size === 0) {
+			return false;
+		}
+		const reserved = new Map<ICodexSession, number>();
+		for (const spawner of this._spawnsInFlight.values()) {
+			const owner = this._turnDiffOwner(spawner) ?? spawner;
+			if (!reserved.has(owner)) {
+				reserved.set(owner, this._getTurnDiffTracker(owner).reserveSequence());
+			}
+		}
+		let pending = this._unregisteredThreadNotifications.get(threadId);
+		if (!pending) {
+			pending = [];
+			this._unregisteredThreadNotifications.set(threadId, pending);
+		}
+		pending.push({ dispatch, reserved });
+		return true;
+	}
+
+	/** Stops tracking finished spawns and replays, in arrival order, what the children they registered sent before. */
+	private _settleSpawns(finished: (spawn: string, spawner: ICodexSession) => boolean, children: readonly string[] = []): void {
+		for (const [spawn, spawner] of [...this._spawnsInFlight]) {
+			if (finished(spawn, spawner)) {
+				this._spawnsInFlight.delete(spawn);
+			}
+		}
+		for (const child of children) {
+			const pending = this._unregisteredThreadNotifications.get(child);
+			this._unregisteredThreadNotifications.delete(child);
+			const subagent = this._subagentsByThreadId.get(child);
+			if (!subagent) {
+				continue;
+			}
+			const owner = this._turnDiffOwner(subagent.session);
+			const tracker = owner && this._turnDiffs.get(owner);
+			for (const { dispatch, reserved } of pending ?? []) {
+				const position = owner && reserved.get(owner);
+				if (tracker && position !== undefined) {
+					tracker.replayAt(position, dispatch);
+				} else {
+					dispatch();
+				}
+			}
+		}
+		if (this._spawnsInFlight.size === 0) {
+			this._unregisteredThreadNotifications.clear();
+		}
+	}
+
+	/** Settles the spawns of a thread whose turn ended or which went away without completing them. */
+	private _settleSpawnsOf(threadId: string | undefined): void {
+		if (threadId !== undefined && this._spawnsInFlight.size > 0) {
+			this._settleSpawns(spawn => spawn.startsWith(`${threadId}/`));
 		}
 	}
 
@@ -3579,6 +3912,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const sessionId = this._sessionIdByThreadId.get(params.threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		if (!session && this._deferUntilSpawned(params.threadId, () => this._dispatchTokenUsageUpdated(params))) {
+			return;
+		}
 		if (!session?.chatChannel) {
 			this._logService.trace(`[Codex] Ignoring token usage for inactive threadId=${params.threadId}`);
 			return;
@@ -3609,15 +3945,27 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _dispatchItemCompleted(params: ItemCompletedNotification): void {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
 		if (subagent) {
+			this._recordTurnFileChanges(subagent.session, params);
 			const actions = mapItemCompleted(subagent.session.mapState, this._withHostTurnId(subagent.session, params));
 			for (const action of actions) {
 				this._fireSubagent(subagent, action);
 			}
+			this._settleSpawnItem(params);
 			return;
 		}
 		const sessionId = this._sessionIdByThreadId.get(params.threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (!session) {
+			// A child reused after its subagent conversation completed still records the files it edits.
+			if (this._childTurnDiffOwners.has(params.threadId)) {
+				if (params.item.type === 'fileChange' && params.item.status === 'completed') {
+					this._detachedChildTurnDiffs(params.threadId, params.turnId)?.tracker.markEdited(params.turnId, fileChangePaths(params.item));
+				}
+				return;
+			}
+			if (this._deferUntilSpawned(params.threadId, () => this._dispatchItemCompleted(params))) {
+				return;
+			}
 			this._logService.trace(`[Codex] Ignoring item/completed for untracked threadId=${params.threadId}; likely unclaimed prewarm`);
 			return;
 		}
@@ -3626,10 +3974,35 @@ export class CodexAgent extends Disposable implements IAgent {
 		// may clear), and firing `subagent_started` first lets the orchestrator
 		// attach the child-conversation block to the still-open parent tool call.
 		this._maybeRegisterSubagents(session, params);
+		this._bindReusedChildren(session, params);
+		this._recordTurnFileChanges(session, params);
 		const retainedOutputResource = this._retainCommandOutput(session, params.item);
 		const actions = mapItemCompleted(session.mapState, this._withHostTurnId(session, params), retainedOutputResource);
 		for (const action of actions) {
 			this._fire(session.sessionUri, action);
+		}
+		this._settleSpawnItem(params);
+	}
+
+	/** A completed `spawnAgent` call replays what its children sent before it named them. */
+	private _settleSpawnItem(params: ItemCompletedNotification): void {
+		const item = params.item;
+		if (item.type === 'collabAgentToolCall' && item.tool === 'spawnAgent') {
+			this._settleSpawns(spawn => spawn === `${params.threadId}/${item.id}`, item.receiverThreadIds);
+		}
+	}
+
+	/** Uses native file-change notifications only for path ordering; contents come from cumulative turn diffs. */
+	private _recordTurnFileChanges(session: ICodexSession, params: ItemCompletedNotification): void {
+		if (params.item.type !== 'fileChange' || params.item.status !== 'completed') {
+			return;
+		}
+		const owner = this._turnDiffOwner(session);
+		if (owner) {
+			const tracker = this._getTurnDiffTracker(owner);
+			const child = this._subagentsByThreadId.get(params.threadId);
+			tracker.start(params.threadId, params.turnId, child?.hostTurnId ?? this._hostTurnId(session, params.turnId));
+			tracker.markEdited(params.turnId, fileChangePaths(params.item));
 		}
 	}
 
@@ -3682,7 +4055,17 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _dispatchTurnCompleted(params: TurnCompletedNotification): void {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
+		if (!subagent && !this._sessionIdByThreadId.has(params.threadId) && !this._childTurnDiffOwners.has(params.threadId) && this._deferUntilSpawned(params.threadId, () => this._dispatchTurnCompleted(params))) {
+			return;
+		}
+		// A spawn its turn ended without completing will not name a child.
+		this._settleSpawnsOf(params.threadId);
 		if (subagent) {
+			const parent = this._sessions.get(subagent.parentSessionId);
+			if (parent) {
+				this._getTurnDiffTracker(parent).start(params.threadId, params.turn.id, subagent.hostTurnId);
+				this._stageTurnDiff(subagent.session, params.turn.id, parent);
+			}
 			const actions = this._handleTurnCompletedNotification(subagent.session, params, false);
 			for (const action of actions) {
 				if (action.type === ActionType.ChatTurnComplete) {
@@ -3699,7 +4082,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			});
 			return;
 		}
-		this._dispatchByThread(params.threadId, s => this._handleTurnCompletedNotification(s, params));
+		const detached = this._detachedChildTurnDiffs(params.threadId, params.turn.id);
+		if (detached) {
+			this._stageTurnDiff(detached.parent, params.turn.id, detached.parent);
+			return;
+		}
+		this._dispatchByThread(params.threadId, s => {
+			this._stageTurnDiff(s, params.turn.id);
+			return this._handleTurnCompletedNotification(s, params);
+		});
 	}
 
 	/**
@@ -3727,9 +4118,15 @@ export class CodexAgent extends Disposable implements IAgent {
 				continue;
 			}
 			const subSession = this._createSubagentSession(session, childThreadId);
+			const spawningChild = session.threadId ? this._subagentsByThreadId.get(session.threadId) : undefined;
+			const hostTurnId = spawningChild?.hostTurnId ?? this._hostTurnId(session, params.turnId);
+			const owner = this._turnDiffOwner(session) ?? session;
+			this._getTurnDiffTracker(owner).trackChild(childThreadId, hostTurnId);
+			this._childTurnDiffOwners.set(childThreadId, { parentSessionId: owner.sessionId, hostTurnId });
 			this._subagentsByThreadId.set(childThreadId, {
 				parentSessionId: session.sessionId,
 				toolCallId: entry.toolCallId,
+				hostTurnId,
 				session: subSession,
 			});
 			this._emitChatProgress(session, {
@@ -4180,9 +4577,27 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._pendingMcpStartupStatuses.clear();
 		this._mcpInventory.clear();
 		this._applyGlobalMcpInventoryToSessions();
+		this._spawnsInFlight.clear();
+		this._unregisteredThreadNotifications.clear();
 		if (state.kind === 'starting') {
 			this._disposeConnectionResources(connection);
 			return;
+		}
+		for (const subagent of this._subagentsByThreadId.values()) {
+			const parent = this._sessions.get(subagent.parentSessionId);
+			if (parent && subagent.session.threadId) {
+				void this._turnDiffs.get(parent)?.completeThread(subagent.session.threadId).catch(error => {
+					this._logService.warn('[Codex] Failed to capture child edits on disconnect', error);
+				});
+			}
+		}
+		for (const [threadId, owner] of this._childTurnDiffOwners) {
+			const parent = this._subagentsByThreadId.has(threadId) ? undefined : this._sessions.get(owner.parentSessionId);
+			if (parent) {
+				void this._turnDiffs.get(parent)?.completeThread(threadId).catch(error => {
+					this._logService.warn('[Codex] Failed to capture child edits on disconnect', error);
+				});
+			}
 		}
 		// Notify every known session with a single ChatError + complete
 		// pair so the UI surfaces "agent disconnected" cleanly.
@@ -4196,6 +4611,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				session.unsubscribeBeforeResume = false;
 			}
 			// Unpark any pending approvals so awaiters unwind.
+			session.turnPermissions = undefined;
+			session.pendingTurnPermissions = undefined;
 			session.pendingCommandApprovals.denyAll('decline');
 			// Reject in-flight client tool calls so their handlers unwind.
 			session.pendingClientToolCalls.rejectAll(new CancellationError());
@@ -4204,6 +4621,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._drainPendingSteering(session);
 			const turnId = session.currentTurnId;
 			const appTurnId = session.currentAppTurnId;
+			if (appTurnId) {
+				this._stageTurnDiff(session, appTurnId);
+			}
 			session.currentTurnId = undefined;
 			session.currentAppTurnId = undefined;
 			session.agentMergeTurn = false;
@@ -4628,6 +5048,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return this._chatLifecycleSequencer.queue(chat.toString(), () => this._createChat(chat, resolved, options));
 		},
 		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._chatLifecycleSequencer.queue(chat.toString(), () => this._disposeChat(chat, context)),
+		canReleaseChat: async (chat: URI, context: URI | IAgentChatContext): Promise<boolean> => this._canReleaseChat(chat, context),
 		releaseChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._chatLifecycleSequencer.queue(chat.toString(), () => this._releaseChat(chat, context)),
 		sendMessage: (chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const workingDirectories = Array.isArray(workingDirectoriesOrDirectory) ? workingDirectoriesOrDirectory : workingDirectoriesOrDirectory ? [workingDirectoriesOrDirectory] : undefined;
@@ -4965,7 +5386,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * Register a backing whose codex thread is deferred (see
 	 * {@link ICodexSession.threadId} for why). `thread/start` happens on
 	 * prewarm, the first `sendMessage`, or `getChatMetadata` for restore — by
-	 * which point a managed temp folder can be created lazily if the client
+	 * which point a managed scratch directory can be created lazily if the client
 	 * gave no working directory, instead of rejecting the creation.
 	 */
 	private _deferChatBacking(sessionId: string, options: IAgentCreateChatOptions | undefined, target: ICodexTargetChat): ICodexSession {
@@ -5044,7 +5465,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * top-level codex thread of its own (session id == thread id), so the
 	 * thread has to exist before the creation can name it as the chat's exact
 	 * backing. It runs in the host-resolved working directory, or in a managed
-	 * temp folder when the session has none, and inherits nothing from the
+	 * scratch directory when the session has none, and inherits nothing from the
 	 * parent session beyond the resolved options and its live active clients.
 	 */
 	private async _startChatBacking(context: IAgentChatContext, options: IAgentCreateChatOptions | undefined, target: ICodexTargetChat): Promise<ICodexSession> {
@@ -5105,6 +5526,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
 					model: resolvedModel.modelId,
 					modelProvider: resolvedModel.modelProvider,
+					...codexServiceTierOverride(resolvedModel.modelProvider),
 					approvalPolicy,
 					permissions,
 					approvalsReviewer,
@@ -5489,6 +5911,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
 				'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider),
 			};
+			const forkModelProvider = resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider;
 			const forkHookTrust = await this._buildSessionHookTrustState(forkConnection.client, forkCwd);
 			const connection = forkConnection;
 			// Without a cwd of its own, the fork runs in its source thread's.
@@ -5505,6 +5928,7 @@ export class CodexAgent extends Disposable implements IAgent {
 						runtimeWorkspaceRoots,
 					} : {}),
 					...(resolvedModel ? { model: resolvedModel.modelId, modelProvider: resolvedModel.modelProvider } : {}),
+					...codexServiceTierOverride(forkModelProvider),
 					config: forkConfig,
 					approvalPolicy,
 					permissions,
@@ -5626,22 +6050,20 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._otelService.getSessionTraceContext(session.sessionId, session.sessionUri.toString());
 	}
 
-	private async _createManagedWorkingDirectory(ownerId: string): Promise<URI> {
-		const directory = URI.file(join(os.tmpdir(), 'vscode-agent-codex', ownerId));
-		await fs.promises.mkdir(directory.fsPath, { recursive: true });
-		return directory;
+	private _createManagedWorkingDirectory(ownerId: string): Promise<URI> {
+		return ensureWorkspacelessScratchDir(this._environmentService.userHome, ownerId);
 	}
 
 	private async _removeManagedWorkingDirectory(directory: URI): Promise<void> {
 		try {
 			await fs.promises.rm(directory.fsPath, { recursive: true, force: true });
 		} catch (err) {
-			this._logService.info(`[Codex] failed to remove managed temp folder ${directory.fsPath}: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.info(`[Codex] failed to remove managed scratch directory ${directory.fsPath}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 
 	/**
-	 * Abandon this session's own managed temp folder ahead of adopting a
+	 * Abandon this session's own managed scratch directory ahead of adopting a
 	 * different (host- or user-supplied) working directory. Clears the
 	 * in-memory field, removes the folder from disk via its known explicit
 	 * path, and persists the clear so a later reclaim — this process or a
@@ -5669,9 +6091,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		if (!session.workingDirectory) {
-			// No working directory was supplied (e.g. an editor window with no
-			// workspace folder open). Codex requires one, so create a managed
-			// per-session temp folder and remember it for cleanup on dispose.
+			// Keep owned scratch across restarts when no workspace was supplied.
 			const managedWorkingDirectory = await this._createManagedWorkingDirectory(session.sessionId);
 			if (session.disposed || !session.chatChannel) {
 				await this._removeManagedWorkingDirectory(managedWorkingDirectory);
@@ -5679,7 +6099,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			session.workingDirectory = managedWorkingDirectory;
 			session.managedWorkingDirectory = managedWorkingDirectory;
-			this._logService.info(`[Codex] no working directory supplied for session=${session.sessionUri.toString()}; using managed temp folder ${session.workingDirectory.fsPath}`);
+			this._logService.info(`[Codex] no working directory supplied for session=${session.sessionUri.toString()}; using managed scratch directory ${session.workingDirectory.fsPath}`);
 		}
 		await this._refreshSessionMcpDiscovery(session);
 		if (session.disposed || !session.chatChannel) {
@@ -5745,6 +6165,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				...(selectedCapabilityRoots.length ? { selectedCapabilityRoots } : {}),
 				model: resolvedModel.modelId,
 				modelProvider: resolvedModel.modelProvider,
+				...codexServiceTierOverride(resolvedModel.modelProvider),
 				approvalPolicy,
 				permissions: customizationLaunch.skillPermissionProfile ?? permissions,
 				approvalsReviewer,
@@ -6200,6 +6621,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const hostInstructions = resolveAgentHostInstructions(operationContext);
 			session.lastPromptText = prompt;
 			session.currentTurnId = effectiveTurnId;
+			session.pendingTurnPermissions = turnOptions;
 			session.modifiedTime = Date.now();
 			this._startTurnStopWatch(session);
 			turnRequestStarted = true;
@@ -6236,6 +6658,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (turnRequestStarted) {
 				session.currentTurnId = undefined;
 				session.currentAppTurnId = undefined;
+				session.pendingTurnPermissions = undefined;
 			}
 			if (err instanceof CancellationError) {
 				this._fire(sessionUri, { type: ActionType.ChatTurnCancelled, turnId: effectiveTurnId, duration: this._clearTurnStopWatch(session) });
@@ -6314,8 +6737,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	sendSteeringMessage(chat: URI, message: PendingMessage): boolean {
-		return this.setPendingMessages(chat, message, []);
+	sendSteeringMessage(chat: URI, message: PendingMessage): boolean | Promise<boolean> {
+		return this._sendSteering(chat, message, true);
 	}
 
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): boolean {
@@ -6325,6 +6748,17 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!steeringMessage) {
 			return true;
 		}
+		// The legacy slot has no host queue to hand a rejected message back to, so a rejection clears its pending row.
+		const handoff = this._sendSteering(chat, steeringMessage, false);
+		return handoff !== false;
+	}
+
+	/**
+	 * Steers the running app-server turn. Returns false to defer the message until that turn is ready.
+	 * With `handBack`, the promise resolves false without consuming the message when codex rejects it,
+	 * commonly because the turn it targeted ended first; the host then runs it as the next turn.
+	 */
+	private _sendSteering(chat: URI, steeringMessage: PendingMessage, handBack: boolean): boolean | Promise<boolean> {
 		// Steering is always addressed by a concrete chat channel URI, which
 		// resolves through the binding recorded when that chat was provisioned
 		// or restored — never through URI shape.
@@ -6346,7 +6780,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const conn = this._connection;
 		const text = steeringMessage.message.text;
 		const hasContent = text.length > 0 || (steeringMessage.message.attachments?.length ?? 0) > 0;
-		if (!appTurnId || conn.kind !== 'ready' || session.threadId === undefined) {
+		if (!appTurnId || appTurnId === session.steeringRejectedAppTurnId || conn.kind !== 'ready' || session.threadId === undefined) {
 			return false;
 		}
 		if (!hasContent) {
@@ -6357,31 +6791,47 @@ export class CodexAgent extends Disposable implements IAgent {
 		const threadId = session.threadId;
 		// Buffer so the codex `userMessage` echo can promote this into a
 		// visible turn (see {@link _handleSteeredUserMessage}).
-		session.pendingSteeringFlips.set(steeringMessage.id, {
+		const steering: ICodexPendingSteering = {
 			pendingMessage: steeringMessage,
 			// Match the text actually sent, including attachment context. Keep the
 			// original message for presentation and resolve attachments only once.
 			inputText: extractUserInputText(input),
-		});
-		void conn.client.request<'turn/steer'>('turn/steer', {
+		};
+		session.pendingSteeringFlips.set(steeringMessage.id, steering);
+		return conn.client.request<'turn/steer'>('turn/steer', {
 			threadId,
 			clientUserMessageId: steeringMessage.id,
 			input: input.slice(),
 			expectedTurnId: appTurnId,
-		}).catch(err => {
-			// Steer rejected (commonly an `expectedTurnId` mismatch because the
-			// turn just completed). Drop the buffered entry and clear the
-			// pending bubble so it doesn't stick.
-			if (session.pendingSteeringFlips.delete(steeringMessage.id)) {
+		}).then(() => {
+			steering.accepted = true;
+			// The turn's completion arrived first and left this message to the answer; it will not be echoed now.
+			if (session.currentAppTurnId !== appTurnId && session.pendingSteeringFlips.delete(steeringMessage.id)) {
 				this._fireSteeringConsumed(session, steeringMessage.id);
+			}
+			return true;
+		}, err => {
+			const removed = session.pendingSteeringFlips.delete(steeringMessage.id);
+			if (err instanceof JsonRpcResponseError) {
+				// Codex rejected the steer, commonly with an `expectedTurnId`
+				// mismatch because the turn just completed.
+				session.steeringRejectedAppTurnId = appTurnId;
+				if (handBack && removed) {
+					this._logService.info(`[Codex:${sessionId}] turn/steer rejected; handing the message back to run next: ${err.message}`);
+					return false;
+				}
 			}
 			if (err instanceof JsonRpcError) {
 				this._logService.info(`[Codex:${sessionId}] turn/steer skipped: ${err.message}`);
-				return;
+			} else {
+				this._logService.warn(`[Codex:${sessionId}] turn/steer failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
-			this._logService.warn(`[Codex:${sessionId}] turn/steer failed: ${err instanceof Error ? err.message : String(err)}`);
+			// Clear the pending bubble so it doesn't stick.
+			if (removed) {
+				this._fireSteeringConsumed(session, steeringMessage.id);
+			}
+			return true;
 		});
-		return true;
 	}
 
 	private async _abort(chat: URI, context: URI | IAgentChatContext): Promise<void> {
@@ -6454,6 +6904,31 @@ export class CodexAgent extends Disposable implements IAgent {
 		await this._disposeRuntimeSession(runtimeSession, true);
 	}
 
+	/** A release waits for turn edits still being captured, which disposing the runtime's tracker would drop. */
+	private _canReleaseChat(chat: URI, context: URI | IAgentChatContext): boolean {
+		const runtimeSession = this._resolveConversationSession(chat, context);
+		const session = runtimeSession && this._sessions.get(AgentSession.id(runtimeSession));
+		return !session || !this._holdsTurnEdits(session);
+	}
+
+	/**
+	 * Whether disposing the runtime's tracker would drop edits it can still store. A release is only attempted while
+	 * no client is subscribed, so a child waiting for a client's answer cannot progress. Once nothing else is captured
+	 * or stored, the release stores what that child captured instead of waiting for it. A running store would hold back
+	 * that capture past the teardown.
+	 */
+	private _holdsTurnEdits(session: ICodexSession): boolean {
+		const tracker = this._turnDiffs.get(session);
+		const waiting = this._childThreadsWaitingForClient(session);
+		return !!tracker && (waiting.size ? tracker.isCapturing(waiting) || tracker.isStoring() : tracker.hasPendingTurns());
+	}
+
+	/** Threads of this runtime's children that wait for a client to answer an approval, a question or a client tool call. */
+	private _childThreadsWaitingForClient(session: ICodexSession): ReadonlySet<string> {
+		return new Set([...this._subagentsByThreadId].filter(([, subagent]) => subagent.parentSessionId === session.sessionId
+			&& [subagent.session.pendingCommandApprovals, subagent.session.pendingUserInputs, subagent.session.pendingClientToolCalls].some(requests => !requests.entries().next().done)).map(([threadId]) => threadId));
+	}
+
 	private async _releaseChat(chat: URI, context: URI | IAgentChatContext): Promise<void> {
 		this._chatHistoryWatches.deleteAndDispose(chat.toString());
 		const operationContext = resolveAgentChatContext(context, chat);
@@ -6495,9 +6970,20 @@ export class CodexAgent extends Disposable implements IAgent {
 			// releasing them would lose their in-memory state. Leave them in
 			// place. Likewise a defensive active-turn guard: the orchestrator
 			// already skips eviction while a turn is active, but one could have
-			// started between that check and this call.
-			if (session.threadId === undefined || session.currentTurnId !== undefined) {
+			// started between that check and this call. Turn edits still being
+			// captured, e.g. for a child that outlived its turn, would be dropped
+			// with the tracker, so `canReleaseChat` defers the release until
+			// they are stored.
+			if (session.threadId === undefined || session.currentTurnId !== undefined || this._holdsTurnEdits(session)) {
 				return;
+			}
+			// Children waiting for a client stop being tracked with the runtime, so store what they captured first, as on a lost connection.
+			for (const threadId of this._childThreadsWaitingForClient(session)) {
+				void this._turnDiffs.get(session)?.completeThread(threadId).catch(error => {
+					if (!isCancellationError(error)) {
+						this._logService.warn(`[Codex:${threadId}] Failed to capture edits of a child waiting for a client`, error);
+					}
+				});
 			}
 		}
 		if (session.threadId !== undefined) {
@@ -6528,6 +7014,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private async _teardownSessionInMemory(session: ICodexSession, sessionId: string, deleteManagedWorkingDirectory: boolean): Promise<void> {
 		session.disposed = true;
+		this._turnDiffs.get(session)?.dispose();
 		this._workingDirectoryMutations.get(session)?.updated.cancel();
 		this._claimPrewarm(session);
 		this._sessions.delete(sessionId);
@@ -6535,9 +7022,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.mcpController?.dispose();
 		this._sessionMcpDiscoveries.get(sessionId)?.dispose();
 		this._sessionMcpDiscoveries.delete(sessionId);
-		// Remove the managed temp folder created for a session that had no
-		// client-supplied working directory. Best-effort; the OS temp dir is
-		// reclaimed anyway, but clean up proactively so it doesn't accumulate.
+		// Preserve scratch for resumable chats; age-based cleanup would delete their working data.
 		if (deleteManagedWorkingDirectory && session.managedWorkingDirectory) {
 			await this._removeManagedWorkingDirectory(session.managedWorkingDirectory);
 		}
@@ -6567,13 +7052,21 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.pendingUserInputs.rejectAll(new CancellationError());
 		// Clear any buffered steering so its pending bubble doesn't leak.
 		this._drainPendingSteering(session);
+		// Its own and its children's spawns will not complete now.
+		this._settleSpawns((_, spawner) => spawner.sessionId === sessionId);
 		// Tear down any live subagent child threads spawned by this session so
 		// their parked approvals unwind and their tracking doesn't leak. The
 		// orchestrator closes the child conversations as part of session teardown.
 		for (const [childThreadId, subagent] of this._subagentsByThreadId) {
 			if (subagent.parentSessionId === sessionId) {
+				this._turnDiffs.get(subagent.session)?.dispose();
 				subagent.session.pendingCommandApprovals.denyAll('decline');
 				this._subagentsByThreadId.delete(childThreadId);
+			}
+		}
+		for (const [childThreadId, owner] of this._childTurnDiffOwners) {
+			if (owner.parentSessionId === sessionId) {
+				this._childTurnDiffOwners.delete(childThreadId);
 			}
 		}
 		const conn = this._connection;
@@ -6668,53 +7161,58 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			firstTurnToRemove = index + 1;
 		}
-		if (firstTurnToRemove >= turns.length) {
-			return;
+		if (firstTurnToRemove < turns.length) {
+			if (read.thread.historyMode === 'legacy') {
+				throw new Error(localize('codex.legacyThreadTruncation', "This version of Codex cannot remove messages from legacy chats."));
+			}
+			try {
+				const conn = targetSession
+					? (await this._ensureThreadConnection(targetSession)).connection
+					: await this._ensureConnection();
+				await conn.client.request<'thread/revert'>('thread/revert', {
+					threadId: read.thread.id,
+					beforeTurnId: turns[firstTurnToRemove].id,
+				});
+			} catch (err) {
+				this._logService.warn(`[Codex:${read.thread.id}] thread/revert failed: ${err instanceof Error ? err.message : String(err)}`);
+				return;
+			}
 		}
-		if (read.thread.historyMode === 'legacy') {
-			throw new Error(localize('codex.legacyThreadTruncation', "This version of Codex cannot remove messages from legacy chats."));
-		}
-		try {
-			const conn = targetSession
-				? (await this._ensureThreadConnection(targetSession)).connection
-				: await this._ensureConnection();
-			await conn.client.request<'thread/revert'>('thread/revert', {
-				threadId: read.thread.id,
-				beforeTurnId: turns[firstTurnToRemove].id,
-			});
-		} catch (err) {
-			this._logService.warn(`[Codex:${read.thread.id}] thread/revert failed: ${err instanceof Error ? err.message : String(err)}`);
-			return;
+		// Only after the thread lost these turns, so a rejected truncation keeps their pending edits. Rows stored before now are deleted below.
+		if (targetSession) {
+			this._discardTruncatedTurnDiffs(targetSession, new Set(turns.slice(firstTurnToRemove).map(turn => turn.id)), turnId);
 		}
 		const storage = context ? resolveAgentChatContext(context, chat).resource : targetSession?.chatStorage;
 		if (storage) {
-			await this._deleteRetainedCommandOutputs(storage, turns.slice(firstTurnToRemove));
+			const database = this._sessionDataService.openDatabase(storage);
+			try {
+				const afterHostTurnId = turnId !== undefined && targetSession?.codexTurnIdByHostTurnId.has(turnId) ? turnId : undefined;
+				await database.object.deleteProviderTurns(turns.slice(firstTurnToRemove).map(turn => turn.id), afterHostTurnId);
+			} finally {
+				database.dispose();
+			}
 		}
 	}
 
 	/**
-	 * Removes output retained for the commands of turns removed from the
-	 * thread. Codex keeps the chat's database turns, so their retained output
-	 * would otherwise stay until the chat is deleted.
+	 * Keeps snapshots still being captured, e.g. by a child that outlives its turn, from bringing back the host
+	 * turns a truncation removes: those of removed native turns and later steering segments of the kept one.
 	 */
-	private async _deleteRetainedCommandOutputs(storage: URI, turns: Thread['turns']): Promise<void> {
-		const toolCallIds = turns.flatMap(turn => (turn.items ?? []).flatMap(item => item.type === 'commandExecution' ? [item.id] : []));
-		if (toolCallIds.length === 0) {
+	private _discardTruncatedTurnDiffs(session: ICodexSession, removedNativeTurnIds: ReadonlySet<string>, keptHostTurnId: string | undefined): void {
+		const tracker = this._turnDiffs.get(session);
+		if (!tracker) {
 			return;
 		}
-		try {
-			const database = await this._sessionDataService.tryOpenDatabase(storage);
-			if (!database) {
-				return;
+		const keptNativeTurnId = keptHostTurnId === undefined ? undefined : session.codexTurnIdByHostTurnId.get(keptHostTurnId);
+		const removed: string[] = [];
+		let afterKept = false;
+		for (const [hostTurnId, nativeTurnId] of session.codexTurnIdByHostTurnId) {
+			if (removedNativeTurnIds.has(nativeTurnId) || (afterKept && nativeTurnId === keptNativeTurnId)) {
+				removed.push(hostTurnId);
 			}
-			try {
-				await Promise.all(toolCallIds.map(toolCallId => database.object.deleteTerminalOutput(toolCallId)));
-			} finally {
-				database.dispose();
-			}
-		} catch (error) {
-			this._logService.warn(`[Codex] Failed to remove retained command output in ${storage.toString()}`, error);
+			afterKept ||= hostTurnId === keptHostTurnId;
 		}
+		tracker.discard(removed);
 	}
 
 	async onArchivedChanged(sessionUri: URI, isArchived: boolean): Promise<void> {
@@ -8145,19 +8643,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _isWorkspaceTrusted(resource: URI, trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey)): boolean {
-		if (!trust) {
-			return false;
-		}
-		if (!trust.enabled) {
-			return true;
-		}
-		return trust.trustedUris.some(uri => {
-			try {
-				return extUriBiasedIgnorePathCase.isEqualOrParent(resource, URI.parse(uri));
-			} catch {
-				return false;
-			}
-		});
+		return isAgentHostWorkspaceTrusted(resource, trust);
 	}
 
 	/** Adds current hook grants to the per-thread config, rejecting a changed authorization context. */
@@ -8563,7 +9049,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				// insufficient scopes). Drop it so the user is re-prompted
 				// instead of getting stuck on a terminal error with no way to
 				// re-authenticate.
-				if (this._mcpAuthTokens.delete(normalized)) {
+				const session = this._sessionForMcpThread(threadId);
+				const targetedTokens = session ? this._mcpAuthTokensBySession.get(this._launchOwner(session)) : undefined;
+				if (targetedTokens?.has(name)) {
+					targetedTokens.set(name, { url: normalized, token: '' });
+				} else if (this._mcpAuthTokens.delete(normalized)) {
 					this._logService.info(`[Codex] MCP server '${name}' rejected the stored token; clearing it to allow re-authentication`);
 				}
 				void this._surfaceMcpAuthRequired(client, threadId, name, url, error);
@@ -8693,6 +9183,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _clearRuntimeState(): void {
 		for (const s of this._sessions.values()) {
 			s.disposed = true;
+			this._turnDiffs.get(s)?.dispose();
 			this._workingDirectoryMutations.get(s)?.updated.cancel();
 			if (s.prewarmTimer) {
 				clearTimeout(s.prewarmTimer);
@@ -8705,6 +9196,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		for (const subagent of this._subagentsByThreadId.values()) {
 			subagent.session.disposed = true;
+			this._turnDiffs.get(subagent.session)?.dispose();
 			if (subagent.session.prewarmTimer) {
 				clearTimeout(subagent.session.prewarmTimer);
 				subagent.session.prewarmTimer = undefined;
@@ -8726,12 +9218,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._configScopeChats.clear();
 		this._configScopeByChat.clear();
 		this._subagentsByThreadId.clear();
+		this._childTurnDiffOwners.clear();
 		this._sessionMcpDiscoveries.clear();
 		this._pendingMcpStartupStatuses.clear();
 		this._mcpInventory.clear();
 		this._mcpPublisherSessionIdByConfiguration.clear();
 		this._publishedMcpTopLevelIdsByConfiguration.clear();
 		this._mcpAuthTokens.clear();
+		this._mcpAuthTokensBySession.clear();
 		this._mcpAuthServerUrlsByResource.clear();
 	}
 
@@ -8846,7 +9340,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._emitChatProgress(session, { kind: 'action', resource: sessionUri, action });
 	}
 
-	/** Keeps mapping synchronous while publishing each chat's signals in order after pending output writes. */
+	/** Keeps mapping synchronous while publishing each chat's signals in order after pending snapshot and output writes. */
 	private _emitChatProgress(session: ICodexSession | undefined, signal: AgentSignal): void {
 		const completion = signal.kind === 'action' && !signal.parentToolCallId && signal.action.type === ActionType.ChatToolCallComplete ? signal.action : undefined;
 		const outputs = session && this._pendingCommandOutputs.get(session);

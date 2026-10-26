@@ -19,11 +19,12 @@ import { INotificationService } from '../../platform/notification/common/notific
 import { logSettingExperimentTrigger } from '../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
-import { ARCHIVE_SESSION_COMMAND_ID } from '../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID } from '../common/sessionCommands.js';
 
-export function getSessionArchiveActionViewItemOptions(options: IActionViewItemOptions, configurationService: IConfigurationService): IMenuEntryActionViewItemOptions {
+export function getSessionArchiveActionViewItemOptions(options: IActionViewItemOptions, configurationService: IConfigurationService, shouldTriggerClickAnimation?: (context: unknown) => boolean): IMenuEntryActionViewItemOptions {
 	return {
 		...options,
+		shouldTriggerClickAnimation,
 		get onClickAnimation() {
 			return configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)
 				? ClickAnimation.Confetti
@@ -58,10 +59,10 @@ export class SessionArchiveActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-export function createSessionActionViewItemProvider(instantiationService: IInstantiationService, configurationService: IConfigurationService): IActionViewItemProvider {
+export function createSessionActionViewItemProvider(instantiationService: IInstantiationService, configurationService: IConfigurationService, shouldTriggerClickAnimation?: (context: unknown) => boolean): IActionViewItemProvider {
 	return (action, options) => {
-		if (action instanceof MenuItemAction && action.id === ARCHIVE_SESSION_COMMAND_ID) {
-			return instantiationService.createInstance(SessionArchiveActionViewItem, action, getSessionArchiveActionViewItemOptions(options, configurationService));
+		if (action instanceof MenuItemAction && (action.id === ARCHIVE_SESSION_COMMAND_ID || action.id === ARCHIVE_SESSION_GROUP_COMMAND_ID)) {
+			return instantiationService.createInstance(SessionArchiveActionViewItem, action, getSessionArchiveActionViewItemOptions(options, configurationService, shouldTriggerClickAnimation));
 		}
 		return undefined;
 	};

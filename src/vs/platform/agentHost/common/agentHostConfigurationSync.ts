@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../base/common/network.js';
+import { ArtifactIntegrationsSettingId } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IAgentHostConfigurationSync, IConfigurationPropertySchema, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../registry/common/platform.js';
 import { AgentHostResourceIdentity, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from './agentHostResourceService.js';
+import { AgentMergeSettingId } from './agentMerge.js';
 
 function getRegistry(): IConfigurationRegistry {
 	return Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -148,6 +150,9 @@ export function getAgentHostConfigurationSyncEntries(target: AgentHostConfigurat
  * host's root config.
  */
 export function resolveAgentHostConfigurationSyncValue(configurationService: IConfigurationService, entry: IAgentHostConfigurationSyncEntry): unknown {
+	if (entry.settingId === AgentMergeSettingId.Enabled && getGlobalConfigurationValue(configurationService, ArtifactIntegrationsSettingId) === true) {
+		return false;
+	}
 	const value = getGlobalConfigurationValue(configurationService, entry.settingId);
 	return entry.sync.transform ? entry.sync.transform(value) : value;
 }

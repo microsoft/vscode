@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
-import { CancellationToken, Command, EndOfLine, env, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, InlineCompletionTriggerKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, Uri, window, workspace } from 'vscode';
+import { CancellationToken, Command, EndOfLine, env, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, InlineCompletionTriggerKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, TextEditor, Uri, window, workspace } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
+import { getEditedLineSpan, isSpanFullyVisibleInDocument } from '../common/visibleLines';
 import { stringEditFromDiff } from '../../../platform/editing/common/edit';
 import { DocumentEditRecorder } from '../../../platform/editSurvivalTracking/common/editComputer';
 import { EditSurvivalReporter } from '../../../platform/editSurvivalTracking/common/editSurvivalReporter';
@@ -73,6 +74,11 @@ interface NesCompletionItem extends InlineCompletionItem {
 	 * side hint). Used by the "mimic ghost text behavior" gating.
 	 */
 	isInlineCompletion?: boolean;
+	/**
+	 * The suggested edit in the document it applies to. For notebooks, `document` is the cell and `range` is
+	 * relative to that cell. Unlike `range`/`insertText`, this is not adjusted for ghost text or jump labels.
+	 */
+	readonly targetEdit?: { readonly document: TextDocument; readonly range: Range; readonly newText: string };
 }
 
 class NesCompletionList extends InlineCompletionList {
@@ -524,6 +530,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 				wasShown: false,
 				supportsRename,
 				correlationId,
+				targetEdit: targetDocument && range ? { document: targetDocument, range, newText: result.edit.newText } : undefined,
 			};
 
 			return new NesCompletionList(context.requestUuid, nesCompletionItem, menuCommands, telemetryBuilder);
@@ -772,6 +779,20 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		);
 	}
 
+	private _wasFullyVisible(item: NesCompletionItem): boolean | undefined {
+		const target = item.targetEdit;
+		if (!target) {
+			return undefined;
+		}
+		const span = getEditedLineSpan(target.range.start.line, target.range.end.line, target.newText);
+		const toVisibleLines = (editor: TextEditor) => ({
+			document: editor.document,
+			visibleRanges: editor.visibleRanges.map(r => ({ startLine: r.start.line, endLine: r.end.line })),
+		});
+		const activeEditor = window.activeTextEditor;
+		return isSpanFullyVisibleInDocument(target.document, span, activeEditor && toVisibleLines(activeEditor), window.visibleTextEditors.map(toVisibleLines));
+	}
+
 	private _handleDidRejectCompletionItem(completionItem: NesCompletionItem): void {
 		this.logContextRecorder?.handleRejection(completionItem.info.suggestion);
 
@@ -780,7 +801,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 
 		const info = completionItem.info;
 		if (isLlmCompletionInfo(info)) {
-			this.model.nextEditProvider.handleRejection(info.documentId, info.suggestion);
+			this.model.nextEditProvider.handleRejection(info.documentId, info.suggestion, { wasFullyVisible: this._wasFullyVisible(completionItem) });
 		} else {
 			this.model.diagnosticsBasedProvider?.handleRejection(info.documentId, info.suggestion);
 		}

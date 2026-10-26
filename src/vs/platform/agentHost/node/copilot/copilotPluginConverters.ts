@@ -5,14 +5,16 @@
 
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
+import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
-import { parseFrontMatter } from '../../../../base/common/yaml.js';
+import { parseFrontMatter, type MarkdownNode, type YamlNode } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { resolveAgentDisableModelInvocation, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookCommand, type IParsedHookGroup, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ChildCustomization } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
@@ -20,6 +22,10 @@ import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDire
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type PostToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>;
+type PostToolUseHookResult = Exclude<PostToolUseHookOutput, void>;
+type PostToolUseFailureHookInput = Parameters<NonNullable<SessionHooks['onPostToolUseFailure']>>[0];
+type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUseFailure']>>>, void>;
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
 type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
@@ -95,8 +101,71 @@ function toSdkMcpServer(_name: string, config: IMcpServerConfiguration, defaultC
 const customAgentReasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly NonNullable<CustomAgentConfig['reasoningEffort']>[];
 type CustomAgentReasoningEffort = (typeof customAgentReasoningEfforts)[number];
 
+/** Runtime custom-agent fields not yet declared by the SDK. */
+interface ICopilotCustomAgentConfig extends CustomAgentConfig {
+	readonly disableModelInvocation?: true;
+}
+
 function isCustomAgentReasoningEffort(value: string | undefined): value is CustomAgentReasoningEffort {
 	return customAgentReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
+}
+
+function yamlNodeToValue(node: YamlNode): unknown {
+	if (node.type === 'scalar') {
+		if (node.format !== 'none') {
+			return node.value;
+		}
+		if (node.value === 'true') {
+			return true;
+		}
+		if (node.value === 'false') {
+			return false;
+		}
+		if (node.value === 'null' || node.value === '~') {
+			return null;
+		}
+		if (/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(node.value)) {
+			return Number(node.value);
+		}
+		return node.value;
+	}
+	if (node.type === 'sequence') {
+		return node.items.map(yamlNodeToValue);
+	}
+	return Object.fromEntries(node.properties.map(property => [property.key.value, yamlNodeToValue(property.value)]));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
+	if (md.header?.type !== 'map') {
+		return undefined;
+	}
+	const hooksNode = md.header.properties.find(property => property.key.value === 'hooks')?.value;
+	if (!hooksNode || hooksNode.type !== 'map') {
+		return undefined;
+	}
+
+	const hooks: [string, Record<string, unknown>[]][] = [];
+	for (const property of hooksNode.properties) {
+		if (property.value.type !== 'sequence') {
+			continue;
+		}
+		const commands: Record<string, unknown>[] = [];
+		for (const item of property.value.items) {
+			const command = yamlNodeToValue(item);
+			if (!isRecord(command)) {
+				continue;
+			}
+			commands.push(command);
+		}
+		if (commands.length > 0) {
+			hooks.push([property.key.value, commands]);
+		}
+	}
+	return hooks.length > 0 ? Object.fromEntries(hooks) : undefined;
 }
 
 /**
@@ -105,14 +174,19 @@ function isCustomAgentReasoningEffort(value: string | undefined): value is Custo
  * Each agent file is read and (when present) its YAML frontmatter is parsed:
  *  - `name` falls back to the agent's resource name (filename stem).
  *  - `description` is forwarded verbatim.
- *  - `tools` is forwarded as the SDK's allow-list; an empty / missing array
- *    becomes `null` so the SDK grants the agent access to all tools.
+ *  - Extension-qualified `tools` references are translated to their SDK registration names;
+ *    an empty / missing array becomes `null` so the SDK grants the agent access to all tools.
  *  - `reasoning-effort` is forwarded when it is a supported runtime value.
  *  - `prompt` is the markdown body that follows the frontmatter (or the
  *    full file content when there is no frontmatter).
  */
-export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<CustomAgentConfig[]> {
-	const configs: CustomAgentConfig[] = [];
+export async function toSdkCustomAgents(
+	agents: readonly INamedPluginResource[],
+	fileService: IFileService,
+	availableModelIds?: ReadonlySet<string>,
+	clientToolNames?: ReadonlyMap<string, string>,
+): Promise<ICopilotCustomAgentConfig[]> {
+	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
 			const content = await fileService.readFile(agent.uri);
@@ -132,18 +206,17 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 				const description = md.getStringValue('description');
 				const tools = md.getStringArrayValue('tools');
 				const skills = md.getStringArrayValue('skills');
+				const hooks = getCustomAgentHooks(md);
 				const reasoningEffort = md.getStringValue('reasoning-effort');
 				let infer = md.getBooleanValue('infer');
-				const disableModelInvocation = md.getBooleanValue('disable-model-invocation');
+				const disableModelInvocation = resolveAgentDisableModelInvocation(infer, md.getBooleanValue('disable-model-invocation'));
 				if (infer === undefined && disableModelInvocation === true) {
 					infer = false;
 				}
 				const prompt = md.body ?? raw;
-				let model: string | undefined = md.getStringValue('model') ?? undefined;
+				const scalarModel = md.getStringValue('model') || undefined;
 				const models = md.getStringArrayValue('model') ?? undefined;
-				if (!model && models && Array.isArray(models) && models.length > 0) {
-					model = models[0];
-				}
+				const model = scalarModel ?? models?.find(model => availableModelIds?.has(model)) ?? models?.[0];
 				configs.push({
 					name,
 					...(description ? { description } : {}),
@@ -151,7 +224,9 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 					...(isCustomAgentReasoningEffort(reasoningEffort) ? { reasoningEffort } : {}),
 					tools: tools && tools.length > 0 ? tools : null,
 					...(skills !== undefined ? { skills } : {}),
+					...(hooks ? { hooks } : {}),
 					...(infer !== undefined ? { infer } : {}),
+					...(disableModelInvocation ? { disableModelInvocation: true } : {}),
 					prompt,
 				});
 			}
@@ -159,7 +234,15 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 			// Skip agents whose file cannot be read
 		}
 	}
-	return configs;
+	return clientToolNames ? mapCopilotCustomAgentTools(configs, clientToolNames) : configs;
+}
+
+/** Projects authored tool references without rereading or mutating the parsed agent configurations. */
+export function mapCopilotCustomAgentTools<T extends CustomAgentConfig>(agents: readonly T[], clientToolNames: ReadonlyMap<string, string>): T[] {
+	return agents.map(agent => agent.tools ? {
+		...agent,
+		tools: agent.tools.map(tool => clientToolNames.get(tool) ?? tool),
+	} : agent);
 }
 
 /** The agents contributed by a plugin. */
@@ -178,8 +261,10 @@ export interface IPluginAgentsForSdk {
 export async function toSdkSessionCustomAgents(
 	plugins: readonly IPluginAgentsForSdk[],
 	fileService: IFileService,
-): Promise<CustomAgentConfig[]> {
-	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService);
+	availableModelIds?: ReadonlySet<string>,
+	clientToolNames?: ReadonlyMap<string, string>,
+): Promise<ICopilotCustomAgentConfig[]> {
+	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService, availableModelIds, clientToolNames);
 }
 
 /**
@@ -288,6 +373,10 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 		child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
 		child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
 
+		// Hooks may exit without reading their input, failing the write with
+		// EPIPE (EOF on Windows). The exit code decides the outcome, so don't
+		// surface it as an unhandled stream error.
+		child.stdin.on('error', () => { });
 		if (stdin) {
 			child.stdin.write(stdin);
 			child.stdin.end();
@@ -350,19 +439,41 @@ const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
 };
 
 /**
+ * Combines VS Code's own post-tool-use output with a plugin hook's, the way the
+ * runtime combines successive hooks: result changes merge, with the plugin's
+ * applied last, and both hooks' added context is kept.
+ */
+function combinePostToolUseOutputs(host: PostToolUseHookResult | undefined, plugin: object | undefined): object | undefined {
+	if (!host || !plugin) {
+		return host ?? plugin;
+	}
+	const pluginOutput: Partial<PostToolUseHookResult> = plugin;
+	const additionalContext = [host.additionalContext, pluginOutput.additionalContext].filter(context => typeof context === 'string' && context.trim()).join('\n\n');
+	return {
+		...host,
+		...plugin,
+		...(host.modifiedResult || pluginOutput.modifiedResult ? { modifiedResult: { ...host.modifiedResult, ...pluginOutput.modifiedResult } } : {}),
+		...(additionalContext ? { additionalContext } : {}),
+	};
+}
+
+/**
  * Converts parsed plugin hooks into SDK {@link SessionHooks} handler functions.
  *
  * Each handler executes the hook's shell commands sequentially when invoked.
  * Hook types that don't map to SDK handler keys are silently ignored.
  *
- * The optional `editTrackingHooks` parameter provides internal edit-tracking
- * callbacks from {@link CopilotAgentSession} that are merged with plugin hooks.
+ * The optional `editTrackingHooks` parameter provides internal callbacks from
+ * {@link CopilotAgentSession}, such as edit tracking, that are merged with plugin
+ * hooks. Its post-tool-use output comes first, and plugin hooks see the result it
+ * changed.
  */
 export function toSdkHooks(
 	hookGroups: readonly IParsedHookGroup[],
 	editTrackingHooks?: {
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<PreToolUseHookOutput>;
-		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
+		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<PostToolUseHookOutput>;
+		readonly onPostToolUseFailure?: (input: PostToolUseFailureHookInput) => PostToolUseFailureHookOutput | undefined;
 		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
 ): SessionHooks {
@@ -396,9 +507,16 @@ export function toSdkHooks(
 	const postToolCommands = commandsByKey.get('onPostToolUse');
 	if (postToolCommands?.length || editTrackingHooks) {
 		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
-			await editTrackingHooks?.onPostToolUse(input);
-			return runHookCommands(postToolCommands, input);
+			const host = await editTrackingHooks?.onPostToolUse(input) || undefined;
+			const pluginInput = host?.modifiedResult ? { ...input, toolResult: { ...input.toolResult, ...host.modifiedResult } } : input;
+			return combinePostToolUseOutputs(host, await runHookCommands(postToolCommands, pluginInput));
 		};
+	}
+
+	// Post-tool-use-failure handler, which only the host uses
+	const onPostToolUseFailure = editTrackingHooks?.onPostToolUseFailure;
+	if (onPostToolUseFailure) {
+		hooks.onPostToolUseFailure = async (input: PostToolUseFailureHookInput) => onPostToolUseFailure(input);
 	}
 
 	// User-prompt-submitted handler
@@ -465,27 +583,57 @@ export function toSdkHooks(
 	return hooks;
 }
 
+type ComparablePlugin = IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string };
+
 /**
- * Checks whether two sets of parsed plugins produce equivalent SDK config.
- * Used to determine if a session needs to be refreshed.
+ * Compares SDK configuration, preserving plugin order. A plugin with a content nonce compares relative to its own
+ * materialized root, since the nonce covers resource bodies that parsed metadata does not; others compare by absolute path.
  */
-export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IParsedPlugin[]): boolean {
-	// Simple structural comparison via JSON serialization.
-	// We serialize only the essential fields, replacing URIs with strings.
-	const serialize = (plugins: readonly IParsedPlugin[]) => {
-		return JSON.stringify(plugins.map(p => ({
-			format: p.format,
-			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
-			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
-			skills: p.skills.map(s => ({
-				uri: s.uri.toString(),
-				name: s.name,
-				disableModelInvocation: s.disableModelInvocation,
-				disableUserInvocation: s.disableUserInvocation,
-			})),
-			agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
-			instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
-		})));
+export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly ComparablePlugin[]): boolean {
+	const serialize = (plugins: typeof a) => {
+		return JSON.stringify(plugins.map(p => {
+			const root = p.nonce ? p.pluginDir ?? p.resourceDir : undefined;
+			const roots = root ? [...new Set([root.toString(), ...(root.scheme === Schemas.file ? [root.fsPath] : [])])] : [];
+			const rootPattern = roots.length
+				? new RegExp(`(?<![\\w/\\\\.-])(?:${roots.map(escapeRegExpCharacters).join('|')})(?=$|[/\\\\\\s"'\\x60);|&<>:])`, 'g')
+				: undefined;
+			return JSON.stringify({
+				format: p.format,
+				nonce: p.nonce,
+				hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
+				mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
+				skills: p.skills.map(s => ({
+					uri: s.uri.toString(),
+					name: s.name,
+					disableModelInvocation: s.disableModelInvocation,
+					disableUserInvocation: s.disableUserInvocation,
+				})),
+				agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
+				instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
+			}, (_key, value) => {
+				// Tagged segments distinguish a relocated root from literal placeholder text.
+				if (rootPattern && typeof value === 'string') {
+					const segments = value.split(rootPattern);
+					if (segments.length > 1) {
+						return { pluginRootRelative: segments };
+					}
+				}
+				return value;
+			});
+		}));
 	};
 	return serialize(a) === serialize(b);
+}
+
+/** Resolves a published agent URI to the agent name a session applied before an equivalent relocation of its plugin. */
+export function findRelocatedAgentName(applied: readonly ComparablePlugin[], published: readonly ComparablePlugin[], agentUri: string): string | undefined {
+	for (const plugin of published) {
+		const index = plugin.agents.findIndex(agent => agent.uri.toString() === agentUri);
+		// Applied and published sets can come from different chat anchors, so their plugin positions can differ.
+		const equivalent = index >= 0 ? applied.find(candidate => parsedPluginsEqual([candidate], [plugin])) : undefined;
+		if (equivalent) {
+			return equivalent.agents[index]?.name;
+		}
+	}
+	return undefined;
 }

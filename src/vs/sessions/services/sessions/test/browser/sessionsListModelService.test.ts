@@ -72,6 +72,20 @@ suite('SessionsListModelService', () => {
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
 	});
 
+	test('untitled sessions ignore the completed-state icon', () => {
+		const completedStateIcon = Codicon.gitPullRequest;
+		const readIcon = service.getStatusIcon(SessionStatus.Untitled, true, false, completedStateIcon);
+		const unreadIcon = service.getStatusIcon(SessionStatus.Untitled, false, false, completedStateIcon);
+
+		assert.deepStrictEqual({
+			read: { id: readIcon.id, color: readIcon.color?.id },
+			unread: { id: unreadIcon.id, color: unreadIcon.color?.id },
+		}, {
+			read: { id: Codicon.circleSmallFilled.id, color: 'agentSessionReadIndicator.foreground' },
+			unread: { id: Codicon.circleFilled.id, color: 'textLink.foreground' },
+		});
+	});
+
 	test('unread state takes precedence over the completed-state icon', () => {
 		const completedStateIcon = Codicon.gitPullRequest;
 		const unreadIcon = service.getStatusIcon(SessionStatus.Completed, false, false, completedStateIcon);
@@ -611,6 +625,20 @@ suite('SessionsListModelService', () => {
 			created: true,
 			updated: true,
 		});
+	});
+
+	test('removes the retired list-owned nested chat order on construction, which a second construction leaves removed', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store('sessionsListControl.chatOrder', JSON.stringify({ created: { s1: ['chat://a', 'chat://b'] }, updated: {} }), StorageScope.PROFILE, StorageTarget.USER);
+		const createService = () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IStorageService, storageService);
+			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+			disposables.add(instantiationService.createInstance(SessionsListModelService));
+			return storageService.get('sessionsListControl.chatOrder', StorageScope.PROFILE);
+		};
+
+		assert.deepStrictEqual([createService(), createService()], [undefined, undefined]);
 	});
 
 	// -- Legacy read-state migration --

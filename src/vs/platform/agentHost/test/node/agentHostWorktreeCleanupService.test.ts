@@ -38,10 +38,17 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	failures = 0;
 	outcome: WorktreeRemovalOutcome = 'removed';
 	removal: DeferredPromise<void> | undefined;
+	/** Completes when the first removal starts. */
+	readonly removalStarted = new DeferredPromise<void>();
+	/** Completes with the key of the first task queued while another task holds that key's lock. */
+	readonly queuedBehindLock = new DeferredPromise<string>();
 	reconcileGuard: DetachedWorktreeRemovalGuard | undefined;
 	private readonly _sequencer = new SequencerByKey<string>();
 
 	override runExclusive<T>(key: string, task: () => Promise<T>): Promise<T> {
+		if (this._sequencer.peek(key)) {
+			this.queuedBehindLock.complete(key);
+		}
 		return this._sequencer.queue(key, task);
 	}
 	override async readSessionWorktreeForRemoval(sessionUri: URI): Promise<IRecordedWorktree | undefined> {
@@ -56,6 +63,7 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	}
 	override async removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome> {
 		this.calls.push(`remove:${key}:${mode}:${worktree.branchName}`);
+		this.removalStarted.complete();
 		await this.removal?.p;
 		if (this.failures > 0) {
 			this.failures--;
@@ -112,6 +120,13 @@ suite('AgentHostWorktreeCleanupService', () => {
 		return (await database.listPendingWorktreeRemovals()).map(removal => `${removal.kind}:${removal.mode}:${removal.attempts}`);
 	}
 
+	/** Waits for a pass the service runs on its own (at start, debounced or periodic) to start a removal, then for that pass to complete. */
+	async function scheduledPassRemoval(worktree: RecordingWorktreeIsolation, cleanup: AgentHostWorktreeCleanupService): Promise<void> {
+		await worktree.removalStarted.p;
+		// The pass is still running, so runPass() returns that pass's promise.
+		await cleanup.runPass();
+	}
+
 	async function useWorktree(database: AgentHostDatabase, session: URI, worktree: IRecordedWorktree, archived = false): Promise<void> {
 		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.importSessionState(session.toString(), {
@@ -119,6 +134,103 @@ suite('AgentHostWorktreeCleanupService', () => {
 			values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([URI.joinPath(worktree.worktree, 'src').toString()]), [AH_META_IS_ARCHIVED_DB_KEY]: archived ? 'true' : '' },
 		});
 	}
+
+	test('reports actual errors and retries an archived worktree without recreating it or waiting for backoff', async () => {
+		const { database, worktree, cleanup } = create({ now: () => 100 });
+		await useWorktree(database, SESSION, recorded('archived'), true);
+		const unknown = await cleanup.sessionWorktreeCleanup(SESSION, false);
+		const scheduled = await cleanup.sessionWorktreeCleanup(SESSION, true);
+		worktree.failures = 1;
+		await cleanup.runPass();
+		const failed = await cleanup.sessionWorktreeCleanup(SESSION, false);
+		const retried = await cleanup.sessionWorktreeCleanup(SESSION, true);
+		await cleanup.runPass();
+
+		assert.deepStrictEqual({
+			unknown, scheduled, failed, retried,
+			remaining: await pending(database),
+			archived: await database.readSessionArchived(SESSION.toString()),
+			calls: worktree.calls,
+		}, {
+			unknown: { state: 'unknown' },
+			scheduled: { state: 'pending' },
+			failed: { state: 'failed', message: 'git failed' },
+			retried: { state: 'pending' },
+			remaining: [],
+			archived: true,
+			calls: [`remove:${sessionId}:commit:agents/archived`, `remove:${sessionId}:commit:agents/archived`],
+		});
+	});
+
+	test('retries additional worktrees and cancels their removal if the session is restored meanwhile', async () => {
+		const { database, worktree, cleanup } = create();
+		await useWorktree(database, SESSION, recorded('archived'), true);
+		const state = await database.readSessionState(SESSION.toString());
+		assert.ok(state);
+		await database.writeSessionState(SESSION.toString(), state.header.revision, {
+			values: {
+				[ADDITIONAL_WORKTREES_METADATA_KEY]: JSON.stringify([{
+					handle: HANDLE, workingDirectory: recorded('detached').worktree.toString(), repositoryRoot: URI.file('/repo').toString(),
+				}]),
+			},
+			folders: [], chats: [], markPayloadDirty: false,
+		});
+		await cleanup.sessionWorktreeCleanup(SESSION, true);
+		const requested = (await pending(database)).sort();
+		const archived = await database.readSessionState(SESSION.toString());
+		assert.ok(archived);
+		await database.writeSessionState(SESSION.toString(), archived.header.revision, {
+			values: { [AH_META_IS_ARCHIVED_DB_KEY]: '' }, folders: [], chats: [], markPayloadDirty: false,
+		});
+		await cleanup.runPass();
+		assert.deepStrictEqual({ requested, pending: await pending(database), calls: worktree.calls }, {
+			requested: ['detached:commit:0', 'session:commit:0'],
+			pending: [],
+			calls: [`mark:${HANDLE}:true`],
+		});
+	});
+
+	test('reports running cleanup independently of elapsed time', async () => {
+		const { database, worktree, cleanup } = create();
+		await useWorktree(database, SESSION, recorded('archived'), true);
+		await cleanup.sessionWorktreeCleanup(SESSION, true);
+		worktree.removal = new DeferredPromise<void>();
+		const pass = cleanup.runPass();
+		await worktree.removalStarted.p;
+		try {
+			assert.deepStrictEqual(await cleanup.sessionWorktreeCleanup(SESSION, false), { state: 'running' });
+		} finally {
+			worktree.removal.complete();
+			await pass;
+		}
+	});
+
+	test('refuses retrying cleanup for a live or unknown session', async () => {
+		const { database, worktree, cleanup } = create();
+		await useWorktree(database, SESSION, recorded('archived'));
+		await assert.rejects(cleanup.sessionWorktreeCleanup(SESSION, true), /Only archived sessions/);
+		await assert.rejects(cleanup.sessionWorktreeCleanup(OTHER_SESSION, true), /Only archived sessions/);
+		assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database) }, { calls: [], pending: [] });
+	});
+
+	test('distinguishes shared-worktree protection and skipped removals from errors', async () => {
+		const { database, worktree, cleanup } = create();
+		await useWorktree(database, SESSION, recorded('archived'), true);
+		await useWorktree(database, OTHER_SESSION, recorded('archived'));
+		const shared = await cleanup.sessionWorktreeCleanup(SESSION, true);
+		await cleanup.runPass();
+		const blocked = await cleanup.sessionWorktreeCleanup(SESSION, false);
+		const state = await database.readSessionState(OTHER_SESSION.toString());
+		assert.ok(state);
+		await database.writeSessionState(OTHER_SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
+		worktree.outcome = 'skipped';
+		await cleanup.runPass();
+		assert.deepStrictEqual({ shared, blocked, deferred: await cleanup.sessionWorktreeCleanup(SESSION, false) }, {
+			shared: { state: 'inUse' },
+			blocked: { state: 'inUse' },
+			deferred: { state: 'skipped' },
+		});
+	});
 
 	test('archive and delete only record the removal, and a pass removes each worktree by its mode', async () => {
 		const { database, worktree, cleanup } = create();
@@ -174,9 +286,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		worktree.removal = new DeferredPromise<void>();
 
 		const pass = cleanup.runPass();
-		while (!worktree.calls.length) {
-			await timeout(0);
-		}
+		await worktree.removalStarted.p;
 		// The second session is unarchived while the first one's removal runs.
 		await cleanup.restoreSessionWorktree(second);
 		// The first session's unarchive waits for its running removal, then recreates the worktree.
@@ -205,9 +315,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		assert.ok(state);
 		await database.writeSessionState(OTHER_SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
 		// The periodic re-check removes it without another request.
-		for (let attempt = 0; attempt < 400 && (await database.listPendingWorktreeRemovals()).length; attempt++) {
-			await timeout(5);
-		}
+		await scheduledPassRemoval(worktree, cleanup);
 
 		assert.deepStrictEqual({ whileInUse, calls: worktree.calls, pending: await pending(database) }, {
 			whileInUse: { calls: ['reconcileUnclaimed'], pending: ['session:commit:0'] },
@@ -267,9 +375,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		await timeout(20);
 		const beforeStart = { calls: [...worktree.calls], pending: (await pending(database)).sort() };
 		cleanup.start();
-		for (let attempt = 0; attempt < 200 && (await database.listPendingWorktreeRemovals()).length; attempt++) {
-			await timeout(5);
-		}
+		await scheduledPassRemoval(worktree, cleanup);
 
 		assert.deepStrictEqual({ beforeStart, calls: worktree.calls }, {
 			beforeStart: { calls: [], pending: ['detached:delete:0', 'session:commit:0'] },
@@ -366,9 +472,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		worktree.removal = new DeferredPromise<void>();
 
 		const pass = cleanup.runPass();
-		while (!worktree.calls.length) {
-			await timeout(0);
-		}
+		await worktree.removalStarted.p;
 		// Another session attaches the folder after the in-use query, while Git commits its changes.
 		await useWorktree(database, OTHER_SESSION, recorded('archived'));
 		worktree.removal.complete();
@@ -409,9 +513,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		await database.writeSessionState(OTHER_SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
 		// The other session has no worktree of its own, yet its archive triggers a pass.
 		await cleanup.requestSessionWorktreeRemoval(OTHER_SESSION, 'commit');
-		for (let attempt = 0; attempt < 400 && (await database.listPendingWorktreeRemovals()).length; attempt++) {
-			await timeout(5);
-		}
+		await scheduledPassRemoval(worktree, cleanup);
 
 		assert.deepStrictEqual({ whileInUse, calls: worktree.calls, pending: await pending(database) }, {
 			whileInUse: ['reconcileUnclaimed'],
@@ -638,23 +740,17 @@ suite('AgentHostWorktreeCleanupService', () => {
 			worktree.removal = new DeferredPromise<void>();
 
 			const pass = cleanup.runPass();
-			while (!worktree.calls.length) {
-				await timeout(0);
-			}
+			await worktree.removalStarted.p;
 			const restore = cleanup.restoreSessionWorktree(OTHER_SESSION);
-			// The unarchive recreates its own worktree first, then its share: give it ample time to reach the share's recreate,
-			// which only the folder's lock (held by the running removal) holds back.
-			for (let i = 0; i < 20 && !worktree.calls.includes(`recreate:${AgentSession.id(OTHER_SESSION)}`); i++) {
-				await timeout(10);
-			}
-			for (let i = 0; i < 5; i++) {
-				await timeout(10);
-			}
+			// The unarchive recreates its own worktree first, then its share, which only the folder's lock (held by the running
+			// removal) holds back: wait until it queues behind a held lock, or completes if nothing holds it back.
+			const waitingOnLock = await Promise.race([worktree.queuedBehindLock.p, restore]);
 			const callsWhileRemoving = [...worktree.calls];
 			worktree.removal.complete();
 			await Promise.all([pass, restore]);
 
-			assert.deepStrictEqual({ callsWhileRemoving, calls: worktree.calls }, {
+			assert.deepStrictEqual({ waitingOnLock, callsWhileRemoving, calls: worktree.calls }, {
+				waitingOnLock: sharedKey,
 				callsWhileRemoving: [`remove:${sessionId}:commit:agents/archived`, `recreate:${AgentSession.id(OTHER_SESSION)}`],
 				calls: [`remove:${sessionId}:commit:agents/archived`, `recreate:${AgentSession.id(OTHER_SESSION)}`, `recreateShared:${sharedKey}:agents/archived`],
 			});
@@ -673,6 +769,160 @@ suite('AgentHostWorktreeCleanupService', () => {
 				pending: [],
 				marker: [`${OTHER_SESSION.toString()}:false`],
 			});
+		});
+	});
+
+	suite('scratch folders', () => {
+
+		const NOW = 10_000_000;
+		let root: string;
+
+		setup(async () => {
+			root = await fs.mkdtemp(join(tmpdir(), 'agent-host-scratch-'));
+		});
+
+		teardown(async () => {
+			await fs.rm(root, { recursive: true, force: true });
+		});
+
+		async function allocate(database: AgentHostDatabase, name: string, state: 'allocating' | 'removing', requestedAt: number, create = true): Promise<string> {
+			const path = join(root, name);
+			if (create) {
+				await fs.mkdir(path);
+			}
+			const folder = URI.file(path).toString();
+			await database.insertScratchFolder({ folder, chatUri: `chat://${name}`, provider: 'copilotcli', requestedAt });
+			if (state === 'removing') {
+				await sql(database, `UPDATE scratch_folders SET state = 'removing' WHERE folder = ?`, [folder]);
+			}
+			return folder;
+		}
+
+		async function rows(database: AgentHostDatabase): Promise<string[]> {
+			return (await database.listScratchFolders()).map(row => `${URI.parse(row.folder).path.split('/').pop()}:${row.state}:${row.attempts}:${row.nextAttemptAt}`);
+		}
+
+		async function exists(name: string): Promise<boolean> {
+			return fs.stat(join(root, name)).then(() => true, () => false);
+		}
+
+		test('a pass removes the folder and the row of a removing scratch folder', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			await allocate(database, 'gone', 'removing', 1);
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ rows: await rows(database), exists: await exists('gone') }, { rows: [], exists: false });
+		});
+
+		test('a removing folder that a live session still lists is kept', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			const folder = await allocate(database, 'inUse', 'removing', 1);
+			await database.registerSessionV2(SESSION.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.importSessionState(SESSION.toString(), {
+				importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true,
+				values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([folder]) },
+			});
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ rows: await rows(database), exists: await exists('inUse') }, { rows: ['inUse:removing:0:0'], exists: true });
+		});
+
+		test('a removing folder that a live chat works inside is kept with the chat\'s files', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			const folder = await allocate(database, 'parent', 'removing', 1);
+			await fs.mkdir(join(root, 'parent', 'sub'));
+			await fs.writeFile(join(root, 'parent', 'sub', 'notes.md'), 'kept');
+			await database.registerSessionV2(SESSION.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerChatCatalogV2(SESSION.toString(), {
+				defaultChat: { chat: `${SESSION.toString()}/default`, order: 0 },
+				peers: [{ chat: 'ahp-chat:/live', order: 1, workingDirectories: [`${folder}/sub`] }],
+				privateDescendants: [],
+			});
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ rows: await rows(database), file: await fs.readFile(join(root, 'parent', 'sub', 'notes.md'), 'utf8') }, { rows: ['parent:removing:0:0'], file: 'kept' });
+		});
+
+		test('an allocating folder that is not in flight is reclaimed at any age, an in-flight one is kept', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			await allocate(database, 'crashed', 'allocating', NOW);
+			const inFlight = await allocate(database, 'inFlight', 'allocating', 1);
+			const tracking = cleanup.trackScratchAllocation(inFlight);
+			await cleanup.runPass();
+			const whileInFlight = { rows: await rows(database), crashed: await exists('crashed'), inFlight: await exists('inFlight') };
+			tracking.dispose();
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ whileInFlight, after: { rows: await rows(database), inFlight: await exists('inFlight') } }, {
+				whileInFlight: { rows: ['inFlight:allocating:0:0'], crashed: false, inFlight: true },
+				after: { rows: [], inFlight: false },
+			});
+		});
+
+		test('an allocating folder that a chat lists becomes owned and is kept', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			const folder = await allocate(database, 'published', 'allocating', 1);
+			await database.registerSessionV2(SESSION.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.importSessionState(SESSION.toString(), {
+				importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true,
+				values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([folder]) },
+			});
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ rows: await rows(database), exists: await exists('published') }, { rows: ['published:owned:0:0'], exists: true });
+		});
+
+		test('an owned folder is never removed', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			await allocate(database, 'owned', 'allocating', 1);
+			await database.markScratchFolderOwned(URI.file(join(root, 'owned')).toString());
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ rows: await rows(database), exists: await exists('owned') }, { rows: ['owned:owned:0:0'], exists: true });
+		});
+
+		test('a failed removal counts the attempt with a backoff and keeps the row, until the backoff elapsed', async () => {
+			let now = NOW;
+			const { database, cleanup } = create({ backoffMs: 100, maxBackoffMs: 500, now: () => now, removeScratchFolder: async () => { throw new Error('removal failed'); } });
+			const folder = URI.file(join(root, 'child')).toString();
+			await database.insertScratchFolder({ folder, chatUri: 'chat://child', provider: 'copilotcli', requestedAt: 1 });
+			await sql(database, `UPDATE scratch_folders SET state = 'removing' WHERE folder = ?`, [folder]);
+			await cleanup.runPass();
+			const afterFailure = await rows(database);
+			now += 50;
+			await cleanup.runPass();
+			const beforeBackoffElapsed = await rows(database);
+			now += 100;
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ afterFailure, beforeBackoffElapsed, afterRetry: await rows(database) }, {
+				afterFailure: [`child:removing:1:${NOW + 100}`],
+				beforeBackoffElapsed: [`child:removing:1:${NOW + 100}`],
+				afterRetry: [`child:removing:2:${NOW + 150 + 200}`],
+			});
+		});
+
+		test('a failed removal of an allocating folder is retried by the scheduled pass', async () => {
+			let now = NOW;
+			let failRemoval = true;
+			const { database, cleanup } = create({
+				now: () => now, debounceMs: 0, backoffMs: 1,
+				removeScratchFolder: async path => {
+					if (failRemoval) {
+						throw new Error('removal failed');
+					}
+					await fs.rm(path, { recursive: true, force: true });
+				}
+			});
+			const folder = URI.file(join(root, 'child')).toString();
+			await database.insertScratchFolder({ folder, chatUri: 'chat://child', provider: 'copilotcli', requestedAt: 1 });
+			await cleanup.runPass();
+			const failed = await rows(database);
+			failRemoval = false;
+			now += 10;
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ failed, after: await rows(database) }, { failed: [`child:allocating:1:${NOW + 1}`], after: [] });
 		});
 	});
 });

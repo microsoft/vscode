@@ -17,7 +17,6 @@ import { IContextKeyService } from '../../../../../../../platform/contextkey/com
 import { IEditorOptions } from '../../../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
-import { IMarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatModifiedFilesConfirmationData, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
@@ -25,6 +24,7 @@ import { ModifiedFileEntryState } from '../../../../common/editing/chatEditingSe
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
+import { ChatContentMarkdownRenderer } from '../../chatContentMarkdownRenderer.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
@@ -96,7 +96,6 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
-		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -166,7 +165,8 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		const container = dom.$('.chat-modified-files-confirmation');
 
 		if (message) {
-			const renderedMessage = this._register(this.markdownRendererService.render(typeof message === 'string' ? new MarkdownString(message) : message));
+			const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
+			const renderedMessage = this._register(renderer.render(typeof message === 'string' ? new MarkdownString(message) : message));
 			renderFileWidgets(renderedMessage.element, this.instantiationService, this.chatMarkdownAnchorService, this._store, {
 				...this.openedEditors.fileWidgetOptions,
 				openResource: (resource, editorOptions) => this.openModifiedFilePreview(data, resource, editorOptions),

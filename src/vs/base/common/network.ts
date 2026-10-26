@@ -8,6 +8,7 @@ import * as platform from './platform.js';
 import { equalsIgnoreCase, startsWithIgnoreCase } from './strings.js';
 import { URI } from './uri.js';
 import * as paths from './path.js';
+import { IDisposable, IReference, toDisposable } from './lifecycle.js';
 
 export namespace Schemas {
 
@@ -139,6 +140,11 @@ export namespace Schemas {
 	 * Scheme used vs live share
 	 */
 	export const vsls = 'vsls';
+
+	/**
+	 * Scheme used by the built-in git extension for resources at a specific revision
+	 */
+	export const git = 'git';
 
 	/**
 	 * Scheme used for the Source Control commit input's text document
@@ -287,9 +293,29 @@ export const nodeModulesAsarUnpackedPath: AppResourcePath = 'vs/../../node_modul
 export const AGENTS_AUTHORITY = 'agents';
 export const VSCODE_AUTHORITY = 'vscode-app';
 
+interface BrowserUriProvider {
+	uriToBrowserUri?: (uri: URI) => URI;
+	resolve: (uri: URI) => Promise<IReference<URI>>;
+}
+
 class FileAccessImpl {
 
 	private static readonly FALLBACK_AUTHORITY = VSCODE_AUTHORITY;
+	private readonly browserUriProviders = new Map<string, BrowserUriProvider>();
+
+	/** Registers a browser-resource transport for a filesystem scheme. */
+	registerBrowserUriProvider(scheme: string, provider: BrowserUriProvider): IDisposable {
+		if (this.browserUriProviders.has(scheme)) {
+			throw new Error(`Browser URI provider already registered for ${scheme}`);
+		}
+		this.browserUriProviders.set(scheme, provider);
+		return toDisposable(() => this.browserUriProviders.delete(scheme));
+	}
+
+	/** Resolves filesystem resources, including scoped object URLs on web hosts without a resource endpoint. */
+	resolveBrowserUri(uri: URI): Promise<IReference<URI>> | undefined {
+		return this.browserUriProviders.get(uri.scheme)?.resolve(uri);
+	}
 
 	/**
 	 * Returns a URI to use in contexts where the browser is responsible
@@ -309,6 +335,10 @@ class FileAccessImpl {
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	uriToBrowserUri(uri: URI): URI {
+		const provider = this.browserUriProviders.get(uri.scheme);
+		if (provider?.uriToBrowserUri) {
+			return provider.uriToBrowserUri(uri);
+		}
 		// Handle remote URIs via `RemoteAuthorities`
 		if (uri.scheme === Schemas.vscodeRemote) {
 			return RemoteAuthorities.rewrite(uri);

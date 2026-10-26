@@ -33,8 +33,7 @@ import { ICustomSessionTitleService } from '../../copilotcli/common/customSessio
 import { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 import { ICopilotCLIChatSessionInitializer } from '../../copilotcli/vscode-node/copilotCLIChatSessionInitializer';
-import { ICopilotCLISessionTracker } from '../../copilotcli/vscode-node/copilotCLISessionTracker';
-import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionParticipant, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection, resolveSessionDirsForTerminal } from '../copilotCLIChatSessions';
+import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionParticipant, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection } from '../copilotCLIChatSessions';
 import { PullRequestDetectionService } from '../pullRequestDetectionService';
 import { ISessionOptionGroupBuilder } from '../sessionOptionGroupBuilder';
 import { ISessionRequestLifecycle } from '../sessionRequestLifecycle';
@@ -456,37 +455,6 @@ describe('re-exported dropdown helpers', () => {
 
 	it('resolveIsolationSelection is callable', () => {
 		expect(resolveIsolationSelection(IsolationMode.Workspace, undefined)).toBe(IsolationMode.Workspace);
-	});
-});
-
-// ─── resolveSessionDirsForTerminal ──────────────────────────────
-
-describe('resolveSessionDirsForTerminal', () => {
-	it('returns matching terminal sessions before non-matching ones', async () => {
-		const terminal = {} as vscode.Terminal;
-		const otherTerminal = {} as vscode.Terminal;
-		const tracker: ICopilotCLISessionTracker = {
-			_serviceBrand: undefined,
-			getSessionIds: () => ['session-a', 'session-b'],
-			getTerminal: vi.fn(async (id: string) => id === 'session-a' ? terminal : otherTerminal),
-		} as unknown as ICopilotCLISessionTracker;
-
-		const dirs = await resolveSessionDirsForTerminal(tracker, terminal);
-		expect(dirs).toHaveLength(2);
-		// First dir should be for the matching session
-		expect(dirs[0].fsPath).toContain('session-a');
-	});
-
-	it('returns empty array when no sessions exist', async () => {
-		const terminal = {} as vscode.Terminal;
-		const tracker: ICopilotCLISessionTracker = {
-			_serviceBrand: undefined,
-			getSessionIds: () => [],
-			getTerminal: vi.fn(async () => undefined),
-		} as unknown as ICopilotCLISessionTracker;
-
-		const dirs = await resolveSessionDirsForTerminal(tracker, terminal);
-		expect(dirs).toHaveLength(0);
 	});
 });
 

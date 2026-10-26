@@ -1,0 +1,63 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.image-viewer {
+	display: flex;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	overflow: hidden;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.image-viewer.ready {
+	cursor: zoom-in;
+}
+
+.image-viewer.ready.zoom-out {
+	cursor: zoom-out;
+}
+
+.image-viewer img {
+	margin: auto;
+}
+
+.image-viewer img.scale-to-fit {
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+}
+
+/* Zoomed images may be larger than the viewer. Keep them at their explicit size */
+.image-viewer img:not(.scale-to-fit) {
+	flex-shrink: 0;
+}
+
+.image-viewer img.pixelated {
+	image-rendering: pixelated;
+}
+
+.image-viewer.zoomed {
+	overflow: auto;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.image-viewer.zoomed::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.image-viewer.zoomed::-webkit-scrollbar-thumb {
+	background-color: var(--vscode-scrollbarSlider-background);
+}
+
+.image-viewer.zoomed::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.image-viewer.zoomed::-webkit-scrollbar-thumb:active {
+	background-color: var(--vscode-scrollbarSlider-activeBackground);
+}

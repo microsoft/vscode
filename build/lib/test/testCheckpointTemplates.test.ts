@@ -349,8 +349,8 @@ suite('Product test checkpoint templates', () => {
 			testIdsType: 'object',
 			jobDisplayName: '${{ parameters.VSCODE_JOB_DISPLAY_NAME }}',
 			displayNames: [
-				{ name: 'Unit', displayName: 'Unit Tests' },
 				{ name: 'UnitElectron', displayName: 'Unit Tests (Electron)' },
+				{ name: 'Unit', displayName: 'Unit Tests (Node.js, Browser & Copilot)' },
 				{ name: 'BrowserRemote', displayName: 'Browser & Remote Tests' },
 				{ name: 'Integration', displayName: 'Integration Tests (Electron)' },
 				{ name: 'AgentHostE2E', displayName: 'Agent Host E2E Tests (Electron)' },
@@ -466,7 +466,7 @@ suite('Product test checkpoint templates', () => {
 					.map(parameter => parameter.name).filter(name => /^VSCODE_RUN_\w+_TESTS$/.test(name)),
 			};
 		});
-		const jobDisplayNames = ['Unit Tests', 'Unit Tests (Electron)', 'Browser & Remote Tests', 'Integration Tests (Electron)', 'Agent Host E2E Tests (Electron)', 'Smoke Tests (Electron)'];
+		const jobDisplayNames = ['Unit Tests (Electron)', 'Unit Tests (Node.js, Browser & Copilot)', 'Browser & Remote Tests', 'Integration Tests (Electron)', 'Agent Host E2E Tests (Electron)', 'Smoke Tests (Electron)'];
 		const copilotCondition = '${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}';
 		const remoteNodeCondition = '${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'integration-remote\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-remote\')) }}';
 		const runTests = '${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}';

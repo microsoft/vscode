@@ -31,6 +31,8 @@ import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarB
 import { IChatDashboardService } from '../../chatDashboardService.js';
 import { MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID } from './contributions/mobileChangesView.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 
 /**
  * Mobile titlebar — prepended above the workbench grid on phone viewports
@@ -114,6 +116,7 @@ export class MobileTitlebarPart extends Disposable {
 		@IChatDashboardService private readonly chatDashboardService: IChatDashboardService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 
@@ -217,6 +220,8 @@ export class MobileTitlebarPart extends Disposable {
 		// Keep the changes pill in sync with the active chat's changes.
 		// Hidden when there are no changes (counts are zero and list is empty).
 		const isNewChatRef = { value: !!IsNewChatSessionContext.getValue(contextKeyService) };
+		let changesTooltip = '';
+		this._register(hoverService.setupDelayedHover(changesPill, () => ({ content: changesTooltip, style: HoverStyle.Pointer })));
 		const renderChangesPill = () => {
 			const changes = this.latestChanges;
 			let added = 0;
@@ -233,16 +238,17 @@ export class MobileTitlebarPart extends Disposable {
 				if (added > 0 || removed > 0) {
 					changesAddedEl.textContent = `+${added}`;
 					changesRemovedEl.textContent = `-${removed}`;
-					changesPill.title = localize('mobileTopBar.changesTooltip', "{0} files changed (+{1} -{2})", changes.length, added, removed);
+					changesTooltip = localize('mobileTopBar.changesTooltip', "{0} files changed (+{1} -{2})", changes.length, added, removed);
 				} else {
 					changesAddedEl.textContent = changes.length === 1
 						? localize('mobileTopBar.singleFileChanged', "1 file")
 						: localize('mobileTopBar.filesChangedCount', "{0} files", changes.length);
 					changesRemovedEl.textContent = '';
-					changesPill.title = changes.length === 1
+					changesTooltip = changes.length === 1
 						? localize('mobileTopBar.singleFileChangedTooltip', "1 file changed")
 						: localize('mobileTopBar.filesChangedTooltip', "{0} files changed", changes.length);
 				}
+				changesPill.setAttribute('aria-description', changesTooltip);
 			}
 		};
 		this._register(autorun(reader => {

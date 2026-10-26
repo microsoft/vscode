@@ -99,8 +99,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 			return {
 				uri: folder.workingDirectory,
 				name: this.workspaceFolderLabelService.getWorkspaceFolderLabel(
-					new WorkspaceFolder({ uri: folder.workingDirectory, name, index }),
-					true
+					new WorkspaceFolder({ uri: folder.workingDirectory, name, index })
 				) ?? name
 			};
 		});

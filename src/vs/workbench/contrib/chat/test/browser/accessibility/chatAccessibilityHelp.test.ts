@@ -8,22 +8,92 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ChatSessionArchiveActionWording } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { getTabbedActionListKeybindingLabels } from '../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
-import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
+import { getAccessibilityHelpText, getCloudSandboxPreparationAccessibilityHelp } from '../../../browser/actions/chatAccessibilityHelp.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
 import { isResponseSelectionSupported } from '../../../browser/chat.js';
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('documents the session working set while preserving existing editor guidance', () => {
-		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true);
+	test('documents opening session links from the input without sending', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
 		assert.deepStrictEqual({
-			sessionChanges: help.includes('changes across the whole session instead of showing a Changes pill'),
-			disclosure: help.includes('Enter or Space to expand or collapse it'),
-			openDiff: help.includes('Up and Down Arrow to choose a file, and Enter to open its diff'),
-			editorNavigation: help.includes('Navigate between edits in the editor'),
-			editorSignals: help.includes('accessibility.signals.editsKept'),
-		}, { sessionChanges: true, disclosure: true, openDiff: true, editorNavigation: true, editorSignals: true });
+			withoutSending: help.includes('opened without sending your message'),
+			keyboard: help.includes('<keybinding:editor.action.openLink>'),
+		}, { withoutSending: true, keyboard: true });
+	});
+
+	test('documents the shared picker and startup lock for Cloud drafts', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
+		assert.deepStrictEqual({
+			cloud: help.includes('or a new Cloud session'),
+			keyboard: help.includes('Tab reaches separate Mode and Permissions buttons'),
+			locked: help.includes('Cloud draft choices are locked while the first request starts the session'),
+			focus: help.includes('Escape closes the picker and returns focus to the button that opened it'),
+		}, { cloud: true, keyboard: true, locked: true, focus: true });
+	});
+
+	test('documents side questions and concurrent responses in both windows but not inline or quick chat', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('/btw followed by a question') && help.includes('while a response is in progress')), [true, true, true, true, false, false]);
+	});
+
+	test('documents private early preparation and the pending Send handoff', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
+		const preparation = getCloudSandboxPreparationAccessibilityHelp();
+
+		assert.deepStrictEqual({
+			included: help.includes(preparation),
+			setting: preparation.includes('chat.agentHost.cloudSandbox.earlyPreparation'),
+			repositories: preparation.includes('with or without a repository'),
+			private: preparation.includes('no conversation is added to the session list until you press Send'),
+			pending: preparation.includes('Send waits for pending preparation'),
+			fallback: preparation.includes('otherwise it can continue without early preparation'),
+			repositoryChange: preparation.includes('when you change repositories'),
+		}, { included: true, setting: true, repositories: true, private: true, pending: true, fallback: true, repositoryChange: true });
+	});
+
+	test('explains the disabled Local harness only on editor chat surfaces', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('it remains in the harness picker as a disabled option') && help.includes('Use Tab to reach its Learn why link and Enter to open policy guidance')), [true, true, true, false, false, false]);
+	});
+
+	test('documents the session working set while preserving existing editor guidance', () => {
+		const read = (sessionWorkingSetUndo: boolean) => {
+			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true, sessionWorkingSetUndo);
+			return {
+				sessionChanges: help.includes('changes across the whole session instead of showing a Changes pill'),
+				disclosure: help.includes('Enter or Space to expand or collapse it'),
+				openFile: help.includes('Up and Down Arrow to choose a file, and Enter to open it.'),
+				headingActions: help.includes('The Keep, Undo, and View All Edits buttons after the heading keep or undo the changes to every file in the working set, or open all of them in a diff editor')
+					? 'Keep, Undo, View All Edits'
+					: help.includes('The Keep and View All Edits buttons after the heading keep the changes to every file in the working set, or open all of them in a diff editor') ? 'Keep, View All Edits' : undefined,
+				fileActions: help.includes('press Tab to reach its Keep button, Left and Right Arrow to move between Keep, Undo, and Open Changes in Diff Editor')
+					? 'Keep, Undo, Open Changes in Diff Editor'
+					: help.includes('press Tab to reach its Keep button, Left and Right Arrow to move between Keep and Open Changes in Diff Editor') ? 'Keep, Open Changes in Diff Editor' : undefined,
+				gitKeep: help.includes('as does staging or committing them with Git'),
+				undo: help.includes('Undo reverts the session\'s changes after any confirmation the session asks for, and deletes a file the session created'),
+				editorNavigation: help.includes('Navigate between edits in the editor'),
+				editorSignals: help.includes('Sounds will play when a change is accepted or undone'),
+			};
+		};
+		const common = { sessionChanges: true, disclosure: true, openFile: true, gitKeep: true, editorNavigation: true, editorSignals: true };
+		assert.deepStrictEqual([read(false), read(true)], [
+			{ ...common, headingActions: 'Keep, View All Edits', fileActions: 'Keep, Open Changes in Diff Editor', undo: false },
+			{ ...common, headingActions: 'Keep, Undo, View All Edits', fileActions: 'Keep, Undo, Open Changes in Diff Editor', undo: true },
+		]);
 	});
 
 	test('does not describe the editor working set on other chat surfaces', () => {
@@ -32,21 +102,44 @@ suite('Chat Accessibility Help', () => {
 			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
 			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
 			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
-		].map(help => help.includes('changes across the whole session instead of showing a Changes pill')), [false, false, false, false]);
+		].map(help => help.includes('changes across the whole session instead of showing a Changes pill') || help.includes('press Tab to reach its Keep button')), [false, false, false, false]);
+	});
+
+	test('explains the context menu and read-only actions when Keep and Undo is hidden', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true, true, false);
+		assert.deepStrictEqual({
+			contextMenu: help.includes('Shift+F10 or the Context Menu key'),
+			toggle: help.includes('toggle it to show or hide review controls in both the working set and open editors'),
+			hidden: help.includes('Keep and Undo are hidden in both'),
+			diff: help.includes('View All Edits remains available'),
+			pill: help.includes('Show Pill replaces the working set'),
+			restore: help.includes('Show Working Set to restore it'),
+			noKeepButton: !help.includes('press Tab to reach its Keep button'),
+		}, { contextMenu: true, toggle: true, hidden: true, diff: true, pill: true, restore: true, noKeepButton: true });
 	});
 
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
 		test(`documents the sharing toggle and backend selection (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
-				backend: help.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				backend: help.includes('Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments when available'),
 				setting: help.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
-				explicitOptIn: help.includes('Selecting a method does not enable sharing; changing it turns sharing off'),
-				keyboard: help.includes('Enter or Space to enable or disable sharing'),
+				enabling: help.includes('Selecting a method updates the setting and enables sharing'),
+				disabling: help.includes('Selecting Off disables sharing'),
+				remembered: help.includes('without changing the preferred method'),
+				footer: help.includes('The footer shows the name used to identify this machine on other clients'),
+				rename: help.includes('press Tab to reach the name link in the footer') && help.includes('Renaming while Off does not enable sharing'),
+				directSetting: help.includes('Changing the setting directly turns sharing off'),
+				keyboard: help.includes('arrow keys in the title bar, Enter or Space to open it'),
 			}, {
 				backend: type !== 'inlineChat' && type !== 'quickChat',
 				setting: type !== 'inlineChat' && type !== 'quickChat',
-				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
+				enabling: type !== 'inlineChat' && type !== 'quickChat',
+				disabling: type !== 'inlineChat' && type !== 'quickChat',
+				remembered: type !== 'inlineChat' && type !== 'quickChat',
+				footer: type !== 'inlineChat' && type !== 'quickChat',
+				rename: type !== 'inlineChat' && type !== 'quickChat',
+				directSetting: type !== 'inlineChat' && type !== 'quickChat',
 				keyboard: type !== 'inlineChat' && type !== 'quickChat',
 			});
 		});
@@ -73,7 +166,8 @@ suite('Chat Accessibility Help', () => {
 			optional: help.includes('Installation is optional and chatting is not blocked.'),
 			priority: help.includes('Dependency warnings take priority over this notice.'),
 			dismissal: help.includes('Use Tab to reach Dismiss notification and Enter or Space to hide certificate notices for that host runtime in this window.'),
-			installation: help.includes('use Tab to reach the Install link and Enter to activate it.'),
+			guidance: help.includes('Use Tab to reach Learn more for certificate guidance.'),
+			installation: help.includes('use Tab to reach the Install button and Enter or Space to activate it.'),
 			manageCommand: help.includes('Sandbox: Manage Trusted CA for the last-focused chat.'),
 			keyboard: help.includes('Use Up and Down Arrow to choose Install, Rotate, or Remove, then Enter to continue or Escape to cancel.'),
 			installCommand: help.includes('choose Install in Manage Trusted CA after dismissing the notice.'),
@@ -82,7 +176,7 @@ suite('Chat Accessibility Help', () => {
 			noHost: help.includes('a dialog says No agent host detected.'),
 			restart: help.includes('running tools may need to restart.'),
 			retention: help.includes('The stored certificate authority is kept.'),
-		}, { optional: true, priority: true, dismissal: true, installation: true, manageCommand: true, keyboard: true, installCommand: true, removeCommand: true, rotateCommand: true, noHost: true, restart: true, retention: true });
+		}, { optional: true, priority: true, dismissal: true, guidance: true, installation: true, manageCommand: true, keyboard: true, installCommand: true, removeCommand: true, rotateCommand: true, noHost: true, restart: true, retention: true });
 	});
 
 	test('explains read-only model options separately from overridable defaults', () => {
@@ -91,7 +185,10 @@ suite('Chat Accessibility Help', () => {
 			managed: help.includes('Its value is announced as managed by the agent host and cannot be changed.'),
 			overridable: help.includes('An overridable default remains selectable.'),
 			modelSpecific: help.includes('Changing models uses the options available for the newly selected model.'),
-		}, { managed: true, overridable: true, modelSpecific: true });
+			unspecified: help.includes('Model default means no effort override is selected'),
+			maximum: help.includes('A value prefixed with Max is the model\'s capacity, not a selected context window.'),
+			cloudValidation: help.includes('New Cloud chat choices are checked against the host before the first request is sent.'),
+		}, { managed: true, overridable: true, modelSpecific: true, unspecified: true, maximum: true, cloudValidation: true });
 	});
 
 	test('documents participant redirection only in workbench panel and editor chats', () => {
@@ -115,6 +212,20 @@ suite('Chat Accessibility Help', () => {
 				getAccessibilityHelpText(type, keybindings, false, true).includes(canvasesPill),
 			]),
 			[[true, true, false], [true, true, false], [false, false, false], [false, false, false], [false, false, false]],
+		);
+	});
+
+	test('documents Add Context canvas navigation in Editor and Agents windows', () => {
+		const keybindings = new MockKeybindingService();
+		assert.deepStrictEqual(
+			[false, true].map(isSessionsWindow => {
+				const help = getAccessibilityHelpText('panelChat', keybindings, false, isSessionsWindow);
+				return [
+					help.includes('Add Context includes Canvas immediately after Sessions'),
+					help.includes('it does not attach anything to the prompt'),
+				];
+			}),
+			[[true, true], [true, true]],
 		);
 	});
 
@@ -215,10 +326,20 @@ suite('Chat Accessibility Help', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			artifacts: help.includes('Generated images also appear in artifacts'),
-			conversation: help.includes('generated images and user-attached images from the same conversation'),
+			conversation: help.includes('generated images, user-attached images, and images shown in responses from the same conversation'),
 			keyboard: help.includes('Use the Left and Right Arrow keys to move between images'),
 			immediateResize: help.includes('the preview begins resizing immediately, followed by the glyph-to-image reveal'),
 		}, { artifacts: true, conversation: true, keyboard: true, immediateResize: true });
+	});
+
+	test('documents opening, attaching, and copying images shown in responses', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			open: help.includes('To open a file image shown in a response, use Tab to focus it and press Enter or Space'),
+			attach: help.includes('drag it into the chat input, or use Copy Image and paste it into the input'),
+			copy: help.includes('press Shift+F10 to open its context menu, then choose Copy Image'),
+			path: help.includes('For images stored in a file, Copy Image Path copies the file path'),
+		}, { open: true, attach: true, copy: true, path: true });
 	});
 
 	test('documents the shared editor artifacts pill and its actions', () => {
@@ -369,7 +490,7 @@ suite('Chat Accessibility Help', () => {
 			hydraTiers: help.includes('HydraFusion\'s details offer two tiers, Default and Max, along with a Learn more link'),
 			hydraSelection: help.includes('HydraFusion stays in the model list with that tier as its readout'),
 			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
-			fusion: help.includes('When Auto is presented as Fusion, its details hold an "Effort Level" setting instead'),
+			fusion: help.includes('When Auto\'s tiers come from the Copilot service, Auto is presented as Copilot Fusion, and its details hold an "Effort Level" setting instead'),
 		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true, fusion: true });
 	});
 
@@ -527,7 +648,7 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('only describes the selection side chat affordance in the sessions window', () => {
+	test('describes selection side chats in both windows', () => {
 		const keybindingService = new MockKeybindingService();
 
 		assert.deepStrictEqual({
@@ -535,8 +656,19 @@ suite('Chat Accessibility Help', () => {
 			regularWindow: getAccessibilityHelpText('agentView', keybindingService, true, false).includes('Ask Question'),
 		}, {
 			sessionsWindow: isResponseSelectionSupported(),
-			regularWindow: false,
+			regularWindow: isResponseSelectionSupported(),
 		});
+	});
+
+	test('documents the editor selection action and quote without describing transient chats', () => {
+		const help = (type: 'agentView' | 'quickChat' | 'inlineChat') => getAccessibilityHelpText(type, new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, true);
+		assert.deepStrictEqual({
+			editor: help('agentView').includes('Choose Ask in Side Chat... to open a small Ask Question input'),
+			quote: help('agentView').includes('through the selected response and its quoted text'),
+			keyboard: help('agentView').includes('context menu with Shift+F10 or the context menu key'),
+			quick: help('quickChat').includes('Ask Question'),
+			inline: help('inlineChat').includes('Ask Question'),
+		}, { editor: true, quote: true, keyboard: true, quick: false, inline: false });
 	});
 
 	test('omits mobile-web selection pop-up help without hiding other sessions help', () => {
@@ -556,7 +688,7 @@ suite('Chat Accessibility Help', () => {
 	test('only describes session result pill activation in the sessions window', () => {
 		const keybindingService = new MockKeybindingService();
 		const describe = (help: string) => ({
-			focus: help.includes('Use Tab to focus it'),
+			focus: help.includes('target session or chat button in the response. Use Tab to focus it'),
 			open: help.includes('Enter or Space to open it normally'),
 			openToSide: help.includes('Alt+Enter (Option+Enter on macOS) to open it to the side'),
 		});
@@ -660,6 +792,8 @@ suite('Chat Accessibility Help', () => {
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
 			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
+			pullRequestChangesInSessions: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('Open Pull Request Changes row action'),
+			pullRequestChangesInEditor: getAccessibilityHelpText('agentView', keybindingService, true).includes('Open Pull Request Changes row action'),
 			copyActions: getAccessibilityHelpText('agentView', keybindingService, true).includes('its context menu offers the item\'s copy actions'),
 			filterPersistence: getAccessibilityHelpText('agentView', keybindingService, true).includes('remembered across sessions'),
 			filterRecovery: getAccessibilityHelpText('agentView', keybindingService, true).includes('any other pill\'s context menu or the toolbar context menu'),
@@ -679,6 +813,8 @@ suite('Chat Accessibility Help', () => {
 			panelChat: true,
 			agentView: true,
 			pullRequestFilter: true,
+			pullRequestChangesInSessions: true,
+			pullRequestChangesInEditor: false,
 			copyActions: true,
 			filterPersistence: true,
 			filterRecovery: true,
@@ -713,6 +849,24 @@ suite('Chat Accessibility Help', () => {
 			quickChat: false,
 			inlineChat: false,
 		});
+	});
+
+	test('documents session read shortcuts only for persistent editor-window chats', () => {
+		const keybindingService = new MockKeybindingService();
+		const containsShortcuts = (type: 'panelChat' | 'agentView' | 'editsView' | 'quickChat' | 'inlineChat', isSessionsWindow = false) => {
+			const content = getAccessibilityHelpText(type, keybindingService, true, isSessionsWindow);
+			return content.includes('as read<keybinding:agentSession.markRead>')
+				&& content.includes('or unread<keybinding:agentSession.markUnread> without opening them')
+				&& content.includes('change only the targeted nested sessions, not their parent');
+		};
+		assert.deepStrictEqual({
+			panel: containsShortcuts('panelChat'),
+			agent: containsShortcuts('agentView'),
+			edits: containsShortcuts('editsView'),
+			quick: containsShortcuts('quickChat'),
+			inline: containsShortcuts('inlineChat'),
+			agentsWindow: containsShortcuts('agentView', true),
+		}, { panel: true, agent: true, edits: true, quick: false, inline: false, agentsWindow: false });
 	});
 
 	test('documents session rename where the focused-chat keybinding is enabled', () => {

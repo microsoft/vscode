@@ -56,7 +56,6 @@ export interface IAgentSessionsControlOptions {
 	readonly repositoryGroupLimit?: number;
 	readonly hideSectionCount?: boolean;
 	readonly hideSessionBadge?: boolean;
-	readonly useStatusOnlyIcons?: boolean;
 	readonly compactShowMore?: boolean;
 	readonly itemHeight?: number;
 	readonly sectionHeight?: number;
@@ -363,7 +362,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				overrideStyles: this.options.overrideStyles,
 				twistieAdditionalCssClass: (element: unknown) => isAgentSession(element) && element.children?.length ? 'agent-session-chat-twistie' : 'force-no-twistie',
 				collapseByDefault: (element: unknown) => collapseByDefault(element),
-				expandOnlyOnTwistieClick: true,
+				expandOnlyOnTwistieClick: (element: unknown) => isAgentSession(element),
 				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
@@ -956,6 +955,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const focused = this.sessionsList?.getFocus() ?? [];
 
 		return focused.filter(e => isAgentSession(e));
+	}
+
+	getSelectedSessions(): IAgentSession[] {
+		return this.sessionsList?.getSelection().filter(isAgentSession) ?? [];
 	}
 
 	/** Temporarily reveals a row through filters and collapsed sections, without opening its chat. */

@@ -34,8 +34,10 @@ export const enum CopilotCliConfigKey {
 	EnableCustomTerminalTool = 'enableCustomTerminalTool',
 	/** Apply the shell init script a client published for a session to SDK shell commands. Off by default. */
 	EnableShellInitScript = 'enableShellInitScript',
-	/** Enable native Sunburst image generation and editing. */
+	/** Enable runtime image generation and editing. The workbench mirrors it from the selected image model. */
 	ImageGeneration = 'imageGeneration',
+	/** Request a visible AI label on generated and edited images. */
+	ImageGenerationWatermark = 'imageGenerationWatermark',
 	/** Log level passed to the Copilot SDK client. */
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Explicit local Copilot runtime executable path. Empty uses the bundled runtime. */
@@ -44,10 +46,12 @@ export const enum CopilotCliConfigKey {
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
 	ClaudeAdvisor = 'claudeAdvisor',
-	/** Enable repository-size-gated tgrep indexed search for Copilot SDK sessions. Off by default. */
-	Tgrep = 'tgrep',
 	/** Offer the runtime's `search_code_subagent` tool to Copilot SDK sessions. Off by default. */
 	SearchSubagent = 'searchSubagent',
+	/** CAPI model override for the runtime's search subagent. Empty uses the runtime default. */
+	SearchSubagentModel = 'searchSubagentModel',
+	/** Offer the runtime's built-in Explore agent. On by default. */
+	ExploreAgent = 'exploreAgent',
 	/** Use the runtime's execution subagent instead of the extension-native client tool. */
 	ExecutionSubagent = 'executionSubagent',
 	/** Runtime model ID for the execution subagent; empty inherits the session model. */
@@ -72,11 +76,7 @@ export const enum CopilotCliConfigKey {
 	HydraFusionV2 = 'hydraFusionV2',
 	/** Ask CAPI to keep a conversation's HydraFusion root model across turns. Set by the `'multiRoot'` HydraFusion setting value; requires {@link HydraFusionV2}. */
 	HydraFusionMultiRoot = 'hydraFusionMultiRoot',
-	/** Present Auto as Fusion, with Standard, High, and Max. Off by default. */
-	Fusion = 'fusion',
-	/** With {@link Fusion}, Fusion's High uses HydraFusion. Off by default. */
-	FusionHighUsesHydraFusion = 'fusionBalanceUsesHydraFusion',
-	/** Launch the runtime with `DYNAMIC_AUTO_TIERS`. Startup key; off by default. */
+	/** Launch the runtime with `DYNAMIC_AUTO_TIERS`, so Auto's tiers (including HydraFusion ones) come from the service. Startup key; off by default. */
 	DynamicAutoTiers = 'dynamicAutoTiers',
 	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
 	Memory = 'memory',
@@ -113,14 +113,16 @@ export const AgentHostCopilotRuntimePathSettingId = 'chat.agentHost.copilot.runt
 
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
-export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
-
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
+/** Selects the image model offered to Copilot agents, or turns image generation off. */
+export const CopilotImageGenerationModelSettingId = 'chat.copilot.imageGeneration.model';
+/** Legacy boolean setting, migrated to {@link CopilotImageGenerationModelSettingId}. */
 export const CopilotImageGenerationEnabledSettingId = 'chat.copilot.imageGeneration.enabled';
+export const CopilotImageGenerationWatermarkSettingId = 'chat.copilot.imageGeneration.watermark';
 
-export function isImageGenerationEnabledByDefault(quality: string | undefined): boolean {
-	return quality === 'insider';
-}
+export const CopilotSearchSubagentModelSettingId = 'chat.copilot.searchSubagent.model';
+
+export const CopilotExploreAgentEnabledSettingId = 'chat.copilot.exploreAgent.enabled';
 
 export const AgentHostCopilotExecutionSubagentEnabledSettingId = 'chat.agentHost.copilot.executionSubagent.enabled';
 
@@ -145,8 +147,6 @@ export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.en
  * sticky-root hint that lets CAPI keep a conversation's root model across turns. Experiments assign any value.
  */
 export type AgentHostHydraFusionSettingValue = boolean | 'v2' | 'multiRoot';
-export const AgentHostFusionEnabledSettingId = 'chat.copilot.ensemble.enabled';
-export const AgentHostFusionHighUsesHydraFusionSettingId = 'chat.copilot.ensemble.intelligenceUsesHydraFusion';
 export const AgentHostDynamicAutoTiersEnabledSettingId = 'chat.copilot.dynamicAutoTiers.enabled';
 
 export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
@@ -231,7 +231,13 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.ImageGeneration]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.imageGenerationEnabled.title', "Image Generation"),
-		description: localize('agentHost.config.imageGenerationEnabled.description', "Enable image generation and editing with **GPT Image 2.5 Sunburst** when available to your account. Prompts and selected images are sent to Sunburst. Account access and tool permissions still apply.\n\n**Sunburst preview rates (AI credits per 1 million tokens):**\n- **Text tokens:** 500 input / 0 output\n- **Image tokens:** 800 input / 3,000 output\n\nThese charges are in addition to the conversation model. Rates may change; these are token rates, not per-image prices. Disabling this setting prevents future image tool calls."),
+		description: localize('agentHost.config.imageGenerationEnabled.description', "Enable image generation and editing when the runtime's image model is available to your account. Prompts and selected images are sent to that model, and its charges are in addition to the conversation model. Account access and tool permissions still apply. Disabling this setting prevents future image tool calls."),
+	}),
+	[CopilotCliConfigKey.ImageGenerationWatermark]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.imageGenerationWatermark.title', "Image Watermark"),
+		description: localize('agentHost.config.imageGenerationWatermark.description', "Request a visible \"Made with AI\" label on images generated or edited by Copilot. Applies to new and existing Copilot sessions without enabling image generation. Labels are generated by the image model and are not guaranteed. Turning this off does not remove existing labels from input images."),
+		default: false,
 	}),
 	[CopilotCliConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -274,17 +280,23 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.claudeAdvisor.description', "When enabled, Copilot SDK sessions using supported Claude models expose the provider-native Advisor tool."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.Tgrep]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.tgrep.title', "Indexed Search (tgrep)"),
-		description: localize('agentHost.config.tgrep.description', "When enabled, Copilot SDK sessions use tgrep indexed search for eligible large repositories. Requires a local Git repository on a non-virtual filesystem."),
-		default: false,
-	}),
 	[CopilotCliConfigKey.SearchSubagent]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.searchSubagent.title', "Search Subagent"),
 		description: localize('agentHost.config.searchSubagent.description', "When enabled, Copilot SDK sessions are offered the runtime's search subagent tool for codebase search. Applied when a session launches or resumes."),
 		default: false,
+	}),
+	[CopilotCliConfigKey.SearchSubagentModel]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.searchSubagentModel.title', "Search Subagent Model"),
+		description: localize('agentHost.config.searchSubagentModel.description', "CAPI model ID to use for the search subagent. Empty uses the runtime default. An unavailable model makes the search tool unavailable. Changing this value restarts the Copilot SDK client after active turns finish."),
+		default: '',
+	}),
+	[CopilotCliConfigKey.ExploreAgent]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.exploreAgent.title', "Explore Agent"),
+		description: localize('agentHost.config.exploreAgent.description', "When enabled, Copilot SDK sessions can use the runtime's built-in Explore agent, independently of the search subagent tool. Applied when a session launches or resumes. Does not disable custom agents named Explore."),
+		default: true,
 	}),
 	[CopilotCliConfigKey.ExecutionSubagent]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -356,18 +368,6 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.hydraFusionMultiRoot.title', "HydraFusion Multi-Root"),
 		description: localize('agentHost.config.hydraFusionMultiRoot.description', "When enabled together with HydraFusion v2, Copilot SDK sessions ask the service to keep reusing the previous turn's root model when it fits the next turn's workflow."),
-		default: false,
-	}),
-	[CopilotCliConfigKey.Fusion]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.fusion.title', "Fusion"),
-		description: localize('agentHost.config.fusion.description', "When enabled, Auto is presented as Fusion, optimizing for Standard, High, or Max."),
-		default: false,
-	}),
-	[CopilotCliConfigKey.FusionHighUsesHydraFusion]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.fusionHighUsesHydraFusion.title', "Fusion High Uses HydraFusion"),
-		description: localize('agentHost.config.fusionHighUsesHydraFusion.description', "When enabled together with Fusion and HydraFusion, Fusion's High tier uses HydraFusion."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.DynamicAutoTiers]: schemaProperty<boolean>({
