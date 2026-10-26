@@ -140,13 +140,15 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 			for (const automation of group.automations) {
 				lines.push('');
 				const pendingAction = pendingActions.get(automation.id);
-				lines.push(pendingAction === 'disabling'
-					? localize('automationsAccessibleView.automationDisabling', "{0}, disabling", automation.name)
-					: pendingAction === 'deleting'
-						? localize('automationsAccessibleView.automationDeleting', "{0}, deleting", automation.name)
-						: automation.enabled
-							? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
-							: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
+				lines.push(pendingAction === 'enabling'
+					? localize('automationsAccessibleView.automationEnabling', "{0}, enabling", automation.name)
+					: pendingAction === 'disabling'
+						? localize('automationsAccessibleView.automationDisabling', "{0}, disabling", automation.name)
+						: pendingAction === 'deleting'
+							? localize('automationsAccessibleView.automationDeleting', "{0}, deleting", automation.name)
+							: automation.enabled
+								? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
+								: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
 				const triggers = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
 				lines.push(triggers ? localize('automationsAccessibleView.triggers', "Triggers: {0}", triggers)
 					: localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));

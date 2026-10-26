@@ -3624,6 +3624,90 @@ suite('AutomationsCardsWidget', () => {
 			assert.deepStrictEqual(pendingState, { prompt: 'Disabling...', spinner: true });
 		});
 
+		test('enable immediately shows pending feedback and blocks duplicate mutations until success', async () => {
+			const { automationService, dialogService, instantiationService, widget } = setup();
+			const source = automation({ enabled: false });
+			const pending = new DeferredPromise<void>();
+			automationService.beforeUpdate = pending.p;
+			automationService.setAutomations([source]);
+			dialogService.confirmResult = { confirmed: true };
+			const enableCommand = CommandsRegistry.getCommand('sessions.automations.enable')!;
+			const deleteCommand = CommandsRegistry.getCommand('sessions.automations.delete')!;
+			const card = widget.element.querySelector<HTMLElement>('.automations-card')!;
+			const state = () => ({
+				prompt: card.querySelector('.automations-card-prompt')!.textContent,
+				spinner: card.querySelector<HTMLElement>('.codicon-loading')!.style.display !== 'none',
+				editDisabled: card.querySelector<HTMLButtonElement>('.automations-card-main')!.disabled,
+			});
+
+			const enabling = instantiationService.invokeFunction(accessor => enableCommand.handler(accessor, source));
+			const pendingState = state();
+			automationService.setAutomations([{ ...source }]);
+			const refreshedState = state();
+			const duplicateEnable = instantiationService.invokeFunction(accessor => enableCommand.handler(accessor, source));
+			const duplicateDelete = instantiationService.invokeFunction(accessor => deleteCommand.handler(accessor, source));
+			pending.complete();
+			await Promise.all([enabling, duplicateEnable, duplicateDelete]);
+
+			assert.deepStrictEqual({
+				pendingState,
+				refreshedState,
+				settledState: state(),
+				updateCalls: automationService.guardedUpdateCalls,
+				deleteCalls: automationService.deleteCalls,
+				confirmations: dialogService.confirmations.length,
+			}, {
+				pendingState: {
+					prompt: 'Enabling...',
+					spinner: true,
+					editDisabled: true,
+				},
+				refreshedState: {
+					prompt: 'Enabling...',
+					spinner: true,
+					editDisabled: true,
+				},
+				settledState: {
+					prompt: source.prompt,
+					spinner: false,
+					editDisabled: false,
+				},
+				updateCalls: [{ id: source.id, patch: { enabled: true }, expected: source }],
+				deleteCalls: [],
+				confirmations: 0,
+			});
+		});
+
+		test('enable renders pending feedback before dispatching the provider mutation', async () => {
+			const { automationService, instantiationService, widget } = setup();
+			const source = automation({ enabled: false });
+			automationService.setAutomations([source]);
+			const command = CommandsRegistry.getCommand('sessions.automations.enable')!;
+			const card = widget.element.querySelector<HTMLElement>('.automations-card')!;
+
+			const enabling = instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+			const beforeRender = {
+				prompt: card.querySelector('.automations-card-prompt')!.textContent,
+				spinner: card.querySelector<HTMLElement>('.codicon-loading')!.style.display !== 'none',
+				updateCalls: automationService.guardedUpdateCalls.length,
+			};
+			const targetWindow = getWindow(card);
+			await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
+			await enabling;
+
+			assert.deepStrictEqual({
+				beforeRender,
+				updateCalls: automationService.guardedUpdateCalls.length,
+			}, {
+				beforeRender: {
+					prompt: 'Enabling...',
+					spinner: true,
+					updateCalls: 0,
+				},
+				updateCalls: 1,
+			});
+		});
+
 		test('pending mutation safely settles after its card and view are disposed', async () => {
 			const { automationService, instantiationService, widget } = setup();
 			const source = automation();
@@ -3641,6 +3725,35 @@ suite('AutomationsCardsWidget', () => {
 				pending: getAutomationPendingActions(automationService).actions.get().size,
 				updateCalls: automationService.guardedUpdateCalls.length,
 			}, { pending: 0, updateCalls: 1 });
+		});
+
+	test('failed enable clears pending feedback and permits retry', async () => {
+			const { automationService, dialogService, instantiationService, widget } = setup();
+			const source = automation({ enabled: false });
+			const pending = new DeferredPromise<void>();
+			automationService.beforeUpdate = pending.p;
+			automationService.updateResult = { kind: 'conflict', current: automation({ enabled: false, prompt: 'Changed' }) };
+			automationService.setAutomations([source]);
+			const command = CommandsRegistry.getCommand('sessions.automations.enable')!;
+			const first = instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+			pending.complete();
+			await first;
+			await dialogService.errorCalled.p;
+			automationService.beforeUpdate = undefined;
+			automationService.updateResult = undefined;
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+
+			assert.deepStrictEqual({
+				updateCount: automationService.guardedUpdateCalls.length,
+				prompt: widget.element.querySelector('.automations-card-prompt')!.textContent,
+				spinner: widget.element.querySelector<HTMLElement>('.codicon-loading')!.style.display,
+				enabled: automationService.automations.get()[0].enabled,
+			}, {
+				updateCount: 2,
+				prompt: source.prompt,
+				spinner: 'none',
+				enabled: true,
+			});
 		});
 
 	test('failed disable clears pending feedback and permits retry', async () => {
@@ -4641,9 +4754,10 @@ suite('AutomationsCardsWidget', () => {
 		);
 
 		assert.deepStrictEqual({
+			enabling: content('enabling').includes('Daily review, enabling'),
 			disabling: content('disabling').includes('Daily review, disabling'),
 			deleting: content('deleting').includes('Daily review, deleting'),
-		}, { disabling: true, deleting: true });
+		}, { enabling: true, disabling: true, deleting: true });
 	});
 
 	test('accessible local progress clears stale descriptions only while active', () => {

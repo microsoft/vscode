@@ -880,11 +880,13 @@ class AutomationCardsSection extends Disposable {
 		}
 		card.runButton.element.style.display = eventTriggered ? 'none' : '';
 		const starting = card.startingRuns.get() !== undefined;
-		const pendingLabel = pendingAction === 'disabling'
-			? localize('automationDisabling', "Disabling...")
-			: pendingAction === 'deleting'
-				? localize('automationDeleting', "Deleting...")
-				: undefined;
+		const pendingLabel = pendingAction === 'enabling'
+			? localize('automationEnabling', "Enabling...")
+			: pendingAction === 'disabling'
+				? localize('automationDisabling', "Disabling...")
+				: pendingAction === 'deleting'
+					? localize('automationDeleting', "Deleting...")
+					: undefined;
 		const busy = pendingAction !== undefined;
 		card.card.setAttribute('aria-busy', busy ? 'true' : 'false');
 		card.main.disabled = busy || !this.automationService.canUpdateAutomation(automation.id);
@@ -3054,14 +3056,15 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 		await showAutomationsDisabled(dialogService);
 		return;
 	}
-	const tracksPending = !enabled;
-	if (tracksPending && !pendingActions.tryBegin(automation.id, 'disabling')) {
+	if (!pendingActions.tryBegin(automation.id, enabled ? 'enabling' : 'disabling')) {
 		return;
 	}
 	try {
-		if (tracksPending) {
-			status(localize('automationDisablingStatus', "Disabling automation {0}", automation.name));
-		}
+		status(enabled
+			? localize('automationEnablingStatus', "Enabling automation {0}", automation.name)
+			: localize('automationDisablingStatus', "Disabling automation {0}", automation.name));
+		const targetWindow = DOM.getActiveWindow();
+		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
 		const result = await automationService.updateAutomationIfUnchanged(automation.id, { enabled }, automation, () => {
 			if (!automationsEnabled()) {
 				throw new Error(enabled
@@ -3090,9 +3093,7 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 			getErrorMessage(error),
 		);
 	} finally {
-		if (tracksPending) {
-			pendingActions.end(automation.id);
-		}
+		pendingActions.end(automation.id);
 	}
 }
 

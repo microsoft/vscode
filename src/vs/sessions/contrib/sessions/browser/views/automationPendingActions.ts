@@ -6,7 +6,7 @@
 import { observableValue } from '../../../../../base/common/observable.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 
-export type AutomationPendingAction = 'deleting' | 'disabling';
+export type AutomationPendingAction = 'deleting' | 'disabling' | 'enabling';
 
 export class AutomationPendingActions {
 
