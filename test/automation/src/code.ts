@@ -206,7 +206,7 @@ export class Code {
 
 					if (safeToKill) {
 						this.logger.log('Smoke test exit(): call did not terminate the process yet, but safeToKill is true, so we can kill it');
-						this.kill(pid);
+						await this.kill(pid);
 					}
 
 					switch (retries) {
@@ -214,14 +214,14 @@ export class Code {
 						// after 10 seconds: forcefully kill
 						case 20: {
 							this.logger.log('Smoke test exit(): call did not terminate process after 10s, forcefully exiting the application...');
-							this.kill(pid);
+							await this.kill(pid);
 							break;
 						}
 
 						// after 20 seconds: give up
 						case 40: {
 							this.logger.log('Smoke test exit(): call did not terminate process after 20s, giving up');
-							this.kill(pid);
+							await this.kill(pid);
 							done = true;
 							resolve();
 							break;
@@ -242,7 +242,7 @@ export class Code {
 		}), 'Code#exit()', this.logger);
 	}
 
-	private kill(pid: number): void {
+	private async kill(pid: number): Promise<void> {
 		try {
 			process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
 		} catch (e) {
@@ -250,12 +250,11 @@ export class Code {
 			return;
 		}
 
-		try {
-			this.logger.log(`Smoke test kill(): Trying to SIGTERM process: ${pid}`);
-			process.kill(pid);
-		} catch (e) {
-			this.logger.log('Smoke test kill(): SIGTERM failed', e);
-		}
+		// Kill the whole tree, not just the launched process: on Windows the application can keep
+		// running in a descendant after the launched process is terminated, and the next launch then
+		// hands off to that instance through the single-instance lock and exits.
+		this.logger.log(`Smoke test kill(): Trying to kill process tree: ${pid}`);
+		await teardown(this.mainProcess, this.logger);
 	}
 
 	async getElement(selector: string): Promise<IElement | undefined> {
