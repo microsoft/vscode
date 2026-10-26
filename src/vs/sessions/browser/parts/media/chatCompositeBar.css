@@ -817,7 +817,8 @@
 }
 
 .session-header-bar.window-chrome .chat-composite-bar-title-actions {
-	margin-left: 0;
+	/* The title row gaps its children by 6px; the overflow sits at the 2px gap of the window actions. */
+	margin-left: -4px;
 }
 
 /* The traffic lights of macOS sit over the leading edge. */
