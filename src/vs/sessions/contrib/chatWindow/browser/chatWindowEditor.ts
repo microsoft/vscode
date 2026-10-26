@@ -374,7 +374,7 @@ export class ChatWindowChatEditor extends EditorPane {
 		store.add(part.onDidChangeGroupMaximized(isMaximized => {
 			if (!isMaximized && maximized && !this._sizing) {
 				maximized = undefined;
-				state.showBoth();
+				state.onGroupUnmaximized();
 			}
 		}));
 
@@ -605,7 +605,7 @@ export class ChatWindowChatEditor extends EditorPane {
 			if (!this._restoreConversation()) {
 				this._clampOnResize();
 			}
-			if (this._terminalNeedsRecovery()) {
+			if (!this._recoverTerminalScheduler.isScheduled() && this._terminalNeedsRecovery()) {
 				this._recoverTerminalScheduler.schedule();
 			}
 		}

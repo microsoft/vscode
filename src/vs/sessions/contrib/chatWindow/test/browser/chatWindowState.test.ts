@@ -191,4 +191,15 @@ suite('ChatWindowState', () => {
 			writes: [{ mode: SessionLayoutMode.EditorOnly, splitLayout: SessionLayoutMode.SideBySide, inputOnly: false }],
 		});
 	});
+
+	test('keeps its layout when the part unmaximizes because a group was added, and shows both when the user shows the other group', () => {
+		const window = createState(disposables.add(new InMemoryStorageService()), false, true);
+		window.setLayout(SessionLayoutMode.ChatOnly);
+
+		window.keepLayoutWhile(() => window.onGroupUnmaximized());
+		const kept = window.layout.get();
+		window.onGroupUnmaximized();
+
+		assert.deepStrictEqual({ kept, afterwards: window.layout.get() !== SessionLayoutMode.ChatOnly }, { kept: SessionLayoutMode.ChatOnly, afterwards: true });
+	});
 });

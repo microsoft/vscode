@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, append, EventType, getActiveWindow, getWindowId } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -29,7 +29,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
@@ -37,6 +37,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { getChatWindowSession, IChatWindowService, SessionTitleBarActionsShownContext } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
 
 
@@ -118,6 +119,40 @@ interface IRunScriptActionContext {
 	readonly pinnedBrowser: boolean;
 }
 
+/** One value per chat window key, however often it is asked for, disposed when the key leaves `keys`. */
+export class WindowScopedCache<K, V> extends Disposable {
+
+	private readonly _entries = new Map<K, DisposableStore>();
+	private readonly _values = new Map<K, V>();
+
+	constructor(keys: IObservable<readonly K[]>, private readonly _create: (key: K, store: DisposableStore) => V, eager = false) {
+		super();
+		this._register(autorun(reader => {
+			const current = new Set(keys.read(reader));
+			for (const [key, store] of this._entries) {
+				if (!current.has(key)) {
+					store.dispose();
+					this._entries.delete(key);
+					this._values.delete(key);
+				}
+			}
+			if (eager) {
+				current.forEach(key => this.get(key));
+			}
+		}));
+		this._register(toDisposable(() => this._entries.forEach(store => store.dispose())));
+	}
+
+	get(key: K): V {
+		if (!this._values.has(key)) {
+			const store = new DisposableStore();
+			this._entries.set(key, store);
+			this._values.set(key, this._create(key, store));
+		}
+		return this._values.get(key)!;
+	}
+}
+
 type TaskConfigurationMode = 'add' | 'configure';
 
 /**
@@ -129,6 +164,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	static readonly ID = 'workbench.contrib.agentSessions.runScript';
 
 	private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>;
+	private readonly _windowRunStates: WindowScopedCache<IObservable<IActiveSession | undefined>, IObservable<IRunScriptActionContext | undefined>>;
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
@@ -141,10 +177,23 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 	) {
 		super();
 
-		this._activeRunState = derivedOpts<IRunScriptActionContext | undefined>({
+		this._activeRunState = this._createRunState(this._sessionsService.activeSession).recomputeInitiallyAndOnChange(this._store);
+
+		this._windowRunStates = this._register(new WindowScopedCache(
+			this._chatWindowService.windows.map(this, windows => windows.map(window => window.session)),
+			(session, store) => this._createRunState(session).recomputeInitiallyAndOnChange(store)));
+
+		this._registerActionViewItemProvider();
+		this._registerActions();
+	}
+
+	/** What the Run button of the title bar runs for `session`. */
+	private _createRunState(session: IObservable<IActiveSession | undefined>): IObservable<IRunScriptActionContext | undefined> {
+		return derivedOpts<IRunScriptActionContext | undefined>({
 			owner: this,
 			equalsFn: (a, b) => {
 				if (a === b) { return true; }
@@ -161,7 +210,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						&& t1.task.runOptions?.runOn === t2.task.runOptions?.runOn);
 			}
 		}, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = session.read(reader);
 			if (!activeSession) {
 				return undefined;
 			}
@@ -173,10 +222,16 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			const browserUrl = this._sessionsConfigService.getBrowserUrl(folder?.root).read(reader);
 			const pinnedBrowser = this._sessionsConfigService.getPinnedBrowser(folder?.root).read(reader);
 			return { session: activeSession, chat: activeChat, tasks, pinnedTaskLabel, browserUrl, pinnedBrowser };
-		}).recomputeInitiallyAndOnChange(this._store);
+		});
+	}
 
-		this._registerActionViewItemProvider();
-		this._registerActions();
+	/** What the Run button in the window `windowId` runs: for the session of its chat window, else for the active session. */
+	private _runStateOf(windowId: number): IObservable<IRunScriptActionContext | undefined> {
+		const windowSession = getChatWindowSession(this._chatWindowService, windowId);
+		if (!windowSession) {
+			return this._activeRunState;
+		}
+		return this._windowRunStates.get(windowSession);
 	}
 
 	private _registerActionViewItemProvider(): void {
@@ -184,7 +239,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		this._register(this._actionViewItemService.register(
 			Menus.TitleBarCenterRight,
 			RunScriptDropdownMenuId,
-			(action, options, instantiationService) => {
+			(action, options, instantiationService, windowId) => {
 				if (!(action instanceof SubmenuItemAction)) {
 					return undefined;
 				}
@@ -192,7 +247,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					RunScriptActionViewItem,
 					action,
 					options,
-					that._activeRunState,
+					that._runStateOf(windowId),
 					(session: ISession, chat: IChat) => that._showConfigureQuickPick(session, chat),
 					(session: ISession, chat: IChat, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, chat, existingTask, mode),
 					(session: ISession, chat: IChat) => that._generateNewTask(session, chat),
@@ -217,7 +272,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}
 
 			async run(): Promise<void> {
-				const activeState = that._activeRunState.get();
+				const activeState = that._runStateOf(getWindowId(getActiveWindow())).get();
 				if (!activeState) {
 					return;
 				}
@@ -261,7 +316,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}
 
 			async run(): Promise<void> {
-				const state = that._activeRunState.get();
+				const state = that._runStateOf(getWindowId(getActiveWindow())).get();
 				if (!state) {
 					return;
 				}
@@ -284,7 +339,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}
 
 			async run(): Promise<void> {
-				const state = that._activeRunState.get();
+				const state = that._runStateOf(getWindowId(getActiveWindow())).get();
 				if (!state) {
 					return;
 				}
@@ -842,7 +897,7 @@ MenuRegistry.appendMenuItem(Menus.TitleBarCenterRight, {
 	icon: Codicon.play,
 	group: 'navigation',
 	order: 6,
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext.toNegated())
+	when: ContextKeyExpr.and(SessionTitleBarActionsShownContext, SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext.toNegated())
 });
 
 // Disabled placeholder shown in the titlebar when the active session does not support running scripts
@@ -858,7 +913,7 @@ class RunScriptNotAvailableAction extends Action2 {
 				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 6,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext)
+				when: ContextKeyExpr.and(SessionTitleBarActionsShownContext, SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext)
 			}]
 		});
 	}

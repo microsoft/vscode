@@ -193,3 +193,5 @@ Chat ownership, handle lifetime, delayed catalog hydration, and reload persisten
 ## 9. Implementation
 
 The workbench composition lives under `browser/`. Desktop strategies and their tests live under `contrib/layout/browser/desktop/` and `contrib/layout/test/browser/`.
+
+In a chat window with its own editor area, Cmd/Ctrl+J and Ctrl+\` toggle that window's terminal row, not the main window's panel, through keybindings on `sessions.chatWindow.toggleTerminal` that out-weigh the workbench rules. A chat window docked in the main window, or one without an editor area, keeps toggling the panel.
