@@ -273,7 +273,7 @@ export class SessionHeaderBar extends Disposable {
 				hiddenItemStrategy: menu === Menus.ChatWindowTitleBarLayout ? HiddenItemStrategy.Ignore : HiddenItemStrategy.NoHide,
 				telemetrySource: `sessionHeader.windowChrome.${name}`,
 				toolbarOptions: { primaryGroup: () => true },
-				...(menu === Menus.ChatWindowTitleBarLayout ? { alwaysShownItems: [Menus.ChatWindowLayout.id] } : {}),
+				...(menu === Menus.ChatWindowTitleBarLayout ? { alwaysShownItems: [Menus.SessionLayout.id] } : {}),
 			}));
 		}
 	}
