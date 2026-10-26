@@ -64,3 +64,8 @@
 .agent-sessions-workbench .chat-window-card .session-changes-editor-body {
 	padding-top: var(--vscode-spacing-size40);
 }
+
+/* The file list and its separator belong to the header row's line, not to the diffs' spacing: they start at the line while the diffs keep the gap. */
+.agent-sessions-workbench .chat-window-card .session-changes-editor-body .multi-diff-editor-with-file-list-files {
+	margin-top: calc(-1 * var(--vscode-spacing-size40));
+}

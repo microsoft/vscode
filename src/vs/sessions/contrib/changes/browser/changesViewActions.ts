@@ -362,18 +362,27 @@ class ChangesHeaderActionsAction extends Action2 {
 			id: CHANGES_HEADER_ACTIONS_ID,
 			title: localize2('changesView.headerActions', "Changes Actions"),
 			f1: false,
-			menu: {
-				id: Menus.TitleBarSessionMenu,
-				group: 'navigation',
-				order: 5,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated(),
-					CustomViewVisibleContext.negate(),
-					DesktopLayoutContext,
-					SessionIsCreatedContext
-				)
-			},
+			menu: [
+				{
+					id: Menus.TitleBarSessionMenu,
+					group: 'navigation',
+					order: 5,
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext,
+						IsAuxiliaryWindowContext.toNegated(),
+						CustomViewVisibleContext.negate(),
+						DesktopLayoutContext,
+						SessionIsCreatedContext
+					)
+				},
+				{
+					// The header of a chat window shows the actions for its own session.
+					id: Menus.ChatWindowSessionActions,
+					group: 'navigation',
+					order: 5,
+					when: IsSessionsWindowContext
+				}
+			],
 		});
 	}
 	override async run(): Promise<void> { }

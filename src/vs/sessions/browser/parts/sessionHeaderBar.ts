@@ -14,7 +14,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
-import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableValue } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { localize } from '../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
@@ -23,6 +23,8 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
+import { ISessionScope } from '../../services/sessions/browser/sessionScope.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDragData, isSessionDragFromPaneEdge } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
@@ -101,6 +103,9 @@ export class SessionHeaderBar extends Disposable {
 	private _activateChatGroup: (() => void) | undefined;
 	private _activeChat: IChat | undefined;
 	private readonly _menuActionArgs: unknown[] = [];
+	private readonly _scopeSession = observableValue<IActiveSession | undefined>(this, undefined);
+	/** Resolves the session of the header for the session actions, which belong to it rather than to the active session. */
+	private readonly _sessionScopedInstantiationService: IInstantiationService;
 	private _sessionIsCreated = false;
 	private _requestedVisible = true;
 
@@ -146,6 +151,9 @@ export class SessionHeaderBar extends Disposable {
 		@IHoverService hoverService: IHoverService,
 	) {
 		super();
+
+		const sessionScope: ISessionScope = { _serviceBrand: undefined, session: this._scopeSession };
+		this._sessionScopedInstantiationService = this._instantiationService.createChild(new ServiceCollection([ISessionScope, sessionScope]), this._store);
 
 		this._container = $('.chat-composite-bar.session-header-bar');
 		this._container.setAttribute('role', 'group');
@@ -278,9 +286,9 @@ export class SessionHeaderBar extends Disposable {
 			return;
 		}
 		const store = this._windowChromeToolbars.value = new DisposableStore();
-		for (const [menu, name] of [[Menus.TitleBarCenterRight, 'run'], [Menus.ChatWindowTitleBar, 'actions'], [Menus.ChatWindowTitleBarLayout, 'layout']] as const) {
+		for (const [menu, name] of [[Menus.TitleBarCenterRight, 'run'], [Menus.ChatWindowTitleBar, 'actions'], [Menus.ChatWindowSessionActions, 'session'], [Menus.ChatWindowTitleBarLayout, 'layout']] as const) {
 			const container = this._windowChromeEl.appendChild($(`.chat-composite-bar-toolbar.window-chrome-${name}`));
-			store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, container, menu, {
+			store.add((menu === Menus.ChatWindowSessionActions ? this._sessionScopedInstantiationService : this._instantiationService).createInstance(MenuWorkbenchToolBar, container, menu, {
 				hiddenItemStrategy: menu === Menus.ChatWindowTitleBarLayout ? HiddenItemStrategy.Ignore : HiddenItemStrategy.NoHide,
 				telemetrySource: `sessionHeader.windowChrome.${name}`,
 				toolbarOptions: { primaryGroup: () => true },
@@ -355,6 +363,7 @@ export class SessionHeaderBar extends Disposable {
 		// Cancel any in-flight rename when switching sessions.
 		this._cancelTitleEditing();
 		this._session = session;
+		this._scopeSession.set(session, undefined);
 		this._activeChatObservable = activeChat;
 		this._actionsTargetChat = actionsTargetChat;
 		this._showParentContext = showParentContext;
