@@ -218,7 +218,7 @@ suite('RemotesWidget', () => {
 				tables: 1,
 				trees: 0,
 				columns: ['', 'Name', 'Status', ''],
-				roots: operatingSystem === OperatingSystem.Windows ? ['Dev Tunnels', 'SSH', 'WSL'] : ['Dev Tunnels', 'SSH'],
+				roots: operatingSystem === OperatingSystem.Windows ? ['Dev Tunnels', 'WSL', 'SSH'] : ['Dev Tunnels', 'SSH'],
 				switches: 0,
 				checkboxes: 0,
 				descriptions: 0,
@@ -228,10 +228,10 @@ suite('RemotesWidget', () => {
 		});
 	}
 
-	test('orders enabled sections alphabetically in the table and accessible view', () => {
+	test('orders enabled sections like the Environment picker in the table and accessible view', () => {
 		const { widget, parent, model } = createWidget(OperatingSystem.Windows);
 		model.environmentsEnabled.set(true, undefined);
-		const headings = ['Dev Tunnels', 'GitHub Environments', 'SSH', 'WSL'];
+		const headings = ['GitHub Environments', 'Dev Tunnels', 'WSL', 'SSH'];
 		assert.deepStrictEqual({
 			table: [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(element => element.textContent),
 			accessible: widget.getAccessibilityContent().split('\n').filter(line => headings.includes(line)),
@@ -559,10 +559,10 @@ suite('RemotesWidget', () => {
 		widget.setVisible(true);
 		await timeout(0);
 		const expected = [
-			['Connect to Laptop', 'Rename Laptop...', 'Copy Address of Laptop', 'Change Preferred Agent Location for Laptop', 'Delete Laptop'],
 			['Connect to Desktop', 'Rename Desktop...', 'Copy Address of Desktop', 'Delete Desktop'],
-			['Disconnect Build server', 'Rename Build server...', 'Copy Address of Build server', 'Change Preferred Agent Location for Build server'],
+			['Connect to Laptop', 'Rename Laptop...', 'Copy Address of Laptop', 'Change Preferred Agent Location for Laptop', 'Delete Laptop'],
 			['Connect to Ubuntu', 'Rename Ubuntu...', 'Copy Address of Ubuntu'],
+			['Disconnect Build server', 'Rename Build server...', 'Copy Address of Build server', 'Change Preferred Agent Location for Build server'],
 		];
 		assert.deepStrictEqual({ before, after: actions(), changes: model.managementChanges }, { before: expected, after: expected, changes: [] });
 	});
@@ -859,7 +859,7 @@ suite('RemotesWidget', () => {
 			removed, noMatches, refreshed, restored: groups(),
 		}, {
 			matched: ['SSH'], omittedFromAccessibleView: true, removed: [], noMatches: 'No matching remotes.', refreshed: [],
-			restored: ['Dev Tunnels', 'GitHub Environments', 'SSH', 'WSL'],
+			restored: ['GitHub Environments', 'Dev Tunnels', 'WSL', 'SSH'],
 		});
 	});
 
@@ -1077,14 +1077,14 @@ suite('RemotesWidget', () => {
 		await model.pendingRefresh.complete(['tunnel']);
 		await timeout(0);
 		assert.deepStrictEqual({ started, partial, collapsedSpinner, accessible, finished: snapshot() }, {
-			started: ['Dev Tunnels', 'SSH', 'WSL'].map(name => ({ name, busy: 'true', spinning: true })),
+			started: ['Dev Tunnels', 'WSL', 'SSH'].map(name => ({ name, busy: 'true', spinning: true })),
 			partial: [
 				{ name: 'Dev Tunnels', busy: 'true', spinning: true },
-				{ name: 'SSH', busy: 'false', spinning: false },
 				{ name: 'WSL', busy: 'true', spinning: true },
+				{ name: 'SSH', busy: 'false', spinning: false },
 			],
 			collapsedSpinner: true, accessible: true,
-			finished: ['Dev Tunnels', 'SSH', 'WSL'].map(name => ({ name, busy: 'false', spinning: false })),
+			finished: ['Dev Tunnels', 'WSL', 'SSH'].map(name => ({ name, busy: 'false', spinning: false })),
 		});
 	});
 
@@ -1205,7 +1205,7 @@ suite('RemotesWidget', () => {
 		const guidance = widget.getAccessibilityContent().includes('No GitHub environments available.');
 		model.environmentsEnabled.set(false, undefined);
 		assert.deepStrictEqual({ hidden, shown, settings, guidance, disabled: groups() }, {
-			hidden: ['Dev Tunnels', 'SSH'], shown: ['Dev Tunnels', 'GitHub Environments', 'SSH'],
+			hidden: ['Dev Tunnels', 'SSH'], shown: ['GitHub Environments', 'Dev Tunnels', 'SSH'],
 			settings: [{ query: GitHubEnvironmentsEnabledSettingId }], guidance: true, disabled: ['Dev Tunnels', 'SSH'],
 		});
 	});
@@ -1481,7 +1481,7 @@ suite('RemotesWidget', () => {
 			link.click();
 		}
 		assert.deepStrictEqual(documentation, Array.from({ length: 4 }, () => [
-			'https://aka.ms/vscode-agent-tunnel', 'https://aka.ms/vscode-agent-environments', 'https://aka.ms/vscode-agent-ssh', 'https://aka.ms/vscode-agent-wsl',
+			'https://aka.ms/vscode-agent-environments', 'https://aka.ms/vscode-agent-tunnel', 'https://aka.ms/vscode-agent-wsl', 'https://aka.ms/vscode-agent-ssh',
 		]).flat());
 	});
 
@@ -1499,12 +1499,12 @@ suite('RemotesWidget', () => {
 			documentation,
 			accessibleGuidance: widget.getAccessibilityContent().includes('SSH Setup Guide: https://aka.ms/vscode-agent-ssh'),
 		}, {
-			labels: ['No dev tunnels found for this account.', 'No SSH hosts configured.', 'No WSL 2 distributions found.'],
+			labels: ['No dev tunnels found for this account.', 'No WSL 2 distributions found.', 'No SSH hosts configured.'],
 			counts: ['0', '0', '0'],
 			documentation: [
 				'https://aka.ms/vscode-agent-tunnel',
-				'https://aka.ms/vscode-agent-ssh',
 				'https://aka.ms/vscode-agent-wsl',
+				'https://aka.ms/vscode-agent-ssh',
 			],
 			accessibleGuidance: true,
 		});
