@@ -43,7 +43,6 @@ function createFocusHarness(): IFocusTestHarness {
 	const calls: IFocusCall[] = [];
 	let focusedId: string | undefined = 'a';
 
-	const getContainer = (id: string) => containers.find(container => container.id === id);
 	const getContainerForView = (viewId: string) =>
 		containers.find(container => (viewsByContainer.get(container.id) ?? []).includes(viewId));
 
@@ -61,7 +60,7 @@ function createFocusHarness(): IFocusTestHarness {
 	} as unknown as IViewsService;
 
 	const descriptors = {
-		getViewContainerByViewId: (id: string) => getContainerForView(id) as ViewContainer | undefined ?? null,
+		getViewContainerByViewId: (id: string) => (getContainerForView(id) as ViewContainer | undefined) ?? null,
 		getViewContainerModel: (container: ViewContainer) => ({
 			visibleViewDescriptors: (viewsByContainer.get(container.id) ?? [])
 				.filter(id => !hidden.has(id))
