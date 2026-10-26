@@ -45,6 +45,50 @@ import '../../../../browser/widget/media/chat.css';
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const theme of [
+		{ name: 'dark', background: 'rgb(14, 99, 156)', foreground: 'rgb(255, 255, 255)', hover: 'rgb(17, 119, 187)' },
+		{ name: 'light', background: 'rgb(0, 122, 204)', foreground: 'rgb(255, 255, 255)', hover: 'rgb(0, 98, 163)' },
+		{ name: 'high contrast dark', background: 'rgb(0, 0, 0)', foreground: 'rgb(255, 255, 255)', hover: 'rgb(15, 74, 133)' },
+		{ name: 'high contrast light', background: 'rgb(15, 74, 133)', foreground: 'rgb(255, 255, 255)', hover: 'rgb(0, 98, 163)' },
+	]) {
+		test(`labeled submit shares a primary button background across its label and arrow in ${theme.name}`, () => {
+			const root = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+			store.add(toDisposable(() => root.remove()));
+			root.style.setProperty('--vscode-button-background', theme.background);
+			root.style.setProperty('--vscode-button-foreground', theme.foreground);
+			root.style.setProperty('--vscode-button-hoverBackground', theme.hover);
+			root.style.setProperty('--vscode-descriptionForeground', 'rgb(128, 128, 128)');
+			const toolbars = dom.append(root, dom.$('.chat-input-toolbars'));
+			const toolbar = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
+			const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+			const button = dom.append(actionBar, dom.$('.action-item.chat-submit-button.labeled'));
+			const arrow = dom.append(button, dom.$('a.action-label'));
+			arrow.style.transition = 'none';
+			const label = dom.append(button, dom.$('span.chat-submit-button-label'));
+			label.textContent = 'Run 2 Attempts';
+			const appearance = () => ({
+				background: mainWindow.getComputedStyle(button).backgroundColor,
+				label: mainWindow.getComputedStyle(label).color,
+				arrowBackground: mainWindow.getComputedStyle(arrow).backgroundColor,
+			});
+			const resting = appearance();
+			button.classList.add('hovered');
+			const hovered = appearance();
+			button.classList.remove('hovered');
+			button.classList.add('disabled');
+			const disabled = appearance();
+			button.classList.remove('disabled', 'labeled');
+			const unlabeled = appearance();
+
+			assert.deepStrictEqual({ resting, hovered, disabled, unlabeled }, {
+				resting: { background: theme.background, label: theme.foreground, arrowBackground: 'rgba(0, 0, 0, 0)' },
+				hovered: { background: theme.hover, label: theme.foreground, arrowBackground: 'rgba(0, 0, 0, 0)' },
+				disabled: { background: 'rgba(0, 0, 0, 0)', label: 'rgb(128, 128, 128)', arrowBackground: 'rgba(0, 0, 0, 0)' },
+				unlabeled: { background: 'rgba(0, 0, 0, 0)', label: 'rgb(128, 128, 128)', arrowBackground: theme.background },
+			});
+		});
+	}
+
 	test('uses only visible platform bounds beneath the pet', () => {
 		const root = dom.append(mainWindow.document.body, dom.$('div'));
 		root.style.cssText = 'position:fixed;left:40px;top:80px;width:400px;height:240px';

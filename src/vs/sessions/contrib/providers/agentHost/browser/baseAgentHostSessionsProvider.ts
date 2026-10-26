@@ -7315,7 +7315,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sizes: (number | undefined)[] = [];
 		for (const worktreeUri of worktrees.values()) {
-			sizes.push(await connection.measureWorktreeDiskUsage?.(worktreeUri, token));
+			sizes.push(await connection.measureWorktreeDiskUsage?.(worktreeUri, token, session.backendUri));
 		}
 		if (sizes.every(size => size === undefined)) {
 			return undefined;
