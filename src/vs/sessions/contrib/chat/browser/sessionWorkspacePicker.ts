@@ -40,6 +40,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { cloneRepository } from '../../../services/sessions/browser/cloneRepository.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
@@ -1052,11 +1053,24 @@ export class WorkspacePicker extends Disposable {
 			const attachesContext = selection.action?.attachesContext === true || item.attachAsContext === true;
 			const environment = attachesContext ? undefined : this._getEnvironment();
 			const selectsWorkspace = !attachesContext || !this._selectedFolderUri && !this.options.environment?.get();
-			const relatedWorkspace = selectsWorkspace
+			let relatedWorkspace = selectsWorkspace
 				? environment
 					? this._findRelatedEnvironmentWorkspace(selection.workspace, environment)
 					: this._findRelatedLocalWorkspace(selection.workspace)
 				: undefined;
+			if (!relatedWorkspace && environment?.kind === 'local' && selection.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB) {
+				const repositoryId = this._getRepositoryId(selection.workspace);
+				if (repositoryId) {
+					const clonedFolderUri = await cloneRepository(this.commandService, this.notificationService, `https://github.com/${repositoryId}.git`);
+					if (!clonedFolderUri || generation !== this._selectionGeneration) {
+						return false;
+					}
+					const resolved = resolveEnvironmentWorkspace(environment, this.sessionsProvidersService.getProviders(), clonedFolderUri);
+					if (resolved) {
+						relatedWorkspace = { providerId: resolved.provider.id, workspace: resolved.workspace };
+					}
+				}
+			}
 			const selectedFolderUri = relatedWorkspace?.workspace.folders[0]?.root ?? folderUri;
 			const selectedProviderId = relatedWorkspace?.providerId ?? selection.providerId;
 			if (!await this._canSelectWorkspace(selectedFolderUri, selectedProviderId, attachesContext)) {
