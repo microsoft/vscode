@@ -39,6 +39,12 @@ suite('runWithTimeout', () => {
 		}
 	});
 
+	test('still fails with the timeout exit code when the timeout command fails', () => {
+		const result = run(['1', '--on-timeout', `"${process.execPath}" -e "process.exit(5)"`, '--', process.execPath, '-e', 'setTimeout(() => {}, 60_000)']);
+		assert.equal(result.status, TIMEOUT_EXIT_CODE);
+		assert.match(result.stdout, /did not complete: exit code 5/);
+	});
+
 	test('rejects malformed arguments', () => {
 		assert.throws(() => parseArgs(['10', 'cargo']));
 		assert.throws(() => parseArgs(['0', '--', 'cargo']));

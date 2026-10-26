@@ -12,11 +12,15 @@
 // retried by `retryCountOnTaskFailure`. Failing from inside the script lets the
 // step's retry run instead. `--on-timeout` runs a shell command after the
 // command's process tree is killed, for example to reset a stuck daemon before
-// the retry.
+// the retry. It gets at most a minute, and its result doesn't change the exit
+// code.
 
 import { spawn, spawnSync } from 'node:child_process';
 
 export const TIMEOUT_EXIT_CODE = 124;
+
+/** How long the `--on-timeout` command may run, since it may talk to the stuck process. */
+const ON_TIMEOUT_DEADLINE_MS = 60_000;
 
 interface Options {
 	readonly seconds: number;
@@ -83,7 +87,10 @@ export function runWithTimeout(options: Options): Promise<number> {
 			clearTimeout(timer);
 			if (timedOut) {
 				if (options.onTimeout) {
-					spawnSync(options.onTimeout, { stdio: 'inherit', shell: true });
+					const cleanup = spawnSync(options.onTimeout, { stdio: 'inherit', shell: true, timeout: ON_TIMEOUT_DEADLINE_MS, killSignal: 'SIGKILL' });
+					if (cleanup.error || cleanup.status !== 0) {
+						console.log(`##vso[task.logissue type=warning]'${options.onTimeout}' did not complete: ${cleanup.error?.message ?? `exit code ${cleanup.status}`}`);
+					}
 				}
 				resolve(TIMEOUT_EXIT_CODE);
 			} else {
