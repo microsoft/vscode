@@ -11,6 +11,8 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
@@ -122,6 +124,14 @@ suite('RemotesEditor', () => {
 			requiresModal: [true, true, true],
 			compactOptions: customizations.getModalEditorOptions(),
 		});
+	});
+
+	test('accessibility setup help uses the current Dev Tunnels action labels', () => {
+		const { editor, instantiation } = createEditor();
+		instantiation.stub(IEditorService, { activeEditorPane: editor });
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'remotes' && implementation.type === AccessibleViewType.Help)!;
+		const content = store.add(help.getProvider(instantiation)!).provideContent();
+		assert.ok(content.includes('The Dev Tunnels group has an Open Dev Tunnels Settings action.'));
 	});
 
 	test('offers the open command in the Command Palette and Sessions overflow only with management, Environment picker, AI and remote gates', () => {
