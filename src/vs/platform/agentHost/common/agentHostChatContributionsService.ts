@@ -294,6 +294,8 @@ export interface IAgentHostChatContribution extends IDisposable {
 	onChatUsage?(signal: IAgentChatUsageSignal): void;
 	/** Runs after a cold-restored session's catalog and metadata are fully populated. */
 	onDidRestoreSession?(session: ProtocolURI): void;
+	/** Runs after a committed move handed the worktree the chat's source session created over to `chat`, which now lives in `session`. */
+	onDidHandOverWorktree?(session: ProtocolURI, chat: ProtocolURI): void;
 	/**
 	 * Awaited before the turn is sent. Instructions are concatenated in `order`;
 	 * text replacements are threaded in `order`, so each contribution observes
@@ -357,6 +359,7 @@ export interface IAgentHostChatContributions extends IDisposable {
 	didDispatchAction(dispatched: IDispatchedAction): void;
 	chatUsage(signal: IAgentChatUsageSignal): void;
 	didRestoreSession(session: ProtocolURI): void;
+	didHandOverWorktree(session: ProtocolURI, chat: ProtocolURI): void;
 	outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult>;
 	incomingRequest(request: IIncomingRequest): IncomingRequestDisposition;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;
