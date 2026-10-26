@@ -116,6 +116,8 @@ export class TaskTurnStreamer {
 		const observationStarted = Date.now();
 		const decision = baseline.permissionDecision;
 		let automation = false;
+		let decisionOutcomeReported = false;
+		const reportedPermissionErrors = new Set<string>();
 
 		const publishProgress = () => {
 			const label = this._progressLabel(state);
@@ -159,42 +161,59 @@ export class TaskTurnStreamer {
 				sink.flush();
 				if (task?.automation_id) {
 					automation = true;
-					const permissions = getCloudTaskPermissions(task, events);
-					const unanswered = permissions.filter(permission => permission.confirmation.requestId !== decision?.requestId);
-					if (unanswered.length) {
-						for (const permission of unanswered) {
-							if (decision || !baseline.seedEventIds.has(permission.confirmation.eventId)) {
-								stream.push(cloudPermissionPart(permission));
+					try {
+						const permissions = getCloudTaskPermissions(task, events);
+						const unanswered = permissions.filter(permission => permission.confirmation.requestId !== decision?.requestId);
+						if (unanswered.length) {
+							for (const permission of unanswered) {
+								if (decision || !baseline.seedEventIds.has(permission.confirmation.eventId)) {
+									stream.push(cloudPermissionPart(permission));
+								}
 							}
+							return;
 						}
-						return;
+					} catch (error) {
+						const message = error instanceof Error ? error.message : vscode.l10n.t('Could not observe the cloud permission request.');
+						if (!reportedPermissionErrors.has(message)) {
+							reportedPermissionErrors.add(message);
+							this._logService.warn(`[CloudPermissions] Could not project permission: ${message}`);
+							stream.warning(message);
+						}
 					}
-					if (decision) {
+					if (decision && !decisionOutcomeReported) {
 						const completed = events.find(event => event.type === 'permission.completed' && event.data.requestId === decision.requestId);
 						if (completed?.type === 'permission.completed') {
 							const kind = completed.data.result?.kind;
 							if (kind?.startsWith('denied')) {
 								stream.markdown(vscode.l10n.t('The cloud runtime denied the permission request.'));
-								return;
-							}
-							const execution = events.find(event => event.type === 'tool.execution_complete' && event.data.toolCallId === decision.toolCallId);
-							if (kind === 'approved' && execution?.type === 'tool.execution_complete') {
-								if (execution.data.success) {
-									stream.markdown(vscode.l10n.t('The cloud runtime approved the permission and completed the tool call.'));
+								decisionOutcomeReported = true;
+							} else if (kind === 'approved') {
+								const toolCallId = completed.data.toolCallId ?? decision.toolCallId;
+								if (!toolCallId) {
+									stream.warning(vscode.l10n.t('The cloud runtime approved the permission, but the tool outcome could not be correlated.'));
+									decisionOutcomeReported = true;
 								} else {
-									stream.warning(vscode.l10n.t('The cloud runtime answered the permission request, but the tool call failed.'));
+									const execution = events.find(event => event.type === 'tool.execution_complete' && event.data.toolCallId === toolCallId);
+									if (execution?.type === 'tool.execution_complete') {
+										if (execution.data.success) {
+											stream.markdown(vscode.l10n.t('The cloud runtime approved the permission and completed the tool call.'));
+										} else {
+											stream.warning(vscode.l10n.t('The cloud runtime answered the permission request, but the tool call failed.'));
+										}
+										decisionOutcomeReported = true;
+									}
 								}
-								return;
-							}
-							if (kind !== 'approved') {
+							} else {
 								stream.warning(vscode.l10n.t('The cloud runtime returned an unrecognized permission result. Refresh the session to check its outcome.'));
-								return;
+								decisionOutcomeReported = true;
 							}
 						}
 					}
 				}
 				if (decision && Date.now() - observationStarted >= (baseline.observationTimeoutMs ?? 60_000)) {
-					stream.warning(vscode.l10n.t('Decision submitted, but cloud resumption was not observed. Refresh the session to check its state; do not submit the decision again.'));
+					if (!decisionOutcomeReported) {
+						stream.warning(vscode.l10n.t('Decision submitted, but cloud resumption was not observed. Refresh the session to check its state; do not submit the decision again.'));
+					}
 					return;
 				}
 
@@ -204,7 +223,7 @@ export class TaskTurnStreamer {
 				// session state is still active. A task that failed to launch (e.g. "Failed to
 				// launch agent") never advances the turn out of `queued`/`in_progress`, so the
 				// per-turn check below would otherwise poll forever.
-				if (!baseline.permissionDecision && task !== undefined && !isActiveState(task.state)) {
+				if ((!decision || decisionOutcomeReported) && task !== undefined && !isActiveState(task.state)) {
 					if (isFailedTaskState(task.state)) {
 						// Surface the stop in-stream too, so it shows even after partial content
 						// streamed. Skip the concrete detail if a `session.error` already rendered it.
@@ -216,7 +235,7 @@ export class TaskTurnStreamer {
 					state.isWorking = false;
 					return;
 				}
-				if (!baseline.permissionDecision && latestTurn && !isActiveState(latestTurn.state)) {
+				if ((!decision || decisionOutcomeReported) && latestTurn && !isActiveState(latestTurn.state)) {
 					state.isWorking = false;
 					return;
 				}
