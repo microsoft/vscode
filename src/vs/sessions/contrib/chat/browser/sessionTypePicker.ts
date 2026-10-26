@@ -869,6 +869,7 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
+		this._triggerSlot?.toggleAttribute('hidden', this._folderSessionTypes.length === 0);
 		dom.clearNode(this._triggerElement);
 
 		if (this._folderSessionTypes.length === 0) {

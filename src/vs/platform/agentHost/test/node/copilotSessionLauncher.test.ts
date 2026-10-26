@@ -3,18 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Tool, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { isDeepStrictEqual } from 'util';
 import { useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
-import { mock } from '../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
-import type { IFileService } from '../../../files/common/files.js';
+import { IFileService, type IFileContent } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
@@ -25,6 +27,7 @@ import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IB
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { withAgentToolFullReferenceName } from '../../common/meta/agentToolDefinitionMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
@@ -51,7 +54,7 @@ import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
@@ -92,10 +95,10 @@ function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 	});
 }
 
-function returningSession(session: CopilotSession): CopilotClient {
+function returningSession(session: CopilotSession, onConfiguration?: (config: ResumeSessionConfig | undefined) => void): CopilotClient {
 	return {
-		createSession: async config => { reportManagedSettings(config); return session; },
-		resumeSession: async (_id, config) => { reportManagedSettings(config); return session; },
+		createSession: async config => { onConfiguration?.(config); reportManagedSettings(config); return session; },
+		resumeSession: async (_id, config) => { onConfiguration?.(config); reportManagedSettings(config); return session; },
 		rpc: { managedSettings: createUnmanagedCopilotSettings() },
 	} as CopilotClient;
 }
@@ -2573,6 +2576,8 @@ suite('CopilotSessionLauncher execution subagent', () => {
 		const logService = new CapturingLogService();
 		let descriptorRequests = 0;
 		let disconnects = 0;
+		let clientToolConfiguration: ICopilotClientToolConfiguration | undefined;
+		const launchConfigurations: (ResumeSessionConfig | undefined)[] = [];
 		const session = {
 			sessionId: 'execution-session',
 			on: () => () => { },
@@ -2604,7 +2609,7 @@ suite('CopilotSessionLauncher execution subagent', () => {
 			},
 		}, logService);
 		const base = {
-			client: returningSession(session),
+			client: returningSession(session, configuration => launchConfigurations.push(configuration)),
 			extensionSdkPath: '/copilot-sdk',
 			sessionId: session.sessionId,
 			workingDirectory: testWorkingDirectory,
@@ -2619,16 +2624,47 @@ suite('CopilotSessionLauncher execution subagent', () => {
 			: { ...base, kind, fallback: { model: undefined } };
 		const runtime: ICopilotSessionRuntime = {
 			...testRuntime,
+			configureClientTools: configuration => { clientToolConfiguration = configuration; },
 			createClientSdkTools: () => base.snapshot.tools.map(tool => ({
 				name: tool.name,
 				description: tool.name,
 				handler: () => 'done',
 			})),
 		};
-		return { launch: () => launcher.launch(plan, runtime), toolUpdates, logService, descriptorRequests: () => descriptorRequests, disconnects: () => disconnects };
+		return {
+			launch: () => launcher.launch(plan, runtime), toolUpdates, logService,
+			descriptorRequests: () => descriptorRequests, disconnects: () => disconnects,
+			launchConfigurations, initialDefinitions: base.snapshot.tools,
+			configuration: () => clientToolConfiguration,
+			replaceTools: async (tools: Tool[]) => {
+				assert.ok(clientToolConfiguration);
+				await clientToolConfiguration.replaceTools(session, clientToolConfiguration.resolve(tools.map(tool => ({ name: tool.name })), tools).tools);
+			},
+		};
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind}: SDK initialization uses the exact tool configuration compared during reconciliation`, async () => {
+			const fixture = setup(kind, true, false);
+			const launched = await fixture.launch();
+			try {
+				const configuration = fixture.configuration();
+				const actual = fixture.launchConfigurations[0];
+				assert.ok(configuration);
+				assert.ok(actual);
+				const keys = Object.keys(configuration.sessionConfig) as (keyof typeof configuration.sessionConfig)[];
+				assert.deepStrictEqual({
+					actual: Object.fromEntries(keys.map(key => [key, actual[key]])),
+					desired: configuration.resolve(fixture.initialDefinitions).sessionConfig,
+				}, {
+					actual: configuration.sessionConfig,
+					desired: configuration.sessionConfig,
+				});
+			} finally {
+				launched.dispose();
+			}
+		});
+
 		for (const defaultEnabled of [false, true]) {
 			for (const runtimeAvailable of [false, true]) {
 				test(`${kind}: runtime execution availability=${runtimeAvailable} controls client tool suppression with VS Code default=${defaultEnabled}`, async () => {
@@ -2686,6 +2722,22 @@ suite('CopilotSessionLauncher execution subagent', () => {
 			launched.dispose();
 		}
 	});
+
+	for (const initiallyPresent of [false, true]) {
+		test(`live replacement keeps the extension execution tool suppressed when initially present=${initiallyPresent}`, async () => {
+			const fixture = setup('create', true, true, initiallyPresent);
+			const launched = await fixture.launch();
+			try {
+				await fixture.replaceTools([{ name: 'executionSubagent', handler: () => 'done' }, { name: 'newClient', handler: () => 'done' }]);
+				assert.deepStrictEqual({ requests: fixture.descriptorRequests(), updates: fixture.toolUpdates }, {
+					requests: 1,
+					updates: [...(initiallyPresent ? [['clientRead']] : []), ['newClient']],
+				});
+			} finally {
+				launched.dispose();
+			}
+		});
+	}
 
 	test('disconnects and surfaces a failure to remove the competing extension execution tool', async () => {
 		const error = new Error('setTools failed');
@@ -3279,7 +3331,7 @@ suite('CopilotSessionLauncher resume config', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Builds a launcher over a config service stubbed with a fixed root-value bag. */
-	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition> & Record<string, unknown>): CopilotSessionLauncher {
+	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition> & Record<string, unknown>, fileContents?: string | (() => string)): CopilotSessionLauncher {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
@@ -3288,6 +3340,11 @@ suite('CopilotSessionLauncher resume config', () => {
 			_serviceBrand: undefined,
 			getRootValue: (_schema: unknown, key: string) => values[key as keyof typeof values],
 		} as unknown as IAgentConfigurationService);
+		if (fileContents !== undefined) {
+			services.set(IFileService, upcastPartial<IFileService>({
+				readFile: async () => upcastPartial<IFileContent>({ value: VSBuffer.fromString(typeof fileContents === 'function' ? fileContents() : fileContents) }),
+			}));
+		}
 		// The launcher's other dependencies are unused by this path and resolve
 		// to `undefined` under the non-strict InstantiationService.
 		const instantiationService = store.add(new InstantiationService(services));
@@ -3300,7 +3357,8 @@ suite('CopilotSessionLauncher resume config', () => {
 		model: ModelSelection | undefined,
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
-	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; excludedBuiltinAgents?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } }> {
+		runtimeOverrides: Partial<ICopilotSessionRuntime> = {},
+	): Promise<ResumeSessionConfig> {
 		const plan = {
 			kind: 'resume',
 			client: { rpc: { managedSettings: createUnmanagedCopilotSettings() }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -3314,8 +3372,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 			fallback: { model },
 		};
-		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
-		return (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: { model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; excludedBuiltinAgents?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } } }> })._buildSessionConfig(plan, runtime, () => { })).config;
+		const runtime = { createClientSdkTools, createServerSdkTools: () => [], ...runtimeOverrides };
+		return (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig(plan, runtime, () => { })).config;
 	}
 
 	test('excludes native dynamic workflow tools even when explicitly allowlisted', async () => {
@@ -3330,6 +3388,114 @@ suite('CopilotSessionLauncher resume config', () => {
 			availableTools: disabledWorkflowTools,
 			excludedTools: ['mcp:*', ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 		});
+	});
+
+	test('live client tools retain host tools and launch-time description overrides', async () => {
+		const store = disposables.add(new DisposableStore());
+		let configuration: ICopilotClientToolConfiguration | undefined;
+		const tool = (name: string): Tool => ({ name, description: name, handler: () => 'done' });
+		await buildResumeConfig(createLauncher(store, {
+			[AgentHostCanvasesEnabledConfigKey]: true,
+			modelCapabilityOverrides: {
+				'*': { promptOverrideString: 'toolDescriptions:\n  replacement:\n    description: Launch override' },
+			},
+		}), { id: 'gpt-5' }, undefined, () => [tool('original')], {
+			createServerSdkTools: () => [tool('server')],
+			createComputerUseActivationTools: async () => [tool('computer')],
+			configureClientTools: value => { configuration = value; },
+		});
+		assert.ok(configuration);
+		const replacements: Array<{ name: string; description?: string }[]> = [];
+		await configuration.replaceTools({
+			setTools: async tools => { replacements.push(tools.map(({ name, description }) => ({ name, description }))); },
+		} as Pick<CopilotSession, 'setTools'> as CopilotSession, configuration.resolve([{ name: 'replacement' }], [tool('replacement')]).tools);
+		assert.deepStrictEqual({
+			hostNames: [...configuration.hostToolNames].sort(),
+			replacements: replacements.map(tools => tools.filter(tool => tool.name !== CopilotExtensionsReloadToolName)),
+			extensionRetained: replacements[0].some(tool => tool.name === CopilotExtensionsReloadToolName),
+		}, {
+			hostNames: ['computer', CopilotExtensionsReloadToolName, 'server'].sort(),
+			replacements: [[{ name: 'replacement', description: 'Launch override' }, { name: 'server', description: 'server' }, { name: 'computer', description: 'computer' }]],
+			extensionRetained: true,
+		});
+	});
+
+	test('only launch-owned tool projections require restarting after client tool changes', async () => {
+		const store = disposables.add(new DisposableStore());
+		let configuration: ICopilotClientToolConfiguration | undefined;
+		const definitions = [{ name: 'original' }];
+		await buildResumeConfig(createLauncher(store, {
+			toolSearchEnabled: true,
+			modelCapabilityOverrides: { '*': { availableTools: ['custom:*'] } },
+		}), { id: 'gpt-6-luna' }, { discoveredAgents: [], additionalRootInstructions: [], tools: definitions, plugins: [], mcpServers: {} }, undefined, {
+			configureClientTools: value => { configuration = value; },
+		});
+		assert.ok(configuration);
+		const appliedConfiguration = configuration;
+		const changes: CopilotSessionLaunchPlan['snapshot']['tools'][] = [
+			[{ name: 'replacement', description: 'New schema', inputSchema: { type: 'object' } }],
+			[],
+			[{ name: 'original', annotations: { readOnlyHint: true } }],
+			[...definitions, { name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }],
+			[...definitions, { name: SEMANTIC_SEARCH_TOOL_NAME }],
+			[...definitions, { name: 'openBrowserPage' }],
+			[...definitions, { name: 'openBrowserPage' }, { name: 'clickElement' }],
+		];
+		assert.deepStrictEqual(changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)), [true, true, false, false, false, true, false]);
+	});
+
+	test('custom-agent tool reference remapping remains launch-only', async () => {
+		const store = disposables.add(new DisposableStore());
+		let configuration: ICopilotClientToolConfiguration | undefined;
+		const reference = 'publisher/tools.read';
+		const definition = withAgentToolFullReferenceName({ name: 'zetaRead', annotations: { readOnlyHint: true } }, reference);
+		const other = withAgentToolFullReferenceName({ name: 'alphaRead', annotations: { readOnlyHint: true } }, 'unreferenced/tool');
+		const uri = URI.file('/workspace/reviewer.agent.md');
+		let reads = 0;
+		await buildResumeConfig(createLauncher(store, {}, () => {
+			reads++;
+			return `---\nname: reviewer\ntools: ["${reference}"]\n---\nReview`;
+		}), undefined, {
+			discoveredAgents: [{
+				name: 'reviewer', uri,
+				customization: { type: CustomizationType.Agent, id: uri.toString(), uri: uri.toString(), name: 'reviewer' },
+			}],
+			additionalRootInstructions: [], tools: [definition, other], plugins: [], mcpServers: {},
+		}, undefined, { configureClientTools: value => { configuration = value; } });
+		assert.ok(configuration);
+		const appliedConfiguration = configuration;
+		const changes: CopilotSessionLaunchPlan['snapshot']['tools'][] = [
+			[other, definition],
+			[{ ...definition, description: 'Changed description', inputSchema: { type: 'object' } }, other],
+			[definition, withAgentToolFullReferenceName(other, 'different/unreferenced/tool')],
+			[withAgentToolFullReferenceName({ name: 'renamed' }, reference), other],
+			[],
+		];
+		assert.deepStrictEqual({
+			equivalent: changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)),
+			agentTools: configuration.sessionConfig.customAgents.find(agent => agent.name === 'reviewer')?.tools,
+			reads,
+		}, { equivalent: [true, true, true, false, false], agentTools: ['zetaRead'], reads: 1 });
+	});
+
+	test('filtered client tools do not change launch-only prompt, search, or semantic-search projections', async () => {
+		const store = disposables.add(new DisposableStore());
+		let configuration: ICopilotClientToolConfiguration | undefined;
+		await buildResumeConfig(createLauncher(store, {
+			toolSearchEnabled: true,
+			modelCapabilityOverrides: {
+				'*': {
+					availableTools: ['custom:*'], excludedTools: [
+						`custom:${CLIENT_TOOL_SEARCH_REFERENCE_NAME}`, 'custom:openBrowserPage', `custom:${SEMANTIC_SEARCH_TOOL_NAME}`,
+					]
+				}
+			},
+		}), { id: 'gpt-6-luna' }, undefined, undefined, { configureClientTools: value => { configuration = value; } });
+		assert.ok(configuration);
+		assert.deepStrictEqual(configuration.resolve([
+			{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }, { name: SEMANTIC_SEARCH_TOOL_NAME },
+			{ name: 'openBrowserPage' }, { name: 'clickElement' },
+		]).sessionConfig, configuration.sessionConfig);
 	});
 
 	test('adds the on-device rows to create and resume configs outside the BYOK gate', async () => {
@@ -3520,7 +3686,7 @@ suite('CopilotSessionLauncher resume config', () => {
 				const config = await buildResumeConfig(createLauncher(store, { searchSubagent, exploreAgent }), { id: 'gpt-5' });
 				results.push({
 					excludedBuiltinAgents: config.excludedBuiltinAgents,
-					searchExcluded: config.excludedTools?.includes('builtin:search_code_subagent'),
+					searchExcluded: Array.isArray(config.excludedTools) && config.excludedTools.includes('builtin:search_code_subagent'),
 				});
 			}
 		}

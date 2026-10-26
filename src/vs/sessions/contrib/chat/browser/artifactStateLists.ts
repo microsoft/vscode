@@ -7,11 +7,16 @@ import { $, addDisposableListener, append, EventHelper, EventType, getActiveElem
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button, ButtonWithIcon } from '../../../../base/browser/ui/button/button.js';
 import { HoverStyle, IHoverLifecycleOptions, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ArtifactDetailsItem, ArtifactDetailsItemRenderer, getArtifactDetailsItemLabel, renderArtifactIcon } from '../../../../platform/artifactIntegrations/browser/artifactDetailsList.js';
@@ -24,18 +29,35 @@ import { placeArtifactChildren } from './artifactDetailsCard.js';
 import { IArtifactActionViewData, IArtifactListViewData } from './artifactDetailsView.js';
 import './media/artifactStateLists.css';
 
+function itemActionsKey(data: IArtifactListViewData): string {
+	return JSON.stringify(data.items.map(item => data.itemActions.get(item.id)?.map(action => [action.id, action.label, action.description, action.enabled, action.icon && ThemeIcon.asClassName(action.icon)])));
+}
+
 class ArtifactStateList extends Disposable {
 	readonly element = $('.artifact-state-list', { id: generateUuid(), role: 'tabpanel', tabIndex: -1 });
 	private readonly message = append(this.element, $('p.artifact-state-list-message'));
 	private readonly itemsContainer = append(this.element, $('.artifact-details-list'));
 	private readonly items: WorkbenchList<ArtifactDetailsItem>;
+	private readonly renderer: ArtifactDetailsItemRenderer;
+	private readonly itemActionsChanged = this._register(new Emitter<void>());
+	private readonly itemFocusChanged = this._register(new Emitter<void>());
 	private readonly more: ArtifactButtons;
 	private data: IArtifactListViewData;
 
-	constructor(data: IArtifactListViewData, instantiationService: IInstantiationService, hoverService: IHoverService) {
+	constructor(data: IArtifactListViewData, instantiationService: IInstantiationService, hoverService: IHoverService, hoverDelegate: IHoverDelegate) {
 		super();
 		this.data = data;
-		const renderer = new ArtifactDetailsItemRenderer(hoverService);
+		const renderer = this.renderer = new ArtifactDetailsItemRenderer(hoverService, false, {
+			hoverDelegate, onDidChange: this.itemActionsChanged.event, onDidChangeFocus: this.itemFocusChanged.event,
+			isFocused: item => this.items.getFocusedElements()[0]?.id === item.id,
+			getActions: item => (this.data.itemActions.get(item.id) ?? []).map(action => toAction({
+				id: action.id, label: action.label, enabled: action.enabled !== false,
+				tooltip: action.description ? localize('artifactItemActionDescription', "{0}. {1}", action.label, action.description) : action.label,
+				class: action.icon ? ThemeIcon.asClassName(action.icon) : undefined,
+				// Resolve at run time so a row rendered from earlier data invokes the current action.
+				run: () => this.data.itemActions.get(item.id)?.find(candidate => candidate.id === action.id)?.run(),
+			})),
+		});
 		this.items = this._register(instantiationService.createInstance(
 			WorkbenchList<ArtifactDetailsItem>, 'ArtifactStateList', this.itemsContainer,
 			{ getHeight: () => renderer.rowHeight, getTemplateId: () => renderer.templateId }, [renderer],
@@ -46,6 +68,7 @@ class ArtifactStateList extends Disposable {
 				accessibilityProvider: { getWidgetAriaLabel: () => this.data.title, getAriaLabel: getArtifactDetailsItemLabel },
 			},
 		));
+		this._register(this.items.onDidChangeFocus(() => this.itemFocusChanged.fire()));
 		this._register(this.items.onDidOpen(event => {
 			if (event.element) {
 				this.data.openItem(event.element);
@@ -62,6 +85,7 @@ class ArtifactStateList extends Disposable {
 		this.data = data;
 		if (data.items !== previous.items) {
 			const focused = isAncestorOfActiveElement(this.itemsContainer);
+			const focusedAction = this.renderer.getFocusedAction();
 			const index = this.items.getFocus()[0] ?? 0;
 			this.items.splice(0, this.items.length, data.items);
 			if (focused && !this.items.getFocus().length) {
@@ -72,6 +96,19 @@ class ArtifactStateList extends Disposable {
 					this.element.focus({ preventScroll: true });
 				}
 			}
+			this.itemFocusChanged.fire();
+			// Rows are reused by position, so return focus to the same item's action wherever it moved, or to the list.
+			const target = focusedAction ? data.items.findIndex(item => item.id === focusedAction.itemId) : -1;
+			if (focusedAction && target >= 0) {
+				this.items.setFocus([target]);
+				this.items.reveal(target);
+			}
+			const restored = !!focusedAction && target >= 0 && this.renderer.focusAction(focusedAction);
+			if (focused && data.items.length && !restored && !isAncestorOfActiveElement(this.itemsContainer)) {
+				this.items.domFocus();
+			}
+		} else if (itemActionsKey(data) !== itemActionsKey(previous)) {
+			this.itemActionsChanged.fire();
 		}
 		this.items.getHTMLElement().setAttribute('aria-label', data.title);
 		this.itemsContainer.hidden = !data.items.length;
@@ -183,6 +220,7 @@ export class ArtifactStateLists extends Disposable {
 	private readonly scrollable = this._register(new DomScrollableElement(this.tabList, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Hidden }));
 	private readonly listsContainer = append(this.content, $('.artifact-details-lists'));
 	private readonly actions: ArtifactButtons;
+	private readonly itemHoverDelegate = this._register(createInstantHoverDelegate());
 	private readonly tabs = this._register(new DisposableMap<string, ArtifactListTab>());
 	private readonly hoverLifecycleOptions = { groupId: generateUuid() };
 	private readonly lists = this._register(new DisposableMap<string, ArtifactStateList>());
@@ -233,7 +271,7 @@ export class ArtifactStateLists extends Disposable {
 		for (const item of data) {
 			let list = this.lists.get(item.id);
 			if (!list) {
-				list = new ArtifactStateList(item, this.instantiationService, this.hoverService);
+				list = new ArtifactStateList(item, this.instantiationService, this.hoverService, this.itemHoverDelegate);
 				this.lists.set(item.id, list);
 				this.tabs.set(item.id, new ArtifactListTab(focus => this.activate(item.id, focus), this.hoverService, this.hoverLifecycleOptions));
 			} else {

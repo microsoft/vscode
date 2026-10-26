@@ -598,6 +598,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().listPluginInstallations(provider, session, chat);
 	}
 
+	setPluginEnabled(provider: string, plugin: string, enabled: boolean): Promise<void> {
+		return this._getManagementService().setPluginEnabled(provider, plugin, enabled);
+	}
+
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
 		return this._getManagementService().listAgentExtensions(session, chat);
 	}
@@ -763,6 +767,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
 		return this._requireClient().measureWorktreeDiskUsage(root, token);
+	}
+
+	sessionWorktreeCleanup(session: URI, retry: boolean) {
+		return this._requireClient().sessionWorktreeCleanup(session, retry);
 	}
 
 	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {

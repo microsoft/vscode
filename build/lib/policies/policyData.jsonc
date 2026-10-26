@@ -560,6 +560,27 @@
             }
         },
         {
+            "key": "chat.defaultConfiguration",
+            "name": "ChatDefaultConfiguration",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "chat.defaultConfiguration.policy",
+                    "value": "Sets the default configuration for new agent sessions, as a JSON object with an optional \"mode\" (\"interactive\", \"plan\", or \"autopilot\") and \"approvals\" (\"manual\", \"assisted\", or \"allowAll\"). Users can still change them for each session."
+                }
+            },
+            "type": "object",
+            "default": {
+                "mode": "interactive",
+                "approvals": "manual"
+            },
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
             "key": "chat.defaultModel",
             "name": "ChatDefaultModel",
             "category": "InteractiveSession",

@@ -38,9 +38,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.MACHINE,
-			tags: ['experimental', 'advanced'],
 			description: localize('chat.automations.cloud.enabled', "Enables managing Only me and Repository cloud automations in known GitHub repositories that support automation management. Disabling this setting does not stop schedules already running on GitHub."),
 			experiment: { mode: 'auto' },
 		},
@@ -48,7 +47,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.MACHINE,
-			tags: ['experimental', 'advanced'],
 			description: localize('chat.automations.enabled', "Enables the Automations feature: scheduling agent sessions to run on a cadence. When disabled, the Automations entry in the Customizations sidebar, the Automations section in the Customizations editor, and the Automation option in the new-session composer are hidden, and scheduled automations are not dispatched."),
 			experiment: { mode: 'auto' },
 			agentHost: { key: AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY },

@@ -154,6 +154,24 @@
 	margin-top: var(--vscode-spacing-size80);
 }
 
+/* Guidance details share the header and migration card of the other customization migration details. */
+.customization-migration-dashboard .migration-guidance-detail-header {
+	gap: var(--vscode-spacing-size80);
+	padding: 0 0 var(--vscode-spacing-size80);
+}
+
+.customization-migration-dashboard .migration-guidance-detail-header .editor-back-button {
+	width: var(--vscode-spacing-size280);
+	height: var(--vscode-spacing-size280);
+}
+
+.customization-migration-dashboard .migration-guidance-card {
+	flex: 0 0 auto;
+}
+
+.customization-migration-dashboard .migration-guidance-card .mcp-detail-diagnostic-message + .mcp-detail-diagnostic-message {
+	margin-top: var(--vscode-spacing-size60);
+}
 .customization-migration-dashboard .migration-tree .monaco-list-row {
 	border-radius: var(--vscode-cornerRadius-small);
 }

@@ -93,10 +93,15 @@ async function main(): Promise<void> {
 	validateEnvironment();
 	const { getAgentHostTestProfile } = await import('../../../src/vs/platform/agentHost/test/node/agentHostTestProfile.ts');
 	console.log(`Agent Host test profile: ${getAgentHostTestProfile()} (${process.env['AGENT_HOST_TEST_PROFILE_REASON'] ?? 'default'})`);
-	const { jobs, storage, forwardedArgs } = parseArguments(process.argv.slice(2));
+	const { jobs, storage, runList, forwardedArgs } = parseArguments(process.argv.slice(2));
+	const selectedSuites = runList === undefined ? suites : listedSuites(runList);
+	if (selectedSuites.length === 0) {
+		console.log(`None of the ${suites.length} Agent Host E2E suites is listed in ${runList}.`);
+		return;
+	}
 	await prepareTestRuntime();
 	if (storage !== 'disk') {
-		runStoragePasses(storage, jobs, forwardedArgs);
+		runStoragePasses(storage, jobs, runList === undefined ? forwardedArgs : [...forwardedArgs, '--runList', runList]);
 		return;
 	}
 	const storageBacking = process.env['AGENT_HOST_E2E_STORAGE_BACKING'] ?? 'disk';
@@ -112,16 +117,17 @@ async function main(): Promise<void> {
 	}
 
 	const startedAt = process.hrtime.bigint();
-	const surfaceOutputs = prepareSurfaceOutputs();
+	const surfaceOutputs = prepareSurfaceOutputs(selectedSuites);
 	const results: IRunResult[] = [];
+	const workerCount = Math.min(jobs, selectedSuites.length);
 	let nextSuite = 0;
 
-	const stopResourceDiagnostics = startResourceDiagnostics(jobs);
+	const stopResourceDiagnostics = startResourceDiagnostics(workerCount);
 	try {
-		const workers = Array.from({ length: jobs }, async () => {
-			while (nextSuite < suites.length) {
+		const workers = Array.from({ length: workerCount }, async () => {
+			while (nextSuite < selectedSuites.length) {
 				const suiteIndex = nextSuite++;
-				const suite = suites[suiteIndex];
+				const suite = selectedSuites[suiteIndex];
 				results[suiteIndex] = await runSuite(suite, forwardedArgs, surfaceOutputs.get(suite.id));
 			}
 		});
@@ -136,7 +142,7 @@ async function main(): Promise<void> {
 	}
 
 	const durationSeconds = elapsedSeconds(startedAt);
-	console.log(`\nAgent Host E2E suites completed in ${durationSeconds.toFixed(1)}s (${jobs} parallel ${jobs === 1 ? 'worker' : 'workers'}).`);
+	console.log(`\nAgent Host E2E suites completed in ${durationSeconds.toFixed(1)}s (${workerCount} parallel ${workerCount === 1 ? 'worker' : 'workers'}).`);
 	for (const result of results) {
 		console.log(`  ${result.succeeded ? 'PASS' : 'FAIL'} ${result.suite.label}: ${result.durationSeconds.toFixed(1)}s`);
 	}
@@ -244,11 +250,12 @@ function validateEnvironment(): void {
 	}
 }
 
-function parseArguments(args: readonly string[]): { jobs: number; storage: StorageMode; forwardedArgs: readonly string[] } {
+function parseArguments(args: readonly string[]): { jobs: number; storage: StorageMode; runList: string | undefined; forwardedArgs: readonly string[] } {
 	const forwardedArgs: string[] = [];
 	let requestedJobs: string | undefined = process.env['AGENT_HOST_E2E_JOBS'];
 	const linuxCI = process.platform === 'linux' && (process.env['CI'] === 'true' || process.env['TF_BUILD']?.toLowerCase() === 'true');
 	let requestedStorage = process.env['AGENT_HOST_E2E_STORAGE'] ?? (linuxCI ? 'split' : 'disk');
+	let runList: string | undefined;
 
 	for (let index = 0; index < args.length; index++) {
 		const argument = args[index];
@@ -263,6 +270,13 @@ function parseArguments(args: readonly string[]): { jobs: number; storage: Stora
 			}
 		} else if (argument.startsWith('--jobs=')) {
 			requestedJobs = argument.slice('--jobs='.length);
+		} else if (argument === '--runList') {
+			runList = args[++index];
+			if (!runList) {
+				throw new Error('--runList requires a value');
+			}
+		} else if (argument.startsWith('--runList=')) {
+			runList = argument.slice('--runList='.length);
 		} else {
 			forwardedArgs.push(argument);
 		}
@@ -285,7 +299,21 @@ function parseArguments(args: readonly string[]): { jobs: number; storage: Stora
 	if (requestedStorage !== 'disk' && process.platform !== 'linux') {
 		throw new Error('Agent Host tmpfs storage requires Linux');
 	}
-	return { jobs: Math.min(jobs, suites.length), storage: requestedStorage, forwardedArgs };
+	return { jobs: Math.min(jobs, suites.length), storage: requestedStorage, runList: runList === undefined ? undefined : resolve(runList), forwardedArgs };
+}
+
+/**
+ * The suites whose files a `--runList` file lists, one per line, as the unit test runners read it:
+ * `src/vs/a.integrationTest.ts` names the suite of that file.
+ */
+function listedSuites(runList: string): readonly ISuite[] {
+	const normalize = (file: string) => file.trim().replace(/\\/g, '/').replace(/^src\//, '').replace(/\.ts$/, '.js');
+	const listed = new Set(readFileSync(runList, 'utf8').split(/\r?\n/).filter(line => line.trim().length > 0).map(normalize));
+	const selected = suites.filter(suite => listed.has(normalize(suite.file)));
+	if (selected.length > 0) {
+		console.log(`Running the ${selected.length} of ${suites.length} Agent Host E2E suites listed in ${runList}: ${selected.map(suite => suite.label).join(', ')}`);
+	}
+	return selected;
 }
 
 async function prepareTestRuntime(): Promise<void> {
@@ -382,7 +410,9 @@ async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surface
 }
 
 function extractFailureDetails(output: string): string | undefined {
-	const lines = output.split(/\r?\n/);
+	// The suite's output is printed in full before the details, so CI commands in it, such as
+	// annotations, must not repeat.
+	const lines = output.split(/\r?\n/).filter(line => !/^(::[a-z-]+[ :]|##(vso)?\[)/.test(line.replace(/\x1b\[[0-9;]*m/g, '')));
 	for (let index = lines.length - 1; index >= 0; index--) {
 		const line = lines[index].replace(/\x1b\[[0-9;]*m/g, '').trim();
 		if (/^\d+ failing$/.test(line)) {
@@ -390,7 +420,7 @@ function extractFailureDetails(output: string): string | undefined {
 		}
 	}
 
-	const trimmed = output.trim();
+	const trimmed = lines.join('\n').trim();
 	return trimmed.length > 0 ? `${trimmed}\n` : undefined;
 }
 
@@ -415,7 +445,7 @@ function suiteArguments(args: readonly string[], suite: ISuite): readonly string
 	return result;
 }
 
-function prepareSurfaceOutputs(): ReadonlyMap<string, string> {
+function prepareSurfaceOutputs(selectedSuites: readonly ISuite[]): ReadonlyMap<string, string> {
 	if (process.env['AGENT_HOST_RECORD_PROTOCOL_SURFACE'] !== '1') {
 		return new Map();
 	}
@@ -425,7 +455,7 @@ function prepareSurfaceOutputs(): ReadonlyMap<string, string> {
 	const extension = extname(combinedOutput);
 	const stem = basename(combinedOutput, extension);
 	const outputs = new Map<string, string>();
-	for (const suite of suites) {
+	for (const suite of selectedSuites) {
 		const output = join(dirname(combinedOutput), `${stem}-${suite.id}${extension}`);
 		rmSync(output, { force: true });
 		outputs.set(suite.id, output);

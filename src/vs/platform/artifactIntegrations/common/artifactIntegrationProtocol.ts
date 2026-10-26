@@ -27,7 +27,8 @@ export type ArtifactIntegrationRequest =
 	| { readonly kind: 'cancel' | 'reconcile'; readonly subscription: string; readonly runId: string }
 	| { readonly kind: 'history'; readonly subscription: string; readonly before?: string; readonly limit?: number }
 	| { readonly kind: 'details'; readonly subscription: string; readonly parent: string; readonly integrationId: string; readonly detailsId: string }
-	| { readonly kind: 'loadMore'; readonly subscription: string };
+	| { readonly kind: 'loadMore'; readonly subscription: string }
+	| { readonly kind: 'runItemAction'; readonly subscription: string; readonly itemId: string; readonly actionId: string };
 
 export type ArtifactIntegrationUpdate = { readonly subscription: string; readonly revision: number } & (
 	| { readonly kind: 'artifact'; readonly snapshot: ArtifactSnapshot }
@@ -63,6 +64,7 @@ export function isArtifactIntegrationRequest(value: unknown): value is ArtifactI
 	switch (value.kind) {
 		case 'acquire': return strings(value, 'session', 'artifactId');
 		case 'release': case 'loadMore': return true;
+		case 'runItemAction': return strings(value, 'itemId', 'actionId');
 		case 'authenticate': return strings(value, 'integrationId');
 		case 'details': return strings(value, 'parent', 'integrationId', 'detailsId');
 		case 'invoke': return strings(value, 'integrationId', 'actionId', 'chat', 'requestId') && (value.actor === undefined || isArtifactActor(value.actor));
@@ -156,6 +158,14 @@ export class ArtifactIntegrationServer extends Disposable implements IArtifactIn
 					throw new Error('Artifact details do not offer more items');
 				}
 				await model.loadMore(CancellationToken.None);
+				break;
+			}
+			case 'runItemAction': {
+				const model = this.details.get(request.subscription);
+				if (!model?.runItemAction) {
+					throw new Error('Artifact details do not offer item actions');
+				}
+				await model.runItemAction(request.itemId, request.actionId, CancellationToken.None);
 				break;
 			}
 			case 'configure':
@@ -426,6 +436,7 @@ export class ArtifactIntegrationClient extends Disposable implements IArtifactIn
 					return value;
 				}),
 				loadMore: response.canLoadMore ? () => this.requestAcknowledgement({ kind: 'loadMore', subscription }) : undefined,
+				runItemAction: (itemId, actionId) => this.requestAcknowledgement({ kind: 'runItemAction', subscription, itemId, actionId }),
 				dispose: () => lease.dispose(),
 			};
 		} catch (error) {

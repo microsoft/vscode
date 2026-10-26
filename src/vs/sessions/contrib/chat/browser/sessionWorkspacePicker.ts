@@ -42,7 +42,7 @@ import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspac
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move remote host options out of providers
 import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../providers/remoteAgentHost/browser/remoteHostOptions.js';
@@ -2049,7 +2049,8 @@ export class WorkspacePicker extends Disposable {
 				extended.icon = RemoteAgentHostConnectionStatus.isIncompatible(status)
 					? Codicon.warning
 					: Codicon.remote;
-				extended.hoverContent = getStatusHover(status, provider.remoteAddress);
+				const lastConnectionError = this.remoteAgentHostService.connections.find(connection => connection.address === provider.remoteAddress)?.lastConnectionError;
+				extended.hoverContent = getStatusHover(status, provider.remoteAddress, lastConnectionError);
 				if (provider.remoteAddress && provider.canRemove !== false) {
 					extended.onRemove = async () => {
 						await removeRemoteHost(provider, this.remoteAgentHostService, this.configurationService);
@@ -2468,7 +2469,7 @@ export class WorkspacePicker extends Disposable {
 			return false;
 		}
 		const connectionStatus = provider.connectionStatus.get();
-		return provider.isVisibleInEnvironmentPicker?.get() === false
+		return !isAgentHostEnvironmentAvailable(provider)
 			|| RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus)
 			|| (!RemoteAgentHostConnectionStatus.isConnected(connectionStatus) && !provider.canConnectOnDemand);
 	}

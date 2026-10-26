@@ -358,16 +358,11 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		this._register(this.mcpManagementService.onDidUpdateMcpServersInCurrentProfile(e => this.onDidUpdateMcpServers(e)));
 		this._register(this.mcpManagementService.onDidUninstallMcpServerInCurrentProfile(e => this.onDidUninstallMcpServer(e)));
 		this._register(this.mcpManagementService.onDidChangeProfile(e => this.onDidChangeProfile()));
-		this.whenInitialLocalMcpServersLoaded = this.queryLocal().then(() => {
-			if (this._store.isDisposed) {
-				return;
-			}
-			this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => {
-				this.invalidateRegistryVerification();
-				this.scheduleRegistrySync();
-			}));
+		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => {
+			this.invalidateRegistryVerification();
 			this.scheduleRegistrySync();
-		}, error => this.logService.error(error));
+		}));
+		this.whenInitialLocalMcpServersLoaded = this.queryLocal().then(() => undefined, error => this.logService.error(error));
 		urlService.registerHandler(this);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(mcpAccessConfig)) {
@@ -396,7 +391,6 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return;
 		}
 		this._onReset.fire();
-		this.scheduleRegistrySync();
 	}
 
 	private invalidateRegistryVerification(): void {
@@ -595,6 +589,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return local;
 		}));
 		this._onChange.fire(undefined);
+		this.scheduleRegistrySync();
 		return true;
 	}
 

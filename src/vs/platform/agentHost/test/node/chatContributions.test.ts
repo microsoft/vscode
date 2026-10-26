@@ -181,6 +181,7 @@ class RecordingWorktreeCleanupService implements IAgentHostWorktreeCleanupServic
 	readonly archiveCalls: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
 
 	async requestSessionWorktreeRemoval(): Promise<void> { }
+	async sessionWorktreeCleanup() { return { state: 'unknown' } as const; }
 	async restoreSessionWorktree(): Promise<void> { }
 	async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
 		this.archiveCalls.push({ handle, archived, strictCleanup });

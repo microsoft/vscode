@@ -60,19 +60,30 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			},
 			default: [],
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('issueReporter.additionalRepositories', "Additional GitHub repositories offered in the issue reporter wizard for VS Code and Agents Window reports, in owner/repo format. The default repository remains selected initially. GitHub manages repository access. Similar issue search is disabled for repositories whose public visibility is not known."),
+			description: localize('issueReporter.additionalRepositories', "Additional GitHub repositories offered in the issue reporter for VS Code and Agents Window reports, in owner/repo format. The default repository remains selected initially. GitHub manages repository access."),
 			experiment: { mode: 'auto' }
 		},
 		'issueReporter.wizard.enabled': {
 			type: 'boolean',
-			default: false,
-			description: localize('issueReporter.wizard.enabled', "Enable the new issue reporter wizard instead of the classic issue reporter."),
+			default: true,
+			description: localize('issueReporter.wizard.enabled', "Enable the new single-page issue reporter instead of the classic issue reporter."),
 			experiment: { mode: 'auto' }
+		},
+		'issueReporter.wizard.openLocation': {
+			type: 'string',
+			enum: ['editor', 'window'],
+			enumDescriptions: [
+				localize('issueReporter.wizard.openLocation.editor', "Open new issue reports in an editor tab."),
+				localize('issueReporter.wizard.openLocation.window', "Open new issue reports in a separate window attached to the current workbench."),
+			],
+			default: 'window',
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('issueReporter.wizard.openLocation', "Where to open fresh reports when the new issue reporter is enabled. Existing reports keep their current location."),
 		},
 		'issueReporter.wizard.fullWorkspaceScan': {
 			type: 'boolean',
 			default: true,
-			description: localize('issueReporter.wizard.fullWorkspaceScan', "When auto-collecting performance diagnostics for the issue reporter wizard, walk the full workspace instead of stopping at the default 20,000-file cap. Set to false on very large workspaces if the scan slows the initial wizard render."),
+			description: localize('issueReporter.wizard.fullWorkspaceScan', "When auto-collecting performance diagnostics for the issue reporter, walk the full workspace instead of stopping at the default 20,000-file cap. Set to false on very large workspaces if the scan slows the initial report render."),
 			experiment: { mode: 'auto' }
 		},
 	}

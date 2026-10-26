@@ -32,7 +32,7 @@ import { ClientConnectionEvent, IPCServer } from '../../../../../../base/parts/i
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AutomationMutationUncertainError } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationMutationUncertainError, AutomationRepositoryOwnershipUnavailableError } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
@@ -319,7 +319,9 @@ suite('GitHubCloudAutomationStore', () => {
 		const { store, api } = setup();
 		api.mutationResult = new Error('ownership "repository" is not currently available for this repository');
 
-		await assert.rejects(store.create(workspace, { ...createValue, ownership: 'repository' }), /Repository owned automations are not supported for this repository\./);
+		await assert.rejects(store.create(workspace, { ...createValue, ownership: 'repository' }), error =>
+			error instanceof AutomationRepositoryOwnershipUnavailableError
+			&& error.message === 'Repository owned automations are only supported for private repositories.');
 	});
 
 	test('cancelled repository selection does not publish privacy into the cache', async () => {

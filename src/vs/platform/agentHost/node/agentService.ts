@@ -6273,6 +6273,14 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.listPluginInstallations(session, chat);
 	}
 
+	async setPluginEnabled(providerId: AgentProvider, plugin: string, enabled: boolean): Promise<void> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.setPluginEnabled) {
+			throw new Error(`Plugin enablement is unavailable for provider '${providerId}'.`);
+		}
+		await provider.setPluginEnabled(plugin, enabled);
+	}
+
 	async listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
 		this._assertCanvasesEnabled();
 		await this._restoreSessionChat(session, chat, 'Canvas operation');
@@ -11317,9 +11325,10 @@ export class AgentService extends Disposable implements IAgentService {
 				this._stateManager.setSurfacedSessionStatusAndChats(session, current.status, chats);
 				if (isChatInSessionReadAggregate(target.resource, target.origin, target.interactivity)) {
 					const sessionIsRead = isSessionStatusRead(current.status);
-					const lastUnreadChatRead = isRead && !chatWasRead && !sessionIsRead && chats
-						.filter(candidate => isChatInSessionReadAggregate(candidate.resource, candidate.origin, candidate.interactivity))
-						.every(candidate => isSessionStatusRead(candidate.status ?? current.status));
+					const aggregateChats = chats.filter(candidate => isChatInSessionReadAggregate(candidate.resource, candidate.origin, candidate.interactivity));
+					// A redundant read keeps a multi-chat session marked unread, but a sole chat's read state is its session's.
+					const lastUnreadChatRead = isRead && !sessionIsRead && (!chatWasRead || aggregateChats.length === 1)
+						&& aggregateChats.every(candidate => isSessionStatusRead(candidate.status ?? current.status));
 					if (lastUnreadChatRead || (!isRead && sessionIsRead)) {
 						aggregateChanged = true;
 						const applied = await this._applyPassiveSessionMetadata(session, { type: ActionType.SessionIsReadChanged, isRead });
@@ -14935,6 +14944,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
 		return this._worktreeDiskUsage.measure(root, token);
+	}
+
+	sessionWorktreeCleanup(session: URI, retry: boolean) {
+		return this._worktreeCleanup.sessionWorktreeCleanup(session, retry);
 	}
 
 	async resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {

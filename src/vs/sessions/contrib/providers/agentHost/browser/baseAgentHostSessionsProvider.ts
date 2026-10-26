@@ -31,6 +31,7 @@ import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common
 import { AgentHostPrewarmSessionsSettingId, type IAgentCanvasInfo, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { readSessionArtifacts } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { isCopilotAgentHostProvider } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { supportsAgentHostArtifactRemoval, supportsAgentHostCreateChatWorkspace } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
@@ -84,7 +85,7 @@ import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService }
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { getAgentHostApprovalDefault, isAutoApprovePolicyRestricted, normalizeAgentHostApprovalConfig, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { getAgentHostApprovalDefault, getChatDefaultConfiguration, isAutoApprovePolicyRestricted, normalizeAgentHostApprovalConfig, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { canInitializeCodexWithoutGitHub } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
@@ -3158,6 +3159,7 @@ interface INewSessionConstructionContext {
 	 */
 	readonly onSessionState?: (sessionId: string, state: SessionState | undefined) => void;
 	readonly onSessionCreated: (backendSession: URI) => void;
+	readonly onSessionUsed: (sessionId: string) => void;
 	readonly activeClientScope: IAgentCustomizationScope;
 }
 
@@ -3295,6 +3297,9 @@ class NewSession extends Disposable {
 	private readonly _activeClientPublisher = this._register(new MutableDisposable());
 	private readonly _onSessionState: ((sessionId: string, state: SessionState | undefined) => void) | undefined;
 	private readonly _onSessionCreated: INewSessionConstructionContext['onSessionCreated'];
+	private readonly _onSessionUsed: INewSessionConstructionContext['onSessionUsed'];
+	private _hasBeenUsed = false;
+	get hasBeenUsed(): boolean { return this._hasBeenUsed; }
 
 	private readonly _activeClientScope: IAgentCustomizationScope;
 	private readonly _initialMetadata: Record<string, unknown> | undefined;
@@ -3340,6 +3345,7 @@ class NewSession extends Disposable {
 		this._logService = ctx.logService;
 		this._onSessionState = ctx.onSessionState;
 		this._onSessionCreated = ctx.onSessionCreated;
+		this._onSessionUsed = ctx.onSessionUsed;
 		this._activeClientScope = ctx.activeClientScope;
 		this._register(this._activeClientScope);
 		this._initialMetadata = ctx.initialMetadata;
@@ -3953,9 +3959,9 @@ class NewSession extends Disposable {
 				this._chatSubscription = chatRef;
 				const initialChatState = chatRef.object.value;
 				if (initialChatState && !(initialChatState instanceof Error)) {
-					this.updateChangesets(initialChatState.changesets);
+					this.updateChatState(initialChatState);
 				}
-				this._chatStateListener.value = chatRef.object.onDidChange(chatState => this.updateChangesets(chatState.changesets));
+				this._chatStateListener.value = chatRef.object.onDidChange(chatState => this.updateChatState(chatState));
 				return true;
 			};
 			// The session state may not be hydrated yet: subscribe to its default chat once it advertises one.
@@ -4025,6 +4031,14 @@ class NewSession extends Disposable {
 		if (this._eagerCreateTask) {
 			await raceCancellationError(this._eagerCreateTask, this.cancellationToken);
 		}
+	}
+
+	private updateChatState(state: ChatState): void {
+		if (!this._hasBeenUsed && (state.activeTurn !== undefined || state.turns.length > 0)) {
+			this._hasBeenUsed = true;
+			this._onSessionUsed(this.sessionId);
+		}
+		this.updateChangesets(state.changesets);
 	}
 
 	private updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
@@ -4097,7 +4111,7 @@ class NewSession extends Disposable {
 		const connection = this._connection;
 		this._backendUri = undefined;
 		this._connection = undefined;
-		if (oldUri && connection) {
+		if (oldUri && connection && !this._hasBeenUsed) {
 			connection.disposeSession(oldUri).catch(err => {
 				this._logService.warn(`[${this._providerId}] Failed to dispose eager backend session ${oldUri.toString()}: ${err}`);
 			});
@@ -4246,7 +4260,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	private readonly _onDidChangeSessionsFromNotifications = this._register(new Emitter<ISessionChangeEvent>());
 	protected readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
-	readonly onDidChangeSessions = debounceSessionChangeEvents(this._onDidChangeSessionsFromNotifications.event, this._onDidChangeSessions.event, this._store);
+	readonly onDidChangeSessions: Event<ISessionChangeEvent> = Event.map(
+		debounceSessionChangeEvents(this._onDidChangeSessionsFromNotifications.event, this._onDidChangeSessions.event, this._store),
+		change => ({
+			added: change.added.filter(session => !this._isUnpublishedDraft(session)),
+			removed: change.removed,
+			changed: change.changed.filter(session => !this._isUnpublishedDraft(session)),
+		}),
+	);
 	protected readonly _onDidChangeDraftSessions = this._register(new Emitter<void>());
 
 	protected readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
@@ -4354,10 +4375,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the provider itself is disposed.
 	 */
 	private readonly _newSessions = this._register(new DisposableMap<string, NewSession>());
+	/** Keep abandoned drafts hidden until their backend removal is confirmed. */
+	private readonly _unpublishedDraftSessions = new ResourceSet();
 
 	/** The in-flight new session with the given id, if any. */
 	protected _getNewSession(sessionId: string): NewSession | undefined {
 		return this._newSessions.get(sessionId);
+	}
+
+	private _isUnpublishedDraft(session: ISession): boolean {
+		return this._unpublishedDraftSessions.has(session.resource) && !this._pendingSessions.has(session.sessionId);
+	}
+
+	private _publishUsedDraft(sessionId: string): void {
+		const draft = this._newSessions.get(sessionId);
+		if (!draft || !this._unpublishedDraftSessions.delete(draft.session.resource)) {
+			return;
+		}
+		const cached = this._sessionCache.get(draft.backendUri.toString());
+		if (cached) {
+			this._onDidChangeSessions.fire({ added: [cached], removed: [], changed: [] });
+		}
 	}
 
 	getBackendSessionResource(sessionId: string): URI | undefined {
@@ -4942,7 +4980,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * `undefined` when the provider is not recognised.
 	 */
 	private iconForAgentProvider(provider: string): ThemeIcon | undefined {
-		if (provider === CopilotCLISessionType.id) {
+		if (isCopilotAgentHostProvider(provider)) {
 			return CopilotCLISessionType.icon;
 		}
 
@@ -5094,6 +5132,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const pendingSessions = [...this._pendingSessions.values()];
 		const sessions: ISession[] = [];
 		for (const cached of this._sessionCache.values()) {
+			if (this._isUnpublishedDraft(cached)) {
+				continue;
+			}
 			if (pendingSessions.some(pendingSession => isEqual(cached.resource, pendingSession.resource))) {
 				continue;
 			}
@@ -5408,6 +5449,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				initialConfigSchema: this._seededConfigSchema(),
 				initialMetadata,
 				onSessionCreated: backendSession => this.registerBackendSession(backendSession, sessionType.id),
+				onSessionUsed: sessionId => this._publishUsedDraft(sessionId),
 				instantiationService: this._instantiationService,
 				onSessionState: (id, state) => state === undefined
 					? this._handleNewSessionStateGone(id)
@@ -5439,6 +5481,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw err;
 		}
 		this._newSessions.set(newSession.sessionId, newSession);
+		this._unpublishedDraftSessions.add(newSession.session.resource);
 		this._onDidChangeDraftSessions.fire();
 		newSession.observeClientCustomAgents(activeClientScope.customAgents, () => {
 			this._onDidChangeCustomAgents.fire();
@@ -5679,15 +5722,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		// `chat.defaultConfiguration` controls both axes. Per axis the
 		// precedence is: enterprise policy > remembered pick > effective
-		// configured value (`inspect().value`, which is the user's setting or
-		// the schema default). `inspect().value` is used instead of
-		// `getValue()` only so the policy layer can be lifted above the
-		// remembered pick.
-		const inspected = this._baseConfigurationService.inspect<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
-		const policyDefaults = inspected.policyValue;
-		const effectiveDefaults = inspected.value;
+		// configured value (the user's setting or the schema default). Policy
+		// is read separately only so it can be lifted above the remembered pick.
+		const policyDefaults = this._baseConfigurationService.inspect<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration).policyValue;
+		const effectiveDefaults = getChatDefaultConfiguration(this._baseConfigurationService);
 
-		// Approval axis: policy > remembered > effective.
+		// Approval axis: policy > remembered > effective. A remembered
+		// host-native `approvalMode` would otherwise win over the policy seed
+		// when discovery maps it onto that binding.
+		if (normalizeAutoApproveValue(policyDefaults?.approvals)) {
+			delete remembered.approvalMode;
+		}
 		const resolvedAutoApprove =
 			normalizeAutoApproveValue(policyDefaults?.approvals)
 			?? normalizeAutoApproveValue(remembered[SessionConfigKey.AutoApprove])
@@ -7153,6 +7198,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._setSessionArchived(sessionId, false);
 	}
 
+	async sessionWorktreeCleanup(sessionId: string, retry: boolean) {
+		this._assertSessionAvailable(sessionId);
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (retry && (!session || !connection?.sessionWorktreeCleanup)) {
+			throw new Error(localize('worktreeCleanupUnavailable', "Connect to this session's host to retry worktree cleanup."));
+		}
+		return session && connection?.sessionWorktreeCleanup?.(session.backendUri, retry);
+	}
+
 	async archiveChat(sessionId: string, chatResource: URI): Promise<void> {
 		await this._setChatArchived(sessionId, chatResource, true);
 	}
@@ -8111,6 +8167,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 		}
 
+		this._unpublishedDraftSessions.delete(newSession.session.resource);
 		if (newSession.workspaceUri && !newSession.getInitialSessionTemplate()) {
 			const config = newSession.getConfig();
 			const isolation = config && getSessionWorkspaceProperties(config.schema).isolation;
@@ -9006,6 +9063,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const entries: ISerializedSessionMetadata[] = [];
 		for (const [rawId, adapter] of this._sessionCache) {
+			if (this._isUnpublishedDraft(adapter)) {
+				continue;
+			}
 			const base = this._metadataBySession.get(rawId);
 			if (!base) {
 				continue;
@@ -9152,6 +9212,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const evictUnlistedAgents = listedAgentProviders.size === 0;
 			for (const [key, cached] of this._sessionCache) {
 				if (!currentKeys.has(key)) {
+					if (this._newSessions.has(cached.sessionId)) {
+						continue;
+					}
 					if (pendingRawIds.has(cached.resource.toString())) {
 						continue;
 					}
@@ -9162,6 +9225,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						continue;
 					}
 					this._sessionCache.delete(key);
+					this._unpublishedDraftSessions.delete(cached.resource);
 					this._backendSessionsChanged.trigger(undefined);
 					this._runningSessionConfigs.delete(cached.sessionId);
 					this._runningSessionConfigResolveSeq.delete(cached.sessionId);
@@ -9414,6 +9478,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._lastPublishedActiveClients.delete(stateOwner.backendUri.toString());
 		if (cached) {
 			this._sessionCache.delete(rawId);
+			this._unpublishedDraftSessions.delete(cached.resource);
 			this._backendSessionsChanged.trigger(undefined);
 		}
 		this._sessionKeysByResource.delete(stateOwner.resource.with({ fragment: '' }));

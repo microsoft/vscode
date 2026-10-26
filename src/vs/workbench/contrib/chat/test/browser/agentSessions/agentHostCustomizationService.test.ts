@@ -279,6 +279,35 @@ suite('AbstractAgentHostCustomizationService', () => {
 		]);
 	});
 
+	test('uses conforming host plugin and child targets verbatim without client identity hints', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const pluginId = 'peer plugin opaque target';
+		const childId = 'peer child opaque target';
+		const child: McpServerCustomization = {
+			...mcpServer(childId, 'Server'),
+			uri: 'peer-definition://tenant/child?version=19',
+		};
+		const plugin: Customization = {
+			type: CustomizationType.Plugin, id: pluginId, uri: 'urn:peer:content:unrelated-root', name: 'Plugin', children: [child],
+		};
+		const target = new FakeTarget([plugin]);
+		sut.setTarget(session, target);
+		sut.setCustomizationEnablement(session, plugin.id, undefined, CustomizationEnablementKind.Session, false);
+		const [server] = sut.getMcpServers(session);
+		server.setEnabled(false);
+
+		assert.deepStrictEqual({
+			plugin: sut.getCustomizations(session).map(customization => ({ id: customization.id, uri: customization.uri })),
+			child: { id: server.id, pluginId: server.pluginId, uri: server.sourceUri?.toString() },
+			changes: target.enablementChanges,
+		}, {
+			plugin: [{ id: pluginId, uri: plugin.uri }],
+			child: { id: `${session.authority}/${childId}`, pluginId, uri: URI.parse(child.uri).toString() },
+			changes: [pluginId, childId].map(rawId => ({ rawId, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] })),
+		});
+	});
+
 	test('lists all pages of tools for an MCP server contributed by a plugin', async () => {
 		const sut = createSut();
 		const session = URI.parse('vscode-agent-session:///session-1');

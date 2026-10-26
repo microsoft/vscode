@@ -74,7 +74,7 @@ import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../comm
 import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
-import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotComputerUsePermissionSetup } from '../../node/copilot/copilotComputerUsePermissionSetup.js';
 import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
@@ -95,7 +95,7 @@ import { IEditSurvivalReporterFactory } from '../../node/shared/editSurvivalRepo
 import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
-import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotConnectorServers } from '../../node/copilot/copilotConnectors.js';
 import type { ILocalModelProvider } from '../../node/copilot/localModelBridge/localModelProvider.js';
 import { createSentinelContribution, FakeLocalModelProvider, MAI_ROW } from './localModelBridge/fakeLocalModelProvider.js';
@@ -181,6 +181,9 @@ class MockCopilotSession {
 	readonly eventLogReadRequests: Parameters<CopilotSession['rpc']['eventLog']['read']>[0][] = [];
 	eventLogReadGate: Promise<void> | undefined;
 	readonly sendRequests: unknown[] = [];
+	readonly setToolsCalls: Parameters<CopilotSession['setTools']>[0][] = [];
+	setToolsGate: Promise<void> | undefined;
+	setToolsError: Error | undefined;
 	readonly withdrawMessageRequests: Parameters<CopilotSession['rpc']['queue']['withdrawMessage']>[0][] = [];
 	withdrawMessageResult: Awaited<ReturnType<CopilotSession['rpc']['queue']['withdrawMessage']>> = { removed: true, interrupted: false };
 	withdrawMessageGate: Promise<void> | undefined;
@@ -234,6 +237,8 @@ class MockCopilotSession {
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	readonly pluginInstallCalls: Array<{ source: string }> = [];
 	readonly pluginEnableCalls: Array<{ names: string[] }> = [];
+	readonly pluginUninstallCalls: Array<{ name: string; directSourceId?: string }> = [];
+	pluginReloadErrors: string[] = [];
 	/** Runs after `rpc.plugins.enable` records a call; it may throw to fail the call. */
 	onPluginEnable?: () => void;
 	pluginInstallGate: Promise<void> | undefined;
@@ -470,6 +475,13 @@ class MockCopilotSession {
 		this.abortCalls++;
 		this.onAbort?.();
 		await this.abortGate;
+	}
+	async setTools(tools: Parameters<CopilotSession['setTools']>[0]): Promise<void> {
+		this.setToolsCalls.push(tools);
+		await this.setToolsGate;
+		if (this.setToolsError) {
+			throw this.setToolsError;
+		}
 	}
 	async setModel(...args: Parameters<CopilotSession['setModel']>) {
 		this.setModelCalls.push(args);
@@ -711,14 +723,14 @@ class MockCopilotSession {
 				}
 				return this.managedPluginRetryResult;
 			},
-			uninstall: async () => { throw new Error('Not implemented'); },
+			uninstall: async (params: { name: string; directSourceId?: string }) => { this.pluginUninstallCalls.push(params); },
 			update: async () => { throw new Error('Not implemented'); },
 			enable: async (params: { names: string[] }) => {
 				this.pluginEnableCalls.push(params);
 				this.onPluginEnable?.();
 			},
 			disable: async () => { throw new Error('Not implemented'); },
-			reload: async () => ({ plugins: [], errors: [] }),
+			reload: async () => ({ plugins: [], errors: this.pluginReloadErrors }),
 			marketplaces: {
 				add: async (params: { source: string }) => {
 					this.pluginMarketplaceAddCalls.push(params);
@@ -8640,6 +8652,19 @@ suite('CopilotAgentSession', () => {
 			activity: ['Installing plugin…', undefined],
 			installCalls: [{ source: 'elasticsearch@awesome-copilot' }],
 		});
+	});
+
+	test('reports plugin extension reload failures returned by the SDK', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.pluginReloadErrors = ['extension reload failed: provider unavailable'];
+		await assert.rejects(session.reloadPlugins('enablement'), /Plugin reload failed: extension reload failed: provider unavailable/);
+	});
+
+	test('leaves post-uninstall reloads to the agent coordinator', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.pluginReloadErrors = ['reload failed'];
+		await session.uninstallPlugin('canvas', 'direct-source');
+		assert.deepStrictEqual(mockSession.pluginUninstallCalls, [{ name: 'canvas', directSourceId: 'direct-source' }]);
 	});
 
 	test('does not show activity when a plugin command completes within the delay', () => runWithFakedTimers({}, async () => {
@@ -21009,6 +21034,267 @@ Use the attached image as context.
 			}, { pendingEvents: 256, droppedEvents: 1 });
 		});
 
+		test('steering during a Fusion phase hands the in-flight workflow to the steering turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			const steeringTurnId = session.currentTurnId;
+			const afterSteering = signals.length;
+
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'after-steering', toolName: 'bash', arguments: { command: 'git branch' }, fusion }, { ephemeral: true });
+			mockSession.fire('assistant.fusion_phase_completed', fusionMainPassTestData.phaseCompleted);
+
+			assert.notStrictEqual(steeringTurnId, 'turn-original');
+			assert.deepStrictEqual(signals.slice(afterSteering).flatMap(signal => signal.kind === 'action'
+				&& (signal.action.type === ActionType.ChatToolCallStart || signal.action.type === ActionType.ChatToolCallReady || signal.action.type === ActionType.ChatToolCallComplete)
+				? [{ type: signal.action.type, toolCallId: signal.action.toolCallId, steeringTurn: signal.action.turnId === steeringTurnId }]
+				: []), [
+				{ type: ActionType.ChatToolCallStart, toolCallId: 'after-steering', steeringTurn: true },
+				{ type: ActionType.ChatToolCallReady, toolCallId: 'after-steering', steeringTurn: true },
+			]);
+			assert.strictEqual(session.getFusionTurnId(fusionTestData.resolved.fusionId), steeringTurnId);
+		});
+
+		test('steering during a Fusion phase hands a running provisional tool call to the steering turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'spans-steering', toolName: 'bash', arguments: { command: 'git branch' }, fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_partial_result', { toolCallId: 'spans-steering', partialOutput: 'main\n' } as SessionEventPayload<'tool.execution_partial_result'>['data']);
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			const beforeSteering = signals.length;
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			const steeringTurnId = session.currentTurnId;
+
+			mockSession.fire('tool.execution_complete', { toolCallId: 'spans-steering', success: true, result: { content: 'main' }, fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_start', { toolCallId: 'spans-steering', toolName: 'bash', arguments: { command: 'git branch' }, fusion: { ...fusion, commitId: 'commit-1' } });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'spans-steering', success: true, result: { content: 'main' }, fusion: { ...fusion, commitId: 'commit-1' } });
+
+			assert.deepStrictEqual(signals.slice(beforeSteering).flatMap(signal => signal.kind === 'action'
+				&& (signal.action.type === ActionType.ChatToolCallStart || signal.action.type === ActionType.ChatToolCallReady || signal.action.type === ActionType.ChatToolCallContentChanged || signal.action.type === ActionType.ChatToolCallComplete)
+				? [{ type: signal.action.type, toolCallId: signal.action.toolCallId, steeringTurn: signal.action.turnId === steeringTurnId, ...(signal.action.type === ActionType.ChatToolCallContentChanged ? { content: signal.action.content } : {}) }]
+				: []), [
+				{ type: ActionType.ChatToolCallStart, toolCallId: 'spans-steering', steeringTurn: true },
+				{ type: ActionType.ChatToolCallReady, toolCallId: 'spans-steering', steeringTurn: true },
+				{ type: ActionType.ChatToolCallContentChanged, toolCallId: 'spans-steering', steeringTurn: true, content: [{ type: ToolResultContentType.Terminal, resource: defaultNonPtyShellTerminalUri('spans-steering'), title: 'Run Shell Command', isPty: false }] },
+				{ type: ActionType.ChatToolCallComplete, toolCallId: 'spans-steering', steeringTurn: true },
+			]);
+		});
+
+		test('steering during a Fusion phase hands a still-persisting provisional completion to the steering turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const edit = new DeferredPromise<undefined>();
+			sessionInternals._editTracker.takeCompletedEdit = () => edit.p;
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'persisting', toolName: 'create', arguments: { path: '/workspace/a.ts', file_text: 'x' }, fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'persisting', success: true, result: { content: 'created' }, fusion }, { ephemeral: true });
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			const beforeSteering = signals.length;
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			const steeringTurnId = session.currentTurnId;
+			mockSession.fire('tool.execution_start', { toolCallId: 'persisting', toolName: 'create', arguments: { path: '/workspace/a.ts', file_text: 'x' }, fusion: { ...fusion, commitId: 'commit-1' } });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'persisting', success: true, result: { content: 'created' }, fusion: { ...fusion, commitId: 'commit-1' } });
+			// The steering turn idles while the edit is still persisting.
+			mockSession.fire('session.idle', {});
+			await timeout(0);
+			edit.complete(undefined);
+			await timeout(0);
+
+			assert.deepStrictEqual(signals.slice(beforeSteering).flatMap(signal => signal.kind === 'action' && isChatAction(signal.action)
+				&& ((hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === 'persisting') || (signal.action.type === ActionType.ChatTurnComplete && signal.action.turnId === steeringTurnId))
+				? [{ type: signal.action.type, steeringTurn: signal.action.turnId === steeringTurnId }]
+				: []), [
+				{ type: ActionType.ChatToolCallStart, steeringTurn: true },
+				{ type: ActionType.ChatToolCallReady, steeringTurn: true },
+				{ type: ActionType.ChatToolCallComplete, steeringTurn: true },
+				{ type: ActionType.ChatTurnComplete, steeringTurn: true },
+			]);
+		});
+
+		test('steering right after a persisted Fusion completion publishes does not replay the completed tool', async () => {
+			const signals: AgentSignal[] = [];
+			const { session, mockSession } = await createAgentSession(disposables, { signals });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const edit = new DeferredPromise<undefined>();
+			sessionInternals._editTracker.takeCompletedEdit = () => edit.p;
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'published', toolName: 'create', arguments: { path: '/workspace/a.ts', file_text: 'x' }, fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'published', success: true, result: { content: 'created' }, fusion }, { ephemeral: true });
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+
+			// Deliver the steering echo before the completion's asynchronous cleanup settles.
+			const steered = new DeferredPromise<void>();
+			const push = signals.push.bind(signals);
+			signals.push = (...items) => {
+				if (items.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === 'published')) {
+					queueMicrotask(() => {
+						mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+						steered.complete();
+					});
+				}
+				return push(...items);
+			};
+			const beforeComplete = signals.length;
+			edit.complete(undefined);
+			await steered.p;
+
+			assert.deepStrictEqual(signals.slice(beforeComplete).flatMap(signal => signal.kind === 'action' && isChatAction(signal.action) && hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === 'published'
+				? [signal.action.type]
+				: []), [
+				ActionType.ChatToolCallComplete,
+			]);
+		});
+
+		test('steering during a Fusion phase keeps publishing a still-persisting phase chat completion', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const edit = new DeferredPromise<undefined>();
+			sessionInternals._editTracker.takeCompletedEdit = () => edit.p;
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'phase-persisting', toolName: 'create', arguments: { path: '/workspace/a.ts', file_text: 'x' }, fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'phase-persisting', success: true, result: { content: 'created' }, fusion }, { ephemeral: true });
+			const phaseChat = signals.find(signal => signal.kind === 'subagent_started');
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			const beforeSteering = signals.length;
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			edit.complete(undefined);
+			await timeout(0);
+
+			assert.ok(phaseChat?.kind === 'subagent_started');
+			assert.deepStrictEqual(signals.slice(beforeSteering).flatMap(signal => signal.kind === 'action' && isChatAction(signal.action) && hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === 'phase-persisting'
+				? [{ type: signal.action.type, parentToolCallId: signal.parentToolCallId }]
+				: []), [
+				{ type: ActionType.ChatToolCallComplete, parentToolCallId: phaseChat.toolCallId },
+			]);
+		});
+
+		test('steering during a Fusion phase hands a running task_complete to the steering turn without a tool row', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'Fixed the bug' }, fusion }, { ephemeral: true });
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			const beforeSteering = signals.length;
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			const steeringTurnId = session.currentTurnId;
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'done' }, fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'Fixed the bug' }, fusion: { ...fusion, commitId: 'commit-1' } });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'done' }, fusion: { ...fusion, commitId: 'commit-1' } });
+
+			assert.deepStrictEqual(signals.slice(beforeSteering).flatMap(signal => signal.kind === 'action' && isChatAction(signal.action)
+				&& ((hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === 'tc-complete') || (signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown && signal.action.part.content.includes('Task completed')))
+				? [{ type: signal.action.type, steeringTurn: signal.action.turnId === steeringTurnId }]
+				: []), [
+				{ type: ActionType.ChatResponsePart, steeringTurn: true },
+			]);
+		});
+
+		test('steering during a Fusion phase keeps a streaming phase chat tool to a single row', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('assistant.tool_call_delta', { toolCallId: 'phase-streamed', toolName: 'bash', inputDelta: '{"command":"git branch"}' });
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('tool.execution_start', { toolCallId: 'phase-streamed', toolName: 'bash', arguments: { command: 'git branch' }, fusion }, { ephemeral: true });
+
+			const phaseChat = signals.find(signal => signal.kind === 'subagent_started');
+			assert.ok(phaseChat?.kind === 'subagent_started');
+			assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallStart && signal.action.toolCallId === 'phase-streamed' ? [signal.parentToolCallId] : []), [
+				phaseChat.toolCallId,
+			]);
+		});
+
+		test('steering during a Fusion phase does not replay a running client tool', async () => {
+			const tools = [{ name: SEMANTIC_SEARCH_TOOL_NAME, description: 'Semantically searches the workspace', inputSchema: { type: 'object' as const, properties: { query: { type: 'string' } } } }];
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('test-client', tools);
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				clientSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools, plugins: [], mcpServers: {} },
+				activeClientToolSet,
+			});
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'client-tool', toolName: SEMANTIC_SEARCH_TOOL_NAME, arguments: { query: 'routing' }, fusion }, { ephemeral: true });
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			const beforeSteering = signals.length;
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+
+			assert.deepStrictEqual(signals.slice(beforeSteering).flatMap(signal => signal.kind === 'action' && isChatAction(signal.action) && hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === 'client-tool' ? [signal.action.type] : []), []);
+		});
+
+		test('steering during a Fusion phase keeps its phase chat open for running tools', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'phase-tool', toolName: 'bash', arguments: { command: 'git branch' }, fusion }, { ephemeral: true });
+			const phaseChat = signals.find(signal => signal.kind === 'subagent_started');
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			const beforeSteering = signals.length;
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('tool.execution_complete', { toolCallId: 'phase-tool', success: true, result: { content: 'main' }, fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_start', { toolCallId: 'phase-tool', toolName: 'bash', arguments: { command: 'git branch' }, fusion: { ...fusion, commitId: 'commit-1' } });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'phase-tool', success: true, result: { content: 'main' }, fusion: { ...fusion, commitId: 'commit-1' } });
+
+			assert.ok(phaseChat?.kind === 'subagent_started');
+			assert.deepStrictEqual(signals.slice(beforeSteering).flatMap<string | { type: string; parentToolCallId: string | undefined }>(signal => signal.kind === 'subagent_completed'
+				? [signal.kind]
+				: signal.kind === 'action' && isChatAction(signal.action) && hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === 'phase-tool'
+					? [{ type: signal.action.type, parentToolCallId: signal.parentToolCallId }]
+					: []), [
+				{ type: ActionType.ChatToolCallComplete, parentToolCallId: phaseChat.toolCallId },
+			]);
+		});
+
 		test('provisional Fusion messages and tool calls stay out of the parent transcript', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('fusion-turn');
@@ -24661,6 +24947,279 @@ Use the attached image as context.
 			return toolSet;
 		};
 
+		function clientToolConfiguration(toolSearchActive = false, hostToolNames: ReadonlySet<string> = new Set()): ICopilotClientToolConfiguration {
+			const sessionConfig: ICopilotClientToolConfiguration['sessionConfig'] = {
+				toolSearch: { enabled: toolSearchActive },
+				excludedTools: [],
+				systemMessage: { mode: 'append' },
+				customAgents: [],
+			};
+			return {
+				toolSearchActive, hostToolNames, sessionConfig,
+				resolve: (_definitions, tools = []) => ({ sessionConfig, tools: [...tools] }),
+				replaceTools: async (sdk, tools) => sdk.setTools(tools),
+			};
+		}
+
+		test('client tool refresh compares the complete initialization data before applying SDK tools', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const configuration = clientToolConfiguration();
+			let desired = configuration.sessionConfig;
+			runtime.configureClientTools!({
+				...configuration,
+				resolve: (_definitions, tools = []) => ({ sessionConfig: desired, tools: [...tools] }),
+			});
+			const changes: ICopilotClientToolConfiguration['sessionConfig'][] = [
+				{ ...desired, toolSearch: { enabled: false, deferThreshold: 2 } },
+				{ ...desired, excludedTools: ['builtin:unavailable'] },
+				{ ...desired, systemMessage: { mode: 'append', content: 'Updated initialization' } },
+				{ ...desired, customAgents: [{ name: 'updated', prompt: 'Updated agent prompt' }] },
+			];
+			const mismatches = changes.map(change => {
+				desired = change;
+				return session.clientToolsRequireRestart(snapshot.tools);
+			});
+			const definitions = [...snapshot.tools, { name: 'added' }];
+			await assert.rejects(session.updateClientTools(definitions), /require a session configuration refresh/);
+			const afterMismatch = { applied: session.appliedSnapshot.tools, updates: [...mockSession.setToolsCalls] };
+			desired = configuration.sessionConfig;
+			await session.updateClientTools(definitions);
+			assert.deepStrictEqual({
+				mismatches,
+				afterMismatch,
+				equivalent: session.clientToolsRequireRestart(definitions),
+				applied: session.appliedSnapshot.tools,
+				updates: mockSession.setToolsCalls.map(tools => tools.map(tool => tool.name)),
+			}, {
+				mismatches: [true, true, true, true],
+				afterMismatch: { applied: snapshot.tools, updates: [] },
+				equivalent: false,
+				applied: definitions,
+				updates: [['my_tool', 'added']],
+			});
+		});
+
+		test('client tool replacements route offered tools before SDK acceptance, commit definitions only after success, and remain retryable', async () => {
+			const activeClientToolSet = activeClientToolSetWith('client');
+			const { session, runtime, mockSession, signals, onProgress } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot, activeClientToolSet,
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			await session.syncPermissionMode('turn-start');
+			runtime.configureClientTools!(clientToolConfiguration(false, new Set(['host_tool'])));
+			const definitions: ToolDefinition[] = [{
+				name: 'replacement',
+				description: 'Updated description',
+				inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+			}, { name: 'host_tool' }];
+			activeClientToolSet.set('client', definitions);
+			disposables.add(onProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallReady && signal.action.contributor?.kind === ToolCallContributorKind.Client) {
+					session.handleClientToolCallComplete(signal.action.toolCallId, {
+						success: true, pastTenseMessage: 'Replacement completed',
+						content: [{ type: ToolResultContentType.Text, text: signal.action.toolCallId }],
+					});
+				}
+			}));
+			const gate = new DeferredPromise<void>();
+			mockSession.setToolsGate = gate.p;
+			const updating = session.updateClientTools(definitions);
+			const before = session.appliedSnapshot.tools;
+			mockSession.fire('tool.execution_start', { toolCallId: 'not-yet-applied', toolName: 'replacement', arguments: { query: 'test' } });
+			const beforeAcceptance = await invokeClientToolHandler(mockSession.setToolsCalls[0][0], 'not-yet-applied', { query: 'test' });
+			gate.complete();
+			await updating;
+			mockSession.fire('tool.execution_start', { toolCallId: 'updated', toolName: 'replacement', arguments: { query: 'test' } });
+			const afterSuccess = session.appliedSnapshot.tools;
+			mockSession.setToolsError = new Error('replacement rejected');
+			await assert.rejects(session.updateClientTools([]), /replacement rejected/);
+			mockSession.fire('tool.execution_start', { toolCallId: 'after-rejection', toolName: 'replacement', arguments: { query: 'test' } });
+			const afterFailure = session.appliedSnapshot.tools;
+			mockSession.setToolsError = undefined;
+			await session.updateClientTools([]);
+			await session.updateClientTools([]);
+
+			const client = { kind: ToolCallContributorKind.Client, clientId: 'client' };
+			assert.deepStrictEqual({
+				before,
+				beforeAcceptance: [beforeAcceptance.resultType, beforeAcceptance.textResultForLlm],
+				afterSuccess,
+				afterFailure,
+				afterRemoval: session.appliedSnapshot.tools,
+				updates: mockSession.setToolsCalls.map(tools => tools.map(({ name, description, parameters }) => ({ name, description, parameters }))),
+				contributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [[action.toolCallId, action.contributor]] : []),
+			}, {
+				before: snapshot.tools,
+				beforeAcceptance: ['success', 'not-yet-applied'],
+				afterSuccess: definitions,
+				afterFailure: definitions,
+				afterRemoval: [],
+				updates: [[{ name: 'replacement', description: 'Updated description', parameters: definitions[0].inputSchema }], [], []],
+				contributors: [['not-yet-applied', client], ['updated', client], ['after-rejection', client]],
+			});
+		});
+
+		test('same-name client tool replacement routes calls started before SDK acceptance to the offered definition', async () => {
+			const activeClientToolSet = activeClientToolSetWith('old-client');
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+			runtime.configureClientTools!(clientToolConfiguration());
+			const definitions: ToolDefinition[] = [{
+				...snapshot.tools[0],
+				inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+			}];
+			activeClientToolSet.set('old-client', []);
+			activeClientToolSet.set('new-client', definitions);
+			const gate = new DeferredPromise<void>();
+			mockSession.setToolsGate = gate.p;
+			const updating = session.updateClientTools(definitions);
+			mockSession.fire('tool.execution_start', { toolCallId: 'replacement', toolName: 'my_tool', arguments: { query: 'new' } });
+			gate.complete();
+			await updating;
+
+			assert.deepStrictEqual(
+				getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [[action.toolCallId, action.contributor]] : []),
+				[['replacement', { kind: ToolCallContributorKind.Client, clientId: 'new-client' }]],
+			);
+		});
+
+		for (const activity of ['turn', 'subagent'] as const) {
+			test(`client tool removal and rename apply during an active ${activity} without aborting or disconnecting`, async () => {
+				const { session, runtime, mockSession } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+				runtime.configureClientTools!(clientToolConfiguration());
+				await assert.rejects(session.updateClientTools([], CancellationToken.Cancelled), isCancellationError);
+				const busy = stub(session, 'hasActiveSubagents').get(() => activity === 'subagent');
+				try {
+					if (activity === 'turn') {
+						session.resetTurnState('busy-turn');
+					}
+					await session.updateClientTools([{ name: 'renamed' }]);
+					await session.updateClientTools([]);
+					assert.deepStrictEqual({
+						applied: session.appliedSnapshot.tools,
+						updates: mockSession.setToolsCalls.map(tools => tools.map(tool => tool.name)),
+						activeTurn: session.hasActiveTurn,
+						activeSubagents: session.hasActiveSubagents,
+						aborts: mockSession.abortCalls,
+						disconnects: mockSession.disconnectCalls,
+					}, {
+						applied: [], updates: [['renamed'], []],
+						activeTurn: activity === 'turn', activeSubagents: activity === 'subagent',
+						aborts: 0, disconnects: 0,
+					});
+				} finally {
+					busy.restore();
+				}
+			});
+		}
+
+		for (const activity of ['turn', 'subagent'] as const) {
+			test(`client tool additions and same-name replacements apply during an active ${activity} while running handlers finish`, async () => {
+				const activeClientToolSet = activeClientToolSetWith('old-client');
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+				const [originalTool] = runtime.createClientSdkTools();
+				runtime.configureClientTools!(clientToolConfiguration());
+				const busy = stub(session, 'hasActiveSubagents').get(() => activity === 'subagent');
+				try {
+					if (activity === 'turn') {
+						session.resetTurnState('running-turn');
+					}
+					mockSession.fire('tool.execution_start', { toolCallId: 'original', toolName: 'my_tool', arguments: {} });
+					const originalResult = invokeClientToolHandler(originalTool, 'original');
+					const added = { name: 'added' };
+					const additions = [...snapshot.tools, added];
+					const replacements: ToolDefinition[] = [{
+						...snapshot.tools[0], description: 'Updated description',
+						inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+					}, added];
+					activeClientToolSet.set('new-client', replacements);
+					await session.updateClientTools(additions);
+					mockSession.setToolsError = new Error('replacement rejected');
+					await assert.rejects(session.updateClientTools(replacements), /replacement rejected/);
+					const afterFailure = session.appliedSnapshot.tools;
+					mockSession.setToolsError = undefined;
+					await session.updateClientTools(replacements);
+					mockSession.fire('tool.execution_start', { toolCallId: 'replacement', toolName: 'my_tool', arguments: { query: 'new' } });
+					const replacementTool = mockSession.setToolsCalls.at(-1)!.find(tool => tool.name === 'my_tool')!;
+					const replacementResult = invokeClientToolHandler(replacementTool, 'replacement', { query: 'new' });
+					session.handleClientToolCallComplete('original', { success: true, pastTenseMessage: 'Original completed', content: [{ type: ToolResultContentType.Text, text: 'original result' }] });
+					session.handleClientToolCallComplete('replacement', { success: true, pastTenseMessage: 'Replacement completed', content: [{ type: ToolResultContentType.Text, text: 'replacement result' }] });
+
+					assert.deepStrictEqual({
+						afterFailure,
+						applied: session.appliedSnapshot.tools,
+						updates: mockSession.setToolsCalls.map(tools => tools.map(tool => tool.name)),
+						contributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [action.contributor] : []),
+						results: (await Promise.all([originalResult, replacementResult])).map(({ resultType, textResultForLlm }) => ({ resultType, textResultForLlm })),
+						aborts: mockSession.abortCalls,
+						disconnects: mockSession.disconnectCalls,
+					}, {
+						afterFailure: additions, applied: replacements,
+						updates: [['my_tool', 'added'], ['my_tool', 'added'], ['my_tool', 'added']],
+						contributors: [{ kind: ToolCallContributorKind.Client, clientId: 'old-client' }, { kind: ToolCallContributorKind.Client, clientId: 'new-client' }],
+						results: [{ resultType: 'success', textResultForLlm: 'original result' }, { resultType: 'success', textResultForLlm: 'replacement result' }],
+						aborts: 0, disconnects: 0,
+					});
+				} finally {
+					busy.restore();
+				}
+			});
+		}
+
+		for (const toolSearchActive of [false, true]) {
+			test(`client tool routing respects reserved names and tool search activation=${toolSearchActive}`, async () => {
+				const definitions = [...snapshot.tools, { name: 'host_tool' }, { name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }, ...(toolSearchActive ? [{ name: RUNTIME_TOOL_SEARCH_TOOL_NAME }] : [])];
+				const activeClientToolSet = new ActiveClientToolSet();
+				activeClientToolSet.set('client', definitions);
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: { ...snapshot, tools: definitions }, activeClientToolSet });
+				const hostToolNames = new Set(['host_tool']);
+				const toolsAtLaunch = runtime.createClientSdkTools(toolSearchActive, hostToolNames).map(tool => tool.name);
+				runtime.configureClientTools!(clientToolConfiguration(toolSearchActive, hostToolNames));
+				const toolName = toolSearchActive ? RUNTIME_TOOL_SEARCH_TOOL_NAME : CLIENT_TOOL_SEARCH_REFERENCE_NAME;
+				mockSession.fire('tool.execution_start', { toolCallId: 'before-replacement', toolName, arguments: {} });
+				await session.updateClientTools([...definitions, { name: 'added' }]);
+				mockSession.fire('tool.execution_start', { toolCallId: 'after-replacement', toolName, arguments: {} });
+				const contributor = toolSearchActive ? { kind: ToolCallContributorKind.Client, clientId: 'client' } : undefined;
+				assert.deepStrictEqual({
+					toolsAtLaunch,
+					replacementTools: mockSession.setToolsCalls[0].map(tool => tool.name),
+					contributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [action.contributor] : []),
+				}, {
+					toolsAtLaunch: ['my_tool', ...(toolSearchActive ? [RUNTIME_TOOL_SEARCH_TOOL_NAME] : [])],
+					replacementTools: ['my_tool', ...(toolSearchActive ? [RUNTIME_TOOL_SEARCH_TOOL_NAME] : []), 'added'],
+					contributors: [contributor, contributor],
+				});
+			});
+		}
+
+		test('cancelling an accepted client tool replacement still commits the SDK result before retry', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			runtime.configureClientTools!(clientToolConfiguration());
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const gate = new DeferredPromise<void>();
+			mockSession.setToolsGate = gate.p;
+			const replacement = assert.rejects(session.updateClientTools([], cancellation.token), isCancellationError);
+			cancellation.cancel();
+			gate.complete();
+			await replacement;
+			await session.updateClientTools([]);
+			assert.deepStrictEqual({ applied: session.appliedSnapshot.tools, updates: mockSession.setToolsCalls }, { applied: [], updates: [[]] });
+		});
+
+		test('client tool replacement ignores order and keeps tool-search deferral policies', async () => {
+			const definitions: ToolDefinition[] = [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }, { name: 'runTests' }, { name: 'other' }];
+			const { session, runtime, mockSession } = await createAgentSession(disposables, { clientSnapshot: { ...snapshot, tools: definitions } });
+			runtime.createClientSdkTools(true);
+			runtime.configureClientTools!(clientToolConfiguration(true));
+			await session.updateClientTools([...definitions].reverse());
+			await session.updateClientTools([...definitions, { name: SEMANTIC_SEARCH_TOOL_NAME }]);
+			assert.deepStrictEqual(mockSession.setToolsCalls.map(tools => tools.map(({ name, defer, overridesBuiltInTool, skipPermission }) => ({ name, defer, overridesBuiltInTool, skipPermission }))), [[
+				{ name: RUNTIME_TOOL_SEARCH_TOOL_NAME, defer: 'never', overridesBuiltInTool: true, skipPermission: true },
+				{ name: 'runTests', defer: 'never', overridesBuiltInTool: undefined, skipPermission: undefined },
+				{ name: 'other', defer: 'auto', overridesBuiltInTool: undefined, skipPermission: undefined },
+				{ name: SEMANTIC_SEARCH_TOOL_NAME, defer: 'auto', overridesBuiltInTool: true, skipPermission: true },
+			]]);
+		});
+
 		test('declares the native input contract without attributing client or MCP tools', async () => {
 			const clientSnapshot: IActiveClientSnapshot = {
 				...snapshot,
@@ -25328,6 +25887,27 @@ Use the attached image as context.
 				usesNameForRouting: true,
 				discouragesSpeculativeUse: true,
 			});
+		});
+
+		test('live client tool replacement preserves MCP proxies and reserves their SDK names', async () => {
+			const { session, runtime, mockSession } = await createMcpRoutingSession();
+			const [, proxy] = runtime.createClientSdkTools(true);
+			runtime.configureClientTools!(clientToolConfiguration(true));
+			const original = session.appliedSnapshot.tools;
+			session.resetTurnState('active-mcp-routing');
+			await session.updateClientTools([
+				...original,
+				{ name: 'added' },
+				{ name: proxy.name, description: 'Cannot shadow MCP routing' },
+				{ name: RUNTIME_TOOL_SEARCH_TOOL_NAME, description: 'Cannot shadow tool search' },
+			]);
+			await session.updateClientTools([...original, { name: 'added' }]);
+			const expected = [
+				{ name: RUNTIME_TOOL_SEARCH_TOOL_NAME, defer: 'never' },
+				{ name: 'added', defer: 'auto' },
+				{ name: proxy.name, defer: 'auto' },
+			];
+			assert.deepStrictEqual(mockSession.setToolsCalls.map(tools => tools.map(({ name, defer }) => ({ name, defer }))), [expected, expected]);
 		});
 
 		const globalMcpRoutingSnapshot: IActiveClientSnapshot = {
@@ -27889,6 +28469,36 @@ Use the attached image as context.
 				});
 			});
 		}
+
+		test('re-enables an MCP server it disabled once its decision returns to the inherited default', async () => {
+			const serverName = 'github-copilot-connector-docs';
+			let enablement: CustomizationEnablement[] = [{ kind: CustomizationEnablementKind.Global, enabled: false }];
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [],
+				resolveCustomizationEnablement: () => ({
+					kind: 'resolved',
+					enablement,
+					enabled: enablement[0]?.enabled ?? true,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected', source: 'managed' }] };
+				},
+			});
+
+			await session.send('turn the server off');
+			enablement = [];
+			await session.send('restore the inherited default');
+			await session.send('leave the restored server alone');
+
+			assert.deepStrictEqual({
+				disable: mockSession.mcpDisableCalls,
+				enable: mockSession.mcpEnableCalls,
+			}, {
+				disable: [{ serverName }],
+				enable: [{ serverName }],
+			});
+		});
 
 		test('does not force-enable a newly discovered configured-disabled MCP server or infer intent from startup', async () => {
 			const serverName = 'context7';

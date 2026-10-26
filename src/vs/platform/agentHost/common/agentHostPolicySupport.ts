@@ -122,6 +122,8 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// Disables all AI features in the workbench, including Agent Host sessions.
 	ChatApprovedAccountOrganizations: { status: 'enforced' },
 	ChatDefaultModel: { status: 'enforced' },
+	// New Copilot sessions in both windows seed their mode and approvals from the effective value; the runtime still applies its own managed default.
+	ChatDefaultConfiguration: { status: 'enforced' },
 	ChatEditorPreferCopilotHarness: { status: 'enforced' },
 	ChatTemporaryDefaultToLocalHarness: { status: 'enforced' },
 	ChatAgentHostGitHubEnvironments: { status: 'enforced' },
