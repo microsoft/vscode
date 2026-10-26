@@ -10,7 +10,7 @@ import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
-import { ChatWindowContext, ChatWindowHasSessionHeaderContext } from '../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowHasSessionHeaderContext } from '../services/chatWindow/browser/chatWindowService.js';
 import { Menus, SessionActivityBarGroup } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
