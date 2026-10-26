@@ -153,7 +153,7 @@ export class WorkbenchToolBar extends ToolBar {
 					extraSecondary[i] = action;
 					continue;
 				}
-				if (this._isAlwaysShown(action)) {
+				if (action && this._isAlwaysShown(action)) {
 					someAreAlwaysShown = true;
 					continue;
 				}
