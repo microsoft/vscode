@@ -469,7 +469,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		});
 	});
 
-	test('forwards Copilot Memory and local memory only when opted in and preview features are allowed', async () => {
+	test('forwards Copilot Memory regardless of preview policy, and local memory only when preview features are allowed', async () => {
 		const memorySchema = {
 			[CopilotCliConfigKey.Memory]: fullSchema[CopilotCliConfigKey.Memory],
 			[CopilotCliConfigKey.LocalMemory]: fullSchema[CopilotCliConfigKey.LocalMemory],
@@ -498,8 +498,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			policyEnabled: mergedConfig(agentHostService),
 		}, {
 			defaultOff: { [CopilotCliConfigKey.Memory]: false, [CopilotCliConfigKey.LocalMemory]: false },
-			policyDisabled: { [CopilotCliConfigKey.Memory]: false, [CopilotCliConfigKey.LocalMemory]: false },
-			policyEnabled: { [CopilotCliConfigKey.Memory]: true, [CopilotCliConfigKey.LocalMemory]: true },
+			policyDisabled: { [CopilotCliConfigKey.Memory]: true, [CopilotCliConfigKey.LocalMemory]: false },
+			policyEnabled: { [CopilotCliConfigKey.LocalMemory]: true },
 		});
 	});
 
