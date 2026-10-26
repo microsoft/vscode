@@ -294,7 +294,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment');
 				const showDocumentation = template.column === 'actions' && entry.type === 'group' && !!entry.documentation;
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
-				const showDelete = showConnection && (entry.remote.kind === 'environment' && entry.remote.canRemove || entry.remote.kind === 'tunnel' && !!entry.remote.canDelete);
+				const showDelete = showConnection && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh') && !!entry.remote.canDelete);
 				const showLocationPreference = showConnection && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh');
 				const showUpdate = showConnection && RemoteAgentHostConnectionStatus.isIncompatible(entry.remote.connectionStatus) && !!entry.remote.connectionStatus.vscodeUpgradeMethod;
 				const actionLayout = `${showConfig}:${showDocumentation}:${showConnection}:${showDelete}:${showLocationPreference}:${showUpdate}`;
@@ -329,8 +329,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.action.class = ThemeIcon.asClassName(entry.remote.pickerUnavailableReason || entry.remote.hidden ? Codicon.eyeClosed : Codicon.eye);
 				} else if (showConfig) {
 					template.action.label = entry.kind === 'ssh' ? localize('remotes.openSSHConfig', "Open SSH Configuration")
-						: entry.kind === 'environment' ? localize('remotes.openEnvironmentSettings', "Open Environment Settings")
-							: localize('remotes.openTunnelSettings', "Open Tunnel Settings");
+						: entry.kind === 'environment' ? localize('remotes.openEnvironmentSettings', "Open GitHub Environments Settings")
+							: localize('remotes.openTunnelSettings', "Open Dev Tunnels Settings");
 					template.action.class = ThemeIcon.asClassName(Codicon.settingsGear);
 				} else if (showConnection) {
 					const connected = RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus);
