@@ -21,6 +21,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { INotification, INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWebWorkerService } from '../../../../../platform/webWorker/browser/webWorkerService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { hookUpResourceContextMenu } from '../../browser/attachments/chatAttachmentWidgets.js';
@@ -51,6 +52,7 @@ suite('Chat image copy actions', () => {
 			}
 		}());
 		instantiationService.stub(IRequestService, upcastPartial<IRequestService>({}));
+		instantiationService.stub(ISharedWebContentExtractorService, new NullSharedWebContentExtractorService());
 		instantiationService.stub(ILabelService, upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }));
 		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
 			showContextMenu: delegate => { menu = delegate; }
@@ -71,8 +73,8 @@ suite('Chat image copy actions', () => {
 		return image;
 	}
 
-	function actions(widget: HTMLElement, resource?: URI, readData?: () => Promise<Uint8Array>) {
-		return instantiationService.invokeFunction(accessor => createChatImageCopyActions(accessor, widget, resource, readData));
+	function actions(widget: HTMLElement, resource?: URI, readData?: () => Promise<Uint8Array>, mimeType?: string) {
+		return instantiationService.invokeFunction(accessor => createChatImageCopyActions(accessor, widget, resource, readData, mimeType));
 	}
 
 	async function copiedSize() {
@@ -121,6 +123,75 @@ suite('Chat image copy actions', () => {
 		await actions(widget, undefined, async () => new Uint8Array(data))()[0].run();
 		const size = await copiedSize();
 		assert.deepStrictEqual({ width: size?.width, height: size?.height }, { width: 40, height: 30 });
+	});
+
+	test('copies a main-realm Markdown image adopted into an auxiliary document', async () => {
+		const image = await createImage();
+		const iframe = $<HTMLIFrameElement>('iframe');
+		store.add(toDisposable(() => iframe.remove()));
+		mainWindow.document.body.appendChild(iframe);
+		iframe.contentDocument!.body.appendChild(image);
+		await image.decode();
+		const copyAction = actions(image)()[0];
+		await copyAction.run();
+		assert.deepStrictEqual({ enabled: copyAction.enabled, image: await copiedSize(), errors: notifications }, {
+			enabled: true, image: { signature: [137, 80, 78, 71, 13, 10, 26, 10], width: 24, height: 16 }, errors: [],
+		});
+	});
+
+	const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="red"/></svg>';
+	for (const mimeType of ['image/svg+xml', 'image/svg']) {
+		test(`copies ${mimeType} from an original-byte provider`, async () => {
+			await actions($('div'), undefined, async () => VSBuffer.fromString(svg).buffer, mimeType)()[0].run();
+			assert.deepStrictEqual({ image: await copiedSize(), errors: notifications }, {
+				image: { signature: [137, 80, 78, 71, 13, 10, 26, 10], width: 40, height: 30 }, errors: [],
+			});
+		});
+	}
+
+	test('copies cross-origin SVG bytes through the privileged shared process', async () => {
+		const image = await createImage();
+		const url = 'https://example.com/image-without-cors-or-extension';
+		const currentSrc = stub(image, 'currentSrc').get(() => url);
+		store.add(toDisposable(() => currentSrc.restore()));
+		const requests: string[] = [];
+		instantiationService.stub(ISharedWebContentExtractorService, upcastPartial<ISharedWebContentExtractorService>({
+			readImageWithMetadata: async uri => {
+				requests.push(uri.toString());
+				return { data: VSBuffer.fromString(svg), mimeType: 'image/svg+xml' };
+			}
+		}));
+		await actions(image)()[0].run();
+		assert.deepStrictEqual({ image: await copiedSize(), requests, errors: notifications }, {
+			image: { signature: [137, 80, 78, 71, 13, 10, 26, 10], width: 40, height: 30 }, requests: [url], errors: [],
+		});
+	});
+
+	test('preserves the Content-Type of SVGs fetched without a privileged service', async () => {
+		const image = await createImage();
+		const currentSrc = stub(image, 'currentSrc').get(() => 'https://example.com/image');
+		store.add(toDisposable(() => currentSrc.restore()));
+		instantiationService.stub(IRequestService, upcastPartial<IRequestService>({
+			request: async () => ({ res: { statusCode: 200, headers: { 'content-type': 'image/svg+xml; charset=utf-8' } }, stream: bufferToStream(VSBuffer.fromString(svg)) })
+		}));
+		await actions(image)()[0].run();
+		assert.deepStrictEqual({ image: await copiedSize(), errors: notifications }, {
+			image: { signature: [137, 80, 78, 71, 13, 10, 26, 10], width: 40, height: 30 }, errors: [],
+		});
+	});
+
+	test('explains the browser limitation when cross-origin reads are unavailable', async () => {
+		const image = await createImage();
+		const currentSrc = stub(image, 'currentSrc').get(() => 'https://example.com/image');
+		store.add(toDisposable(() => currentSrc.restore()));
+		instantiationService.stub(IRequestService, upcastPartial<IRequestService>({
+			request: async () => { throw new TypeError('Failed to fetch'); }
+		}));
+		await actions(image)()[0].run();
+		assert.deepStrictEqual({ image: clipboard.writtenImage, errors: notifications.map(notification => notification.message) }, {
+			image: undefined,
+			errors: ['Failed to copy image: Unable to read the image. In a browser, the image server must allow cross-origin access. Try opening the chat in the desktop application. Failed to fetch'],
+		});
 	});
 
 	test('copies remote image bytes through the request service without a tainted canvas', async () => {
@@ -212,4 +283,24 @@ suite('Chat image copy actions', () => {
 		await Promise.resolve();
 		assert.strictEqual(menu, undefined);
 	});
+
+	for (const detachHover of [false, true]) {
+		test(`restores focus to ${detachHover ? 'the attachment when its hover closes' : 'the connected hover image'}`, async () => {
+			const attachment = $('div', { tabIndex: 0 });
+			const image = await createImage();
+			image.tabIndex = 0;
+			store.add(toDisposable(() => { attachment.remove(); image.remove(); }));
+			mainWindow.document.body.append(attachment, image);
+			image.focus();
+			store.add(instantiationService.invokeFunction(accessor => hookUpResourceContextMenu(accessor, image, undefined, MenuId.ChatImageContext, actions(image), attachment)));
+			image.dispatchEvent(new mainWindow.KeyboardEvent(EventType.KEY_DOWN, { key: 'ContextMenu', bubbles: true, cancelable: true }));
+			await Promise.resolve();
+			assert.ok(menu);
+			if (detachHover) {
+				image.remove();
+			}
+			menu.onHide?.(true);
+			assert.strictEqual(mainWindow.document.activeElement, detachHover ? attachment : image);
+		});
+	}
 });

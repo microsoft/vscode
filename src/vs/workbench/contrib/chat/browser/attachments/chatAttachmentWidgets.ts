@@ -564,7 +564,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			const imageElements = this._register(new MutableDisposable<IDisposable>());
 			const renderImageElements = (buffer: Uint8Array) => {
 				imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState, options.isCurrentInput === true, options.showImageInHover ?? true, image => this.instantiationService.invokeFunction(accessor =>
-					hookUpResourceContextMenu(accessor, image, resource, MenuId.ChatImageContext, createChatImageCopyActions(accessor, image, resource, async () => buffer))));
+					hookUpResourceContextMenu(accessor, image, resource, MenuId.ChatImageContext, createChatImageCopyActions(accessor, image, resource, async () => buffer, attachment.kind === 'image' ? attachment.mimeType : undefined), this.element)));
 				// createImageElements resets the label; restore the deletion hint after each render.
 				this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 			};
@@ -595,7 +595,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 					? async () => (await this.fileService.readFile(resource)).value.buffer
 					: undefined;
 		instantiationService.invokeFunction(accessor => {
-			const actions = createChatImageCopyActions(accessor, this.element, resource, readData);
+			const actions = createChatImageCopyActions(accessor, this.element, resource, readData, imageBase64Data?.mimeType ?? (attachment.kind === 'image' ? attachment.mimeType : undefined));
 			this._register(resource
 				? hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource, actions, MenuId.ChatImageContext)
 				: hookUpResourceContextMenu(accessor, this.element, resource, MenuId.ChatImageContext, actions));
@@ -1423,9 +1423,9 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
 		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, useCompactWarningIcon, true, image => this.instantiationService.invokeFunction(accessor =>
-			hookUpResourceContextMenu(accessor, image, resource, MenuId.ChatImageContext, createChatImageCopyActions(accessor, image, resource, async () => buffer)))));
+			hookUpResourceContextMenu(accessor, image, resource, MenuId.ChatImageContext, createChatImageCopyActions(accessor, image, resource, async () => buffer, attachment.mimeType), this.element))));
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
-		return this.instantiationService.invokeFunction(accessor => createChatImageCopyActions(accessor, this.element, resource, async () => buffer));
+		return this.instantiationService.invokeFunction(accessor => createChatImageCopyActions(accessor, this.element, resource, async () => buffer, attachment.mimeType));
 	}
 
 	private getOutputItem(resource: URI, attachment: INotebookOutputVariableEntry) {
@@ -2101,13 +2101,13 @@ export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAcc
  * Shows the actions of {@link menuId} for {@link resource} when {@link widget} opens a context menu,
  * using resource context keys scoped to the widget.
  */
-export function hookUpResourceContextMenu(accessor: ServicesAccessor, widget: HTMLElement, resource: URI | undefined, menuId: MenuId, additionalActions?: () => IAction[]): IDisposable {
+export function hookUpResourceContextMenu(accessor: ServicesAccessor, widget: HTMLElement, resource: URI | undefined, menuId: MenuId, additionalActions?: () => IAction[], fallbackFocusTarget?: HTMLElement): IDisposable {
 	const store = new DisposableStore();
 	const scopedContextKeyService = store.add(accessor.get(IContextKeyService).createScoped(widget));
 	if (resource) {
 		setResourceContext(accessor, scopedContextKeyService, resource);
 	}
-	store.add(addBasicContextMenu(accessor, widget, scopedContextKeyService, menuId, resource, undefined, additionalActions));
+	store.add(addBasicContextMenu(accessor, widget, scopedContextKeyService, menuId, resource, undefined, additionalActions, fallbackFocusTarget));
 	return store;
 }
 
@@ -2207,7 +2207,7 @@ function setResourceContext(accessor: ServicesAccessor, scopedContextKeyService:
 	resourceContextKey.set(resource);
 }
 
-function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: unknown, updateContextKeys?: () => Promise<void>, additionalActions?: () => IAction[]): IDisposable {
+function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: unknown, updateContextKeys?: () => Promise<void>, additionalActions?: () => IAction[], fallbackFocusTarget?: HTMLElement): IDisposable {
 	const contextMenuService = accessor.get(IContextMenuService);
 	const menuService = accessor.get(IMenuService);
 
@@ -2226,7 +2226,7 @@ function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, sc
 				const menu = arg ? getFlatContextMenuActions(menuService.getMenuActions(menuId, scopedContextKeyService, { arg })) : [];
 				return Separator.join(actions, menu);
 			},
-			onHide: () => widget.focus(),
+			onHide: () => (widget.isConnected ? widget : fallbackFocusTarget)?.focus(),
 		});
 	};
 	const store = new DisposableStore();

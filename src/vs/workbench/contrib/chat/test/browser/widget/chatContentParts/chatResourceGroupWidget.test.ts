@@ -591,6 +591,26 @@ suite('ChatResourceGroupWidget', () => {
 		});
 	}
 
+	test('closing a detached hover image menu returns focus to its owning tool attachment', async () => {
+		let menu: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			showContextMenu: delegate => { menu = delegate; }
+		}));
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', base64Value: imageData }], false);
+		await waitForElement(widget.domNode, 'img.chat-attached-context-pill-image');
+		const hover = imageHovers[0];
+		store.add(toDisposable(() => hover.remove()));
+		mainWindow.document.body.appendChild(hover);
+		const image = hover.querySelector('img')!;
+		image.focus();
+		image.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'ContextMenu', bubbles: true, cancelable: true }));
+		await timeout(0);
+		assert.ok(menu);
+		hover.remove();
+		menu.onHide?.(true);
+		assert.strictEqual(mainWindow.document.activeElement, widget.domNode.querySelector('.chat-attached-context-attachment'));
+	});
+
 	test('non-image tool results retain their resource save menu', async () => {
 		const menus: Parameters<IContextMenuService['showContextMenu']>[0][] = [];
 		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({

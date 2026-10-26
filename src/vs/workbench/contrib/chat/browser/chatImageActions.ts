@@ -8,6 +8,8 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
 import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { getMediaMime } from '../../../../base/common/mime.js';
+import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -19,17 +21,19 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRequestService } from '../../../../platform/request/common/request.js';
 import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { encodeImageAsPng } from '../../mediaPreview/browser/imageViewer.js';
 
-export function createChatImageCopyActions(accessor: ServicesAccessor, widget: HTMLElement, resource?: URI, readData?: () => Promise<Uint8Array>): () => IAction[] {
+export function createChatImageCopyActions(accessor: ServicesAccessor, widget: HTMLElement, resource?: URI, readData?: () => Promise<Uint8Array>, mimeType?: string): () => IAction[] {
 	const clipboardService = accessor.get(IClipboardService);
 	const notificationService = accessor.get(INotificationService);
 	const requestService = accessor.get(IRequestService);
 	const webWorkerService = accessor.get(IWebWorkerService);
 	const labelService = accessor.get(ILabelService);
+	const webContentExtractorService = accessor.get(ISharedWebContentExtractorService);
 	return () => {
 		// eslint-disable-next-line no-restricted-syntax
-		const image = widget instanceof getWindow(widget).HTMLImageElement ? widget : widget.querySelector('img');
+		const image = widget instanceof HTMLImageElement || widget instanceof getWindow(widget).HTMLImageElement ? widget : widget.querySelector('img');
 		const canCopy = !!readData || !!image?.complete && image.naturalWidth > 0;
 
 		const readPng = async () => {
@@ -38,19 +42,34 @@ export function createChatImageCopyActions(accessor: ServicesAccessor, widget: H
 			}
 
 			let bytes: Uint8Array;
+			let imageMimeType = mimeType ?? (resource && getMediaMime(resource.path));
 			if (readData) {
 				bytes = await readData();
 			} else if (image?.src) {
-				const context = await requestService.request({ url: image.currentSrc || image.src, type: 'GET', callSite: 'chat.copyImage', logUrl: false }, CancellationToken.None);
-				if (context.res.statusCode !== 200) {
-					throw new Error(localize('chat.copyImage.httpError', "Image request failed ({0}).", context.res.statusCode));
+				const url = image.currentSrc || image.src;
+				const extracted = await webContentExtractorService.readImageWithMetadata(URI.parse(url), CancellationToken.None);
+				if (extracted) {
+					bytes = extracted.data.buffer;
+					imageMimeType = extracted.mimeType;
+				} else {
+					let context: IRequestContext;
+					try {
+						context = await requestService.request({ url, type: 'GET', callSite: 'chat.copyImage', logUrl: false }, CancellationToken.None);
+					} catch (error) {
+						throw new Error(localize('chat.copyImage.browserAccess', "Unable to read the image. In a browser, the image server must allow cross-origin access. Try opening the chat in the desktop application. {0}", toErrorMessage(error)));
+					}
+					if (context.res.statusCode !== 200) {
+						throw new Error(localize('chat.copyImage.httpError', "Image request failed ({0}).", context.res.statusCode));
+					}
+					const contentType = context.res.headers['content-type'] ?? context.res.headers['Content-Type'];
+					imageMimeType = (Array.isArray(contentType) ? contentType[0] : contentType)?.split(';', 1)[0].trim();
+					bytes = (await streamToBuffer(context.stream)).buffer;
 				}
-				bytes = (await streamToBuffer(context.stream)).buffer;
 			} else {
 				throw new Error(localize('chat.copyImage.unavailable', "The image is not available."));
 			}
 
-			const source = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>]));
+			const source = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: imageMimeType === 'image/svg' ? 'image/svg+xml' : imageMimeType }));
 			const decoded = $<HTMLImageElement>('img', { src: source });
 			try {
 				await decoded.decode();

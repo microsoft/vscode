@@ -333,7 +333,7 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 				const readData = async () => part.base64Value !== undefined
 					? decodeBase64(part.base64Value).buffer
 					: (await this.fileService.readFile(part.uri)).value.buffer;
-				store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceContextMenu(accessor, thumbnail.button.element, part.uri, MenuId.ChatImageContext, createChatImageCopyActions(accessor, thumbnail.button.element, part.uri, readData))));
+				store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceContextMenu(accessor, thumbnail.button.element, part.uri, MenuId.ChatImageContext, createChatImageCopyActions(accessor, thumbnail.button.element, part.uri, readData, part.mimeType))));
 				// Browsers can paint a loaded image before dispatching its load event, which shapes the tile,
 				// so show it from that event rather than letterboxed in the square placeholder.
 				image.hidden = true;
