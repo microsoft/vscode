@@ -137,7 +137,7 @@ class ActiveSessionActionContextKeysContribution extends Disposable implements I
 	) {
 		super();
 		this._register(bindSessionActionContextKeys(instantiationService, {
-			session: sessionsService.activeSession,
+			session: sessionsService.mainWindowActiveSession,
 			changes: {
 				changesObs: changesViewService.activeSessionChangesObs,
 				changesetsLoadingObs: changesViewService.activeSessionChangesetsLoadingObs,

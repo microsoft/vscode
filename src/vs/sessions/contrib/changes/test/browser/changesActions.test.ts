@@ -33,7 +33,7 @@ import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, I
 import { ChangesetOperationsActionControllerContribution, ChangesHeaderChangesetOperationsActionContribution } from '../../browser/changesActions.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { ISessionChangesService } from '../../browser/sessionChangesService.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
+import { IChangesSessionObservables, IChangesViewService } from '../../common/changesViewService.js';
 
 suite('Changes Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,6 +56,7 @@ suite('Changes Actions', () => {
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
+			override readonly mainWindowActiveSession = this.activeSession;
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 		});
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
@@ -195,7 +196,11 @@ suite('Changes Actions', () => {
 			override readonly activeSessionStateObs = constObservable(undefined);
 		}();
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		disposables.add(new ChangesetOperationsActionControllerContribution(changesViewService));
+		const activeSession = upcastPartial<IActiveSession>({ sessionId: 'main' });
+		disposables.add(new ChangesetOperationsActionControllerContribution(changesViewService, new class extends mock<ISessionsService>() {
+			override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(activeSession);
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		}()));
 
 		const commandId = 'workbench.contrib.sessions.changesetOperation.discard-changes';
 		const getAction = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
@@ -234,6 +239,45 @@ suite('Changes Actions', () => {
 			visibleForOtherEditors: false,
 			invokedResources: [resource.toString()],
 		});
+	});
+
+	test('resource operations of a chat window session are offered and act on that session while the main window shows another', async () => {
+		const operation = {
+			id: 'keep-changes',
+			label: 'Keep',
+			scopes: [SessionChangesetOperationScope.Resource],
+			status: SessionChangesetOperationStatus.Idle,
+		} satisfies ISessionChangesetOperation;
+		const resource = URI.file('/workspace/window.ts');
+		const invoked: string[] = [];
+		const mainSession = upcastPartial<IActiveSession>({ sessionId: 'A' });
+		const windowSession = upcastPartial<IActiveSession>({ sessionId: 'B' });
+		const emptyChangeset = upcastPartial<ISessionChangeset>({ operations: constObservable([]), invokeOperation: async () => { invoked.push('A'); } });
+		const windowChangeset = upcastPartial<ISessionChangeset>({
+			operations: constObservable([operation]),
+			invokeOperation: async (id, target) => { invoked.push(`B:${id}:${target?.kind === 'resource' ? target.resource.toString() : ''}`); },
+		});
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesObs = constObservable([]);
+			override readonly activeSessionChangesetObs = constObservable(emptyChangeset);
+			override getSessionChanges() {
+				return upcastPartial<IChangesSessionObservables>({
+					changesObs: constObservable([{ uri: resource, modifiedUri: resource, insertions: 1, deletions: 0 }]),
+					changesetObs: constObservable(windowChangeset),
+				});
+			}
+		}();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		disposables.add(new ChangesetOperationsActionControllerContribution(changesViewService, new class extends mock<ISessionsService>() {
+			override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(mainSession);
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([windowSession]);
+		}()));
+
+		const commandId = 'workbench.contrib.sessions.changesetOperation.keep-changes';
+		const offered = MenuRegistry.getMenuItems(MenuId.MultiDiffEditorFileToolbar).filter(isIMenuItem).some(item => item.command.id === commandId);
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler, resource);
+
+		assert.deepStrictEqual({ offered, invoked }, { offered: true, invoked: [`B:keep-changes:${resource.toString()}`] });
 	});
 
 	test('changesets contribute operations to the Changes tab-level toolbar for draft and existing sessions', async () => {

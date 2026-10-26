@@ -21,7 +21,7 @@ export interface ISessionScope {
 
 export const ISessionScope = createDecorator<ISessionScope>('sessionScope');
 
-class ActiveSessionScope implements ISessionScope {
+export class ActiveSessionScope implements ISessionScope {
 	declare readonly _serviceBrand: undefined;
 	readonly session: IObservable<IActiveSession | undefined>;
 

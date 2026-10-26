@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DesktopChangesViewPane } from '../../browser/changesView.js';
 import assert from 'assert';
 import { $, append, Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -240,11 +241,22 @@ suite('SessionChangesEditor host widget', () => {
 			layout() { },
 			dispose() { },
 		});
+		const paneCalls: string[] = [];
+		instantiationService.stubInstance(DesktopChangesViewPane, {
+			element: $('.stub-changes-view'),
+			headerVisible: false,
+			orthogonalSize: 0,
+			render() { paneCalls.push('render'); },
+			setVisible() { },
+			setExpanded() { return true; },
+			layout() { paneCalls.push('layout'); },
+			dispose() { },
+		});
 		const parent = append(mainWindow.document.body, $('.editor-instance'));
 		store.add(toDisposable(() => parent.remove()));
 		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
 		editor.create(parent);
-		return { editor, contextKeyService };
+		return { editor, contextKeyService, parent, paneCalls };
 	}
 
 	test('chat windows host the diffs with their changed files list, the main window the plain widget', () => {
@@ -260,5 +272,31 @@ suite('SessionChangesEditor host widget', () => {
 			{ chatWindow: true, togglesFromTitle: true, fileListAvailable: true },
 			{ chatWindow: false, togglesFromTitle: false, fileListAvailable: false },
 		]);
+	});
+
+	test('wide chat windows host the Changes view and drop the file list, narrow ones fall back to the file list', () => {
+		const { editor, parent, paneCalls } = createEditor(true);
+		const state = () => ({
+			viewHidden: parent.querySelector<HTMLElement>('.session-changes-editor-view')!.hidden,
+			togglesFromTitle: editor.togglesFileListFromEditorTitle,
+		});
+		editor.layout(new Dimension(500, 400));
+		const narrow = state();
+		editor.layout(new Dimension(1200, 400));
+		const wide = state();
+		editor.layout(new Dimension(500, 400));
+		const narrowAgain = state();
+
+		assert.deepStrictEqual({ narrow, wide, narrowAgain, paneCalls }, {
+			narrow: { viewHidden: true, togglesFromTitle: true },
+			wide: { viewHidden: false, togglesFromTitle: false },
+			narrowAgain: { viewHidden: true, togglesFromTitle: true },
+			paneCalls: ['render', 'layout'],
+		});
+	});
+
+	test('the main window never hosts the Changes view in its editor', () => {
+		const { parent } = createEditor(false);
+		assert.strictEqual(parent.querySelector('.session-changes-editor-view'), null);
 	});
 });

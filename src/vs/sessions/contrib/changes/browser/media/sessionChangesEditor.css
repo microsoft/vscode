@@ -359,6 +359,23 @@
 	color: var(--vscode-button-foreground) !important;
 }
 
+.session-changes-editor-row {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+}
+
+.session-changes-editor-view {
+	flex: none;
+	min-width: 0;
+	overflow: hidden;
+	border-right: 1px solid var(--vscode-agentsPanel-border, var(--vscode-widget-border));
+}
+
+.session-changes-editor-row > .session-changes-editor-body {
+	min-width: 0;
+}
+
 .session-changes-editor-body {
 	position: relative;
 	flex: 1;

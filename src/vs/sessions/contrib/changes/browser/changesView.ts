@@ -36,6 +36,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ChatWindowContext, ChatWindowEditorGroupContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -112,7 +113,7 @@ const $ = dom.$;
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 const VERSIONS_PICKER_ACTION_ID = 'chatEditing.versionsPicker';
 const desktopChangesEditorHeader = ContextKeyExpr.and(
-	DesktopLayoutContext,
+	ContextKeyExpr.or(DesktopLayoutContext, ChatWindowContext.notEqualsTo('')),
 	ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID), DesktopChangesEditorTransitionContext)
 );
 const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
@@ -693,7 +694,7 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 		super.render(container);
 		const scope = createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope);
 		let instantiationService = this.instantiationService;
-		if (scope.session !== this.sessionsService.activeSession) {
+		if (scope.session !== this.sessionsService.mainWindowActiveSession) {
 			// The globally bound session action context keys belong to the active session.
 			const host = createSessionActionsInstantiationService(this.instantiationService, container, scope);
 			this._register(host.store);
@@ -727,6 +728,22 @@ function createChangesPickerLabelObservable(owner: object, changes: IChangesSess
 	});
 }
 
+/**
+ * The scope of an editor group header: the session of the chat window the group
+ * belongs to, else the scope of the host (the active session of the main window).
+ */
+export function resolveEditorHeaderSessionScope(accessor: ServicesAccessor): ISessionScope {
+	const groupId = ChatWindowEditorGroupContext.getValue(accessor.get(IContextKeyService));
+	if (groupId === undefined || groupId < 0) {
+		return accessor.get(ISessionScope);
+	}
+	const chatWindowService = accessor.get(IChatWindowService);
+	return {
+		_serviceBrand: undefined,
+		session: derived(reader => chatWindowService.windows.read(reader).find(candidate => candidate.editorGroup?.id === groupId)?.session.read(reader)),
+	};
+}
+
 /** Registers custom Changes action view items. */
 class ChangesActionViewItemsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -750,8 +767,8 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 				return undefined;
 			}
 			// The shared summary and label follow the active session; other sessions get their own.
-			const scope = instantiationService.invokeFunction(accessor => createChangesSessionScope(changesViewService, accessor.get(ISessionsService), accessor.get(ISessionScope)));
-			if (scope.session === sessionsService.activeSession) {
+			const scope = instantiationService.invokeFunction(accessor => createChangesSessionScope(changesViewService, accessor.get(ISessionsService), resolveEditorHeaderSessionScope(accessor)));
+			if (scope.session === sessionsService.mainWindowActiveSession) {
 				return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs, undefined);
 			}
 			const summary = instantiationService.createInstance(ChangesPickerSummary, scope.changes.changesSummaryObs);

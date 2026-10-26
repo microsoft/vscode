@@ -44,12 +44,12 @@ import { ITextResourceConfigurationService } from '../../../../editor/common/ser
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { ActiveSessionContextKeys } from '../common/changes.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_ID } from '../common/changes.js';
 import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { findSessionByResource } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { IChangesSessionScope, IChangesViewService } from '../common/changesViewService.js';
-import { ChangesActionsBar, createChangesSessionScope } from './changesView.js';
+import { ChangesActionsBar, createChangesSessionScope, DesktopChangesViewPane } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
@@ -70,6 +70,8 @@ import { ChatWindowContext } from '../../../services/chatWindow/browser/chatWind
 import { ChangesEmptyState } from './changesEmptyState.js';
 
 const HEADER_HEIGHT = 35;
+const CHANGES_VIEW_WIDTH = 320;
+const CHANGES_VIEW_MIN_EDITOR_WIDTH = 900;
 
 /**
  * Optimizes the embedded diffs for the narrow Agents window panel while
@@ -191,6 +193,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private viewModel: MultiDiffEditorViewModel | undefined;
 	get hasViewModel(): boolean { return this.viewModel !== undefined; }
 	private bodyContainer: HTMLElement | undefined;
+	/** Chat windows host the Changes view beside the diffs while wide enough, else the multi-diff file list is the fallback. */
+	private readonly _viewShown = observableValue<boolean>(this, false);
+	private viewContainer: HTMLElement | undefined;
+	private viewPane: DesktopChangesViewPane | undefined;
 	private emptyState: ChangesEmptyState | undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
@@ -295,7 +301,13 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			this._register(this._buildHeaderToolbars(left, right, scopedInstantiationService));
 		}
 
-		this.bodyContainer = append(root, $('.session-changes-editor-body'));
+		const inChatWindow = !!ChatWindowContext.getValue(this.contextKeyService);
+		const bodyParent = inChatWindow ? append(root, $('.session-changes-editor-row')) : root;
+		if (inChatWindow) {
+			this.viewContainer = append(bodyParent, $('.session-changes-editor-view'));
+			this.viewContainer.hidden = true;
+		}
+		this.bodyContainer = append(bodyParent, $('.session-changes-editor-body'));
 
 		// Create the widget in the editor-pane context (not the deeper scoped one)
 		// so its own multiDiffEditor* context keys (all-collapsed, render-side-by-side)
@@ -306,7 +318,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
 		const uiElementFactory = paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs, this._scope);
 		const widgetOptions = { variant: variant.get(), diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS };
-		if (ChatWindowContext.getValue(this.contextKeyService)) {
+		if (inChatWindow) {
 			this.fileListWidget = this._register(this.createFileListWidget(paneInstantiationService, uiElementFactory, widgetOptions));
 			this.widget = this.fileListWidget.multiDiffEditorWidget;
 		} else {
@@ -335,7 +347,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	private createFileListWidget(instantiationService: IInstantiationService, uiElementFactory: IWorkbenchUIElementFactory, widgetOptions: IMultiDiffEditorWidgetOptions): MultiDiffEditorWithFileListWidget {
-		const fileListVisible = observableMultiDiffEditorFileListVisible(this, this.configurationService, this.storageService, this._store);
+		const fileListSetting = observableMultiDiffEditorFileListVisible(this, this.configurationService, this.storageService, this._store);
+		const fileListVisible = derived(reader => fileListSetting.read(reader) && !this._viewShown.read(reader));
 		const fileListViewMode = observableMultiDiffEditorFileListViewMode(this, this.storageService, this._store);
 		const fileListPosition = observableMultiDiffEditorFileListPosition(this, this.storageService, this._store);
 		this._register(bindContextKey(MultiDiffEditorFileListAvailableContext, this.contextKeyService, () => true));
@@ -349,7 +362,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	/** Chat windows offer Toggle Files in the editor title, the main window has no changed files list. */
 	get togglesFileListFromEditorTitle(): boolean {
-		return !!this.fileListWidget;
+		return !!this.fileListWidget && !this._viewShown.get();
 	}
 
 	/** Moves focus into the changed files list of a chat window's Changes editor, showing it first when hidden. */
@@ -594,12 +607,49 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		});
 	}
 
+	private layoutView(show: boolean, height: number): void {
+		const container = this.viewContainer;
+		if (!container) {
+			return;
+		}
+		if (show && !this.viewPane && this._scopedInstantiationService) {
+			// The view shows the session of this editor, which a chat window keeps apart from the main window's.
+			const viewScope: ISessionScope = {
+				_serviceBrand: undefined,
+				session: derived(this, reader => {
+					const resource = this._inputSessionResource.read(reader);
+					return resource ? findSessionByResource(this.sessionsService, resource, reader) : undefined;
+				})
+			};
+			const viewInstantiationService = this._register(this._scopedInstantiationService.createChild(new ServiceCollection([ISessionScope, viewScope])));
+			const pane = this._register(viewInstantiationService.createInstance(DesktopChangesViewPane, { id: CHANGES_VIEW_ID, title: '' }));
+			pane.headerVisible = false;
+			pane.render();
+			container.appendChild(pane.element);
+			pane.setVisible(true);
+			pane.setExpanded(true);
+			this.viewPane = pane;
+		}
+		container.hidden = !show;
+		container.style.width = `${CHANGES_VIEW_WIDTH}px`;
+		this._viewShown.set(show, undefined);
+		if (show && this.viewPane) {
+			this.viewPane.orthogonalSize = CHANGES_VIEW_WIDTH;
+			this.viewPane.layout(height);
+		}
+	}
+
 	override layout(dimension: Dimension): void {
 		// In desktop the header is external (the editor part reserves a top inset),
 		// so the diff fills the full dimension; otherwise reserve the internal header.
 		const bodyHeight = this._desktop ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
-		const size = new Dimension(dimension.width, bodyHeight);
+		let size = new Dimension(dimension.width, bodyHeight);
 		if (this.fileListWidget) {
+			const showView = dimension.width >= CHANGES_VIEW_MIN_EDITOR_WIDTH;
+			this.layoutView(showView, bodyHeight);
+			if (showView) {
+				size = new Dimension(dimension.width - CHANGES_VIEW_WIDTH, bodyHeight);
+			}
 			this.fileListWidget.layout(size);
 		} else {
 			this.widget?.layout(size);
