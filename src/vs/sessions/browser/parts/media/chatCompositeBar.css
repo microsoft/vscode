@@ -822,6 +822,11 @@
 	margin-left: calc(var(--vscode-spacing-size20, 2px) - var(--chat-composite-bar-title-row-gap));
 }
 
+/* An empty window actions toolbar must not add its flex gap between its neighbors. */
+.session-header-bar.window-chrome .chat-composite-bar-window-chrome > .chat-composite-bar-toolbar.has-no-actions {
+	display: none;
+}
+
 /* The traffic lights of macOS sit over the leading edge. */
 .session-header-bar.window-chrome.has-traffic-lights > .chat-composite-bar-header {
 	padding-left: 78px;
