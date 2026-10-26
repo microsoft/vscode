@@ -570,9 +570,9 @@ suite('TabbedModelPicker', () => {
 		action.click();
 		assert.deepStrictEqual({
 			disabled: action.getAttribute('aria-disabled'),
-			title: action.title,
+			description: action.getAttribute('aria-description'),
 			stillOpen: picker.isVisible,
-		}, { disabled: 'true', title: 'Not supported here', stillOpen: true });
+		}, { disabled: 'true', description: 'Not supported here', stillOpen: true });
 	});
 
 	test('comparison footer shows the configured shortcut and the shortcut opens Attempts without selecting a model', () => {
