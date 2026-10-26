@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isSafari } from '../../../base/common/platform.js';
 import { ILogService } from '../../log/common/log.js';
 
 /** Parses JSON using the caller's domain error for invalid syntax, without exposing response content. */
@@ -56,7 +57,10 @@ export async function readBoundedResponse(
 		if (!complete) {
 			cancelResponseBody(reader, logService);
 		}
-		reader.releaseLock();
+		// releaseLock() can hang WebKit (regressed by https://bugs.webkit.org/show_bug.cgi?id=309882), and the body is already finished or cancelled.
+		if (!isSafari) {
+			reader.releaseLock();
+		}
 	}
 }
 

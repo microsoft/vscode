@@ -50,7 +50,12 @@ suite('CloudSandboxModels', () => {
 	test('supplements the connected host catalog without dropping its models on account changes', async () => {
 		const provider = store.add(new AgentHostLanguageModelProvider('sandbox', 'sandbox'));
 		provider.updateModels([{ id: 'host-model', name: 'Host Model', provider: 'copilot' }]);
-		const { catalog, accounts } = setup(async () => ({ models: [{ id: 'claude-sonnet-4.6', name: 'Sonnet 4.6', provider: 'copilot' }] }), provider);
+		const { catalog, accounts } = setup(async () => ({
+			models: [
+				{ id: 'host-model', name: 'Host Model', provider: 'copilot', _meta: { inputCost: 5 } },
+				{ id: 'claude-sonnet-4.6', name: 'Sonnet 4.6', provider: 'copilot' },
+			]
+		}), provider);
 		const ready = Event.toPromise(Event.filter(catalog.onDidChange, () => catalog.ready));
 		catalog.load();
 		await ready;
@@ -63,7 +68,22 @@ suite('CloudSandboxModels', () => {
 		const afterDispose = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		assert.deepStrictEqual({
 			loaded: loaded.map(model => model.metadata.id), duringRefresh: duringRefresh.map(model => model.metadata.id), afterDispose: afterDispose.map(model => model.metadata.id),
-		}, { loaded: ['host-model', 'claude-sonnet-4.6'], duringRefresh: ['host-model'], afterDispose: ['host-model'] });
+			prices: [loaded[0], duringRefresh[0], afterDispose[0]].map(model => model.metadata.inputCost),
+		}, { loaded: ['host-model', 'claude-sonnet-4.6'], duringRefresh: ['host-model'], afterDispose: ['host-model'], prices: [5, undefined, undefined] });
+	});
+
+	test('keeps draft context fallback out of the connected catalogue', async () => {
+		const host = store.add(new AgentHostLanguageModelProvider('sandbox', 'sandbox'));
+		host.updateModels([{ id: 'host-model', name: 'Host Model', provider: 'copilot' }]);
+		const fixture = setup(async () => ({ models: [{ id: 'host-model', name: 'Host Model', provider: 'copilot' }] }));
+		const connected = fixture.createCatalog('connected', host);
+		const ready = Promise.all([fixture.catalog, connected].map(catalog => Event.toPromise(Event.filter(catalog.onDidChange, () => catalog.ready))));
+		fixture.catalog.load();
+		await ready;
+		assert.deepStrictEqual({
+			draft: fixture.catalog.models[0].metadata.configurationSchema?.properties?.contextTier.enum,
+			connected: connected.models[0].metadata.configurationSchema?.properties?.contextTier,
+		}, { draft: ['default', 'long_context'], connected: undefined });
 	});
 
 	test('coalesces reads and caches the catalog until the account changes', async () => {

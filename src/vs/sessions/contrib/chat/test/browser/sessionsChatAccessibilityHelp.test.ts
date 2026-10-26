@@ -818,6 +818,29 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
 	});
 
+	test('describes grouped artifact pills, their list navigation, and pinning', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
+			.split('\n').find(line => line.startsWith('When two or more artifacts of the same kind share an integration'));
+
+		assert.deepStrictEqual({
+			grouped: content?.includes('they appear as one pill named by the integration'),
+			rows: content?.includes('Up and Down Arrow, Home and End move between artifacts'),
+			controls: content?.includes('Left and Right Arrow move between an artifact\'s controls'),
+			details: content?.includes('opens the artifact\'s details'),
+			pin: content?.includes('Pin moves the artifact into a pill of its own'),
+			escape: content?.includes('Escape closes the list and returns focus to the pill'),
+		}, { grouped: true, rows: true, controls: true, details: true, pin: true, escape: true });
+	});
+
 	test('omits response-selection help when the widget is unsupported', () => {
 		const selectionHelp = [false, true].map(enhancedSelectionMenu => {
 			const instantiationService = store.add(new TestInstantiationService());

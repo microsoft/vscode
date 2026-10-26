@@ -102,7 +102,7 @@ suite('CopilotCustomizationInstallations', () => {
 				identity: 'azure-devops-copilot-plugin',
 				displayName: 'Azure DevOps Copilot Plugin',
 				source: { repository: 'microsoft/azure-devops-copilot-plugin', path: '.claude-plugin/plugin.json' },
-				compatibilityTags: ['github-copilot'],
+				compatibilityTags: ['github-copilot', 'canvas', 'canvas-only'],
 				provenance: { authority: 'agentfinder.github.com', observedAt: new Date().toISOString(), mediaType: 'application/vnd.anthropic.claude-plugin+json' },
 				iconUrl: 'https://raw.githubusercontent.com/example/icons/main/azure-devops.png',
 				categories: ['build'],
@@ -132,7 +132,7 @@ suite('CopilotCustomizationInstallations', () => {
 			}), /Reached SDK installation planning/);
 			await fixture.service.search({ query: '', feedId: 'feed_another', limit: 1 });
 			assert.deepStrictEqual({
-				items: result.items.map(item => [item.identifier, item.displayName, item.iconUrl, item.categories]),
+				items: result.items.map(item => [item.identifier, item.displayName, item.iconUrl, item.categories, item.compatibilityTags]),
 				feedIds: requests.map(request => request.feedId),
 				bound: requests.every(request => request.policySessionId === fixture.policySessions[0]),
 				capabilities: requests[0].contract.requiredCapabilities,
@@ -140,7 +140,12 @@ suite('CopilotCustomizationInstallations', () => {
 				planSource: fixture.plans[0].source,
 				installability: result.items.map(item => [item.installable, !!item.unavailableMessage]),
 			}, {
-				items: [['figma', 'Figma', candidate.iconUrl, ['build']], ['azure-devops', 'Azure DevOps Copilot Plugin', pluginCandidate.iconUrl, ['build']], ['second', 'Second', candidate.iconUrl, ['build']], ['blocked', 'Blocked', candidate.iconUrl, ['build']]],
+				items: [
+					['figma', 'Figma', candidate.iconUrl, ['build'], undefined],
+					['azure-devops', 'Azure DevOps Copilot Plugin', pluginCandidate.iconUrl, ['build'], ['canvas', 'canvas-only']],
+					['second', 'Second', candidate.iconUrl, ['build'], undefined],
+					['blocked', 'Blocked', candidate.iconUrl, ['build'], undefined],
+				],
 				feedIds: ['feed_editorial', 'feed_another'],
 				bound: true,
 				capabilities: ['catalog-search-credential-required', 'catalog-search-session-bound', 'catalog-selection', 'catalog-search-pagination', 'trust-snapshot', 'ai-skill-discovery', 'skill-confirmed-installation', 'agent-plugin-discovery', 'agent-plugin-formats', 'agent-plugin-confirmed-installation', 'catalog-feeds'],
@@ -790,12 +795,16 @@ suite('CopilotCustomizationInstallations', () => {
 						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/mcp-server+json' as const },
 					},
 					{
+						handle: 'installable-plugin',
+						handleExpiresAt: expiresAt,
 						kind: 'plugin' as const,
 						mediaType: 'application/vnd.github.copilot-plugin' as const,
+						installability: 'installable' as const,
 						identity: 'plugin',
 						displayName: 'Pinned Plugin',
 						source: { repository: 'owner/repository', path: '.github/plugin/plugin.json' },
-						compatibilityTags: ['github-copilot' as const],
+						compatibilityTags: ['github-copilot' as const, 'canvas' as const, 'canvas-only' as const],
+						installCount: 42,
 						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/vnd.github.copilot-plugin' as const },
 					},
 				],
@@ -830,12 +839,20 @@ suite('CopilotCustomizationInstallations', () => {
 		const result = await service.search({ query: 'demo', limit: 10 });
 
 		assert.deepStrictEqual(result.kind === 'page' ? {
-			items: result.items.map(item => ({ kind: item.kind, displayName: item.displayName, itemUrl: item.itemUrl, connectorIds: item.connectorIds, installable: item.installable })),
+			items: result.items.map(item => ({
+				kind: item.kind,
+				displayName: item.displayName,
+				itemUrl: item.itemUrl,
+				connectorIds: item.connectorIds,
+				...(item.kind === 'plugin' ? { compatibilityTags: item.compatibilityTags, installCount: item.installCount } : {}),
+				installable: item.installable,
+			})),
 			hasNextCursor: typeof result.nextCursor === 'string',
 		} : result, {
 			items: [
 				{ kind: 'skill', displayName: 'Installable Skill', itemUrl: 'https://example.test/installable-skill', connectorIds: undefined, installable: true },
 				{ kind: 'mcp', displayName: 'Installable MCP', itemUrl: 'https://example.test/installable-mcp', connectorIds: ['githubcopilotfigmamcp'], installable: true },
+				{ kind: 'plugin', displayName: 'Pinned Plugin', itemUrl: undefined, connectorIds: undefined, compatibilityTags: ['canvas', 'canvas-only'], installCount: 42, installable: true },
 			],
 			hasNextCursor: true,
 		});

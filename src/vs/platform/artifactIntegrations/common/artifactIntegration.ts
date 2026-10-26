@@ -60,6 +60,16 @@ export interface ArtifactSectionPresentation extends ArtifactPartPresentation {
 	readonly id: string;
 }
 
+/**
+ * How one artifact contributes to a grouped presentation of several artifacts of the same integration.
+ * Only the artifact's main integration is consulted, and priorities are compared only among that integration's
+ * artifacts: the group shows the icon with the highest priority, and ties keep the earlier artifact.
+ */
+export interface ArtifactGroupPresentation {
+	readonly icon: ArtifactIcon;
+	readonly priority: number;
+}
+
 export interface ArtifactDetailsList {
 	readonly id: string;
 	readonly label: string;
@@ -82,6 +92,8 @@ export interface ArtifactActionView extends ArtifactActionAvailability {
 export interface ArtifactContributionView {
 	readonly availability: ArtifactAvailability;
 	readonly main?: ArtifactPartPresentation;
+	/** This artifact's contribution to a group of several artifacts of the same integration. */
+	readonly group?: ArtifactGroupPresentation;
 	readonly sections: readonly ArtifactSectionPresentation[];
 	/** Independent state lists, including lists without a compact pill section. */
 	readonly lists?: readonly ArtifactDetailsList[];
@@ -95,6 +107,23 @@ export type ArtifactDetailsLink =
 	| { readonly kind: 'action'; readonly actionId: string }
 	| { readonly kind: 'automation'; readonly optionId: string };
 
+/** An action on one details item, such as rerunning a check. */
+export interface ArtifactItemActionDescriptor {
+	readonly id: string;
+	readonly iconId: string;
+	readonly label: string;
+}
+
+export interface ArtifactDetailsItem {
+	readonly id: string;
+	readonly icon: ArtifactIcon;
+	readonly label: string;
+	readonly description?: string;
+	readonly resource: string;
+	/** IDs of the details' `itemActions` that currently apply to this item. Omit inapplicable actions. */
+	readonly actions?: readonly string[];
+}
+
 export interface ArtifactDetails {
 	readonly availability: ArtifactAvailability;
 	readonly title: string;
@@ -103,13 +132,21 @@ export interface ArtifactDetails {
 	readonly descriptionFormat?: 'plaintext' | 'markdown';
 	readonly facts?: readonly { readonly id: string; readonly label: string; readonly value: string }[];
 	readonly links: readonly ArtifactDetailsLink[];
-	readonly items: readonly { readonly id: string; readonly icon: ArtifactIcon; readonly label: string; readonly description?: string; readonly resource: string }[];
+	/** Actions that items reference by ID. Run them with {@link IArtifactDetailsModel.runItemAction}. */
+	readonly itemActions?: readonly ArtifactItemActionDescriptor[];
+	readonly items: readonly ArtifactDetailsItem[];
 	readonly completeness: 'complete' | 'partial';
 }
 
 export interface IArtifactDetailsModel extends IDisposable {
 	readonly details: IObservable<ArtifactDetails>;
 	loadMore?(token: CancellationToken): Promise<void>;
+	/**
+	 * Runs an item action directly, without run tracking, activity history, or automation. Use it only for effects that
+	 * are safe to repeat, and use registered artifact actions for anything else. The provider revalidates that the
+	 * action still applies to the item and rejects with a user-facing reason otherwise.
+	 */
+	runItemAction?(itemId: string, actionId: string, token: CancellationToken): Promise<void>;
 }
 
 interface ArtifactAutomationOptionBase {
@@ -198,6 +235,8 @@ export interface IArtifactIntegration<TResource extends IDisposable> {
 	readonly label: string;
 	/** Plain text naming the recorded resources this integration supports, so agents know when to use it. */
 	readonly description?: string;
+	/** One line of plain text naming several of this integration's artifacts, such as "Pull Requests", when they are grouped. */
+	readonly groupLabel?: string;
 	readonly automationOptions: readonly ArtifactAutomationOption[];
 	/** Higher priority wins; ties are resolved by integration ID, never response order. */
 	readonly presentationPriority?: number;
@@ -344,6 +383,8 @@ export interface ArtifactContributionSnapshot {
 	/** Execution authority when contributions from multiple runtimes share a presentation. */
 	readonly authority?: ArtifactAuthority;
 	readonly label: string;
+	/** The integration's name for several of its artifacts, shown when they are grouped. */
+	readonly groupLabel?: string;
 	readonly view: ArtifactContributionView;
 	readonly actions: readonly ArtifactActionDescriptor[];
 	readonly options: readonly ArtifactAutomationOption[];
@@ -359,6 +400,11 @@ export interface ArtifactSnapshot {
 	readonly contributions: readonly ArtifactContributionSnapshot[];
 	readonly mainIntegrationId?: string;
 	readonly runs: readonly ArtifactRun[];
+}
+
+/** The contribution of the integration that presents an artifact's main part, if any. */
+export function getArtifactMainContribution(snapshot: ArtifactSnapshot): ArtifactContributionSnapshot | undefined {
+	return snapshot.mainIntegrationId === undefined ? undefined : snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId);
 }
 
 export interface IArtifactModel {

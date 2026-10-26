@@ -54,7 +54,7 @@ import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { CLOUD_SANDBOX_INPUT_PLACEHOLDER } from './cloudSandboxConnectionCustomization.js';
 import { CloudSandboxModels } from './cloudSandboxModels.js';
 import { CloudSandboxRepositoryPicker } from './cloudSandboxRepositoryPicker.js';
-import { createCloudSandboxDraftOptionGroups, createCloudSandboxSessionConfig, readCloudSandboxDraftConfig, resolveCloudSandboxSessionConfig } from './cloudSandboxSessionConfig.js';
+import { createCloudSandboxDraftOptionGroups, createCloudSandboxSessionConfig, readCloudSandboxDraftConfig, resolveCloudSandboxSessionConfig, validateCloudSandboxModelConfig } from './cloudSandboxSessionConfig.js';
 import { CloudSandboxSessionContribution, ICloudSandboxSessionEnvironment } from './cloudSandboxSessionContribution.js';
 import { CloudSandboxSessionListController } from './cloudSandboxSessionListController.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
@@ -491,7 +491,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		const inputBlocked = this._draftInputBlocked.get(draftResource);
 		inputBlocked?.set(true, undefined);
 		try {
-			const { sessionResource, sessionType } = await this._provisionForDraft(draftResource, repoNwo, request.message, readCloudSandboxDraftConfig(draftOptions, this._draftConfig.get()), { report }, token);
+			const { sessionResource, sessionType } = await this._provisionForDraft(draftResource, repoNwo, request.message, readCloudSandboxDraftConfig(draftOptions, this._draftConfig.get()), { report }, token, request);
 			// Session-option lookups for the new session resolve to the draft's picks.
 			this._editorChatSessionsService.registerSessionResourceAlias(draftResource, sessionResource);
 			const draftRequest = this._chatService.getSession(draftResource)?.getRequests().find(candidate => candidate.id === request.requestId);
@@ -513,7 +513,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	}
 
 	/** Provision a sandbox and confirm the draft's config with it; resolves to the session it hosts. */
-	private async _provisionForDraft(draftResource: URI, repoNwo: string | undefined, prompt: string, draftConfig: Record<string, unknown>, stepProgress: IProgress<string>, token: CancellationToken): Promise<{ sessionResource: URI; sessionType: string }> {
+	private async _provisionForDraft(draftResource: URI, repoNwo: string | undefined, prompt: string, draftConfig: Record<string, unknown>, stepProgress: IProgress<string>, token: CancellationToken, request: IChatAgentRequest): Promise<{ sessionResource: URI; sessionType: string }> {
 		const cts = new CancellationTokenSource(token);
 		const store = new DisposableStore();
 		store.add(cts);
@@ -530,6 +530,13 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				throw new Error(localize('cloudSandbox.connectionUnavailable', "The connection to the cloud sandbox is no longer available."));
 			}
 			const sessionConfig = await resolveCloudSandboxSessionConfig(connection, draftConfig, cts.token);
+			if (request.modelConfiguration && Object.keys(request.modelConfiguration).length) {
+				const model = this._draftModels.value?.models.find(model => model.identifier === request.userSelectedModelId);
+				if (!model) {
+					throw new Error(localize('cloudSandbox.draftModelUnavailable', "The selected Cloud model is no longer available. Your prompt was not sent."));
+				}
+				await validateCloudSandboxModelConfig(connection, model.metadata.id, request.modelConfiguration, cts.token);
+			}
 			if (Object.keys(sessionConfig).length > 0) {
 				provider.setProvisionalSessionConfig(sessionId, sessionConfig);
 			}
