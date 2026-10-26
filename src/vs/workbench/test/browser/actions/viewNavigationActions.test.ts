@@ -259,9 +259,12 @@ suite('Workbench view navigation: command integration', () => {
 	test('collapsed views remain a valid focus destination', async () => {
 		const harness = createFocusHarness();
 		harness.setCollapsed('b', true);
-		assert.deepStrictEqual(await navigate(harness, {
+		assert.strictEqual(await navigate(harness, {
 			direction: 'next', scope: 'container'
-		}), { id: 'b', focus: true });
+		}), undefined);
+		assert.deepStrictEqual(harness.headerFocusCalls, ['b']);
+		assert.deepStrictEqual(harness.calls, []);
+		assert.strictEqual(harness.isCollapsed('b'), true);
 	});
 
 	test('expanded-only commands skip collapsed views', async () => {
