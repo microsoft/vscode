@@ -2101,6 +2101,36 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 		});
 
+		test('cancels a pending connector connection and restores the connect action', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			let operationToken: CancellationToken | undefined;
+			fixture.connectorsService.onConnect = async (_name, token) => new Promise<void>((_resolve, reject) => {
+				operationToken = token;
+				const listener = token.onCancellationRequested(() => {
+					listener.dispose();
+					reject(new CancellationError());
+				});
+			});
+
+			const install = fixture.service.install(candidate);
+			const during = fixture.service.getInstallState(candidate);
+			fixture.service.cancelConnectorOperation(candidate);
+			await assert.rejects(install, isCancellationError);
+
+			assert.deepStrictEqual({
+				during,
+				cancelled: operationToken?.isCancellationRequested,
+				after: fixture.service.getInstallState(candidate),
+				recorded: recordedResources(fixture.service),
+			}, {
+				during: { kind: 'installing' },
+				cancelled: true,
+				after: { kind: 'available' },
+				recorded: [],
+			});
+		});
+
 		test('cancels a pending connector repair and restores the disconnected state', async () => {
 			const fixture = await createFixture();
 			const candidate = connectorResource();
