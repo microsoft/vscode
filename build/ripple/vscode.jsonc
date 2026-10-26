@@ -35,6 +35,12 @@
 		// reaches one of them runs every unit test.
 		"runners": [
 			"test/unit/**/*.js"
+		],
+		// Functions that define a mocha suite like `suite` does, with the suite's title as the first
+		// argument and a callback that defines its tests. `ripple plan` knows the tests that a change
+		// adds by their titles (see new-tests.json in README.md).
+		"suiteFunctions": [
+			"flakySuite"
 		]
 	},
 

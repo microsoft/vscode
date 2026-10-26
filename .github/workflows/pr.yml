@@ -33,6 +33,8 @@ jobs:
   # suites, and skip either when the plan lists none. The artifact only exists when the plan
   # selects files, and without it those jobs run every test. The planning steps never fail the
   # job: the Ripple job reports a broken ripple.
+  # The plan also lists the unit tests that the pull request adds, in the new-unit-tests artifact:
+  # every unit test job runs them repeatedly, to find flaky tests before they merge.
   changes:
     name: Detect Changes
     runs-on: ubuntu-24.04
@@ -116,7 +118,7 @@ jobs:
         run: |
           set -e
           build/ripple/target/release/ripple plan --config build/ripple/vscode.jsonc --base HEAD^1 --head HEAD --out-dir .build/test-plan > /dev/null
-          echo "Linux runs every unit and integration test; macOS and Windows run the selected files, and skip their unit test jobs, the node.js integration tests and Agent Host E2E when there are none. See build/ripple/README.md." >> "$GITHUB_STEP_SUMMARY"
+          echo "Linux runs every unit and integration test; macOS and Windows run the selected files, and skip their unit test jobs, the node.js integration tests and Agent Host E2E when there are none. Every unit test job repeats the unit tests that the pull request adds. See build/ripple/README.md." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test plan
         if: steps.plan.outputs.select == 'true'
@@ -125,6 +127,16 @@ jobs:
         with:
           name: test-plan
           path: .build/test-plan
+          retention-days: 7
+
+      # Separate from the plan, whose presence decides what the macOS and Windows unit test jobs run.
+      - name: Upload new unit tests
+        if: steps.plan.outputs.new-tests != '' && steps.plan.outputs.new-tests != '0'
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: new-unit-tests
+          path: .build/test-plan/new-tests.json
           retention-days: 7
 
       # The ripple steps above never fail the job, so that a broken ripple cannot block unrelated

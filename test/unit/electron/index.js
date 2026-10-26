@@ -25,6 +25,8 @@ const url = require('url');
 const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
 const { applyReporter, importMochaReporter } = require('../reporter');
+const { readTestList } = require('../testList.mts');
+const { parseRepeatCount, RepeatedRuns } = require('../repeat.mts');
 
 const minimist = require('minimist');
 
@@ -45,6 +47,7 @@ protocol.registerSchemesAsPrivileged([
  * grep: string;
  * run: string | string[];
  * runList: string;
+ * testList: string;
  * runGlob: string;
  * excludeRunGlob: string;
  * testSplit: string;
@@ -61,11 +64,13 @@ protocol.registerSchemesAsPrivileged([
  * coverageFormats: string | string[];
  * 'per-test-coverage': boolean;
  * 'rerun-failed-files': string;
+ * repeat: string;
+ * 'repeat-budget': string;
  * help: boolean;
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'rerun-failed-files'],
+	string: ['grep', 'run', 'runList', 'testList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'rerun-failed-files', 'repeat', 'repeat-budget'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -97,6 +102,7 @@ Options:
 --grep, -g, -f <pattern>      only run tests matching <pattern>
 --run <file>                  only run tests from <file>
 --runList <file>              only run tests whose files are listed in <file>, one per line
+--testList <file>             only run the tests listed in <file>, a JSON array of { file, kind, titlePath } (see test/unit/README.md)
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
 --excludeRunGlob <file_pattern> exclude tests matching <file_pattern> from --runGlob
 --testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
@@ -110,6 +116,8 @@ Options:
 --timeout <ms>                timeout for tests
 --crash-reporter-directory <path> crash reporter directory
 --rerun-failed-files <count>  rerun failed tests (suites for failed hooks) in a fresh window up to <count> more times; use whole files for many failures
+--repeat <count>              run the selected tests <count> times, each time in a fresh window, and fail when a test fails in any attempt
+--repeat-budget <seconds>     start no attempt of --repeat that would end after <seconds>
 --tfs <url>                   TFS server URL
 --help, -h                    show the help`);
 	process.exit(0);
@@ -123,9 +131,20 @@ if (bareFiles.length > 0) {
 	args._ = (args._ || []).filter(a => !bareFiles.includes(a));
 }
 
-// The renderer reads the --runList file (see loadTestModules in renderer.js)
+// The renderer reads the --runList and --testList files (see loadTestModules in renderer.js)
 if (args.runList) {
 	args.runList = path.resolve(args.runList);
+}
+if (args.testList) {
+	args.testList = path.resolve(args.testList);
+}
+
+let repeatCount = 0;
+try {
+	repeatCount = parseRepeatCount(args.repeat);
+} catch (error) {
+	console.error(error.message);
+	app.exit(1);
 }
 
 let crashReporterDirectory = args['crash-reporter-directory'];
@@ -210,12 +229,12 @@ function deserializeError(err) {
 
 /**
  * A failed test or hook of a test file.
- * @typedef {{ title: string; file: string; type: string; parentTitle?: string }} IFailure
+ * @typedef {{ title: string; titlePath: string[]; file: string; type: string; parentTitle?: string }} IFailure
  */
 
 /**
  * A test that passed.
- * @typedef {{ title: string; file: string }} IPassed
+ * @typedef {{ title: string; titlePath: string[]; file: string }} IPassed
  */
 
 /**
@@ -249,13 +268,13 @@ class IPCRunner extends events.EventEmitter {
 		ipcMain.on('hook', (e, hook) => this.emit('hook', deserializeRunnable(hook)));
 		ipcMain.on('hook end', (e, hook) => this.emit('hook end', deserializeRunnable(hook)));
 		ipcMain.on('pass', (e, test) => {
-			this.passed.push({ title: test.fullTitle, file: test.file });
+			this.passed.push({ title: test.fullTitle, titlePath: test.titlePath, file: test.file });
 			this.emit('pass', deserializeRunnable(test));
 		});
 		ipcMain.on('fail', (e, test, err) => {
 			this.didFail = true;
 			if (test.file) {
-				this.failures.push({ title: test.fullTitle, file: test.file, type: test.type, parentTitle: test.parentTitle });
+				this.failures.push({ title: test.fullTitle, titlePath: test.titlePath, file: test.file, type: test.type, parentTitle: test.parentTitle });
 			} else {
 				this.unattributedFailures.push(test.fullTitle);
 			}
@@ -632,6 +651,24 @@ app.on('ready', async () => {
 	if (args.dev) {
 		// keep the window open for debugging
 		runInWindow(args, 1);
+		return;
+	}
+
+	if (repeatCount) {
+		// Failures are not rerun: every attempt runs the same tests in a fresh window.
+		const runs = new RepeatedRuns({ count: repeatCount, budget: args['repeat-budget'], listed: args.testList ? readTestList(args.testList) : undefined, runner: 'Electron', fresh: 'a fresh window' });
+		let previous;
+		for (let attempt = 1; runs.shouldRun(attempt); attempt++) {
+			const { win, done } = runInWindow(args, attempt);
+			previous?.destroy();
+			previous = win;
+			const runner = await done;
+			runner.dispose();
+			runs.record(attempt, runner);
+		}
+		const exitCode = runs.report();
+		await new Promise(resolve => remoteResourceServer.close(resolve));
+		app.exit(exitCode);
 		return;
 	}
 

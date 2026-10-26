@@ -79,6 +79,8 @@ struct Tests {
 	integration: Vec<String>,
 	#[serde(default)]
 	runners: Vec<String>,
+	#[serde(default)]
+	suite_functions: Vec<String>,
 }
 
 #[derive(Default, Deserialize)]
@@ -147,6 +149,8 @@ pub struct Config {
 	integration_tests: Patterns,
 	/// The scripts that run the tests.
 	test_runners: Patterns,
+	/// Functions that define a mocha suite, besides `suite` and `describe`.
+	suite_functions: HashSet<String>,
 	/// Path aliases as (prefix, replacement), longest prefix first.
 	aliases: Vec<(String, String)>,
 	run_everything: Vec<(String, Patterns)>,
@@ -188,6 +192,7 @@ impl Config {
 			unit_tests: Patterns::new(&file.tests.unit)?,
 			integration_tests: Patterns::new(&file.tests.integration)?,
 			test_runners: Patterns::new(&file.tests.runners)?,
+			suite_functions: file.tests.suite_functions.into_iter().collect(),
 			aliases,
 			run_everything: groups(file.run_everything)?,
 			run_every_integration_test: groups(file.run_every_integration_test)?,
@@ -248,6 +253,12 @@ impl Config {
 	/// Whether a file is a script that runs the tests.
 	pub fn is_test_runner(&self, path: &str) -> bool {
 		self.test_runners.matches(path)
+	}
+
+	/// Whether calling a function defines a mocha suite, whose title is the first argument and
+	/// whose tests the callback defines: mocha's `suite` and `describe`, or a configured wrapper.
+	pub fn is_suite_function(&self, name: &str) -> bool {
+		matches!(name, "suite" | "describe") || self.suite_functions.contains(name)
 	}
 
 	/// The prefixes of the path aliases, such as `vs/`.
@@ -352,7 +363,7 @@ pub fn for_tests() -> &'static Config {
 			r#"{
 				"modules": ["src/**/*.ts"],
 				"pathAliases": { "lib/": "src/lib/" },
-				"tests": { "unit": ["src/**/test/**/*.test.ts"], "integration": ["src/**/*.integrationTest.ts"], "runners": ["test/**/*.js"] },
+				"tests": { "unit": ["src/**/test/**/*.test.ts"], "integration": ["src/**/*.integrationTest.ts"], "runners": ["test/**/*.js"], "suiteFunctions": ["flakySuite"] },
 				"runEverything": { "test runner": ["test/**", "!test/**/*.md"] },
 				"runEveryIntegrationTest": { "integration test runner": ["scripts/integration.*", "test/**/*.integration.js"] },
 				"packages": { "toolchain": ["mocha"], "testScripts": ["install", "test"], "ignoredFields": ["build"] },

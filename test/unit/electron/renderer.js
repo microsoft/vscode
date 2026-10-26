@@ -66,6 +66,7 @@ const path = require('path');
 const glob = require('glob');
 const util = require('util');
 const coverage = require('../coverage');
+const { readTestList, listedTestFiles, selectListedTests } = require('../testList.mts');
 const { pathToFileURL } = require('url');
 
 // Disabled custom inspect. See #38847
@@ -178,6 +179,12 @@ async function loadTestModules(opts) {
 		const runList = new Set(fs.readFileSync(opts.runList, 'utf8').split(/\r?\n/).map(line => line.trim().replace(/\\/g, '/')).filter(line => line.length > 0).map(line => line.replace(/^src\//, '').replace(/\.ts$/, '.js')));
 		files = files.filter(file => runList.has(file));
 		console.log(`Running the ${files.length} test files of the ${runList.size} files listed in ${opts.runList}`);
+	}
+	if (opts.testList) {
+		// --testList: the test files of the listed tests (see test/unit/testList.js)
+		const testListFiles = listedTestFiles(readTestList(opts.testList));
+		files = files.filter(file => testListFiles.has(file));
+		console.log(`Running the listed tests of ${files.length} test files of the ${testListFiles.size} files listed in ${opts.testList}`);
 	}
 	let modules = files.map(file => file.replace(/\.js$/, ''));
 	if (opts.testSplit) {
@@ -337,7 +344,10 @@ async function loadTests(opts) {
 		assertCleanState();
 	});
 
-	return loadTestModules(opts);
+	await loadTestModules(opts);
+	if (opts.testList) {
+		selectListedTests(mocha.suite, readTestList(opts.testList));
+	}
 }
 
 function serializeSuite(suite) {

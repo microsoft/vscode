@@ -203,6 +203,40 @@ jobs:
         env:
           DEBUG: "*browser*"
 
+      # The unit tests that the pull request adds (see the Detect Changes job of pr.yml) run 20 more
+      # times, each time in a fresh process, window or browser, so that a flaky one fails before it
+      # merges. A pattern, unlike a name, downloads nothing when the pull request adds no test, and
+      # the steps that repeat them skip.
+      - name: Download new unit tests
+        id: download-new-tests
+        if: ${{ inputs.unit_tests && (inputs.electron_tests || inputs.browser_tests) }}
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: new-unit-tests
+          path: .build/new-unit-tests
+
+      - name: Discard a failed new unit tests download
+        if: ${{ steps.download-new-tests.outcome == 'failure' }}
+        run: rm -rf .build/new-unit-tests
+
+      - name: 🧪 Repeat new unit tests (Electron)
+        if: ${{ inputs.electron_tests && inputs.unit_tests && hashFiles('.build/new-unit-tests/new-tests.json') != '' }}
+        timeout-minutes: 10
+        run: ./scripts/test.sh --testList .build/new-unit-tests/new-tests.json --repeat 20 --repeat-budget 300
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      - name: 🧪 Repeat new unit tests (node.js)
+        if: ${{ inputs.electron_tests && inputs.unit_tests && hashFiles('.build/new-unit-tests/new-tests.json') != '' }}
+        timeout-minutes: 10
+        run: npm run test-node -- --testList .build/new-unit-tests/new-tests.json --repeat 20 --repeat-budget 300
+
+      - name: 🧪 Repeat new unit tests (Browser, Webkit)
+        if: ${{ inputs.browser_tests && inputs.unit_tests && hashFiles('.build/new-unit-tests/new-tests.json') != '' }}
+        timeout-minutes: 10
+        run: npm run test-browser-no-install -- --browser webkit --testList .build/new-unit-tests/new-tests.json --repeat 20 --repeat-budget 300
+
       - name: Compile extensions for integration tests & smoke tests
         if: ${{ inputs.integration_tests || inputs.smoke_tests }}
         run: |

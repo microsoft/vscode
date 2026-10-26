@@ -22,7 +22,7 @@ use oxc_syntax::{
 };
 use xxhash_rust::xxh3::{Xxh3, xxh3_64};
 
-use crate::config::Config;
+use crate::config::{Config, Role};
 
 /// A module specifier: from an import or export, a dynamic import, `require`, or a string literal
 /// that looks like a module or file path (a relative path or one starting with a path alias, such
@@ -128,6 +128,79 @@ pub struct Decl {
 	pub heritage: Vec<Heritage>,
 }
 
+/// A mocha test of a unit test file: a call of `test` (or `it`) that is not skipped.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestCase {
+	/// The titles of the suites around the test, from the outermost, and of the test, as far as
+	/// they are known: mocha's `titlePath()`, or a prefix of it. A title that is not a string,
+	/// or a function that defines tests where it is called, such as a helper that its callers'
+	/// suites call, ends what is known.
+	pub title_path: Vec<String>,
+	/// Whether `title_path` is the whole title path of the test, rather than that of a suite
+	/// around it (or empty, for the whole file).
+	pub exact: bool,
+	/// Identifies the test across versions of the file: its titles and the source of the titles
+	/// that are not strings, regardless of formatting and comments.
+	pub key: u64,
+	/// The content hash of the call, title and body, like those of declarations.
+	pub hash: u64,
+}
+
+/// What a call defines in mocha.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MochaCall {
+	Suite,
+	Test,
+}
+
+/// Whether calling `name` defines a mocha suite or a test.
+fn mocha_function(name: &str, config: &Config) -> Option<MochaCall> {
+	if name == "test" || name == "it" {
+		Some(MochaCall::Test)
+	} else if config.is_suite_function(name) {
+		Some(MochaCall::Suite)
+	} else {
+		None
+	}
+}
+
+/// What a call of `callee` defines in mocha, and whether mocha always skips it: `suite(...)`,
+/// `test.only(...)` and `test.skip(...)`, or a choice between them such as
+/// `(isWeb ? suite.skip : suite)(...)`, which runs on some platforms.
+fn mocha_call(callee: &Expression, config: &Config) -> Option<(MochaCall, bool)> {
+	match callee.get_inner_expression() {
+		Expression::Identifier(id) => mocha_function(id.name.as_str(), config).map(|c| (c, false)),
+		Expression::StaticMemberExpression(m) => {
+			let Expression::Identifier(object) = m.object.get_inner_expression() else {
+				return None;
+			};
+			let call = mocha_function(object.name.as_str(), config)?;
+			match m.property.name.as_str() {
+				"only" => Some((call, false)),
+				"skip" => Some((call, true)),
+				_ => None,
+			}
+		}
+		Expression::ConditionalExpression(c) => {
+			let (a, a_skipped) = mocha_call(&c.consequent, config)?;
+			let (b, b_skipped) = mocha_call(&c.alternate, config)?;
+			(a == b).then_some((a, a_skipped && b_skipped))
+		}
+		_ => None,
+	}
+}
+
+/// The title that the first argument of a mocha call gives, if it is a string.
+fn mocha_title(call: &CallExpression) -> Option<String> {
+	match call.arguments.first()? {
+		Argument::StringLiteral(s) => Some(js_str(&s.value)),
+		Argument::TemplateLiteral(t) if t.expressions.is_empty() => {
+			t.quasis.first()?.value.cooked.as_ref().map(js_str)
+		}
+		_ => None,
+	}
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct FileFacts {
 	pub decls: Vec<Decl>,
@@ -140,6 +213,8 @@ pub struct FileFacts {
 	pub loads: Vec<u32>,
 	/// Number of `test(...)` calls, used as a cost estimate for test files.
 	pub tests: u32,
+	/// The tests of a unit test file, in source order (see `TestCase`).
+	pub test_cases: Vec<TestCase>,
 	/// The path segments in the module's strings and template literal parts (as name ids, sorted):
 	/// the names of the folders it may compute paths to, such as the `'__snapshots__'` of a
 	/// snapshot helper or the `test-cases` of `${dir}${sep}test-cases${sep}${name}`.
@@ -1327,6 +1402,9 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	let mut dynamic: Vec<(u32, String)> = Vec::new();
 	let mut globals: Vec<(u32, String)> = Vec::new();
 	let mut uses: Vec<(u32, u64)> = Vec::new();
+	// The calls that define the tests of a unit test file (see `TestCase`).
+	let unit_test = config.role(path) == Role::UnitTest;
+	let mut test_calls: Vec<oxc_syntax::node::NodeId> = Vec::new();
 	// What the code of each declaration or member does when it runs later (function bodies,
 	// constructors, methods): effects outside the module, and the local functions and members it
 	// calls. A class's own code is its constructor, instance fields and superclass, which is what
@@ -1544,6 +1622,9 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 				}
 			}
 			AstKind::CallExpression(c) => {
+				if unit_test && mocha_call(&c.callee, config) == Some((MochaCall::Test, false)) {
+					test_calls.push(id);
+				}
 				let callee = match c.callee.get_inner_expression() {
 					Expression::Identifier(id) => Some((id.name.as_str(), true)),
 					Expression::StaticMemberExpression(m) => {
@@ -2388,6 +2469,85 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			_ => {}
 		}
 	}
+	// The tests of a unit test file, with the titles of the suites around them. The callback of a
+	// suite defines tests in that suite, and so do the callbacks of other calls (`forEach`), which
+	// run in place. Any other function, such as a helper that defines tests for its callers,
+	// defines its tests under the suites of its callers, which ends the known title path.
+	let span_hash = |span: Span| -> u64 {
+		let mut h = Xxh3::new();
+		let start = tokens.partition_point(|t| t.start() < span.start);
+		for t in tokens[start..].iter().take_while(|t| t.start() < span.end) {
+			if t.start() != t.end() && !is_excluded(t.start()) {
+				h.update(&bytes[t.start() as usize..t.end() as usize]);
+				h.update(&[0xff]);
+			}
+		}
+		h.digest()
+	};
+	// A title, and what identifies it: the string, or the source of the expression computing it.
+	let title_of = |c: &CallExpression| -> (Option<String>, u64) {
+		let title = mocha_title(c);
+		let id = match (&title, c.arguments.first()) {
+			(Some(t), _) => xxh3_64(t.as_bytes()),
+			(None, Some(argument)) => span_hash(argument.span()).wrapping_add(1),
+			(None, None) => 0,
+		};
+		(title, id)
+	};
+	for &call_id in &test_calls {
+		let AstKind::CallExpression(call) = nodes.kind(call_id) else {
+			continue;
+		};
+		// The titles of the test and of the suites around it, innermost first, `None` where the
+		// title is unknown.
+		let (title, id) = title_of(call);
+		let mut titles = vec![title];
+		let mut key = Xxh3::new();
+		key.update(&id.to_le_bytes());
+		let mut skipped = false;
+		for function in nodes.ancestor_ids(call_id) {
+			let kind = nodes.kind(function);
+			if !matches!(
+				kind,
+				AstKind::Function(_) | AstKind::ArrowFunctionExpression(_)
+			) || is_iife(function)
+			{
+				continue;
+			}
+			match nodes.parent_kind(function) {
+				AstKind::CallExpression(c) if c.callee.span().end <= kind.span().start => {
+					if let Some((MochaCall::Suite, always_skipped)) = mocha_call(&c.callee, config)
+					{
+						skipped |= always_skipped;
+						let (title, id) = title_of(c);
+						titles.push(title);
+						key.update(&id.to_le_bytes());
+					}
+				}
+				AstKind::NewExpression(_) => {}
+				_ => {
+					titles.push(None);
+					key.update(b"<caller>");
+					if let AstKind::Function(Function { id: Some(name), .. }) = kind {
+						key.update(name.name.as_str().as_bytes());
+					}
+					key.update(&[0]);
+				}
+			}
+		}
+		if skipped {
+			continue;
+		}
+		titles.reverse();
+		let known = titles.iter().take_while(|t| t.is_some()).count();
+		facts.test_cases.push(TestCase {
+			exact: known == titles.len(),
+			title_path: titles.into_iter().take(known).flatten().collect(),
+			key: key.digest(),
+			hash: span_hash(call.span),
+		});
+	}
+
 	// The syntax tree as node kinds, in source order: the same tokens can parse differently
 	// (automatic semicolon insertion), and the parse decides the behavior. TypeScript-only wrapper
 	// nodes are left out like their tokens.
@@ -2901,6 +3061,104 @@ mod tests {
 				vec![local("E")],
 				vec![],
 				vec![local("K.a")]
+			)
+		);
+	}
+
+	#[test]
+	fn tests_have_the_title_paths_that_mocha_runs_them_by() {
+		let f = analyze(
+			"src/a/test/a.test.ts",
+			r#"
+test('top', () => {});
+suite('A', () => {
+	test('one', () => {});
+	test(`two`, async () => {});
+	suite("B", function () {
+		test('three', () => {});
+		[1, 2].forEach(i => test(`case ${i}`, () => {}));
+		test.only('four', () => {});
+		test.skip('skipped', () => {});
+	});
+	suite(`dynamic ${1}`, () => { test('five', () => {}); });
+	(isWeb ? suite.skip : suite)('C', () => { test('six', () => {}); });
+	suite.skip('D', () => { test('never', () => {}); });
+	function helper(name: string) { suite(name, () => test('seven', () => {})); test('eight', () => {}); }
+	helper('x');
+	(() => { test('nine', () => {}); })();
+});
+flakySuite('E', () => { test('ten', () => {}); });
+function defineTests() { test('eleven', () => {}); }
+suite('F', defineTests);
+"#,
+		);
+		let paths: Vec<(Vec<&str>, bool)> = f
+			.test_cases
+			.iter()
+			.map(|t| (t.title_path.iter().map(String::as_str).collect(), t.exact))
+			.collect();
+		// A title that is not a string, or a helper that its callers' suites call, ends the path.
+		assert_eq!(
+			paths,
+			vec![
+				(vec!["top"], true),
+				(vec!["A", "one"], true),
+				(vec!["A", "two"], true),
+				(vec!["A", "B", "three"], true),
+				(vec!["A", "B"], false),
+				(vec!["A", "B", "four"], true),
+				(vec!["A"], false),
+				(vec!["A", "C", "six"], true),
+				(vec!["A"], false),
+				(vec!["A"], false),
+				(vec!["A", "nine"], true),
+				(vec!["E", "ten"], true),
+				(vec![], false),
+			]
+		);
+		assert!(
+			analyze("src/a/a.ts", "test('t', () => {});\n")
+				.test_cases
+				.is_empty()
+		);
+	}
+
+	#[test]
+	fn test_keys_follow_titles_and_hashes_follow_the_whole_test() {
+		let tests = |src: &str| -> Vec<(u64, u64)> {
+			analyze("src/a/test/a.test.ts", src)
+				.test_cases
+				.iter()
+				.map(|t| (t.key, t.hash))
+				.collect()
+		};
+		let base =
+			tests("suite('A', () => { test('t', () => { f(1); }); test(`n ${x}`, () => {}); });\n");
+		// Formatting, comments and types change neither.
+		assert_eq!(
+			base,
+			tests(
+				"suite('A', () => {\n\t// comment\n\ttest('t', (): void => {\n\t\tf(1 as number);\n\t});\n\ttest(`n ${ x }`, () => { });\n});\n"
+			)
+		);
+		let body =
+			tests("suite('A', () => { test('t', () => { f(2); }); test(`n ${x}`, () => {}); });\n");
+		let titles =
+			tests("suite('A', () => { test('u', () => { f(1); }); test(`m ${x}`, () => {}); });\n");
+		let suite =
+			tests("suite('B', () => { test('t', () => { f(1); }); test(`n ${x}`, () => {}); });\n");
+		let same = |a: &[(u64, u64)]| -> Vec<(bool, bool)> {
+			a.iter()
+				.zip(&base)
+				.map(|(t, b)| (t.0 == b.0, t.1 == b.1))
+				.collect()
+		};
+		assert_eq!(
+			(same(&body), same(&titles), same(&suite)),
+			(
+				vec![(true, false), (true, true)],
+				vec![(false, false), (false, false)],
+				vec![(false, true), (false, true)]
 			)
 		);
 	}
