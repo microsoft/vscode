@@ -22,6 +22,12 @@
 	pointer-events: auto;
 }
 
+/* A chat window stacked: the column of its own beside the groups, from the top of the window to its bottom, set off from
+ * them by one line where they are flush (compact), as the cards' borders do otherwise. */
+.monaco-workbench.modern-ui-compact .session-activity-bar-editor-host.stacked-column {
+	box-shadow: inset var(--vscode-strokeThickness) 0 0 0 var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent));
+}
+
 .monaco-workbench .session-activity-bar.docked {
 	position: absolute;
 	/* With an equal gap on either side in its column (`SESSION_ACTIVITY_BAR_COLUMN_WIDTH`), beside the chat or at the edge of an editor area. */

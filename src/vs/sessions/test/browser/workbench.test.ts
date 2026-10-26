@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
-import { Direction, Grid, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
+import { Direction, Grid, GridNode, isGridBranchNode, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, type Event as BaseEvent } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
@@ -21,7 +21,8 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, AGENTS_STACKED_SIDE_PANE_COLUMN_CLASS, getStackedSidePaneColumnWidth } from '../../browser/parts/agentsPartCard.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
+import { IStackedSidePaneColumn, STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, StackedSidePaneColumnView } from '../../browser/parts/stackedSidePaneColumnView.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
@@ -4161,7 +4162,8 @@ suite('Sessions - Workbench', () => {
 					[
 						Parts.SIDEBAR_PART,
 						[
-							[[Parts.EDITOR_PART, Parts.SESSIONS_PART], Parts.CUSTOM_VIEW_GRID_PART],
+							// The column at the right of both, shown once something shows in it.
+							[[Parts.EDITOR_PART, Parts.SESSIONS_PART], STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, Parts.CUSTOM_VIEW_GRID_PART],
 							Parts.PANEL_PART,
 						],
 					],
@@ -4173,7 +4175,8 @@ suite('Sessions - Workbench', () => {
 					Parts.TITLEBAR_PART,
 					[
 						Parts.SIDEBAR_PART,
-						[Parts.EDITOR_PART, Parts.SESSIONS_PART, Parts.PANEL_PART],
+						// The panel below the side pane, the Sessions Part and the column.
+						[[[Parts.EDITOR_PART, Parts.SESSIONS_PART], STACKED_SIDE_PANE_COLUMN_VIEW_TYPE], Parts.PANEL_PART],
 						Parts.CUSTOM_VIEW_GRID_PART,
 					],
 				],
@@ -4304,28 +4307,135 @@ suite('Sessions - Workbench', () => {
 		}
 	});
 
-	test('keeps a column at the right of the stacked side pane and the Sessions Part, laying the Sessions Part out again as its allocation does not change', () => {
-		const setColumn = Workbench.prototype.setStackedSidePaneColumnWidth as (this: object, width: number) => void;
-		const mainContainer = mainWindow.document.createElement('div');
-		const layouts: number[][] = [];
-		const sessionsPart = { dimension: { width: 900, height: 500 }, contentPosition: { top: 300, left: 260 }, layout: (...args: number[]) => layouts.push(args) };
-		const harness = { mainContainer, parts: new Map<string, unknown>([[Parts.SESSIONS_PART, sessionsPart]]), _stackedSidePaneColumnWidth: 0 };
-		const column = () => ({ width: getStackedSidePaneColumnWidth(mainContainer), marked: mainContainer.classList.contains(AGENTS_STACKED_SIDE_PANE_COLUMN_CLASS) });
+	test('stacked, splits the side pane and the Sessions Part from a column of their right, a grid view of its own the full height of both, above the panel in either alignment', () => {
+		const store = new DisposableStore();
+		try {
+			const host = createHost({ single: true, partVisibility: { sidebar: true, editor: true, auxiliaryBar: false, panel: true } }) as IGridDescriptorTestHarness;
+			host._savedPartSizes = { editor: 500 };
+			host.layoutPolicy = {
+				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
+				viewportClass: { get: () => 'desktop' },
+			};
+			host.titleBarPartView = { minimumHeight: 30 };
 
-		const before = column();
-		setColumn.call(harness, 34);
-		const kept = column();
-		setColumn.call(harness, 34);
-		setColumn.call(harness, 0);
-		const givenBack = column();
+			const views = new Map<Parts, TestPartView>();
+			const grid = store.add(SerializableGrid.deserialize<ISerializableView>(createDesktopGridDescriptor.call(host, 1200, 800), {
+				fromJSON: ({ type }: { type: Parts }) => {
+					const view = store.add(new TestPartView(type));
+					views.set(type, view);
+					return view;
+				},
+			}, { proportionalLayout: false }));
+			grid.layout(1200, 800);
 
-		assert.deepStrictEqual({ before, kept, givenBack, layouts }, {
-			before: { width: 0, marked: false },
-			kept: { width: 34, marked: true },
-			givenBack: { width: 0, marked: false },
-			// Once as the column is kept, not again for the same width, and once as it is given back.
-			layouts: [[900, 500, 300, 260], [900, 500, 300, 260]],
-		});
+			const columnView = store.add(new StackedSidePaneColumnView());
+			const getView = (view: object): ISerializableView => {
+				if (!(view instanceof TestPartView) && view !== columnView) {
+					throw new Error('Expected a grid view');
+				}
+				return view as ISerializableView;
+			};
+			const arrangementHost = {
+				agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
+				_panelAlignment: 'justify' as PanelAlignment,
+				_sidePaneArrangement: SessionLayoutMode.SideBySide as SessionSplitLayout,
+				_savedPartSizes: { editor: 500 },
+				_dockedAuxiliaryBarWidth: DockedAuxiliaryBarController.DEFAULT_WIDTH,
+				partVisibility: { editor: true, auxiliaryBar: false },
+				panelPartView: views.get(Parts.PANEL_PART)!,
+				sessionsPartView: views.get(Parts.SESSIONS_PART)!,
+				editorPartView: views.get(Parts.EDITOR_PART)!,
+				customViewGridPartView: views.get(Parts.CUSTOM_VIEW_GRID_PART)!,
+				sideBarPartView: views.get(Parts.SIDEBAR_PART)!,
+				stackedSidePaneColumnView: columnView,
+				_stackedSidePaneColumnInGrid: false,
+				workbenchGrid: {
+					isViewVisible: (view: object) => grid.isViewVisible(getView(view)),
+					isViewMaximized: (view: object) => grid.isViewMaximized(getView(view)),
+					hasMaximizedView: () => grid.hasMaximizedView(),
+					getViewSize: (view: object) => grid.getViewSize(getView(view)),
+					getViewCachedVisibleSize: (view: object) => grid.getViewCachedVisibleSize(getView(view)),
+					setViewVisible: (view: object, visible: boolean) => grid.setViewVisible(getView(view), visible),
+					addView: (view: object, size: number | Sizing, referenceView: object, direction: Direction) => grid.addView(getView(view), size, getView(referenceView), direction),
+					removeView: (view: object) => grid.removeView(getView(view)),
+					moveView: (view: object, size: number | Sizing, referenceView: object, direction: Direction) => grid.moveView(getView(view), size, getView(referenceView), direction),
+					resizeView: (view: object, size: IViewSize) => grid.resizeView(getView(view), size),
+					exitMaximizedView: () => grid.exitMaximizedView(),
+				},
+				mainContainer: { classList: { toggle: () => { } } },
+				getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
+				storageService: { store: () => { } },
+				_onDidChangePanelAlignment: { fire: () => { } },
+				_onDidChangeSidePaneArrangement: { fire: () => { } },
+				_runWithEditorResizeSyncSuspended: (fn: () => void) => fn(),
+				_layoutGrid: () => grid.layout(1200, 800),
+				_layoutSidePane: () => { },
+				hasFocus: () => false,
+				focusPart: () => { },
+			};
+			Object.setPrototypeOf(arrangementHost, DesktopWorkbench.prototype);
+			const setColumn = Workbench.prototype.setStackedSidePaneColumn as (this: object, column: IStackedSidePaneColumn | undefined) => boolean;
+
+			const strip = mainWindow.document.createElement('div');
+			const stripParent = mainWindow.document.createElement('div');
+			stripParent.appendChild(strip);
+			const released: number[] = [];
+			const column: IStackedSidePaneColumn = { element: strip, width: 34, layout: () => { }, release: () => { released.push(1); stripParent.appendChild(strip); } };
+			const boxes = () => {
+				const result: Record<string, { left: number; top: number; width: number; height: number }> = {};
+				const visit = (node: GridNode<ISerializableView>): void => {
+					if (isGridBranchNode(node)) {
+						node.children.forEach(visit);
+					} else if (node.view === columnView || node.view === views.get(Parts.EDITOR_PART) || node.view === views.get(Parts.SESSIONS_PART) || node.view === views.get(Parts.PANEL_PART)) {
+						result[node.view === columnView ? 'column' : (node.view as TestPartView).part] = node.box;
+					}
+				};
+				visit(grid.getViews());
+				return result;
+			};
+			const snapshot = () => {
+				const box = boxes();
+				const columnBox = box.column;
+				const editor = box[Parts.EDITOR_PART];
+				const sessions = box[Parts.SESSIONS_PART];
+				const shown = arrangementHost._stackedSidePaneColumnInGrid && grid.isViewVisible(columnView);
+				return {
+					topology: getPartTopology(grid.serialize().root),
+					shown,
+					stripInColumn: strip.parentElement === columnView.element,
+					// The column at the right of both, from the top of the side pane to the bottom of the Sessions Part.
+					column: columnBox && shown ? { width: columnBox.width, besideBoth: columnBox.left === editor.left + editor.width && columnBox.left === sessions.left + sessions.width, top: columnBox.top === editor.top, bottom: columnBox.top + columnBox.height === sessions.top + sessions.height } : undefined,
+				};
+			};
+
+			const beforeStacked = setColumn.call(arrangementHost, column);
+			// As the side pane does while it is not stacked.
+			setColumn.call(arrangementHost, undefined);
+			setSidePaneArrangement.call(arrangementHost as never, SessionLayoutMode.Stacked);
+			const stackedEmpty = snapshot();
+			const shown = setColumn.call(arrangementHost, column);
+			const stackedJustify = snapshot();
+			setPanelAlignment.call(arrangementHost as never, 'center');
+			const stackedCenter = snapshot();
+			setSidePaneArrangement.call(arrangementHost as never, SessionLayoutMode.SideBySide);
+			const sideBySide = { ...snapshot(), released: released.length, stripBack: strip.parentElement === stripParent };
+
+			const column34 = () => ({ width: 34, besideBoth: true, top: true, bottom: true });
+			assert.deepStrictEqual({ beforeStacked, stackedEmpty, shown, stackedJustify, stackedCenter, sideBySide }, {
+				// Side by side, there is no column.
+				beforeStacked: false,
+				// Stacked, a view of its own at the right of the side pane and the Sessions Part, shown once something shows in it.
+				stackedEmpty: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[[Parts.EDITOR_PART, Parts.SESSIONS_PART], STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]], shown: false, stripInColumn: false, column: undefined },
+				shown: true,
+				stackedJustify: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[[Parts.EDITOR_PART, Parts.SESSIONS_PART], STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]], shown: true, stripInColumn: true, column: column34() },
+				// The panel below the side pane, the Sessions Part and the column, which shows again once the panel moved.
+				stackedCenter: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[[Parts.EDITOR_PART, Parts.SESSIONS_PART], STACKED_SIDE_PANE_COLUMN_VIEW_TYPE], Parts.PANEL_PART], Parts.CUSTOM_VIEW_GRID_PART]], shown: true, stripInColumn: true, column: column34() },
+				// The column leaves the grid, which is as it was; what showed in it is taken back.
+				sideBySide: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [Parts.SESSIONS_PART, Parts.PANEL_PART], Parts.EDITOR_PART, Parts.CUSTOM_VIEW_GRID_PART]], shown: false, stripInColumn: false, column: undefined, released: 2, stripBack: true },
+			});
+		} finally {
+			store.dispose();
+		}
 	});
 
 	test('a stacked side pane keeps its width-based visibility and sizes out of the side-by-side memory', () => {

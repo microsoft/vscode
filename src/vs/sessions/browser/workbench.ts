@@ -70,7 +70,8 @@ import { IContextKey, IContextKeyService } from '../../platform/contextkey/commo
 import { CustomViewVisibleContext, EditorMaximizedContext, IsPhoneLayoutContext, DesktopLayoutContext } from '../common/contextkeys.js';
 import { SessionsLayoutPolicy } from './layoutPolicy.js';
 import { ChatLayoutPresentation } from '../common/chatLayout.js';
-import { AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_STACKED_CLASS, AGENTS_STACKED_SIDE_PANE_COLUMN_CLASS, AGENTS_STACKED_SIDE_PANE_COLUMN_WIDTH_PROPERTY } from './parts/agentsPartCard.js';
+import { AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_STACKED_CLASS } from './parts/agentsPartCard.js';
+import { IStackedSidePaneColumn, STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, StackedSidePaneColumnView } from './parts/stackedSidePaneColumnView.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { getMobileViewportDimension, IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
@@ -255,14 +256,11 @@ export interface IDockedEditorLayout {
 	handleDockedEditorPartLayout(nodeWidth: number): void;
 
 	/**
-	 * Keeps a column of `width` free at the right of the side pane stacked above the Sessions Part and of the Sessions
-	 * Part, beside both, such as for the Session Activity Bar; `0` gives it back. The Sessions Part is laid out again;
-	 * the side pane, which asks for the column, lays itself out.
+	 * Shows `column` in a column of its own in the workbench grid, at the right of the side pane stacked above the
+	 * Sessions Part and of the Sessions Part, the full height of both, such as the Session Activity Bar; `undefined`
+	 * hides the column. Returns whether it shows, which it only does while the side pane is stacked.
 	 */
-	setStackedSidePaneColumnWidth(width: number): void;
-
-	/** Called by the Sessions Part once laid out while it keeps that column, for the side pane to lay the column out beside it. */
-	handleSessionsPartLayout(): void;
+	setStackedSidePaneColumn(column: IStackedSidePaneColumn | undefined): boolean;
 
 	/**
 	 * Fired when the side pane (the docked editor part and/or the auxiliary-bar
@@ -1640,8 +1638,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.sessionsPartView = sessionsPart;
 		this.customViewGridPartView = customViewGridPart;
 		this.editorPartView = editorPart;
+		const stackedSidePaneColumnView = this.stackedSidePaneColumnView = this._register(new StackedSidePaneColumnView());
 
 		const viewMap: { [key: string]: ISerializableView } = {
+			[STACKED_SIDE_PANE_COLUMN_VIEW_TYPE]: stackedSidePaneColumnView,
 			[Parts.TITLEBAR_PART]: this.titleBarPartView,
 			[Parts.PANEL_PART]: this.panelPartView,
 			[Parts.SIDEBAR_PART]: this.sideBarPartView,
@@ -1661,6 +1661,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.mainContainer.prepend(workbenchGrid.element);
 		this.mainContainer.setAttribute('role', 'application');
 		this.workbenchGrid = workbenchGrid;
+		// Stacked, the grid is built with the column beside the side pane and the Sessions Part.
+		this._stackedSidePaneColumnInGrid = this._isSidePaneStacked();
 		this.workbenchGrid.edgeSnapping = this.mainWindowFullscreen;
 		this._updateSessionsSidePaneDivider();
 		this._register(this.workbenchGrid.onDidChange(() => {
@@ -1890,10 +1892,12 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			visible: this._effectiveVisible(Parts.PANEL_PART)
 		};
 
-		// Stacked, the side pane sits above the Sessions Part, in the same column.
+		// Stacked, the side pane sits above the Sessions Part, in the same column, and a column of its own at the right of
+		// both shows once something is shown in it (`setStackedSidePaneColumn`).
 		const stackedEditorHeight = this._stackedEditorHeight(topRightHeight);
 		const stackedSessionsHeight = Math.max(0, topRightHeight - (editorNode.visible ? stackedEditorHeight : 0));
 		const stackedEditorNode: ISerializedLeafNode = { ...editorNode, size: stackedEditorHeight };
+		const stackedColumnNode: ISerializedLeafNode = { type: 'leaf', data: { type: STACKED_SIDE_PANE_COLUMN_VIEW_TYPE }, size: 0, visible: false };
 
 		// Top right section: Chat Bar | Editor [| Auxiliary Bar] | Custom View Grid (horizontal).
 		// When docked, the auxiliary bar is inside the editor part and
@@ -1906,7 +1910,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 					data: [stackedEditorNode, { ...sessionsNode, size: stackedSessionsHeight }],
 					size: rightSectionWidth,
 					visible: sessionsNode.visible === false && editorNode.visible === false ? false : undefined,
-				}, customViewGridNode]
+				}, stackedColumnNode, customViewGridNode]
 				: this._topRightSectionChildren(sessionsNode, editorNode, auxiliaryBarNode, customViewGridNode),
 			size: topRightHeight
 		};
@@ -1915,7 +1919,12 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			const chatColumn: ISerializedNode = {
 				type: 'branch',
 				data: stacked
-					? [stackedEditorNode, { ...sessionsNode, size: stackedSessionsHeight }, panelNode]
+					// The panel is below the column, which runs beside the side pane and the Sessions Part only.
+					? [{
+						type: 'branch',
+						data: [{ type: 'branch', data: [stackedEditorNode, { ...sessionsNode, size: stackedSessionsHeight }], size: rightSectionWidth }, stackedColumnNode],
+						size: topRightHeight,
+					}, panelNode]
 					: [{ ...sessionsNode, size: topRightHeight }, panelNode],
 				size: stacked ? rightSectionWidth : sessionsWidth,
 				visible: sessionsNode.visible === false && panelNode.visible === false && (!stacked || editorNode.visible === false) ? false : undefined,
@@ -3034,29 +3043,51 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this._onDidChangeSidePaneArrangement.fire(arrangement);
 	}
 
-	private _stackedSidePaneColumnWidth = 0;
+	/** The column at the right of the stacked side pane; in the grid only while the side pane is stacked. */
+	private stackedSidePaneColumnView: StackedSidePaneColumnView | undefined;
+	private _stackedSidePaneColumnInGrid = false;
+	/** What is to show in the column, also while it is out of the grid, such as while the panel moves. */
+	private _stackedSidePaneColumn: IStackedSidePaneColumn | undefined;
 
-	setStackedSidePaneColumnWidth(width: number): void {
-		const next = Math.max(0, Math.round(width));
-		if (next === this._stackedSidePaneColumnWidth) {
-			return;
+	setStackedSidePaneColumn(column: IStackedSidePaneColumn | undefined): boolean {
+		this._stackedSidePaneColumn = column;
+		return this._applyStackedSidePaneColumn();
+	}
+
+	private _applyStackedSidePaneColumn(): boolean {
+		const view = this.stackedSidePaneColumnView;
+		if (!view || !this.workbenchGrid || !this._stackedSidePaneColumnInGrid) {
+			return false;
 		}
-		this._stackedSidePaneColumnWidth = next;
-		this.mainContainer.style.setProperty(AGENTS_STACKED_SIDE_PANE_COLUMN_WIDTH_PROPERTY, `${next}px`);
-		this.mainContainer.classList.toggle(AGENTS_STACKED_SIDE_PANE_COLUMN_CLASS, next > 0);
-		// Its allocation in the grid does not change, so the grid does not lay it out again.
-		const sessionsPart = this.parts.get(Parts.SESSIONS_PART);
-		if (sessionsPart?.dimension && sessionsPart.contentPosition) {
-			sessionsPart.layout(sessionsPart.dimension.width, sessionsPart.dimension.height, sessionsPart.contentPosition.top, sessionsPart.contentPosition.left);
+		const column = this._stackedSidePaneColumn;
+		view.setColumn(column);
+		const visible = !!column;
+		// Showing or hiding a view would restore a maximized one, such as the panel.
+		if (this.workbenchGrid.isViewVisible(view) !== visible && !this.workbenchGrid.hasMaximizedView()) {
+			this.workbenchGrid.setViewVisible(view, visible);
+		}
+		return visible && this.workbenchGrid.isViewVisible(view);
+	}
+
+	/** Adds the column beside the Sessions Part, before the side pane is stacked above it: beside both, once it is. */
+	private _addStackedSidePaneColumn(): void {
+		const view = this.stackedSidePaneColumnView;
+		if (view && !this._stackedSidePaneColumnInGrid) {
+			this.workbenchGrid.addView(view, Sizing.Invisible(view.minimumWidth), this.sessionsPartView, Direction.Right);
+			this._stackedSidePaneColumnInGrid = true;
 		}
 	}
 
-	handleSessionsPartLayout(): void {
-		this._onSessionsPartLayout();
+	/** Removes the column, before the side pane moves back beside the Sessions Part. */
+	private _removeStackedSidePaneColumn(): void {
+		const view = this.stackedSidePaneColumnView;
+		if (view && this._stackedSidePaneColumnInGrid) {
+			view.column?.release();
+			view.setColumn(undefined);
+			this.workbenchGrid.removeView(view);
+			this._stackedSidePaneColumnInGrid = false;
+		}
 	}
-
-	/** See {@link handleSessionsPartLayout}. */
-	protected _onSessionsPartLayout(): void { }
 
 	/** Whether the side pane is stacked above the Sessions Part rather than beside it. */
 	protected _isSidePaneStacked(): boolean {
@@ -3080,11 +3111,16 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}
 		const columnHeight = Math.max(this.workbenchGrid.getViewSize(this.sessionsPartView).height, this.workbenchGrid.getViewSize(this.editorPartView).height);
 		const height = this._stackedEditorHeight(columnHeight);
-		this._moveViewKeepingSideBarWidth(() => this.workbenchGrid.moveView(this.editorPartView, editorVisible ? height : Sizing.Invisible(height), this.sessionsPartView, Direction.Up));
+		this._moveViewKeepingSideBarWidth(() => {
+			this._addStackedSidePaneColumn();
+			this.workbenchGrid.moveView(this.editorPartView, editorVisible ? height : Sizing.Invisible(height), this.sessionsPartView, Direction.Up);
+		});
+		this._applyStackedSidePaneColumn();
 	}
 
 	/** Moves the side pane from above the Sessions Part back beside it, at its side-by-side width. */
 	private _unstackSidePane(): void {
+		this._removeStackedSidePaneColumn();
 		const editorVisible = this.workbenchGrid.isViewVisible(this.editorPartView);
 		if (editorVisible) {
 			this._savedPartSizes = { ...this._savedPartSizes, editorHeight: this.workbenchGrid.getViewSize(this.editorPartView).height };
