@@ -38,7 +38,7 @@ export class SetChatBackgroundToolContribution extends Disposable implements IWo
 		// cannot collide with the storage folder of an extension, which is removed when the extension is.
 		const importRoot = joinPath(userDataProfilesService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file }), 'agentsChatBackgrounds');
 		const tool = instantiationService.createInstance(SetChatBackgroundTool, () => joinPath(importRoot, userDataProfileService.currentProfile.id));
-		const enabled = observableConfigValue(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, true, configurationService);
+		const enabled = observableConfigValue(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, false, configurationService);
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
 				reader.store.add(toolsService.registerTool(tool.getToolData(), tool));

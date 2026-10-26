@@ -594,6 +594,18 @@ suite('AgentHostProtocolClient', () => {
 	});
 
 	suite('worktree disk usage', () => {
+		test('forwards an opaque host-advertised session identity for persistent caching', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.worktreeDiskUsage': true });
+			const session = URI.parse('other-host:/opaque/session');
+			const measurement = client.measureWorktreeDiskUsage(URI.file('/worktree'), CancellationToken.None, session);
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { sizeBytes: 1234 } });
+			assert.deepStrictEqual({ size: await measurement, session: (request.params as { session: string }).session }, {
+				size: 1234, session: session.toString(),
+			});
+		});
+
 		for (const capability of [undefined, false, 'true', {}]) {
 			test(`does not fall back to filesystem RPCs without a valid capability (${JSON.stringify(capability)})`, async () => {
 				const { client, transport } = createClient();

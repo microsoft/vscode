@@ -91,7 +91,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _measurementCancellation = this._register(new CancellationTokenSource());
-	private _lastScanAt = 0;
+	private _lastScanAt = -Infinity;
 	private _lastMeasurementAt = 0;
 	private _lastMeasuredWorktrees: readonly IMeasuredSessionWorktree[] | undefined;
 	private _lastMeasuredSessionSignature = '';
@@ -105,6 +105,11 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	} | undefined;
 	private _foregroundMeasurement: Promise<void> | undefined;
 	private _refreshPromise: Promise<void> | undefined;
+	private readonly _refreshScheduler = this._register(new RunOnceScheduler(() => {
+		if (this._activated) {
+			void this._refreshIfNeeded().catch(error => this.logService.warn('[SessionWorktreeCleanupService] Failed to refresh worktree usage', error));
+		}
+	}, 10_000));
 	private _activated = false;
 	private _dismissed = false;
 	private _availableDiskSpace: number | undefined;
@@ -126,9 +131,10 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			if (!event.affectsConfiguration(AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING)) {
 				return;
 			}
-			this._lastScanAt = 0;
+			this._lastScanAt = -Infinity;
 			this._updateSuggestion();
 			if (!this._isEnabled()) {
+				this._refreshScheduler.cancel();
 				this._suggestion.set(undefined, undefined);
 				return;
 			}
@@ -137,17 +143,11 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			}
 		}));
 		this._register(this.sessionsManagementService.onDidArchiveSession(() => {
-			this._lastScanAt = 0;
-		}));
-		const refreshScheduler = this._register(new RunOnceScheduler(() => {
-			if (this._activated) {
-				void this._refreshIfNeeded().catch(error => this.logService.warn('[SessionWorktreeCleanupService] Failed to refresh worktree usage', error));
-			}
-		}, 10_000));
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
-			this._lastScanAt = 0;
 			this._updateSuggestion();
-			refreshScheduler.schedule();
+		}));
+		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
+			this._updateSuggestion();
+			this._refreshScheduler.schedule();
 		}));
 	}
 
@@ -164,7 +164,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	refresh(): Promise<void> {
 		this._lastMeasuredWorktrees = undefined;
 		this._activated = true;
-		this._lastScanAt = 0;
+		this._lastScanAt = -Infinity;
 		return this._refreshIfNeeded();
 	}
 
@@ -337,6 +337,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			throw new CancellationError();
 		}
 		const measuredSessionSignature = this._getWorktreeSessionSignature();
+		const measuredWorktreeSignature = this._getWorktreeSessionSignature(false);
 		if (this._lastMeasuredWorktrees && this._lastMeasuredSessionSignature === measuredSessionSignature && Date.now() - this._lastMeasurementAt < SCAN_CACHE_DURATION_MS) {
 			return this._withCleanupState(this._lastMeasuredWorktrees, minimumAgeDays);
 		}
@@ -395,7 +396,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 				measurement.cancellation.cancel();
 			}
 		}
-		if (this._getWorktreeSessionSignature() !== measuredSessionSignature) {
+		if (this._getWorktreeSessionSignature(false) !== measuredWorktreeSignature) {
 			return this._getMeasuredWorktrees(minimumAgeDays, token, onProgress);
 		}
 		this._lastMeasuredWorktrees = worktrees;
@@ -413,12 +414,14 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}));
 	}
 
-	private _getWorktreeSessionSignature(): string {
+	private _getWorktreeSessionSignature(includeActivity = true): string {
 		return this.sessionsManagementService.getSessions()
 			.flatMap(session => session.workspace.get()?.folders
 				.map(folder => folder.gitRepository?.workTreeUri)
 				.filter(worktreeUri => worktreeUri !== undefined)
-				.map(worktreeUri => `${session.sessionId}\0${worktreeUri.toString()}`) ?? [])
+				.map(worktreeUri => includeActivity
+					? `${session.sessionId}\0${worktreeUri.toString()}\0${session.updatedAt.get().getTime()}\0${session.status.get()}`
+					: `${session.sessionId}\0${worktreeUri.toString()}`) ?? [])
 			.sort()
 			.join('\n');
 	}
