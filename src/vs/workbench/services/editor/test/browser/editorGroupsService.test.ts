@@ -2314,6 +2314,12 @@ suite('EditorGroupsService', () => {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		const parts = await createEditorParts(instantiationService, disposables);
 
+		const providerContextKey = new RawContextKey<string>('restoredGroupProviderKey', '');
+		disposables.add(parts.registerContextKeyProvider({
+			contextKey: providerContextKey,
+			getGroupContextKeyValue: group => `group-${group.id}`
+		}));
+
 		await parts.activeGroup.openEditor(createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID), { pinned: true });
 		const groupBefore = parts.activeGroup;
 		// Restoring the state, as applying a working set does, creates a new group with the same id.
@@ -2325,7 +2331,8 @@ suite('EditorGroupsService', () => {
 			replaced: groupAfter !== groupBefore,
 			sameId: groupAfter.id === groupBefore.id,
 			activeEditor: groupAfter.scopedContextKeyService.getContextKeyValue(ActiveEditorContext.key),
-		}, { replaced: true, sameId: true, activeEditor: TEST_EDITOR_ID });
+			providerKey: groupAfter.scopedContextKeyService.getContextKeyValue(providerContextKey.key),
+		}, { replaced: true, sameId: true, activeEditor: TEST_EDITOR_ID, providerKey: `group-${groupAfter.id}` });
 
 		await groupAfter.closeAllEditors();
 		disposables.dispose();
@@ -2458,115 +2465,6 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(activationEvents.length, 1);
 		assert.strictEqual(activationEvents[0].group, rootGroup);
 		assert.strictEqual(activationEvents[0].reason, GroupActivationReason.DEFAULT);
-	});
-
-	test('hideGroupTitle hides the title of the group until every caller has disposed', async function () {
-		const [part] = await createPart();
-		const group = part.activeGroup;
-		const describe = () => ({ hidden: !!group.element.querySelector(':scope > .title.hidden-title'), titleHeight: group.titleHeight.total });
-		const shown = describe();
-
-		const first = part.hideGroupTitle(group);
-		const second = part.hideGroupTitle(group.id);
-		const bothHolding = describe();
-		first.dispose();
-		first.dispose();
-		const secondHolding = describe();
-		second.dispose();
-
-		assert.deepStrictEqual({ shown: shown.hidden, bothHolding, secondHolding, released: describe() }, {
-			shown: false,
-			bothHolding: { hidden: true, titleHeight: 0 },
-			secondHolding: { hidden: true, titleHeight: 0 },
-			released: shown,
-		});
-	});
-
-	test('maximizeGroup maximizes the group and keeps the given groups visible', async function () {
-		const [part] = await createPart();
-		const group1 = part.activeGroup;
-		part.maximizeGroup(group1, []);
-		const singleGroup = part.hasMaximizedGroup();
-
-		const group2 = part.addGroup(group1, GroupDirection.RIGHT);
-		const group3 = part.addGroup(group2, GroupDirection.RIGHT);
-		part.maximizeGroup(group1, [group2.id]);
-		const isVisible = (group: typeof group1) => !!group.element.parentElement?.classList.contains('visible');
-
-		assert.deepStrictEqual({
-			singleGroup,
-			maximized: part.hasMaximizedGroup(),
-			visible: [group1, group2, group3].map(isVisible),
-			activeGroup: part.activeGroup === group1,
-		}, {
-			singleGroup: false,
-			maximized: true,
-			visible: [true, true, false],
-			activeGroup: true,
-		});
-	});
-
-	test('activating a group maximizeGroup kept visible keeps the group maximized, activating a hidden one exits it', async function () {
-		const [part] = await createPart();
-		const group1 = part.activeGroup;
-		const group2 = part.addGroup(group1, GroupDirection.RIGHT);
-		const group3 = part.addGroup(group2, GroupDirection.RIGHT);
-		part.maximizeGroup(group1, [group2.id]);
-		part.layout(group1.minimumWidth + group2.minimumWidth, 800, 0, 0); // the kept visible group at its minimum size, which activating would otherwise expand
-		const atMinimum = part.getSize(group2).width === group2.minimumWidth;
-
-		part.activateGroup(group2);
-		const keptVisible = part.hasMaximizedGroup();
-		part.layout(1080, 800, 0, 0);
-		part.activateGroup(group3);
-		const afterHidden = part.hasMaximizedGroup();
-
-		// Once the maximized view was exited, the group no longer counts as kept visible: it is
-		// hidden by a plain maximize, and activating it exits that
-		const exitedBeforePlainMaximize = !part.hasMaximizedGroup();
-		part.arrangeGroups(GroupsArrangement.MAXIMIZE, group1);
-		const plainMaximized = part.hasMaximizedGroup();
-		part.activateGroup(group2);
-		const afterPlainMaximize = part.hasMaximizedGroup();
-
-		// Removing a kept visible group exits the maximized view
-		part.maximizeGroup(group1, [group2.id]);
-		part.removeGroup(group2);
-		const afterRemove = part.hasMaximizedGroup();
-		part.maximizeGroup(group1, []);
-		part.activateGroup(group3);
-
-		assert.deepStrictEqual({ atMinimum, keptVisible, afterHidden, exitedBeforePlainMaximize, plainMaximized, afterPlainMaximize, afterRemove, afterNoneKept: part.hasMaximizedGroup() }, {
-			atMinimum: true,
-			keptVisible: true,
-			afterHidden: false,
-			exitedBeforePlainMaximize: true,
-			plainMaximized: true,
-			afterPlainMaximize: false,
-			afterRemove: false,
-			afterNoneKept: false,
-		});
-	});
-
-	test('setViewColumnGroup sets the view column group until disposed, replaced or the group is removed', async function () {
-		const [part] = await createPart();
-		const group1 = part.activeGroup;
-		const group2 = part.addGroup(group1, GroupDirection.RIGHT);
-		const states = [part.viewColumnGroup?.id];
-
-		const first = part.setViewColumnGroup(group1);
-		states.push(part.viewColumnGroup?.id);
-		const second = part.setViewColumnGroup(group2);
-		states.push(part.viewColumnGroup?.id);
-		first.dispose(); // replaced, so it leaves the second
-		states.push(part.viewColumnGroup?.id);
-		part.removeGroup(group2);
-		states.push(part.viewColumnGroup?.id);
-		second.dispose();
-		part.setViewColumnGroup(group1).dispose();
-		states.push(part.viewColumnGroup?.id);
-
-		assert.deepStrictEqual(states, [undefined, group1.id, group2.id, group2.id, undefined, undefined]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

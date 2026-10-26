@@ -199,7 +199,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 
 	resolveChatResponseUri(resource: URI, href: string, kind: 'link' | 'image'): string {
 		const context = this._chatContexts.get(resource);
-		const resolve = (target: string) => rewriteAgentHostLinkTarget(target, this._config.connectionAuthority, undefined, kind === 'image' ? context?.directory : undefined);
+		const resolve = (target: string) => rewriteAgentHostLinkTarget(target, this._config.connectionAuthority, undefined, kind === 'image' || kind === 'link' ? context?.directory : undefined);
 		const resolved = resolve(href);
 		return (kind === 'image' ? resolveAgentHostToolResultImage(context?.chat, resolved, resolve) : undefined) ?? resolved;
 	}

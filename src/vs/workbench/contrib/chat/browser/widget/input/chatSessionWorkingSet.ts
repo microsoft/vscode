@@ -7,6 +7,8 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Separator, toAction } from '../../../../../../base/common/actions.js';
 import { equals } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -30,10 +32,12 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
+import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { chatEditingWidgetFileStateContextKey, IEditSessionEntryDiff, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { chatEditingWidgetFileStateContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatSessionReviewPreferencesService } from '../../../common/editing/chatSessionReviewPreferences.js';
 import { getChatFileChangeLineCounts, IChangesSummaryFileList, openChatFileChangeDiff, renderChangesSummaryFileList } from '../chatContentParts/chatChangesSummaryPart.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
@@ -78,6 +82,8 @@ export interface IChatSessionWorkingSetFileActions {
 	readonly keepEnabled?: IObservable<boolean>;
 	/** Undoes changes to files, or `undefined` while the session doesn't support that. */
 	readonly undo: IObservable<IChatSessionWorkingSetUndo | undefined>;
+	/** The current session, resolved at invocation time because this widget survives session switches. */
+	readonly editingSession?: () => IChatEditingSession | undefined;
 }
 
 const VIEW_ALL_EDITS_ACTION_ID = 'chat.sessionWorkingSet.viewAll';
@@ -108,6 +114,7 @@ export class ChatSessionWorkingSet extends Disposable {
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IChatSessionReviewPreferencesService private readonly _reviewPreferences: IChatSessionReviewPreferencesService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.domNode));
@@ -212,7 +219,17 @@ export class ChatSessionWorkingSet extends Disposable {
 					id: VIEW_ALL_EDITS_ACTION_ID,
 					label: localize('chat.sessionWorkingSet.viewAll', "View All Edits"),
 					class: ThemeIcon.asClassName(Codicon.diffMultiple),
-					run: () => openChatFileChanges(this._editorService, localize('chat.sessionWorkingSet.changesEditor', "Session Changes"), this._diffs.read(undefined)),
+					run: () => {
+						const session = this._fileActions.editingSession?.();
+						const diffs = this._diffs.read(undefined);
+						const reviewFiles = session?.additionalReviewFiles?.read(undefined);
+						if (session?.supportsKeepUndo.read(undefined) && reviewFiles
+							&& diffs.every(diff => reviewFiles.some(file => isEqual(file.modifiedURI, diff.modifiedURI))
+								&& session.getEntry(diff.modifiedURI)?.state.read(undefined) === ModifiedFileEntryState.Modified)) {
+							return session.show();
+						}
+						return openChatFileChanges(this._editorService, localize('chat.sessionWorkingSet.changesEditor', "Session Changes"), diffs);
+					},
 				}),
 			], []);
 			if (hadFocus) {
@@ -239,7 +256,13 @@ export class ChatSessionWorkingSet extends Disposable {
 		const fileMenu = this._register(menuService.createMenu(MenuId.ChatEditingWidgetModifiedFilesToolbar, scopedContextKeyService, { eventDebounceDelay: 0 }));
 		const fileMenuChanged = observableSignalFromEvent(this, fileMenu.onDidChange);
 		this._fileList = this._register(renderChangesSummaryFileList(listContainer, this._diffs, scopedInstantiationService, this._editorService, configurationService, {
-			openFile: true,
+			openEditor: (diff, inDiffEditor, options, sideBySide) => {
+				if (inDiffEditor) {
+					void this._openFileDiff(diff, options, sideBySide).catch(onUnexpectedError);
+				} else {
+					void this._editorService.openEditor({ resource: diff.modifiedURI, options }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				}
+			},
 			ariaLabel: localize('chat.sessionWorkingSet.list', "Session changes"),
 			rowActionIcons: true,
 			getRowActions: (diff, reader) => {
@@ -319,7 +342,29 @@ export class ChatSessionWorkingSet extends Disposable {
 	/** Opens the diffs of the changes to the listed files of `resources`. */
 	openFileChanges(resources: readonly URI[]): void {
 		for (const diff of this._getDiffs(resources)) {
-			openChatFileChangeDiff(this._editorService, diff);
+			void this._openFileDiff(diff).catch(onUnexpectedError);
+		}
+	}
+
+	private async _openFileDiff(diff: IEditSessionEntryDiff, options?: IEditorOptions, sideBySide = false): Promise<void> {
+		const session = this._fileActions.editingSession?.();
+		let entry: IModifiedFileEntry | undefined;
+		try {
+			entry = session?.resolveEntry ? await session.resolveEntry(diff.modifiedURI) : session?.getEntry(diff.modifiedURI);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+			this._notificationService.warn(localize('chat.sessionWorkingSet.liveReviewUnavailable', "The live review could not be loaded. Showing the recorded changes instead: {0}", toErrorMessage(error)));
+		}
+		if (entry?.state.get() === ModifiedFileEntryState.Modified) {
+			void this._editorService.openEditor({
+				original: { resource: entry.originalURI },
+				modified: { resource: entry.modifiedURI },
+				options,
+			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+		} else {
+			openChatFileChangeDiff(this._editorService, diff, options, sideBySide);
 		}
 	}
 

@@ -19,7 +19,7 @@ import { CloudSandboxLifecycleTelemetry, type CloudSandboxLifecycleOperation, ty
 export type { CloudSandboxRefreshStopReason } from './cloudSandboxLifecycleTelemetry.js';
 
 /** The Mission Control call being reported. A closed set, so it is safe to send verbatim. */
-export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'connectSessionFeed' | 'getEnvironment' | 'listEnvironments' | 'listTasks' | 'getTask' | 'createTask' | 'reserveTask' | 'deleteTask' | 'renameTask' | 'archiveTask' | 'unarchiveTask' | 'getTaskEvents' | 'getRepository' | 'listModels' | 'mintIdentityToken' | 'sealToken';
+export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'connectSessionFeed' | 'getEnvironment' | 'listEnvironments' | 'deleteEnvironment' | 'listTasks' | 'getTask' | 'createTask' | 'reserveTask' | 'deleteTask' | 'renameTask' | 'archiveTask' | 'unarchiveTask' | 'getTaskEvents' | 'getRepository' | 'listModels' | 'mintIdentityToken' | 'sealToken';
 
 /**
  * How a Mission Control request ended, bucketed so a count is meaningful without carrying the
@@ -846,7 +846,7 @@ type CloudSandboxRequestsEvent = {
 };
 
 type CloudSandboxRequestsClassification = {
-	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Which Mission Control operation was counted, including identity-token acquisition and sealing, model discovery, task operations, and environment connections.' };
+	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Which Mission Control operation was counted, including identity-token acquisition and sealing, model discovery, task operations, and environment connections and deletion.' };
 	windowMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds covered by these counts.' };
 	total: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Requests issued for this action during the window.' };
 	succeeded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Requests that returned a success status.' };
