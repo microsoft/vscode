@@ -128,21 +128,26 @@ function getGroupLabel(group: AgentsWindowExtensionGroup): string {
 
 /**
  * Describes a group. Extensions in the AI Features and Other Extensions groups are disabled by default, unless they are
- * enabled automatically, which leaves their global state.
+ * enabled automatically, which leaves their global state, either because they could be useful or because
+ * {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE} lists them.
  */
-function getGroupDescription(group: IAgentsWindowExtensionsGroup): string {
+function getGroupDescription(group: IAgentsWindowExtensionsGroup, autoEnablesListed: boolean): string {
 	const hasAutomaticallyEnabled = group.entries.some(entry => entry.extension.enablementState === EnablementState.EnabledGlobally);
 	switch (group.group) {
 		case AgentsWindowExtensionGroup.Suggested:
-			return hasAutomaticallyEnabled
-				? localize('agentsWindowExtensions.aiFeaturesGroupDescriptionAutoEnabled', "Extensions that add AI features, such as tools, MCP servers, or skills. They haven't declared support for the Agents window, so they might not work as expected. Those that don't rely on views, debugging, or other features that are unavailable in the Agents window are enabled automatically.")
-				: localize('agentsWindowExtensions.aiFeaturesGroupDescription', "Extensions that add AI features, such as tools, MCP servers, or skills. They haven't declared support for the Agents window, so they are disabled by default and might not work as expected.");
+			return !hasAutomaticallyEnabled
+				? localize('agentsWindowExtensions.aiFeaturesGroupDescription', "Extensions that add AI features, such as tools, MCP servers, or skills. They haven't declared support for the Agents window, so they are disabled by default and might not work as expected.")
+				: autoEnablesListed
+					? localize('agentsWindowExtensions.aiFeaturesGroupDescriptionAutoEnabledListed', "Extensions that add AI features, such as tools, MCP servers, or skills. They haven't declared support for the Agents window, so they might not work as expected. They are disabled by default, unless they are enabled automatically.")
+					: localize('agentsWindowExtensions.aiFeaturesGroupDescriptionAutoEnabled', "Extensions that add AI features, such as tools, MCP servers, or skills. They haven't declared support for the Agents window, so they might not work as expected. Those that don't rely on views, debugging, or other features that are unavailable in the Agents window are enabled automatically.");
 		case AgentsWindowExtensionGroup.Supported:
 			return localize('agentsWindowExtensions.supportedGroupDescription', "Extensions that support the Agents window. They are enabled by default.");
 		case AgentsWindowExtensionGroup.Other:
-			return hasAutomaticallyEnabled
-				? localize('agentsWindowExtensions.otherGroupDescriptionAutoEnabled', "Extensions that haven't declared support for the Agents window. They might not work as expected. Those that add AI features and don't rely on views, debugging, or other features that are unavailable in the Agents window are enabled automatically. The others are disabled by default.")
-				: localize('agentsWindowExtensions.otherGroupDescription', "Extensions that haven't declared support for the Agents window. They are disabled by default and might not work as expected.");
+			return !hasAutomaticallyEnabled
+				? localize('agentsWindowExtensions.otherGroupDescription', "Extensions that haven't declared support for the Agents window. They are disabled by default and might not work as expected.")
+				: autoEnablesListed
+					? localize('agentsWindowExtensions.otherGroupDescriptionAutoEnabledListed', "Extensions that haven't declared support for the Agents window. They might not work as expected. They are disabled by default, unless they are enabled automatically.")
+					: localize('agentsWindowExtensions.otherGroupDescriptionAutoEnabled', "Extensions that haven't declared support for the Agents window. They might not work as expected. Those that add AI features and don't rely on views, debugging, or other features that are unavailable in the Agents window are enabled automatically. The others are disabled by default.");
 	}
 }
 
@@ -455,6 +460,8 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 			}
 			if (e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE)) {
 				this.updateDescription();
+				// Group descriptions depend on how extensions are enabled automatically.
+				this.scheduleRender();
 			}
 		}));
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateSearchAriaLabel()));
@@ -521,6 +528,7 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 
 		this.emptyState.style.display = 'none';
 		this.treeContainer.style.display = '';
+		const autoEnablesListed = Array.isArray(this.configurationService.getValue<unknown>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE));
 		const children: IObjectTreeElement<AgentsWindowExtensionsTreeEntry>[] = visibleGroups.map(group => {
 			const collapsed = this.collapsedGroups.has(group.group);
 			const element: IAgentsWindowExtensionsGroupEntry = {
@@ -529,7 +537,7 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 				group: group.group,
 				label: getGroupLabel(group.group),
 				// Describes all installed extensions in the group, so the description doesn't change while searching.
-				description: getGroupDescription(installed.find(installedGroup => installedGroup.group === group.group) ?? group),
+				description: getGroupDescription(installed.find(installedGroup => installedGroup.group === group.group) ?? group, autoEnablesListed),
 				icon: Codicon.extensions,
 				count: group.entries.length,
 				isFirst: false,
@@ -621,9 +629,12 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 	}
 
 	private updateDescription(): void {
-		this.description.textContent = this.configurationService.getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE) === true
+		const autoEnable = this.configurationService.getValue<unknown>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE);
+		this.description.textContent = autoEnable === true
 			? localize('agentsWindowExtensions.descriptionAutoEnabled', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window might not work as expected. They are disabled by default, unless they could be useful there and don't rely on features that are unavailable in the Agents window. Changes only apply to the Agents window.")
-			: localize('agentsWindowExtensions.description', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window are disabled by default and might not work as expected. Changes only apply to the Agents window.");
+			: Array.isArray(autoEnable) && autoEnable.length > 0
+				? localize('agentsWindowExtensions.descriptionAutoEnabledListed', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window might not work as expected. They are disabled by default, unless they are enabled automatically. Changes only apply to the Agents window.")
+				: localize('agentsWindowExtensions.description', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window are disabled by default and might not work as expected. Changes only apply to the Agents window.");
 	}
 
 	private updateSearchAriaLabel(): void {

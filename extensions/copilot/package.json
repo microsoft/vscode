@@ -6272,7 +6272,7 @@
         {
           "command": "github.copilot.cli.sessions.rename",
           "when": "sessionType == copilotcli && sessionProviderId == default-copilot",
-          "group": "1_edit@4"
+          "group": "4_manage@2"
         }
       ],
       "chat/multiDiff/context": [

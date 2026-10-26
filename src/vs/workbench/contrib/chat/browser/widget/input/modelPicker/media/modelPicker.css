@@ -824,13 +824,33 @@
 	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, transparent);
 }
 
-/* Copilot Fusion's badge, its discount or else Recommended, takes the GitHub Copilot brand
- * gradient. High contrast drops the fill, so the pill takes the contrast border instead. */
+/* Copilot Fusion's badge, its discount or else Recommended, is a neutral pill whose border
+ * takes the GitHub Copilot brand gradient. The gradient is masked to the stroke, so the
+ * translucent fill stays neutral. High contrast drops the gradient for the contrast border. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-fusion > .action-item-badge {
+	position: relative;
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
-	color: var(--vscode-chat-fusionBadgeForeground);
-	background: linear-gradient(to right, var(--vscode-chat-fusionBadgeGradientStart), var(--vscode-chat-fusionBadgeGradientEnd));
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastBorder, transparent);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-fusion > .action-item-badge::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	padding: var(--vscode-strokeThickness);
+	border-radius: inherit;
+	background: linear-gradient(to right, var(--vscode-chat-fusionBadgeGradientStart), var(--vscode-chat-fusionBadgeGradientEnd));
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	pointer-events: none;
 }
 
 .action-widget .chat-model-picker-tabbed .monaco-list-row .chat-model-picker-org-default-badge,

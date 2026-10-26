@@ -73,6 +73,10 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
+export function getChatInputSessionLinkAccessibilityHelp(): string {
+	return localize('chat.inputSessionLinks', "Session links in the chat input can be opened without sending your message. Place the cursor in a session link and run Open Link{0} from the Command Palette, or use the editor's modifier-click gesture.", '<keybinding:editor.action.openLink>');
+}
+
 export function getCloudSandboxPreparationAccessibilityHelp(): string {
 	return localize('chat.cloudSandboxEarlyPreparation', "When {0} is enabled, typing in a new Cloud chat, with or without a repository, can prepare cloud resources in the background. Your message is not sent and no conversation is added to the session list until you press Send. Send waits for pending preparation and reuses it when possible, otherwise it can continue without early preparation. While the window is running, VS Code attempts to release unused preparation after five minutes, when you change repositories, or when you turn the setting off.", CloudSandboxEarlyPreparationSettingId);
 }
@@ -83,6 +87,9 @@ export function getModelPickerConfigurationAccessibilityHelp(): string {
 
 export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported(), sessionWorkingSetEnabled: boolean = false, sessionWorkingSetUndo: boolean = false, sessionWorkingSetReviewEnabled: boolean = true): string {
 	const content = [];
+	if (type !== 'inlineChat') {
+		content.push(getChatInputSessionLinkAccessibilityHelp());
+	}
 	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
 	if (hasSessionWorkingSet) {
 		const headingActions = !sessionWorkingSetReviewEnabled
@@ -231,6 +238,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			content.push(localize('chat.systemNotificationDisclosure', 'Some session status messages have additional details. Use Tab to focus the status message and press Enter or Space to show or hide its details.'));
 		}
 		content.push(localize('chat.subagentPill', 'When a subagent pill appears in a response, use Tab to focus it and press Enter or Space to open that subagent chat to the side.'));
+		content.push(localize('chat.backgroundActivityProgressDropdown', "Running-subagent and background-command statuses at the bottom of a response open dropdowns showing only in-progress work, including subagents waiting for input. Finished subagents and background work disappear from these dropdowns as they complete, regardless of the input pills' Show All setting. When both kinds are running, one combined status opens a Background Activity dropdown containing both groups. The separate pills above the input keep their existing filters. In a subagent chat, the status still opens that chat's own running work when the input activity pills are hidden. Use Tab to focus the status and Enter or Space to open it. Use the Up and Down arrow keys to choose an entry, then Enter to open a subagent or the shell's live command details. Escape closes the dropdown and returns focus to the status. If the focused status disappears when work finishes, focus returns to the chat input. The label retains the progress shimmer; reduced motion shows static text."));
 		content.push(localize('chat.mcpStartupSkip', "When a chat turn is waiting for MCP servers to start, a Skip link may appear. Use Tab to focus Skip and press Enter or Space to continue the turn while those servers start in the background. The current startup message disappears immediately and focus returns to the chat input. New server startups may show another message."));
 		content.push(localize('chat.readOnlyThinking', "In read-only chats, thinking details preview while streaming and collapse when finished, regardless of your thinking-style setting. Focus a thinking header and press Enter or Space to expand or collapse its details."));
 		content.push(localize('workbench.action.chat.focus', 'To focus the chat request and response list, invoke the Focus Chat command{0}. This will move focus to the most recent response, which you can then navigate using the up and down arrow keys.', getChatFocusKeybindingLabel(keybindingService, type, 'last')));

@@ -175,6 +175,10 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 	}
 
 	readSessionState(...args: Parameters<IAgentHostSessionStateDatabase['readSessionState']>): ReturnType<IAgentHostSessionStateDatabase['readSessionState']> { return this._sessionState.readSessionState(...args); }
+	getWorktreeDiskUsageRevision(...args: Parameters<IAgentHostDatabase['getWorktreeDiskUsageRevision']>): ReturnType<IAgentHostDatabase['getWorktreeDiskUsageRevision']> { return this._sessionState.getWorktreeDiskUsageRevision(...args); }
+	readWorktreeDiskUsage(...args: Parameters<IAgentHostDatabase['readWorktreeDiskUsage']>): ReturnType<IAgentHostDatabase['readWorktreeDiskUsage']> { return this._sessionState.readWorktreeDiskUsage(...args); }
+	writeWorktreeDiskUsage(...args: Parameters<IAgentHostDatabase['writeWorktreeDiskUsage']>): ReturnType<IAgentHostDatabase['writeWorktreeDiskUsage']> { return this._sessionState.writeWorktreeDiskUsage(...args); }
+	deleteWorktreeDiskUsage(...args: Parameters<IAgentHostDatabase['deleteWorktreeDiskUsage']>): ReturnType<IAgentHostDatabase['deleteWorktreeDiskUsage']> { return this._sessionState.deleteWorktreeDiskUsage(...args); }
 	readSessionStateValues(...args: Parameters<IAgentHostSessionStateDatabase['readSessionStateValues']>): ReturnType<IAgentHostSessionStateDatabase['readSessionStateValues']> { return this._sessionState.readSessionStateValues(...args); }
 	importSessionState(...args: Parameters<IAgentHostSessionStateDatabase['importSessionState']>): ReturnType<IAgentHostSessionStateDatabase['importSessionState']> { return this._sessionState.importSessionState(...args); }
 	writeSessionState(...args: Parameters<IAgentHostSessionStateDatabase['writeSessionState']>): ReturnType<IAgentHostSessionStateDatabase['writeSessionState']> { return this._sessionState.writeSessionState(...args); }
