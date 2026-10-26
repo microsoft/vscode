@@ -512,7 +512,6 @@ export class NestedChatWorkspaceControls extends Disposable {
 		this._isOpen = true;
 		anchor.setAttribute('aria-expanded', 'true');
 		this._actionWidgetService.show('NestedChatFolderPicker', false, items, delegate, anchor, undefined, [], {
-			getAriaLabel: item => item.label ?? '',
 			getWidgetAriaLabel: () => localize('nestedChat.folderPicker.ariaLabel', "Nested Session Folder Picker"),
 		}, WORKSPACE_PICKER_LIST_OPTIONS);
 	}

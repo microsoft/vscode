@@ -2323,8 +2323,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	/** The branch and repository label when the session's own folder is a git worktree; `undefined` otherwise. */
 	getNestedChatSessionFolderWorktree(reader: IReader | undefined): { readonly branch: string | undefined; readonly repositoryLabel: string | undefined } | undefined {
 		const workspace = this.workspace.read(reader);
-		const gitRepository = workspace?.folders[0]?.gitRepository;
-		if (!gitRepository?.workTreeUri || !this.getNestedChatSessionFolder(reader)) {
+		const sessionFolder = this.getNestedChatSessionFolder(reader);
+		// The workspace aggregates every chat's folders, so pick the one the session folder refers to.
+		const gitRepository = sessionFolder && workspace?.folders.find(folder => isEqual(folder.workingDirectory, sessionFolder))?.gitRepository;
+		if (!gitRepository?.workTreeUri) {
 			return undefined;
 		}
 		return { branch: gitRepository.branchName, repositoryLabel: workspace?.label };

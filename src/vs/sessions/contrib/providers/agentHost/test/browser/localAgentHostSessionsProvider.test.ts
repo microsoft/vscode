@@ -13300,6 +13300,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 				});
 			}));
 
+			test('reports the worktree of the session folder when the session workspace lists another folder first', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const worktree = URI.file('/work/repo.worktrees/fix-it');
+				const session = setupMultiChatSession(provider, 'nested-aggregate', [repo]);
+				const sessionUri = AgentSession.uri('copilotcli', 'nested-aggregate').toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				const meta = withSessionGitState(undefined, { branchName: 'agents/fix-it', baseBranchName: 'main' });
+				agentHost.setSessionState('nested-aggregate', 'copilotcli', makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [worktree.toString()]),
+				], { defaultChat, meta, workingDirectories: [worktree.toString()] }));
+				fireSessionSummaryChanged(agentHost, 'nested-aggregate', {
+					project: { uri: repo.toString(), displayName: 'repo' },
+					workingDirectories: [repo.toString(), worktree.toString()],
+					_meta: meta,
+				});
+
+				const support = provider.getNestedChatWorkspaceSupport(session.sessionId, undefined);
+				assert.deepStrictEqual({
+					folders: session.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+					sessionFolder: support?.sessionFolder?.toString(),
+					sessionFolderWorktree: support?.sessionFolderWorktree,
+				}, {
+					folders: [repo.toString(), worktree.toString()],
+					sessionFolder: worktree.toString(),
+					sessionFolderWorktree: { branch: undefined, repositoryLabel: 'repo' },
+				});
+			}));
+
 			test('never offers a quick chat\'s own scratch folder, even when the host doesn\'t publish it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				enableCreateChatWorkspace(true);
 				const provider = createProvider(disposables, agentHost);

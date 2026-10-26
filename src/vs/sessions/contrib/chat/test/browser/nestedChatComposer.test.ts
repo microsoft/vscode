@@ -56,6 +56,7 @@ suite('Sessions - New Nested Session composer', () => {
 	function createControls(value: IObservable<INestedChatWorkspaceSupport | undefined>, folderInfo: INestedChatFolderInfo = git, host: Partial<Pick<INestedChatWorkspaceHost, 'describeFolder' | 'describeNoWorkspace' | 'folderExists'>> & { recentFolders?: readonly URI[] } = {}) {
 		let pick: string | undefined;
 		const shown: string[][] = [];
+		const accessibilityProviderKeys: string[][] = [];
 		const lists: { rows: string[]; icons: (string | undefined)[]; options: { className: string | undefined; inlineDescription: boolean | undefined } }[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		const hoverDelegate: IHoverDelegate = { placement: 'element', delay: 500, showHover: () => undefined };
@@ -64,7 +65,8 @@ suite('Sessions - New Nested Session composer', () => {
 			isVisible: false,
 			hide: () => { },
 			updateItems: () => { },
-			show: <T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, _anchor: HTMLElement, _container: HTMLElement | undefined, _actionBarActions: unknown, _accessibilityProvider: unknown, listOptions?: IActionListOptions) => {
+			show: <T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, _anchor: HTMLElement, _container: HTMLElement | undefined, _actionBarActions: unknown, accessibilityProvider: object | undefined, listOptions?: IActionListOptions) => {
+				accessibilityProviderKeys.push(Object.keys(accessibilityProvider ?? {}));
 				shown.push(items.map(item => item.label ?? ''));
 				lists.push({
 					rows: items.map(item => item.kind === ActionListItemKind.Separator ? '---' : `${item.label}${item.description ? ` · ${item.description}` : ''}`),
@@ -114,7 +116,7 @@ suite('Sessions - New Nested Session composer', () => {
 		const repositoryControls = store.add(controls.renderRepositoryControls(repositoryContainer, hoverDelegate));
 		const trigger = () => row.querySelector<HTMLElement>('.nested-chat-folder-picker .action-label')!;
 		return {
-			controls, shown, lists, trigger,
+			controls, shown, lists, accessibilityProviderKeys, trigger,
 			tooltip() {
 				const content = hovers.get(trigger().closest<HTMLElement>('.action-item')!)?.content;
 				const resolved = typeof content === 'function' ? content() : content;
@@ -192,6 +194,12 @@ suite('Sessions - New Nested Session composer', () => {
 			rows: ['repo · /work', 'a [host] · /work', 'b · /work', 'c · /work', 'd · /work', 'e · /work', 'No workspace · Start without a backing workspace', '---', 'Browse...', 'Open Folder...'],
 			options: { className: 'sessions-new-chat-picker-list', inlineDescription: true },
 		}]);
+	});
+
+	test('leaves the row\'s accessible label to the action list so the worktree note is announced', async () => {
+		const h = createControls(constObservable({ ...support(URI.file('/work/wt')), sessionFolderWorktree: { branch: 'agents/fix', repositoryLabel: 'repo' } }));
+		await h.pickFolder('nothing');
+		assert.deepStrictEqual(h.accessibilityProviderKeys, [['getWidgetAriaLabel']]);
 	});
 
 	test('presents No workspace the way New Session does for the session\'s provider', async () => {
