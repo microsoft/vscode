@@ -48,7 +48,7 @@ jobs:
       agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
       ripple-changed: ${{ steps.ripple.outputs.changed }}
       ripple-failed: ${{ steps.ripple.outputs.failed }}
-      # Linux and macOS run Agent Host E2E in the Electron integration tests job.
+      # macOS runs Agent Host E2E in the Electron integration tests job.
       electron-tests: ${{ steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true' }}
       # The macOS and Windows unit test jobs run only the unit test files that the plan selects, so
       # they also skip when the plan of a working ripple selects none (see the Check ripple step).
@@ -470,16 +470,24 @@ jobs:
   # cannot affect one, it passes affected: false so that its reusable workflow skips its job, which
   # has a fixed name. GitHub reports a skipped calling job under its own name only, without
   # evaluating the expressions in it, such as the matrix of the smoke test shards.
+  # On Linux, which runs every unit test, the Electron and node.js unit tests in one job could be the
+  # slowest job of the workflow, so they run on separate machines. macOS and Windows run only the
+  # selected unit tests, so they rarely take as long.
   linux-electron-unit-tests:
-    name: Electron-Unit
+    name: Electron-Unit (${{ matrix.suite }})
     needs: changes
     if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [electron, node]
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true' }}
       electron_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_suite: ${{ matrix.suite }}
 
   linux-electron-tests:
     name: Electron
@@ -487,13 +495,29 @@ jobs:
     if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-test.yml
     with:
-      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.electron-tests == 'true' }}
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       electron_tests: true
       unit_tests: false
       smoke_tests: false
-      # On Linux and macOS the job is short enough to also run Agent Host E2E.
-      agent_host_e2e_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true' }}
-      # The provider integration tests and the Agent Host E2E tests read the profile.
+      # The provider integration tests read the profile.
+      agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
+      agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
+
+  # On Linux, the integration tests and Agent Host E2E in one job would be the slowest job of the
+  # workflow, so Agent Host E2E runs in parallel on its own machine.
+  linux-agent-host-e2e-tests:
+    name: Agent-Host-E2E
+    needs: changes
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true' }}
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_tests: false
+      agent_host_e2e_tests: true
+      # The Agent Host E2E tests read the profile.
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
@@ -633,7 +657,6 @@ jobs:
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
-      job_name: Electron-Unit
       electron_tests: true
       integration_tests: false
       smoke_tests: false
@@ -646,7 +669,6 @@ jobs:
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
-      job_name: Electron
       electron_tests: true
       unit_tests: false
       smoke_tests: false
@@ -658,27 +680,11 @@ jobs:
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
   # On Windows, Agent Host E2E is the slowest part of the Electron job, so it runs in parallel
-  # with the integration tests on its own machine. It runs only the suites that the plan selects.
+  # with the integration tests on other machines. It runs only the suites that the plan selects.
+  # The six suites take twice as long on one 8-core larger runner as on the 1ES runners, so the
+  # selected suites run in two shards.
   windows-agent-host-e2e-tests:
-    name: Agent-Host-E2E
-    needs: changes
-    if: ${{ !cancelled() }}
-    uses: ./.github/workflows/pr-win32-test.yml
-    with:
-      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-agent-host-e2e == 'true' }}
-      job_name: Agent-Host-E2E
-      electron_tests: true
-      unit_tests: false
-      integration_tests: false
-      smoke_tests: false
-      agent_host_e2e_tests: true
-      test_selection: true
-      # The provider integration tests and the Agent Host E2E tests read the profile.
-      agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
-      agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
-
-  windows-electron-smoke-test-shards:
-    name: Electron-Smoke (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    name: Agent-Host-E2E (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
     if: ${{ !cancelled() }}
     strategy:
@@ -687,8 +693,32 @@ jobs:
         shard: [1, 2]
     uses: ./.github/workflows/pr-win32-test.yml
     with:
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-agent-host-e2e == 'true' }}
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_tests: false
+      agent_host_e2e_tests: true
+      test_selection: true
+      agent_host_e2e_shard_index: ${{ matrix.shard }}
+      agent_host_e2e_shard_total: ${{ strategy.job-total }}
+      # The provider integration tests and the Agent Host E2E tests read the profile.
+      agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
+      agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
+
+  # On Windows, the WSL setup makes the first Electron smoke test shard one of the slowest jobs of
+  # the workflow, so the smoke tests run in three shards there, and in two on Linux and macOS.
+  windows-electron-smoke-test-shards:
+    name: Electron-Smoke (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: changes
+    if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
-      job_name: Electron-Smoke
       electron_tests: true
       unit_tests: false
       integration_tests: false
@@ -702,7 +732,6 @@ jobs:
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true' }}
-      job_name: Browser
       browser_tests: true
       integration_tests: false
       smoke_tests: false
@@ -715,19 +744,28 @@ jobs:
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
-      job_name: Browser
       browser_tests: true
       unit_tests: false
 
+  # On Windows, the remote integration tests and the remote smoke tests in one job could be the
+  # slowest job of the workflow, so they run on separate machines.
   windows-remote-tests:
-    name: Remote
+    name: Remote (${{ matrix.part }})
     needs: changes
     if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { part: integration, integration: true, smoke: false }
+          - { part: smoke, integration: false, smoke: true }
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
-      job_name: Remote
       remote_tests: true
+      unit_tests: false
+      integration_tests: ${{ matrix.integration }}
+      smoke_tests: ${{ matrix.smoke }}
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
@@ -901,7 +939,7 @@ jobs:
     name: Copilot - Test (Windows)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-windows-8-core
     permissions:
       contents: read
     steps:
@@ -1011,6 +1049,7 @@ jobs:
       - linux-copilot-shim-tests
       - linux-electron-unit-tests
       - linux-electron-tests
+      - linux-agent-host-e2e-tests
       - linux-electron-smoke-test-shards
       - linux-browser-unit-tests
       - linux-browser-integration-tests
