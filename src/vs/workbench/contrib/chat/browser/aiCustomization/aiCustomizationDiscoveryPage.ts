@@ -1383,7 +1383,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 		const canvases = this.searchActionDisposables.add(new Action(
 			'customizationDiscovery.filter.canvas',
-			localize('customizationDiscovery.filterCanvases', "Canvas"),
+			localize('customizationDiscovery.filterCanvases', "Canvases"),
 			undefined,
 			true,
 			() => this.setQuery(this.query.withType('canvas', !this.query.types.has('canvas'))),
