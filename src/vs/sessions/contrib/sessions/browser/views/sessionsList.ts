@@ -44,13 +44,14 @@ import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../../common/sessionApplic
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
+import { getGitHubRepositoryId, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -60,7 +61,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -2206,17 +2207,8 @@ function getChatWorkspaceBadgeLabel(sessionWorkspace: ISessionWorkspace | undefi
 }
 
 function getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
-	const repository = getGitHubRemoteFileRepository(workspace.folders[0]?.root);
-	return repository ? `${repository.owner}/${repository.name}` : workspace.label;
-}
-
-/** The repository of a `github-remote-file` URI, such as a cloud session's workspace folder. */
-function getGitHubRemoteFileRepository(uri: URI | undefined): ISessionRepository | undefined {
-	if (uri?.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
-		return undefined;
-	}
-	const [owner, name] = uri.path.split('/').filter(Boolean);
-	return owner && name ? { owner, name } : undefined;
+	const repository = getGitHubRepositoryOfRemoteFile(workspace.folders[0]?.root);
+	return repository ? `${repository.owner}/${repository.repo}` : workspace.label;
 }
 
 interface ISessionRowLocationOptions {
@@ -2814,6 +2806,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		private readonly headerStatusTrigger: ISessionHeaderStatusTrigger,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
+		private readonly configurationService: IConfigurationService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionGroupTemplate {
@@ -2834,6 +2827,10 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, SessionGroupToolbarMenuId, {
 			menuOptions: { shouldForwardArgs: true },
 			telemetrySource: 'sessionsList.group',
+			actionViewItemProvider: createSessionActionViewItemProvider(scopedInstantiationService, this.configurationService, context => {
+				const group = context as ISessionGroupItem | undefined;
+				return !!group && !group.comparison?.launching && group.subtreeSessions.length > 0 && group.subtreeSessions.every(session => session.isArchived.get());
+			}),
 		}));
 
 		return { container, icon, collapsed: observableValue(this, false), labelContainer, label, description, inputContainer, toolbarContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
@@ -3445,6 +3442,8 @@ interface ISessionsListDndDelegate {
 	setHeaderInsertionDepth(depth: number | undefined): void;
 	/** The dragged chat row's chat, with its session, when moving chats by drag and drop is on and it can move. */
 	getMovableDraggedChat(item: ISessionChatItem): { readonly session: ISession; readonly chat: IChat } | undefined;
+	/** Whether nested chat rows are shown in their session's chat order, so that a position among them is a position in that order. */
+	areChatPositionsShown(): boolean;
 	/** Whether the session can move under another session, when moving chats by drag and drop is on. */
 	canMoveSessionUnder(session: ISession): boolean;
 	/** Move the chat of `session` as the drop says. */
@@ -3619,7 +3618,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (elements.length > 0 && elements.every(isSessionChatItem)) {
 			// Only the provider orders nested chats: a chat it can't move, or several chats, can't be dropped.
 			const movable = elements.length === 1 ? this.movableChat(elements[0]) : undefined;
-			return movable ? this.resolveChatMove(movable, target, sector) : undefined;
+			return movable ? this.resolveChatMove(movable, target, targetIndex, sector) : undefined;
 		}
 		const sessions = elements.filter(isSessionItem);
 		if (sessions.length === 0) {
@@ -3629,7 +3628,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (nest?.kind === 'nest') {
 			const session = sessions[0];
 			return {
-				reaction: nest.position === 'over' ? intoSessionDropReaction() : toDropReaction({ position: toEffectPosition(nest.position) }),
+				reaction: nest.position === 'over' ? this.intoSessionDropReaction(target, targetIndex) : toDropReaction({ position: toEffectPosition(nest.position) }),
 				moveFeedback: nest.position === 'over' ? 'move' : 'nested',
 				run: () => this.delegate.moveSessionUnder(session, nest.session, nest.after),
 			};
@@ -3680,14 +3679,14 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	 * Where a chat that its provider can move goes when dropped here (see {@link getSessionsListChatDrop}): within or
 	 * into a session, or into a new session. The provider then owns the chat order.
 	 */
-	private resolveChatMove(dragged: { readonly session: ISession; readonly chat: IChat }, targetElement: SessionListItem | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
+	private resolveChatMove(dragged: { readonly session: ISession; readonly chat: IChat }, targetElement: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
 		let target: ISessionsListChatDropTarget | undefined;
 		if (targetElement && isSessionChatItem(targetElement)) {
 			target = { session: targetElement.session, chat: targetElement.chat, position: sectorToPosition(sector) };
 		} else if (targetElement && isSessionItem(targetElement)) {
 			target = { session: targetElement, chat: undefined, position: 'before' };
 		}
-		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target);
+		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target, this.delegate.areChatPositionsShown());
 		if (!drop) {
 			return undefined;
 		}
@@ -3696,7 +3695,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			// The whole list shows it receives the chat as a new session.
 			reaction = { accept: true, feedback: [-1], effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
 		} else if (drop.position === 'over') {
-			reaction = intoSessionDropReaction();
+			reaction = this.intoSessionDropReaction(targetElement, targetIndex);
 		} else {
 			reaction = toDropReaction({ position: toEffectPosition(drop.position) });
 		}
@@ -3705,6 +3704,21 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			moveFeedback: drop.kind === 'session' && drop.position !== 'over' ? 'nested' : 'move',
 			run: () => this.delegate.moveChat(dragged.session, dragged.chat, drop),
 		};
+	}
+
+	/** Dropping into a session at its end highlights all of its rows, also when the pointer is over one of its nested chat rows. */
+	private intoSessionDropReaction(target: SessionListItem | undefined, targetIndex: number | undefined): ITreeDragOverReaction {
+		const reaction = intoSessionDropReaction();
+		if (!target || !isSessionChatItem(target) || targetIndex === undefined) {
+			return reaction;
+		}
+		const chatIndex = this.delegate.getVisibleChatRows(target.session).indexOf(target);
+		if (chatIndex < 0) {
+			return reaction;
+		}
+		const sessionIndex = targetIndex - chatIndex - 1;
+		const rowCount = this.delegate.getRenderedRowCount(target.session);
+		return { ...reaction, feedback: Array.from({ length: rowCount }, (_, i) => sessionIndex + i) };
 	}
 
 	/**
@@ -3727,7 +3741,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			isManuallyOrdered: () => this.delegate.isInManuallyOrderedSection(session),
 			isLastInSection: () => this.delegate.isLastRowOfSection(chatItem ?? session),
 			canPlace: position => !!this.resolveSessionDrop(sessions, session, undefined, position === 'before' ? ListViewTargetSector.TOP : ListViewTargetSector.BOTTOM),
-		});
+		}, this.delegate.areChatPositionsShown());
 	}
 
 	private resolveSessionDrop(sessions: readonly ISession[], target: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
@@ -4104,6 +4118,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * custom group: `true` lists every session, `false` caps the section.
 	 */
 	private static readonly SESSION_GROUP_EXPANSION_STATE_KEY = 'sessionsListControl.sessionGroupExpansionState';
+	/** Set once {@link SessionsList.migrateCloudSandboxRepositorySections} has run. */
+	private static readonly CLOUD_SANDBOX_REPOSITORY_SECTIONS_MIGRATED_KEY = 'sessionsListControl.cloudSandboxRepositorySectionsMigrated';
 	private static readonly DEFAULT_SESSION_GROUP_LIMIT = 5;
 
 	/**
@@ -4503,7 +4519,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			cancelEdit: group => this.cancelGroupEdit(group),
 			select: selectHeader,
 			toggleCollapsed: element => this.tree.toggleCollapsed(element),
-		}, showUnreadInCollapsedSections, sessionsWithFailingCI, headerStatusTrigger, instantiationService, contextKeyService);
+		}, showUnreadInCollapsedSections, sessionsWithFailingCI, headerStatusTrigger, instantiationService, contextKeyService, this.configurationService);
 		this._groupRenderer = groupRenderer;
 
 		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
@@ -4605,6 +4621,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					getRenderedRowCount: element => this.tree.hasElement(element) ? this.tree.getListRenderCount(element) : 1,
 					moveHeader: (header, drop) => this.moveHeader(header, drop),
 					getMovableDraggedChat: item => this.getMovableDraggedChat(item),
+					areChatPositionsShown: () => this.areChatPositionsShown(),
 					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
 					moveChat: (session, chat, drop) => this.moveChatByDrop(session, chat, drop),
 					moveSessionUnder: (session, target, after) => this.moveSessionUnderByDrop(session, target, after),
@@ -6305,6 +6322,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		runSessionsListMove(move, this._sessionsManagementService, this.notificationService, this.logService, {
 			notice: this.options.getMoveNotice?.(),
 			watch: watched => this.watchMoveForReveal(watched),
+			placementServices: { sessionsListModelService: this._sessionsListModelService, sessionGroupsService: this._sessionGroupsService },
 		}).catch(onUnexpectedError);
 	}
 
@@ -6570,6 +6588,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.filter((element): element is ISessionChatItem => !!element && isSessionChatItem(element));
 	}
 
+	/** Nested chats are shown in their session's chat order, which the provider owns, only when sorting by creation. */
+	private areChatPositionsShown(): boolean {
+		return this.options.sorting() === SessionsSorting.Created;
+	}
+
 	/** The sibling chat row a nested chat swaps with when moved up or down, if any. */
 	private getAdjacentChatRow(item: ISessionChatItem, direction: 'up' | 'down'): ISessionChatItem | undefined {
 		const rows = this.getChatRows(item.session);
@@ -6582,9 +6605,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * there or its provider can't move the chat there. Only the provider orders nested chats.
 	 */
 	private getAdjacentChatMove(item: ISessionChatItem, direction: 'up' | 'down'): { readonly session: ISession; readonly chat: IChat; readonly drop: SessionsListChatDrop } | undefined {
-		const target = this.getAdjacentChatRow(item, direction);
+		const positionsShown = this.areChatPositionsShown();
+		const target = positionsShown ? this.getAdjacentChatRow(item, direction) : undefined;
 		const movable = target && this.getMovableDraggedChat(item);
-		const drop = target && movable && getSessionsListChatDrop(movable.session, movable.chat, { session: target.session, chat: target.chat, position: direction === 'up' ? 'before' : 'after' });
+		const drop = target && movable && getSessionsListChatDrop(movable.session, movable.chat, { session: target.session, chat: target.chat, position: direction === 'up' ? 'before' : 'after' }, positionsShown);
 		return movable && drop ? { session: movable.session, chat: movable.chat, drop } : undefined;
 	}
 
@@ -8076,6 +8100,123 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
+	// -- One-time state migration --
+
+	/**
+	 * Repository grouping showed cloud sandbox sessions in their workspace section until they joined
+	 * their repository's section. Once ever, this gives each such repository section the list state
+	 * recorded for that workspace section, unless the repository section has its own: its custom
+	 * group and position there, top-level position, icon and color, collapse state, and show
+	 * more/show less choice. Nothing is removed, as Workspace grouping still shows the workspace section.
+	 *
+	 * A Copilot cloud session's workspace section is named `<owner>/<repo>` like a cloud sandbox
+	 * session's, so state keyed by that name (position, icon and color) is adopted only for
+	 * repositories that state keyed unambiguously shows had cloud sandbox sessions: a custom group
+	 * placement in Repository grouping, or a collapse or show more/show less choice keyed by an
+	 * `https://github.com/<owner>/<repo>` workspace, which Copilot cloud sessions never have.
+	 */
+	// TODO@benibenj Remove after 2027-01-26, once profiles have run it.
+	static migrateCloudSandboxRepositorySections(storageService: IStorageService, sessionGroupsService: ISessionGroupsService, sessionSectionOrderService: ISessionSectionOrderService): void {
+		if (storageService.getBoolean(SessionsList.CLOUD_SANDBOX_REPOSITORY_SECTIONS_MIGRATED_KEY, StorageScope.PROFILE, false)) {
+			return;
+		}
+		try {
+			// Workspace section ids, by the id of the repository section that adopts their state.
+			const workspaceSectionIds = new Map<string, Set<string>>();
+			const addWorkspaceSection = (repositorySectionId: string, workspaceSectionId: string) => {
+				let ids = workspaceSectionIds.get(repositorySectionId);
+				if (!ids) {
+					ids = new Set();
+					workspaceSectionIds.set(repositorySectionId, ids);
+				}
+				ids.add(workspaceSectionId);
+			};
+
+			for (const key of [SessionsList.SECTION_COLLAPSE_STATE_KEY, SessionsList.SESSION_GROUP_EXPANSION_STATE_KEY]) {
+				const state = readStoredBooleans(storageService, key);
+				let changed = false;
+				for (const [stateId, value] of Object.entries(state)) {
+					const repository = stateId.startsWith('workspace:https:') ? getGitHubRepositoryOfUrl(URI.parse(stateId.slice('workspace:'.length))) : undefined;
+					if (!repository) {
+						continue;
+					}
+					const repositorySectionId = getRepositorySectionId({ owner: repository.owner, name: repository.repo });
+					// A cloud sandbox session's workspace section is named after the repository it names by URL.
+					addWorkspaceSection(repositorySectionId, `workspace:${repository.owner}/${repository.repo}`);
+					if (state[repositorySectionId] === undefined) {
+						state[repositorySectionId] = value;
+						changed = true;
+					}
+				}
+				if (changed) {
+					storageService.store(key, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+				}
+			}
+
+			// Repository grouping placed a workspace section without a repository under `repository:workspace:<name>`.
+			const placements: { readonly key: string; readonly groupId: string; readonly repositorySectionId: string }[] = [];
+			for (const group of sessionGroupsService.getGroups()) {
+				for (const key of sessionGroupsService.getSectionIdsInGroup(group.id)) {
+					if (!key.startsWith(`${REPOSITORY_SECTION_PREFIX}workspace:`)) {
+						continue;
+					}
+					const workspaceSectionId = key.slice(REPOSITORY_SECTION_PREFIX.length);
+					const [owner, name] = getGitHubRepositoryId(workspaceSectionId.slice('workspace:'.length))?.split('/') ?? [];
+					if (owner && name) {
+						const repositorySectionId = getRepositorySectionId({ owner, name });
+						addWorkspaceSection(repositorySectionId, workspaceSectionId);
+						placements.push({ key, groupId: group.id, repositorySectionId });
+					}
+				}
+			}
+			for (const { key, groupId, repositorySectionId } of placements) {
+				// A promoted section was placed at the top level by the user, which `getGroupOfSection` does not record.
+				if (sessionGroupsService.getGroupOfSection(repositorySectionId) === undefined && !sessionSectionOrderService.isPromoted(repositorySectionId)) {
+					sessionGroupsService.moveSection(repositorySectionId, groupId, { siblingId: key, position: 'after' });
+				}
+			}
+
+			for (const [repositorySectionId, ids] of workspaceSectionIds) {
+				for (const workspaceSectionId of ids) {
+					sessionSectionOrderService.adoptPosition(workspaceSectionId, repositorySectionId);
+					const appearance = sessionGroupsService.getSectionAppearance(workspaceSectionId);
+					if (appearance && !sessionGroupsService.getSectionAppearance(repositorySectionId)) {
+						sessionGroupsService.setSectionIcon(repositorySectionId, appearance.icon);
+						sessionGroupsService.setSectionColor(repositorySectionId, appearance.color);
+					}
+				}
+			}
+		} finally {
+			storageService.store(SessionsList.CLOUD_SANDBOX_REPOSITORY_SECTIONS_MIGRATED_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+	}
+}
+
+/** A stored JSON record of booleans, without its other values. */
+function readStoredBooleans(storageService: IStorageService, key: string): Record<string, boolean> {
+	try {
+		const parsed = JSON.parse(storageService.get(key, StorageScope.PROFILE) ?? '{}');
+		if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+			return Object.fromEntries(Object.entries(parsed).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean'));
+		}
+	} catch {
+		// Ignore corrupt persisted state.
+	}
+	return {};
+}
+
+/** Migrates persisted sessions list state at startup, before the list restores it. */
+export class SessionsListStateMigrationContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsListStateMigration';
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@ISessionGroupsService sessionGroupsService: ISessionGroupsService,
+		@ISessionSectionOrderService sessionSectionOrderService: ISessionSectionOrderService,
+	) {
+		SessionsList.migrateCloudSandboxRepositorySections(storageService, sessionGroupsService, sessionSectionOrderService);
+	}
 }
 
 //#endregion
@@ -8511,14 +8652,10 @@ function workspaceCollapseStateId(sessions: readonly ISession[]): string | undef
 		: undefined;
 }
 
-/**
- * The GitHub repository of a session's primary folder. A cloud session's folder names it
- * in its `github-remote-file` URI; other sessions report it through their Git metadata.
- */
+/** The GitHub repository of a session's primary folder, as {@link getSessionFolderGitHubRepository} describes. */
 export function getSessionRepository(session: ISession): ISessionRepository | undefined {
-	const folder = session.workspace.get()?.folders[0];
-	const gitHubInfo = folder?.gitRepository?.gitHubInfo.get();
-	return getGitHubRemoteFileRepository(folder?.root) ?? (gitHubInfo ? { owner: gitHubInfo.owner, name: gitHubInfo.repo } : undefined);
+	const repository = getSessionFolderGitHubRepository(session.workspace.get()?.folders[0]);
+	return repository && { owner: repository.owner, name: repository.repo };
 }
 
 function getRepositorySectionId(repository: ISessionRepository): string {
@@ -8605,12 +8742,23 @@ export interface INewSessionSource {
 }
 
 /**
+ * Whether a new session can start in a session's workspace. A folder that only names a repository
+ * by URL, like a cloud sandbox session's before its sandbox connects, has no checkout to start in.
+ */
+export function canStartNewSessionLike(session: ISession): boolean {
+	return !getGitHubRepositoryOfUrl(session.workspace.get()?.folders[0]?.root);
+}
+
+/**
  * The most recently created session of each available environment among `sessions`, in
  * Environment filter order. New sessions in a repository section start in their workspaces.
  */
 export function getNewSessionSources(sessions: readonly ISession[], sessionsProvidersService: ISessionsProvidersService): INewSessionSource[] {
 	const sources = new Map<string, INewSessionSource>();
 	for (const session of sessions) {
+		if (!canStartNewSessionLike(session)) {
+			continue;
+		}
 		const environment = sessionsProvidersService.getProvider(session.providerId)?.environment;
 		if (!environment || environment.isConnected?.get() === false) {
 			continue;

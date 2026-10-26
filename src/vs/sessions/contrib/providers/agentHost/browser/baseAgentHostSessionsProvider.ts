@@ -1193,7 +1193,12 @@ class AdditionalChat extends Disposable {
 		this._movable = summary.movable === true;
 		transaction(tx => {
 			this._title.set(summary.title || localize('newChatTab', "New Chat"), tx);
-			this._status.set(mapProtocolStatus(summary.status), tx);
+			const status = mapProtocolStatus(summary.status);
+			this._status.set(status, tx);
+			if (status !== SessionStatus.Completed) {
+				// The host reports a turn (running, waiting or failed): another client sent the first message.
+				this._isNew.set(false, tx);
+			}
 			this._updatedAt.set(modifiedAt, tx);
 			this._workingDirectories.set(summary.workingDirectories, tx);
 			this._description.set(summary.activity ? new MarkdownString().appendText(summary.activity) : undefined, tx);
@@ -2318,6 +2323,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const directories = this._defaultChatWorkingDirectories.read(reader);
 		const folders = directories ? directories.map(directory => this._mapWorkingDirectory(URI.parse(directory))) : this.workingDirectories;
 		return folders.find(folder => !scratch?.has(folder));
+	}
+
+	/** The branch and repository label when the session's own folder is a git worktree; `undefined` otherwise. */
+	getNestedChatSessionFolderWorktree(reader: IReader | undefined): { readonly branch: string | undefined; readonly repositoryLabel: string | undefined } | undefined {
+		const workspace = this.workspace.read(reader);
+		const sessionFolder = this.getNestedChatSessionFolder(reader);
+		// The workspace aggregates every chat's folders, so pick the one the session folder refers to.
+		const gitRepository = sessionFolder && workspace?.folders.find(folder => isEqual(folder.workingDirectory, sessionFolder))?.gitRepository;
+		if (!gitRepository?.workTreeUri) {
+			return undefined;
+		}
+		return { branch: gitRepository.branchName, repositoryLabel: workspace?.label };
 	}
 
 	/** Whether `chat` is one of the backend chats this session's catalog lists. */
@@ -7598,6 +7615,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		return {
 			sessionFolder: cached.getNestedChatSessionFolder(reader),
+			sessionFolderWorktree: cached.getNestedChatSessionFolderWorktree(reader),
 			multipleFolders: !!this._agentCapabilities.read(reader)?.get(cached.agentProvider)?.multipleWorkingDirectories,
 			browseActions: this.browseActions,
 		};

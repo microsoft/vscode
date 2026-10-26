@@ -1310,6 +1310,7 @@
 		"--chat-input-stack-radius-top",
 		"--chat-input-working-border-color1",
 		"--chat-input-working-border-width",
+		"--chat-question-carousel-max-height",
 		"--session-input-banner-anim-angle",
 		"--session-input-banner-anim-duration",
 		"--session-input-banner-working-border-color",

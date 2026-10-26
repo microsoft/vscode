@@ -60,6 +60,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
+import { getNoWorkspaceChoicePresentation } from './noWorkspaceChoice.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { getEnvironmentWorkspaceProvider, ISessionCreationEnvironment, resolveEnvironmentWorkspace } from './sessionEnvironmentPicker.js';
 
@@ -2198,7 +2199,7 @@ export class WorkspacePicker extends Disposable {
 			label: this._getNoWorkspaceLabel(),
 			description: this._useConsolidatedRemoteWorkspaces() ? undefined : noWorkspaceOption.description,
 			ariaDescription: noWorkspaceAriaDescription,
-			group: { title: '', icon: this._useConsolidatedRemoteWorkspaces() ? Codicon.comment : Codicon.commentDiscussion },
+			group: { title: '', icon: getNoWorkspaceChoicePresentation(this._useConsolidatedRemoteWorkspaces(), undefined).icon },
 			item: {
 				id: 'workspacePicker.chat',
 				checked: noWorkspaceOption.isSelected || undefined,
@@ -2224,9 +2225,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _getNoWorkspaceLabel(): string {
-		return this._useConsolidatedRemoteWorkspaces()
-			? localize('workspacePicker.chat', "Chat")
-			: localize('workspacePicker.noWorkspace', "No workspace");
+		return getNoWorkspaceChoicePresentation(this._useConsolidatedRemoteWorkspaces(), undefined).label;
 	}
 
 	private _getSelectedNoWorkspaceLabel(): string {
@@ -2309,7 +2308,7 @@ export class WorkspacePicker extends Disposable {
 			trigger.classList.toggle('selected', noWorkspaceSelected || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
 			const workspaceIcon = workspace ? this._getWorkspaceIcon(workspace) : undefined;
 			const icon = noWorkspaceSelected
-				? this._useConsolidatedRemoteWorkspaces() ? Codicon.comment : Codicon.commentDiscussion
+				? getNoWorkspaceChoicePresentation(this._useConsolidatedRemoteWorkspaces(), undefined).icon
 				: (reflectsWorkspace ? workspaceIcon : undefined)
 				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspaceIcon : options.icon));
 			if (!icon || (options.hideIconWhenAttached === true && badgeCount > 0)) {

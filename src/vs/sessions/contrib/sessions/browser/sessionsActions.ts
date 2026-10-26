@@ -43,6 +43,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGroupsService } from '../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -746,7 +747,7 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: PROMOTE_CHAT_TO_SESSION_ACTION_ID,
-			title: localize2('promoteChatToSession', "Promote to Session"),
+			title: localize2('moveChatToNewSession', "Move to New Session"),
 			f1: false,
 			menu: [{
 				id: Menus.SessionChatItemContext,
@@ -772,6 +773,7 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 		return runSessionsListMove(move, sessionsManagementService, accessor.get(INotificationService), accessor.get(ILogService), {
 			notice: viewsService.isViewVisible(SessionsViewId) ? viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification : undefined,
 			watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
+			placementServices: { sessionsListModelService: accessor.get(ISessionsListModelService), sessionGroupsService: accessor.get(ISessionGroupsService) },
 		});
 	}
 });
