@@ -20,7 +20,7 @@ import { NativeParsedArgs } from '../../../environment/common/argv.js';
 import { FocusMode } from '../../../native/common/native.js';
 import { IWindowState, WindowMode } from '../../../window/electron-main/window.js';
 import { BaseWindow } from '../../electron-main/windowImpl.js';
-import { getAuxiliaryWindowRestoreMode, isHiddenWindowMode } from '../../electron-main/windows.js';
+import { getAuxiliaryWindowRestoreMode, isBackgroundThrottlingAllowed, isHiddenWindowMode } from '../../electron-main/windows.js';
 
 class TestWindow extends BaseWindow {
 	readonly id = 1;
@@ -195,6 +195,15 @@ suite('BaseWindow - hidden window mode', () => {
 		window.applyState({ mode: WindowMode.Fullscreen }, false);
 
 		assert.deepStrictEqual([maximize.callCount, setFullScreen.callCount, show.callCount], [0, 0, 0]);
+	});
+
+	test('background throttling cannot be re-enabled at runtime when hidden', () => {
+		assert.deepStrictEqual([
+			isBackgroundThrottlingAllowed(environment({}, true), true),
+			isBackgroundThrottlingAllowed(environment({}, true), false),
+			isBackgroundThrottlingAllowed(environment({ 'hidden-window': true }, true), true),
+			isBackgroundThrottlingAllowed(environment({ 'hidden-window': true }, true), false),
+		], [true, false, false, false]);
 	});
 
 	test('auxiliary windows restore the requested mode, not the visibility', () => {

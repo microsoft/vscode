@@ -140,6 +140,14 @@ export function isHiddenWindowMode(environmentMainService: IEnvironmentMainServi
 }
 
 /**
+ * Whether background throttling may be enabled at runtime: a hidden window
+ * is never visible, so throttling would apply to it permanently.
+ */
+export function isBackgroundThrottlingAllowed(environmentMainService: IEnvironmentMainService, allowed: boolean): boolean {
+	return allowed && !isHiddenWindowMode(environmentMainService);
+}
+
+/**
  * The mode an auxiliary window is restored into. Fullscreen is restored as
  * maximized because auxiliary windows do not support restoring fullscreen.
  */
