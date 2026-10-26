@@ -430,6 +430,10 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _onDidEmitEnvelope = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidEmitEnvelope: Event<ActionEnvelope> = this._onDidEmitEnvelope.event;
 
+	/** Fires when a restored chat's history finished loading into its state. */
+	private readonly _onDidResolveChatState = this._register(new Emitter<URI>());
+	readonly onDidResolveChatState: Event<URI> = this._onDidResolveChatState.event;
+
 	private readonly _onDidRejectClientAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidRejectClientAction: Event<ActionEnvelope> = this._onDidRejectClientAction.event;
 
@@ -883,6 +887,7 @@ export class AgentHostStateManager extends Disposable {
 				if (restored.turns.length > 0) {
 					this._markSessionUsed(entry.session);
 				}
+				this._onDidResolveChatState.fire(chat);
 			}
 			return entry.state;
 		})();

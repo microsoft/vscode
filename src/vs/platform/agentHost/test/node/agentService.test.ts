@@ -33113,6 +33113,26 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- peer-chat catalog persistence (B2: orchestrator-owned) ---------
 
 	suite('peer chat catalog persistence', () => {
+		/** Records a completed turn: a chat becomes its own session only once it has one. */
+		function completeTurn(service: AgentService, chat: URI): void {
+			const stateManager = getStateManager(service);
+			stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+			stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 1 });
+		}
+
+		/** Creates a session whose default chat has already run a turn. */
+		async function createStartedSession(service: AgentService, config?: Parameters<AgentService['createSession']>[0]): Promise<URI> {
+			const session = await service.createSession(config);
+			completeTurn(service, URI.parse(getStateManager(service).getSessionState(session.toString())?.defaultChat ?? buildDefaultChatUri(session)));
+			return session;
+		}
+
+		/** Creates a chat that has already run a turn: an unsent chat can't be moved. */
+		async function createStartedChat(service: AgentService, session: URI, chat: URI, ...rest: Parameters<AgentService['createChat']> extends [URI, URI, ...infer Rest] ? Rest : never): Promise<void> {
+			await service.createChat(session, chat, ...rest);
+			completeTurn(service, chat);
+		}
+
 
 		class LegacyChatCatalogDatabase extends AgentHostDatabase {
 			override async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> {
@@ -35375,13 +35395,6 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		suite('chat moves (Block 4)', () => {
-			/** Records a completed turn: a chat becomes its own session only once it has one. */
-			function completeTurn(service: AgentService, chat: URI): void {
-				const stateManager = getStateManager(service);
-				stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
-				stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 1 });
-			}
-
 			/** Starts a turn in `chat` that is still running when it moves: Agent Merge's elevation never changes under it. */
 			function startTurn(service: AgentService, chat: URI): void {
 				getStateManager(service).dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: 'running-turn', startedAt: new Date(0).toISOString(), message: { text: 'Fix it', origin: { kind: MessageKind.User } } });
@@ -35464,6 +35477,7 @@ suite('AgentService (node dispatcher)', () => {
 				readonly customizationStorage: string[] = [];
 				constructor(id: string, private readonly _multiRoot = false) {
 					super(id);
+					this.sessionMessages = [{ type: 'message', session: URI.file('/restored'), role: 'user', messageId: 'restored-turn', content: 'Hello', toolRequests: [] }];
 					const getChatCustomizations = this.getChatCustomizations;
 					this.getChatCustomizations = async (chat, context, hostCustomizations) => {
 						this.customizationStorage.push(resolveAgentChatContext(context, chat).resource.toString());
@@ -35500,10 +35514,11 @@ suite('AgentService (node dispatcher)', () => {
 					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 				}
 				const folder = URI.file('/repo');
-				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [folder] });
-				const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [targetFolder ?? folder] });
+				const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [folder] });
+				const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [targetFolder ?? folder] });
 				const peer = URI.parse(buildChatUri(source, 'mover'));
-				await service.createChat(source, peer);
+				await createStartedChat(service, source, peer);
+				completeTurn(service, peer);
 				await timeout(0);
 				return { db, service, agent, source, target, peer, folder };
 			}
@@ -35747,10 +35762,10 @@ suite('AgentService (node dispatcher)', () => {
 					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 					registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot', true)));
 					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
-					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [primary] });
-					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [primary] });
+					const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [primary] });
+					const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [primary] });
 					const peer = URI.parse(buildChatUri(source, 'mover'));
-					await service.createChat(source, peer, { title: 'Mover', workingDirectories: [await service.addSessionWorkingDirectoryForChat(source, other, { isolation: 'folder' })] });
+					await createStartedChat(service, source, peer, { title: 'Mover', workingDirectories: [await service.addSessionWorkingDirectoryForChat(source, other, { isolation: 'folder' })] });
 					await timeout(0);
 					const foldersOf = (session: URI) => getStateManager(service).getSessionSummary(session.toString())?.workingDirectories;
 					const archive = async (chat: URI, session: URI) => {
@@ -35767,7 +35782,7 @@ suite('AgentService (node dispatcher)', () => {
 					getStateManager(service).dispatchServerAction(peer.toString(), { type: ActionType.ChatWorkingDirectorySet, directory: (await service.addSessionWorkingDirectoryForChat(source, extra, { isolation: 'folder' })).toString() });
 					// A chat of T already works in the other folder the moving chat brings.
 					const sharing = URI.parse(buildChatUri(target, 'sharing'));
-					await service.createChat(target, sharing, { title: 'Sharing', workingDirectories: [await service.addSessionWorkingDirectoryForChat(target, other, { isolation: 'folder' })] });
+					await createStartedChat(service, target, sharing, { title: 'Sharing', workingDirectories: [await service.addSessionWorkingDirectoryForChat(target, other, { isolation: 'folder' })] });
 					const prepare = service.prepareChatWorkingDirectory.bind(service);
 					stub(service, 'prepareChatWorkingDirectory').callsFake(async (session, directory, options) => {
 						// Archived while the move prepares T, when no chat of T lists the moving chat yet, and written before it goes on.
@@ -35834,7 +35849,7 @@ suite('AgentService (node dispatcher)', () => {
 				test('a refused move leaves the destination\'s folders unreserved: archiving the chat that works in one detaches it', async () => {
 					const { service, source, target, peer, foldersOf, archive } = await setupFolders();
 					const sharing = URI.parse(buildChatUri(target, 'sharing'));
-					await service.createChat(target, sharing, { title: 'Sharing', workingDirectories: [await service.addSessionWorkingDirectoryForChat(target, other, { isolation: 'folder' })] });
+					await createStartedChat(service, target, sharing, { title: 'Sharing', workingDirectories: [await service.addSessionWorkingDirectoryForChat(target, other, { isolation: 'folder' })] });
 					(service as unknown as IMoveInternals)._sessionStateStore.moveChat = async () => ({ status: 'conflict' });
 
 					const refused = await refusalOf(service.moveChat(source, peer, { kind: 'session', session: target, after: undefined }));
@@ -35849,7 +35864,7 @@ suite('AgentService (node dispatcher)', () => {
 					const sessionData = (service as unknown as { _sessionDataService: ISessionDataService })._sessionDataService;
 					const third = URI.file('/workspace/third');
 					const second = URI.parse(buildChatUri(source, 'second'));
-					await service.createChat(source, second, { title: 'Second', workingDirectories: [await service.addSessionWorkingDirectoryForChat(source, third, { isolation: 'folder' })] });
+					await createStartedChat(service, source, second, { title: 'Second', workingDirectories: [await service.addSessionWorkingDirectoryForChat(source, third, { isolation: 'folder' })] });
 					const records = new Map([[generateUuid(), { chat: peer, folder: other }], [generateUuid(), { chat: second, folder: third }]]);
 					const owners: string[] = [];
 					setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
@@ -35947,7 +35962,7 @@ suite('AgentService (node dispatcher)', () => {
 				const { service, source, target, peer, folder } = await setupMove(true, other, true);
 				const stateManager = getStateManager(service);
 				const targetPeer = URI.parse(buildChatUri(target, 'stays'));
-				await service.createChat(target, targetPeer);
+				await createStartedChat(service, target, targetPeer);
 
 				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
 
@@ -35980,7 +35995,7 @@ suite('AgentService (node dispatcher)', () => {
 			test('moves in both directions between two sessions at once both apply', async () => {
 				const { service, source, target, peer } = await setupMove();
 				const back = URI.parse(buildChatUri(target, 'back'));
-				await service.createChat(target, back);
+				await createStartedChat(service, target, back);
 				await timeout(0);
 
 				await Promise.all([
@@ -36045,8 +36060,8 @@ suite('AgentService (node dispatcher)', () => {
 				stateManager.dispatchServerAction(buildDefaultChatUri(target), { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted', mode: 'plan', reasoning: 'high' } });
 				const moved = URI.parse(buildChatUri(source, 'seeded-moved'));
 				const promoted = URI.parse(buildChatUri(source, 'seeded-promoted'));
-				await service.createChat(source, moved);
-				await service.createChat(source, promoted);
+				await createStartedChat(service, source, moved);
+				await createStartedChat(service, source, promoted);
 				await timeout(0);
 				stateManager.dispatchServerAction(moved.toString(), { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } });
 				stateManager.dispatchServerAction(promoted.toString(), { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } });
@@ -36110,7 +36125,7 @@ suite('AgentService (node dispatcher)', () => {
 				const cases: Record<string, Arrange> = {
 					differentProvider: async ({ service }) => {
 						registerTestAgentProvider(service, disposables.add(new MovingAgent('other')));
-						return { target: await service.createSession({ legacyChatUris: true, provider: 'other', workingDirectories: [URI.file('/repo')] }) };
+						return { target: await createStartedSession(service, { legacyChatUris: true, provider: 'other', workingDirectories: [URI.file('/repo')] }) };
 					},
 					sessionNotReady: async ({ internals, target }) => {
 						const original = internals._sessionResidency.isBeingDisposed.bind(internals._sessionResidency);
@@ -36197,14 +36212,14 @@ suite('AgentService (node dispatcher)', () => {
 						_recordLaunchDirectories(session: URI, chats: readonly { readonly chat: string; readonly isDefault: boolean }[], directories: readonly string[]): Promise<void>;
 					};
 					const repo = URI.file('/repo');
-					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
+					const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
 					const chat = (id: string) => URI.parse(buildChatUri(source, id));
 					// Each scratch chat adds its folder to the session, pinning the chats that inherited its folders until then.
-					await service.createChat(source, chat('early'));
-					await service.createChat(source, chat('scratch1'), { workspace: { kind: 'scratch' } });
-					await service.createChat(source, chat('late'));
-					await service.createChat(source, chat('scratch2'), { workspace: { kind: 'scratch' } });
-					await service.createChat(source, chat('last'));
+					await createStartedChat(service, source, chat('early'));
+					await createStartedChat(service, source, chat('scratch1'), { workspace: { kind: 'scratch' } });
+					await createStartedChat(service, source, chat('late'));
+					await createStartedChat(service, source, chat('scratch2'), { workspace: { kind: 'scratch' } });
+					await createStartedChat(service, source, chat('last'));
 					await timeout(0);
 					const stateManager = getStateManager(service);
 					const summaryOf = (id: string) => stateManager.getSessionState(source.toString())?.chats.find(candidate => candidate.resource === chat(id).toString());
@@ -36259,18 +36274,18 @@ suite('AgentService (node dispatcher)', () => {
 					const first = createService();
 					const repo = URI.file('/repo');
 					const other = URI.file('/other');
-					const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
-					const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [other] });
+					const source = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
+					const target = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [other] });
 					sessionFolders.set(source.toString(), [repo]);
 					sessionFolders.set(target.toString(), [other]);
 					const noWorkspace = URI.parse(buildChatUri(target, 'nows'));
 					const moved = URI.parse(buildChatUri(source, 'moved'));
 					const folderless = URI.parse(buildChatUri(target, 'folderless'));
 					const foldered = URI.parse(buildChatUri(target, 'foldered'));
-					await first.createChat(target, noWorkspace, { workspace: { kind: 'scratch' } });
-					await first.createChat(source, moved, { workspace: { kind: 'scratch' } });
-					await first.createChat(target, folderless);
-					await first.createChat(target, foldered, { workingDirectories: [other] });
+					await createStartedChat(first, target, noWorkspace, { workspace: { kind: 'scratch' } });
+					await createStartedChat(first, source, moved, { workspace: { kind: 'scratch' } });
+					await createStartedChat(first, target, folderless);
+					await createStartedChat(first, target, foldered, { workingDirectories: [other] });
 					await timeout(0);
 					for (const chat of [noWorkspace, moved, folderless, foldered]) {
 						completeTurn(first, chat);
@@ -36342,15 +36357,15 @@ suite('AgentService (node dispatcher)', () => {
 					const inherited = (service: AgentService, session: URI) => (service as unknown as { _sessionFoldersOfChatWithoutOwn(session: string): readonly string[] })._sessionFoldersOfChatWithoutOwn(session.toString());
 					const first = createService();
 					const repo = URI.file('/repo');
-					const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
-					const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/other')] });
+					const source = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
+					const target = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/other')] });
 					sessionFolders.set(source.toString(), [repo]);
 					sessionFolders.set(target.toString(), [URI.file('/other')]);
 					const folderless = URI.parse(buildChatUri(source, 'folderless'));
 					const scratch = URI.parse(buildChatUri(source, 'scratch'));
-					await first.createChat(source, scratch, { workspace: { kind: 'scratch' } });
+					await createStartedChat(first, source, scratch, { workspace: { kind: 'scratch' } });
 					// Created after the scratch chat, the folderless chat is pinned to nothing: it inherits the session's folders.
-					await first.createChat(source, folderless);
+					await createStartedChat(first, source, folderless);
 					await timeout(0);
 					completeTurn(first, folderless);
 					completeTurn(first, scratch);
@@ -36409,10 +36424,10 @@ suite('AgentService (node dispatcher)', () => {
 						return created;
 					};
 					const first = createService();
-					const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/source')] });
-					const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const source = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/source')] });
+					const target = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const nested = URI.parse(buildChatUri(source, 'nested'));
-					await first.createChat(source, nested, { workspace: { kind: 'scratch' } });
+					await createStartedChat(first, source, nested, { workspace: { kind: 'scratch' } });
 					await timeout(0);
 					await first.moveChat(source, nested, { kind: 'session', session: target, after: undefined });
 					const [row] = await orchestratorDatabase.listScratchFolders();
@@ -36444,11 +36459,11 @@ suite('AgentService (node dispatcher)', () => {
 					const sessionFolder = joinPath(chatsRoot, 'wl-source');
 					await files.createFolder(sessionFolder);
 					agent.resolvedWorkingDirectory = sessionFolder;
-					const source = await service.createSession({ legacyChatUris: !orchestrator, provider });
+					const source = await createStartedSession(service, { legacyChatUris: !orchestrator, provider });
 					agent.resolvedWorkingDirectory = undefined;
-					const target = await service.createSession({ legacyChatUris: !orchestrator, provider, workingDirectories: [URI.file('/repo')] });
+					const target = await createStartedSession(service, { legacyChatUris: !orchestrator, provider, workingDirectories: [URI.file('/repo')] });
 					const nested = orchestrator ? URI.parse(`ahp-chat:/${generateUuid()}`) : URI.parse(buildChatUri(source, 'nested'));
-					await service.createChat(source, nested);
+					await createStartedChat(service, source, nested);
 					await timeout(0);
 					const database = getTestAgentHostDatabase(service);
 					return { service, agent, db, source, target, nested, sessionFolder, database, files };
@@ -36512,7 +36527,7 @@ suite('AgentService (node dispatcher)', () => {
 					database.markScratchFolderOwned = async () => { throw new Error('write failed'); };
 					const second = URI.parse(buildChatUri(source, 'second'));
 
-					await service.createChat(source, second);
+					await createStartedChat(service, source, second);
 
 					const row = (await database.listScratchFolders()).find(entry => entry.chatUri === second.toString());
 					assert.deepStrictEqual({
@@ -36526,7 +36541,7 @@ suite('AgentService (node dispatcher)', () => {
 				test('a chat sharing the session\'s scratch folder cannot leave it', async () => {
 					const { service, source, target, nested, sessionFolder } = await setupWorkspaceless();
 					const shared = URI.parse(buildChatUri(source, 'shared'));
-					await service.createChat(source, shared, { workingDirectories: [sessionFolder] });
+					await createStartedChat(service, source, shared, { workingDirectories: [sessionFolder] });
 
 					const reason = await refusalOf(service.moveChat(source, shared, { kind: 'session', session: target, after: undefined }));
 
@@ -36536,7 +36551,7 @@ suite('AgentService (node dispatcher)', () => {
 				test('a promote never takes the session\'s own folder out of a session that stays', async () => {
 					const { service, source, nested, sessionFolder, database } = await setupWorkspaceless();
 					const shared = URI.parse(buildChatUri(source, 'shared'));
-					await service.createChat(source, shared, { workingDirectories: [sessionFolder] });
+					await createStartedChat(service, source, shared, { workingDirectories: [sessionFolder] });
 					completeTurn(service, shared);
 					const before = (await database.listScratchFolders()).map(entry => ({ folder: entry.folder, chat: entry.chatUri, state: entry.state }));
 
@@ -36600,7 +36615,7 @@ suite('AgentService (node dispatcher)', () => {
 					const [row] = await database.listScratchFolders();
 					await files.del(URI.parse(row.folder), { recursive: true });
 					const managed = URI.parse(buildChatUri(source, 'managed'));
-					await service.createChat(source, managed, { workingDirectories: [await service.addSessionWorkingDirectoryForChat(source, URI.file('/tmp/vscode-agent-codex/chat-x'), { isolation: 'folder' })] });
+					await createStartedChat(service, source, managed, { workingDirectories: [await service.addSessionWorkingDirectoryForChat(source, URI.file('/tmp/vscode-agent-codex/chat-x'), { isolation: 'folder' })] });
 					getStateManager(service).setScratchFolder(URI.file('/tmp/vscode-agent-codex/chat-x').toString(), true);
 
 					const refusedManaged = await refusalOf(service.moveChat(source, managed, { kind: 'session', session: target, after: undefined }));
@@ -36624,9 +36639,9 @@ suite('AgentService (node dispatcher)', () => {
 				test('a chat with a real folder moves into a workspace-less session, which stays workspace-less', async () => {
 					const { service, agent, source: wl, files } = await setupWorkspaceless();
 					await files.createFolder(URI.file('/repo'));
-					const foldered = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const foldered = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const chat = URI.parse(buildChatUri(foldered, 'peer'));
-					await service.createChat(foldered, chat);
+					await createStartedChat(service, foldered, chat);
 					await timeout(0);
 					agent.resolvedWorkingDirectory = undefined;
 
@@ -36645,7 +36660,7 @@ suite('AgentService (node dispatcher)', () => {
 					const otherFolder = joinPath(chatsRoot, 'wl-target');
 					await files.createFolder(otherFolder);
 					agent.resolvedWorkingDirectory = otherFolder;
-					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+					const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot' });
 
 					await service.moveChat(source, nested, { kind: 'session', session: target, after: undefined });
 
@@ -36753,10 +36768,10 @@ suite('AgentService (node dispatcher)', () => {
 					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 					registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
 					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
-					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
-					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/other')] });
+					const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot' });
+					const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/other')] });
 					const peer = URI.parse(buildChatUri(source, 'mover'));
-					await service.createChat(source, peer);
+					await createStartedChat(service, source, peer);
 					await timeout(0);
 					const noFolder = await refuse({ service, source, peer }, target);
 
@@ -37434,11 +37449,11 @@ suite('AgentService (node dispatcher)', () => {
 					registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot', true)));
 					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 					const worktree = URI.file('/repo.worktrees/source');
-					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [worktree] });
-					let target = await service.createSession({ legacyChatUris: kind !== 'opaque', provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [worktree] });
+					let target = await createStartedSession(service, { legacyChatUris: kind !== 'opaque', provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					if (kind === 'promoted') {
 						const peer = URI.parse(buildChatUri(target, 'promoted'));
-						await service.createChat(target, peer);
+						await createStartedChat(service, target, peer);
 						await timeout(0);
 						completeTurn(service, peer);
 						target = await service.moveChat(target, peer, { kind: 'newSession' });
@@ -37538,10 +37553,10 @@ suite('AgentService (node dispatcher)', () => {
 					};
 					const folder = URI.file('/repo');
 					const sourceScope = await sponsor(owners.source, 'source-token');
-					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [folder], credentials: sourceScope });
-					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [folder], credentials: await sponsor(owners.target, 'target-token') });
+					const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [folder], credentials: sourceScope });
+					const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [folder], credentials: await sponsor(owners.target, 'target-token') });
 					const peer = URI.parse(buildChatUri(source, 'mover'));
-					await service.createChat(source, peer, undefined, sourceScope);
+					await createStartedChat(service, source, peer, undefined, sourceScope);
 					await timeout(0);
 					const authentication = getTestAgentServiceComposition(service).authenticationService;
 					const token = (chat: string) => {
@@ -37785,9 +37800,9 @@ suite('AgentService (node dispatcher)', () => {
 				}('copilot');
 				registerTestAgentProvider(service, disposables.add(agent));
 				getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
-				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'unbacked'));
-				await service.createChat(source, peer);
+				await createStartedChat(service, source, peer);
 				await timeout(0);
 				assert.strictEqual(await refusalOf(service.moveChat(source, peer, { kind: 'newSession' })), AgentChatMoveRefusal.Unsupported);
 			});
@@ -37842,8 +37857,8 @@ suite('AgentService (node dispatcher)', () => {
 				async function setupSessionMove() {
 					const { createService, contentsOf, seed, orchestratorDatabase, agent } = createDeletingServices();
 					const service = createService();
-					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
-					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					await timeout(0);
 					const chat = URI.parse(getStateManager(service).getSessionState(source.toString())!.defaultChat!);
 					return { createService, contentsOf, seed, orchestratorDatabase, agent, service, source, target, chat };
@@ -37855,7 +37870,7 @@ suite('AgentService (node dispatcher)', () => {
 					await seed(target);
 					// A chat moved out of the source earlier still reads the source's attachments.
 					const earlier = URI.parse(buildChatUri(source, 'earlier'));
-					await service.createChat(source, earlier);
+					await createStartedChat(service, source, earlier);
 					await timeout(0);
 					await service.moveChat(source, earlier, { kind: 'session', session: target, after: undefined });
 					await service.moveSession(source, target, undefined);
@@ -37885,7 +37900,7 @@ suite('AgentService (node dispatcher)', () => {
 					const stateManager = getStateManager(service);
 					await seed(source);
 					const movableBefore = readSessionMovable(stateManager.getSessionState(source.toString())?._meta);
-					await service.createChat(target, URI.parse(buildChatUri(target, 'peer')));
+					await createStartedChat(service, target, URI.parse(buildChatUri(target, 'peer')));
 					await timeout(0);
 					const targetMovableWithPeer = readSessionMovable(stateManager.getSessionState(target.toString())?._meta);
 
@@ -38139,7 +38154,7 @@ suite('AgentService (node dispatcher)', () => {
 					await service.moveSession(source, target, undefined);
 					await timeout(0);
 					const announcedByMove = [...announced];
-					const other = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const other = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const reordered = await refusalOf(service.moveChat(target, chat, { kind: 'session', session: target, after: URI.parse(buildDefaultChatUri(target)) }));
 					const moved = await refusalOf(service.moveChat(target, chat, { kind: 'session', session: other, after: undefined }));
 
@@ -38161,7 +38176,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				test('refuses a session with other chats, a session moving under itself, and while moves are disabled; changes nothing', async () => {
 					const { service, source, target, chat } = await setupSessionMove();
-					await service.createChat(source, URI.parse(buildChatUri(source, 'peer')));
+					await createStartedChat(service, source, URI.parse(buildChatUri(source, 'peer')));
 					await timeout(0);
 					const reasons = {
 						notSingleChat: await refusalOf(service.moveSession(source, target, undefined)),
@@ -38205,7 +38220,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				test('a session the host has not loaded that has other chats is refused after it is restored, and nothing changes', async () => {
 					const { createService, service, source, target, chat } = await setupSessionMove();
-					await service.createChat(source, URI.parse(buildChatUri(source, 'peer')));
+					await createStartedChat(service, source, URI.parse(buildChatUri(source, 'peer')));
 					await service.whenCatalogReconciliationIdle();
 					await getTestSessionStateStore(service).whenIdle(undefined);
 
@@ -38240,7 +38255,7 @@ suite('AgentService (node dispatcher)', () => {
 				test('a nested session whose working directory is gone is refused as not ready before anything changes, like promoting it', async () => {
 					const { createService, agent, service, source, target } = await setupSessionMove();
 					const peer = URI.parse(buildChatUri(source, 'peer'));
-					await service.createChat(source, peer);
+					await createStartedChat(service, source, peer);
 					completeTurn(service, peer);
 					await service.whenCatalogReconciliationIdle();
 					await getTestSessionStateStore(service).whenIdle(undefined);
@@ -38330,9 +38345,9 @@ suite('AgentService (node dispatcher)', () => {
 					return service;
 				};
 				const first = createService(new MovingAgent('copilot'));
-				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const source = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
-				await first.createChat(source, peer);
+				await createStartedChat(first, source, peer);
 				await timeout(0);
 				completeTurn(first, peer);
 				const target = await first.moveChat(source, peer, { kind: 'newSession' });
@@ -38429,9 +38444,9 @@ suite('AgentService (node dispatcher)', () => {
 					return service;
 				};
 				const first = createService();
-				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const source = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
-				await first.createChat(source, peer, { title: 'Promo' });
+				await createStartedChat(first, source, peer, { title: 'Promo' });
 				await timeout(0);
 				completeTurn(first, peer);
 				// The agent renamed the chat: the new session keeps that title source, not 'auto'.
@@ -38478,9 +38493,9 @@ suite('AgentService (node dispatcher)', () => {
 					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
 				registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
 				getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
-				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'renamed'));
-				await service.createChat(source, peer, { title: 'Promo' });
+				await createStartedChat(service, source, peer, { title: 'Promo' });
 				await timeout(0);
 				completeTurn(service, peer);
 				await service.whenCatalogReconciliationIdle();
@@ -38507,7 +38522,7 @@ suite('AgentService (node dispatcher)', () => {
 				};
 				const first = createService();
 				const stateManager = getStateManager(first);
-				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const source = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
 				await first.createChat(source, peer);
 				await timeout(0);
@@ -38548,9 +38563,9 @@ suite('AgentService (node dispatcher)', () => {
 					return service;
 				};
 				const first = createService(new MovingAgent('copilot'));
-				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const source = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
-				await first.createChat(source, peer);
+				await createStartedChat(first, source, peer);
 				await timeout(0);
 				completeTurn(first, peer);
 				const target = await first.moveChat(source, peer, { kind: 'newSession' });
@@ -38629,13 +38644,13 @@ suite('AgentService (node dispatcher)', () => {
 					const services = createDeletingServices();
 					const service = services.createService();
 					const folder = URI.file('/repo');
-					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [folder] });
-					const single = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [folder] });
-					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [folder] });
+					const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [folder] });
+					const single = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [folder] });
+					const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [folder] });
 					const peer = URI.parse(buildChatUri(source, 'peer'));
 					const second = URI.parse(buildChatUri(source, 'second'));
-					await service.createChat(source, peer);
-					await service.createChat(source, second);
+					await createStartedChat(service, source, peer);
+					await createStartedChat(service, source, second);
 					completeTurn(service, peer);
 					await timeout(0);
 					const stateManager = getStateManager(service);
@@ -38749,13 +38764,13 @@ suite('AgentService (node dispatcher)', () => {
 					const services = createDeletingServices({ multiRoot: true });
 					const service = services.createService();
 					const repo = URI.file('/repo');
-					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
-					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
+					const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
+					const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
 					const peer = URI.parse(buildChatUri(source, 'peer'));
 					const targetPeer = URI.parse(buildChatUri(target, 'stays'));
 					// The moved chat works in a folder of its own, which the move adds to the target.
-					await service.createChat(source, peer, { workingDirectories: [await service.addSessionWorkingDirectoryForChat(source, URI.file('/extra'), { isolation: 'folder' })] });
-					await service.createChat(target, targetPeer);
+					await createStartedChat(service, source, peer, { workingDirectories: [await service.addSessionWorkingDirectoryForChat(source, URI.file('/extra'), { isolation: 'folder' })] });
+					await createStartedChat(service, target, targetPeer);
 					completeTurn(service, peer);
 					await timeout(0);
 					await service.whenCatalogReconciliationIdle();
@@ -39108,10 +39123,10 @@ suite('AgentService (node dispatcher)', () => {
 				async function setupEdited() {
 					const services = createDeletingServices();
 					const service = services.createService();
-					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
-					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const peer = URI.parse(buildChatUri(source, 'peer'));
-					await service.createChat(source, peer);
+					await createStartedChat(service, source, peer);
 					await timeout(0);
 					await service.whenCatalogReconciliationIdle();
 					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the stored rows, as an older build does.
@@ -39199,10 +39214,10 @@ suite('AgentService (node dispatcher)', () => {
 				async function setupCopy(options?: { readonly copyAttachments?: boolean }) {
 					const services = createDeletingServices({ copyAttachments: options?.copyAttachments ?? true });
 					const service = services.createService();
-					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
-					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const peer = URI.parse(buildChatUri(source, 'peer'));
-					await service.createChat(source, peer);
+					await createStartedChat(service, source, peer);
 					await timeout(0);
 					const inSource = (path: string) => joinPath(services.dataDir(source), SESSION_ATTACHMENTS_DIRNAME, ...path.split('/'));
 					for (const path of ['shot/screen.png', 'note/note.txt', 'unrelated/other.txt']) {
@@ -39375,12 +39390,12 @@ suite('AgentService (node dispatcher)', () => {
 			test('a restart restores the order a move or a reorder recorded, also with a chat before the default chat', async () => {
 				const { createService } = createDeletingServices();
 				const first = createService();
-				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
-				const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const source = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const target = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const moved = URI.parse(buildChatUri(source, 'moved-first'));
 				const peer = URI.parse(buildChatUri(target, 'target-peer'));
-				await first.createChat(source, moved);
-				await first.createChat(target, peer);
+				await createStartedChat(first, source, moved);
+				await createStartedChat(first, target, peer);
 				await timeout(0);
 				const orderOf = (service: AgentService) => getStateManager(service).getSessionState(target.toString())?.chats.map(chat => chat.resource);
 				// A host restarts once the previous ones stopped writing. A host still running would later flush its dirty
@@ -39437,14 +39452,14 @@ suite('AgentService (node dispatcher)', () => {
 					raw.removeListener('trace', onTrace);
 					return statements.filter(sql => /chatsV2Moved|chat_uri IN|origin_session_uri IS NOT NULL|chatAttachmentCopy/.test(sql));
 				};
-				const createPeer = async (name: string) => {
-					const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const createPeer = async (name: string, started = true) => {
+					const session = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const peer = URI.parse(buildChatUri(session, name));
-					await service.createChat(session, peer);
+					await (started ? createStartedChat : (svc: AgentService, sess: URI, chat: URI) => svc.createChat(sess, chat))(service, session, peer);
 					await timeout(0);
 					return { session, peer };
 				};
-				const first = await createPeer('unmoved');
+				const first = await createPeer('unmoved', false);
 				await service.listSessions();
 				await getStateManager(service).whenMovedChatOriginsSettled();
 				// A refused promotion normalizes the chat's catalog, as most catalogs are, and moves nothing.
@@ -39459,9 +39474,9 @@ suite('AgentService (node dispatcher)', () => {
 				});
 				const moving = await createPeer('moving');
 				const unmoved = URI.parse(buildChatUri(moving.session, 'unmoved-too'));
-				await service.createChat(moving.session, unmoved);
+				await createStartedChat(service, moving.session, unmoved);
 				await timeout(0);
-				const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				await service.moveChat(moving.session, moving.peer, { kind: 'session', session: target, after: undefined });
 				const withMovesElsewhere = await traced(() => service.disposeChat(moving.session, unmoved));
 
@@ -39481,10 +39496,10 @@ suite('AgentService (node dispatcher)', () => {
 			test('a deleted session keeps its attachments while a chat that moved out of it lives, also across a restart', async () => {
 				const { createService, contentsOf, seed } = createDeletingServices();
 				const first = createService();
-				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
-				const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const source = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const target = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'mover'));
-				await first.createChat(source, peer);
+				await createStartedChat(first, source, peer);
 				await timeout(0);
 				await seed(source);
 				await first.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
@@ -39511,10 +39526,10 @@ suite('AgentService (node dispatcher)', () => {
 			test('a deleted session keeps its attachments for a chat promoted out of it until that chat\'s session is deleted', async () => {
 				const { createService, contentsOf, seed } = createDeletingServices();
 				const service = createService();
-				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
-				const keptFor = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const keptFor = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
-				await service.createChat(source, peer);
+				await createStartedChat(service, source, peer);
 				await timeout(0);
 				await seed(source);
 				await seed(keptFor);
@@ -39538,11 +39553,11 @@ suite('AgentService (node dispatcher)', () => {
 			test('a deleted session\'s kept attachments go only once no chat that moved out of it lives, and a live session\'s never', async () => {
 				const { createService, contentsOf, seed } = createDeletingServices();
 				const service = createService();
-				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
-				const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peers = ['first', 'second', 'third'].map(name => URI.parse(buildChatUri(source, name)));
 				for (const peer of peers) {
-					await service.createChat(source, peer);
+					await createStartedChat(service, source, peer);
 				}
 				await timeout(0);
 				await seed(source);
@@ -39571,11 +39586,11 @@ suite('AgentService (node dispatcher)', () => {
 				const service = createService();
 				const sessions: URI[] = [];
 				for (let i = 0; i < 3; i++) {
-					sessions.push(await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] }));
+					sessions.push(await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] }));
 				}
 				const [first, second, third] = sessions;
 				const peer = URI.parse(buildChatUri(first, 'traveller'));
-				await service.createChat(first, peer);
+				await createStartedChat(service, first, peer);
 				await timeout(0);
 				await seed(first);
 				await seed(second);
@@ -39599,10 +39614,10 @@ suite('AgentService (node dispatcher)', () => {
 			test('deleting a session and its last moved chat at once converges on removing its attachments', async () => {
 				const { createService, contentsOf, seed } = createDeletingServices();
 				const service = createService();
-				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
-				const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const source = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const target = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'last'));
-				await service.createChat(source, peer);
+				await createStartedChat(service, source, peer);
 				await timeout(0);
 				await seed(source);
 				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
@@ -39666,7 +39681,7 @@ suite('AgentService (node dispatcher)', () => {
 					refreshed,
 					noticed: stateManager.getChatState(peer.toString())?.turns.at(-1)?.message.text.endsWith('Merged while working'),
 				}, {
-					beforeTurnEnds: { refreshed: [], noticed: 0 },
+					beforeTurnEnds: { refreshed: [], noticed: 2 },
 					refreshed: [peer.toString()],
 					noticed: true,
 				});
@@ -39685,9 +39700,9 @@ suite('AgentService (node dispatcher)', () => {
 					return service;
 				};
 				const first = createService(new MovingAgent('copilot'));
-				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const source = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
-				await first.createChat(source, peer);
+				await createStartedChat(first, source, peer);
 				await timeout(0);
 				completeTurn(first, peer);
 				const target = await first.moveChat(source, peer, { kind: 'newSession' });
@@ -39812,11 +39827,39 @@ suite('AgentService (node dispatcher)', () => {
 					}
 				}
 
+				test('a chat that has sent no message is refused by every move path, and moves once its first turn started', async () => {
+					const { service, source, target } = await setupMove();
+					const stateManager = getStateManager(service);
+					const unsent = URI.parse(buildChatUri(source, 'unsent'));
+					await service.createChat(source, unsent);
+					await timeout(0);
+					const accessor = moveToolAccessor(service);
+					const refused = {
+						toSession: await refusalOf(service.moveChat(source, unsent, { kind: 'session', session: target, after: undefined })),
+						reorder: await refusalOf(service.moveChat(source, unsent, { kind: 'session', session: source, after: URI.parse(buildDefaultChatUri(source)) })),
+						promote: await refusalOf(service.moveChat(source, unsent, { kind: 'newSession' })),
+						tool: await refusalOf(accessor.checkChatMove({ kind: 'chat', session: source, chat: unsent, destination: { kind: 'session', session: target, after: 'end' } })),
+					};
+					const owner = stateManager.getChatOwner(unsent.toString());
+
+					completeTurn(service, unsent);
+					const moved = await service.moveChat(source, unsent, { kind: 'session', session: target, after: undefined });
+
+					assert.deepStrictEqual({ refused, owner, movedTo: moved.toString(), ownerAfter: stateManager.getChatOwner(unsent.toString()) }, {
+						refused: { toSession: AgentChatMoveRefusal.NotStarted, reorder: AgentChatMoveRefusal.NotStarted, promote: AgentChatMoveRefusal.NotStarted, tool: AgentChatMoveRefusal.NotStarted },
+						owner: source.toString(),
+						movedTo: target.toString(),
+						ownerAfter: target.toString(),
+					});
+				});
+
 				test('checks a move as the host would refuse it, changing nothing, and places a chat at the end of its destination', async () => {
 					const { service, source, target, peer } = await setupMove();
 					const stateManager = getStateManager(service);
 					const second = URI.parse(buildChatUri(target, 'second'));
-					await service.createChat(target, second);
+					await createStartedChat(service, target, second);
+					const unsent = URI.parse(buildChatUri(source, 'unsent'));
+					await service.createChat(source, unsent);
 					await timeout(0);
 					const accessor = moveToolAccessor(service);
 					const checks = {
@@ -39825,7 +39868,7 @@ suite('AgentService (node dispatcher)', () => {
 						mainSession: await refusalOf(accessor.checkChatMove({ kind: 'chat', session: source, chat: URI.parse(buildDefaultChatUri(source)), destination: { kind: 'newSession' } })),
 						afterItself: await refusalOf(accessor.checkChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'session', session: source, after: peer } })),
 						foreignAnchor: await refusalOf(accessor.checkChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'session', session: target, after: URI.parse(buildDefaultChatUri(source)) } })),
-						notStarted: await refusalOf(accessor.checkChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'newSession' } })),
+						notStarted: await refusalOf(accessor.checkChatMove({ kind: 'chat', session: source, chat: unsent, destination: { kind: 'newSession' } })),
 						notSingleChat: await refusalOf(accessor.checkChatMove({ kind: 'session', session: target, destination: source, after: 'end' })),
 					};
 					const checkedChats = [source, target].map(session => stateManager.getSessionState(session.toString())?.chats.map(chat => chat.resource));
@@ -39847,7 +39890,7 @@ suite('AgentService (node dispatcher)', () => {
 							notStarted: AgentChatMoveRefusal.NotStarted,
 							notSingleChat: AgentChatMoveRefusal.NotSingleChat,
 						},
-						checkedChats: [[buildDefaultChatUri(source), peer.toString()], [buildDefaultChatUri(target), second.toString()]],
+						checkedChats: [[buildDefaultChatUri(source), peer.toString(), unsent.toString()], [buildDefaultChatUri(target), second.toString()]],
 						moved: target.toString(),
 						targetChats: [buildDefaultChatUri(target), second.toString(), peer.toString()],
 					});
@@ -39870,9 +39913,9 @@ suite('AgentService (node dispatcher)', () => {
 						}
 					}('copilot')));
 					getConfigurationService(unbacked).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
-					const unbackedSource = await unbacked.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const unbackedSource = await createStartedSession(unbacked, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const unbackedPeer = URI.parse(buildChatUri(unbackedSource, 'unbacked'));
-					await unbacked.createChat(unbackedSource, unbackedPeer);
+					await createStartedChat(unbacked, unbackedSource, unbackedPeer);
 					await timeout(0);
 					const unsupported = {
 						check: await refusalOf(moveToolAccessor(unbacked).checkChatMove({ kind: 'chat', session: unbackedSource, chat: unbackedPeer, destination: { kind: 'newSession' } })),
@@ -39934,9 +39977,9 @@ suite('AgentService (node dispatcher)', () => {
 						return created;
 					};
 					const first = createService();
-					const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const source = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const peer = URI.parse(buildChatUri(source, 'promoted'));
-					await first.createChat(source, peer);
+					await createStartedChat(first, source, peer);
 					await timeout(0);
 					getStateManager(first).dispatchServerAction(peer.toString(), {
 						type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(),
@@ -39950,7 +39993,7 @@ suite('AgentService (node dispatcher)', () => {
 					const restarted = createService();
 					await restarted.listSessions();
 					// Created after the restart: the mock agent describes only the sessions it backs this run.
-					const target = await restarted.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const target = await createStartedSession(restarted, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					await timeout(0);
 					const loadedBefore = getStateManager(restarted).getSessionUris().includes(promoted.toString());
 					const accessor = moveToolAccessor(restarted);
@@ -40043,9 +40086,9 @@ suite('AgentService (node dispatcher)', () => {
 						return created;
 					};
 					const first = createService();
-					const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const source = await createStartedSession(first, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const peer = URI.parse(buildChatUri(source, 'nested'));
-					await first.createChat(source, peer);
+					await createStartedChat(first, source, peer);
 					await timeout(0);
 					getStateManager(first).dispatchServerAction(peer.toString(), {
 						type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(),
@@ -40120,7 +40163,7 @@ suite('AgentService (node dispatcher)', () => {
 						beforeMove: { source: { inProgress: true, inputNeeded: true }, target: { inProgress: false, inputNeeded: false } },
 						afterMove: { source: { inProgress: false, inputNeeded: false }, target: { inProgress: true, inputNeeded: true }, activeTurn: 'running' },
 						answered: [{ requestId: 'tc-1', approved: true }],
-						afterTurn: { target: { inProgress: false, inputNeeded: false }, turns: ['running'] },
+						afterTurn: { target: { inProgress: false, inputNeeded: false }, turns: ['first-turn', 'first-turn', 'running'] },
 					});
 				});
 			});
@@ -40173,10 +40216,10 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
-			await localService.createChat(session, peerUri);
+			await createStartedChat(localService, session, peerUri);
 			const afterCreate = await readCatalog(db, localService, session);
 
 			await localService.disposeChat(session, peerUri);
@@ -40206,9 +40249,9 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new UpdatingDisposeAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 			const peer = URI.parse(buildChatUri(session, 'peer-race'));
-			await localService.createChat(session, peer);
+			await createStartedChat(localService, session, peer);
 
 			await localService.disposeChat(session, peer);
 
@@ -40258,9 +40301,9 @@ suite('AgentService (node dispatcher)', () => {
 			));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 			const peer = URI.parse(buildChatUri(session, 'peer-cleanup-failure'));
-			await localService.createChat(session, peer);
+			await createStartedChat(localService, session, peer);
 			sessionDatabase.failDraftCleanup = true;
 
 			await assert.rejects(() => localService.disposeChat(session, peer), /draft cleanup failed/);
@@ -40314,9 +40357,9 @@ suite('AgentService (node dispatcher)', () => {
 			));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 			const peer = URI.parse(buildChatUri(session, 'peer-projection-failure'));
-			await localService.createChat(session, peer);
+			await createStartedChat(localService, session, peer);
 			sessionDatabase.failCatalogWrite = true;
 
 			await assert.rejects(() => localService.disposeChat(session, peer), /catalog projection failed/);
@@ -40350,9 +40393,9 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 			const peer = URI.parse(buildChatUri(session, 'peer-retry'));
-			await localService.createChat(session, peer);
+			await createStartedChat(localService, session, peer);
 			db.failRemoval = true;
 
 			await localService.disposeChat(session, peer);
@@ -40388,14 +40431,14 @@ suite('AgentService (node dispatcher)', () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, new TestAgentHostOrchestratorDatabase()));
 			registerTestAgentProvider(localService, disposables.add(new LegacyAgent('copilot')));
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 			const peer = URI.parse(buildChatUri(session, 'created-during-restore'));
 			getStateManager(localService).deleteSession(session.toString());
 
 			const restoration = localService.restoreSession(session);
 			await enumerationStarted.p;
 			try {
-				await localService.createChat(session, peer);
+				await createStartedChat(localService, session, peer);
 			} finally {
 				enumeration.complete([]);
 			}
@@ -40445,7 +40488,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, new TestAgentHostOrchestratorDatabase()));
 			const agent = disposables.add(new LegacyAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 
 			// Seed a persisted title for one legacy chat so we can assert the
 			// migration restores catalog metadata without loading history.
@@ -40493,7 +40536,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new LegacyAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 
 			// Known-empty catalog must be treated as "no peer chats", never migrated.
 			await db.setMetadata('peerChats', '[]');
@@ -40538,7 +40581,7 @@ suite('AgentService (node dispatcher)', () => {
 			));
 			const agent = disposables.add(new LegacyAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 			await db.setMetadata('peerChats', '{"not":"an array"}');
 			getStateManager(localService).deleteSession(session.toString());
 
@@ -40569,10 +40612,10 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new LegacyAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
-			await localService.createChat(session, peerUri);
+			await createStartedChat(localService, session, peerUri);
 			await readCatalog(db, localService, session);
 
 			getStateManager(localService).deleteSession(session.toString());
@@ -40595,7 +40638,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 			const toolCallId = 'tc-sub';
 			const toolChatUri = buildSubagentChatUri(session.toString(), toolCallId);
 			await db.setMetadata('peerChats', JSON.stringify([{ uri: toolChatUri, providerData: 'tool-backing' }]));
@@ -40639,7 +40682,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, new TestAgentHostOrchestratorDatabase()));
 			const agent = disposables.add(new LegacyAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 
 			// Absent peerChats key => migration runs and must write the full set once.
 			getStateManager(localService).deleteSession(session.toString());
@@ -40699,7 +40742,7 @@ suite('AgentService (node dispatcher)', () => {
 			));
 			const agent = disposables.add(new LegacyAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await createStartedSession(localService, { legacyChatUris: true, provider: 'copilot' });
 
 			// First restore commits central authority even though the cooling mirror fails.
 			db.failPeerChatsWrites = 1;
