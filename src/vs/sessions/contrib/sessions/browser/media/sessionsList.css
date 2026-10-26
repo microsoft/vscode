@@ -362,11 +362,22 @@
 		}
 	}
 
+	.session-group-connector {
+		display: none;
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+
 	&[data-session-group-connector] {
 		padding-left: var(--vscode-spacing-size360);
 
-		&::before,
-		&::after {
+		> .session-group-connector {
+			display: block;
+		}
+
+		> .session-group-connector::before,
+		> .session-group-connector::after {
 			position: absolute;
 			content: '';
 			left: var(--vscode-spacing-size200);
@@ -374,11 +385,11 @@
 			border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		}
 
-		&::before {
+		> .session-group-connector::before {
 			bottom: calc(-1 * var(--vscode-spacing-size20));
 		}
 
-		&::after {
+		> .session-group-connector::after {
 			box-sizing: border-box;
 			width: var(--vscode-spacing-size120);
 			height: var(--vscode-spacing-size160);
@@ -388,7 +399,7 @@
 		}
 	}
 
-	&[data-session-group-connector='last']::before {
+	&[data-session-group-connector='last'] > .session-group-connector::before {
 		display: none;
 	}
 
@@ -650,6 +661,10 @@
 
 	.session-item:not(.quick-chat) {
 		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+
+		&[data-session-group-connector] {
+			padding-left: var(--vscode-spacing-size360);
+		}
 
 		.session-main {
 			display: grid;
@@ -1486,6 +1501,10 @@
 .agent-sessions-workbench.phone-layout .sessions-list-control {
 	.session-item {
 		padding: 10px 10px;
+
+		&[data-session-group-connector] {
+			padding-left: var(--vscode-spacing-size360);
+		}
 		/* Vertically center the icon + main column inside the fixed phone row height. */
 		align-items: center;
 		/* Anchor for the absolutely positioned title toolbar (kept out

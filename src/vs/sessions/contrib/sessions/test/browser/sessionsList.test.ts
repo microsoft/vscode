@@ -5659,7 +5659,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void, mixedHarnesses = false) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void, mixedHarnesses = false, presentation: { compact?: boolean; phone?: boolean } = {}) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli' });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli' });
@@ -5754,14 +5754,25 @@ suite('Sessions - SessionsList', () => {
 			});
 			harness.managementService.onDidArchive = archived => [attempt1, attempt2, judge, synthesis]
 				.find(participant => participant.session === archived)?.isArchived.set(true, undefined);
+			if (presentation.phone) {
+				harness.instantiationService.stub(IContextKeyService, harness.store.add(new ContextKeyService(new TestConfigurationService())));
+				IsPhoneLayoutContext.bindTo(harness.instantiationService.get(IContextKeyService)).set(true);
+			}
 			const container = harness.createContainer();
+			if (presentation.phone) {
+				container.classList.add('agent-sessions-workbench', 'phone-layout');
+			}
+			for (const size of [2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36]) {
+				container.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+			}
 			container.style.setProperty('--vscode-descriptionForeground', 'rgb(128, 128, 128)');
 			container.style.setProperty('--vscode-tree-indentGuidesStroke', 'rgb(128, 128, 128)');
 			container.style.setProperty('--vscode-cornerRadius-small', '4px');
 			container.style.setProperty('--vscode-strokeThickness', '1px');
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => grouping,
 				sorting: () => SessionsSorting.Created,
+				compact: () => presentation.compact ?? false,
 				onSessionOpen: () => { },
 			}));
 			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, false);
@@ -5920,8 +5931,9 @@ suite('Sessions - SessionsList', () => {
 				order: participants.map(participant => participant.querySelector('.session-title')?.textContent),
 				attempts: attempts.map(attempt => {
 					const connectorIcon = attempt.querySelector<HTMLElement>('.session-icon')!;
-					const connectorBranchStyle = mainWindow.getComputedStyle(attempt, '::before');
-					const connectorElbowStyle = mainWindow.getComputedStyle(attempt, '::after');
+					const connector = attempt.querySelector<HTMLElement>('.session-group-connector')!;
+					const connectorBranchStyle = mainWindow.getComputedStyle(connector, '::before');
+					const connectorElbowStyle = mainWindow.getComputedStyle(connector, '::after');
 					return {
 						title: attempt.querySelector('.session-title')?.textContent,
 						ariaLabel: attempt.closest('.monaco-list-row')?.getAttribute('aria-label'),
@@ -6002,6 +6014,86 @@ suite('Sessions - SessionsList', () => {
 				statuses: [undefined, undefined],
 			});
 		});
+
+		for (const presentation of [
+			{ compact: false, phone: false },
+			{ compact: true, phone: false },
+			{ compact: false, phone: true },
+			{ compact: true, phone: true },
+		]) {
+			const mode = `compact: ${presentation.compact}, phone: ${presentation.phone}`;
+
+			test(`keeps comparison connectors clear of participant status icons (${mode})`, () => {
+				const { container } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, undefined, false, presentation);
+				const participants = [...container.querySelectorAll<HTMLElement>('.session-item')];
+
+				assert.deepStrictEqual(participants.map(participant => {
+					const connector = participant.querySelector<HTMLElement>('.session-group-connector')!;
+					const elbow = mainWindow.getComputedStyle(connector, '::after');
+					const icon = participant.querySelector<HTMLElement>('.session-icon')!;
+					const iconLeft = icon.getBoundingClientRect().left - participant.getBoundingClientRect().left;
+					return {
+						inset: mainWindow.getComputedStyle(participant).paddingLeft,
+						connectorBeforeIcon: parseFloat(elbow.left) + parseFloat(elbow.width) <= iconLeft,
+						hasSpinner: !!icon.querySelector('.monaco-pixel-spinner'),
+						decorative: connector.getAttribute('aria-hidden'),
+						pointerEvents: mainWindow.getComputedStyle(connector).pointerEvents,
+					};
+				}), Array.from({ length: 4 }, () => ({
+					inset: '36px',
+					connectorBeforeIcon: true,
+					hasSpinner: true,
+					decorative: 'true',
+					pointerEvents: 'none',
+				})));
+			});
+
+			test(`keeps an expanded participant's incoming connector separate from its chat guide (${mode})`, () => {
+				const { attempt2, judge, container, harness, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, undefined, false, presentation);
+				const nested = buildTestSession({ id: 'nested-attempt', title: 'Attempt', chats: [{ id: 'peer', title: 'Nested chat' }] });
+				const session: ISession = {
+					...attempt2.session,
+					chats: nested.session.chats,
+					mainChat: nested.session.mainChat,
+					capabilities: nested.session.capabilities,
+				};
+				harness.managementService.sessions = harness.managementService.sessions.map(candidate => candidate === attempt2.session ? session : candidate);
+				list.refresh();
+				list.layout(600, 400);
+				list.setItemCollapsed({ session: session.resource }, false);
+				list.setFocusedItem({ session: judge.session.resource });
+				const participant = container.querySelector<HTMLElement>('.session-item[data-session-group-connector="last"]')!;
+				const connector = participant.querySelector<HTMLElement>('.session-group-connector')!;
+				const appearance = () => {
+					const incoming = mainWindow.getComputedStyle(connector, '::after');
+					const outgoing = mainWindow.getComputedStyle(participant, '::after');
+					return {
+						incoming: { top: incoming.top, opacity: incoming.opacity, borderBottom: incoming.borderBottomWidth },
+						outgoing: { top: outgoing.top, opacity: outgoing.opacity, borderBottom: outgoing.borderBottomWidth },
+					};
+				};
+				const resting = appearance();
+				list.setFocusedItem({ session: session.resource });
+				const focused = appearance();
+				list.setFocusedItem({ session: judge.session.resource });
+
+				const incoming = { top: '0px', opacity: '1', borderBottom: '1px' };
+				const outgoing = { top: presentation.phone ? '32px' : presentation.compact ? '20px' : '28px', opacity: '0', borderBottom: '0px' };
+				assert.deepStrictEqual({
+					expanded: participant.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+					chats: [...container.querySelectorAll('.session-chat-title')].map(title => title.textContent),
+					resting,
+					focused,
+					unfocused: appearance(),
+				}, {
+					expanded: 'true',
+					chats: ['Nested chat'],
+					resting: { incoming, outgoing },
+					focused: { incoming, outgoing: { ...outgoing, opacity: '1' } },
+					unfocused: { incoming, outgoing },
+				});
+			});
+		}
 
 		test('keeps harness names when attempts use different harnesses', () => {
 			const { container } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, undefined, true);
