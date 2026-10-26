@@ -241,6 +241,7 @@ export class ChatWindowChatEditor extends EditorPane {
 			const kind = state.kind;
 			const view = this._sessionView = this._register(this._scopedInstantiationService.createInstance(SessionView, {
 				showHeader: kind.showSessionHeader ?? true,
+				hasWindowChrome: !state.docked,
 				// With an editor area, its entries open their tabs there; see chatWindowActivityBar.ts.
 				showActivityBar: kind.showActivityBar ?? false,
 				input: { placeholder: kind.inputPlaceholder, minLines: kind.inputMinLines, showPills: kind.showPills ?? true },
@@ -309,6 +310,20 @@ export class ChatWindowChatEditor extends EditorPane {
 		// Showing only the input, the chat shows no session header either.
 		store.add(autorun(reader => sessionView.setHeaderHidden(view.inputOnly.read(reader))));
 		store.add(toDisposable(() => sessionView.setHeaderHidden(false)));
+		// The session header is the top row of the window, in place of its title bar: with the conversation beside or alone,
+		// it is where the header is; with the editor area, it is moved above it.
+		if (!docked && sessionView.canShowWindowChrome) {
+			store.add(autorun(reader => {
+				const headerHost = state.headerHost.read(reader);
+				const headerChrome = !sessionView.headerShown.read(reader) ? 'none' : conversationOnly.read(reader) ? 'replace' : headerHost ? 'host' : 'none';
+				sessionView.setWindowChrome(headerChrome !== 'none', headerChrome === 'host' ? headerHost : undefined);
+				state.headerChrome.set(headerChrome, undefined);
+			}));
+			store.add(toDisposable(() => {
+				sessionView.setWindowChrome(false);
+				state.headerChrome.set('none', undefined);
+			}));
+		}
 		// The session header, and the bar of the chat's group, stay above the input.
 		// Measured while it shows only the input: with the conversation, the session header is shown above the input as well,
 		// which would move the height the chat snaps to as it is dragged across it.

@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { $, EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { setFullscreen } from '../../../base/browser/browser.js';
+import { isMacintosh, isNative } from '../../../base/common/platform.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -448,6 +450,34 @@ suite('Sessions - Headers', () => {
 			hiddenDisplay: 'none',
 			restoredDisplay: '',
 			hasMetadataRow: false,
+		});
+	});
+
+	test('shows the chrome of the window in the header, without the traffic lights in full screen', () => {
+		const { header } = createHarness(disposables);
+		const read = () => ({
+			chrome: header.element.classList.contains('window-chrome'),
+			draggable: header.element.draggable,
+			toolbars: header.element.querySelectorAll('.chat-composite-bar-window-chrome .chat-composite-bar-toolbar').length,
+			lights: header.element.classList.contains('has-traffic-lights'),
+		});
+		const hasTrafficLights = isMacintosh && isNative;
+
+		const initial = read();
+		header.setWindowChrome(true);
+		const shown = read();
+		setFullscreen(true, mainWindow);
+		const fullscreen = read();
+		setFullscreen(false, mainWindow);
+		const windowed = read();
+		header.setWindowChrome(false);
+
+		assert.deepStrictEqual({ initial, shown, fullscreen, windowed, hidden: read() }, {
+			initial: { chrome: false, draggable: true, toolbars: 0, lights: false },
+			shown: { chrome: true, draggable: false, toolbars: 3, lights: hasTrafficLights },
+			fullscreen: { chrome: true, draggable: false, toolbars: 3, lights: false },
+			windowed: { chrome: true, draggable: false, toolbars: 3, lights: hasTrafficLights },
+			hidden: { chrome: false, draggable: true, toolbars: 0, lights: false },
 		});
 	});
 

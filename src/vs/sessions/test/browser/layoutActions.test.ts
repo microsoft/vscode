@@ -233,6 +233,13 @@ suite('Sessions - Layout Actions', () => {
 		assert.strictEqual(toggleAlwaysOnTop.group, 'navigation');
 	});
 
+	test('always-on-top toggle is not shown in chat windows', () => {
+		const toggleAlwaysOnTop = MenuRegistry.getMenuItems(Menus.TitleBarRightLayout).filter(isIMenuItem).find(item => item.command.id === 'workbench.action.toggleWindowAlwaysOnTop');
+		const matches = (chatWindow: string) => toggleAlwaysOnTop?.when?.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => ({ isAuxiliaryWindow: true, 'sessions.chatWindow': chatWindow } as Record<string, ContextKeyValue>)[key] as T | undefined });
+
+		assert.deepStrictEqual({ outsideChatWindows: matches(''), chatWindow: matches('chat') }, { outsideChatWindows: true, chatWindow: false });
+	});
+
 	test('screen reader optimized action uses a title bar toolbar menu', () => {
 		const item = MenuRegistry.getMenuItems(Menus.TitleBarAccessibility)
 			.filter(isIMenuItem)

@@ -39,6 +39,11 @@ export class SessionHeader extends Disposable {
 		this._bar = this._register(instantiationService.createInstance(SessionHeaderBar, undefined));
 	}
 
+	/** See {@link SessionHeaderBar.setWindowChrome}. */
+	setWindowChrome(shown: boolean): void {
+		this._bar.setWindowChrome(shown);
+	}
+
 	setSession(session: IActiveSession | undefined): void {
 		this._sessionDisposables.clear();
 		if (!session) {
