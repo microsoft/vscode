@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../../base/common/arrays.js';
 import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -15,7 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPlatformCustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/platformCustomizationMarketplaceService.js';
-import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceBrowseSectionsProgress, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceQueryProgress, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceBrowseSectionsProgress, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceQueryProgress, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourceRecoveryAction, ICustomizationMarketplaceSourcesChangeEvent } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -32,6 +33,11 @@ import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizatio
 
 export function getProviderMarketplaceSourceId(name: string): string {
 	return `providerPluginMarketplace.${encodeURIComponent(name)}`;
+}
+
+/** Compares the fields that determine a provider marketplace's source identity, availability, and queries. */
+function providerMarketplacesEqual(a: ICustomizationMarketplaceInfo, b: ICustomizationMarketplaceInfo): boolean {
+	return a.name === b.name && a.source === b.source && a.available === b.available;
 }
 
 interface IAgentFinderBrowseFeed {
@@ -134,7 +140,7 @@ function sortMarketplaceSources(sources: readonly ICustomizationMarketplaceSourc
 export class PlatformCustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	readonly allSources = getAllMcpGalleryMarketplaceSourceInfos();
-	readonly onDidChangeSources: Event<void>;
+	readonly onDidChangeSources: Event<ICustomizationMarketplaceSourcesChangeEvent>;
 	get sources() { return getCustomizationMarketplaceSourceInfos(this.mcpGalleryManifestService.mcpGalleryManifestStatus); }
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
@@ -143,7 +149,7 @@ export class PlatformCustomizationMarketplaceWorkbenchService implements ICustom
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 	) {
-		this.onDidChangeSources = Event.map(mcpGalleryManifestService.onDidChangeMcpGalleryManifestStatus, () => undefined);
+		this.onDidChangeSources = Event.map(mcpGalleryManifestService.onDidChangeMcpGalleryManifestStatus, () => ({ sourceIds: this.allSources.map(source => source.id) }));
 		void mcpGalleryManifestService.getMcpGalleryManifest();
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
 			...createMcpGalleryMarketplaceProviders(instantiationService),
@@ -175,7 +181,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			]),
 		];
 	}
-	readonly onDidChangeSources: Event<void>;
+	readonly onDidChangeSources: Event<ICustomizationMarketplaceSourcesChangeEvent>;
 	get sources(): readonly ICustomizationMarketplaceSourceInfo[] {
 		const githubFeedAvailable = this.isGitHubFeedAvailable();
 		const pluginSources = this.marketplaceManagementProvider
@@ -196,13 +202,14 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 	}
 	private readonly harnessBindingCancellation: MutableDisposable<CancellationTokenSource>;
 	private readonly marketplaceManagementBinding = this._register(new MutableDisposable<DisposableStore>());
-	private readonly _onDidChangeSources = this._register(new Emitter<void>());
+	private readonly _onDidChangeSources = this._register(new Emitter<ICustomizationMarketplaceSourcesChangeEvent>());
 	private providerMarketplaces: readonly ICustomizationMarketplaceInfo[] = [];
 	private marketplaceSessionResource: URI | undefined;
 	private marketplaceSearchProvider: ICustomizationMarketplaceSearchProvider | undefined;
 	private marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined;
 	private marketplaceManagementVersion = 0;
 	private marketplaceManagementRefreshVersion = 0;
+	private pendingProviderMarketplaceContentChange = false;
 	private service: CustomizationMarketplaceService | undefined;
 	private serviceSignature: string | undefined;
 	private readonly browseFeedCache = new Map<AgentFinderBrowseFeedSlot, IAgentFinderBrowseFeedCacheEntry>();
@@ -231,25 +238,40 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 				descriptor?.marketplaceManagementProvider,
 			);
 		}));
-		this.onDidChangeSources = Event.map(Event.any(
+		const anySource = (): ICustomizationMarketplaceSourcesChangeEvent => ({});
+		this.onDidChangeSources = Event.map(Event.any<ICustomizationMarketplaceSourcesChangeEvent>(
 			this._onDidChangeSources.event,
-			pluginMarketplaceService.onDidChangeMarketplaces,
-			Event.filter(configurationService.onDidChangeConfiguration, event =>
-				affectsCustomizationMarketplaceSources(event, this.allSources)),
+			Event.map(pluginMarketplaceService.onDidChangeMarketplaces, anySource),
+			Event.map(Event.filter(configurationService.onDidChangeConfiguration, event =>
+				affectsCustomizationMarketplaceSources(event, this.allSources)), anySource),
 			platformService.onDidChangeSources ?? Event.None,
-			Event.fromObservableLight(this.harnessService.activeHarness),
-			Event.fromObservableLight(this.harnessService.activeSessionResource),
-			Event.map(defaultAccountService.onDidChangeDefaultAccount, () => undefined),
+			Event.map(Event.fromObservableLight(this.harnessService.activeHarness), anySource),
+			// Session switches only change the session-bound sources; account-bound sources such as Copilot Connectors keep their results.
+			Event.map(Event.fromObservableLight(this.harnessService.activeSessionResource), () => ({ sourceIds: this.getSessionBoundSourceIds() })),
+			Event.map(defaultAccountService.onDidChangeDefaultAccount, anySource),
 			Event.map(Event.filter(authenticationService.onDidChangeSessions, event => {
 				const account = defaultAccountService.currentDefaultAccount;
 				return !!account && event.providerId === account.authenticationProvider.id &&
 					[...event.event.added ?? [], ...event.event.removed ?? []].some(session => session.id === account.sessionId);
-			}), () => undefined),
-		), () => {
-			this.service?.clearBrowseCache();
-			this.browseFeedCache.clear();
-			return undefined;
+			}), anySource),
+		), event => {
+			this.service?.clearBrowseCache(event.sourceIds);
+			if (!event.sourceIds || event.sourceIds.includes(CustomizationMarketplaceSources.AgentFinderPublicFeed.id)) {
+				this.browseFeedCache.clear();
+			}
+			return event;
 		});
+	}
+
+	private getSessionBoundSourceIds(): readonly string[] {
+		return [
+			CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			...this.getProviderMarketplaceSourceIds(this.providerMarketplaces),
+		];
+	}
+
+	private getProviderMarketplaceSourceIds(marketplaces: readonly ICustomizationMarketplaceInfo[]): string[] {
+		return marketplaces.map(marketplace => getProviderMarketplaceSourceId(marketplace.name));
 	}
 
 	private getProviderMarketplaceSources(includeUnavailable: boolean): readonly ICustomizationMarketplaceSourceInfo[] {
@@ -275,10 +297,10 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		this.marketplaceSearchProvider = searchProvider;
 		this.marketplaceManagementProvider = managementProvider;
 		const version = ++this.marketplaceManagementVersion;
-		const hadMarketplaces = this.providerMarketplaces.length > 0;
+		const previousSourceIds = this.getProviderMarketplaceSourceIds(this.providerMarketplaces);
 		this.providerMarketplaces = [];
-		if (hadMarketplaces) {
-			this._onDidChangeSources.fire();
+		if (previousSourceIds.length) {
+			this._onDidChangeSources.fire({ sourceIds: previousSourceIds });
 		}
 		if (!managementProvider) {
 			this.marketplaceManagementBinding.clear();
@@ -286,21 +308,33 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		}
 		const store = new DisposableStore();
 		this.marketplaceManagementBinding.value = store;
-		store.add(managementProvider.onDidChange(() => void this.refreshProviderMarketplaces(sessionResource, managementProvider, version, true)));
+		this.pendingProviderMarketplaceContentChange = false;
+		store.add(managementProvider.onDidChange(() => void this.refreshProviderMarketplaces(sessionResource, managementProvider, version)));
+		store.add(managementProvider.onDidChangeMarketplaces(() => void this.refreshProviderMarketplaces(sessionResource, managementProvider, version, true)));
 		void this.refreshProviderMarketplaces(sessionResource, managementProvider, version);
 	}
 
-	private async refreshProviderMarketplaces(sessionResource: URI, provider: ICustomizationMarketplaceManagementProvider, version: number, forceChangeEvent = false): Promise<void> {
+	/**
+	 * Lists the provider's marketplaces and signals a source change when the list differs or when
+	 * {@link contentChanged} reports that marketplace contents may have changed. Only explicit
+	 * marketplace content changes force the signal: the provider's general change event also fires
+	 * for unrelated customization activity, and forcing it would repeatedly reset Browse pages.
+	 */
+	private async refreshProviderMarketplaces(sessionResource: URI, provider: ICustomizationMarketplaceManagementProvider, version: number, contentChanged = false): Promise<void> {
 		const refreshVersion = ++this.marketplaceManagementRefreshVersion;
+		// A newer refresh supersedes this one, so it must still report the content change.
+		this.pendingProviderMarketplaceContentChange ||= contentChanged;
 		try {
 			const marketplaces = await provider.list(sessionResource);
 			if (version !== this.marketplaceManagementVersion || refreshVersion !== this.marketplaceManagementRefreshVersion || this._store.isDisposed) {
 				return;
 			}
-			const previous = JSON.stringify(this.providerMarketplaces);
+			const previousMarketplaces = this.providerMarketplaces;
 			this.providerMarketplaces = marketplaces;
-			if (forceChangeEvent || JSON.stringify(marketplaces) !== previous) {
-				this._onDidChangeSources.fire();
+			const forceChangeEvent = this.pendingProviderMarketplaceContentChange;
+			this.pendingProviderMarketplaceContentChange = false;
+			if (forceChangeEvent || !equals(marketplaces, previousMarketplaces, providerMarketplacesEqual)) {
+				this._onDidChangeSources.fire({ sourceIds: [...new Set(this.getProviderMarketplaceSourceIds([...previousMarketplaces, ...marketplaces]))] });
 			}
 		} catch (error) {
 			if (version === this.marketplaceManagementVersion && !this._store.isDisposed) {
@@ -424,7 +458,11 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		}
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
-		store.add(this.onDidChangeSources(() => cancellation.cancel()));
+		store.add(this.onDidChangeSources(event => {
+			if (!event.sourceIds || event.sourceIds.includes(source.id)) {
+				cancellation.cancel();
+			}
+		}));
 		store.add(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(source.enablementSetting) || event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
 				cancellation.cancel();

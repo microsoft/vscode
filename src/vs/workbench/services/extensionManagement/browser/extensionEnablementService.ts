@@ -684,8 +684,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			if (userEnablementState === EnablementState.EnabledWorkspace) {
 				return false;
 			}
-			// Extensions that users haven't enabled or disabled for the sessions window are enabled there automatically when they could be useful.
-			if (userEnablementState === EnablementState.EnabledGlobally && this._isSessionsWindowAutoEnablementEnabled() && this.extensionManifestPropertiesService.canAutoEnableOnSessionsWindow(extension.manifest)) {
+			// Extensions that users haven't enabled or disabled for the sessions window are enabled there automatically when they could be useful or are listed.
+			if (userEnablementState === EnablementState.EnabledGlobally && this.extensionManifestPropertiesService.shouldAutoEnableOnSessionsWindow(extension.manifest)) {
 				return false;
 			}
 		}
@@ -707,10 +707,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _isSessionsWindowManagementEnabled(): boolean {
 		return this.configurationService.getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT) === true;
-	}
-
-	private _isSessionsWindowAutoEnablementEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE) === true;
 	}
 
 	/**

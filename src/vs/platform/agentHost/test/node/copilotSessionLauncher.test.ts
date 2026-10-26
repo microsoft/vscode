@@ -3149,6 +3149,41 @@ suite('getCopilotAutoTier', () => {
 		assert.strictEqual(tier, undefined);
 	});
 
+	test('pins inline chat on Fusion to the fast tier, whatever effort level the picker holds', () => {
+		const log = new NullLogService();
+		const configOf = (override?: string) => ({
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.AutoModeTierOverride ? override : undefined,
+		}) as Parameters<typeof resolveCopilotAutoTier>[1];
+		const resolve = (model: ModelSelection, isInlineChat: boolean, override?: string) => resolveCopilotAutoTier(model, configOf(override), log, 'session', isInlineChat);
+		const fusion: ModelSelection = { id: 'auto', config: { tier: 'hydrafusion' } };
+		let result;
+		try {
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion', 'fast'], true);
+			const fusionTiers = {
+				inline: resolve(fusion, true),
+				inlineWithoutPreference: resolve({ id: 'auto' }, true),
+				inlineConcreteModel: resolve({ id: 'gpt-5', config: { tier: 'hydrafusion' } }, true),
+				inlineWithOverride: resolve(fusion, true, 'balance'),
+				panel: resolve(fusion, false),
+			};
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion'], true);
+			const fastNotAccepted = resolve(fusion, true);
+			setAdvertisedAutoModeTiers(['efficiency', 'balance', 'fast']);
+			result = { ...fusionTiers, fastNotAccepted, inlineNotFusion: resolve({ id: 'auto', config: { tier: 'efficiency' } }, true) };
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.deepStrictEqual(result, {
+			inline: 'fast',
+			inlineWithoutPreference: 'fast',
+			inlineConcreteModel: undefined,
+			inlineWithOverride: 'balance',
+			panel: 'hydrafusion',
+			fastNotAccepted: 'hydrafusion',
+			inlineNotFusion: 'efficiency',
+		});
+	});
+
 	test('resolves the override before picker preferences', () => {
 		const log = new NullLogService();
 		const model: ModelSelection = { id: 'auto', config: { tier: 'efficiency' } };
@@ -3596,6 +3631,7 @@ suite('CopilotSessionLauncher resume config', () => {
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_INTERRUPTED_COMMIT: true,
 			},
 			v2FeatureFlags: {
 				...catalogInstallationFeatureFlags,
@@ -3607,6 +3643,7 @@ suite('CopilotSessionLauncher resume config', () => {
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_INTERRUPTED_COMMIT: true,
 				HYDRAFUSION_PLAN_V2: true,
 			},
 			v2WithoutHydraFusionFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
@@ -3621,6 +3658,7 @@ suite('CopilotSessionLauncher resume config', () => {
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_INTERRUPTED_COMMIT: true,
 				HYDRAFUSION_PLAN_V2: true,
 			},
 			disabledExperimentalMode: undefined,
@@ -3963,7 +4001,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Launches a session and returns the `capi` options the SDK was called with. */
-	async function capiOptionsFor(kind: 'create' | 'resume' | 'fallback', model: ModelSelection | undefined, override?: string): Promise<SessionConfig['capi'][]> {
+	async function capiOptionsFor(kind: 'create' | 'resume' | 'fallback', model: ModelSelection | undefined, override?: string, isInlineChatSurface?: boolean): Promise<SessionConfig['capi'][]> {
 		const capiCalls: SessionConfig['capi'][] = [];
 		const session = {
 			sessionId: 'session-1',
@@ -4001,6 +4039,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			isInlineChatSurface,
 		};
 		const plan: CopilotSessionLaunchPlan = kind === 'create'
 			? { ...base, kind: 'create', model }
@@ -4066,6 +4105,30 @@ suite('CopilotSessionLauncher auto tier', () => {
 			});
 		});
 	}
+
+	test('pins inline chat on Fusion to the fast tier when creating and resuming', async () => {
+		const model: ModelSelection = { id: 'auto', config: { tier: 'hydrafusion' } };
+		let result;
+		try {
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion', 'fast'], true);
+			result = {
+				created: await capiOptionsFor('create', model, undefined, true),
+				resumed: await capiOptionsFor('resume', model, undefined, true),
+				emptyFallback: await capiOptionsFor('fallback', model, undefined, true),
+				overridden: await capiOptionsFor('create', model, 'balance', true),
+				panel: await capiOptionsFor('create', model),
+			};
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.deepStrictEqual(result, {
+			created: [{ autoTier: 'fast' }],
+			resumed: [{ autoTier: 'fast' }],
+			emptyFallback: [{ autoTier: 'fast' }, { autoTier: 'fast' }],
+			overridden: [{ autoTier: 'balance' }],
+			panel: [{ autoTier: 'hydrafusion' }],
+		});
+	});
 });
 
 suite('CopilotSessionLauncher working directory trust', () => {

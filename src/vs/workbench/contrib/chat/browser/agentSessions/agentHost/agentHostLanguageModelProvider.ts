@@ -17,7 +17,7 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../../platform/agentHo
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigPropertySchema, ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelFusionInlineChatTier, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
@@ -160,6 +160,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
 				const isAuto = m.id === AUTO_RAW_MODEL_ID;
 				const fusion = isAuto && isAgentModelFusion(m);
+				const fusionInlineChatTier = fusion ? readAgentModelFusionInlineChatTier(m) : undefined;
 				const configurationDefaultKeys = readAgentModelConfigurationDefaults(m);
 				const notices = isAuto ? undefined : readAgentModelNoticesMeta(m);
 				const discountPercent = pricing.discountPercent;
@@ -199,6 +200,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						...(detail !== undefined && { detail }),
 						...(isAuto && modelDiscount !== undefined && { autoModelDiscountPercent: modelDiscount }),
 						...(fusion && { autoModelFusion: true }),
+						...(fusionInlineChatTier !== undefined && { autoModelFusionInlineChatTier: fusionInlineChatTier }),
 						...(publishedPromotions.length && { autoModelTierPromotions: publishedPromotions }),
 						...(isAuto && readAgentModelAutoTiersMeta(m) && { autoModelProviderTiers: true }),
 						maxInputTokens,
