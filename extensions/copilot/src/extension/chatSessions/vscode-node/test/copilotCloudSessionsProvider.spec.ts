@@ -1231,6 +1231,65 @@ function permissionEvents(): AgentTaskSessionEvent[] {
 }
 
 describe('TaskTurnStreamer automation permissions', () => {
+	it.each(['approved', 'denied-interactively-by-user'] as const)('keeps healthy streaming beyond the decision deadline after %s', async kind => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		try {
+			const task = { ...automationPermissionTask(), state: 'in_progress' as const };
+			const completed = [...permissionEvents(), evt('permission.completed', { requestId: 'prompt-1', result: { kind } }), evt('tool.execution_complete', { toolCallId: 'tool-1', success: true })];
+			const progress = [...completed, evt('assistant.message', { messageId: 'continuing', content: 'Continuing healthy work' })];
+			const later = [...progress, evt('permission.requested', { requestId: 'prompt-2', permissionRequest: { kind: 'mcp', toolCallId: 'tool-2', serverName: 'github', toolName: 'next', args: {} } }, { id: 'later-permission', parentId: 'start-1' })];
+			const backend = new class extends mock<CloudAgentBackend>() {
+				override fetchTaskContent = vi.fn(async () => ({ task, turns: [] }));
+				override fetchTaskEvents = vi.fn<CloudAgentBackend['fetchTaskEvents']>()
+					.mockResolvedValueOnce(completed).mockResolvedValueOnce(progress).mockResolvedValueOnce(progress).mockResolvedValue(later);
+			}();
+			const parts: vscode.ExtendedChatResponsePart[] = [];
+			const stream = new MockChatResponseStream(part => parts.push(part));
+			const running = new TaskTurnStreamer(backend, new ChatSessionContentBuilder('copilot-cloud-agent', new TestGitService(), new TestLogService()), new TestLogService(), 1000)
+				.stream(stream, task.id, { mode: 'current', seedEventIds: new Set(completed.map(event => event.id)), permissionDecision: { requestId: 'prompt-1', toolCallId: 'tool-1', approved: kind === 'approved' }, observationTimeoutMs: 1500 }, CancellationToken.None);
+			await vi.advanceTimersByTimeAsync(4000);
+			await running;
+			expect({
+				polls: backend.fetchTaskEvents.mock.calls.length,
+				outcomes: stream.output,
+				content: parts.filter(part => part instanceof ChatResponseMarkdownPart).map(part => part.value.value),
+				confirmations: parts.filter(part => part instanceof ChatResponseConfirmationPart).map(part => part.data.requestId),
+			}).toEqual({
+				polls: 4,
+				outcomes: [kind === 'approved' ? 'The cloud runtime approved the permission and completed the tool call.' : 'The cloud runtime denied the permission request.'],
+				content: ['Continuing healthy work'],
+				confirmations: ['prompt-2'],
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it.each(['approved', 'unknown'] as const)('still bounds an uncorrelatable or unknown %s outcome', async kind => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		try {
+			const task = { ...automationPermissionTask(), state: 'in_progress' as const };
+			const events = [...permissionEvents(), evt('permission.completed', { requestId: 'prompt-1', result: { kind } })];
+			const backend = new class extends mock<CloudAgentBackend>() {
+				override fetchTaskContent = vi.fn(async () => ({ task, turns: [] }));
+				override fetchTaskEvents = vi.fn(async () => events);
+			}();
+			const stream = new MockChatResponseStream();
+			const running = new TaskTurnStreamer(backend, new ChatSessionContentBuilder('copilot-cloud-agent', new TestGitService(), new TestLogService()), new TestLogService(), 1000)
+				.stream(stream, task.id, { mode: 'current', seedEventIds: new Set(), permissionDecision: { requestId: 'prompt-1', approved: true }, observationTimeoutMs: 1500 }, CancellationToken.None);
+			await vi.advanceTimersByTimeAsync(4000);
+			await running;
+			expect({ polls: backend.fetchTaskEvents.mock.calls.length, output: stream.output }).toEqual({
+				polls: 3,
+				output: [kind === 'approved' ? 'The cloud runtime approved the permission, but the tool outcome could not be correlated.' : 'The cloud runtime returned an unrecognized permission result. Refresh the session to check its outcome.'],
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it.each([
 		['different identities', 'tool-from-completion', 'different-tool', 'The cloud runtime approved the permission and completed the tool call.'],
 		['identity only on completion', 'tool-from-completion', undefined, 'The cloud runtime approved the permission and completed the tool call.'],
@@ -1389,7 +1448,7 @@ describe('TaskTurnStreamer automation permissions', () => {
 		['denied-interactively-by-user', false, 'The cloud runtime denied the permission request.'],
 		['unknown', false, 'The cloud runtime returned an unrecognized permission result. Refresh the session to check its outcome.'],
 	] as const)('requires native completion and exact tool evidence: %s / %s', async (kind, success, expected) => {
-		const task = automationPermissionTask();
+		const task = { ...automationPermissionTask(), state: 'completed' as const };
 		const events = [...permissionEvents(), evt('permission.completed', { requestId: 'prompt-1', result: { kind } }), evt('tool.execution_complete', { toolCallId: 'tool-1', success })];
 		const backend = new class extends mock<CloudAgentBackend>() {
 			override fetchTaskContent = vi.fn(async () => ({ task, turns: [] }));
