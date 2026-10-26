@@ -1473,7 +1473,7 @@ registerAction2(class OpenParentSessionAction extends Action2 {
 	}
 });
 
-/** Moves a nested chat up or down among its session's chats in the Sessions list, through its provider, which owns their order. */
+/** Moves a nested chat up or down among its session's chats in the Sessions list, through its provider, which owns their order. Only offered when sorting by creation, as the list shows that order. */
 abstract class BaseMoveSessionListChatAction extends Action2 {
 	constructor(private readonly direction: 'up' | 'down') {
 		super({
@@ -1483,13 +1483,13 @@ abstract class BaseMoveSessionListChatAction extends Action2 {
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | (direction === 'up' ? KeyCode.UpArrow : KeyCode.DownArrow),
 				weight: KeybindingWeight.SessionsContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListFocusedChatItemContext, direction === 'up' ? SessionChatItemCanMoveUpContext : SessionChatItemCanMoveDownContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListFocusedChatItemContext, ContextKeyExpr.equals(SessionsViewSortingContext.key, SessionsSorting.Created), direction === 'up' ? SessionChatItemCanMoveUpContext : SessionChatItemCanMoveDownContext),
 			},
 			menu: [{
 				id: Menus.SessionChatItemContext,
 				group: '2_order',
 				order: direction === 'up' ? 1 : 2,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, direction === 'up' ? SessionChatItemCanMoveUpContext : SessionChatItemCanMoveDownContext),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(SessionsViewSortingContext.key, SessionsSorting.Created), direction === 'up' ? SessionChatItemCanMoveUpContext : SessionChatItemCanMoveDownContext),
 			}],
 		});
 	}
