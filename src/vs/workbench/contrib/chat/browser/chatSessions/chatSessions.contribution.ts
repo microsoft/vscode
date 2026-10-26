@@ -316,11 +316,17 @@ interface IPendingSessionResolution {
 	waiterCount: number;
 }
 
+interface IChatSessionItemControllerEntry {
+	readonly chatSessionType: string;
+	readonly controller: IChatSessionItemController;
+	readonly token: CancellationToken;
+	initialization: Promise<void> | undefined;
+}
 
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
 
-	private readonly _itemControllers = new Map</* type */ string, { readonly controller: IChatSessionItemController; readonly initialRefresh: Promise<void> }>();
+	private readonly _itemControllers = new Map</* type */ string, IChatSessionItemControllerEntry>();
 	private readonly _asyncActivationRegistry = Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation);
 
 	private readonly _contributions: Map</* type */ string, { readonly contribution: IChatSessionsExtensionPoint; readonly extension: IRelaxedExtensionDescription | undefined }> = new Map();
@@ -1126,7 +1132,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				}
 
 				try {
-					await raceCancellationError(controllerEntry.initialRefresh, token); // Ensure initial refresh is complete before accessing items
+					await this.ensureChatSessionItemControllerInitialized(controllerEntry, token);
 
 					const providerSessions = controllerEntry.controller.items;
 					this._logService.trace(`[ChatSessionsService] Resolved ${providerSessions.length} sessions for provider ${resolvedType}`);
@@ -1153,6 +1159,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 			try {
 				await controllerEntry.controller.refresh(token);
+				controllerEntry.initialization = Promise.resolve();
 			} catch (err) {
 				if (!isCancellationError(err)) {
 					// Log error but continue with other providers
@@ -1167,13 +1174,38 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return [...new Set(Array.from(this._itemControllers.keys()).map(key => this._resolveToPrimaryType(key) ?? key))];
 	}
 
+	private async ensureChatSessionItemControllerInitialized(entry: IChatSessionItemControllerEntry, token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested || entry.token.isCancellationRequested || this._itemControllers.get(entry.chatSessionType) !== entry) {
+			throw new CancellationError();
+		}
+		if (!entry.initialization) {
+			const initialization = raceCancellationError(entry.controller.refresh(entry.token), entry.token);
+			entry.initialization = initialization;
+			initialization.catch(() => {
+				if (entry.initialization === initialization) {
+					entry.initialization = undefined;
+				}
+			});
+		}
+		await raceCancellationError(entry.initialization, token);
+		if (entry.token.isCancellationRequested || this._itemControllers.get(entry.chatSessionType) !== entry) {
+			throw new CancellationError();
+		}
+	}
+
 	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable {
 		const disposables = new DisposableStore();
 
 
 		// Register and trigger an initial refresh to populate the provider's items
-		const initialRefreshCts = disposables.add(new CancellationTokenSource());
-		this._itemControllers.set(chatSessionType, { controller, initialRefresh: controller.refresh(initialRefreshCts.token) });
+		const controllerCts = disposables.add(new CancellationTokenSource());
+		const entry: IChatSessionItemControllerEntry = { chatSessionType, controller, token: controllerCts.token, initialization: undefined };
+		this._itemControllers.set(chatSessionType, entry);
+		this.ensureChatSessionItemControllerInitialized(entry, CancellationToken.None).catch(error => {
+			if (!isCancellationError(error)) {
+				this._logService.error(`[ChatSessionsService] Failed to initialize sessions for provider ${chatSessionType}`, error);
+			}
+		});
 		this._onDidChangeItemsProviders.fire({ chatSessionType });
 
 		disposables.add(controller.onDidChangeChatSessionItems(e => {
@@ -1186,7 +1218,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		return {
 			dispose: () => {
-				initialRefreshCts.cancel();
+				controllerCts.cancel();
 				disposables.dispose();
 
 				const registeredController = this._itemControllers.get(chatSessionType)?.controller;
@@ -1266,7 +1298,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return undefined;
 		}
 
-		await controllerData.initialRefresh;
+		await this.ensureChatSessionItemControllerInitialized(controllerData, token);
 		return controllerData.controller.newChatSessionItem?.(request, token);
 	}
 
@@ -1280,7 +1312,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			throw new Error(`Session ${sessionResource.toString()} does not support deletion`);
 		}
 
-		await controllerData.initialRefresh;
+		await this.ensureChatSessionItemControllerInitialized(controllerData, token);
 		await controllerData.controller.deleteChatSessionItem(sessionResource, token);
 		this._disposeSession(sessionResource);
 	}
