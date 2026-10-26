@@ -283,11 +283,12 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		logService.trace(`[AgentSessions] openSession: provider '${session.providerType}' activated for ${session.resource.toString()}`);
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
-		if (openOptions?.sideBySide) {
+		if (configurationService.getValue<boolean>(ChatConfiguration.OpenSessionsInEditor)) {
+			// Like files: a click opens the session in the active group, a modifier-click to the side.
+			target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+			options = { ...options, revealIfOpened: !openOptions?.sideBySide && shouldRevealSessionEditor(chatWidgetService, session.resource) };
+		} else if (openOptions?.sideBySide) {
 			target = ACTIVE_GROUP;
-		} else if (configurationService.getValue<boolean>(ChatConfiguration.OpenSessionsInEditor)) {
-			target = ACTIVE_GROUP;
-			options = { ...options, revealIfOpened: shouldRevealSessionEditor(chatWidgetService, session.resource) };
 		} else {
 			target = ChatViewPaneTarget;
 		}

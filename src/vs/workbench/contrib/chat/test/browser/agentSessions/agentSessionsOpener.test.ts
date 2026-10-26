@@ -28,7 +28,7 @@ import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { ACTIVE_GROUP } from '../../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite('AgentSessionsOpener', () => {
@@ -199,10 +199,10 @@ suite('AgentSessionsOpener', () => {
 		assert.strictEqual(handledSession?.resource.toString(), twin.toString());
 	});
 
-	test('a list click opens the session in an editor when chat.agentSessions.openInEditor is enabled, revealing an existing editor like a file', async () => {
+	test('a list click opens the session in an editor when chat.agentSessions.openInEditor is enabled, like a file: in the active group, or to the side with a modifier', async () => {
 		const resource = URI.parse('test-session://provider/session');
 		const session = upcastPartial<IAgentSession>({ resource, providerType: 'test-session', label: 'Session', setRead: () => { } });
-		const open = async (openInEditor: boolean, existing: 'none' | 'chatView' | 'editor') => {
+		const open = async (openInEditor: boolean, existing: 'none' | 'chatView' | 'editor', sideBySide = false) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(ILogService, new NullLogService());
 			stubAgentHost(instantiationService);
@@ -222,20 +222,24 @@ suite('AgentSessionsOpener', () => {
 					return undefined;
 				},
 			}));
-			await instantiationService.invokeFunction(openSession, session, undefined, /* alreadyResolved */ true);
+			await instantiationService.invokeFunction(openSession, session, sideBySide ? { sideBySide } : undefined, /* alreadyResolved */ true);
 			return opened;
 		};
 
 		assert.deepStrictEqual({
 			chatView: await open(false, 'none'),
+			modifierWithoutSetting: await open(false, 'none', true),
 			editor: await open(true, 'none'),
 			movedFromChatView: await open(true, 'chatView'),
 			revealedEditor: await open(true, 'editor'),
+			toTheSide: await open(true, 'editor', true),
 		}, {
 			chatView: { target: ChatViewPaneTarget, revealIfOpened: true },
+			modifierWithoutSetting: { target: ACTIVE_GROUP, revealIfOpened: true },
 			editor: { target: ACTIVE_GROUP, revealIfOpened: false },
 			movedFromChatView: { target: ACTIVE_GROUP, revealIfOpened: false },
 			revealedEditor: { target: ACTIVE_GROUP, revealIfOpened: true },
+			toTheSide: { target: SIDE_GROUP, revealIfOpened: false },
 		});
 	});
 
