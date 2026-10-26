@@ -14,6 +14,41 @@ import { createTextModel } from '../../common/testTextModel.js';
 import { createTestCodeEditor } from '../testCodeEditor.js';
 
 suite('ClipboardUtils', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('pasting files copied in a file manager generates text from their paths, falling back to their names', () => {
+		// Chromium only exposes the files in this case and withholds the clipboard text
+		const files = [
+			new File(['hello'], 'example.txt', { type: 'text/plain' }),
+			new File(['# hi'], 'notes #1.md', { type: 'text/markdown' }),
+		];
+		const paths = new Map([
+			['example.txt', '/home/john/Downloads/example.txt'],
+			['notes #1.md', '/home/john/Downloads/my folder/notes #1.md'],
+		]);
+
+		function paste(getFilePath?: (file: File) => string | undefined) {
+			const clipboardData = new DataTransfer();
+			for (const file of files) {
+				clipboardData.items.add(file);
+			}
+			const event = createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData }), getFilePath);
+			return { text: event.text, metadata: event.metadata };
+		}
+
+		assert.deepStrictEqual({
+			filesWithPaths: paste(file => paths.get(file.name)),
+			filesWithoutPaths: paste(() => undefined),
+			inMemoryFiles: paste(),
+		}, {
+			filesWithPaths: { text: '/home/john/Downloads/example.txt\n/home/john/Downloads/my folder/notes #1.md', metadata: null },
+			filesWithoutPaths: { text: 'example.txt\nnotes #1.md', metadata: null },
+			inMemoryFiles: { text: 'example.txt\nnotes #1.md', metadata: null },
+		});
+	});
+});
+
+suite('ClipboardUtils - Clipboard API', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => {
@@ -38,7 +73,8 @@ suite('ClipboardUtils', () => {
 					: createClipboardCopyEventFromData(clipboardData, isCut, viewModel, logService, false);
 				event.clipboardData.setData('application/x-test', 'provider data');
 				event.ensureClipboardGetsEditorData();
-				const metadata: ClipboardStoredMetadata = JSON.parse(clipboardData.getData('application/vnd.code.editor-data'));
+				const metadataMime = useDomEvent ? 'vscode-editor-data' : 'application/vnd.code.editor-data';
+				const metadata: ClipboardStoredMetadata = JSON.parse(clipboardData.getData(metadataMime));
 				assert.deepStrictEqual({
 					isCut: event.isCut,
 					text: clipboardData.getData('text/plain'),
@@ -46,6 +82,7 @@ suite('ClipboardUtils', () => {
 					metadata: { ...metadata, id: typeof metadata.id },
 					providerData: clipboardData.getData('application/x-test'),
 					defaultPrevented: browserEvent.defaultPrevented,
+					handled: event.isHandled,
 				}, {
 					isCut,
 					text: 'source',
@@ -64,6 +101,25 @@ suite('ClipboardUtils', () => {
 				});
 			}
 		}
+	});
+
+	test('DOM and Clipboard API paste factories accept legacy editor metadata', () => {
+		const metadata: ClipboardStoredMetadata = {
+			version: 1,
+			id: 'legacy-paste',
+			isFromEmptySelection: true,
+			isBlock: false,
+			multicursorText: ['left', 'right'],
+			mode: 'test-language',
+		};
+		const clipboardData = new DataTransfer();
+		clipboardData.setData('text/plain', 'left\nright');
+		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
+		const browserEvent = new ClipboardEvent('paste', { clipboardData });
+		assert.deepStrictEqual([
+			createClipboardPasteEvent(browserEvent).metadata,
+			createClipboardPasteEventFromData(clipboardData).metadata,
+		], [metadata, metadata]);
 	});
 
 	test('DOM and Clipboard API paste factories handle browser events independently', async () => {
@@ -138,39 +194,21 @@ suite('ClipboardUtils', () => {
 		}
 	});
 
-	test('pasting files copied in a file manager generates text from their paths, falling back to their names', () => {
-		// Chromium only exposes the files in this case and withholds the clipboard text
-		const files = [
-			new File(['hello'], 'example.txt', { type: 'text/plain' }),
-			new File(['# hi'], 'notes #1.md', { type: 'text/markdown' }),
-		];
-		const paths = new Map([
-			['example.txt', '/home/john/Downloads/example.txt'],
-			['notes #1.md', '/home/john/Downloads/my folder/notes #1.md'],
-		]);
-
-		function paste(useDomEvent: boolean, getFilePath?: (file: File) => string | undefined) {
-			const clipboardData = new DataTransfer();
-			for (const file of files) {
-				clipboardData.items.add(file);
-			}
-			const event = useDomEvent
-				? createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData }), getFilePath)
-				: createClipboardPasteEventFromData(clipboardData, getFilePath);
-			return { text: event.text, metadata: event.metadata };
-		}
-
-		for (const useDomEvent of [true, false]) {
-			assert.deepStrictEqual({
-				filesWithPaths: paste(useDomEvent, file => paths.get(file.name)),
-				filesWithoutPaths: paste(useDomEvent, () => undefined),
-				inMemoryFiles: paste(useDomEvent),
-			}, {
-				filesWithPaths: { text: '/home/john/Downloads/example.txt\n/home/john/Downloads/my folder/notes #1.md', metadata: null },
-				filesWithoutPaths: { text: 'example.txt\nnotes #1.md', metadata: null },
-				inMemoryFiles: { text: 'example.txt\nnotes #1.md', metadata: null },
-			});
-		}
+	test('Clipboard API paste uses file paths and falls back to file names', () => {
+		const clipboardData = new DataTransfer();
+		clipboardData.items.add(new File(['hello'], 'example.txt', { type: 'text/plain' }));
+		clipboardData.items.add(new File(['# hi'], 'notes #1.md', { type: 'text/markdown' }));
+		const event = createClipboardPasteEventFromData(clipboardData, file => file.name === 'example.txt' ? '/files/example.txt' : undefined);
+		const withoutPaths = createClipboardPasteEventFromData(clipboardData, () => undefined);
+		assert.deepStrictEqual({
+			text: event.text,
+			metadata: event.metadata,
+			withoutPaths: withoutPaths.text,
+		}, {
+			text: '/files/example.txt\nnotes #1.md',
+			metadata: null,
+			withoutPaths: 'example.txt\nnotes #1.md',
+		});
 	});
 
 	test('preserves normalized Clipboard API formats for editor metadata and paste providers', async () => {

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../base/common/dataTransfer.js';
 import { HierarchicalKind } from '../../../../../base/common/hierarchicalKind.js';
@@ -24,6 +25,7 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../../browser/controller/editContext/clipboardUtils.js';
 import { MultiCommand } from '../../../../browser/editorExtensions.js';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../../../browser/services/bulkEditService.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Handler } from '../../../../common/editorCommon.js';
 import { ILanguageService } from '../../../../common/languages/language.js';
@@ -48,9 +50,15 @@ function textData(text: string): VSDataTransfer {
 	return data;
 }
 
+function stubEditorExecCommand(editor: ITestCodeEditor) {
+	const container = mainWindow.document.implementation.createHTMLDocument().body;
+	sinon.stub(editor, 'getContainerDomNode').returns(container);
+	return sinon.stub(container.ownerDocument, 'execCommand').returns(true);
+}
+
 async function withClipboardEditor(text: string, options: TestCodeEditorInstantiationOptions, callback: (context: ClipboardTestContext) => Promise<void>): Promise<void> {
 	let failure: { error: unknown } | undefined;
-	await withAsyncTestCodeEditor(text, { copyWithSyntaxHighlighting: false, ...options }, async (editor, _viewModel, instantiationService) => {
+	await withAsyncTestCodeEditor(text, { copyWithSyntaxHighlighting: false, experimentalClipboardApi: true, ...options }, async (editor, _viewModel, instantiationService) => {
 		sinon.stub(editor, 'hasTextFocus').returns(true);
 		const clipboard = new TestClipboardService();
 		instantiationService.stub(IClipboardService, clipboard);
@@ -83,6 +91,212 @@ suite('Editor clipboard commands', () => {
 			'editor.action.clipboardCutAction',
 			'editor.action.clipboardCopyAction',
 		]);
+	});
+
+	test('uses legacy copy and syntax-highlighted copy by default and when disabled', async () => {
+		for (const experimentalClipboardApi of [undefined, false]) {
+			await withClipboardEditor('source', { experimentalClipboardApi }, async ({ editor, clipboard, instantiationService, run }) => {
+				sinon.stub(instantiationService.get(IContextKeyService), 'contextMatchesRules').callsFake(rules => !rules);
+				editor.setSelection(new Selection(1, 1, 1, 7));
+				const syntaxHighlighting: boolean[] = [];
+				const execCommand = stubEditorExecCommand(editor).callsFake(() => {
+					syntaxHighlighting.push(CopyOptions.forceCopyWithSyntaxHighlighting);
+					CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
+					return true;
+				});
+				const writeData = sinon.spy(clipboard, 'writeData');
+				const writeText = sinon.spy(clipboard, 'writeText');
+
+				await run(CopyAction);
+				await editor.getAction('editor.action.clipboardCopyWithSyntaxHighlightingAction')!.run();
+
+				assert.deepStrictEqual({
+					enabled: editor.getOption(EditorOption.experimentalClipboardApi),
+					commands: execCommand.args,
+					syntaxHighlighting,
+					forceSyntaxHighlighting: CopyOptions.forceCopyWithSyntaxHighlighting,
+					richWrites: writeData.callCount,
+					textWrites: writeText.callCount,
+				}, {
+					enabled: false,
+					commands: [['copy'], ['copy']],
+					syntaxHighlighting: [false, true],
+					forceSyntaxHighlighting: false,
+					richWrites: 0,
+					textWrites: 0,
+				});
+			});
+		}
+	});
+
+	test('keeps legacy cut routing for both input implementations', async () => {
+		for (const editContext of [false, true]) {
+			await withClipboardEditor('source', { experimentalClipboardApi: false, editContext }, async ({ editor, clipboard, run }) => {
+				editor.setSelection(new Selection(1, 1, 1, 7));
+				const execCommand = stubEditorExecCommand(editor).callsFake(() => {
+					CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
+					return true;
+				});
+				const writeData = sinon.spy(clipboard, 'writeData');
+				const cut = sinon.spy(editor, 'trigger').withArgs(undefined, Handler.Cut, undefined);
+				const effectiveEditContext = editor.getOption(EditorOption.effectiveEditContext);
+
+				await run(CutAction);
+
+				assert.deepStrictEqual({
+					commands: execCommand.args,
+					cuts: cut.callCount,
+					richWrites: writeData.callCount,
+				}, {
+					commands: [[effectiveEditContext ? 'copy' : 'cut']],
+					cuts: effectiveEditContext ? 1 : 0,
+					richWrites: 0,
+				});
+			});
+		}
+	});
+
+	test('waits for legacy paste events and paste providers before resolving', async () => {
+		await withClipboardEditor('source', { experimentalClipboardApi: undefined }, async ({ editor, clipboard, run }) => {
+			const pasted = new DeferredPromise<void>();
+			const providerStarted = new DeferredPromise<void>();
+			const providerFinished = new DeferredPromise<void>();
+			const controller = new class extends mock<CopyPasteController>() {
+				override finishedPaste(): Promise<void> {
+					providerStarted.complete();
+					return providerFinished.p;
+				}
+			};
+			sinon.stub(CopyPasteController, 'get').withArgs(editor).returns(controller);
+			const triggerPaste = sinon.stub(clipboard, 'triggerPaste').returns(pasted.p);
+			const readData = sinon.spy(clipboard, 'readData');
+			const readText = sinon.spy(clipboard, 'readText');
+			let finished = false;
+			const paste = run(PasteAction).then(() => { finished = true; });
+			try {
+				pasted.complete();
+				await Promise.race([providerStarted.p, paste.then(() => { throw new Error('Paste completed before waiting for paste providers'); })]);
+				const beforeProviderFinished = finished;
+				providerFinished.complete();
+				await paste;
+				assert.deepStrictEqual({
+					beforeProviderFinished,
+					finished,
+					pasteEvents: triggerPaste.callCount,
+					richReads: readData.callCount,
+					textReads: readText.callCount,
+				}, {
+					beforeProviderFinished: false,
+					finished: true,
+					pasteEvents: 1,
+					richReads: 0,
+					textReads: 0,
+				});
+			} finally {
+				if (!providerFinished.isSettled) {
+					providerFinished.complete();
+				}
+				await paste;
+			}
+		});
+	});
+
+	test('switches cut, copy, and paste routing when the setting changes', async () => {
+		await withClipboardEditor('source', { experimentalClipboardApi: undefined }, async ({ editor, clipboard, run }) => {
+			const execCommand = stubEditorExecCommand(editor).callsFake(() => {
+				CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
+				return true;
+			});
+			const readData = sinon.spy(clipboard, 'readData');
+			const writeData = sinon.spy(clipboard, 'writeData');
+			const triggerPaste = sinon.spy(clipboard, 'triggerPaste');
+			const routes = [];
+			for (const enabled of [undefined, true, false, true]) {
+				if (enabled !== undefined) {
+					editor.updateOptions({ experimentalClipboardApi: enabled });
+				}
+				editor.setValue('source');
+				editor.setSelection(new Selection(1, 1, 1, 7));
+				await run(CopyAction);
+				await run(PasteAction);
+				editor.setValue('source');
+				editor.setSelection(new Selection(1, 1, 1, 7));
+				await run(CutAction);
+				routes.push({
+					enabled: editor.getOption(EditorOption.experimentalClipboardApi),
+					copyEvents: execCommand.callCount,
+					richReads: readData.callCount,
+					richWrites: writeData.callCount,
+					pasteEvents: triggerPaste.callCount,
+				});
+			}
+			assert.deepStrictEqual(routes, [
+				{ enabled: false, copyEvents: 2, richReads: 0, richWrites: 0, pasteEvents: 1 },
+				{ enabled: true, copyEvents: 2, richReads: 1, richWrites: 2, pasteEvents: 1 },
+				{ enabled: false, copyEvents: 4, richReads: 1, richWrites: 2, pasteEvents: 2 },
+				{ enabled: true, copyEvents: 4, richReads: 2, richWrites: 4, pasteEvents: 2 },
+			]);
+		});
+	});
+
+	test('uses the same syntax-highlighted copy action when the setting changes', async () => {
+		await withClipboardEditor('source', { experimentalClipboardApi: undefined }, async ({ editor, clipboard, instantiationService }) => {
+			sinon.stub(instantiationService.get(IContextKeyService), 'contextMatchesRules').callsFake(rules => !rules);
+			editor.setSelection(new Selection(1, 1, 1, 7));
+			const execCommand = stubEditorExecCommand(editor).callsFake(() => {
+				CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
+				return true;
+			});
+			const writeData = sinon.spy(clipboard, 'writeData');
+			const action = editor.getAction('editor.action.clipboardCopyWithSyntaxHighlightingAction');
+			assert.ok(action);
+			const routes = [];
+			for (const enabled of [undefined, true, false, true]) {
+				if (enabled !== undefined) {
+					editor.updateOptions({ experimentalClipboardApi: enabled });
+				}
+				await action.run();
+				routes.push({
+					enabled: editor.getOption(EditorOption.experimentalClipboardApi),
+					sameAction: editor.getAction(action.id) === action,
+					legacyCopies: execCommand.callCount,
+					apiCopies: writeData.callCount,
+					forceSyntaxHighlighting: CopyOptions.forceCopyWithSyntaxHighlighting,
+				});
+			}
+			assert.deepStrictEqual(routes, [
+				{ enabled: false, sameAction: true, legacyCopies: 1, apiCopies: 0, forceSyntaxHighlighting: false },
+				{ enabled: true, sameAction: true, legacyCopies: 1, apiCopies: 1, forceSyntaxHighlighting: false },
+				{ enabled: false, sameAction: true, legacyCopies: 2, apiCopies: 1, forceSyntaxHighlighting: false },
+				{ enabled: true, sameAction: true, legacyCopies: 2, apiCopies: 2, forceSyntaxHighlighting: false },
+			]);
+		});
+	});
+
+	test('handled copy and cut hooks leave the clipboard and editor unchanged', async () => {
+		for (const isCut of [false, true]) {
+			await withClipboardEditor('source', {}, async ({ editor, clipboard, run }) => {
+				editor.setSelection(new Selection(1, 1, 1, 7));
+				await clipboard.writeText('previous clipboard');
+				disposables.add((isCut ? editor.onWillCut : editor.onWillCopy)(event => event.setHandled()));
+				const writeData = sinon.spy(clipboard, 'writeData');
+				const cut = sinon.spy(editor, 'trigger').withArgs('keyboard', Handler.Cut, undefined);
+
+				await run(isCut ? CutAction : CopyAction);
+
+				assert.deepStrictEqual({
+					text: editor.getValue(),
+					clipboard: await clipboard.readText(),
+					richWrites: writeData.callCount,
+					cuts: cut.callCount,
+				}, {
+					text: 'source',
+					clipboard: 'previous clipboard',
+					richWrites: 0,
+					cuts: 0,
+				});
+			});
+		}
 	});
 
 	test('copy and cut hooks can override the prepared clipboard data', async () => {
@@ -519,6 +733,49 @@ suite('Editor clipboard commands', () => {
 	});
 
 	if (isNative) {
+		test('preserves the legacy copy fallback and metadata when Electron omits the copy event', async () => {
+			await withClipboardEditor('one\ntwo\nthree', { experimentalClipboardApi: undefined }, async ({ editor, clipboard, run }) => {
+				editor.setSelections([new Selection(1, 1, 1, 4), new Selection(3, 1, 3, 6)]);
+				const execCommand = stubEditorExecCommand(editor);
+				const writeData = sinon.spy(clipboard, 'writeData');
+				const writeText = sinon.spy(clipboard, 'writeText');
+
+				await run(CopyAction);
+				const text = await clipboard.readText();
+				const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(text);
+
+				assert.deepStrictEqual({
+					text,
+					multicursorText: metadata?.multicursorText,
+					commands: execCommand.args,
+					richWrites: writeData.callCount,
+					textWrites: writeText.callCount,
+				}, {
+					text: 'one\nthree',
+					multicursorText: ['one', 'three'],
+					commands: [['copy']],
+					richWrites: 0,
+					textWrites: 1,
+				});
+			});
+		});
+
+		test('does not read text when legacy native paste cannot be triggered', async () => {
+			await withClipboardEditor('source', { experimentalClipboardApi: false }, async ({ editor, clipboard, run }) => {
+				sinon.stub(clipboard, 'triggerPaste').returns(undefined);
+				const readData = sinon.spy(clipboard, 'readData');
+				const readText = sinon.spy(clipboard, 'readText');
+
+				await run(PasteAction);
+
+				assert.deepStrictEqual({ text: editor.getValue(), richReads: readData.callCount, textReads: readText.callCount }, {
+					text: 'source',
+					richReads: 0,
+					textReads: 0,
+				});
+			});
+		});
+
 		test('uses the native text clipboard when Clipboard API writes are unsupported', async () => {
 			for (const isCut of [false, true]) {
 				await withClipboardEditor('copy this', {}, async ({ editor, clipboard, run }) => {
@@ -653,6 +910,54 @@ suite('Editor clipboard commands', () => {
 				const legacyPaste = sinon.spy(clipboard, 'triggerPaste');
 				await run(PasteAction);
 				assert.strictEqual(legacyPaste.callCount, 1);
+			});
+		});
+	}
+
+	if (!isNative) {
+		test('preserves cached metadata without firing hooks in the legacy web text fallback', async () => {
+			await withClipboardEditor('target', { experimentalClipboardApi: undefined }, async ({ editor, clipboard, run }) => {
+				const text = 'line\n';
+				await clipboard.writeText(text);
+				InMemoryClipboardMetadataManager.INSTANCE.set(text, {
+					version: 1,
+					id: 'legacy-web-paste',
+					isFromEmptySelection: true,
+					isBlock: false,
+					multicursorText: null,
+					mode: null,
+				});
+				editor.setSelection(new Selection(1, 4, 1, 4));
+				sinon.stub(clipboard, 'triggerPaste').returns(undefined);
+				const readData = sinon.spy(clipboard, 'readData');
+				let pasteHooks = 0;
+				disposables.add(editor.onWillPaste(() => ++pasteHooks));
+
+				await run(PasteAction);
+
+				assert.deepStrictEqual({ text: editor.getValue(), richReads: readData.callCount, pasteHooks }, {
+					text: 'line\ntarget',
+					richReads: 0,
+					pasteHooks: 0,
+				});
+			});
+		});
+
+		test('ignores empty text in the legacy web paste fallback', async () => {
+			await withClipboardEditor('source', { experimentalClipboardApi: false }, async ({ editor, clipboard, run }) => {
+				editor.setSelection(new Selection(1, 1, 1, 7));
+				sinon.stub(clipboard, 'triggerPaste').returns(undefined);
+				const readData = sinon.spy(clipboard, 'readData');
+				let pasteHooks = 0;
+				disposables.add(editor.onWillPaste(() => ++pasteHooks));
+
+				await run(PasteAction);
+
+				assert.deepStrictEqual({ text: editor.getValue(), richReads: readData.callCount, pasteHooks }, {
+					text: 'source',
+					richReads: 0,
+					pasteHooks: 0,
+				});
 			});
 		});
 	}

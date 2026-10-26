@@ -21,6 +21,12 @@ import { toExternalVSDataTransfer } from '../../dataTransfer.js';
  */
 const editorDataMime = 'application/vnd.code.editor-data';
 
+export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, id: string | undefined, isFirefox: boolean): { dataToCopy: ClipboardDataToCopy; metadata: ClipboardStoredMetadata } {
+	const { dataToCopy, metadata } = generateDataToCopy(viewModel);
+	storeMetadataInMemory(dataToCopy.text, metadata, isFirefox);
+	return { dataToCopy, metadata };
+}
+
 function storeMetadataInMemory(textToCopy: string, metadata: ClipboardStoredMetadata, isFirefox: boolean): void {
 	InMemoryClipboardMetadataManager.INSTANCE.set(
 		// When writing "LINE\r\n" to the clipboard and then pasting,
@@ -125,6 +131,7 @@ export interface ClipboardStoredMetadata {
 
 export const CopyOptions = {
 	forceCopyWithSyntaxHighlighting: false,
+	electronBugWorkaroundCopyEventHasFired: false
 };
 
 interface InMemoryClipboardMetadata {
@@ -137,7 +144,7 @@ const ClipboardEventUtils = {
 	getTextData(clipboardData: IReadableClipboardData | DataTransfer, getFilePath: (file: File) => string | undefined): [string, ClipboardStoredMetadata | null] {
 		const text = clipboardData.getData(Mimes.text);
 		let metadata: ClipboardStoredMetadata | null = null;
-		const rawmetadata = clipboardData.getData(editorDataMime);
+		const rawmetadata = clipboardData.getData('vscode-editor-data');
 		if (typeof rawmetadata === 'string') {
 			try {
 				metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
@@ -163,9 +170,18 @@ const ClipboardEventUtils = {
 		if (typeof html === 'string') {
 			clipboardData.setData('text/html', html);
 		}
-		clipboardData.setData(editorDataMime, JSON.stringify(metadata));
+		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
 	}
 };
+
+function getClipboardApiTextData(clipboardData: DataTransfer, getFilePath: (file: File) => string | undefined): [string, ClipboardStoredMetadata | null] {
+	return ClipboardEventUtils.getTextData({
+		...createReadableClipboardData(clipboardData),
+		getData: type => type === 'vscode-editor-data'
+			? clipboardData.getData(editorDataMime) || clipboardData.getData(type)
+			: clipboardData.getData(type),
+	}, getFilePath);
+}
 
 /**
  * Readable clipboard data for paste operations.
@@ -220,6 +236,16 @@ export interface IClipboardCopyEvent {
 	 * Ensure that the clipboard gets the editor data.
 	 */
 	ensureClipboardGetsEditorData(): void;
+
+	/**
+	 * Signal that the event has been handled and default processing should be skipped.
+	 */
+	setHandled(): void;
+
+	/**
+	 * Whether the event has been marked as handled.
+	 */
+	readonly isHandled: boolean;
 }
 
 /**
@@ -265,6 +291,7 @@ export interface IClipboardPasteEvent {
  */
 export function createClipboardCopyEvent(e: ClipboardEvent, isCut: boolean, context: ViewContext, logService: ILogService, isFirefox: boolean): IClipboardCopyEvent {
 	const { dataToCopy, metadata } = generateDataToCopy(context.viewModel);
+	let handled = false;
 	return {
 		isCut,
 		clipboardData: {
@@ -281,6 +308,12 @@ export function createClipboardCopyEvent(e: ClipboardEvent, isCut: boolean, cont
 			storeMetadataInMemory(dataToCopy.text, metadata, isFirefox);
 			logService.trace('ensureClipboardGetsEditorSelection with id : ', metadata.id, ' with text.length: ', dataToCopy.text.length);
 		},
+		setHandled: () => {
+			handled = true;
+			e.preventDefault();
+			e.stopImmediatePropagation();
+		},
+		get isHandled() { return handled; },
 	};
 }
 
@@ -289,15 +322,22 @@ export function createClipboardCopyEvent(e: ClipboardEvent, isCut: boolean, cont
  */
 export function createClipboardCopyEventFromData(clipboardData: IWritableClipboardData, isCut: boolean, viewModel: IViewModel, logService: ILogService, isFirefox: boolean): IClipboardCopyEvent {
 	const { dataToCopy, metadata } = generateDataToCopy(viewModel);
+	let handled = false;
 	return {
 		isCut,
 		clipboardData,
 		dataToCopy,
 		ensureClipboardGetsEditorData: (): void => {
-			ClipboardEventUtils.setTextData(clipboardData, dataToCopy.text, dataToCopy.html, metadata);
+			ClipboardEventUtils.setTextData({
+				setData: (type, value) => clipboardData.setData(type === 'vscode-editor-data' ? editorDataMime : type, value),
+			}, dataToCopy.text, dataToCopy.html, metadata);
 			storeMetadataInMemory(dataToCopy.text, metadata, isFirefox);
 			logService.trace('ensureClipboardGetsEditorSelection with id : ', metadata.id, ' with text.length: ', dataToCopy.text.length);
 		},
+		setHandled: () => {
+			handled = true;
+		},
+		get isHandled() { return handled; },
 	};
 }
 
@@ -307,6 +347,9 @@ export function createClipboardCopyEventFromData(clipboardData: IWritableClipboa
 export function createClipboardPasteEvent(e: ClipboardEvent, getFilePath: (file: File) => string | undefined = getPathForFile): IClipboardPasteEvent {
 	let handled = false;
 	let [text, metadata] = e.clipboardData ? ClipboardEventUtils.getTextData(e.clipboardData, getFilePath) : ['', null];
+	if (!metadata && e.clipboardData?.getData(editorDataMime)) {
+		[text, metadata] = getClipboardApiTextData(e.clipboardData, getFilePath);
+	}
 	metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 	return {
 		clipboardData: createReadableClipboardData(e.clipboardData),
@@ -328,7 +371,7 @@ export function createClipboardPasteEvent(e: ClipboardEvent, getFilePath: (file:
  */
 export function createClipboardPasteEventFromData(clipboardData: DataTransfer, getFilePath: (file: File) => string | undefined = getPathForFile): IClipboardPasteEvent {
 	let handled = false;
-	let [text, metadata] = clipboardData ? ClipboardEventUtils.getTextData(clipboardData, getFilePath) : ['', null];
+	let [text, metadata] = getClipboardApiTextData(clipboardData, getFilePath);
 	metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 	return {
 		clipboardData: createReadableClipboardData(clipboardData),

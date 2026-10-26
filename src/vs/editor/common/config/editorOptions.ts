@@ -614,6 +614,11 @@ export interface IEditorOptions {
 	 */
 	copyWithSyntaxHighlighting?: boolean;
 	/**
+	 * Use the experimental Async Clipboard API for editor cut, copy, and paste commands.
+	 * Defaults to false.
+	 */
+	experimentalClipboardApi?: boolean;
+	/**
 	 * The history mode for suggestions.
 	 */
 	suggestSelection?: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
@@ -6024,7 +6029,8 @@ export const enum EditorOption {
 	doubleClickSelectsBlock,
 	fullwidthCharacterWidth,
 	// Must come after `fullwidthCharacterWidth`, which it is computed from.
-	effectiveFullwidthCharacterWidth
+	effectiveFullwidthCharacterWidth,
+	experimentalClipboardApi
 }
 
 export const EditorOptions = {
@@ -6341,6 +6347,13 @@ export const EditorOptions = {
 		}
 	)),
 	stickyScroll: register(new EditorStickyScroll()),
+	experimentalClipboardApi: register(new EditorBooleanOption(
+		EditorOption.experimentalClipboardApi, 'experimentalClipboardApi', false,
+		{
+			tags: ['experimental'],
+			description: nls.localize('experimentalClipboardApi', "Controls whether editor cut, copy, and paste commands use the experimental Async Clipboard API instead of legacy clipboard events.")
+		}
+	)),
 	experimentalGpuAcceleration: register(new EditorStringEnumOption(
 		EditorOption.experimentalGpuAcceleration, 'experimentalGpuAcceleration',
 		'off' as 'off' | 'on',

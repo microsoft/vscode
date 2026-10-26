@@ -24,6 +24,7 @@ export class TestClipboardService implements IClipboardService {
 		for (const [mime, item] of data) {
 			snapshot.append(mime, item.asFile() ? item : createStringDataTransferItem(await item.asString()));
 		}
+		this.text = await snapshot.get('text/plain')?.asString() ?? '';
 		this.data = snapshot;
 	}
 
@@ -46,18 +47,21 @@ export class TestClipboardService implements IClipboardService {
 
 	_serviceBrand: undefined;
 
+	private text: string | undefined = undefined;
+
 	triggerPaste(): Promise<void> | undefined {
 		return Promise.resolve();
 	}
 
 	async writeText(text: string, type?: string): Promise<void> {
+		this.text = text;
 		const data = new VSDataTransfer();
 		data.replace('text/plain', createStringDataTransferItem(text));
 		this.data = data;
 	}
 
 	async readText(type?: string): Promise<string> {
-		return await this.data.get('text/plain')?.asString() ?? '';
+		return this.text ?? '';
 	}
 
 	private findText: string | undefined = undefined;

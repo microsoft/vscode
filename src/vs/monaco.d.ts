@@ -3769,6 +3769,11 @@ declare namespace monaco.editor {
 		 */
 		copyWithSyntaxHighlighting?: boolean;
 		/**
+		 * Use the experimental Async Clipboard API for editor cut, copy, and paste commands.
+		 * Defaults to false.
+		 */
+		experimentalClipboardApi?: boolean;
+		/**
 		 * The history mode for suggestions.
 		 */
 		suggestSelection?: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
@@ -5284,7 +5289,8 @@ declare namespace monaco.editor {
 		effectiveAllowVariableFonts = 175,
 		doubleClickSelectsBlock = 176,
 		fullwidthCharacterWidth = 177,
-		effectiveFullwidthCharacterWidth = 178
+		effectiveFullwidthCharacterWidth = 178,
+		experimentalClipboardApi = 179
 	}
 
 	export const EditorOptions: {
@@ -5340,6 +5346,7 @@ declare namespace monaco.editor {
 		editContext: IEditorOption<EditorOption.editContext, boolean>;
 		renderRichScreenReaderContent: IEditorOption<EditorOption.renderRichScreenReaderContent, boolean>;
 		stickyScroll: IEditorOption<EditorOption.stickyScroll, Readonly<Required<IEditorStickyScrollOptions>>>;
+		experimentalClipboardApi: IEditorOption<EditorOption.experimentalClipboardApi, boolean>;
 		experimentalGpuAcceleration: IEditorOption<EditorOption.experimentalGpuAcceleration, 'on' | 'off'>;
 		experimentalWhitespaceRendering: IEditorOption<EditorOption.experimentalWhitespaceRendering, 'off' | 'font' | 'svg'>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
