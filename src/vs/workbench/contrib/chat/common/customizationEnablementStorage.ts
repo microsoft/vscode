@@ -7,16 +7,20 @@ import { isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTar
 import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 /**
- * Storage keys for customization on/off state. They live in
- * {@link StorageScope.APPLICATION} so every window (including the Agents
- * Window, which always uses its own `agents` profile) reads and writes the
- * same switches. They used to live in {@link StorageScope.PROFILE}; for
- * profiles using the default storage both scopes are the same database.
+ * Storage keys for customization on/off state. MCP and agent plugin enablement
+ * live in {@link StorageScope.APPLICATION} so every window (including the
+ * Agents Window, which always uses its own `agents` profile) shares the same
+ * switches. Agent-host tool enablement is workspace-scoped.
+ *
+ * Application-scoped customization settings used to live in
+ * {@link StorageScope.PROFILE}; for profiles using the default storage both
+ * scopes are the same database.
  */
 export const MCP_ENABLEMENT_STORAGE_KEY = 'mcp.enablement';
 export const AGENT_PLUGIN_ENABLEMENT_STORAGE_KEY = 'agentPlugins.enablement';
 export const AGENT_PLUGIN_ENABLEMENT_IDENTITIES_STORAGE_KEY = 'agentPlugins.enablementIdentities';
 export const AGENT_HOST_TOOL_SET_ENABLEMENT_STORAGE_KEY = 'chat.agentHost.toolSetEnablement';
+export const AGENT_HOST_TOOL_SET_ENABLEMENT_WORKSPACE_MIGRATION_KEY = 'chat.agentHost.toolSetEnablementWorkspaceMigration';
 
 /** Application-scoped list of profile ids whose enablement has been merged into application storage. */
 export const CUSTOMIZATION_ENABLEMENT_MIGRATED_PROFILES_KEY = 'chat.enablementMigratedProfiles';
@@ -49,6 +53,28 @@ export function migrateCustomizationEnablementToApplicationStorage(storageServic
 	// Mark migrated even when a profile value is unreadable. The owners already treat such a
 	// value as empty, and retrying later could merge stale choices over newer shared ones.
 	storageService.store(CUSTOMIZATION_ENABLEMENT_MIGRATED_PROFILES_KEY, JSON.stringify([...migratedProfiles, profile.id]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+}
+
+/**
+ * Moves legacy application-scoped agent tool enablement into the first workspace
+ * opened after the scope change. The old value has no workspace identity, so
+ * copying it into every workspace would preserve the cross-workspace leakage.
+ */
+export function migrateAgentHostToolSetEnablementToWorkspaceStorage(storageService: IStorageService): void {
+	if (storageService.get(AGENT_HOST_TOOL_SET_ENABLEMENT_WORKSPACE_MIGRATION_KEY, StorageScope.APPLICATION) === 'true') {
+		return;
+	}
+
+	const workspaceValue = storageService.get(AGENT_HOST_TOOL_SET_ENABLEMENT_STORAGE_KEY, StorageScope.WORKSPACE);
+	const applicationValue = storageService.get(AGENT_HOST_TOOL_SET_ENABLEMENT_STORAGE_KEY, StorageScope.APPLICATION);
+	if (applicationValue === undefined) {
+		return;
+	}
+
+	if (workspaceValue === undefined) {
+		storageService.store(AGENT_HOST_TOOL_SET_ENABLEMENT_STORAGE_KEY, applicationValue, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+	storageService.store(AGENT_HOST_TOOL_SET_ENABLEMENT_WORKSPACE_MIGRATION_KEY, 'true', StorageScope.APPLICATION, StorageTarget.MACHINE);
 }
 
 function mergeIntoApplication(storageService: IStorageService, key: string, merge: Merge): void {

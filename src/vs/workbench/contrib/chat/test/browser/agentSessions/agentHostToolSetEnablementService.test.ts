@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { autorun } from '../../../../../../base/common/observable.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { AgentHostToolSetEnablementService, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, getToolSetTriState, isCopilotCliSessionType, isToolEnabledInSet } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { AGENT_HOST_TOOL_SET_ENABLEMENT_STORAGE_KEY } from '../../../common/customizationEnablementStorage.js';
 import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 import { createTestProfile, createTestProfileService, SharedApplicationStorageDatabase, TestWindowStorageService } from '../../common/testSharedApplicationStorage.js';
 
@@ -111,7 +112,7 @@ suite('AgentHostToolSetEnablementService', () => {
 		});
 	});
 
-	test('windows with different profiles share state through application storage', async () => {
+	test('windows keep tool enablement isolated by workspace', async () => {
 		const shared = new SharedApplicationStorageDatabase();
 		const editorStorage = await store.add(new TestWindowStorageService(shared)).init();
 		const agentsStorage = await store.add(new TestWindowStorageService(shared)).init();
@@ -126,14 +127,51 @@ suite('AgentHostToolSetEnablementService', () => {
 		}));
 
 		editor.setToolSetEnabled(SESSION, SET, TOOLS, false);
-		agents.setToolEnabled(SESSION, SET, 't1', true);
 
 		assert.deepStrictEqual({
 			seenInAgentsWindow,
 			editor: TOOLS.map(tool => isToolEnabledInSet(editor.getState(SESSION), SET, tool)),
+			agents: TOOLS.map(tool => isToolEnabledInSet(agents.getState(SESSION), SET, tool)),
 		}, {
-			seenInAgentsWindow: [true, false, 'mixed'],
-			editor: [true, false, false],
+			seenInAgentsWindow: [true],
+			editor: [false, false, false],
+			agents: [true, true, true],
 		});
+	});
+
+	test('migrates legacy application state to only the first workspace', async () => {
+		const shared = new SharedApplicationStorageDatabase();
+		const editorStorage = await store.add(new TestWindowStorageService(shared)).init();
+		const agentsStorage = await store.add(new TestWindowStorageService(shared)).init();
+		editorStorage.store(AGENT_HOST_TOOL_SET_ENABLEMENT_STORAGE_KEY, JSON.stringify({
+			[SESSION]: { toolSets: { [SET]: false }, tools: {} },
+		}), StorageScope.APPLICATION);
+
+		const editor = store.add(new AgentHostToolSetEnablementService(editorStorage, createTestProfileService(createTestProfile('__default__profile__', { isDefault: true }))));
+		const agents = store.add(new AgentHostToolSetEnablementService(agentsStorage, createTestProfileService(createTestProfile('agents'))));
+
+		assert.deepStrictEqual({
+			editor: getToolSetTriState(editor.getState(SESSION), SET, TOOLS),
+			agents: getToolSetTriState(agents.getState(SESSION), SET, TOOLS),
+			workspaceValue: editorStorage.get(AGENT_HOST_TOOL_SET_ENABLEMENT_STORAGE_KEY, StorageScope.WORKSPACE),
+		}, {
+			editor: false,
+			agents: true,
+			workspaceValue: JSON.stringify({ [SESSION]: { toolSets: { [SET]: false }, tools: {} } }),
+		});
+	});
+
+	test('waits for legacy profile state before completing application migration', async () => {
+		const shared = new SharedApplicationStorageDatabase();
+		const editorStorage = await store.add(new TestWindowStorageService(shared)).init();
+		const agentsStorage = await store.add(new TestWindowStorageService(shared)).init();
+		store.add(new AgentHostToolSetEnablementService(editorStorage, createTestProfileService(createTestProfile('__default__profile__', { isDefault: true }))));
+		agentsStorage.store(AGENT_HOST_TOOL_SET_ENABLEMENT_STORAGE_KEY, JSON.stringify({
+			[SESSION]: { toolSets: { [SET]: false }, tools: {} },
+		}), StorageScope.PROFILE);
+
+		const agents = store.add(new AgentHostToolSetEnablementService(agentsStorage, createTestProfileService(createTestProfile('agents'))));
+
+		assert.strictEqual(getToolSetTriState(agents.getState(SESSION), SET, TOOLS), false);
 	});
 });
