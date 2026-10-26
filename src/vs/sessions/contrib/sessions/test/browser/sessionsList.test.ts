@@ -6027,7 +6027,7 @@ suite('Sessions - SessionsList', () => {
 				test(`aligns disclosure controls for every comparison participant (${mode})`, () => {
 					const { container } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, harness => {
 						harness.managementService.sessions = harness.managementService.sessions.map(session => {
-							const nested = buildTestSession({ id: session.sessionId, chats: [{ id: 'peer', title: 'Nested chat' }] });
+							const nested = buildTestSession({ id: session.sessionId, title: session.title.get(), chats: [{ id: 'peer', title: 'Nested chat' }] });
 							return {
 								...session,
 								chats: nested.session.chats,
