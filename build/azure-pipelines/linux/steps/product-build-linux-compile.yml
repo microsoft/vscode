@@ -105,6 +105,29 @@ steps:
       # deemon --attach can exit non-zero if the background daemon died; never fail for that.
       continueOnError: true
 
+  # VALIDATION ONLY (do not merge): fail the first 2 `az artifacts universal download`
+  # calls per package so the azureFeed.ts retry has to fire.
+  - script: |
+      set -e
+      SHIM_DIR="$(Agent.TempDirectory)/az-shim"
+      mkdir -p "$SHIM_DIR"
+      REAL_AZ="$(command -v az)"
+      cat > "$SHIM_DIR/az" <<EOF
+      #!/usr/bin/env bash
+      if [ "\$1 \$2 \$3" = "artifacts universal download" ]; then
+        name=""; prev=""
+        for a in "\$@"; do [ "\$prev" = "--name" ] && name="\$a"; prev="\$a"; done
+        f="$SHIM_DIR/count-\$name"
+        n=\$(( \$(cat "\$f" 2>/dev/null || echo 0) + 1 )); echo \$n > "\$f"
+        if [ \$n -le 2 ]; then echo "AZ-SHIM: forced failure \$n/2 for \$name" >&2; exit 1; fi
+        echo "AZ-SHIM: attempt \$n for \$name passes through" >&2
+      fi
+      exec "$REAL_AZ" "\$@"
+      EOF
+      chmod +x "$SHIM_DIR/az"
+      echo "##vso[task.prependpath]$SHIM_DIR"
+      echo "Installed az shim in front of $REAL_AZ"
+    displayName: "VALIDATION: install failing az shim"
   - script: |
       set -e
       npm run gulp vscode-linux-$(VSCODE_ARCH)-min-ci

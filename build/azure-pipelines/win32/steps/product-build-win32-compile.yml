@@ -93,6 +93,34 @@ steps:
       # deemon --attach can exit non-zero if the background daemon died; never fail for that.
       continueOnError: true
 
+  # VALIDATION ONLY (do not merge): fail the first 2 `az artifacts universal download`
+  # calls per package so the azureFeed.ts retry has to fire.
+  - pwsh: |
+      $ErrorActionPreference = 'Stop'
+      $shim = Join-Path '$(Agent.TempDirectory)' 'az-shim'
+      New-Item -ItemType Directory -Force $shim | Out-Null
+      $real = (Get-Command az.cmd).Source
+      @'
+      $ix = [Array]::IndexOf($args, '--name')
+      $name = if ($ix -ge 0) { $args[$ix + 1] } else { 'unknown' }
+      $f = Join-Path $PSScriptRoot "count-$name"
+      $n = 1 + [int](Get-Content $f -ErrorAction SilentlyContinue)
+      Set-Content $f $n
+      if ($n -le 2) { [Console]::Error.WriteLine("AZ-SHIM: forced failure $n/2 for $name"); exit 1 }
+      [Console]::Error.WriteLine("AZ-SHIM: attempt $n for $name passes through"); exit 0
+      '@ | Set-Content (Join-Path $shim 'gate.ps1')
+      @"
+      @echo off
+      if /I "%1 %2 %3"=="artifacts universal download" (
+        pwsh -NoProfile -File "%~dp0gate.ps1" %*
+        if errorlevel 1 exit /b 1
+      )
+      call "$real" %*
+      exit /b %ERRORLEVEL%
+      "@ | Set-Content (Join-Path $shim 'az.cmd') -Encoding ascii
+      Write-Host "##vso[task.prependpath]$shim"
+      Write-Host "Installed az shim in front of $real"
+    displayName: "VALIDATION: install failing az shim"
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
