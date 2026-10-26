@@ -210,7 +210,8 @@ suite('Sessions - List notification', () => {
 		test.notification.show({ message: 'Moved back', help: 'Help.' });
 		const help = store.add(test.notification.getAccessibilityHelp()!);
 		const mentionsBar = help.provideContent().includes('bar');
-		help.onClose();
+		// onClose would focus Dismiss, which pauses the countdown while the document has focus (browser tests)
+		help.dispose();
 		await timeout(10000);
 		assert.deepStrictEqual({ mentionsBar, shown: !!test.element() }, { mentionsBar: false, shown: false });
 	}));
