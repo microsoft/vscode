@@ -19,7 +19,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { EditorCloseContext, EditorsOrder, GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
-import { completeTerminalReturn, decideTerminalRowMove, EditorAreaCloser, shouldHideTerminalRow, TerminalRowMoveAction } from './chatWindowTerminalRowPolicy.js';
+import { completeTerminalReturn, decideTerminalRowMove, EditorAreaCloser, planTerminalRowSplits, shouldHideTerminalRow, TerminalRowMoveAction } from './chatWindowTerminalRowPolicy.js';
 import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { EditorPartFixedGroupsContext } from '../../../../workbench/common/contextkeys.js';
 import { IsQuickChatSessionContext, SessionWorkspaceIsVirtualContext } from '../../../common/contextkeys.js';
@@ -234,6 +234,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	/** What each terminal row holds on to while it shows. */
 	private readonly _terminalRows = new Map<ChatWindow, DisposableStore>();
 	/** Chat windows whose terminal row is being emptied on purpose, rather than by its terminal exiting. */
+	private readonly _terminalRowSplits = new Map<ChatWindow, Set<IEditorGroup>>();
 	private readonly _emptyingTerminalRows = new Set<ChatWindow>();
 
 	constructor(
@@ -629,8 +630,36 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 					});
 				}
 			}));
+			// A group split off the row shows terminals too. It closes once its last terminal closes, and the row's terminal then takes the whole row.
+			const splits = new Set<IEditorGroup>();
+			this._terminalRowSplits.set(window, splits);
+			const reconcileSplits = () => {
+				if (returningTerminals || this._emptyingTerminalRows.has(window)) {
+					return;
+				}
+				const list = [...splits];
+				const plan = planTerminalRowSplits(row.isEmpty, list.map(split => split.isEmpty));
+				window.state.keepLayoutWhile(() => {
+					if (plan.adopt !== undefined) {
+						splits.delete(list[plan.adopt]);
+						window.part.mergeGroup(list[plan.adopt], row);
+					}
+					for (const i of plan.remove) {
+						splits.delete(list[i]);
+						window.part.removeGroup(list[i]);
+					}
+				});
+			};
+			store.add(window.part.onDidAddGroup(group => {
+				if (window.part.activeGroup === row && !splits.has(group)) {
+					splits.add(group);
+					store.add(group.onDidCloseEditor(reconcileSplits));
+				}
+			}));
+			store.add(window.part.onDidRemoveGroup(group => splits.delete(group)));
 			// Its last terminal exited or closed.
 			store.add(row.onDidCloseEditor(() => {
+				reconcileSplits();
 				if (row.isEmpty && !returningTerminals && !this._emptyingTerminalRows.has(window)) {
 					void this.setTerminalShown(window, false, false);
 				}
@@ -642,8 +671,17 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			window.state.terminalGroup.set(undefined, undefined);
 			this._terminalRows.get(window)?.dispose();
 			this._terminalRows.delete(window);
+			const splits = [...(this._terminalRowSplits.get(window) ?? [])];
+			this._terminalRowSplits.delete(window);
 			// Removing it unmaximizes the part as well, and the chat shows alone again once it is arranged without the row.
-			window.state.keepLayoutWhile(() => window.part.removeGroup(group));
+			window.state.keepLayoutWhile(() => {
+				window.part.removeGroup(group);
+				for (const split of splits) {
+					if (split.isEmpty) {
+						window.part.removeGroup(split);
+					}
+				}
+			});
 		}
 	}
 

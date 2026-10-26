@@ -47,6 +47,8 @@ suite('Chat window - empty terminal row', () => {
 			state: { terminalGroup, keepLayoutWhile: <T>(fn: () => T) => { keeping = true; try { return fn(); } finally { keeping = false; } } },
 			chatGroup: {},
 			part: {
+				onDidAddGroup: Event.None,
+				onDidRemoveGroup: Event.None,
 				addGroup: () => { addedWhileKeeping = keeping; return row; },
 				removeGroup: (group: IEditorGroup) => { removedWhileKeeping = keeping; removed.push(group); },
 			},

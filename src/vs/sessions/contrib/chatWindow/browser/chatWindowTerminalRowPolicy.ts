@@ -51,6 +51,25 @@ export function completeTerminalReturn(r: ITerminalReturn): void {
 	}
 }
 
+/** What {@link planTerminalRowSplits} does with the groups that were split off the terminal row. */
+export interface ITerminalRowSplitPlan {
+	/** The split group whose editors take the empty row's place: the row then shows them, and the split is removed. */
+	readonly adopt: number | undefined;
+	/** The empty split groups to remove. */
+	readonly remove: readonly number[];
+}
+
+/**
+ * Decides what becomes of the groups split off the terminal row once a terminal closed in it: an empty split closes while another
+ * group of the row shows a terminal, and an empty row hands its place to the first split that does, so the terminal left takes the whole row.
+ */
+export function planTerminalRowSplits(rowIsEmpty: boolean, splitsAreEmpty: readonly boolean[]): ITerminalRowSplitPlan {
+	const adopt = rowIsEmpty ? splitsAreEmpty.findIndex(empty => !empty) : -1;
+	const othersShow = !rowIsEmpty || adopt !== -1;
+	const remove = othersShow ? splitsAreEmpty.map((empty, i) => empty ? i : -1).filter(i => i !== -1) : [];
+	return { adopt: adopt === -1 ? undefined : adopt, remove };
+}
+
 /** What {@link shouldHideTerminalRow} needs to know about the row once its terminal was shown, or could not be. */
 export interface IEmptyTerminalRow {
 	/** Whether the terminal host is there: without it, the terminal of a restored row shows once it registers. */

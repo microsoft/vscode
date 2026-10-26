@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { completeTerminalReturn, decideTerminalRowMove, EditorAreaCloser, ITerminalReturn, shouldCloseEditorArea, shouldHideTerminalRow, TerminalRowMoveAction } from '../../browser/chatWindowTerminalRowPolicy.js';
+import { completeTerminalReturn, decideTerminalRowMove, EditorAreaCloser, ITerminalReturn, planTerminalRowSplits, shouldCloseEditorArea, shouldHideTerminalRow, TerminalRowMoveAction } from '../../browser/chatWindowTerminalRowPolicy.js';
 
 suite('Chat window terminal row policy', () => {
 
@@ -108,5 +108,21 @@ suite('Chat window terminal row policy', () => {
 		steps.push(closes);
 
 		assert.deepStrictEqual(steps, [0, 1, 1, 1, 1]);
+	});
+
+	test('a split of the terminal row closes when empty, and an empty row hands its place to the split that shows a terminal', () => {
+		assert.deepStrictEqual({
+			closeSecond: planTerminalRowSplits(false, [true]),
+			closeFirst: planTerminalRowSplits(true, [false]),
+			keepsShownSplit: planTerminalRowSplits(false, [false]),
+			allEmpty: planTerminalRowSplits(true, [true]),
+			firstOfTwo: planTerminalRowSplits(true, [true, false]),
+		}, {
+			closeSecond: { adopt: undefined, remove: [0] },
+			closeFirst: { adopt: 0, remove: [] },
+			keepsShownSplit: { adopt: undefined, remove: [] },
+			allEmpty: { adopt: undefined, remove: [] },
+			firstOfTwo: { adopt: 1, remove: [0] },
+		});
 	});
 });
