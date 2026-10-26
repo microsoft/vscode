@@ -35650,6 +35650,8 @@ suite('AgentService (node dispatcher)', () => {
 					const source = await createSessionWithChats(first, ['stays', 'unread']);
 					const target = await createSessionWithChats(first, ['other']);
 					const [stays, unread] = source.chats;
+					// An unsent chat can't be moved; the turn comes before the read state under test is set.
+					completeTurn(first, unread);
 					markChatsRead(first, [source.defaultChat, stays, target.defaultChat, ...target.chats], [unread]);
 					const before = await listedRead(first, { source: source.session, target: target.session });
 
@@ -35670,6 +35672,9 @@ suite('AgentService (node dispatcher)', () => {
 					const target = await createSessionWithChats(first, ['other']);
 					const readSession = await createSessionWithChats(first, []);
 					const unreadSession = await createSessionWithChats(first, []);
+					// An unsent chat can't be moved; the turns come before the read state under test is set.
+					completeTurn(first, readSession.defaultChat);
+					completeTurn(first, unreadSession.defaultChat);
 					markChatsRead(first, [target.defaultChat, ...target.chats, readSession.defaultChat], [unreadSession.defaultChat]);
 
 					await first.moveSession(readSession.session, target.session, undefined);
@@ -35709,6 +35714,8 @@ suite('AgentService (node dispatcher)', () => {
 					const createService = createServices();
 					const first = createService();
 					const { session, defaultChat, chats } = await createSessionWithChats(first, ['first', 'second']);
+					// An unsent chat can't be moved; the turn comes before the read state under test is set.
+					completeTurn(first, chats[1]);
 					markChatsRead(first, [defaultChat, ...chats], []);
 					// Marked unread as a whole, as Mark as Unread does: the chats of a multi-chat session stay read.
 					getStateManager(first).dispatchServerAction(session.toString(), { type: ActionType.SessionIsReadChanged, isRead: false });
