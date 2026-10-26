@@ -145,7 +145,7 @@ suite('Shrink Empty Lines', () => {
 			{ fontSizes: ['24px', '24px', '24px'], punctuationHeight: 40 },
 			{ fontSizes: ['24px', '18px', '24px'], punctuationHeight: 30 },
 			{ fontSizes: ['24px', '24px', '24px'], punctuationHeight: 40 },
-			{ fontSizes: ['24px', '24px', '24px'], punctuationHeight: 40 },
+			{ fontSizes: ['24px', '6px', '24px'], punctuationHeight: 10 },
 			{ fontSizes: ['24px', '12px', '24px'], punctuationHeight: 20 },
 		]);
 	});
@@ -269,7 +269,7 @@ suite('Shrink Empty Lines', () => {
 		]);
 	});
 
-	test('uses a numeric setting constrained to zero through one', () => {
+	test('uses a numeric setting constrained to 0.25 through 1', () => {
 		const option = EditorOptions.shrinkEmptyLines;
 		assert.deepStrictEqual({
 			type: option.schema?.type,
@@ -280,16 +280,16 @@ suite('Shrink Empty Lines', () => {
 		}, {
 			type: 'number',
 			default: 1,
-			minimum: 0,
+			minimum: 0.25,
 			maximum: 1,
 			invalidValues: [1, 1, 1, 1],
 		});
 	});
 
-	test('clamps multipliers and preserves regular height at zero and one', () => {
+	test('clamps multipliers to 0.25 through 1 and preserves regular height at 1', () => {
 		const { editor } = createEditor('a\n{\n}', { shrinkEmptyLines: 0.4 });
 		const results = [];
-		for (const multiplier of [0.4, 1, 0.5, 0, -0.5, 1.5, 0.25]) {
+		for (const multiplier of [0.4, 1, 0.5, 0, 0.02, 0.249, -0.5, 1.5, 0.25]) {
 			editor.updateOptions({ shrinkEmptyLines: multiplier });
 			results.push({
 				multiplier: editor.getOption(EditorOption.shrinkEmptyLines),
@@ -300,11 +300,31 @@ suite('Shrink Empty Lines', () => {
 			{ multiplier: 0.4, lineHeights: [19, 8, 8] },
 			{ multiplier: 1, lineHeights: [19, 19, 19] },
 			{ multiplier: 0.5, lineHeights: [19, 10, 10] },
-			{ multiplier: 0, lineHeights: [19, 19, 19] },
-			{ multiplier: 0, lineHeights: [19, 19, 19] },
+			{ multiplier: 0.25, lineHeights: [19, 5, 5] },
+			{ multiplier: 0.25, lineHeights: [19, 5, 5] },
+			{ multiplier: 0.25, lineHeights: [19, 5, 5] },
+			{ multiplier: 0.25, lineHeights: [19, 5, 5] },
 			{ multiplier: 1, lineHeights: [19, 19, 19] },
 			{ multiplier: 0.25, lineHeights: [19, 5, 5] },
 		]);
+	});
+
+	test('clamps initial multipliers below 0.25', () => {
+		const multipliers = [-0.5, 0, 0.02, 0.249, 0.25];
+		const results = multipliers.map(shrinkEmptyLines => {
+			const { editor } = createEditor('a\n\n{}', { shrinkEmptyLines });
+			return {
+				multiplier: editor.getOption(EditorOption.shrinkEmptyLines),
+				lineHeights: getLineHeights(editor),
+				fontSizes: getLineFontSizes(editor),
+			};
+		});
+
+		assert.deepStrictEqual(results, multipliers.map(() => ({
+			multiplier: 0.25,
+			lineHeights: [19, 5, 5],
+			fontSizes: ['14px', '14px', '3.5px'],
+		})));
 	});
 
 	test('updates only lines affected by content changes', () => {
@@ -588,7 +608,7 @@ suite('Shrink Empty Lines', () => {
 		editor.updateOptions({ allowVariableLineHeights: true });
 		assert.deepStrictEqual(getLineHeights(editor), [19, 10]);
 
-		editor.updateOptions({ shrinkEmptyLines: 0 });
+		editor.updateOptions({ shrinkEmptyLines: 1 });
 		assert.deepStrictEqual(getLineHeights(editor), [19, 19]);
 	});
 });

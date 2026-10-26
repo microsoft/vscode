@@ -788,7 +788,7 @@ export interface IEditorOptions {
 	 */
 	lineHeight?: number;
 	/**
-	 * Line height and font size multiplier for lines without letters or numbers, including empty and punctuation-only lines, between 0 and 1 inclusive. The value 0 disables shrinking.
+	 * Line height and font size multiplier for lines without letters or numbers, including empty and punctuation-only lines, between 0.25 and 1 inclusive. The value 1 disables shrinking.
 	 * Requires variable line heights and variable fonts to be enabled.
 	 */
 	shrinkEmptyLines?: number;
@@ -6781,11 +6781,11 @@ export const EditorOptions = {
 	)),
 	shrinkEmptyLines: register(new EditorFloatOption(
 		EditorOption.shrinkEmptyLines, 'shrinkEmptyLines',
-		1, x => EditorFloatOption.clamp(x, 0, 1),
+		1, x => EditorFloatOption.clamp(x, 0.25, 1),
 		{
-			markdownDescription: nls.localize('shrinkEmptyLines', "Controls the line height and font size of lines without letters or numbers, including empty and punctuation-only lines, as a multiplier of the regular editor line height and font size, between 0 and 1. A value of 0 disables shrinking, and 1 uses the regular line height and font size. Requires `#editor.allowVariableLineHeights#` and `#editor.allowVariableFonts#` to be enabled, or `#editor.allowVariableFontsInAccessibilityMode#` instead of `#editor.allowVariableFonts#` in accessibility mode.")
+			markdownDescription: nls.localize('shrinkEmptyLines', "Controls the line height and font size of lines without letters or numbers, including empty and punctuation-only lines, as a multiplier of the regular editor line height and font size, between 0.25 and 1. A value of 1 uses the regular line height and font size. Requires `#editor.allowVariableLineHeights#` and `#editor.allowVariableFonts#` to be enabled, or `#editor.allowVariableFontsInAccessibilityMode#` instead of `#editor.allowVariableFonts#` in accessibility mode.")
 		},
-		0, 1
+		0.25, 1
 	)),
 	showDeprecated: register(new EditorBooleanOption(
 		EditorOption.showDeprecated, 'showDeprecated', true,

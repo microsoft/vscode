@@ -52,7 +52,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 
 	private _updateDecorationOptions(): void {
 		const multiplier = this.editor.getOption(EditorOption.effectiveShrinkEmptyLines);
-		if (multiplier === 0 || multiplier === 1) {
+		if (multiplier === 1) {
 			this._decorationOptions = undefined;
 			this._fontSizeRule.clear();
 			return;
