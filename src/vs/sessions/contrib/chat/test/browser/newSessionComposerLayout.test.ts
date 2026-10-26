@@ -38,14 +38,14 @@ const newSessionWelcomePhrasesProperty = Registry.as<IConfigurationRegistry>(Con
 suite('New session composer layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Environment picker is an opt-in window setting', () => {
+	test('Environment picker is a default-on window setting without an experimental tag', () => {
 		assert.deepStrictEqual({
 			type: environmentPickerProperty.type,
 			default: environmentPickerProperty.default,
 			scope: environmentPickerProperty.scope,
 			tags: environmentPickerProperty.tags,
 			experiment: environmentPickerProperty.experiment,
-		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
+		}, { type: 'boolean', default: true, scope: ConfigurationScope.WINDOW, tags: ['onExP'], experiment: { mode: 'auto' } });
 	});
 
 	test('workspace opt-out is a default-off experiment-controlled window setting', () => {

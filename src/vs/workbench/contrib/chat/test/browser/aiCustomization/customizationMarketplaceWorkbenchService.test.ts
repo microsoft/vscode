@@ -111,6 +111,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		authenticationService: IAuthenticationService = new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = Event.None;
 		}(),
+		activeSessionResource = observableValue<URI>('activeSessionResource', URI.parse('vscode-chat-session://local/session')),
 	): CustomizationMarketplaceWorkbenchService {
 		const platformSources = platformService.allSources ?? platformService.sources ?? [CustomizationMarketplaceSources.AgentFinderPublicFeed];
 		const normalizedPlatformService = new class extends mock<ICustomizationMarketplaceService>() {
@@ -128,7 +129,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const harness = { id: 'local', label: 'Local', icon: { id: 'vm' }, marketplaceSearchProvider, marketplaceManagementProvider } satisfies IHarnessDescriptor;
 		const harnessService = new class extends mock<ICustomizationHarnessService>() {
 			override readonly activeHarness = observableValue(this, harness.id);
-			override readonly activeSessionResource = observableValue(this, URI.parse('vscode-chat-session://local/session'));
+			override readonly activeSessionResource = activeSessionResource;
 			override readonly availableHarnesses = observableValue(this, [harness]);
 			override getActiveDescriptor() { return harness; }
 			override getDescriptorForSession() { return harness; }
@@ -288,7 +289,8 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		};
 		const queries: ICustomizationMarketplaceSourceQuery[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
-			onDidChange: providerChanges.event,
+			onDidChange: Event.None,
+			onDidChangeMarketplaces: providerChanges.event,
 			list: async () => {
 				listCalls++;
 				return [marketplace, unavailableMarketplace];
@@ -361,6 +363,96 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			items: [[sourceId, 'Team Kit Plugin']],
 			queries: [{ query: '', mediaType: undefined, pageSize: 30, cursor: undefined }],
 			listCalls: 2,
+		});
+	});
+
+	test('provider customization activity signals source changes only when the marketplace list changes', async () => {
+		const configuration = createConfiguration([]);
+		const providerChanges = store.add(new Emitter<void>());
+		const marketplaceChanges = store.add(new Emitter<void>());
+		let marketplaces = [{ name: 'vscode-team-kit', source: 'GitHub: microsoft/vscode-team-kit', isDefault: false, managed: false, available: true }];
+		let listCalls = 0;
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: providerChanges.event,
+			onDidChangeMarketplaces: marketplaceChanges.event,
+			list: async () => {
+				listCalls++;
+				return marketplaces;
+			},
+			add: async () => marketplaces[0],
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => ({ removed: true }),
+			refresh: async () => [],
+		};
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [];
+			override readonly allSources = [];
+			override async query() { return { items: [], total: 0 }; }
+		}();
+		const service = createService(configuration, platformService, new class extends mock<ICopilotConnectorsService>() { }(), undefined, provider);
+		await Event.toPromise(service.onDidChangeSources);
+		const sourceChanges: (readonly string[] | undefined)[] = [];
+		store.add(service.onDidChangeSources(event => sourceChanges.push(event.sourceIds)));
+		const settle = async (fire: () => void) => {
+			const before = sourceChanges.length;
+			fire();
+			await timeout(0);
+			return sourceChanges.slice(before);
+		};
+
+		const unchangedActivity = await settle(() => {
+			providerChanges.fire();
+			providerChanges.fire();
+		});
+		const contentChangeSupersededByActivity = await settle(() => {
+			marketplaceChanges.fire();
+			providerChanges.fire();
+		});
+		marketplaces = [...marketplaces, { name: 'team-extras', source: 'GitHub: microsoft/team-extras', isDefault: false, managed: false, available: true }];
+		const changedList = await settle(() => providerChanges.fire());
+
+		const teamKit = getProviderMarketplaceSourceId('vscode-team-kit');
+		const teamExtras = getProviderMarketplaceSourceId('team-extras');
+		assert.deepStrictEqual({ unchangedActivity, contentChangeSupersededByActivity, changedList, listCalls }, {
+			unchangedActivity: [],
+			contentChangeSupersededByActivity: [[teamKit]],
+			changedList: [[teamKit, teamExtras]],
+			listCalls: 6,
+		});
+	});
+
+	test('chat session switches signal only session-bound marketplace sources', async () => {
+		const configuration = createConfiguration([]);
+		const marketplace = { name: 'vscode-team-kit', source: 'GitHub: microsoft/vscode-team-kit', isDefault: false, managed: false, available: true };
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
+			list: async () => [marketplace],
+			add: async () => marketplace,
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => ({ removed: true }),
+			refresh: async () => [],
+		};
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [];
+			override readonly allSources = [];
+			override async query() { return { items: [], total: 0 }; }
+		}();
+		const activeSessionResource = observableValue<URI>('activeSessionResource', URI.parse('vscode-chat-session://local/first'));
+		const service = createService(configuration, platformService, new class extends mock<ICopilotConnectorsService>() { }(), undefined, provider, [], undefined, undefined, undefined, undefined, activeSessionResource);
+		await Event.toPromise(service.onDidChangeSources);
+		const sourceChanges: (readonly string[] | undefined)[] = [];
+		store.add(service.onDidChangeSources(event => sourceChanges.push(event.sourceIds)));
+
+		activeSessionResource.set(URI.parse('vscode-chat-session://local/second'), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			scoped: sourceChanges.length > 0 && sourceChanges.every(sourceIds => sourceIds !== undefined),
+			sourceIds: [...new Set(sourceChanges.flatMap(sourceIds => sourceIds ?? []))].sort(),
+		}, {
+			scoped: true,
+			sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id, getProviderMarketplaceSourceId(marketplace.name)].sort(),
 		});
 	});
 
