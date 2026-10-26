@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
 import { derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, ISettableObservable, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -128,6 +128,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	private readonly _sectionCollapseStateBySession = new ResourceMap<IChangesViewSectionCollapseState>();
 	private readonly _sectionCollapseStateChanged = observableSignal('changesView.sectionCollapseStateChanged');
 	private readonly _detailsViewStateBySession = new LRUCache<string, Partial<Record<ChangesViewMode, IChangesDetailsViewState>>>(SESSION_VIEW_STATE_LIMIT);
+	readonly scopedServicesObs = observableValue<readonly IChangesViewService[]>(this, []);
 	readonly detailsViewStateTransferObs = observableValue<IChangesDetailsViewStateTransfer | undefined>(this, undefined);
 
 	private readonly _changesetSelectionsBySession = new ResourceMap<ISessionChangesetSelections>();
@@ -192,8 +193,16 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			?? undefined;
 	}
 
+	/** Runs `callback` when this service is disposed. */
+	onDispose(callback: () => void): void {
+		this._register(toDisposable(callback));
+	}
+
 	createScoped(sessionResource: IObservable<URI | undefined>, contextKeyService: IContextKeyService): IChangesViewService & IDisposable {
-		return this.instantiationService.createInstance(ChangesViewService, sessionResource, contextKeyService);
+		const scoped = this.instantiationService.createInstance(ChangesViewService, sessionResource, contextKeyService);
+		this.scopedServicesObs.set([...this.scopedServicesObs.get(), scoped], undefined);
+		scoped.onDispose(() => this.scopedServicesObs.set(this.scopedServicesObs.get().filter(candidate => candidate !== scoped), undefined));
+		return scoped;
 	}
 
 	getSessionChanges(sessionResource: URI): IObservable<readonly ISessionFileChange[]> {

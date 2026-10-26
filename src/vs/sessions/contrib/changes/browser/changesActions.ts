@@ -364,15 +364,19 @@ export class ChangesetOperationsActionControllerContribution extends Disposable 
 		}));
 
 		this._register(autorun(reader => {
+			// The entries offer the operations of the main window's session and of every chat window's, since
+			// a window can show a session that has them while the main window shows another or none.
 			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
-			const resourceOperations = (changeset?.operations.read(reader) ?? [])
-				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Resource));
-
-			if (resourceOperations.length === 0) {
-				return;
+			const resourceOperations = new Map<string, ISessionChangesetOperation>();
+			for (const service of [changesViewService, ...changesViewService.scopedServicesObs.read(reader)]) {
+				for (const operation of service.activeSessionChangesetObs.read(reader)?.operations.read(reader) ?? []) {
+					if (operation.scopes.includes(SessionChangesetOperationScope.Resource) && !resourceOperations.has(operation.id)) {
+						resourceOperations.set(operation.id, operation);
+					}
+				}
 			}
 
-			for (const operation of resourceOperations) {
+			for (const operation of resourceOperations.values()) {
 				const precondition = operation.status === SessionChangesetOperationStatus.Disabled
 					|| operation.status === SessionChangesetOperationStatus.Running
 					? ContextKeyExpr.false()
@@ -409,7 +413,7 @@ export class ChangesetOperationsActionControllerContribution extends Disposable 
 						}
 
 						// Act on the session of the active Changes editor, which is not the main window's in a chat window.
-						const sessionChangesViewService = getSessionChangesViewService(accessor) ?? changesViewService;
+						const sessionChangesViewService = getSessionChangesViewService(accessor, resource) ?? changesViewService;
 						const sessionChangeset = sessionChangesViewService.activeSessionChangesetObs.read(undefined) ?? changeset;
 						const change = sessionChangesViewService.activeSessionChangesObs.read(undefined)
 							.find(change => isChangesFileResource(change, resource));

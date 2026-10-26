@@ -44,7 +44,7 @@ export class ChangesetReviewAction extends Action2 {
 			return;
 		}
 
-		const changesViewService = getSessionChangesViewService(accessor) ?? accessor.get(IChangesViewService);
+		const changesViewService = getSessionChangesViewService(accessor, resource) ?? accessor.get(IChangesViewService);
 		if (changesViewService.activeSessionChangesetObs.get()?.capabilities?.review !== true) {
 			return;
 		}

@@ -68,6 +68,9 @@ export interface IChangesViewService {
 	 */
 	createScoped(sessionResource: IObservable<URI | undefined>, contextKeyService: IContextKeyService): IChangesViewService & IDisposable;
 
+	/** The live services created by {@link createScoped}, for entries that must offer what any of them offers. */
+	readonly scopedServicesObs: IObservable<readonly IChangesViewService[]>;
+
 	/** The session this service reports on: the main window's active session, or the scoped one. */
 	readonly activeSessionObs: IObservable<IActiveSession | undefined>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;

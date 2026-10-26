@@ -46,6 +46,7 @@ import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ActiveSessionContextKeys } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
+import { isChangesFileResource } from './changesViewRenderer.js';
 import { ChangesActionsBar } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesService } from './sessionChangesService.js';
@@ -58,7 +59,7 @@ import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { CheckboxActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../nls.js';
-import { getChangesEditorFileStats } from './changesEditorLabels.js';
+import { findChangesEditorFileChange, getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant, toggleMultiDiffEditorFileList } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
@@ -651,8 +652,21 @@ class ChangesetReviewActionViewItem extends CheckboxActionViewItem {
 	}
 }
 
-/** The changes service of the active Changes editor when it shows a session of its own, such as in a chat window. */
-export function getSessionChangesViewService(accessor: ServicesAccessor): IChangesViewService | undefined {
+/**
+ * The changes service of the Changes editor that shows a session of its own, such as in a chat window, for an action on `resource`.
+ * That is the one whose changes include `resource`, so that an action invoked from the toolbar of one window never acts on the
+ * session of another, preferring the active editor's when several do. Without a match, it is the active editor's, if it is one.
+ */
+export function getSessionChangesViewService(accessor: ServicesAccessor, resource?: URI): IChangesViewService | undefined {
 	const pane = accessor.get(IEditorService).activeEditorPane;
-	return pane instanceof SessionChangesEditor ? pane.changesViewServiceForSession : undefined;
+	const active = pane instanceof SessionChangesEditor ? pane.changesViewServiceForSession : undefined;
+	if (!resource) {
+		return active;
+	}
+	const includesResource = (service: IChangesViewService) => service.activeSessionChangesObs.get()
+		.some(change => findChangesEditorFileChange(resource, [change]) || isChangesFileResource(change, resource));
+	if (active && includesResource(active)) {
+		return active;
+	}
+	return accessor.get(IChangesViewService).scopedServicesObs.get().find(includesResource) ?? active;
 }

@@ -29,6 +29,7 @@ suite('ChangesetReviewAction', () => {
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionChangesetObs = constObservable(upcastPartial<ISessionChangeset>({ capabilities: { review: true } }));
 			override readonly activeSessionChangesObs = constObservable(changes);
+			override readonly scopedServicesObs = constObservable<readonly IChangesViewService[]>([]);
 			override setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void {
 				setReviewStateCalls.push({ resources, reviewed });
 			}
@@ -61,6 +62,34 @@ suite('ChangesetReviewAction', () => {
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override readonly activeEditorPane = pane;
 		}());
+
+		new ChangesetReviewAction().run(instantiationService, resource);
+
+		assert.deepStrictEqual({ mainCalls, windowCalls }, { mainCalls: [], windowCalls: [{ resources: [resource], reviewed: true }] });
+	});
+
+	test('toggles the review state of the window that shows the resource, even when another window\'s editor is active', () => {
+		const resource = URI.file('/workspace/window.ts');
+		const mainCalls: ISetReviewStateCall[] = [];
+		const windowCalls: ISetReviewStateCall[] = [];
+		const windowChangesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetObs = constObservable(upcastPartial<ISessionChangeset>({ capabilities: { review: true } }));
+			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([{ modifiedUri: resource, insertions: 1, deletions: 0, reviewed: false }]);
+			override setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void {
+				windowCalls.push({ resources, reviewed });
+			}
+		}();
+		const otherResource = URI.file('/workspace/other.ts');
+		const mainChangesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetObs = constObservable(upcastPartial<ISessionChangeset>({ capabilities: { review: true } }));
+			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([{ modifiedUri: otherResource, insertions: 1, deletions: 0, reviewed: false }]);
+			override readonly scopedServicesObs = constObservable<readonly IChangesViewService[]>([windowChangesViewService]);
+			override setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void {
+				mainCalls.push({ resources, reviewed });
+			}
+		}();
+		const instantiationService = createInstantiationService([], mainCalls);
+		instantiationService.stub(IChangesViewService, mainChangesViewService);
 
 		new ChangesetReviewAction().run(instantiationService, resource);
 

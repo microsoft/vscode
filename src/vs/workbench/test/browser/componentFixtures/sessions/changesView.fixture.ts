@@ -90,6 +90,8 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly detailsViewStateTransferObs = constObservable(undefined);
 	readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 
+	readonly scopedServicesObs = constObservable<readonly IChangesViewService[]>([]);
+
 	createScoped(): IChangesViewService & IDisposable {
 		return this;
 	}
