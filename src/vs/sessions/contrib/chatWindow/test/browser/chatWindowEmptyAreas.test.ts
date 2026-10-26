@@ -30,6 +30,9 @@ suite('Chat window - empty terminal row', () => {
 	function createWindow() {
 		const terminalGroup = observableValue<IEditorGroup | undefined>('terminalGroup', undefined);
 		const removed: IEditorGroup[] = [];
+		let keeping = false;
+		let addedWhileKeeping = false;
+		let removedWhileKeeping = false;
 		const row = new class extends mock<IEditorGroup>() {
 			override readonly id = 7;
 			override readonly isEmpty = true;
@@ -41,14 +44,14 @@ suite('Chat window - empty terminal row', () => {
 		const window = {
 			editorGroup: {},
 			content: observableValue('content', { editorArea: true }),
-			state: { terminalGroup },
+			state: { terminalGroup, keepLayoutWhile: <T>(fn: () => T) => { keeping = true; try { return fn(); } finally { keeping = false; } } },
 			chatGroup: {},
 			part: {
-				addGroup: () => row,
-				removeGroup: (group: IEditorGroup) => { removed.push(group); },
+				addGroup: () => { addedWhileKeeping = keeping; return row; },
+				removeGroup: (group: IEditorGroup) => { removedWhileKeeping = keeping; removed.push(group); },
 			},
 		};
-		return { window, terminalGroup, removed, row };
+		return { window, terminalGroup, removed, row, addedWhileKeeping: () => addedWhileKeeping, removedWhileKeeping: () => removedWhileKeeping };
 	}
 
 	function instantiationServiceContext() {
@@ -109,5 +112,19 @@ suite('Chat window - empty terminal row', () => {
 		await assert.rejects(service.setTerminalShown(window as never, true, false), /no terminal/);
 
 		assert.deepStrictEqual({ shown: !!terminalGroup.get(), removed: removed.length }, { shown: false, removed: 1 });
+	});
+
+	test('adds the row keeping the layout of the window, so closing its terminal leaves no empty editor group behind', async () => {
+		const disposables = store.add(new DisposableStore());
+		const service = createService(disposables);
+		const host: IChatWindowTerminalHost = { show: async () => true, hide: () => { }, release: () => { } };
+		disposables.add(service.registerTerminalHost(host));
+		const { window, addedWhileKeeping, removedWhileKeeping } = createWindow();
+
+		await service.setTerminalShown(window as never, true, false);
+		const added = addedWhileKeeping();
+		await service.setTerminalShown(window as never, false, false);
+
+		assert.deepStrictEqual({ added, removed: removedWhileKeeping() }, { added: true, removed: true });
 	});
 });

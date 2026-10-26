@@ -80,3 +80,29 @@ export interface IEditorAreaClose {
 export function shouldCloseEditorArea(r: IEditorAreaClose): boolean {
 	return r.areaIsEmpty && !r.isMove && !r.windowIsChanging;
 }
+
+/**
+ * Closes the editor area once the editor group has settled after its last editor closed, not as the editor closes: the group
+ * then takes the focus back, which activates it and shows the chat again by un-maximizing it, undoing what closing the area did.
+ */
+export class EditorAreaCloser {
+
+	private _pending = false;
+
+	constructor(private readonly _closeArea: () => void) { }
+
+	/** An editor closed in the editor area. */
+	closed(close: IEditorAreaClose): void {
+		this._pending = shouldCloseEditorArea(close);
+	}
+
+	/** The editor group settled, with no editor active or with another one. */
+	settled(areaIsEmpty: boolean): void {
+		if (this._pending) {
+			this._pending = false;
+			if (areaIsEmpty) {
+				this._closeArea();
+			}
+		}
+	}
+}

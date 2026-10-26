@@ -214,4 +214,30 @@ suite('Floating Editor Part', () => {
 		part.close();
 		await parts.mainPart.activeGroup.closeAllEditors();
 	});
+
+	test('the editor part follows the height of the header, which it does not measure on every layout', async () => {
+		const { parts, layoutService } = await createParts();
+		mainWindow.document.body.appendChild(layoutService.mainContainer); // laid out, so the header has a height
+		disposables.add({ dispose: () => layoutService.mainContainer.remove() });
+		const part = await parts.createFloatingEditorPart({ title: 'Floating', size: { width: 300, height: 300 } });
+		const editorPart = parts.parts.find(candidate => (candidate as IEditorPart) === part)!;
+		const header = getElements(layoutService)[0].querySelector<HTMLElement>('.floating-editor-header')!;
+		const nextFrames = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+		const describe = () => ({ header: header.offsetHeight, editorHeight: editorPart.contentDimension.height });
+
+		const initial = describe();
+		header.style.height = `${initial.header + 20}px`;
+		await nextFrames(); // the resize observer of the header
+		const taller = describe();
+		layoutService.resizeMainContainer({ width: 1000, height: 900 });
+		const afterMainLayout = describe();
+
+		assert.deepStrictEqual({ initial, taller, afterMainLayout }, {
+			initial: { header: initial.header, editorHeight: 300 - 2 - initial.header },
+			taller: { header: initial.header + 20, editorHeight: 300 - 2 - initial.header - 20 },
+			afterMainLayout: { header: initial.header + 20, editorHeight: 300 - 2 - initial.header - 20 },
+		});
+
+		part.close();
+	});
 });
