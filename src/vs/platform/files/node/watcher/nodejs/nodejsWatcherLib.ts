@@ -6,11 +6,11 @@
 import { watch, promises } from 'fs';
 import { RunOnceWorker, ThrottledWorker } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { isEqual, isEqualOrParent } from '../../../../../base/common/extpath.js';
+import { isEqual, isEqualOrParent, isUNC } from '../../../../../base/common/extpath.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenRegisterOrDispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
 import { basename, dirname, isAbsolute, join } from '../../../../../base/common/path.js';
-import { isLinux, isMacintosh } from '../../../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Promises } from '../../../../../base/node/pfs.js';
@@ -214,6 +214,14 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			return;
 		}
 
+		// Windows: watching samba / UNC network shares can crash VSCode so we do
+		// a check for UNC paths
+		if (isWindows && (isUNC(realPath) || realPath.startsWith('\\\\') || realPath.startsWith('//'))) {
+			this.error(`Refusing to watch ${realPath} for changes using fs.watch() for possibly being a network share where watching is unreliable and unstable.`);
+
+			return;
+		}
+
 		const cts = new CancellationTokenSource(this.cts.token);
 		disposables.add(toDisposable(() => cts.dispose(true)));
 
@@ -230,6 +238,16 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				watcher.removeAllListeners();
 				watcher.close();
 			}));
+
+			watcher.on('error', (code: number, signal: string) => {
+				if (cts.token.isCancellationRequested) {
+					return;
+				}
+
+				this.error(`Failed to watch ${realPath} for changes using fs.watch() (${code}, ${signal})`);
+
+				this.notifyWatchFailed();
+			});
 
 			this.trace(`Started watching: '${realPath}'`);
 
@@ -256,16 +274,6 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				}
 				mapPathToStatDisposable.clear();
 			}));
-
-			watcher.on('error', (code: number, signal: string) => {
-				if (cts.token.isCancellationRequested) {
-					return;
-				}
-
-				this.error(`Failed to watch ${realPath} for changes using fs.watch() (${code}, ${signal})`);
-
-				this.notifyWatchFailed();
-			});
 
 			watcher.on('change', (type, raw) => {
 				if (cts.token.isCancellationRequested) {
