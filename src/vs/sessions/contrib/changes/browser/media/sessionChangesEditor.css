@@ -11,6 +11,25 @@
 	color: var(--vscode-agentsPanel-foreground);
 }
 
+.session-changes-editor-body {
+	position: relative;
+}
+
+.session-changes-editor-empty-state {
+	position: absolute;
+	inset: 0;
+	align-items: center;
+	justify-content: center;
+}
+
+.session-changes-editor-empty-state:not([hidden]) {
+	display: flex;
+}
+
+.session-changes-editor-body.has-empty-state .multiDiffEditor .placeholder {
+	display: none;
+}
+
 .session-changes-file-stats {
 	display: inline-flex;
 	flex: 0 0 auto;
@@ -150,7 +169,6 @@
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
 	background-color: var(--vscode-commandCenter-background);
 	color: var(--vscode-commandCenter-foreground);
-	border: var(--vscode-strokeThickness) solid var(--vscode-toolbar-hoverBackground);
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
@@ -159,7 +177,7 @@
 }
 
 :is(.hc-black, .hc-light) .changes-picker-action-with-summary .action-label {
-	border-color: var(--vscode-contrastBorder);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
 
 .changes-picker-action-with-summary .action-label:focus-visible {
@@ -345,4 +363,9 @@
 	position: relative;
 	flex: 1;
 	min-height: 0;
+}
+
+.session-changes-editor-body .multiDiffEditor-card .multiDiffEntry.first-diff-entry > .header:not(.shadow) > .header-content {
+	margin-top: 0;
+	height: calc(var(--vscode-spacing-size320) + var(--vscode-spacing-size40));
 }

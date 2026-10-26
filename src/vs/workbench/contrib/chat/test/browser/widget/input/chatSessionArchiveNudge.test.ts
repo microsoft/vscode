@@ -8,15 +8,19 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../../platform/notification/test/common/testNotificationService.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchAssignmentService } from '../../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -42,12 +46,18 @@ suite('ChatSessionArchiveNudge', () => {
 	function createServices(assignmentService: IWorkbenchAssignmentService = new NullWorkbenchAssignmentService(), wording = ChatSessionArchiveActionWording.Archive, reducedMotion = false) {
 		const errors: string[] = [];
 		const warnings: string[] = [];
+		const playedSignals: AccessibilitySignal[] = [];
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		const configurationService = new TestConfigurationService({ [ChatSessionArchiveActionWordingSettingId]: wording });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 			override isMotionReduced(): boolean { return reducedMotion; }
+		}());
+		instantiationService.stub(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() {
+			override async playSignal(signal: AccessibilitySignal): Promise<void> {
+				playedSignals.push(signal);
+			}
 		}());
 		instantiationService.stub(IWorkbenchAssignmentService, assignmentService);
 		instantiationService.stub(ILogService, new class extends NullLogService {
@@ -61,7 +71,9 @@ suite('ChatSessionArchiveNudge', () => {
 				return super.error(error);
 			}
 		}());
-		return { instantiationService, configurationService, errors, warnings };
+		const telemetryService = new TestExperimentTriggerTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetryService);
+		return { instantiationService, configurationService, errors, warnings, playedSignals, triggers: telemetryService.triggers };
 	}
 
 	function createAssignmentService(read: (name: string) => string | boolean | undefined | Promise<string | boolean | undefined>, onDidRefetchAssignments: Event<void> = Event.None): IWorkbenchAssignmentService {
@@ -80,13 +92,13 @@ suite('ChatSessionArchiveNudge', () => {
 	}
 
 	function createWidget(overrides?: Partial<IChatSessionArchiveNudgeOptions>, assignmentService?: IWorkbenchAssignmentService, wording = ChatSessionArchiveActionWording.Archive, reducedMotion = false) {
-		const { instantiationService, configurationService, errors, warnings } = createServices(assignmentService, wording, reducedMotion);
+		const { instantiationService, configurationService, errors, warnings, playedSignals, triggers } = createServices(assignmentService, wording, reducedMotion);
 		const container = createContainer();
 		const widget = store.add(instantiationService.createInstance(ChatSessionArchiveNudge, options(overrides)));
 		container.appendChild(widget.domNode);
 		const [archive, cleanupSettings] = widget.domNode.querySelectorAll<HTMLElement>('.monaco-button');
 		const dismiss = widget.domNode.querySelector<HTMLElement>('.action-label')!;
-		return { widget, archive, cleanupSettings, dismiss, configurationService, errors, warnings, container };
+		return { widget, archive, cleanupSettings, dismiss, configurationService, errors, warnings, playedSignals, container, triggers };
 	}
 
 	async function setWording(configurationService: TestConfigurationService, wording: ChatSessionArchiveActionWording): Promise<void> {
@@ -167,7 +179,7 @@ suite('ChatSessionArchiveNudge', () => {
 
 	test('shows confetti when marking a merged pull request session as done', async () => {
 		const pending = new DeferredPromise<void>();
-		const { archive, configurationService } = createWidget({ onArchive: () => pending.p }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		const { archive, configurationService, playedSignals } = createWidget({ onArchive: () => pending.p }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 
 		archive.click();
@@ -179,9 +191,11 @@ suite('ChatSessionArchiveNudge', () => {
 		assert.deepStrictEqual({
 			animationBeforeArchive,
 			animationAfterArchive: !!animation,
+			playedSignals,
 		}, {
 			animationBeforeArchive: null,
 			animationAfterArchive: true,
+			playedSignals: [AccessibilitySignal.confetti],
 		});
 	});
 
@@ -228,6 +242,23 @@ suite('ChatSessionArchiveNudge', () => {
 
 		assert.strictEqual(document.body.querySelector('.animation-overlay'), null);
 	});
+
+	for (const reducedMotion of [false, true]) {
+		test(`reports the copy experiment triggers when rendered and the confetti trigger when marking as done without confetti${reducedMotion ? ', except with reduced motion' : ''}`, async () => {
+			const { archive, configurationService, triggers } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone, reducedMotion);
+			await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, false);
+			const rendered = [...triggers];
+
+			archive.click();
+			await Promise.resolve();
+
+			const copyTriggers = [CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT, CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT];
+			assert.deepStrictEqual({ rendered, markedAsDone: triggers }, {
+				rendered: copyTriggers,
+				markedAsDone: reducedMotion ? copyTriggers : [...copyTriggers, `config.${SESSIONS_MARK_AS_DONE_CONFETTI_SETTING}`],
+			});
+		});
+	}
 
 	test('does not show confetti when reduced motion is enabled', async () => {
 		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone, true);

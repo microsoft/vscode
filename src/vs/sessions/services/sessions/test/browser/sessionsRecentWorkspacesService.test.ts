@@ -316,14 +316,17 @@ suite('SessionsRecentWorkspacesService', () => {
 		restored.service.addRecentWorkspace(firstFolder, 'provider', true);
 		restored.refresh();
 		await restored.ready();
+		const afterRepick = snapshot(restored.service);
+		restored.service.restoreDismissedWorkspace(firstFolder);
 		assert.deepStrictEqual({
 			removed: harness.removed, removedEvents, afterRestore,
-			afterRepick: snapshot(restored.service), noWorkspaceAfterRepick: restored.service.isNoWorkspaceChecked(),
+			afterRepick, afterSend: snapshot(restored.service), noWorkspaceAfterRepick: restored.service.isNoWorkspaceChecked(),
 		}, {
 			removed: [[firstFolder, firstFolder]],
 			removedEvents: [[firstFolder.toString()]],
 			afterRestore: { entries: [{ uri: secondFolder.toString(), source: 'vscodeWorkspace', checked: false }], noWorkspace: true },
-			afterRepick: [
+			afterRepick: [{ uri: secondFolder.toString(), source: 'vscodeWorkspace', checked: false }],
+			afterSend: [
 				{ uri: firstFolder.toString(), source: 'agents', checked: true },
 				{ uri: secondFolder.toString(), source: 'vscodeWorkspace', checked: false },
 			],
@@ -331,13 +334,13 @@ suite('SessionsRecentWorkspacesService', () => {
 		});
 	});
 
-	test('a subsequently reopened standalone folder remains eligible after its workspace-file entry was removed', async () => {
+	test('reopening a dismissed folder outside the composer does not restore it', async () => {
 		const harness = createHarness([recentWorkspace()], new Map([[extUri.getComparisonKey(workspaceFile), '{"folders":[{"path":"../first"}]}']]));
 		await harness.ready();
 		harness.service.removeRecentWorkspace(firstFolder);
 		await harness.ready();
 		harness.refresh([recentWorkspace(), { folderUri: firstFolder }]);
 		await harness.ready();
-		assert.deepStrictEqual(snapshot(harness.service), [{ uri: firstFolder.toString(), source: 'vscode', checked: false }]);
+		assert.deepStrictEqual(snapshot(harness.service), []);
 	});
 });

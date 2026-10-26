@@ -14,12 +14,13 @@ import { joinPath, dirname as uriDirname, extUriBiasedIgnorePathCase } from '../
 import { compare as compareStrings } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isAbsolute, dirname as nodeDirname } from '../../../../base/common/path.js';
-import { FileOperationResult, IFileService, IFileStat, IFileStatWithMetadata, toFileOperationResult } from '../../../files/common/files.js';
+import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, IFileStat, IFileStatWithMetadata, toFileOperationResult } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { detectPluginFormat, parsePlugin, parseSkillFile, readPluginManifest, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
+import { detectPluginFormat, hasPluginManifest, parsePlugin, parseSkillFile, readPluginManifest, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
 import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, HookCustomization, PluginCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
 import { ChildCustomizationType } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
+import { withSkillArgumentHintMeta } from '../../common/meta/skillCustomizationMeta.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { toChildCustomizations } from './copilotPluginConverters.js';
 
@@ -121,9 +122,26 @@ function throwIfCancelled(token: CancellationToken): void {
 	}
 }
 
+/**
+ * How a change to a trigger URI is matched. Ordered from narrowest to
+ * broadest so that merging two triggers for the same URI keeps the broader one.
+ *
+ * Note: `IFileService.onDidFilesChange` delivers events from every watcher in
+ * the process (not just the ones created here), so triggers must be matched
+ * precisely to avoid unrelated changes causing a rediscovery.
+ */
+const enum WatchTrigger {
+	/** Only the creation or deletion of the resource itself. Used for ancestors of discovered locations. */
+	Existence = 1,
+	/** Any change to the resource itself. Used for discovered files. */
+	Resource = 2,
+	/** Any change to the resource or any of its descendants. Used for discovered customization directories. */
+	Subtree = 3,
+}
+
 interface IWatchSpec {
 	readonly recursive: boolean;
-	readonly resourcesToWatch: ResourceSet;
+	readonly resourcesToWatch: ResourceMap<WatchTrigger>;
 }
 
 /**
@@ -131,16 +149,24 @@ interface IWatchSpec {
  * trigger URIs. If a non-recursive entry already exists and `recursive` is
  * true, upgrade it to recursive while preserving the accumulated trigger URIs.
  */
-function addWatch(map: ResourceMap<IWatchSpec>, watchUri: URI, recursive: boolean, resourceToWatch: URI): void {
+function addWatch(map: ResourceMap<IWatchSpec>, watchUri: URI, recursive: boolean, resourceToWatch: URI, trigger: WatchTrigger): void {
 	let entry = map.get(watchUri);
 	if (!entry) {
-		entry = { recursive, resourcesToWatch: new ResourceSet() };
+		entry = { recursive, resourcesToWatch: new ResourceMap<WatchTrigger>() };
 		map.set(watchUri, entry);
 	} else if (recursive && !entry.recursive) {
 		entry = { recursive: true, resourcesToWatch: entry.resourcesToWatch };
 		map.set(watchUri, entry);
 	}
-	entry.resourcesToWatch.add(resourceToWatch);
+	entry.resourcesToWatch.set(resourceToWatch, Math.max(trigger, entry.resourcesToWatch.get(resourceToWatch) ?? 0));
+}
+
+function isTriggered(e: FileChangesEvent, resource: URI, trigger: WatchTrigger): boolean {
+	switch (trigger) {
+		case WatchTrigger.Existence: return e.contains(resource, FileChangeType.ADDED, FileChangeType.DELETED);
+		case WatchTrigger.Resource: return e.contains(resource);
+		case WatchTrigger.Subtree: return e.affects(resource);
+	}
 }
 
 /**
@@ -177,8 +203,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 		this._register({ dispose: () => this._disposeAllWatchers() });
 		this._register(this._fileService.onDidFilesChange(e => {
 			for (const watcher of this._watchers.values()) {
-				for (const uri of watcher.resourcesToWatch) {
-					if (e.affects(uri)) {
+				for (const [uri, trigger] of watcher.resourcesToWatch) {
+					if (isTriggered(e, uri, trigger)) {
+						// Recompute the discovered locations on the next discover() so that
+						// added or removed customization locations are picked up.
+						this._discoveredDirectories = undefined;
 						this._scheduleRefresh();
 						return;
 					}
@@ -454,8 +483,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 			const dirUri = discoveredDir.uri;
 			const recursive = recursiveByDirectory.get(dirUri) ?? false;
-			if (existingDirectories.has(dirUri)) {
-				addWatch(nextWatchRootUris, dirUri, recursive, dirUri);
+			// Agent-instruction entries only group their files under a root (the
+			// workspace folder or user home); watch the files, not the root itself.
+			if (discoveredDir.type !== DiscoveredType.AgentInstruction && existingDirectories.has(dirUri)) {
+				addWatch(nextWatchRootUris, dirUri, recursive, dirUri, WatchTrigger.Subtree);
 			}
 
 			let current = dirUri;
@@ -465,7 +496,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					break;
 				}
 				if (existingDirectories.has(parent)) {
-					addWatch(nextWatchRootUris, parent, false, current);
+					addWatch(nextWatchRootUris, parent, false, current, WatchTrigger.Existence);
 				}
 				current = parent;
 			}
@@ -480,7 +511,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 						break;
 					}
 					if (existingDirectories.has(parent)) {
-						addWatch(nextWatchRootUris, parent, false, currentFilePath);
+						addWatch(nextWatchRootUris, parent, false, currentFilePath, currentFilePath === file.uri ? WatchTrigger.Resource : WatchTrigger.Existence);
 					}
 					currentFilePath = parent;
 				}
@@ -497,8 +528,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 			workingDirectories: this._workingDirectories.map(d => d.toString()),
 			userHome: this._userHome.toString(),
 		});
-		if (!this._discoveredDirectories) {
-			this._discoveredDirectories = await this.getDiscoveredDirectories(client, token);
+		let discoveredDirectories = this._discoveredDirectories;
+		if (!discoveredDirectories) {
+			discoveredDirectories = this._discoveredDirectories = await this.getDiscoveredDirectories(client, token);
 		}
 
 		throwIfCancelled(token);
@@ -509,10 +541,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 			const pluginFiles = new ResourceSet();
 			const [agents, rules, skills, hooks] = await Promise.all([
 				this.discoverAgents(p, client, pluginFiles, token),
-				this.discoverRules(p, client, pluginFiles, token),
+				this.discoverRules(p, client, pluginFiles, discoveredDirectories, token),
 				this.discoverSkills(p, client, pluginFiles, token),
 				this.discoverHooks(token),
-				this._updateWatchers(this._discoveredDirectories, token)
+				this._updateWatchers(discoveredDirectories, token)
 			]);
 			throwIfCancelled(token);
 			const pluginCustomizations = await this.toPluginCustomizations(pluginFiles, token);
@@ -520,10 +552,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 				extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(customization.uri), URI.parse(plugin.uri))
 			);
 			const result: DirectoryCustomization[] = [];
-			await this.toDirectoryCustomizations(CustomizationType.Agent, agents.filter(agent => !isPluginChild(agent)), this._discoveredDirectories, result);
-			await this.toDirectoryCustomizations(CustomizationType.Rule, rules.filter(rule => !isPluginChild(rule)), this._discoveredDirectories, result);
-			await this.toDirectoryCustomizations(CustomizationType.Skill, skills.filter(skill => !isPluginChild(skill)), this._discoveredDirectories, result);
-			await this.toDirectoryCustomizations(CustomizationType.Hook, hooks, this._discoveredDirectories, result);
+			await this.toDirectoryCustomizations(CustomizationType.Agent, agents.filter(agent => !isPluginChild(agent)), discoveredDirectories, result);
+			await this.toDirectoryCustomizations(CustomizationType.Rule, rules.filter(rule => !isPluginChild(rule)), discoveredDirectories, result);
+			await this.toDirectoryCustomizations(CustomizationType.Skill, skills.filter(skill => !isPluginChild(skill)), discoveredDirectories, result);
+			await this.toDirectoryCustomizations(CustomizationType.Hook, hooks, discoveredDirectories, result);
 			const sortedResult: SessionDiscoveredCustomization[] = [
 				...result.sort(compareDirectoryCustomization),
 				...pluginCustomizations.sort((a, b) => compareStrings(a.uri, b.uri)),
@@ -568,7 +600,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		return agents;
 	}
 
-	private async discoverRules(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, pluginFiles: ResourceSet, token: CancellationToken): Promise<RuleCustomization[]> {
+	private async discoverRules(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, pluginFiles: ResourceSet, discoveredDirectories: readonly IDiscoveredDirectory[], token: CancellationToken): Promise<RuleCustomization[]> {
 		const rules: RuleCustomization[] = [];
 		const seenRuleUris = new Set<string>();
 
@@ -612,7 +644,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			seenRuleUris.add(uriString);
 		}
 
-		for (const directory of this._discoveredDirectories ?? []) {
+		for (const directory of discoveredDirectories) {
 			if (directory.type !== DiscoveredType.AgentInstruction) {
 				continue;
 			}
@@ -661,6 +693,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				return undefined;
 			}
 			const parsed = await parseSkillFile(uri, this._fileService);
+			const meta = withSkillArgumentHintMeta(undefined, skill.argumentHint?.trim() || parsed.argumentHint);
 			return {
 				type: CustomizationType.Skill,
 				uri: uri.toString(),
@@ -669,6 +702,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				description: skill.description,
 				enabled: skill.enabled,
 				...toSkillInvocationFlags(skill.userInvocable, parsed.disableModelInvocation),
+				...(meta ? { _meta: meta } : {}),
 			} satisfies SkillCustomization;
 		}));
 		throwIfCancelled(token);
@@ -735,11 +769,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		let current = uriDirname(file);
 		while (true) {
 			throwIfCancelled(token);
-			if (
-				await this._fileService.exists(joinPath(current, '.plugin', 'plugin.json'))
-				|| await this._fileService.exists(joinPath(current, '.claude-plugin', 'plugin.json'))
-				|| await this._fileService.exists(joinPath(current, 'plugin.json'))
-			) {
+			if (await hasPluginManifest(current, this._fileService)) {
 				return current;
 			}
 			const parent = uriDirname(current);
@@ -966,8 +996,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 			if (existing) {
 				// Refresh trigger URIs in place; the underlying watcher is unchanged.
 				existing.resourcesToWatch.clear();
-				for (const uri of next.resourcesToWatch) {
-					existing.resourcesToWatch.add(uri);
+				for (const [uri, trigger] of next.resourcesToWatch) {
+					existing.resourcesToWatch.set(uri, trigger);
 				}
 				continue;
 			}

@@ -254,7 +254,7 @@ export class CopilotAssignmentsFilterProvider implements IExperimentationFilterP
 		filters.set('github_core_organizationid', token?.organizationList.join(','));
 		filters.set('github_core_businessid', token?.enterpriseList.join(','));
 		filters.set('github_core_isghormsftstaff', internalOrg ? '1' : '0');
-		filters.set('github_core_ghmsftorexternal', internalOrg === 'github' ? 'github' : (internalOrg === 'microsoft' || internalOrg === 'vscode') ? 'microsoft' : 'external');
+		filters.set('github_core_ghmsftorexternal', internalOrg ?? 'external');
 		filters.set('github_core_userkind', token?.userKind || undefined);
 		filters.set('github_core_copilotsku', token?.sku);
 		filters.set('github_core_issn', token?.isSn() ? '1' : '0');

@@ -10,6 +10,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IOnboardingTryoutRunOptions } from '../../../../platform/onboarding/common/onboardingTryoutHandoff.js';
 import { IOnboardingTryoutService, OnboardingTryoutResult } from '../common/onboardingTryout.js';
 
 export async function runOnboardingTryout(
@@ -19,9 +20,10 @@ export async function runOnboardingTryout(
 	commandService: ICommandService,
 	notificationService: INotificationService,
 	logService: ILogService,
+	options?: IOnboardingTryoutRunOptions,
 ): Promise<OnboardingTryoutResult> {
 	try {
-		const result = await tryoutService.run(id, token);
+		const result = await tryoutService.run(id, token, options);
 		if (result.kind === 'unavailable') {
 			const action = result.action;
 			if (action) {

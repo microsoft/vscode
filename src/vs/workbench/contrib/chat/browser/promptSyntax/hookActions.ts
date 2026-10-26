@@ -309,6 +309,12 @@ export interface IHookQuickPickOptions {
 	readonly target?: Target;
 	/** Restrict hook files and creation destinations to one storage scope. */
 	readonly preferredStorage?: PromptsStorage;
+	/** Restrict workspace hook files and creation destinations to one workspace folder. */
+	readonly workspaceFolder?: URI;
+}
+
+export function isHookResourceInWorkspace(resource: URI, workspaceFolder: URI | undefined, workspaceService: IWorkspaceContextService): boolean {
+	return !workspaceFolder || isEqual(workspaceService.getWorkspaceFolder(resource)?.uri, workspaceFolder);
 }
 
 /**
@@ -335,13 +341,15 @@ export async function showConfigureHooksQuickPick(
 	const targetOS = remoteEnv?.os ?? OS;
 
 	// Get workspace root and user home for path resolution
-	const workspaceFolder = workspaceService.getWorkspace().folders[0];
+	const workspaceFolder = options?.workspaceFolder
+		? workspaceService.getWorkspaceFolder(options.workspaceFolder)
+		: workspaceService.getWorkspace().folders[0];
 	const workspaceRootUri = workspaceFolder?.uri;
 	const userHomeUri = await pathService.userHome();
 	const userHome = userHomeUri.fsPath ?? userHomeUri.path;
 
 	// Parse all hook files upfront to count hooks per type
-	const hookEntries = await parseAllHookFiles(
+	const hookEntries = (await parseAllHookFiles(
 		promptsService,
 		fileService,
 		labelService,
@@ -350,7 +358,7 @@ export async function showConfigureHooksQuickPick(
 		targetOS,
 		CancellationToken.None,
 		{ includeAgentHooks: true, preferredStorage: options?.preferredStorage }
-	);
+	)).filter(entry => isHookResourceInWorkspace(entry.fileUri, options?.workspaceFolder, workspaceService));
 
 	// Count hooks per type
 	const hookCountByType = new Map<HookType, number>();
@@ -577,7 +585,8 @@ export async function showConfigureHooksQuickPick(
 				case Step.SelectFile: {
 					// Step 3: Handle "Add new hook" - show create new file + existing hook files.
 					const hookStorage = options?.preferredStorage ?? PromptsStorage.local;
-					const hookFiles = await promptsService.listPromptFilesForStorage(PromptsType.hook, hookStorage, CancellationToken.None);
+					const hookFiles = (await promptsService.listPromptFilesForStorage(PromptsType.hook, hookStorage, CancellationToken.None))
+						.filter(file => isHookResourceInWorkspace(file.uri, options?.workspaceFolder, workspaceService));
 
 					const fileItems: (IHookFileQuickPickItem | IQuickPickSeparator)[] = [];
 
@@ -650,7 +659,8 @@ export async function showConfigureHooksQuickPick(
 					// Get source folders for hooks (uses getSourceFolders which
 					// excludes Claude paths and normalizes to directories)
 					const allFolders = (await promptsService.getSourceFolders(PromptsType.hook))
-						.filter(folder => options?.preferredStorage === undefined || folder.storage === options.preferredStorage);
+						.filter(folder => (options?.preferredStorage === undefined || folder.storage === options.preferredStorage)
+							&& isHookResourceInWorkspace(folder.uri, options?.workspaceFolder, workspaceService));
 
 					if (allFolders.length === 0) {
 						notificationService.error(options?.preferredStorage === PromptsStorage.user
@@ -663,7 +673,7 @@ export async function showConfigureHooksQuickPick(
 					selectedFolder = allFolders[0];
 					if (allFolders.length > 1) {
 						const folderItems = allFolders.map((folder, index) => {
-							const basePath = labelService.getUriLabel(folder.uri, { relative: folder.storage === PromptsStorage.local });
+							const basePath = labelService.getUriLabel(folder.uri, { relative: folder.storage === PromptsStorage.local, noPrefix: !!options?.workspaceFolder && folder.storage === PromptsStorage.local });
 							const label = index === 0 ? localize('commands.hook.defaultFolder', "{0} (default)", basePath) : basePath;
 							return {
 								label,

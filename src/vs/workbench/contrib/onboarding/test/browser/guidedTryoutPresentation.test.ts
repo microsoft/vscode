@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { GuidedTryoutPresentation, GUIDED_TRYOUT_PRESENTATION_KIND } from '../../browser/guidedTryoutPresentation.js';
-import { IOnboardingScenario } from '../../common/onboardingScenario.js';
+import { IOnboardingRunResult, IOnboardingScenario, OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
 import { IOnboardingSequenceStep, IOnboardingSequenceStepContext, IOnboardingSequenceStepPresentation, IOnboardingSequenceStepResult, onboardingSequenceStepPresentationRegistry } from '../../common/onboardingSequence.js';
 import { IOnboardingTryoutPresentation, IOnboardingTryoutRunContext, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutPreparation } from '../../common/onboardingTryout.js';
 import { IGuidedTryoutPayload } from '../../common/onboardingTryoutActions.js';
@@ -122,6 +122,40 @@ suite('GuidedTryoutPresentation', () => {
 			events: [],
 		});
 	});
+
+	for (const { action, outcome, dismissReason } of [
+		{ action: 'next', outcome: OnboardingOutcome.Completed, dismissReason: OnboardingDismissReason.Completed },
+		{ action: 'skipSequence', outcome: OnboardingOutcome.Skipped, dismissReason: OnboardingDismissReason.EscapeKey },
+	] as const) {
+		test(`reports the launch and ${outcome} guidance without changing the launch result`, async () => {
+			const { launch, guidance } = registerLaunchAndGuidance();
+			launch.targetScope = 'prepared-instance';
+			guidance.action = { action, shown: true, dismissReason };
+			const outcomes: IOnboardingRunResult[] = [];
+			const presentation = disposables.add(new GuidedTryoutPresentation());
+			const preparation = await presentation.prepare(createScenario(), {
+				...createContext(),
+				onDidLaunch: kind => launch.events.push(`reported:${kind}`),
+				onDidFinishGuidance: result => outcomes.push(result),
+			});
+			assert.strictEqual(preparation.kind, 'ready');
+			if (preparation.kind !== 'ready') {
+				return;
+			}
+			const result = await preparation.run();
+			assert.deepStrictEqual({
+				result,
+				events: launch.events
+					.filter(event => event === 'launch' || event.startsWith('reported:') || event.startsWith('guide:'))
+					.map(event => event.startsWith('guide:') ? 'guide' : event),
+				outcomes: outcomes.map(({ outcome, shown, dismissReason }) => ({ outcome, shown, dismissReason })),
+			}, {
+				result: { kind: 'opened', targetScope: 'prepared-instance' },
+				events: ['launch', 'reported:opened', 'guide'],
+				outcomes: [{ outcome, shown: true, dismissReason }],
+			});
+		});
+	}
 
 	test('reports missing guidance after the target UI has opened', async () => {
 		const { launch, guidance } = registerLaunchAndGuidance();

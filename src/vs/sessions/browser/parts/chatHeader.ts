@@ -34,8 +34,7 @@ export class ChatHeader extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._bar = this._register(instantiationService.createInstance(SessionHeaderBar));
-		this._bar.element.draggable = false;
+		this._bar = this._register(instantiationService.createInstance(SessionHeaderBar, undefined));
 	}
 
 	setChat(context: IChatHeaderContext | undefined): void {
@@ -43,6 +42,7 @@ export class ChatHeader extends Disposable {
 			session: context.session,
 			chat: context.chat,
 			actionsTargetChat: true,
+			showParentContext: true,
 			activateChatGroup: context.activate,
 		} : undefined);
 	}

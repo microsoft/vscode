@@ -6,11 +6,12 @@
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderId, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderId, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest, withoutWorkbenchOnlySessionOptions } from '../../services/authentication/common/authentication.js';
 import { AuthenticationGetSessionOptions, AuthenticationInteractiveOptions, ExtHostAuthenticationShape, ExtHostContext, IRegisterAuthenticationProviderDetails, IRegisterDynamicAuthenticationProviderDetails, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId, NotificationActionTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
 import { ActivationKind, IExtensionService } from '../../services/extensions/common/extensions.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -45,7 +46,8 @@ export function reviveAuthenticationSession(session: Dto<AuthenticationSession>)
 }
 
 function prepareSessionRequest(options: AuthenticationGetSessionOptions) {
-	const { clearSessionPreference, createIfNone, forceNewSession, silent, ...requestOptions } = options;
+	// Workbench-only options must never be settable by an extension.
+	const { clearSessionPreference, createIfNone, forceNewSession, silent, ...requestOptions } = withoutWorkbenchOnlySessionOptions(options);
 	if (forceNewSession && createIfNone) {
 		throw new Error('Invalid combination of options. Please remove one of the following: forceNewSession, createIfNone');
 	}
@@ -176,8 +178,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(authenticationService.registerAuthenticationProviderHostDelegate({
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
 			priority: extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
-			create: async (authorizationServer, serverMetadata, resource, overrideClientId, overrideClientSecret) => {
-				const authProviderId = getDynamicAuthenticationProviderId(authorizationServer, resource);
+			create: async (authorizationServer, serverMetadata, resource, overrideClientId, overrideClientSecret, providerId) => {
+				const authProviderId = providerId ?? getDynamicAuthenticationProviderId(authorizationServer, resource);
 				const clientDetails = await this.dynamicAuthProviderStorageService.getClientRegistration(authProviderId);
 				let clientId = overrideClientId ?? clientDetails?.clientId;
 				const clientSecret = overrideClientId
@@ -197,7 +199,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					resource,
 					clientId,
 					clientSecret,
-					initialTokens
+					initialTokens,
+					authProviderId
 				);
 			},
 			createXaa: async (issuer) => {
@@ -331,12 +334,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			Severity.Warning,
 			message,
 			[{
+				telemetryId: NotificationActionTelemetryId.Continue,
 				label: yes,
 				run: () => result = true
 			}, {
+				telemetryId: NotificationActionTelemetryId.Decline,
 				label: no,
 				run: () => result = false
-			}]);
+			}], { telemetry: NotificationTelemetryId.AuthenticationContinue });
 		const disposable = handle.onDidClose(() => {
 			deferredPromise.complete(result);
 			disposable.dispose();

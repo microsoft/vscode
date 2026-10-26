@@ -183,7 +183,7 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 			return [...rootCustomizations, ...(sessionState.customizations ?? [])];
 		},
 		getFolderPickerDecision: () => undefined,
-		whenCustomizationsReady: () => Promise.resolve(),
+		whenCustomizationsReady: () => Promise.resolve(true),
 		getWorkingDirectory(sessionResource: URI): string | undefined {
 			return undefined;
 		},
@@ -299,7 +299,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			description: 'Review workspace changes',
 		}]));
 
-		const agents = await provider.provideCustomAgents(testSessionResource);
+		const agents = await provider.provideCustomAgents(testSessionResource, CancellationToken.None);
 
 		assert.deepStrictEqual(agents.map(agent => ({ name: agent.name, description: agent.description })), [{
 			name: 'Reviewer',

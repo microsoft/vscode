@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { chatSummaryFromState, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, type ChatState, type ResponsePart, type ToolCallState } from '../../../common/state/sessionState.js';
+import { chatSummaryFromState, createDefaultChatSummary, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, type ChatState, type ResponsePart, type SessionSummary, type ToolCallState } from '../../../common/state/sessionState.js';
 
 /** A tool call awaiting confirmation, optionally flagged for setting-driven auto-approval. */
 function pendingToolCall(toolCallId: string, autoApprove: boolean): ResponsePart {
@@ -100,5 +100,23 @@ suite('chatSummaryFromState status projection', () => {
 		// No blocker is attributable (activeTurn not loaded), so the status must not be fabricated.
 		const state = restoredChatState(SessionStatus.InputNeeded);
 		assert.strictEqual(chatSummaryFromState(state).status, SessionStatus.InputNeeded);
+	});
+});
+
+suite('createDefaultChatSummary status projection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('excludes session-owned read and archive flags', () => {
+		const session: SessionSummary = {
+			resource: 'agent-host-session://test',
+			provider: 'test',
+			title: 'Test',
+			status: SessionStatus.InputNeeded | SessionStatus.IsRead | SessionStatus.IsArchived,
+			createdAt: '2025-01-01T00:00:00.000Z',
+			modifiedAt: '2025-01-01T00:00:00.000Z',
+		};
+
+		assert.strictEqual(createDefaultChatSummary(session, 'ahp-chat://default/test').status, SessionStatus.InputNeeded);
 	});
 });

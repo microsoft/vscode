@@ -1,0 +1,12 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "otel-service-precedence".
+    response:
+      content: otel-service-precedence
+      stopReason: end_turn

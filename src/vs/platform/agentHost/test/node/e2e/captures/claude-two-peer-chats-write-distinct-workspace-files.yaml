@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -17,7 +17,7 @@ exchanges:
             content: FIRST_PEER
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -38,7 +38,7 @@ exchanges:
       content: created
       stopReason: end_turn
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -53,7 +53,7 @@ exchanges:
             content: SECOND_PEER
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user

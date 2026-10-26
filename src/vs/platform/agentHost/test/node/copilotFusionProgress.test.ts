@@ -14,19 +14,14 @@ import { fusionTestData as data, fusionTestEvent as event } from './copilotFusio
 suite('CopilotFusionProgress', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('explains each pattern without promising task-specific actions or listing the phase plan', () => {
-		const descriptions = [
-			['single', 'Using Single: one solver will work on your request.'],
-			['cascade', 'Using Cascade: a solver will work on your request, then another model will review and fix up the result if needed.'],
-			['critique', 'Using Critique: a solver will draft a result, another model will critique it, and the original solver will revise it if needed.'],
-		] as const;
-		for (const [pattern, description] of descriptions) {
-			const progress = new CopilotFusionProgress();
-			// The resolved event carries a phase plan; the milestone must not echo it back.
-			const result = progress.accept(event('session.fusion_resolved', { ...data.resolved, pattern }));
-			const content = JSON.stringify(result?.part?.content);
-			assert.deepStrictEqual({ description: content.includes(description), plan: content.includes('→') }, { description: true, plan: false });
-		}
+	test('names the HydraFusion model without the SDK workflow hint or the phase plan', () => {
+		const result = new CopilotFusionProgress().accept(event('session.fusion_resolved', data.resolved));
+		const content = JSON.stringify(result?.part?.content);
+		assert.deepStrictEqual({
+			hint: content.includes(data.resolved.hint),
+			plan: content.includes('→'),
+			model: result?.part && readAgentSystemNotificationMeta(result.part).fusionModel,
+		}, { hint: false, plan: false, model: 'hydrafusion' });
 	});
 
 	test('uses CLI phase labels consistently for live and replayed phases', () => {
@@ -59,10 +54,10 @@ suite('CopilotFusionProgress', () => {
 			completedPart: completed?.part,
 			degradedContent: degraded?.part?.content,
 		}, {
-			activity: 'Main pass running',
-			progress: 'Main pass running',
+			activity: 'Fix-up pass running',
+			progress: 'Fix-up pass running',
 			model: 'model-a',
-			phaseContent: [{ type: 'text', text: 'Main&nbsp;pass&nbsp;completed\n\nDuration:&nbsp;2s' }],
+			phaseContent: [{ type: 'text', text: 'Fix-up&nbsp;pass&nbsp;completed\n\nDuration:&nbsp;2s' }],
 			completedPart: undefined,
 			degradedContent: { markdown: 'HydraFusion&nbsp;workflow&nbsp;completed&nbsp;with&nbsp;a&nbsp;fallback' },
 		});
@@ -108,6 +103,17 @@ suite('CopilotFusionProgress', () => {
 			leaksDetail: false,
 			secondInterrupt: undefined,
 		});
+	});
+
+	test('milestones name the HydraFusion model the runtime routed with, including interruptions', () => {
+		const fusionModel = (update: ReturnType<CopilotFusionProgress['accept']>) => update?.part && readAgentSystemNotificationMeta(update.part).fusionModel;
+		const progress = new CopilotFusionProgress();
+		progress.accept(event('session.fusion_route_started', { ...data.routeStarted, syntheticModel: 'hydrafusion-max' }));
+		const routing = fusionModel(progress.interrupt());
+		progress.reset();
+		const selected = fusionModel(progress.accept(event('session.fusion_resolved', { ...data.resolved, syntheticModel: 'hydrafusion-max' })));
+		const afterRouting = fusionModel(progress.interrupt());
+		assert.deepStrictEqual({ routing, selected, afterRouting }, { routing: 'hydrafusion-max', selected: 'hydrafusion-max', afterRouting: 'hydrafusion-max' });
 	});
 
 	test('persists historical interruption duration from the first phase start and resets timing for the next turn', () => {

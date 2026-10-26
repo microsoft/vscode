@@ -48,14 +48,6 @@ Each extension follows the standard VS Code extension structure with `package.js
 3. **Follow imports**: Check what files import the problematic module
 4. **Check test files**: Often reveal usage patterns and expected behavior
 
-## Change Scope and Code Review
-
-- Before implementing or reviewing a change, establish its intended scope from the request, PR description, linked issue, and maintainer comments.
-- Keep fixes tied to the underlying cause. Do not change unrelated behavior, state management, or architecture merely because doing so makes the reported symptom disappear.
-- During review, account for every changed file and subsystem. Each change should be necessary for the stated goal or be a directly related test, documentation update, generated artifact, or required refactor.
-- Flag changes whose connection to the stated goal is unclear, even when tests pass or the resulting behavior appears correct. Ask for the causal link to be explained; if none exists, request that the change be reverted or moved to a separate PR.
-- Treat prerequisite or tightly coupled changes as in scope only when their necessity is clear from the implementation or PR description. Do not mistake independent cleanup or speculative improvements for required work.
-
 ## Validating TypeScript changes
 
 Choose validation based on the scope and risk of the change. Large-scale builds and typechecking can be slow, and consume significant resources, so minimize their use. Prefer existing editor or watch-task diagnostics and the smallest targeted tests that cover the changed behavior. Do not start build or watch tasks, run broad type checks, or make type checking a prerequisite for targeted tests solely as a completion ritual.
@@ -68,11 +60,17 @@ Run a targeted type check or build when you are not fully confident in the chang
 - `npm run gulp compile-extensions` for built-in extensions
 - `npm run typecheck` from the `build` folder for build tooling
 
-Development compile tasks already type-check their inputs. Do not run `npm run typecheck-client` immediately before `npm run compile` or `npm run compile-client`; choose the command that covers the required validation. When tests only need fresh output files, use the fast one-shot `npm run transpile-client` instead of compiling.
+Development compile tasks already type-check their inputs. Do not run `npm run typecheck-client` immediately before `npm run compile` or `npm run compile-client`; choose the command that covers the required validation. When tests only need fresh client output, use `npm run build-fast -- --client-only`. It supports cold builds and file-granular incremental updates without starting a watcher or building extensions. Use `npm run build-fast` when extension and Copilot outputs are also needed. The client and extension JavaScript lanes transpile rather than type-check; extension media retains its existing type checks. Run explicit type checks when the change warrants them. Reserve `npm run transpile-client` for an intentional clean client rebuild.
+
+Reuse successful validation while its relevant inputs remain unchanged, including when moving into review, commit, or PR creation. Batch related test selectors in one invocation. Prefer `npm run eslint -- <changed files>` for targeted linting; this wrapper caches results by file content. Install dependencies only when dependency inputs change or validation identifies missing dependencies; use `npm run install-fast` for a needed refresh, which skips up-to-date installations and falls back to `npm install` when required. Never share or symlink `node_modules` between worktrees.
 
 Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests and `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests. Add a targeted selector such as `--grep` whenever possible. Run `npm run valid-layers-check` only when a change may affect module layering.
 
 ## Coding Guidelines
+
+### Markdown
+
+- Do not hard-wrap Markdown prose to a fixed line width. Keep each paragraph on one source line and let the editor or renderer wrap it naturally. Preserve structural line breaks in lists, tables, code blocks, and intentional Markdown hard breaks.
 
 ### Indentation
 

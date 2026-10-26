@@ -308,9 +308,12 @@ export class AccessibleView extends Disposable {
 		if (!provider) {
 			return;
 		}
-		provider.onOpen?.();
 		const showDisposables = new DisposableStore();
 		this._showDisposables.value = showDisposables;
+		const onOpenDisposable = provider.onOpen?.();
+		if (onOpenDisposable) {
+			showDisposables.add(onOpenDisposable);
+		}
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * DIMENSIONS.WIDTH_RATIO, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
@@ -905,6 +908,9 @@ export class AccessibleView extends Disposable {
 		}
 		if (toolbarHint) {
 			hint += ' - ' + toolbarHint + '\n';
+		}
+		if (this._currentProvider?.id === AccessibleViewProviderId.Notification) {
+			hint += ' - ' + localize('notificationLinks', "If a notification contains links, they are available in the toolbar. Use Left and Right Arrow to find a link and Enter to open it.") + '\n';
 		}
 		if (chatHints) {
 			hint += chatHints;

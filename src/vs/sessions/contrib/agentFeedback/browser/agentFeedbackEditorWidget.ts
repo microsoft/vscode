@@ -8,6 +8,7 @@ import './media/agentFeedbackEditorWidget.css';
 import { $, addDisposableListener, addStandardDisposableListener, clearNode, getTotalWidth, isHTMLElement } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -26,6 +27,7 @@ import { IEditorDecorationsCollection, ScrollType } from '../../../../editor/com
 import { OverviewRulerLane } from '../../../../editor/common/model.js';
 import * as nls from '../../../../nls.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
@@ -129,6 +131,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 
@@ -160,6 +163,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 		// Toggle expand/collapse button
 		this._toggleButton = $('div.agent-feedback-widget-toggle');
+		this._register(hoverService.setupDelayedHover(this._toggleButton, () => ({
+			content: this._toggleButton.getAttribute('aria-label') ?? '',
+			style: HoverStyle.Pointer,
+		})));
 		this._updateToggleButton();
 		this._headerNode.appendChild(this._toggleButton);
 
@@ -268,10 +275,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		clearNode(this._toggleButton);
 		if (this._isExpanded) {
 			this._toggleButton.appendChild(renderIcon(Codicon.chevronUp));
-			this._toggleButton.title = nls.localize('collapse', "Collapse");
+			this._toggleButton.setAttribute('aria-label', nls.localize('collapse', "Collapse"));
 		} else {
 			this._toggleButton.appendChild(renderIcon(Codicon.chevronDown));
-			this._toggleButton.title = nls.localize('expand', "Expand");
+			this._toggleButton.setAttribute('aria-label', nls.localize('expand', "Expand"));
 		}
 	}
 

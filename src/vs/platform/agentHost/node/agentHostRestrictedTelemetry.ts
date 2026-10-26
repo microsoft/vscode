@@ -81,7 +81,7 @@ const COMPRESSED_CHUNK_SUFFIX = 'Chunk';
 // Fields that are always emitted as a compressed chunk family, regardless of their length. These
 // are known to frequently exceed the per-property limit, so always producing the compressed chunk
 // family gives the backend a single, uniform place to read the value from.
-const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'diffsJSON']);
+const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'messageText', 'diffsJSON', 'prompt']);
 
 const gzip = promisify(zlib.gzip);
 

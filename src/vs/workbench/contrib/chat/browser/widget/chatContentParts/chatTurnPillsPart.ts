@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../../../base/common/observable.js';
@@ -93,7 +94,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		this._register(renderChangesSummaryFileList(details, this._diffs, this._instantiationService, this._editorService, this._configurationService));
 
 		this._register(autorun(reader => {
-			this.domNode.style.display = showChanges.read(reader) ? '' : 'none';
+			this.domNode.hidden = !showChanges.read(reader);
 		}));
 	}
 
@@ -106,7 +107,8 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		const removedLabel = counts.appendChild($('span.deletions'));
 
 		const hoverDisposable = this._hoverService.setupDelayedHover(counts, () => ({
-			content: localize2('chat.viewTurnFileChangesSummary', 'View All File Changes')
+			content: localize2('chat.viewTurnFileChangesSummary', 'View Turn Changes'),
+			style: HoverStyle.Pointer,
 		}));
 		const clickDisposable = dom.addDisposableListener(counts, 'click', (e) => {
 			this._openChanges();
@@ -122,8 +124,8 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			addedLabel.textContent = `+${insertions}`;
 			removedLabel.textContent = `-${deletions}`;
 			counts.setAttribute('aria-label', localize(
-				'chat.turnChanges.viewAllAccessible',
-				'View all file changes: {0}, {1} lines added, {2} lines deleted',
+				'chat.turnChanges.viewTurnAccessible',
+				'View turn changes: {0}, {1} lines added, {2} lines deleted',
 				fileCountLabel,
 				insertions,
 				deletions

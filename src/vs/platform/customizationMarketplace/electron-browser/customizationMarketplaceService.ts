@@ -4,55 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
 import { Lazy } from '../../../base/common/lazy.js';
-import { revive } from '../../../base/common/marshalling.js';
-import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { IProductService } from '../../product/common/productService.js';
-import { CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME } from '../common/customizationMarketplaceIpc.js';
-import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../common/customizationMarketplaceSources.js';
-import { createMcpGalleryMarketplaceProviders, getCustomizationMarketplaceSourceInfos } from '../common/mcpGalleryMarketplaceProvider.js';
+import { IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
+import { IPlatformCustomizationMarketplaceService } from '../common/platformCustomizationMarketplaceService.js';
+import { CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcesChangeEvent } from '../common/customizationMarketplaceService.js';
+import { queryEnabledCustomizationMarketplaceSources } from '../common/customizationMarketplaceSources.js';
+import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../common/mcpGalleryMarketplaceProvider.js';
 
 export class NativeCustomizationMarketplaceService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
-	readonly allSources = Object.values(CustomizationMarketplaceSources);
-	get sources() { return getCustomizationMarketplaceSourceInfos(this.configurationService, this.productService); }
+	readonly allSources = getAllMcpGalleryMarketplaceSourceInfos();
+	readonly onDidChangeSources: Event<ICustomizationMarketplaceSourcesChangeEvent>;
+	get sources() { return getCustomizationMarketplaceSourceInfos(this.mcpGalleryManifestService.mcpGalleryManifestStatus); }
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
+		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 	) {
+		this.onDidChangeSources = Event.map(mcpGalleryManifestService.onDidChangeMcpGalleryManifestStatus, () => ({ sourceIds: this.allSources.map(source => source.id) }));
+		void mcpGalleryManifestService.getMcpGalleryManifest();
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
 			...createMcpGalleryMarketplaceProviders(instantiationService),
-			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => {
-				const channel = sharedProcessService.getChannel(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME);
-				return {
-					id: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
-					query: async (options, token) => {
-						const page = revive<ICustomizationMarketplacePage>(await channel.call<ICustomizationMarketplacePage>('query', {
-							...options,
-							cursor: options.cursor ? { token: options.cursor } : undefined,
-							sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
-						}, token));
-						return { items: page.items, total: page.total, nextCursor: page.nextCursor?.token, error: page.sourceErrors?.[0]?.message };
-					},
-				};
-			}),
 		]));
 	}
 
-	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
+	query(options: ICustomizationMarketplaceQuery, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
 		return queryEnabledCustomizationMarketplaceSources(
 			this.configurationService, this.sources, options, token,
-			(request, token) => this.service.value.query(request, token),
+			(request, token, onProgress) => this.service.value.query(request, token, onProgress),
+			onProgress,
 		);
 	}
 }
 
-registerSingleton(ICustomizationMarketplaceService, NativeCustomizationMarketplaceService, InstantiationType.Delayed);
+registerSingleton(IPlatformCustomizationMarketplaceService, NativeCustomizationMarketplaceService, InstantiationType.Delayed);

@@ -6,10 +6,14 @@
 import * as vscode from 'vscode';
 import { JsonSchema } from '../../../platform/configuration/common/jsonSchema';
 import { CancellationError } from '../../../util/vs/base/common/errors';
+import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
+import { generateUuid } from '../../../util/vs/base/common/uuid';
+import { McpTargetFormat } from './mcpConfigurationGeneration';
 
 export class McpPickRef {
 	public _inner?: { type: 'pick'; value: vscode.QuickPick<vscode.QuickPickItem> } | { type: 'input'; value: vscode.InputBox };
 	private _isDisposed = false;
+	public readonly references: string[] = [];
 
 	public readonly picks: {
 		id: string;
@@ -17,7 +21,7 @@ export class McpPickRef {
 		choice: string;
 	}[] = [];
 
-	constructor(private _inputBarrier: Promise<void>) {
+	constructor(private _inputBarrier: Promise<void>, public readonly targetFormat: McpTargetFormat = 'vscode') {
 		this._inputBarrier.then(() => {
 
 			if (!this._inner && !this._isDisposed) {
@@ -39,6 +43,25 @@ export class McpPickRef {
 		const input = this.getInput();
 		input.busy = false;
 		return input;
+	}
+
+	public recordInput(title: string, choice: string): string {
+		if (this.targetFormat === 'copilotGlobal') {
+			if (!/^[A-Z_][A-Z0-9_]*$/.test(choice)) {
+				throw new Error(vscode.l10n.t("Enter an environment variable name, not its value."));
+			}
+			const reference = '${' + choice + '}';
+			this.references.push(reference);
+			return reference;
+		}
+		if (!choice) {
+			return '';
+		}
+		const id = `mcp-${generateUuid()}`;
+		this.picks.push({ id, title, choice });
+		const reference = '${input:' + id + '}';
+		this.references.push(reference);
+		return reference;
 	}
 
 	public reset() {
@@ -123,24 +146,31 @@ export class QuickInputTool {
 	public static async invoke(ref: McpPickRef, args: IQuickInputToolArgs): Promise<vscode.LanguageModelToolResult> {
 		const input = await ref.input();
 		input.title = args.title;
-		input.placeholder = args.placeholder;
-		if (args.value) {
-			input.value = args.value;
-		}
+		const environmentReference = ref.targetFormat === 'copilotGlobal';
+		input.prompt = environmentReference ? vscode.l10n.t("Enter the name of an environment variable to set on the agent-host machine, not its value.") : undefined;
+		input.placeholder = environmentReference ? 'MY_API_KEY' : args.placeholder;
+		input.value = environmentReference ? '' : args.value ?? '';
+		input.password = !environmentReference;
 		input.ignoreFocusOut = true;
 
+		const store = new DisposableStore();
 		const result = await new Promise<string | undefined>((resolve) => {
-			input.onDidAccept(() => {
+			store.add(input.onDidAccept(() => {
 				const value = input.value;
+				if (environmentReference && !/^[A-Z_][A-Z0-9_]*$/.test(value)) {
+					input.validationMessage = vscode.l10n.t("Use an environment variable name containing uppercase letters, digits, or underscores, starting with a letter or underscore.");
+					return;
+				}
 				resolve(value);
-			});
+			}));
 
-			input.onDidHide(() => {
+			store.add(input.onDidHide(() => {
 				resolve(undefined);
-			});
+			}));
 
 			input.show();
-		});
+		}).finally(() => store.dispose());
+		input.validationMessage = undefined;
 
 		ref.reset();
 
@@ -148,8 +178,7 @@ export class QuickInputTool {
 			throw new CancellationError();
 		}
 
-		ref.picks.push({ id: args.id, title: args.title, choice: result });
-		return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(`${args.title}: ${result}`)]);
+		return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(`${args.title}: ${ref.recordInput(args.title, result)}`)]);
 	}
 }
 

@@ -20,8 +20,8 @@ import type { URI } from '../common/state.js';
  * AHP does not redeclare the OTLP type system; clients SHOULD use an
  * OpenTelemetry SDK or schema to parse it.
  *
- * Like all stateless-channel notifications, this is ephemeral: it is not
- * replayed on reconnect. Subscribers receive only batches emitted after
+ * Like other protocol notifications, this is not stored in the channel's
+ * state and is not replayed on reconnect. Subscribers receive only batches emitted after
  * their `subscribe` succeeds.
  *
  * @category Telemetry Notifications

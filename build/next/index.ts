@@ -21,6 +21,7 @@ import packageJson from '../../package.json' with { type: 'json' };
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
 import { bundleDevTunnelsWeb, devTunnelsWebOutDir } from './devTunnelsWeb.ts';
+import { agentHostCryptoOutDir, bundleAgentHostCrypto } from './agentHostCrypto.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
 import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
@@ -38,7 +39,7 @@ const commit = getVersion(REPO_ROOT);
 const quality = (product as { quality?: string }).quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-// CLI: build-fast [--force] | transpile [--watch] | bundle [--minify] [--nls] [--out <dir>]
+// CLI: build-fast [--force] [--client-only] | transpile [--watch] | bundle [--minify] [--nls] [--out <dir>]
 const command = process.argv[2];
 
 function getArgValue(name: string): string | undefined {
@@ -56,6 +57,7 @@ const options = {
 	manglePrivates: process.argv.includes('--mangle-privates'),
 	excludeTests: process.argv.includes('--exclude-tests'),
 	force: process.argv.includes('--force'),
+	clientOnly: process.argv.includes('--client-only'),
 	out: getArgValue('--out'),
 	target: getArgValue('--target') ?? 'desktop', // 'desktop' | 'server' | 'server-web' | 'web'
 	sourceMapBaseUrl: getArgValue('--source-map-base-url'),
@@ -89,6 +91,7 @@ const workerEntryPoints = [
 	'vs/workbench/services/languageDetection/browser/languageDetectionWebWorkerMain',
 	'vs/workbench/services/search/worker/localFileSearchMain',
 	'vs/workbench/contrib/output/common/outputLinkComputerMain',
+	'vs/workbench/contrib/mediaPreview/browser/imageEncoderWorkerMain',
 	'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain',
 ];
 
@@ -337,6 +340,18 @@ function cssExternalPlugin(): esbuild.Plugin {
 	};
 }
 
+function mainImplExternalPlugin(): esbuild.Plugin {
+	return {
+		name: 'main-impl-external',
+		setup(build) {
+			build.onResolve({ filter: /^\.\/mainImpl\.js$/ }, args => ({
+				path: args.path,
+				external: true,
+			}));
+		},
+	};
+}
+
 /**
  * esbuild plugin that transforms source files to inject build-time configuration.
  * This runs during onLoad so the transformation happens before esbuild processes the content,
@@ -523,6 +538,9 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 		const outPath = path.join(REPO_ROOT, outDir, `${entry}.js`);
 
 		const bootstrapPlugins: esbuild.Plugin[] = [inlineMinimistPlugin(), contentMapperPlugin];
+		if (entry === 'main') {
+			bootstrapPlugins.push(mainImplExternalPlugin());
+		}
 		if (doNls) {
 			bootstrapPlugins.unshift(nlsPlugin({
 				baseDir: path.join(REPO_ROOT, SRC_DIR),
@@ -678,6 +696,14 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	// Compile standalone TypeScript files (like Electron preload scripts) that cannot be bundled
 	await compileStandaloneFiles(path.join(REPO_ROOT, SRC_DIR), outDirPath, target, doMinify, sourceMapBaseUrl);
 
+	if (target !== 'server') {
+		await bundleAgentHostCrypto({
+			minify: doMinify,
+			outDir: path.join(outDir, agentHostCryptoOutDir),
+			sourceMapBaseUrl: sourceMapBaseUrl ? `${sourceMapBaseUrl}/${agentHostCryptoOutDir}` : undefined,
+		});
+	}
+
 	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
 		await bundleDevTunnelsWeb({
 			minify: doMinify,
@@ -710,6 +736,7 @@ async function watch(): Promise<void> {
 	try {
 		await transpile(outDir, false);
 		await copyAllNonTsFiles(outDir, false);
+		await bundleAgentHostCrypto({ outDir: path.join(outDir, agentHostCryptoOutDir) });
 		console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
 	} catch (err) {
 		console.error('[watch] Initial build failed:', err);
@@ -809,7 +836,8 @@ Commands:
 	bundle             Bundle entry points into optimized bundles
 
 Options for 'build-fast':
-	--force            Ignore incremental state and rebuild all lanes
+	--force            Ignore incremental state and rebuild selected lanes
+	--client-only      Only refresh client output; skip extensions and Copilot
 
 Options for 'transpile':
 	--watch            Watch for changes and rebuild incrementally
@@ -826,6 +854,7 @@ Options for 'bundle':
 
 Examples:
 	npx tsx build/next/index.ts build-fast
+	npx tsx build/next/index.ts build-fast --client-only
 	npx tsx build/next/index.ts build-fast --force
 	npx tsx build/next/index.ts transpile
 	npx tsx build/next/index.ts transpile --watch
@@ -845,7 +874,7 @@ async function main(): Promise<void> {
 	try {
 		switch (command) {
 			case 'build-fast':
-				await runBuildFast(REPO_ROOT, options.force);
+				await runBuildFast(REPO_ROOT, options.force, options.clientOnly);
 				break;
 			case 'transpile':
 				if (options.watch) {
@@ -863,6 +892,7 @@ async function main(): Promise<void> {
 					const t1 = Date.now();
 					await transpile(outDir, options.excludeTests);
 					await copyAllNonTsFiles(outDir, options.excludeTests);
+					await bundleAgentHostCrypto({ outDir: path.join(outDir, agentHostCryptoOutDir) });
 					console.log(`[transpile] Done in ${Date.now() - t1}ms`);
 				}
 				break;

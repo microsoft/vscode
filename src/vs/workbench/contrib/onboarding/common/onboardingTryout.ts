@@ -13,8 +13,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IOnboardingTryoutRunOptions } from '../../../../platform/onboarding/common/onboardingTryoutHandoff.js';
 import { onboardingScenarioRegistry } from './onboardingRegistry.js';
-import { IOnboardingPresentationRef, IOnboardingScenario } from './onboardingScenario.js';
+import { IOnboardingPresentationRef, IOnboardingRunResult, IOnboardingScenario } from './onboardingScenario.js';
 
 export const RUN_ONBOARDING_TRYOUT_COMMAND_ID = 'workbench.action.onboarding.tryFeature';
 export const ONBOARDING_TRYOUT_URL_AUTHORITY = 'tryout';
@@ -62,6 +63,9 @@ export interface IOnboardingTryoutRunContext {
 	readonly id: string;
 	readonly token: CancellationToken;
 	readonly store: DisposableStore;
+	readonly options?: IOnboardingTryoutRunOptions;
+	readonly onDidLaunch?: (kind: 'opened' | 'executed' | 'prepared') => void;
+	readonly onDidFinishGuidance?: (result: IOnboardingRunResult) => void;
 }
 
 export type OnboardingTryoutPreparation =
@@ -134,7 +138,7 @@ export interface IOnboardingTryoutService {
 	getTryout(id: string): IOnboardingTryoutScenario | undefined;
 	getTryouts(): readonly IOnboardingTryoutScenario[];
 	getAvailability(id: string): OnboardingTryoutAvailability;
-	run(id: string, token?: CancellationToken): Promise<OnboardingTryoutResult>;
+	run(id: string, token?: CancellationToken, options?: IOnboardingTryoutRunOptions): Promise<OnboardingTryoutResult>;
 }
 
 export function isOnboardingTryoutId(value: unknown): value is string {

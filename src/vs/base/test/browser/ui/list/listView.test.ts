@@ -7,11 +7,159 @@ import assert from 'assert';
 import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { ListView } from '../../../../browser/ui/list/listView.js';
 import { range } from '../../../../common/arrays.js';
+import { DisposableStore } from '../../../../common/lifecycle.js';
 import { IRange } from '../../../../common/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListView', function () {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const horizontalScrolling of [false, true]) {
+		for (const supportDynamicHeights of [false, true]) {
+			if (horizontalScrolling && supportDynamicHeights) {
+				continue;
+			}
+			test(`recovers when rendering collapses the viewport (horizontal: ${horizontalScrolling}, dynamic: ${supportDynamicHeights})`, () => {
+				const disposables = store.add(new DisposableStore());
+				const element = document.createElement('div');
+				const delegate: IListVirtualDelegate<number> = {
+					getHeight() { return 20; },
+					getTemplateId() { return 'template'; },
+					getDynamicHeight() { return 20; }
+				};
+				const rendered: number[] = [];
+				const disposed: number[] = [];
+				const dragURIs: number[] = [];
+				let templates = 0;
+				let collapseOnRender = true;
+				const renderer: IListRenderer<number, HTMLElement> = {
+					templateId: 'template',
+					renderTemplate(container) {
+						templates++;
+						return container;
+					},
+					renderElement(value, _index, container) {
+						rendered.push(value);
+						container.textContent = String(value);
+						if (collapseOnRender) {
+							collapseOnRender = false;
+							listView.layout(0, 200);
+						}
+					},
+					disposeElement(value) { disposed.push(value); },
+					disposeTemplate() { templates--; }
+				};
+				const listView = disposables.add(new ListView<number>(element, delegate, [renderer], {
+					horizontalScrolling,
+					supportDynamicHeights,
+					dnd: {
+						getDragElements(value) { return [value]; },
+						getDragURI(value) {
+							dragURIs.push(value);
+							return value === 42 ? 'test:42' : null;
+						},
+						onDragStart() { },
+						onDragOver() { return false; },
+						drop() { },
+						dispose() { }
+					}
+				}));
+				listView.layout(200, 200);
+				listView.splice(0, 0, [42]);
+
+				assert.deepStrictEqual({
+					length: listView.length,
+					row: listView.domElement(0),
+					rowsInDOM: element.querySelectorAll('.monaco-list-row').length,
+					rendered,
+					disposed,
+					dragURIs
+				}, {
+					length: 1,
+					row: null,
+					rowsInDOM: 0,
+					rendered: [42],
+					disposed: [42],
+					dragURIs: []
+				});
+
+				listView.layout(200, 200);
+				const row = listView.domElement(0)!;
+				assert.deepStrictEqual({
+					text: row.textContent,
+					draggable: row.draggable,
+					rendered,
+					dragURIs,
+					templates
+				}, {
+					text: '42',
+					draggable: true,
+					rendered: [42, 42],
+					dragURIs: [42],
+					templates: 1
+				});
+
+				listView.splice(0, 1, [7]);
+				assert.deepStrictEqual({
+					reused: listView.domElement(0) === row,
+					text: row.textContent,
+					draggable: row.draggable,
+					rendered,
+					disposed,
+					dragURIs
+				}, {
+					reused: true,
+					text: '7',
+					draggable: false,
+					rendered: [42, 42, 7],
+					disposed: [42, 42],
+					dragURIs: [42, 7]
+				});
+
+				disposables.dispose();
+				assert.deepStrictEqual({ templates, disposed }, { templates: 0, disposed: [42, 42, 7] });
+			});
+		}
+	}
+
+	test('does not render stale insertion ranges after a reentrant viewport collapse', () => {
+		const element = document.createElement('div');
+		let collapseOnRender = false;
+		const renderer: IListRenderer<number, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) { return container; },
+			renderElement(value, _index, container) {
+				container.textContent = String(value);
+				if (collapseOnRender) {
+					collapseOnRender = false;
+					listView.layout(0, 200);
+				}
+			},
+			disposeTemplate() { }
+		};
+		const listView = store.add(new ListView<number>(element, {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; }
+		}, [renderer]));
+		listView.layout(200, 200);
+		listView.splice(0, 0, [1, 2, 3]);
+		collapseOnRender = true;
+		listView.splice(0, 3, [4, 5, 6]);
+		const collapsedRows = element.querySelectorAll('.monaco-list-row').length;
+
+		listView.splice(0, 3, [7]);
+		listView.layout(200, 200);
+
+		assert.deepStrictEqual({
+			collapsedRows,
+			length: listView.length,
+			renderedRows: Array.from(element.querySelectorAll('.monaco-list-row'), row => row.textContent)
+		}, {
+			collapsedRows: 0,
+			length: 1,
+			renderedRows: ['7']
+		});
+	});
 
 	test('all rows get disposed', function () {
 		const element = document.createElement('div');
@@ -203,6 +351,194 @@ suite('ListView', function () {
 		} finally {
 			listView.dispose();
 			element.remove();
+		}
+	});
+
+	test('preserves existing rows while measuring overestimated appended rows', function () {
+		const container = document.createElement('div');
+		container.style.height = '300px';
+		container.style.width = '200px';
+		document.body.appendChild(container);
+
+		type TestElement = { height: number };
+		type Template = { container: HTMLElement; element?: TestElement };
+		const delegate = new class extends CachedListVirtualDelegate<TestElement> {
+			protected estimateHeight() { return 200; }
+			getTemplateId() { return 'template'; }
+			hasDynamicHeight() { return true; }
+		};
+		const renderer: IListRenderer<TestElement, Template> = {
+			templateId: 'template',
+			renderTemplate(container) { return { container }; },
+			renderElement(element, _index, template) {
+				if (template.element !== element) {
+					template.element = element;
+					const content = document.createElement('div');
+					content.style.height = `${element.height}px`;
+					template.container.replaceChildren(content);
+				}
+			},
+			disposeTemplate() { }
+		};
+		const listView = new ListView<TestElement>(container, delegate, [renderer], { supportDynamicHeights: true });
+		try {
+			listView.layout(300, 200);
+			listView.splice(0, 0, [{ height: 400 }]);
+			listView.scrollTop = listView.scrollHeight;
+			const originalContent = listView.domElement(0)?.firstElementChild;
+			assert.ok(originalContent);
+
+			listView.splice(1, 0, [{ height: 30 }, { height: 20 }]);
+			listView.scrollTop = listView.scrollHeight;
+
+			assert.deepStrictEqual({
+				sameContent: listView.domElement(0)?.firstElementChild === originalContent,
+				connected: originalContent.isConnected,
+				contentHeight: listView.contentHeight,
+				scrollTop: listView.scrollTop,
+			}, {
+				sameContent: true,
+				connected: true,
+				contentHeight: 450,
+				scrollTop: 150,
+			});
+		} finally {
+			listView.dispose();
+			container.remove();
+		}
+	});
+
+	test('reuses a bounded row pool while measuring appended rows', function () {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+
+		type TestElement = { height: number };
+		const delegate = new class extends CachedListVirtualDelegate<TestElement> {
+			protected estimateHeight() { return 200; }
+			getTemplateId() { return 'template'; }
+			hasDynamicHeight() { return true; }
+		};
+		let templatesCount = 0;
+		const renderer: IListRenderer<TestElement, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) {
+				templatesCount++;
+				const content = document.createElement('div');
+				container.appendChild(content);
+				return content;
+			},
+			renderElement(element, _index, content) {
+				content.style.height = `${element.height}px`;
+			},
+			disposeTemplate() { templatesCount--; }
+		};
+		const listView = new ListView<TestElement>(container, delegate, [renderer], { supportDynamicHeights: true });
+		let warmedTemplatesCount = 0;
+		let finalTemplatesCount = 0;
+		try {
+			listView.layout(300, 200);
+			for (let batch = 0; batch < 100; batch++) {
+				listView.splice(listView.length, 0, [{ height: 30 }, { height: 20 }]);
+				listView.scrollTop = listView.scrollHeight;
+				if (batch === 49) {
+					warmedTemplatesCount = templatesCount;
+				}
+			}
+			finalTemplatesCount = templatesCount;
+		} finally {
+			listView.dispose();
+			container.remove();
+		}
+		assert.deepStrictEqual({
+			allocatedTemplates: warmedTemplatesCount > 0,
+			templatesAfterMoreRows: finalTemplatesCount,
+			templatesAfterDisposal: templatesCount,
+		}, {
+			allocatedTemplates: true,
+			templatesAfterMoreRows: warmedTemplatesCount,
+			templatesAfterDisposal: 0,
+		});
+	});
+
+	test('updates data-index when reusing dynamic height measurement rows', function () {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+
+		type TestElement = { id: string; height: number };
+		type Template = { row: HTMLElement; content: HTMLElement };
+		const delegate: IListVirtualDelegate<TestElement> = {
+			getHeight() { return 25; },
+			getTemplateId() { return 'template'; },
+			hasDynamicHeight() { return true; }
+		};
+
+		const cachedRows = new Set<HTMLElement>();
+		let phase: 'single' | 'batched' | undefined;
+		const renderedIndices: { phase: string; index: number; dataIndex: string | undefined; reused: boolean }[] = [];
+		const contextMenuTargets: { index: number | undefined; element: string | undefined }[] = [];
+		const renderer: IListRenderer<TestElement, Template> = {
+			templateId: 'template',
+			renderTemplate(row) {
+				const content = document.createElement('div');
+				row.appendChild(content);
+				return { row, content };
+			},
+			renderElement(element, index, { row, content }) {
+				content.style.height = `${element.height}px`;
+				if (phase) {
+					renderedIndices.push({ phase, index, dataIndex: row.dataset.index, reused: cachedRows.has(row) });
+					content.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+				}
+			},
+			disposeTemplate() { }
+		};
+
+		const elements: TestElement[] = range(10).map(index => ({ id: String(index), height: 25 }));
+		const listView = new ListView<TestElement>(container, delegate, [renderer], { supportDynamicHeights: true });
+		store.add(listView.onContextMenu(event => {
+			contextMenuTargets.push({ index: event.index, element: event.element?.id });
+		}));
+		try {
+			listView.layout(250, 200);
+			listView.splice(0, 0, elements);
+			for (let index = 1; index < listView.length; index++) {
+				cachedRows.add(listView.domElement(index)!);
+			}
+
+			listView.layout(25, 200);
+			listView.splice(3, 7);
+			assert.strictEqual(listView.domElement(2), null);
+
+			phase = 'single';
+			listView.updateElementHeight(2, undefined, null);
+
+			phase = 'batched';
+			for (const element of elements) {
+				element.height = 5;
+			}
+			listView.domElement(0)!.querySelector<HTMLElement>('div')!.style.height = '5px';
+			listView.rerender();
+
+			assert.deepStrictEqual({
+				renderedIndices,
+				contextMenuTargets,
+				finalIndices: range(listView.length).map(index => listView.domElement(index)?.dataset.index)
+			}, {
+				renderedIndices: [
+					{ phase: 'single', index: 2, dataIndex: '2', reused: true },
+					{ phase: 'batched', index: 1, dataIndex: '1', reused: true },
+					{ phase: 'batched', index: 2, dataIndex: '2', reused: true }
+				],
+				contextMenuTargets: [
+					{ index: 2, element: '2' },
+					{ index: 1, element: '1' },
+					{ index: 2, element: '2' }
+				],
+				finalIndices: ['0', '1', '2']
+			});
+		} finally {
+			listView.dispose();
+			container.remove();
 		}
 	});
 

@@ -9,6 +9,8 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { ISandboxNetworkRestrictions } from '../../../sandbox/common/sandboxSettingsResolutionHelper.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { AgentNetworkFilterService } from '../../common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../common/settings.js';
 
@@ -58,10 +60,72 @@ suite('AgentNetworkFilterService', () => {
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://blocked.com')), true);
 	});
 
+	test('explicit browser sandbox restrictions reuse the domain filter without enabling networkFilter', async () => {
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, false);
+		const service = await createService();
+		const restrictions: ISandboxNetworkRestrictions = {
+			sandboxEnabled: true, allowNetwork: true, allowedDomains: ['*.example.com'], deniedDomains: ['private.example.com'],
+		};
+		assert.deepStrictEqual({
+			enabled: service.isEnabled(restrictions),
+			allowed: ['https://example.com', 'https://docs.example.com', 'https://private.example.com', 'https://other.com'].map(url => service.isUriAllowed(URI.parse(url), restrictions)),
+		}, { enabled: true, allowed: [true, true, false, false] });
+	});
+
+	test('explicit browser sandbox outbound access without an allow list permits non-denied hosts', async () => {
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, false);
+		const service = await createService();
+		const restrictions: ISandboxNetworkRestrictions = { sandboxEnabled: true, allowNetwork: true, allowedDomains: [], deniedDomains: [] };
+		const withoutLists = service.isUriAllowed(URI.parse('https://example.com'), restrictions);
+		assert.deepStrictEqual({
+			withoutLists,
+			withDeniedList: ['https://example.com', 'https://evil.com'].map(url => service.isUriAllowed(URI.parse(url), { ...restrictions, deniedDomains: ['evil.com'] })),
+		}, { withoutLists: true, withDeniedList: [true, false] });
+	});
+
+	test('Copilot session restrictions do not affect other harnesses or sessions', async () => {
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, false);
+		configService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
+		configService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
+		const service = await createService();
+		const restrictions: ISandboxNetworkRestrictions = {
+			sandboxEnabled: true, allowNetwork: true, allowedDomains: ['example.com'], deniedDomains: [],
+		};
+		const snapshot = (values?: ISandboxNetworkRestrictions) => ({
+			enabled: service.isEnabled(values),
+			allowed: ['https://example.com', 'https://other.com'].map(url => service.isUriAllowed(URI.parse(url), values)),
+		});
+		const states = [snapshot(), snapshot(restrictions), snapshot({ ...restrictions, allowNetwork: false }), snapshot()];
+		assert.deepStrictEqual(states, [
+			{ enabled: false, allowed: [true, true] },
+			{ enabled: true, allowed: [true, false] },
+			{ enabled: true, allowed: [false, false] },
+			{ enabled: false, allowed: [true, true] },
+		]);
+	});
+
 	test('denies all domains when both lists are empty', async () => {
 		const service = await createService();
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://example.com')), false);
 		assert.strictEqual(service.isUriAllowed(URI.parse('https://anything.test')), false);
+	});
+
+	test('only explicit browser restrictions enable sandbox filtering, without caching across calls', async () => {
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, false);
+		configService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+		configService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, false);
+		const service = await createService();
+		const uri = URI.parse('https://example.com');
+		const restrictions: ISandboxNetworkRestrictions = { sandboxEnabled: true, allowNetwork: true, allowedDomains: [], deniedDomains: [] };
+		assert.deepStrictEqual([
+			service.isUriAllowed(uri),
+			service.isUriAllowed(uri, restrictions),
+			service.isUriAllowed(uri, { ...restrictions, deniedDomains: ['example.com'] }),
+			service.isUriAllowed(uri, { ...restrictions, sandboxEnabled: false }),
+			service.isUriAllowed(URI.parse('wss://example.com'), { ...restrictions, allowNetwork: false }),
+			service.isUriAllowed(URI.file('C:\\test.txt'), { ...restrictions, allowNetwork: false }),
+		], [true, true, false, true, false, true]);
 	});
 
 	test('blocks denied domains', async () => {

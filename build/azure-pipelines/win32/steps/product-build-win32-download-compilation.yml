@@ -1,0 +1,29 @@
+parameters:
+  - name: VSCODE_DOWNLOAD_OUT_BUILD
+    type: boolean
+    default: false
+
+# Downloads the compilation artifact published by the compile job (see
+# product-build-win32.yml) and places its contents where the compile job
+# created them.
+steps:
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: compilation_win32_$(VSCODE_ARCH)
+      ${{ if eq(parameters.VSCODE_DOWNLOAD_OUT_BUILD, false) }}:
+        patterns: builds.7z
+      path: $(Agent.TempDirectory)/compilation
+    displayName: Download compilation artifact
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { 7z.exe x "$(Agent.TempDirectory)\compilation\builds.7z" "-o$(Agent.BuildDirectory)" -aoa }
+    displayName: Extract client, server and web server builds
+
+  - ${{ if eq(parameters.VSCODE_DOWNLOAD_OUT_BUILD, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { 7z.exe x "$(Agent.TempDirectory)\compilation\out-build.7z" "-o$(Build.SourcesDirectory)" -aoa }
+      displayName: Extract out-build

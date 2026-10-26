@@ -21,9 +21,9 @@ suite('McpCopilotConfiguration', () => {
 			toCopilotMcpServerConfiguration({ type: McpServerType.REMOTE, url: 'https://example.com/mcp' }),
 			toCopilotMcpServerConfiguration({ type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com/sse', headers: { Authorization: '$TOKEN' }, oauth: { clientId: 'client' } }),
 		], [
-			{ type: 'local', command: 'node', args: [], tools: ['*'] },
-			{ type: 'local', command: 'node', args: ['server.js'], tools: ['*'], env: { TOKEN: '$TOKEN', PORT: '3000' }, cwd: '/configured' },
-			{ type: 'local', command: 'node', args: [], tools: ['*'], cwd: '/resolved' },
+			{ type: 'stdio', command: 'node', args: [], tools: ['*'] },
+			{ type: 'stdio', command: 'node', args: ['server.js'], tools: ['*'], env: { TOKEN: '$TOKEN', PORT: '3000' }, cwd: '/configured' },
+			{ type: 'stdio', command: 'node', args: [], tools: ['*'], cwd: '/resolved' },
 			{ type: 'http', url: 'https://example.com/mcp', tools: ['*'] },
 			{ type: 'sse', url: 'https://example.com/sse', tools: ['*'], headers: { Authorization: '$TOKEN' }, oauthClientId: 'client' },
 		]);
@@ -49,5 +49,23 @@ suite('McpCopilotConfiguration', () => {
 			getCopilotGlobalMcpConfigurationResource({ homedir }).path,
 			getCopilotGlobalMcpConfigurationResource({ homedir, copilotHome: URI.file('/custom') }).path,
 		], ['/home/me/.copilot/mcp-config.json', '/custom/mcp-config.json']);
+	});
+
+	test('preserves the remote discovery scheme and authority for default and custom Copilot homes', () => {
+		const resources = ['/home/remote', '/c:/Users/remote'].flatMap(path => {
+			const homedir = URI.parse(`vscode-remote://ssh-remote+test${path}`);
+			const copilotHome = URI.parse('vscode-remote://ssh-remote+test/custom/copilot');
+			return [
+				getCopilotGlobalMcpConfigurationResource({ homedir }).toString(),
+				getCopilotGlobalMcpConfigurationResource({ homedir, copilotHome }).toString(),
+			];
+		});
+
+		assert.deepStrictEqual(resources, [
+			URI.parse('vscode-remote://ssh-remote+test/home/remote/.copilot/mcp-config.json').toString(),
+			URI.parse('vscode-remote://ssh-remote+test/custom/copilot/mcp-config.json').toString(),
+			URI.parse('vscode-remote://ssh-remote+test/c:/Users/remote/.copilot/mcp-config.json').toString(),
+			URI.parse('vscode-remote://ssh-remote+test/custom/copilot/mcp-config.json').toString(),
+		]);
 	});
 });

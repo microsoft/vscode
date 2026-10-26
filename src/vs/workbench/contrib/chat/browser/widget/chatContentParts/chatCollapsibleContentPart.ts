@@ -82,24 +82,9 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	}
 
 	protected init(): HTMLElement {
-		const referencesLabel = this.title;
-
-
 		const buttonElement = $('.chat-used-context-label', undefined);
-
-		const collapseButton = this._register(new ButtonWithIcon(buttonElement, {
-			buttonBackground: undefined,
-			buttonBorder: undefined,
-			buttonForeground: undefined,
-			buttonHoverBackground: undefined,
-			buttonSecondaryBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryHoverBackground: undefined,
-			buttonSeparator: undefined
-		}));
-		this._collapseButton = collapseButton;
 		this._domNode = $('.chat-used-context', undefined, buttonElement);
-		collapseButton.label = referencesLabel;
+		const collapseButton = this._collapseButton = this.createCollapseButton(buttonElement);
 
 		let animatedContent: HTMLElement | undefined;
 		if (this.shouldPrepareContentAnimation()) {
@@ -111,20 +96,6 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			animationContainer.appendChild(animatedContent);
 			this._domNode.appendChild(animationContainer);
 		}
-
-		// Add hover chevron indicator on the right (decorative, hide from screen readers)
-		const hoverChevron = $('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right-compact', { 'aria-hidden': 'true' });
-		this._hoverChevron = hoverChevron;
-		collapseButton.element.appendChild(hoverChevron);
-
-		if (this.hoverMessage) {
-			this._register(this.hoverService.setupDelayedHover(collapseButton.iconElement, {
-				content: this.hoverMessage,
-				style: HoverStyle.Pointer,
-			}));
-		}
-
-		this._register(collapseButton.onDidClick(() => this.toggleExpanded()));
 
 		// Initialize the expanded state based on the subclass's isExpanded() method
 		this._isExpanded.set(this.isExpanded(), undefined);
@@ -139,14 +110,14 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			const overrideIcon = this._overrideIcon.read(r);
 			const showCheckmarks = this._showCheckmarks.read(r);
 
-			if (overrideIcon) {
+			if (overrideIcon && collapseButton) {
 				collapseButton.icon = overrideIcon;
 			}
 
 			this._domNode?.classList.toggle('show-checkmarks', showCheckmarks);
 
 			// Update hover chevron direction
-			hoverChevron.classList.toggle('expanded', expanded);
+			this._hoverChevron?.classList.toggle('expanded', expanded);
 
 			// Lazy initialization: render content only when expanded for the first time
 			if ((expanded || this.shouldInitEarly()) && !this._contentInitialized) {
@@ -163,11 +134,37 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			if (animatedContent) {
 				animatedContent.inert = !expanded;
 			}
-			this.updateAriaLabel(collapseButton.element, this.ariaLabel, expanded);
+			if (collapseButton) {
+				this.updateAriaLabel(collapseButton.element, this.ariaLabel, expanded);
+			}
 			this.expansionDidChange(expanded);
 		}));
 
 		return this._domNode;
+	}
+
+	protected createCollapseButton(container: HTMLElement): ButtonWithIcon | undefined {
+		const button = this._register(new ButtonWithIcon(container, {
+			buttonBackground: undefined,
+			buttonBorder: undefined,
+			buttonForeground: undefined,
+			buttonHoverBackground: undefined,
+			buttonSecondaryBackground: undefined,
+			buttonSecondaryForeground: undefined,
+			buttonSecondaryHoverBackground: undefined,
+			buttonSeparator: undefined
+		}));
+		button.label = this.title;
+		this._hoverChevron = $('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right-compact', { 'aria-hidden': 'true' });
+		button.element.appendChild(this._hoverChevron);
+		if (this.hoverMessage) {
+			this._register(this.hoverService.setupDelayedHover(button.iconElement, {
+				content: this.hoverMessage,
+				style: HoverStyle.Pointer,
+			}));
+		}
+		this._register(button.onDidClick(() => this.toggleExpanded()));
+		return button;
 	}
 
 	protected get collapsibleKind(): string {

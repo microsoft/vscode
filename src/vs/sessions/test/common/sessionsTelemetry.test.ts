@@ -8,8 +8,8 @@ import { constObservable } from '../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
-import { ISession } from '../../services/sessions/common/session.js';
+import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionArtifactOpen, logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
+import { ISession, SessionArtifactKind } from '../../services/sessions/common/session.js';
 
 suite('sessionsTelemetry helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -88,5 +88,36 @@ suite('sessionsTelemetry helpers', () => {
 			name: 'vscodeAgents.sessionsList/compactViewState',
 			data: { enabled: true },
 		}]);
+	});
+
+	test('logs artifact and reference opens with bounded kinds and a hashed session ID', () => {
+		const events: { name: string | undefined; data: unknown }[] = [];
+		const telemetryService = new class extends mock<ITelemetryService>() {
+			override publicLog2(eventName?: string, data?: unknown): void {
+				events.push({ name: eventName, data });
+			}
+		}();
+
+		logSessionArtifactOpen(telemetryService, 'provider:session', SessionArtifactKind.File, true);
+		logSessionArtifactOpen(telemetryService, 'provider:session', SessionArtifactKind.Website, false);
+
+		assert.deepStrictEqual(events, [
+			{
+				name: 'agents/sessionArtifactOpen',
+				data: {
+					agentSessionId: hashSessionIdForTelemetry('provider:session'),
+					itemCategory: 'artifact',
+					itemKind: 'file',
+				},
+			},
+			{
+				name: 'agents/sessionArtifactOpen',
+				data: {
+					agentSessionId: hashSessionIdForTelemetry('provider:session'),
+					itemCategory: 'reference',
+					itemKind: 'website',
+				},
+			},
+		]);
 	});
 });

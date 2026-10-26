@@ -7,8 +7,8 @@ import './media/chatEditorController.css';
 
 import { getTotalWidth } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, autorunSelfDisposable, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../../editor/browser/editorBrowser.js';
@@ -91,6 +91,8 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 	private readonly _diffHunkWidgetPool = this._store.add(new ObjectPool<DiffHunkWidget>());
 	private readonly _diffHunkWidgets: DiffHunkWidget[] = [];
 	private _viewZones: string[] = [];
+	/** Closes the diff editors that {@link toggleDiff} opened once the changes are kept or undone. */
+	private readonly _closeDiffEditorsWhenDecided = this._store.add(new MutableDisposable());
 
 	private readonly _accessibleDiffViewVisible = observableValue<boolean>(this, false);
 
@@ -704,10 +706,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 			if (diffEditor && diffEditor.input) {
 				diffEditor.getControl()?.setSelection(selection);
-				const d = autorun(r => {
+				// Ends with this integration too, as when the entry is disposed before its changes are decided.
+				this._closeDiffEditorsWhenDecided.value = autorunSelfDisposable(r => {
 					const state = this._entry.state.read(r);
 					if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
-						d.dispose();
+						r.dispose();
 						const editorIdents: IEditorIdentifier[] = [];
 						for (const candidate of this._editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
 							if (isDiffEditorInput(candidate.editor)

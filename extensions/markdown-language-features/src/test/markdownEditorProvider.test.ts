@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { MarkdownContributions } from '../markdownExtensions';
+import { MarkdownPreviewLineDiffProvider } from '../preview/lineDiff';
 import { computeMarkdownEditorEdit, getInDocumentLinkTargetRange, getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers, readMarkdownEditorEdit } from '../preview/markdownEditorProvider';
 import { encodeWebviewInitialState } from '../preview/webviewInitialState';
 
@@ -142,6 +143,79 @@ suite('Markdown editor links', () => {
 });
 
 suite('Markdown editor diff', () => {
+	for (const { name, original, modified, markers, added, indicatorTypes } of [
+		{
+			name: 'an insertion at the start',
+			original: 'one\n',
+			modified: 'new\none\n',
+			markers: [{ start: 0, endExclusive: 3, type: 'added' }],
+			added: [0],
+			indicatorTypes: [],
+		},
+		{
+			name: 'an insertion in the middle',
+			original: 'one\nthree\n',
+			modified: 'one\ntwo\nthree\n',
+			markers: [{ start: 4, endExclusive: 7, type: 'added' }],
+			added: [1],
+			indicatorTypes: [],
+		},
+		{
+			name: 'an appended section',
+			original: '# Heading\n',
+			modified: '# Heading\n\n## New section\n\nAdded text.\n',
+			markers: [{ start: 10, endExclusive: 38, type: 'added' }],
+			added: [1, 2, 3, 4],
+			indicatorTypes: [],
+		},
+		{
+			name: 'an insertion with CRLF line endings',
+			original: 'one\r\nthree\r\n',
+			modified: 'one\r\ntwo\r\nthree\r\n',
+			markers: [{ start: 5, endExclusive: 8, type: 'added' }],
+			added: [1],
+			indicatorTypes: [],
+		},
+		{
+			name: 'a deletion',
+			original: 'one\ntwo\nthree\n',
+			modified: 'one\nthree\n',
+			markers: [{ start: 4, endExclusive: 4, type: 'deleted' }],
+			added: [],
+			indicatorTypes: ['deletion'],
+		},
+		{
+			name: 'a modification',
+			original: 'one\ntwo\nthree\n',
+			modified: 'one\ntwo changed\nthree\n',
+			markers: [{ start: 4, endExclusive: 15, type: 'modified' }],
+			added: [1],
+			indicatorTypes: ['modification'],
+		},
+		{
+			name: 'unchanged content',
+			original: 'one\n',
+			modified: 'one\n',
+			markers: [],
+			added: undefined,
+			indicatorTypes: undefined,
+		},
+	]) {
+		test(`computes gutter markers for ${name} without changing preview indicators`, async () => {
+			const originalDocument = await vscode.workspace.openTextDocument({ language: 'markdown', content: original });
+			const modifiedDocument = await vscode.workspace.openTextDocument({ language: 'markdown', content: modified });
+			const provider = new MarkdownPreviewLineDiffProvider(originalDocument, modifiedDocument);
+			const changes = await provider.getChangedLineRanges();
+			const previewChanges = await provider.getModifiedLineChanges();
+
+			assert.deepStrictEqual({
+				markers: lineRangesToGutterMarkers(modifiedDocument, changes),
+				added: previewChanges?.added,
+				indicatorTypes: previewChanges?.changeIndicators?.map(indicator => indicator.type),
+			}, { markers, added, indicatorTypes });
+		});
+	}
+
 	test('maps modified-side line changes to quick diff gutter markers', async () => {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: 'one\ntwo changed\nthree added\nfour\n' });
 		const changes = [
@@ -161,11 +235,17 @@ suite('Markdown editor diff', () => {
 suite('Markdown editor initial state', () => {
 	test('safely round-trips document content', () => {
 		const state = {
+			taskProgressLabels: {
+				title: 'Task Progress',
+				summary: '{0} of {1} tasks completed <script>',
+				language: 'en',
+			},
 			content: '</meta><script>globalThis.modified = true</script><!--\n# Heading "quoted"',
 			documentVersion: 17,
 			editEpoch: 3,
 			readonly: true,
 			richLinksEnabled: true,
+			highlightActiveBlock: false,
 			linkPresentationRules: [],
 		};
 		const encoded = encodeWebviewInitialState(state);
@@ -234,9 +314,18 @@ suite('Markdown code block editor API versioning', () => {
 			'shared-runtime',
 		)[0]?.runtimeKey, 'shared-runtime');
 	});
+
+	test('reads and validates presentation preferences', () => {
+		const source = { kind: 'exportApi', apiVersion: 2 };
+		const presentation = { resizable: true, fullWidth: false, fullView: true, minHeight: 160 };
+		assert.deepStrictEqual(readCodeBlockEditorProviders(source, undefined, presentation)[0]?.presentation, presentation);
+		for (const invalid of [{ resizable: 'yes' }, { minHeight: 0 }, { minHeight: Infinity }, { minHeight: 10_001 }]) {
+			assert.strictEqual(readCodeBlockEditorProviders(source, undefined, invalid).length, 0);
+		}
+	});
 });
 
-function readCodeBlockEditorProviders(source: unknown, runtimeKey?: string) {
+function readCodeBlockEditorProviders(source: unknown, runtimeKey?: string, presentation?: unknown) {
 	const extension = {
 		id: 'test.markdown-code-block-editor',
 		extensionUri: vscode.Uri.file('/test/markdown-code-block-editor'),
@@ -248,6 +337,7 @@ function readCodeBlockEditorProviders(source: unknown, runtimeKey?: string) {
 					selector: { language: 'test' },
 					source,
 					runtimeKey,
+					presentation,
 				}],
 			},
 		},

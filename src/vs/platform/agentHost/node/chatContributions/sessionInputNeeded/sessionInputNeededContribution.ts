@@ -10,7 +10,7 @@ import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDi
 import { readToolCallMeta } from '../../../common/meta/agentToolCallMeta.js';
 import { SessionInputRequestKind, type SessionInputRequest } from '../../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, type ToolCallState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, type ToolCallState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../agentHostToolCallTracker.js';
@@ -45,10 +45,10 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 		if (dispatched.rejectionReason !== undefined || !isAhpChatChannel(dispatched.channel) || !isChatAction(dispatched.action)) {
 			return;
 		}
-		this._syncSessionInputNeededForChatAction(dispatched.channel, dispatched.action);
+		this._syncSessionInputNeededForChatAction(dispatched.session, dispatched.channel, dispatched.action);
 	}
 
-	private _syncSessionInputNeededForChatAction(chatUri: ProtocolURI, action: ChatAction): void {
+	private _syncSessionInputNeededForChatAction(sessionUri: ProtocolURI, chatUri: ProtocolURI, action: ChatAction): void {
 		// A stale terminal action is echoed but leaves the current turn and its blockers intact.
 		if ((action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnCancelled || action.type === ActionType.ChatError)
 			&& this._stateManager.getChatState(chatUri)?.activeTurn) {
@@ -56,13 +56,13 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 		}
 		switch (action.type) {
 			case ActionType.ChatInputRequested:
-				this._syncChatInputNeeded(chatUri, action.request.id);
+				this._syncChatInputNeeded(sessionUri, chatUri, action.request.id);
 				break;
 			case ActionType.ChatInputAnswerChanged:
-				this._syncChatInputNeeded(chatUri, action.requestId);
+				this._syncChatInputNeeded(sessionUri, chatUri, action.requestId);
 				break;
 			case ActionType.ChatInputCompleted:
-				this._removeSessionInputNeeded(chatUri, this._chatInputNeededId(chatUri, action.requestId));
+				this._removeSessionInputNeeded(sessionUri, chatUri, this._chatInputNeededId(chatUri, action.requestId));
 				break;
 			case ActionType.ChatToolCallStart:
 			case ActionType.ChatToolCallReady:
@@ -71,18 +71,18 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 			case ActionType.ChatToolCallResultConfirmed:
 			case ActionType.ChatToolCallAuthRequired:
 			case ActionType.ChatToolCallAuthResolved:
-				this._syncToolInputNeeded(chatUri, action.turnId, action.toolCallId);
+				this._syncToolInputNeeded(sessionUri, chatUri, action.turnId, action.toolCallId);
 				break;
 			case ActionType.ChatTurnComplete:
 			case ActionType.ChatTurnCancelled:
 			case ActionType.ChatError:
 			case ActionType.ChatTruncated:
-				this._removeSessionInputNeededForChat(chatUri);
+				this._removeSessionInputNeededForChat(sessionUri, chatUri);
 				break;
 		}
 	}
 
-	private _syncChatInputNeeded(chatUri: ProtocolURI, requestId: string): void {
+	private _syncChatInputNeeded(sessionUri: ProtocolURI, chatUri: ProtocolURI, requestId: string): void {
 		const state = this._stateManager.getSessionState(chatUri);
 		const part = state?.activeTurn?.responseParts.find(part =>
 			part.kind === ResponsePartKind.InputRequest
@@ -91,10 +91,10 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 		);
 		const id = this._chatInputNeededId(chatUri, requestId);
 		if (!part || part.kind !== ResponsePartKind.InputRequest) {
-			this._removeSessionInputNeeded(chatUri, id);
+			this._removeSessionInputNeeded(sessionUri, chatUri, id);
 			return;
 		}
-		this._setSessionInputNeeded(chatUri, {
+		this._setSessionInputNeeded(sessionUri, chatUri, {
 			id,
 			kind: SessionInputRequestKind.ChatInput,
 			chat: chatUri,
@@ -102,7 +102,7 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 		});
 	}
 
-	private _syncToolInputNeeded(chatUri: ProtocolURI, turnId: string, toolCallId: string): void {
+	private _syncToolInputNeeded(sessionUri: ProtocolURI, chatUri: ProtocolURI, turnId: string, toolCallId: string): void {
 		const confirmationId = this._toolConfirmationNeededId(chatUri, turnId, toolCallId);
 		const clientExecutionId = this._toolClientExecutionNeededId(chatUri, turnId, toolCallId);
 		const authenticationId = this._toolAuthenticationNeededId(chatUri, turnId, toolCallId);
@@ -118,7 +118,7 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 		const suppressAutoApprovedConfirmation = autoApproved && toolCall?.status === ToolCallStatus.PendingConfirmation;
 		const needsConfirmation = !suppressAutoApprovedConfirmation && (toolCall?.status === ToolCallStatus.PendingConfirmation || toolCall?.status === ToolCallStatus.PendingResultConfirmation);
 		if (needsConfirmation && toolCall) {
-			this._setSessionInputNeeded(chatUri, {
+			this._setSessionInputNeeded(sessionUri, chatUri, {
 				id: confirmationId,
 				kind: SessionInputRequestKind.ToolConfirmation,
 				chat: chatUri,
@@ -126,12 +126,12 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 				toolCall,
 			});
 		} else {
-			this._removeSessionInputNeeded(chatUri, confirmationId);
+			this._removeSessionInputNeeded(sessionUri, chatUri, confirmationId);
 		}
 
 		const contributor = toolCall?.contributor;
 		if (toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
-			this._setSessionInputNeeded(chatUri, {
+			this._setSessionInputNeeded(sessionUri, chatUri, {
 				id: clientExecutionId,
 				kind: SessionInputRequestKind.ToolClientExecution,
 				chat: chatUri,
@@ -140,11 +140,11 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 				toolCall,
 			});
 		} else {
-			this._removeSessionInputNeeded(chatUri, clientExecutionId);
+			this._removeSessionInputNeeded(sessionUri, chatUri, clientExecutionId);
 		}
 
 		if (toolCall?.status === ToolCallStatus.AuthRequired) {
-			this._setSessionInputNeeded(chatUri, {
+			this._setSessionInputNeeded(sessionUri, chatUri, {
 				id: authenticationId,
 				kind: SessionInputRequestKind.ToolAuthentication,
 				chat: chatUri,
@@ -152,7 +152,7 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 				toolCall,
 			});
 		} else {
-			this._removeSessionInputNeeded(chatUri, authenticationId);
+			this._removeSessionInputNeeded(sessionUri, chatUri, authenticationId);
 		}
 	}
 
@@ -163,8 +163,7 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 		return part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
 	}
 
-	private _setSessionInputNeeded(chatUri: ProtocolURI, request: SessionInputRequest): void {
-		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
+	private _setSessionInputNeeded(sessionUri: ProtocolURI, chatUri: ProtocolURI, request: SessionInputRequest): void {
 		const existing = this._stateManager.getSessionState(sessionUri)?.inputNeeded?.find(r => r.id === request.id);
 		if (existing && equals(existing, request)) {
 			return;
@@ -183,13 +182,12 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 		if (request.kind !== SessionInputRequestKind.ChatInput) {
 			const agent = this._providerService.getProviderForSession(sessionUri);
 			if (agent) {
-				this._toolCallTracker.toolCallBlocked(agent.id, chatUri, request);
+				this._toolCallTracker.toolCallBlocked(agent.id, chatUri, sessionUri, request);
 			}
 		}
 	}
 
-	private _removeSessionInputNeeded(chatUri: ProtocolURI, id: string): void {
-		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
+	private _removeSessionInputNeeded(sessionUri: ProtocolURI, chatUri: ProtocolURI, id: string): void {
 		this._toolCallTracker.toolCallUnblocked(chatUri, id);
 		this._turnTracker.turnUnblocked(chatUri, id);
 		if (!this._stateManager.getSessionState(sessionUri)?.inputNeeded?.some(r => r.id === id)) {
@@ -198,11 +196,10 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 		this._stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionInputNeededRemoved, id });
 	}
 
-	private _removeSessionInputNeededForChat(chatUri: ProtocolURI): void {
-		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
+	private _removeSessionInputNeededForChat(sessionUri: ProtocolURI, chatUri: ProtocolURI): void {
 		for (const request of this._stateManager.getSessionState(sessionUri)?.inputNeeded ?? []) {
 			if (request.chat === chatUri) {
-				this._removeSessionInputNeeded(chatUri, request.id);
+				this._removeSessionInputNeeded(sessionUri, chatUri, request.id);
 			}
 		}
 	}

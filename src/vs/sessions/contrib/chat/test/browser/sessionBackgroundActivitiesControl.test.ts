@@ -63,7 +63,8 @@ function createControl(
 
 	let openedChat: URI | undefined;
 	const sessionsService = new class extends mock<ISessionsService>() {
-		override async openChat(_session: ISession, chatUri: URI): Promise<void> {
+		override async openChatToSide(_session: ISession, chatUri: URI, options?: { referenceChatResource?: URI }): Promise<void> {
+			assert.strictEqual(options?.referenceChatResource, mainChat.resource);
 			openedChat = chatUri;
 		}
 	}();
@@ -182,6 +183,49 @@ suite('SessionBackgroundActivitiesControl', () => {
 			['Subagents: In Progress'],
 			['Subagents: Completed'],
 		]);
+	});
+
+	test('publishes in-progress transcript entries independently of the pill status filter', async () => {
+		const { control, subagents, getOpenedChat } = createControl({
+			subagentEntries: [
+				{ title: 'Foreground', status: SessionStatus.InProgress },
+				{ title: 'Background', status: SessionStatus.InProgress },
+				{ title: 'Waiting', status: SessionStatus.NeedsInput },
+				{ title: 'Completed', status: SessionStatus.Completed },
+				{ title: 'Failed', status: SessionStatus.Error },
+			],
+		}, store);
+		const updates: string[][] = [];
+		store.add(autorun(reader => updates.push(control.inProgressSections.read(reader).flatMap(section => section.entries.map(entry => entry.label)))));
+		const initialPillSections = control.sections.get().map(section => section.title);
+		await control.getContextMenuActions()[1].run();
+		await control.getContextMenuActions()[0].run();
+		await control.inProgressSections.get()[0].entries[0].open();
+		subagents[1].status.set(SessionStatus.Completed, undefined);
+		subagents[0].status.set(SessionStatus.Error, undefined);
+		subagents[2].status.set(SessionStatus.Completed, undefined);
+		subagents[1].status.set(SessionStatus.InProgress, undefined);
+		assert.deepStrictEqual({
+			updates,
+			initialPillSections,
+			showAllStillEnabled: control.getContextMenuActions()[0].checked,
+			opened: getOpenedChat()?.toString(),
+			disabled: createControl({ subagents: ['Disabled'], enabled: false }, store).control.inProgressSections.get(),
+			hidden: createControl({ subagents: ['Hidden'], visible: false }, store).control.inProgressSections.get(),
+		}, {
+			updates: [
+				['Waiting', 'Background', 'Foreground'],
+				['Waiting', 'Foreground'],
+				['Waiting'],
+				[],
+				['Background'],
+			],
+			initialPillSections: ['Subagents: In Progress', 'Subagents: Completed'],
+			showAllStillEnabled: true,
+			opened: 'chat:subagent-2',
+			disabled: [],
+			hidden: [],
+		});
 	});
 
 	test('shares checked filter options and retains data when every subagent is filtered out', async () => {
@@ -305,10 +349,10 @@ suite('SessionBackgroundActivitiesControl', () => {
 		});
 	});
 
-	test('opening an entry opens that subagent chat', () => {
+	test('opening an entry opens that subagent chat beside its parent', async () => {
 		const harness = createControl({ subagents: ['Research'] }, store);
 
-		harness.control.sections.get()[0].entries[0].open();
+		await harness.control.sections.get()[0].entries[0].open();
 
 		assert.deepStrictEqual(harness.getOpenedChat()?.toString(), 'chat:subagent-0');
 	});

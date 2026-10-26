@@ -44,7 +44,7 @@ suite('ChatTurnPillsContentPart', () => {
 		));
 
 		const readState = () => ({
-			display: part.domNode.style.display,
+			hidden: part.domNode.hidden,
 			files: part.domNode.querySelector('.chat-file-changes-label')?.textContent,
 			additions: part.domNode.querySelector('.insertions')?.textContent,
 			deletions: part.domNode.querySelector('.deletions')?.textContent,
@@ -64,10 +64,10 @@ suite('ChatTurnPillsContentPart', () => {
 		states.push(readState());
 
 		assert.deepStrictEqual(states, [
-			{ display: 'none', files: '0 files changed', additions: '+0', deletions: '-0' },
-			{ display: '', files: '2 files changed', additions: '+8', deletions: '-3' },
-			{ display: '', files: '2 files changed', additions: '+8', deletions: '-3' },
-			{ display: 'none', files: '0 files changed', additions: '+0', deletions: '-0' },
+			{ hidden: true, files: '0 files changed', additions: '+0', deletions: '-0' },
+			{ hidden: false, files: '2 files changed', additions: '+8', deletions: '-3' },
+			{ hidden: false, files: '2 files changed', additions: '+8', deletions: '-3' },
+			{ hidden: true, files: '0 files changed', additions: '+0', deletions: '-0' },
 		]);
 	});
 
@@ -99,7 +99,7 @@ suite('ChatTurnPillsContentPart', () => {
 		));
 
 		const readState = () => ({
-			display: part.domNode.style.display,
+			hidden: part.domNode.hidden,
 			files: part.domNode.querySelector('.chat-file-changes-label')?.textContent,
 			additions: part.domNode.querySelector('.insertions')?.textContent,
 			deletions: part.domNode.querySelector('.deletions')?.textContent,
@@ -112,20 +112,20 @@ suite('ChatTurnPillsContentPart', () => {
 
 		assert.deepStrictEqual({ before, after: readState() }, {
 			before: {
-				display: '',
+				hidden: false,
 				files: '2 files changed',
 				additions: '+8',
 				deletions: '-3',
-				ariaLabel: 'View all file changes: 2 files changed, 8 lines added, 3 lines deleted',
+				ariaLabel: 'View turn changes: 2 files changed, 8 lines added, 3 lines deleted',
 				hasDisclosure: true,
 				hasPreview: false,
 			},
 			after: {
-				display: 'none',
+				hidden: true,
 				files: '0 files changed',
 				additions: '+0',
 				deletions: '-0',
-				ariaLabel: 'View all file changes: 0 files changed, 0 lines added, 0 lines deleted',
+				ariaLabel: 'View turn changes: 0 files changed, 0 lines added, 0 lines deleted',
 				hasDisclosure: true,
 				hasPreview: false,
 			},

@@ -44,6 +44,7 @@ suite('worktreeInclude', () => {
 
 		assert.deepStrictEqual({
 			all: resolveWorktreeIncludePaths(ignored, included, directories, worktree),
+			nestedSymlink: resolveWorktreeIncludePaths(ignored, included, directories, worktree, ['node_modules/a']),
 			noDirectories: resolveWorktreeIncludePaths(ignored, included, undefined, ''),
 			noIgnored: resolveWorktreeIncludePaths('', included, directories, worktree),
 			noIncluded: resolveWorktreeIncludePaths(ignored, '', directories, worktree),
@@ -52,6 +53,13 @@ suite('worktreeInclude', () => {
 				'node_modules',
 				'.env',
 				'app/.env',
+				'partial/keep.txt',
+				'mixed/ignored.txt'
+			],
+			nestedSymlink: [
+				'.env',
+				'app/.env',
+				'node_modules/b/index.js',
 				'partial/keep.txt',
 				'mixed/ignored.txt'
 			],

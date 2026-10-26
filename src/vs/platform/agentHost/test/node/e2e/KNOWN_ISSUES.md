@@ -16,22 +16,140 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
-### Copilot managed-settings diagnostics cannot return an account snapshot
+### Copilot sandboxed MCP servers restart at the start of the first turn
 
-A user can request diagnostics to see which enterprise-managed settings apply to their Copilot account. With the runtime bundled in `1.0.15-preview.2` and later (still reproduces with `1.0.15-preview.3`), the request returns an error instead of the account-level snapshot, so the user cannot inspect the policy sources and managed keys through these diagnostics. A live Copilot session can expose its own effective snapshot through `session.rpc.managedSettings.get()`, but this diagnostic request has no session to query. This does not establish that the runtime has stopped enforcing the policy.
+A user with the sandbox enabled starts a session that has a stdio MCP server, then sends a first message. The server should start once inside the sandbox. Instead, the runtime first starts it with the settings it had before the sandbox update, then cancels it and starts it again inside the sandbox while the first turn is being prepared. Users with several MCP servers see the turn wait for every server to start twice, one after another, before the first response.
 
-- Test: `managed settings diagnostics expose the provider snapshot`.
-- Scope: Copilot on all platforms, in strict replay.
-- Expected: `getManagedSettingsDiagnostics` returns a provider snapshot with a valid source and an array of managed keys.
-- Observed: the provider reports an error because the bundled runtime SDK does not expose the account-scoped `getManagedSettings()` function.
-- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Test: `runtime MCP: first turn does not restart MCP servers` in `suites/copilotRuntimeMcpSuite.ts`.
+- Scope: Copilot provider with the sandbox enabled and `sandboxMcpServers` on, all platforms. Observed with bundled runtime `1.0.99-2`, and live with `1.0.99-1`.
+- Expected: one probe process start, and no `stopped` or `starting` state for the server after it first reports `Ready`.
+- Observed: two or three process starts. Runtime log: `mcp graph load: ensure_loaded (first load)`, then `apply_session_settings {"sandbox_changed":false}`, then `apply_session_settings {"sandbox_changed":true}`, then `serve finished {"quit_reason":"Cancelled"}`, then `sandbox_spawn sandbox launch directory`. The host sends exactly one `options.update({ sandboxConfig })` after `createSession` and no other sandbox, MCP, or agent-selection requests before the restart. The recording run passed once, so the outcome is timing-dependent.
+- Gate: only this test is skipped. It asserts the desired contract. Remove the skip after the runtime starts sandboxed MCP servers once.
+- Reproduce: temporarily replace this test's `test.skip` with `test`, then repeat:
+
+  ```bash
+  ./scripts/test-integration.sh \
+    --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "first turn does not restart MCP servers"
+  ```
+
+### Copilot strict managed-model resume is nondeterministic
+
+An SDK client can opt into mandatory model-option locks. If an administrator changes the required effort after a conversation was saved with another effort, resuming should apply the new lock and retain the conversation history. The runtime intermittently rejects that resume instead. VS Code's current integration deliberately omits the strict opt-in, and its default-only resume tests remain enabled.
+
+- Test: `strict SDK opt-in resumes under a changed effort lock without deleting history (#26739)` in `providerIntegration/copilotAutoTier.integrationTest.ts`.
+- Scope: the separate `enforceManagedModelDefaults: true` SDK mode on all platforms. Local repetitions with runtime `1.0.99-0` observed both outcomes; Linux CI also resumed successfully where the old characterization expected rejection.
+- Expected: resume `gpt-5` with managed effort `high` and preserve the earlier assistant message after saving the conversation at effort `low`.
+- Observed: either `reasoningEffort is locked to 'high'` rejects resume, or resume succeeds with effort `high` and the original history. Asserting that the defect must occur makes successful reconciliation fail CI.
+- Tracking: [github/copilot-agent-runtime#26739](https://github.com/github/copilot-agent-runtime/issues/26739).
+- Gate: only this strict-mode test is skipped. It asserts the desired success contract, not an expected rejection or acceptance of either outcome. Remove the skip after the shared runtime fixes the resume race.
+- Reproduce: temporarily replace this test's `test.skip` with `test`, then repeat the following focused command; a single passing run is not sufficient:
+
+  ```bash
+  env -u COPILOT_HOME -u COPILOT_CACHE_HOME ./scripts/test-integration.sh \
+    --run src/vs/platform/agentHost/test/node/providerIntegration/copilotAutoTier.integrationTest.ts \
+    --grep "strict SDK opt-in resumes under a changed effort lock"
+  ```
+
+### Copilot managed identity denial retains an inherited account resource attribute
+
+An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.
+
+- Test: `managed identity denial removes inherited identity from native spans`.
+- Scope: Copilot SDK `1.0.26` / runtime `1.0.103`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
+- Expected: managed `telemetry.capture.identity=false` removes all three identity attributes from native spans and events despite local opt-in and inherited resource attributes.
+- Observed: native spans still retain `user.name=synthetic-account`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
+- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/131fc866123af5df4451497f183cadef4ddf20f2/src/runtime/src/otel/sdk.rs#L2546) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
+- Gate: a strict expected-failure marker accepts only the identity-redaction assertion. An unexpected pass fails and requires removing the marker. Recording skips the case to preserve its complete existing fixture.
 - Reproduce:
 
   ```bash
-  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "managed settings diagnostics expose the provider snapshot"
+  ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts \
+    --grep "managed identity denial"
   ```
+
+### Historical binary Git changeset content loses non-UTF-8 bytes
+
+A user can inspect both sides of an agent's binary-file change through the changeset's content references. The current working file preserves its bytes, but reading the historical Git-blob reference converts invalid UTF-8 bytes into replacement characters, so binary content cannot be recovered exactly.
+
+- Test: `regression coverage: binary changeset references preserve both byte sequences`.
+- Scope: conformance reference host on all platforms; no model traffic.
+- Expected: the before and after content references preserve the exact binary byte sequences, using the encoding reported by `resourceRead`.
+- Observed: historical bytes containing `0xff` and `0xfe` are returned as UTF-8 replacement characters; the current-file reference still returns the correct bytes.
+- Source evidence: `AgentService._fetchGitBlobContent` converts the Git buffer to a string and always reports UTF-8.
+- Gate: a strict expected-failure marker accepts only the historical-byte assertion. Current-file corruption, unavailable content references, setup/teardown failures, and an unexpected pass still fail the test.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "regression coverage: binary changeset references"
+  ```
+
+### Codex rejects a schema-valid mixed-content MCP tool response
+
+An MCP application can call a tool that returns ordered text, an image, embedded text, and embedded binary content. Copilot forwards this schema-valid result, but the bundled Codex provider rejects it while decoding the response, preventing the application from consuming the tool output.
+
+- Test: `MCP side channel: regression coverage: preserves ordered text image and embedded resource tool content`.
+- Scope: bundled Codex `0.157.0`; this precise mixed-content response.
+- Expected: preserve every content block, annotation, byte encoding, and order.
+- Observed: `JsonRpcError: tool call failed for side_channel/echo: Unexpected response type`. The current evidence does not isolate which block Codex rejects.
+- Prerequisites checked independently: MCP schema validation, a fully drained warm-up turn, the exact ready advertised channel, and a real server witness confirming the requested `echo` call.
+- Gate: Codex-only strict expected failure accepts only the exact decoding error and its optional stack frames. Other errors, content mismatches, and an unexpected pass fail. Default recording skips only this Codex variant and preserves its complete one-turn warm-up fixture.
+- Reevaluate after a Codex upgrade by running:
+
+  ```bash
+  ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "MCP side channel: regression coverage: preserves ordered text image"
+  ```
+
+### Expanded provider history coverage retains existing platform limitations
+
+The new `regression coverage:` history and fork scenarios exercise cold resume, completed tool pairing, peer isolation, and selected-turn fork boundaries. They retain the existing provider limitations rather than treating recorded assistant text as proof of correct restoration.
+
+- Copilot Windows: cold tool-history, peer, and resumed-fork variants use the existing provider-session restart gate described under [Copilot provider sessions can disappear across a Windows host restart](#copilot-provider-sessions-can-disappear-across-a-windows-host-restart). Ordered text and identical-prompt resume checks remain enabled.
+- Claude: the four provider-backed selected-turn fork variants retain the existing `supportsChatForkE2E` gate described under [Claude provider-context fork](#claude-provider-context-fork); ordinary cold history and peer restoration remain enabled.
+- Recording does not bypass these known unsupported paths by default. Reevaluate the gates using the same actual tool/result and provider-bound history assertions when the underlying provider fixes are bundled.
+- Focused reproduction: use `--grep "regression coverage:"` with the affected provider's E2E entrypoint; the individual history/fork test titles identify the requested boundary.
+
+### Codex Linux startup races in shared empty workspaces
+
+Starting two Codex chats in the same empty workspace can fail before the first prompt runs. With Codex 0.153.0 through at least 0.162.0 on Linux, initialization intermittently fails on a protected metadata directory that is missing by the time bubblewrap mounts it. This also reproduces with concurrent `thread/start` calls directly to the bundled app-server, without Agent Host.
+
+- Affected coverage: every suite that starts several Codex chats in one workspace: the shared-workspace scenarios in [serverToolsSuite.ts](./suites/serverToolsSuite.ts) (including `server tool: list_sessions status filter combines active and archived sessions`), the sibling chats in [sessionPersistenceSuite.ts](./suites/sessionPersistenceSuite.ts), and every provider scenario in [chatMoveSuite.ts](./suites/chatMoveSuite.ts) (two sessions sharing a folder, or a session and its peer).
+- Observed: `CodexMaterializeFailed` with `bwrap: Can't find source path <workspace>/.agents: No such file or directory` while loading workspace instructions.
+- Mechanism: a thread creation reads AGENTS.md through the bubblewrap filesystem helper, because our permission profile lacks full-disk read access, and a helper failure fails the thread. Each helper mounts a temporary placeholder at a missing `.git`, `.agents`, or `.codex` of the workspace root and removes it on exit. Another helper set up meanwhile sees the placeholder, binds it as a readable root (`.agents` is a `read` entry of our profile), and fails once it is removed ([`bwrap.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/bwrap.rs), readable roots are bound when they exist, without the transient-target check writable roots get).
+- Fixture mitigation: `ownCodexProtectedDirectories` in [testDirectories.ts](./harness/testDirectories.ts) creates `.git`, `.agents`, and `.codex` in the disposable workspace before starting any Codex chat on Linux. The directories then belong to the fixture and survive sandbox cleanup. All scenarios, assertions, replay checks, and provider permissions remain enabled and unchanged. A suite that starts several Codex chats in one workspace must call it.
+- Runtime status: the bundled Codex defect remains; this only stabilizes test setup. After an SDK update, make `ownCodexProtectedDirectories` a no-op and repeatedly run the affected scenarios before considering the gap closed.
+- Platform scope: the [0.153.0 Linux sandbox entry point](https://github.com/openai/codex/blob/rust-v0.153.0/codex-rs/linux-sandbox/src/lib.rs) compiles bubblewrap and its temporary-mount cleanup only on Linux. [Sandbox selection](https://github.com/openai/codex/blob/rust-v0.153.0/codex-rs/sandboxing/src/manager.rs) routes native macOS to Seatbelt and native Windows to its Windows sandbox; neither uses this cleanup path. Linux execution environments, including remote Linux and WSL2, remain affected regardless of the client's OS. This does not rule out unrelated startup races on other platforms.
+- Reproduce: make `ownCodexProtectedDirectories` in [testDirectories.ts](./harness/testDirectories.ts) a no-op, then repeatedly run on Linux:
+
+  ```bash
+  ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "server tool: list_sessions.*archived|keeps its provider conversation|keeps its chat's provider conversation"
+  ```
+
+- Host mitigation: on Linux, `CodexAgent` runs `thread/start`, `thread/resume`, and `thread/fork` one at a time per workspace root ([codexThreadCreationSequencer.ts](../../../node/codex/codexThreadCreationSequencer.ts)), so chats starting together in one workspace no longer fail their first message. Sandboxed shell commands that two chats run at the same moment in one workspace can still race, and so can several Agent Host processes sharing a workspace; that remains upstream. No upstream Codex issue tracks it yet. The defect: in [`bwrap.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/bwrap.rs), readable roots are bound whenever they exist, with no check for another setup's transient mount targets (writable roots have one); it is unchanged on Codex `main`.
+
+### Codex Linux sandbox helpers orphaned mid-session
+
+An Agent Host E2E job on Linux can pass every suite and still fail the step, because the test tmpfs cannot be unmounted: `umount: <tmpfs>: target is busy`. Between 2026-10-07 and 2026-10-17 this failed 13 PR runs (about 1 in 217). The holder is a `bwrap ... --argv0 codex-linux-sandbox ... --codex-run-as-fs-helper` process whose parent is PID 1. It still has its pre-exec `bwrap` command line and its launcher's process group, and it holds files inherited from the Agent Host server.
+
+- Mechanism: Codex runs each filesystem helper as a `codex-linux-sandbox` launcher. The launcher forks `bwrap --die-with-parent` into its own process group, and when Codex drops the helper it kills only that launcher ([`fs_sandbox.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/exec-server/src/fs_sandbox.rs), [`linux_run_main.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/linux_run_main.rs)). The outer bwrap then dies with the launcher. If that happens right after bwrap clones its sandbox child, the child blocks forever on an eventfd that never reports the outer bwrap's death; it binds its own lifetime to its parent only after that wait ([`bubblewrap.c`](https://github.com/containers/bubblewrap/blob/main/bubblewrap.c)).
+- Timing: the holder's age dates its clone while its Agent Host server and app-server were still running, several seconds before that server shut down. It is orphaned mid-session, outside the app-server's process tree, so killing the app-server's tree at teardown does not reach it.
+- Upstream: [openai/codex#54877](https://github.com/openai/codex/issues/54877) and [containers/bubblewrap#633](https://github.com/containers/bubblewrap/issues/633).
+- Test mitigation: on an unmount failure, [tmpfs.sh](../../../../../../../test/integration/agentHost/tmpfs.sh) checks every holder. If all of them are orphaned Codex filesystem helpers (parent PID 1 and `--codex-run-as-fs-helper` on the command line), it describes each one, kills it, reports a GitHub Actions warning, and retries the unmount. Any other holder, or an unmount that still fails, remains fatal with the same holder diagnostics. Remove this mitigation once a fixed Codex or bubblewrap ships.
+
+### Codex context snapshot flake
+
+Responses are correct, but session notifications intermittently differ from the snapshot. The test passes on unchanged retries; see [#338152](https://github.com/microsoft/vscode/issues/338152).
+
+- `retains context across consecutive turns`: skipped for Codex on Linux/macOS.
+- Gate: `coreSuite.ts`. Remove only this gate to reproduce in strict replay; re-enable after diagnosing the failure and repeated clean runs on affected platforms.
+
+```bash
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+  --grep "retains context across consecutive turns"
+```
 
 ### Binary writes to client-hosted files are corrupted
 
@@ -327,9 +445,7 @@ A user can reopen an Agent Host session and ask Copilot to edit a file. The file
     --grep "client plugin exposes"
   ```
 
-  To evaluate the Codex model-backed path, include Codex in `modelBackedEnabled`
-  in `mcpPluginSuite.ts`, record one scenario at a time, and review the resulting
-  Responses fixtures before enabling the group.
+  To evaluate the Codex model-backed path, include Codex in `modelBackedEnabled` in `mcpPluginSuite.ts`, record one scenario at a time, and review the resulting Responses fixtures before enabling the group.
 
 ### Automation restart execution coverage is Copilot-scoped
 
@@ -511,6 +627,83 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
   Remove the entry from `STALE_RECORDED_REQUEST_EXCEPTIONS` and re-record once the fork defect is fixed.
 ## Suspected product bugs
 
+### Copilot compacted history is not restored on Windows
+
+A user can compact a Copilot conversation to reduce its context and then restart the host. On Windows, the resumed model request contains the original conversation rather than the saved summary. The conversation can still answer a remembered fact, but that alone does not prove compaction survived.
+
+- Test: `runtime compaction: a compacted conversation retains context after host restart`.
+- Scope: Copilot on Windows; macOS and Linux remain enabled. Observed in PR CI and both ADO validation builds.
+- Expected: the post-restart model request uses the compacted history.
+- Observed: request projection contains the original user and assistant messages, not the compaction summary.
+- Gate: Windows requires `context.runKnownIssueTests`; request projection remains strict on enabled platforms.
+- Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts --grep 'runtime compaction: a compacted conversation'`.
+
+### Claude can complete an endpoint-not-found request without a response
+
+When a model endpoint temporarily returns HTTP 404, the Claude provider can report that the turn completed even though it produced neither an answer nor an error. The user is left with an apparently finished, empty response. Other recordings of the same scenario successfully retry, so the missing response is not a stable alternative error presentation.
+
+- Test: `provider errors: missing model endpoint retries without losing the request`.
+- Scope: observed in live recording on macOS with Claude; other provider error/retry scenarios remain enabled.
+- Expected: a retried request returns the requested answer, or a failed request is surfaced as an error rather than successful empty completion.
+- Observed: `chat/turnComplete`, no `chat/error`, and no response text after the injected 404.
+- Gate: Claude HTTP 404 requires `context.runKnownIssueTests`.
+- Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts --grep 'provider errors: missing model endpoint'`.
+
+### Submitting synchronized input answers without a replacement loses the provider's answer
+
+A client can synchronize a question's answer while the user edits it, then submit the request without repeating those answers. The chat transcript retains the submitted answer, but the provider does not receive the selected option. The agent can therefore ignore the user's choice or ask the same question again.
+
+- Test: `input drafts: submitting uses the synchronized answer after clearing an earlier draft`.
+- Scope: observed on macOS with Claude, Codex, and Copilot; gated for all platforms.
+- Expected: `chat/inputCompleted` without `answers` forwards the synchronized submitted answer from `chat/inputAnswerChanged`.
+- Observed: Claude and Copilot do not forward the selected Banana answer to the model; Codex asks for input again instead of finishing the turn.
+- Gate: `context.runKnownIssueTests`. Explicit final-answer replacement and cancellation remain enabled.
+- Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --runGlob '**/e2e/providers/*AgentHostE2E.integrationTest.js' --grep 'input drafts: submitting uses'`.
+
+### Workspace membership changes are lost after a host restart
+
+A user can add or remove a folder in an Editor Window multi-root session. The host accepts the change, but restarting it restores the original folder set. Added folders disappear and removed folders return, so file completions and subsequent chats can use a different workspace than the user selected.
+
+- Tests: `workspace lifecycle: adding a folder pins the existing chat across restart` and `workspace lifecycle: removing a secondary folder remains authoritative after restart`.
+- Scope: observed on macOS with Copilot, Claude, and Codex; gated for all platforms pending a fix.
+- Expected: accepted session working-directory changes remain visible in the session catalog and file completions after restart.
+- Observed: the original session working directories are restored, although the old default chat's explicitly pinned subset survives an addition.
+- Gate: `context.runKnownIssueTests`.
+- Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --runGlob '**/e2e/providers/*AgentHostE2E.integrationTest.js' --grep 'workspace lifecycle: (adding a folder|removing a secondary)'`.
+
+### A session used only through a peer chat cannot reopen
+
+A user can create a session, start a peer chat in a selected folder, and leave the default chat unused. After restarting the host, opening that session fails even though the peer chat completed a turn. The conversation is therefore not reliably accessible after a restart.
+
+- Test: `workspace lifecycle: a session used only through a peer can reopen after restart`.
+- Scope: observed on macOS with Copilot, Claude, and Codex; gated for all platforms pending a fix.
+- Expected: opening the session restores the peer chat and its completed history without requiring a turn in the default chat.
+- Observed: Copilot and Claude report `Session was never created on the backend`; Codex reports that the provider is not ready to open the session.
+- Gate: `context.runKnownIssueTests`.
+- Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --runGlob '**/e2e/providers/*AgentHostE2E.integrationTest.js' --grep 'workspace lifecycle: a session used only through a peer'`.
+
+### Forked peer chats do not retain their source folder in host state
+
+A user can fork a peer chat that uses one folder of a multi-root session. The fork should keep that source folder, rather than inherit every folder from the session. The new chat instead has no explicit folder selection in host state, so its advertised workspace can disagree with the provider's actual working directory.
+
+- Test: `workspace lifecycle: a fork retains the source chat folder instead of the requested override`.
+- Scope: observed on macOS with Copilot and Codex; gated for all platforms pending a fix. Claude remains outside this scenario under its existing provider-context fork limitation.
+- Expected: the fork retains the source peer's folder, ignores the requested override as specified by `createChat`, and executes relative file operations in that folder.
+- Observed: Codex executes in the source folder but returns no `workingDirectories` in the fork's chat state; Copilot does not create the expected file in the source folder.
+- Gate: `context.runKnownIssueTests` and the existing `supportsChatForkE2E` capability.
+- Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --runGlob '**/e2e/providers/*AgentHostE2E.integrationTest.js' --grep 'workspace lifecycle: a fork retains'`.
+
+### Restored Copilot peer tools run in the session's primary folder
+
+A user can select a secondary folder for a Copilot peer chat and continue the conversation after restarting the host. The peer's relative file operations then execute in the session's primary folder instead. A task intended for the selected project can consequently modify a different project.
+
+- Test: `workspace lifecycle: peer folder selection survives a host restart`.
+- Scope: observed on macOS with Copilot; gated for Copilot on all platforms. Claude and Codex remain enabled.
+- Expected: the restored peer retains its folder selection, conversation, and actual tool working directory.
+- Observed: Copilot creates `restored.txt` under the primary folder rather than the peer's selected secondary folder.
+- Gate: Copilot requires `context.runKnownIssueTests`.
+- Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts --grep 'workspace lifecycle: peer folder selection survives'`.
+
 ### Copilot session debug export omits the process log
 
 A user can export debug logs for a Copilot session to diagnose lower-level SDK runtime behavior. The export omits the SDK `process.log`, so startup, authentication, and runtime diagnostics are unavailable even after the provider session has been created.
@@ -621,6 +814,7 @@ A client can request arbitrary file bytes from the Agent Host in base64 so binar
 - Tests:
   - `server tool: create_session currentSession starts a prompt in a peer chat`
   - `server tool: create_session currentSession applies an explicit peer title`
+  - The four `workspace delegation:` scenarios in `workingDirectoriesSuite.ts` require the same current-session creation path and are registered only for Copilot and Codex.
 - Scope: Claude.
 - Expected: after confirmation, the host creates the peer chat, starts the local `/rename` prompt there, returns the tool result, and completes the invoking turn.
 - Observed: the confirmation is accepted, but the invoking turn never reaches tool completion or `chat/turnComplete`.
@@ -797,6 +991,10 @@ A user can ask Claude to delete a file from the workspace through its shell tool
   ```bat
   scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\claudeAgentHostE2E.integrationTest.ts --grep "deletes a workspace file"
   ```
+
+### Codex turn-diff shell fixture uses Bash
+
+The `shell-intercepted patches use the same turn-diff tracking` provider-integration fixture is separately POSIX-only because it sends a Bash heredoc through Codex's shell. Native patch tracking, checkpoint, steering, subagent, and restart coverage in [codexTurnDiff.integrationTest.ts](../providerIntegration/codexTurnDiff.integrationTest.ts) stays enabled on Windows.
 
 ### Codex file creation replay on Windows
 

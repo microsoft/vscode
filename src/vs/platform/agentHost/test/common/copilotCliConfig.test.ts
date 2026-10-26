@@ -12,6 +12,19 @@ suite('copilotCliConfig', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('image watermark is an independent default-off preference', () => {
+		const watermark = copilotCliConfigSchema.toProtocol().properties.imageGenerationWatermark;
+		assert.deepStrictEqual({
+			type: watermark?.type,
+			default: watermark?.default,
+			title: watermark?.title,
+		}, {
+			type: 'boolean',
+			default: false,
+			title: 'Image Watermark',
+		});
+	});
+
 	test('normalizeModelFamilyAlias accepts plausible model ids and rejects non-ids', () => {
 		assert.deepStrictEqual(
 			['claude-opus-4.8', 'openai/gpt-5', '', ' padded ', 'has\u0000nul', 'x'.repeat(129)].map(normalizeModelFamilyAlias),
@@ -28,9 +41,13 @@ suite('copilotCliConfig', () => {
 
 	test('normalizeSkillCharBudget floors valid values and defaults invalid values', () => {
 		assert.deepStrictEqual(
-			[30_000.9, 1, 0.5, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined].map(normalizeSkillCharBudget),
-			[30_000, 1, 15_000, 15_000, 15_000, 15_000, 15_000, 15_000]
+			[15_000.9, 1, 0.5, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined].map(normalizeSkillCharBudget),
+			[15_000, 1, 30_000, 30_000, 30_000, 30_000, 30_000, 30_000]
 		);
+	});
+
+	test('skill character budget schema defaults to 30000', () => {
+		assert.strictEqual(copilotCliConfigSchema.definition[CopilotCliConfigKey.SkillCharBudget].protocol.default, 30_000);
 	});
 
 	test('per-model reasoning effort schema uses the canonical effort levels', () => {

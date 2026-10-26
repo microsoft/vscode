@@ -15,6 +15,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/browser/environmentService.js';
 import { BrowserTunnelAgentHostService } from './browserTunnelAgentHostService.js';
@@ -40,6 +41,7 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 		@IStorageService storageService: IStorageService,
 		@IRemoteAgentHostLocationPreferenceService locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
 		@IDialogService dialogService: IDialogService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 		this._delegate = this._register(environmentService.options?.tunnelDiscoveryProvider
@@ -62,6 +64,7 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 				storageService,
 				locationPreferenceService,
 				dialogService,
+				telemetryService,
 			));
 		this.onDidChangeTunnels = this._delegate.onDidChangeTunnels;
 	}
