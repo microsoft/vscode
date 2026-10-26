@@ -23,7 +23,7 @@ suite('CloudSandboxConnectionCustomization', () => {
 			userLocal: ['copilot', 'copilotcli', 'claude'].map(provider => userLocal?.inputPlaceholder?.(provider)),
 			ordinaryRemote: createCloudSandboxConnectionCustomization('ssh:host', service)?.inputPlaceholder?.('copilot'),
 		}, {
-			sandbox: ['Chat with Copilot in a cloud sandbox', undefined, undefined],
+			sandbox: ['Chat with Copilot Cloud', undefined, undefined],
 			userLocal: [undefined, undefined, undefined],
 			ordinaryRemote: undefined,
 		});

@@ -20,7 +20,7 @@ import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentH
 import { IRemoteAgentHostConnectionCustomization } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxSessionPreparation } from './cloudSandboxLegacySessionPreparation.js';
 
-export const CLOUD_SANDBOX_INPUT_PLACEHOLDER = localize('cloudSandbox.inputPlaceholder', "Chat with Copilot in a cloud sandbox");
+export const CLOUD_SANDBOX_INPUT_PLACEHOLDER = localize('cloudSandbox.inputPlaceholder', "Chat with Copilot Cloud");
 
 /** Hosts whose protected resources may receive the user's GitHub identity token. */
 function isGitHubResource(resource: string): boolean {
