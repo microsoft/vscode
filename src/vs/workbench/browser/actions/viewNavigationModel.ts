@@ -93,7 +93,7 @@ export function getNavigableViewEntries(
 
 	for (const location of locationOrder) {
 		for (const container of snapshot.containers) {
-			if (!container.active || container.location !== location || usedLocations.has(location)) {
+			if (!container.id || !container.active || container.location !== location || usedLocations.has(location)) {
 				continue;
 			}
 
@@ -120,17 +120,19 @@ function getPreferredEntry(
 	snapshot: IViewNavigationSnapshot,
 	direction: ViewNavigationDirection
 ): INavigationEntry | undefined {
+	const backward = direction === 'previous' || direction === 'last';
+
 	if (snapshot.preferredContainerId) {
-		const preferred = entries.find(entry => entry.containerId === snapshot.preferredContainerId);
-		if (preferred) {
-			return preferred;
+		const preferred = entries.filter(entry => entry.containerId === snapshot.preferredContainerId);
+		if (preferred.length > 0) {
+			return backward ? preferred[preferred.length - 1] : preferred[0];
 		}
 	}
 
 	if (snapshot.preferredLocation) {
-		const preferred = entries.find(entry => entry.location === snapshot.preferredLocation);
-		if (preferred) {
-			return preferred;
+		const preferred = entries.filter(entry => entry.location === snapshot.preferredLocation);
+		if (preferred.length > 0) {
+			return backward ? preferred[preferred.length - 1] : preferred[0];
 		}
 	}
 
