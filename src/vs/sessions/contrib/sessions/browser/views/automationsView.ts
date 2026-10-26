@@ -78,6 +78,7 @@ import { SessionsFlatList, SessionItemStatusContext, formatSessionListTime } fro
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
+import { AutomationPendingAction, AutomationPendingActions, getAutomationPendingActions } from './automationPendingActions.js';
 import { getAutomationOwnershipGroups, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
@@ -373,6 +374,7 @@ class AutomationCardsSection extends Disposable {
 	private partialUnavailableProviders: readonly IAutomationProviderDescriptor[] = [];
 	private pendingFocusAutomationId: string | undefined;
 	private focusRequestGeneration = 0;
+	private readonly pendingActions: AutomationPendingActions;
 
 	constructor(
 		parent: HTMLElement,
@@ -391,6 +393,7 @@ class AutomationCardsSection extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+		this.pendingActions = getAutomationPendingActions(this.automationService);
 		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY, this._store)(() => {
 			this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
@@ -734,7 +737,7 @@ class AutomationCardsSection extends Disposable {
 		disposables.add(runBtn.onDidClick((e) => {
 			e?.stopPropagation();
 			const currentAutomation = this.latestAutomations.get(automation.id);
-			if (!currentAutomation || startingRuns.get() || !this.automationService.canRunAutomation(automation.id)) {
+			if (!currentAutomation || this.pendingActions.actions.get().has(automation.id) || startingRuns.get() || !this.automationService.canRunAutomation(automation.id)) {
 				return;
 			}
 			startingRuns.set(new Set(this.automationService.runs.get().map(run => run.id)), undefined);
@@ -749,7 +752,7 @@ class AutomationCardsSection extends Disposable {
 		disposables.add(moreActionsButton.onDidClick(event => {
 			event?.stopPropagation();
 			const currentAutomation = this.latestAutomations.get(automation.id);
-			if (!currentAutomation) {
+			if (!currentAutomation || this.pendingActions.actions.get().has(automation.id)) {
 				return;
 			}
 			actions.classList.add('menu-open');
@@ -773,7 +776,7 @@ class AutomationCardsSection extends Disposable {
 					return;
 				}
 				const currentAutomation = this.latestAutomations.get(automation.id);
-				if (!currentAutomation || !this.automationService.canUpdateAutomation(automation.id)) {
+				if (!currentAutomation || this.pendingActions.actions.get().has(automation.id) || !this.automationService.canUpdateAutomation(automation.id)) {
 					return;
 				}
 				void this.openEditDialog(currentAutomation);
@@ -806,6 +809,7 @@ class AutomationCardsSection extends Disposable {
 		this.updateCard(entry, automation);
 		disposables.add(autorun(reader => {
 			const starting = startingRuns.read(reader);
+			const pendingAction = this.pendingActions.actions.read(reader).get(automation.id);
 			const runs = this.automationService.runs.read(reader);
 			const state = this.automationService.catalogueState.read(reader);
 			const historyState = this.automationService.historyState?.read(reader);
@@ -813,17 +817,15 @@ class AutomationCardsSection extends Disposable {
 				|| (state === 'unavailable' && !this.automationService.canRunAutomation(automation.id)) || state === 'error' || historyState === 'error')) {
 				startingRuns.set(undefined, undefined);
 			}
-			this.updateCardRunState(entry, this.latestAutomations.get(automation.id) ?? automation);
+			this.updateCardActionState(entry, this.latestAutomations.get(automation.id) ?? automation, pendingAction);
 		}));
 		return entry;
 	}
 
 	private updateCard(card: IAutomationCardEntry, automation: IAutomationDescriptor, previous?: IAutomationDescriptor): void {
-		card.main.disabled = !this.automationService.canUpdateAutomation(automation.id);
-		this.updateCardRunState(card, automation);
-		card.canDeleteContext.set(this.automationService.canDeleteAutomation(automation.id));
+		const pendingAction = this.pendingActions.actions.get().get(automation.id);
+		this.updateCardActionState(card, automation, pendingAction);
 		card.hasExternalResourceContext.set(automation.externalResource !== undefined);
-		card.canUpdateContext.set(this.automationService.canUpdateAutomation(automation.id));
 		card.enabledContext.set(automation.enabled);
 		card.isCloudContext.set(automation.cloudTrigger !== undefined || automation.ownership !== undefined);
 		card.hasEventTriggerContext.set(hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {}));
@@ -871,17 +873,28 @@ class AutomationCardsSection extends Disposable {
 		}
 	}
 
-	private updateCardRunState(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {
+	private updateCardActionState(card: IAutomationCardEntry, automation: IAutomationDescriptor, pendingAction: AutomationPendingAction | undefined): void {
 		const eventTriggered = hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {});
 		if (eventTriggered && DOM.isActiveElement(card.runButton.element)) {
 			card.moreActionsButton.focus();
 		}
 		card.runButton.element.style.display = eventTriggered ? 'none' : '';
 		const starting = card.startingRuns.get() !== undefined;
-		card.startingIcon.style.display = starting ? '' : 'none';
-		card.promptEl.textContent = starting ? localize('automationStarting', "Starting run...") : automation.prompt;
-		card.runButton.enabled = !starting && this.automationService.canRunAutomation(automation.id);
-		const label = starting ? localize('running', "Running") : localize('runNow', "Run now");
+		const pendingLabel = pendingAction === 'disabling'
+			? localize('automationDisabling', "Disabling...")
+			: pendingAction === 'deleting'
+				? localize('automationDeleting', "Deleting...")
+				: undefined;
+		const busy = pendingAction !== undefined;
+		card.card.setAttribute('aria-busy', busy ? 'true' : 'false');
+		card.main.disabled = busy || !this.automationService.canUpdateAutomation(automation.id);
+		card.canDeleteContext.set(!busy && this.automationService.canDeleteAutomation(automation.id));
+		card.canUpdateContext.set(!busy && this.automationService.canUpdateAutomation(automation.id));
+		card.startingIcon.style.display = pendingLabel || starting ? '' : 'none';
+		card.promptEl.textContent = pendingLabel ?? (starting ? localize('automationStarting', "Starting run...") : automation.prompt);
+		card.runButton.enabled = !busy && !starting && this.automationService.canRunAutomation(automation.id);
+		card.moreActionsButton.enabled = !busy;
+		const label = pendingLabel ?? (starting ? localize('running', "Running") : localize('runNow', "Run now"));
 		card.runButton.setAriaLabel(label);
 		card.runButton.setTitle(label);
 	}
@@ -2348,24 +2361,35 @@ async function confirmAndDeleteAutomation(
 	if (!automationService.canDeleteAutomation(automation.id)) {
 		return;
 	}
+	const pendingActions = getAutomationPendingActions(automationService);
+	if (pendingActions.isLocked(automation.id)) {
+		return;
+	}
 	const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
 	if (!isEnabled()) {
 		await showAutomationsDisabled(dialogService);
 		return;
 	}
-	const confirmed = await dialogService.confirm({
-		message: localize('confirmDeleteAutomation', "Delete automation \"{0}\"?", automation.name),
-		detail: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history."),
-		primaryButton: localize('delete', "Delete"),
-	});
-	if (!confirmed.confirmed) {
-		return;
-	}
-	if (!isEnabled()) {
-		await showAutomationsDisabled(dialogService);
+	if (!pendingActions.tryLock(automation.id)) {
 		return;
 	}
 	try {
+		const confirmed = await dialogService.confirm({
+			message: localize('confirmDeleteAutomation', "Delete automation \"{0}\"?", automation.name),
+			detail: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history."),
+			primaryButton: localize('delete', "Delete"),
+		});
+		if (!confirmed.confirmed) {
+			return;
+		}
+		if (!isEnabled()) {
+			await showAutomationsDisabled(dialogService);
+			return;
+		}
+		if (!pendingActions.beginLocked(automation.id, 'deleting')) {
+			return;
+		}
+		status(localize('automationDeletingStatus', "Deleting automation {0}", automation.name));
 		await automationService.deleteAutomation(automation.id, () => {
 			if (!isEnabled()) {
 				throw new Error(localize('automationsDisabledBeforeDelete', "Automations were disabled before the automation could be deleted."));
@@ -2378,6 +2402,8 @@ async function confirmAndDeleteAutomation(
 			localize('automationDeleteFailed', "Failed to delete automation."),
 			getErrorMessage(error),
 		);
+	} finally {
+		pendingActions.end(automation.id);
 	}
 }
 
@@ -3016,7 +3042,8 @@ registerAction2(class EnableAutomationAction extends Action2 {
 
 async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAutomationDescriptor, enabled: boolean): Promise<void> {
 	const automationService = accessor.get(IAutomationService);
-	if (automation.enabled === enabled || !automationService.canUpdateAutomation(automation.id)) {
+	const pendingActions = getAutomationPendingActions(automationService);
+	if (automation.enabled === enabled || pendingActions.isLocked(automation.id) || !automationService.canUpdateAutomation(automation.id)) {
 		return;
 	}
 	const configurationService = accessor.get(IConfigurationService);
@@ -3027,7 +3054,14 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 		await showAutomationsDisabled(dialogService);
 		return;
 	}
+	const tracksPending = !enabled;
+	if (tracksPending && !pendingActions.tryBegin(automation.id, 'disabling')) {
+		return;
+	}
 	try {
+		if (tracksPending) {
+			status(localize('automationDisablingStatus', "Disabling automation {0}", automation.name));
+		}
 		const result = await automationService.updateAutomationIfUnchanged(automation.id, { enabled }, automation, () => {
 			if (!automationsEnabled()) {
 				throw new Error(enabled
@@ -3055,6 +3089,10 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 				: localize('automationDisableFailed', "Failed to disable automation."),
 			getErrorMessage(error),
 		);
+	} finally {
+		if (tracksPending) {
+			pendingActions.end(automation.id);
+		}
 	}
 }
 

@@ -69,6 +69,7 @@ import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../common/sessionConfig.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
+import { AutomationPendingAction, getAutomationPendingActions } from '../../browser/views/automationPendingActions.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
 import { AutomationsCardsWidget, AutomationsCustomViewContribution, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
@@ -199,8 +200,10 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	override readonly availableProviders = constObservable<readonly IAutomationProviderDescriptor[]>([]);
 	updateResult: IGuardedAutomationUpdateResult | undefined;
 	updateCalls = 0;
+	beforeUpdate: Promise<void> | undefined;
 	createError: Error | undefined;
 	deleteError: Error | undefined;
+	beforeDelete: Promise<void> | undefined;
 	canDelete = true;
 	canUpdate = true;
 	publishCreates = true;
@@ -285,12 +288,14 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		this.updateCalls++;
 		this.guardedUpdateCalls.push({ id, patch, expected });
 		mutationGuard?.();
+		await this.beforeUpdate;
 		return this.updateResult ?? { kind: 'updated', automation: await this.updateAutomation(id, patch) };
 	}
 
 	override async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
 		mutationGuard?.();
 		this.deleteCalls.push(id);
+		await this.beforeDelete;
 		if (this.deleteError) {
 			throw this.deleteError;
 		}
@@ -382,9 +387,11 @@ class FakeDialogService extends mock<IDialogService>() {
 	readonly errorCalled = new DeferredPromise<void>();
 	readonly infoCalled = new DeferredPromise<void>();
 	confirmResult: IConfirmationResult = { confirmed: false };
+	beforeConfirm: Promise<void> | undefined;
 
 	override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.confirmations.push(confirmation);
+		await this.beforeConfirm;
 		return this.confirmResult;
 	}
 
@@ -3530,6 +3537,142 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('disable immediately shows pending feedback and blocks duplicate mutations until success', async () => {
+			const { automationService, dialogService, instantiationService, widget } = setup();
+			const source = automation();
+			const pending = new DeferredPromise<void>();
+			automationService.beforeUpdate = pending.p;
+			automationService.setAutomations([source]);
+			dialogService.confirmResult = { confirmed: true };
+			const disableCommand = CommandsRegistry.getCommand('sessions.automations.disable')!;
+			const deleteCommand = CommandsRegistry.getCommand('sessions.automations.delete')!;
+			const card = widget.element.querySelector<HTMLElement>('.automations-card')!;
+			const state = () => ({
+				prompt: card.querySelector('.automations-card-prompt')!.textContent,
+				spinner: card.querySelector<HTMLElement>('.codicon-loading')!.style.display !== 'none',
+				editDisabled: card.querySelector<HTMLButtonElement>('.automations-card-main')!.disabled,
+				runDisabled: card.querySelector('.automations-card-run-button')!.getAttribute('aria-disabled'),
+				moreDisabled: card.querySelector('.automations-card-more-actions-button')!.getAttribute('aria-disabled'),
+			});
+
+			const disabling = instantiationService.invokeFunction(accessor => disableCommand.handler(accessor, source));
+			const pendingState = state();
+			automationService.setAutomations([{ ...source }]);
+			const refreshedState = state();
+			const duplicateDisable = instantiationService.invokeFunction(accessor => disableCommand.handler(accessor, source));
+			const duplicateDelete = instantiationService.invokeFunction(accessor => deleteCommand.handler(accessor, source));
+			pending.complete();
+			await Promise.all([disabling, duplicateDisable, duplicateDelete]);
+
+			assert.deepStrictEqual({
+				pendingState,
+				refreshedState,
+				settledState: state(),
+				updateCalls: automationService.guardedUpdateCalls,
+				deleteCalls: automationService.deleteCalls,
+				confirmations: dialogService.confirmations.length,
+			}, {
+				pendingState: {
+					prompt: 'Disabling...',
+					spinner: true,
+					editDisabled: true,
+					runDisabled: 'true',
+					moreDisabled: 'true',
+				},
+				refreshedState: {
+					prompt: 'Disabling...',
+					spinner: true,
+					editDisabled: true,
+					runDisabled: 'true',
+					moreDisabled: 'true',
+				},
+				settledState: {
+					prompt: source.prompt,
+					spinner: false,
+					editDisabled: false,
+					runDisabled: 'false',
+					moreDisabled: 'false',
+				},
+				updateCalls: [{ id: source.id, patch: { enabled: false }, expected: source }],
+				deleteCalls: [],
+				confirmations: 0,
+			});
+		});
+
+		test('mutation pending feedback takes precedence over a concurrent starting run', async () => {
+			const { automationService, instantiationService, runner, widget } = setup();
+			const source = automation();
+			const dispatched = new DeferredPromise<IAutomationRunDispatch>();
+			const updated = new DeferredPromise<void>();
+			runner.whenDispatched = dispatched.p;
+			automationService.beforeUpdate = updated.p;
+			automationService.setAutomations([source]);
+			widget.element.querySelector<HTMLButtonElement>('.automations-card-run-button')!.click();
+			const command = CommandsRegistry.getCommand('sessions.automations.disable')!;
+
+			const disabling = instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+			const card = widget.element.querySelector<HTMLElement>('.automations-card')!;
+			const pendingState = {
+				prompt: card.querySelector('.automations-card-prompt')!.textContent,
+				spinner: card.querySelector<HTMLElement>('.codicon-loading')!.style.display !== 'none',
+			};
+			updated.complete();
+			await disabling;
+			dispatched.complete({ kind: 'notStarted', reason: 'targetUnavailable' });
+			await Promise.resolve();
+
+			assert.deepStrictEqual(pendingState, { prompt: 'Disabling...', spinner: true });
+		});
+
+		test('pending mutation safely settles after its card and view are disposed', async () => {
+			const { automationService, instantiationService, widget } = setup();
+			const source = automation();
+			const pending = new DeferredPromise<void>();
+			automationService.beforeUpdate = pending.p;
+			automationService.setAutomations([source]);
+			const command = CommandsRegistry.getCommand('sessions.automations.disable')!;
+
+			const disabling = instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+			widget.dispose();
+			pending.complete();
+			await disabling;
+
+			assert.deepStrictEqual({
+				pending: getAutomationPendingActions(automationService).actions.get().size,
+				updateCalls: automationService.guardedUpdateCalls.length,
+			}, { pending: 0, updateCalls: 1 });
+		});
+
+	test('failed disable clears pending feedback and permits retry', async () => {
+			const { automationService, dialogService, instantiationService, widget } = setup();
+			const source = automation();
+			const pending = new DeferredPromise<void>();
+			automationService.beforeUpdate = pending.p;
+			automationService.updateResult = { kind: 'conflict', current: automation({ prompt: 'Changed' }) };
+			automationService.setAutomations([source]);
+			const command = CommandsRegistry.getCommand('sessions.automations.disable')!;
+			const first = instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+			await Promise.resolve();
+			pending.complete();
+			await first;
+			await dialogService.errorCalled.p;
+			automationService.beforeUpdate = undefined;
+			automationService.updateResult = undefined;
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+
+			assert.deepStrictEqual({
+				updateCount: automationService.guardedUpdateCalls.length,
+				prompt: widget.element.querySelector('.automations-card-prompt')!.textContent,
+				spinner: widget.element.querySelector<HTMLElement>('.codicon-loading')!.style.display,
+				enabled: automationService.automations.get()[0].enabled,
+			}, {
+				updateCount: 2,
+				prompt: source.prompt,
+				spinner: 'none',
+				enabled: false,
+		});
+	});
+
 	test('Enable and Disable are unavailable when updates are unsupported', async () => {
 		const { automationService, contextKeyService, contextMenuService, instantiationService, widget } = setup();
 		automationService.canUpdate = false;
@@ -3638,6 +3781,154 @@ suite('AutomationsCardsWidget', () => {
 			deleteCalls: [source.id],
 			automations: [],
 			runs: [],
+		});
+	});
+
+	test('delete immediately shows pending feedback, blocks duplicates, and disappears on success', async () => {
+			const { automationService, dialogService, instantiationService, widget } = setup();
+			const source = automation();
+			const pending = new DeferredPromise<void>();
+			automationService.beforeDelete = pending.p;
+			automationService.setAutomations([source]);
+			dialogService.confirmResult = { confirmed: true };
+			const command = CommandsRegistry.getCommand('sessions.automations.delete')!;
+			const deleting = instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+			await Promise.resolve();
+			await Promise.resolve();
+			const card = widget.element.querySelector<HTMLElement>('.automations-card')!;
+			const pendingState = {
+				prompt: card.querySelector('.automations-card-prompt')!.textContent,
+				spinner: card.querySelector<HTMLElement>('.codicon-loading')!.style.display !== 'none',
+				editDisabled: card.querySelector<HTMLButtonElement>('.automations-card-main')!.disabled,
+				runDisabled: card.querySelector('.automations-card-run-button')!.getAttribute('aria-disabled'),
+				moreDisabled: card.querySelector('.automations-card-more-actions-button')!.getAttribute('aria-disabled'),
+			};
+			const duplicateDelete = instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+			pending.complete();
+			await Promise.all([deleting, duplicateDelete]);
+
+			assert.deepStrictEqual({
+				pendingState,
+				deleteCalls: automationService.deleteCalls,
+				confirmations: dialogService.confirmations.length,
+				cardCount: widget.element.querySelectorAll('.automations-card').length,
+			}, {
+				pendingState: {
+					prompt: 'Deleting...',
+					spinner: true,
+					editDisabled: true,
+					runDisabled: 'true',
+					moreDisabled: 'true',
+				},
+				deleteCalls: [source.id],
+				confirmations: 1,
+				cardCount: 0,
+		});
+	});
+
+	test('cancelled delete never enters mutation pending state', async () => {
+		const { automationService, instantiationService, widget } = setup();
+		const source = automation();
+		automationService.setAutomations([source]);
+		const command = CommandsRegistry.getCommand('sessions.automations.delete')!;
+
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+
+		assert.deepStrictEqual({
+			pending: getAutomationPendingActions(automationService).actions.get().size,
+			prompt: widget.element.querySelector('.automations-card-prompt')!.textContent,
+			spinner: widget.element.querySelector<HTMLElement>('.codicon-loading')!.style.display,
+			deleteCalls: automationService.deleteCalls,
+		}, {
+			pending: 0,
+			prompt: source.prompt,
+			spinner: 'none',
+			deleteCalls: [],
+		});
+	});
+
+	test('delete confirmation blocks concurrent disable and duplicate delete without showing mutation pending', async () => {
+		const { automationService, dialogService, instantiationService, widget } = setup();
+		const source = automation();
+		const confirmation = new DeferredPromise<void>();
+		dialogService.beforeConfirm = confirmation.p;
+		automationService.setAutomations([source]);
+		const deleteCommand = CommandsRegistry.getCommand('sessions.automations.delete')!;
+		const disableCommand = CommandsRegistry.getCommand('sessions.automations.disable')!;
+
+		const deleting = instantiationService.invokeFunction(accessor => deleteCommand.handler(accessor, source));
+		const duplicateDelete = instantiationService.invokeFunction(accessor => deleteCommand.handler(accessor, source));
+		const disabling = instantiationService.invokeFunction(accessor => disableCommand.handler(accessor, source));
+		const stateWhileConfirming = {
+			pending: getAutomationPendingActions(automationService).actions.get().size,
+			prompt: widget.element.querySelector('.automations-card-prompt')!.textContent,
+		};
+		confirmation.complete();
+		await Promise.all([deleting, duplicateDelete, disabling]);
+
+		assert.deepStrictEqual({
+			stateWhileConfirming,
+			confirmations: dialogService.confirmations.length,
+			deleteCalls: automationService.deleteCalls,
+			updateCalls: automationService.guardedUpdateCalls.length,
+		}, {
+			stateWhileConfirming: { pending: 0, prompt: source.prompt },
+			confirmations: 1,
+			deleteCalls: [],
+			updateCalls: 0,
+		});
+	});
+
+	test('disable pending state settles when the automation is deleted concurrently', async () => {
+		const { automationService, dialogService, instantiationService, widget } = setup();
+		const source = automation();
+		const pending = new DeferredPromise<void>();
+		automationService.beforeUpdate = pending.p;
+		automationService.updateResult = { kind: 'conflict', current: undefined };
+		automationService.setAutomations([source]);
+		const command = CommandsRegistry.getCommand('sessions.automations.disable')!;
+
+		const disabling = instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		automationService.setAutomations([]);
+		pending.complete();
+		await disabling;
+		await dialogService.errorCalled.p;
+
+		assert.deepStrictEqual({
+			cardCount: widget.element.querySelectorAll('.automations-card').length,
+			pending: getAutomationPendingActions(automationService).actions.get().size,
+			dialogErrors: dialogService.errors,
+		}, {
+			cardCount: 0,
+			pending: 0,
+			dialogErrors: [{
+				message: 'Failed to disable automation.',
+				detail: 'This automation was deleted before it could be disabled.',
+			}],
+		});
+	});
+
+	test('failed delete clears pending feedback and permits retry', async () => {
+		const { automationService, dialogService, instantiationService, widget } = setup();
+		const source = automation();
+		automationService.setAutomations([source]);
+		automationService.deleteError = new Error('delete failed');
+		dialogService.confirmResult = { confirmed: true };
+		const command = CommandsRegistry.getCommand('sessions.automations.delete')!;
+
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		await dialogService.errorCalled.p;
+		automationService.deleteError = undefined;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+
+		assert.deepStrictEqual({
+			deleteCalls: automationService.deleteCalls,
+			confirmations: dialogService.confirmations.length,
+			cardCount: widget.element.querySelectorAll('.automations-card').length,
+		}, {
+			deleteCalls: [source.id, source.id],
+			confirmations: 2,
+			cardCount: 0,
 		});
 	});
 
@@ -4341,6 +4632,18 @@ suite('AutomationsCardsWidget', () => {
 			buildAutomationsAccessibleContent([automation()], [run({ status: 'failed', errorMessage: 'boom' })], 'ready').includes('Daily review, Failed'),
 			true,
 		);
+	});
+
+	test('accessible view reports pending automation mutations', () => {
+		const item = automation();
+		const content = (action: AutomationPendingAction) => buildAutomationsAccessibleContent(
+			[item], [], 'ready', [], [], 'ready', [], new Map([[item.id, action]]),
+		);
+
+		assert.deepStrictEqual({
+			disabling: content('disabling').includes('Daily review, disabling'),
+			deleting: content('deleting').includes('Daily review, deleting'),
+		}, { disabling: true, deleting: true });
 	});
 
 	test('accessible local progress clears stale descriptions only while active', () => {

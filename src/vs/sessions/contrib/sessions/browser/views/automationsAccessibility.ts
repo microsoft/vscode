@@ -21,6 +21,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
+import { AutomationPendingAction, getAutomationPendingActions } from './automationPendingActions.js';
 import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress } from './automationRunProgress.js';
 
@@ -51,7 +52,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 				localize('automationsCustomView.help.pluginTemplates', "The Templates from Plugins section is available whenever enabled plugins provide templates. Press Enter or Space on its disclosure control to expand or collapse it. A blue marker indicates templates added since the section was last expanded. Plugin templates start disabled."),
 			] : []),
 			localize('automationsCustomView.help.sharing', "Use Import Automation in the view header, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. For Agent Host automations, open the context menu and choose Export to save a portable blueprint. Cloud automations do not currently offer Export."),
-			localize('automationsCustomView.help.cards', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and More Actions. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. More Actions opens the automation menu. Duplicate opens a prefilled New automation dialog for portable schedules and is unavailable for event-triggered automations. Disable prevents future runs, and Delete asks for confirmation. Run now requests execution from the selected provider when available."),
+			localize('automationsCustomView.help.cards', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and More Actions. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. More Actions opens the automation menu. Duplicate opens a prefilled New automation dialog for portable schedules and is unavailable for event-triggered automations. Disable prevents future runs, and Delete asks for confirmation. While Disable or Delete is in progress, the card reports its pending state and its controls are unavailable. Run now requests execution from the selected provider when available."),
 			localize('automationsCustomView.help.externalDefinition', "For cloud automation cards, More Actions also offers Open on GitHub to open the automation's details in your browser."),
 			localize('automationsCustomView.help.ownership', "Saved cards are grouped under collapsible Your automations and Shared automations sections. Press Enter or Space on a section header to expand or collapse it. The Shared automations info icon explains who can view and edit those automations. Cloud creation has an Owner control after Tools. Use the arrow keys to choose Only me or Repository; Only me is the default. Ownership cannot be changed when editing. Repository readers can view Shared automations; writers can manage them. A failed save leaves the dialog open with the server's explanation above Create."),
 			localize('automationsCustomView.help.dialog', "In the automation dialog, Target controls are above the prompt. Agent and model pickers are inside the prompt input, and execution mode and permission controls are below it. Use Tab and Shift+Tab to move between fields and pickers. When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required."),
@@ -104,6 +105,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 				automationService.unavailableProviders.get(),
 				automationService.historyState?.get(),
 				chatService.chatModels.get(),
+				getAutomationPendingActions(automationService).actions.get(),
 			),
 			restoreFocus,
 			AccessibilityVerbositySettingId.Automations,
@@ -122,7 +124,7 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = [], historyState?: AutomationCatalogueState, chatModels: Iterable<IChatModel> = []): string {
+export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = [], historyState?: AutomationCatalogueState, chatModels: Iterable<IChatModel> = [], pendingActions: ReadonlyMap<string, AutomationPendingAction> = new Map()): string {
 	const lines = [localize('automationsAccessibleView.title', "Automations")];
 	const builtInTemplates = templates.filter(template => !template.source);
 	const pluginTemplates = templates.filter(template => !!template.source);
@@ -137,9 +139,14 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 			}
 			for (const automation of group.automations) {
 				lines.push('');
-				lines.push(automation.enabled
-					? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
-					: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
+				const pendingAction = pendingActions.get(automation.id);
+				lines.push(pendingAction === 'disabling'
+					? localize('automationsAccessibleView.automationDisabling', "{0}, disabling", automation.name)
+					: pendingAction === 'deleting'
+						? localize('automationsAccessibleView.automationDeleting', "{0}, deleting", automation.name)
+						: automation.enabled
+							? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
+							: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
 				const triggers = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
 				lines.push(triggers ? localize('automationsAccessibleView.triggers', "Triggers: {0}", triggers)
 					: localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));
