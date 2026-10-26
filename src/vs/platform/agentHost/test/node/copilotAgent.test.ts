@@ -14019,7 +14019,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('configures repository-size-gated tgrep only when enabled', async () => {
+		test('allows repository-size-gated tgrep by default and ignores the removed opt-out', async () => {
 			const readTgrepEnv = async (rootConfig: Record<string, unknown>) => {
 				const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), rootConfig });
 				try {
@@ -14033,11 +14033,11 @@ suite('CopilotAgent', () => {
 			};
 
 			assert.deepStrictEqual({
-				off: await readTgrepEnv({}),
-				on: await readTgrepEnv({ [CopilotCliConfigKey.Tgrep]: true }),
+				default: await readTgrepEnv({}),
+				legacyOptOut: await readTgrepEnv({ tgrep: false }),
 			}, {
-				off: { useTgrep: 'false', useBuiltinRipgrep: 'false' },
-				on: { useTgrep: undefined, useBuiltinRipgrep: undefined },
+				default: { useTgrep: undefined, useBuiltinRipgrep: undefined },
+				legacyOptOut: { useTgrep: undefined, useBuiltinRipgrep: undefined },
 			});
 		});
 
@@ -22404,7 +22404,7 @@ suite('CopilotAgent', () => {
 					clientToken: undefined,
 					configToken: 'connector-session-token',
 					hasTokenProvider: false,
-					connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, AGENT_FINDER_PLUGIN_INSTALL: true, CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+					connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, AGENT_FINDER_PLUGIN_INSTALL: true, CONNECTORS: true, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 				});
 			} finally {
 				await disposeAgent(agent);
