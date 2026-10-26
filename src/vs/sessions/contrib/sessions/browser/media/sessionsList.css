@@ -147,7 +147,7 @@
 		display: none !important;
 	}
 
-	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie) {
+	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
 		position: absolute;
 		top: var(--vscode-spacing-size80);
 		left: var(--vscode-spacing-size120);
@@ -161,13 +161,16 @@
 		z-index: 1;
 	}
 
-	.monaco-list-row .session-comparison-twistie {
+	.monaco-list-row :is(.session-comparison-twistie, .session-comparison-attempt-twistie) {
 		left: var(--vscode-spacing-size360);
+	}
+
+	.monaco-list-row .session-comparison-attempt-twistie {
 		top: var(--vscode-spacing-size60);
 	}
 
 	/* Replace the status icon with the twistie only while hovering the session row. */
-	.monaco-list-row:is(:hover, .hovered) :is(.session-chat-twistie, .session-comparison-twistie).collapsible {
+	.monaco-list-row:is(:hover, .hovered) :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie).collapsible {
 		opacity: 1;
 		pointer-events: auto;
 	}
@@ -660,7 +663,7 @@
 }
 
 .sessions-list-control.compact {
-	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie) {
+	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
 		top: var(--vscode-spacing-size60);
 	}
 
@@ -1542,7 +1545,7 @@
 		top: var(--vscode-spacing-size320);
 	}
 
-	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie).collapsible {
+	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie).collapsible {
 		opacity: 1;
 		pointer-events: auto;
 		top: var(--vscode-spacing-size100);
