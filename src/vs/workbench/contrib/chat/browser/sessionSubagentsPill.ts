@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { derived, IObservable } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
-import { type IChatPillEntry } from '../../../browser/chatPills.js';
+import { type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
 import { type ISessionChatPillFilter, SessionChatPillKind } from '../common/sessionChatPills.js';
 import type { IStandardChatInputPillSections } from './chatInputPills.js';
 import { getSessionChatPillFilterActions } from './sessionChatPillOptions.js';
@@ -25,29 +25,40 @@ export function createSessionSubagentsPillData(
 	subagents: IObservable<readonly IChatSubagentPillEntry[]>,
 	filter: ISessionChatPillFilter,
 ) {
+	const groupedSections = derived(reader => {
+		const inProgress: IChatPillEntry[] = [];
+		const completed: IChatPillEntry[] = [];
+		for (const subagent of [...subagents.read(reader)].reverse()) {
+			const name = subagent.title.trim() || localize('backgroundActivities.subagent', "Subagent");
+			const entries = subagent.isActive ? inProgress : completed;
+			entries.push({
+				id: subagent.id,
+				label: name.length > SUBAGENT_LABEL_MAX_LENGTH ? `${name.slice(0, SUBAGENT_LABEL_MAX_LENGTH)}...` : name,
+				icon: Codicon.agent,
+				open: () => subagent.open(),
+			});
+		}
+		return {
+			inProgress: { title: localize('backgroundActivities.subagents.inProgress', "Subagents: In Progress"), entries: inProgress },
+			completed: { title: localize('backgroundActivities.subagents.completed', "Subagents: Completed"), entries: completed },
+		};
+	});
 	return {
 		hasData: derived(reader => subagents.read(reader).length > 0),
+		inProgressSections: derived(reader => {
+			const { inProgress } = groupedSections.read(reader);
+			return inProgress.entries.length > 0 ? [inProgress] : [];
+		}),
 		sections: derived(reader => {
-			const inProgress: IChatPillEntry[] = [];
-			const completed: IChatPillEntry[] = [];
-			for (const subagent of [...subagents.read(reader)].reverse()) {
-				const name = subagent.title.trim() || localize('backgroundActivities.subagent', "Subagent");
-				const entries = subagent.isActive ? inProgress : completed;
-				entries.push({
-					id: subagent.id,
-					label: name.length > SUBAGENT_LABEL_MAX_LENGTH ? `${name.slice(0, SUBAGENT_LABEL_MAX_LENGTH)}...` : name,
-					icon: Codicon.agent,
-					open: () => subagent.open(),
-				});
-			}
+			const { inProgress, completed } = groupedSections.read(reader);
 			return [
-				{ title: localize('backgroundActivities.subagents.inProgress', "Subagents: In Progress"), entries: inProgress },
-				{ title: localize('backgroundActivities.subagents.completed', "Subagents: Completed"), entries: filter.showAll.read(reader) ? completed : [] },
+				inProgress,
+				...(filter.showAll.read(reader) ? [completed] : []),
 			].filter(section => section.entries.length > 0);
 		}),
 		getContextMenuActions: () => getSessionChatPillFilterActions(SessionChatPillKind.Subagents, filter, {
 			id: 'showInProgress',
 			label: localize('backgroundActivities.subagents.showInProgress', "Show In Progress"),
 		}),
-	} satisfies IStandardChatInputPillSections;
+	} satisfies IStandardChatInputPillSections & { readonly inProgressSections: IObservable<readonly IChatPillSection[]> };
 }

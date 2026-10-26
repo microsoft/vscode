@@ -54,7 +54,7 @@ import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
 import { IChatImageCarouselService } from '../../../browser/chatImageCarouselService.js';
 import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../common/tools/chatArtifactsService.js';
-import { IChatWidgetService, type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
+import { IChatWidgetService, type IChatWidgetViewModelChangeEvent, type IChatBackgroundActivityPillSections } from '../../../browser/chat.js';
 import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -313,6 +313,7 @@ suite('AgentHostSessionInputPills', () => {
 		let workingSetUndo: IChatSessionWorkingSetUndo | undefined;
 		let workingSetKeep: IChatSessionWorkingSetKeep | undefined;
 		let workingSetRegistrations = 0;
+		let backgroundActivityPillSections: IChatBackgroundActivityPillSections | undefined;
 		const widget = upcastPartial<ChatWidget>({
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
@@ -338,6 +339,10 @@ suite('AgentHostSessionInputPills', () => {
 			get viewModel() { return viewModel; },
 			setPersistentContentHeight: () => { },
 			focusInput: () => { inputFocused = true; },
+			registerBackgroundActivityPillSections: sections => {
+				backgroundActivityPillSections = sections;
+				return toDisposable(() => { backgroundActivityPillSections = undefined; });
+			},
 		});
 		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
@@ -423,6 +428,7 @@ suite('AgentHostSessionInputPills', () => {
 			workingSetUndo: () => workingSetUndo,
 			workingSetKeep: () => workingSetKeep,
 			workingSetRegistrations: () => workingSetRegistrations,
+			backgroundActivityPillSections: () => backgroundActivityPillSections,
 			setWorkingSetEnabled: async (enabled: boolean) => {
 				const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 				await configurationService.setUserConfiguration(ChatConfiguration.EditorWorkingSetEnabled, enabled);
@@ -761,7 +767,9 @@ suite('AgentHostSessionInputPills', () => {
 			await timeout(0);
 		}
 
-		assert.deepStrictEqual({ singleLabels, multipleLabels, opened }, {
+		const transcriptSections = harness.backgroundActivityPillSections()?.subagents?.get().map(section => ({ title: section.title, entries: section.entries.map(entry => entry.label) }));
+		harness.pills.dispose();
+		assert.deepStrictEqual({ singleLabels, multipleLabels, opened, transcriptSections, afterDispose: harness.backgroundActivityPillSections() }, {
 			singleLabels: ['1 Subagent'],
 			multipleLabels: ['3 Subagents'],
 			opened: [children[0], ...children].map(child => [
@@ -769,6 +777,10 @@ suite('AgentHostSessionInputPills', () => {
 				SIDE_GROUP,
 				{ pinned: true, revealIfOpened: true, title: { preferred: child.title } },
 			]),
+			transcriptSections: [
+				{ title: 'Subagents: In Progress', entries: ['Waiting', 'Running'] },
+			],
+			afterDispose: undefined,
 		});
 	});
 
@@ -794,7 +806,9 @@ suite('AgentHostSessionInputPills', () => {
 			],
 		});
 		const harness = createActivityPills(session);
+		const transcriptEntries = () => harness.backgroundActivityPillSections()?.subagents?.get().flatMap(section => section.entries.map(entry => entry.label));
 		const hiddenByDefault = harness.labels();
+		const inProgressInitially = transcriptEntries();
 		const menu = harness.menu();
 		await menu.find(action => action.id === 'chatInputPills.toggle.subagents')?.run();
 		const labels = harness.labels();
@@ -805,6 +819,7 @@ suite('AgentHostSessionInputPills', () => {
 		assert.ok(options instanceof SubmenuAction);
 		await options.actions.find(action => action.label === 'Show In Progress')?.run();
 		const activeLabels = harness.labels();
+		const inProgressWithPillFiltered = transcriptEntries();
 		const updatedSession = {
 			...session,
 			chats: session.chats.map(chat => ({ ...chat, status: SessionStatus.Idle })),
@@ -815,6 +830,10 @@ suite('AgentHostSessionInputPills', () => {
 		assert.ok(recovery instanceof SubmenuAction);
 		await recovery.actions.find(action => action.label === 'Show All')?.run();
 		const restoredLabels = harness.labels();
+		const inProgressAfterCompletion = transcriptEntries();
+		harness.connection.setState(StateComponents.Session, session);
+		const inProgressAfterResuming = transcriptEntries();
+		harness.connection.setState(StateComponents.Session, updatedSession);
 		harness.showChat(otherChat);
 		const siblingLabels = harness.labels();
 		harness.showChat('vendor-chat:/workers/Running');
@@ -832,6 +851,7 @@ suite('AgentHostSessionInputPills', () => {
 			dropdown: dropdown.map(item => item.label).filter(Boolean),
 			commands: harness.commands,
 			activeLabels,
+			inProgressInitially, inProgressWithPillFiltered, inProgressAfterCompletion, inProgressAfterResuming,
 			filteredLabels,
 			restoredLabels,
 			siblingLabels,
@@ -848,6 +868,10 @@ suite('AgentHostSessionInputPills', () => {
 				args: [{ chatResource: 'vendor-chat:/workers/Waiting', parentSessionResource: harness.sessionResource.toString(), title: 'Waiting' }],
 			}],
 			activeLabels: ['2 Subagents'],
+			inProgressInitially: ['Waiting', 'Running'],
+			inProgressWithPillFiltered: ['Waiting', 'Running'],
+			inProgressAfterCompletion: [],
+			inProgressAfterResuming: ['Waiting', 'Running'],
 			filteredLabels: [],
 			restoredLabels: ['3 Subagents'],
 			siblingLabels: ['1 Subagent'],
@@ -1383,6 +1407,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: viewModelChanged.event,
 			get viewModel() { return viewModel; },
 			setPersistentContentHeight: () => { },
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		const provisionalChanged = store.add(new Emitter<URI>());
 		let provisionalBackend: URI | undefined;
@@ -1831,6 +1856,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: () => { },
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeConnections: Event.None,
@@ -2182,6 +2208,7 @@ suite('AgentHostSessionInputPills', () => {
 				onDidChangeViewModel: Event.None,
 				viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 				setPersistentContentHeight: () => { },
+				registerBackgroundActivityPillSections: () => Disposable.None,
 			});
 			const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 				onDidChangeConnections: Event.None,
@@ -3178,6 +3205,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: height => persistentContentHeight = height,
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeConnections: Event.None,
@@ -3278,6 +3306,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: height => persistentContentHeight = height,
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		const resolutionChanged = new Emitter<void>();
 		let currentConnection = connection;
@@ -3458,6 +3487,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: () => { },
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeConnections: Event.None,
@@ -3625,6 +3655,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: () => { },
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeConnections: Event.None,
@@ -3780,6 +3811,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: viewModelChanged.event,
 			get viewModel() { return viewModel; },
 			setPersistentContentHeight: height => persistentContentHeight = height,
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		store.add(new AgentHostSessionInputPills(
 			widget,
@@ -3859,6 +3891,7 @@ suite('AgentHostSessionInputPills', () => {
 		const persistentContent = document.createElement('div');
 		document.body.appendChild(persistentContent);
 		store.add(toDisposable(() => persistentContent.remove()));
+		let backgroundActivityPillSections: IChatBackgroundActivityPillSections | undefined;
 		const widget = upcastPartial<ChatWidget>({
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
@@ -3867,6 +3900,10 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: () => { },
+			registerBackgroundActivityPillSections: sections => {
+				backgroundActivityPillSections = sections;
+				return toDisposable(() => { backgroundActivityPillSections = undefined; });
+			},
 		});
 		store.add(new AgentHostSessionInputPills(
 			widget,
@@ -3887,8 +3924,12 @@ suite('AgentHostSessionInputPills', () => {
 		));
 		const pills = () => Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
 		const running = pills();
+		const transcriptShells = () => backgroundActivityPillSections?.backgroundShells?.get().flatMap(section => section.entries.map(entry => entry.label));
+		const runningTranscriptShells = transcriptShells();
 		connection.setState(StateComponents.Chat, upcastPartial<ChatState>({ backgroundWork: [] }));
 
-		assert.deepStrictEqual({ running, finished: pills() }, { running: ['1 Background Shell'], finished: [] });
+		assert.deepStrictEqual({ running, finished: pills(), runningTranscriptShells, finishedTranscriptShells: transcriptShells() }, {
+			running: ['1 Background Shell'], finished: [], runningTranscriptShells: ['Start dev server'], finishedTranscriptShells: [],
+		});
 	});
 });

@@ -1018,6 +1018,11 @@ export class AgentHostSessionInputPills extends Disposable {
 			backgroundShells: derivedOpts<readonly IChatBackgroundShell[]>({ owner: this, equalsFn: structuralEquals }, shellReader => backgroundShellOutputs.project(chatState.read(shellReader)?.backgroundWork, chatResource.read(shellReader))),
 		} : undefined)));
 
+		const subagentPillData = createSessionSubagentsPillData(subagents, visibility.subagents);
+		this._register(this._widget.registerBackgroundActivityPillSections({
+			subagents: derived(this, reader => subagentChat.read(reader) ? [] : subagentPillData.inProgressSections.read(reader)),
+			backgroundShells: derived(this, reader => subagentChat.read(reader) ? [] : backgroundShells.sections.read(reader)),
+		}));
 		const sources = this._register(instantiationService.createInstance(StandardChatInputPillSources, {
 			changes: {
 				stats: changeStats,
@@ -1036,7 +1041,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			customizations: sessionCustomizations,
 			canvases: { sections: canvases.sections },
 			browsers: { sections: browserSections },
-			subagents: createSessionSubagentsPillData(subagents, visibility.subagents),
+			subagents: subagentPillData,
 			backgroundShells,
 		}, SESSION_CHAT_PILL_KINDS, derived(this, reader => {
 			const session = sessionResource.read(reader);

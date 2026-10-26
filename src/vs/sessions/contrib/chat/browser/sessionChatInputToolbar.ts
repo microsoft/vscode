@@ -34,6 +34,7 @@ import { externalUriOpenersSettingId } from '../../../../workbench/contrib/exter
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
+import type { IChatBackgroundActivityPillSections } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
@@ -415,6 +416,7 @@ class CopyFeedbackActionCache extends Disposable {
 export class SessionChatInputToolbar extends Disposable {
 
 	readonly element: HTMLElement;
+	readonly backgroundActivityPillSections: IChatBackgroundActivityPillSections;
 	readonly onDidChangeChatPetPlatform: Event<void>;
 	readonly onDidChangeVisibility: Event<boolean>;
 	readonly activityBarActions: IObservable<readonly IAction[]>;
@@ -530,6 +532,10 @@ export class SessionChatInputToolbar extends Disposable {
 		const pillsVisible = derived(this, reader => this._debugData.read(reader) !== undefined || !this._isSubagentChat.read(reader));
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, pillsEnabled, constObservable(true)));
 		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, this._chat));
+		this.backgroundActivityPillSections = {
+			subagents: this._backgroundActivities.inProgressSections,
+			backgroundShells: backgroundShells.sections,
+		};
 		const pullRequestRefs = derivedOpts<readonly IGitHubPullRequestRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).pullRequests);
 		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, gitHubService));
 		const artifactActions = (session: IActiveSession, reader: IReader): IRecordedArtifactActions => {

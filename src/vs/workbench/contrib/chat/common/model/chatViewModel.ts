@@ -170,6 +170,11 @@ export interface IChatWorkingProgress {
 	showDelayedProgressMessage?: boolean;
 	/** Rotates painting-themed phrases while an image tool is running. */
 	imageGeneration?: boolean;
+	/** Separate labels for opening each kind of background activity from the status. */
+	backgroundActivity?: {
+		readonly subagents?: string;
+		readonly backgroundShells?: string;
+	};
 }
 
 

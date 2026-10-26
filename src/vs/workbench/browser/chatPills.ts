@@ -643,8 +643,8 @@ class ChatPillsToolBar extends ToolBar {
 	}
 }
 
-/** Opaque base so a pill never shows the content it floats over; `chatPills.css` tints it. */
-const chatPillBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
+/** Opaque by default for floating pills; text-only triggers can override the base. */
+const chatPillBackground = `var(--chat-pill-background, ${asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground))})`;
 
 /** Creates a shared chat pill button. The caller owns its lifetime. */
 export function createChatPillButton(container: HTMLElement, options?: { readonly supportIcons?: boolean }): Button {

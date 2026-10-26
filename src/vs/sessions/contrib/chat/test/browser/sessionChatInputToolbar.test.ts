@@ -40,7 +40,7 @@ import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/b
 import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility, type IChatBackgroundShell } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { TestEditorInput, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
@@ -1814,12 +1814,56 @@ suite('SessionChatInputToolbar', () => {
 			entry.select();
 		}
 
-		assert.deepStrictEqual({ singleLabels, multipleLabels, opened }, {
+		assert.deepStrictEqual({
+			singleLabels, multipleLabels, opened,
+			transcriptSections: toolbar.backgroundActivityPillSections.subagents?.get().map(section => ({ title: section.title, entries: section.entries.map(entry => entry.label) })),
+		}, {
 			singleLabels: ['1 Subagent'],
 			multipleLabels: ['3 Subagents'],
 			opened: [subagents[0], ...subagents].map(subagent => [
 				session, subagent.resource, { referenceChatResource: chat.resource },
 			]),
+			transcriptSections: [
+				{ title: 'Subagents: In Progress', entries: ['Waiting', 'Running'] },
+			],
+		});
+	});
+
+	test('shares live background shells with the transcript and clears them when switching chats', () => {
+		const { instantiationService } = createServices();
+		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [{
+			id: 'tests', description: 'Running tests', command: 'npm test', startedAt: new Date(0).toISOString(),
+		}]);
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:parent'),
+			title: constObservable('Parent'),
+			status: constObservable(SessionStatus.InProgress),
+			workspace,
+			changes: constObservable([]),
+			changesets: constObservable([]),
+			backgroundShells: shells,
+		});
+		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
+			sessionId: 'provider:session',
+			resource: URI.parse('session:1'),
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			chats: constObservable([chat]),
+			workspace,
+		});
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		const labels = () => toolbar.backgroundActivityPillSections.backgroundShells?.get().flatMap(section => section.entries.map(entry => entry.label));
+		const running = labels();
+		const initialShells = shells.get();
+		shells.set([], undefined);
+		const finished = labels();
+		shells.set(initialShells, undefined);
+		const resumed = labels();
+		toolbar.setSession(undefined, undefined);
+		assert.deepStrictEqual({ running, finished, resumed, switched: labels() }, {
+			running: ['Running tests'], finished: [], resumed: ['Running tests'], switched: [],
 		});
 	});
 
