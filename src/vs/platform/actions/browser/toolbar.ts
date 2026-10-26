@@ -153,15 +153,15 @@ export class WorkbenchToolBar extends ToolBar {
 					extraSecondary[i] = action;
 					continue;
 				}
+				if (this._isAlwaysShown(action)) {
+					someAreAlwaysShown = true;
+					continue;
+				}
 				if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
 					// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
 					continue;
 				}
 				if (!action.hideActions) {
-					continue;
-				}
-				if (this._isAlwaysShown(action)) {
-					someAreAlwaysShown = true;
 					continue;
 				}
 
