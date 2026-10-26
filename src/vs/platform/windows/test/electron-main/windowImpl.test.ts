@@ -174,11 +174,11 @@ suite('BaseWindow - hidden window mode', () => {
 	}
 
 	for (const hidden of [false, true]) {
-		test(`applyState ${hidden ? 'does not show' : 'shows'} a maximized window (hidden: ${hidden})`, () => {
+		test(`applyState ${hidden ? 'neither maximizes nor shows' : 'maximizes and shows'} a maximized window (hidden: ${hidden})`, () => {
 			const { window, maximize, show } = createWindow(hidden);
 			window.applyState({ mode: WindowMode.Maximized }, false);
 
-			assert.deepStrictEqual([maximize.callCount, show.callCount], [1, hidden ? 0 : 1]);
+			assert.deepStrictEqual([maximize.callCount, show.callCount], hidden ? [0, 0] : [1, 1]);
 		});
 
 		test(`focus ${hidden ? 'is ignored' : 'focuses the window'} (hidden: ${hidden})`, () => {
@@ -188,6 +188,14 @@ suite('BaseWindow - hidden window mode', () => {
 			assert.deepStrictEqual([focus.callCount, focusWebContents.callCount], hidden ? [0, 0] : [1, 1]);
 		});
 	}
+
+	test('applyState neither maximizes, enters fullscreen nor shows a fullscreen window when hidden', () => {
+		const { window, maximize, show } = createWindow(true);
+		const setFullScreen = sinon.stub(window as unknown as { setFullScreen(fullscreen: boolean, fromRestore: boolean): void }, 'setFullScreen');
+		window.applyState({ mode: WindowMode.Fullscreen }, false);
+
+		assert.deepStrictEqual([maximize.callCount, setFullScreen.callCount, show.callCount], [0, 0, 0]);
+	});
 
 	for (const [mode, name] of [[FocusMode.Notify, 'Notify'], [FocusMode.Force, 'Force']] as const) {
 		test(`focus with mode ${name} touches neither window nor application when hidden`, () => {
