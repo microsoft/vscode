@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { PortsAttributes } from '../../common/tunnelModel.js';
+import { OnPortForward, PortsAttributes } from '../../common/tunnelModel.js';
 
 suite('PortsAttributes', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,6 +27,14 @@ suite('PortsAttributes', () => {
 	];
 
 	for (const { name, key, host, commandLine } of selectors) {
+		const fallback = {
+			label: 'Fallback',
+			onAutoForward: OnPortForward.Ignore,
+			elevateIfNeeded: true,
+			requireLocalPort: true,
+			protocol: undefined
+		};
+
 		test(`applies requireLocalPort from ${name} rules`, () => {
 			const actual = [true, false, undefined].map(requireLocalPort => {
 				const attributes = createAttributes({ [key]: { label: 'Application', requireLocalPort } });
@@ -41,9 +49,33 @@ suite('PortsAttributes', () => {
 			]);
 		});
 
+		test(`does not merge fallback attributes into requireLocalPort-only ${name} rules`, () => {
+			const actual = [true, false].map(requireLocalPort => {
+				const attributes = createAttributes({ [key]: { requireLocalPort } }, fallback);
+				return attributes.getAttributes(3000, host, commandLine);
+			});
+
+			assert.deepStrictEqual(actual, [true, false].map(requireLocalPort => ({
+				label: undefined,
+				onAutoForward: undefined,
+				elevateIfNeeded: undefined,
+				requireLocalPort,
+				protocol: undefined
+			})));
+		});
+
+		test(`uses fallback attributes when a matching ${name} rule has no defined attributes`, () => {
+			const actual = [{}, { requireLocalPort: undefined }].map(rule => {
+				const attributes = createAttributes({ [key]: rule }, fallback);
+				return attributes.getAttributes(3000, host, commandLine);
+			});
+
+			assert.deepStrictEqual(actual, [fallback, fallback]);
+		});
+
 		test(`does not apply an unmatched ${name} rule`, () => {
-			const attributes = createAttributes({ [key]: { label: 'Application', requireLocalPort: true } }, { requireLocalPort: false });
-			assert.strictEqual(attributes.getAttributes(5000, 'localhost', 'node client.js')?.requireLocalPort, false);
+			const attributes = createAttributes({ [key]: { label: 'Application', requireLocalPort: false } }, fallback);
+			assert.deepStrictEqual(attributes.getAttributes(5000, 'localhost', 'node client.js'), fallback);
 		});
 	}
 
