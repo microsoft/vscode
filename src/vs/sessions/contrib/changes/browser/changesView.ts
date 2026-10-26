@@ -777,12 +777,14 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 			return item;
 		}, onDidRegister.event));
 
-		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
-			if (!(action instanceof MenuItemAction)) {
-				return undefined;
-			}
-			return instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
-		}, onDidRegister.event));
+		for (const menuId of [Menus.TitleBarSessionMenu, Menus.ChatWindowSessionActions]) {
+			this._register(actionViewItemService.register(menuId, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
+				if (!(action instanceof MenuItemAction)) {
+					return undefined;
+				}
+				return instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
+			}, onDidRegister.event));
+		}
 
 		onDidRegister.fire();
 	}

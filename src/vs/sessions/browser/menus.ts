@@ -38,6 +38,8 @@ export const Menus = {
 	 * always shows, and buttons of its actions that the user can show or hide from the context menu of these buttons.
 	 */
 	ChatWindowTitleBarLayout: new MenuId('SessionsChatWindowTitleBarLayout'),
+	/** The session actions of the window of a chat window header, the actions of the title bar session menu for the session the header shows. */
+	ChatWindowSessionActions: new MenuId('SessionsChatWindowSessionActions'),
 	/** The actions in the header of a docked chat window, before its layout actions. */
 	ChatWindowTitle: new MenuId('SessionsChatWindowTitle'),
 	/** The layout actions in the header of a docked chat window, before its Close button, as {@link ChatWindowTitleBarLayout}. */

@@ -18,6 +18,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
+import { BaseActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Menus } from '../../browser/menus.js';
+import { ISessionScope } from '../../services/sessions/browser/sessionScope.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, SessionsDataTransfers } from '../../browser/dnd.js';
@@ -474,9 +478,9 @@ suite('Sessions - Headers', () => {
 
 		assert.deepStrictEqual({ initial, shown, fullscreen, windowed, hidden: read() }, {
 			initial: { chrome: false, draggable: true, toolbars: 0, lights: false },
-			shown: { chrome: true, draggable: false, toolbars: 3, lights: hasTrafficLights },
-			fullscreen: { chrome: true, draggable: false, toolbars: 3, lights: false },
-			windowed: { chrome: true, draggable: false, toolbars: 3, lights: hasTrafficLights },
+			shown: { chrome: true, draggable: false, toolbars: 4, lights: hasTrafficLights },
+			fullscreen: { chrome: true, draggable: false, toolbars: 4, lights: false },
+			windowed: { chrome: true, draggable: false, toolbars: 4, lights: hasTrafficLights },
 			hidden: { chrome: false, draggable: true, toolbars: 0, lights: false },
 		});
 	});
@@ -736,6 +740,41 @@ suite('Sessions - Headers', () => {
 		} finally {
 			root.remove();
 		}
+	});
+
+	test('shows the session actions of the header session after Open in VS Code and before the layout', () => {
+		const { store, instantiationService, session } = createHarness(disposables);
+		const scopedSessions: (IActiveSession | undefined)[] = [];
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(menuId: MenuId): IMenu {
+				return {
+					onDidChange: Event.None,
+					dispose: () => { },
+					getActions: menuOptions => menuId === Menus.ChatWindowSessionActions
+						? [['navigation', [instantiationService.createInstance(MenuItemAction, { id: 'sessions.test.sessionAction', title: 'Session Action' }, undefined, menuOptions, undefined, undefined)]]]
+						: [],
+				};
+			}
+		});
+		instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
+				return menu === Menus.ChatWindowSessionActions && commandId === 'sessions.test.sessionAction'
+					? (action, options, scopedInstantiationService) => {
+						scopedSessions.push(scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionScope).session.get()));
+						return new BaseActionViewItem(undefined, action, options);
+					}
+					: undefined;
+			}
+		});
+		const bar = store.add(instantiationService.createInstance(SessionHeaderBar, undefined));
+		bar.setContext({ session, chat: constObservable(session.mainChat.get()) });
+		bar.setWindowChrome(true);
+		const names = Array.from(bar.element.querySelectorAll('.chat-composite-bar-window-chrome > .chat-composite-bar-toolbar')).map(toolbar => Array.from(toolbar.classList).find(name => name.startsWith('window-chrome-')));
+
+		assert.deepStrictEqual({ names, scopedSessions: scopedSessions.map(scoped => scoped?.sessionId) }, {
+			names: ['window-chrome-run', 'window-chrome-actions', 'window-chrome-session', 'window-chrome-layout'],
+			scopedSessions: ['session'],
+		});
 	});
 
 	test('gives the header of a chat window the compact height when the layout density of its window is compact', () => {
