@@ -59,6 +59,37 @@ export function getChatMoveAppendAnchor(session: ISession, exclude?: IChat): ICh
 	return undefined;
 }
 
+/** Where a chat or session moved into `session` goes: after `after` (first when `undefined`). */
+export interface ISessionsListMoveDestination {
+	readonly session: ISession;
+	readonly after: IChat | undefined;
+}
+
+/**
+ * Where moving a chat or single-chat session of `source` to the end of `target` puts it, or `undefined` when `target`
+ * can't receive it (see {@link canMoveIntoSession}). `exclude` is the moved chat, when it is already in `target`. The
+ * sessions list's drops and the move commands share it.
+ */
+export function getChatMoveAppendDestination(source: ISession, target: ISession, exclude?: IChat): ISessionsListMoveDestination | undefined {
+	return canMoveIntoSession(source, target) ? { session: target, after: getChatMoveAppendAnchor(target, exclude) } : undefined;
+}
+
+/** The sessions the nested session `chat` of `source` can move into, each at its end, in the order of `sessions`: none when its provider can't move it. */
+export function getChatMoveDestinations(source: ISession, chat: IChat, sessions: readonly ISession[], sessionsManagementService: Pick<ISessionsManagementService, 'canMoveChat'>): ISessionsListMoveDestination[] {
+	if (!sessionsManagementService.canMoveChat(source, chat)) {
+		return [];
+	}
+	return sessions.flatMap(session => getChatMoveAppendDestination(source, session, chat) ?? []);
+}
+
+/** The sessions the single-chat session `source` can nest under, each at its end, in the order of `sessions`: none when its provider can't move it. */
+export function getSessionMoveDestinations(source: ISession, sessions: readonly ISession[], sessionsManagementService: Pick<ISessionsManagementService, 'canMoveSessionUnder'>): ISessionsListMoveDestination[] {
+	if (!sessionsManagementService.canMoveSessionUnder(source)) {
+		return [];
+	}
+	return sessions.flatMap(session => getChatMoveAppendDestination(source, session) ?? []);
+}
+
 /**
  * Whether placing `chat` of `session` after `after` (first when `undefined`) changes the order of the session's chats,
  * which is what the host reorders. The list's rows can show the chats in another order, or only some of them.
@@ -133,16 +164,16 @@ export function getSessionsListChatDrop(source: ISession, chat: IChat, target: I
 	if (!positionsShown && isOwnSession) {
 		return undefined;
 	}
-	if (!isOwnSession && !canMoveIntoSession(source, session)) {
+	const append = isOwnSession ? { session, after: getChatMoveAppendAnchor(session, chat) } : getChatMoveAppendDestination(source, session, chat);
+	if (!append) {
 		return undefined;
 	}
 
 	if (!target.chat || !positionsShown) {
-		const after = getChatMoveAppendAnchor(session, chat);
-		if (isOwnSession && !changesChatOrder(session, chat, after)) {
+		if (isOwnSession && !changesChatOrder(session, chat, append.after)) {
 			return undefined;
 		}
-		return { kind: 'session', session, after, position: 'over' };
+		return { kind: 'session', ...append, position: 'over' };
 	}
 
 	const next = target.chat;
@@ -203,11 +234,12 @@ export function getSessionsListSessionDrop(source: ISession, target: ISessionsLi
 	if (quarter === ListViewTargetSector.BOTTOM && target.isManuallyOrdered() && target.isLastInSection() && target.canPlace('after')) {
 		return { kind: 'place', session, position: 'after' };
 	}
-	if (!canMoveIntoSession(source, session)) {
+	const append = getChatMoveAppendDestination(source, session);
+	if (!append) {
 		return undefined;
 	}
 	if (!chat) {
-		return { kind: 'nest', session, after: getChatMoveAppendAnchor(session), position: 'over' };
+		return { kind: 'nest', ...append, position: 'over' };
 	}
 	if (chat.resource.toString() === session.mainChat.get().resource.toString()) {
 		return undefined;

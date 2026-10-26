@@ -118,7 +118,7 @@ import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { getWorktreesRoot, SessionWorkingDirectoryMissingError, WorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { getWorktreesRoot, type IWorktreeMetadata, SessionWorkingDirectoryMissingError, WorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { OLDER_BUILD_WORKTREE_WITHHELD_KEY } from '../../node/agentHostSessionStateMirror.js';
 import { parseSessionWorktreeFolders, WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
@@ -35935,6 +35935,25 @@ suite('AgentService (node dispatcher)', () => {
 					}, { target: [concurrent.handle, handle].sort(), source: 0 });
 				});
 
+				test('a chat whose own worktree transfers with it is marked as having it announced already', async () => {
+					const { service, source, target, peer } = await setupFolders();
+					completeTurn(service, peer);
+					const store = getTestSessionStateStore(service);
+					const handle = generateUuid();
+					setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+						readDetachedWorktreeForRemoval: async candidate => candidate === handle ? { worktree: other, repositoryRoot: URI.file('/main'), branchName: 'agents/other' } : undefined,
+					}));
+					await writeSessionAdditionalWorktrees(store, source, [{ handle, workingDirectory: other.toString(), repositoryRoot: URI.file('/main').toString(), chat: peer.toString() }]);
+					await timeout(0);
+					const handedOver: { session: string; chat: string }[] = [];
+					const contributions = (service as unknown as { _chatContributions: { didHandOverWorktree(session: string, chat: string): void } })._chatContributions;
+					contributions.didHandOverWorktree = (session, chat) => { handedOver.push({ session, chat }); };
+
+					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+
+					assert.deepStrictEqual(handedOver, [{ session: target.toString(), chat: peer.toString() }]);
+				});
+
 				test('a move shares the worktree a descendant of the moved chat works in, though the chat itself doesn\'t (L6, Block 5)', async () => {
 					const { service, source, target, peer } = await setupFolders();
 					const store = getTestSessionStateStore(service);
@@ -37516,6 +37535,8 @@ suite('AgentService (node dispatcher)', () => {
 				const { service, source, target } = await setupMove();
 				const defaultChat = getStateManager(service).getSessionState(source.toString())!.defaultChat!;
 				await service.disposeChat(source, URI.parse(buildChatUri(source, 'mover')));
+				getStateManager(service).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'before-nest', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+				getStateManager(service).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'before-nest', duration: 1 });
 				const handle = generateUuid();
 				const events: string[] = [];
 				setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
@@ -37535,6 +37556,38 @@ suite('AgentService (node dispatcher)', () => {
 					events: ['prepare:true', 'released', 'complete:true:true:true'],
 					targetWorktrees: [{ handle, workingDirectory: URI.file('/repo').toString(), repositoryRoot: URI.file('/main').toString(), chat: defaultChat }],
 				});
+			});
+
+			test('a session that moves under another with its worktree already announced does not announce it again on its next turn', async () => {
+				const { service, source, target } = await setupMove();
+				const defaultChat = getStateManager(service).getSessionState(source.toString())!.defaultChat!;
+				await service.disposeChat(source, URI.parse(buildChatUri(source, 'mover')));
+				getStateManager(service).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'before-nest', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+				getStateManager(service).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'before-nest', duration: 1 });
+				const handle = generateUuid();
+				setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+					readSessionWorktreeForRemoval: async session => session.toString() === source.toString() ? { worktree: URI.file('/repo'), repositoryRoot: URI.file('/main'), branchName: 'agents/source' } : undefined,
+					prepareWorktreeHandOver: async () => ({ handle, workingDirectory: URI.file('/repo').toString(), repositoryRoot: URI.file('/main').toString(), dispose: () => { } }),
+					completeWorktreeHandOver: async () => { },
+					readWorktreeMetadata: async () => ({ branchName: 'agents/source' } as IWorktreeMetadata),
+				}));
+				await service.moveSession(source, target, undefined);
+
+				const announcements: string[] = [];
+				disposables.add(getStateManager(service).onDidEmitEnvelope(envelope => {
+					if (envelope.action.type === ActionType.ChatResponsePart && envelope.action.part.kind === ResponsePartKind.Markdown) {
+						announcements.push(envelope.action.part.content);
+					}
+				}));
+				service.dispatchAction(defaultChat, {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'after-nest',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'hello', origin: { kind: MessageKind.User } },
+				}, 'test-client', 1);
+				await timeout(50);
+
+				assert.deepStrictEqual(announcements, []);
 			});
 
 			suite('credential owners', () => {

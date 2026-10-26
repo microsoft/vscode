@@ -808,11 +808,13 @@ export class TabbedModelPicker extends Disposable {
 		const actions: ITabBarAction[] = [];
 		const comparison = context.comparison;
 		if (comparison?.available.get()) {
+			const label = this._labelWithKeybinding(comparison.label, comparison.startCommandId);
+			const description = comparison.description?.get();
 			// Grouped with Search at the end of the tab bar, away from the provider tabs.
 			actions.push({
 				id: 'comparison',
 				icon: Codicon.compare,
-				tooltip: this._labelWithKeybinding(comparison.label, comparison.startCommandId),
+				tooltip: description ? localize('comparisonTooltip', "{0}\n\n{1}", label, description) : label,
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),

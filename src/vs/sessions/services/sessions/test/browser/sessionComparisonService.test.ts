@@ -21,7 +21,7 @@ import { IChatService, IChatUsage } from '../../../../../workbench/contrib/chat/
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../common/session.js';
-import { getSessionComparisonWorkspaceError, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
+import { getSessionComparisonHarnessDisplayLabel, getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
@@ -29,6 +29,17 @@ import { SessionComparisonService } from '../../browser/sessionComparisonService
 
 suite('SessionComparisonService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('can omit a common harness while retaining model and configuration labels', () => {
+		const harness: ISessionComparisonHarness = { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' };
+		assert.deepStrictEqual([
+			getSessionComparisonHarnessDisplayLabel(harness, false),
+			getSessionComparisonHarnessDisplayLabel({ ...harness, modelLabel: 'Opus' }, false),
+			getSessionComparisonHarnessDisplayLabel({ ...harness, modelConfigurationLabel: 'Balance' }, false),
+			getSessionComparisonHarnessDisplayLabel({ ...harness, modelLabel: 'Opus', modelConfigurationLabel: 'High' }, false),
+			getSessionComparisonHarnessDisplayLabel({ ...harness, modelLabel: 'Opus', modelConfigurationLabel: 'High' }),
+		], ['Copilot', 'Opus', 'Balance', 'Opus · High', 'Copilot · Opus · High']);
+	});
 
 	test('workspace validation requires available Git branch information', () => {
 		assert.deepStrictEqual({
