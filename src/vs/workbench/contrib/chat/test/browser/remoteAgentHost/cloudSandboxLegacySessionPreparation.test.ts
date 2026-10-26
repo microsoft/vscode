@@ -68,11 +68,23 @@ suite('CloudSandboxLegacySessionPreparation', () => {
 		}, { ordinary: undefined, sandbox: 'function' });
 	});
 
+	test('user-local environments keep native provider schemes without sandbox checkout preparation', () => {
+		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
+		const customization = createCloudSandboxConnectionCustomization(cloudSandboxAddress('native-host'), service, true);
+		assert.deepStrictEqual({
+			preparation: customization?.createSessionPreparation,
+			nativeCopilot: customization?.backendSessionScheme?.('copilotcli'),
+			daemonCopilot: customization?.backendSessionScheme?.('copilot'),
+			claude: customization?.backendSessionScheme?.('claude'),
+		}, { preparation: undefined, nativeCopilot: 'ahp-session', daemonCopilot: 'ahp-session', claude: undefined });
+	});
+
 	test('binds preparation to its protocol connection and releases it when that connection closes', async () => {
 		const root = store.add(new RootStateSubscription('test-client', () => { }));
 		root.handleSnapshot(rootState([]), 0);
 		const closed = store.add(new Emitter<void>());
 		const connection = sinon.createStubInstance(AgentHostProtocolClient);
+		connection.traceRepositoryPreparation.callsFake((_phase, operation) => operation());
 		Object.defineProperties(connection, {
 			rootState: { value: root },
 			onDidClose: { value: closed.event },

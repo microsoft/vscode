@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TextFileEditorModel } from '../../common/textFileEditorModel.js';
-import { EncodingMode, TextFileEditorModelState, snapshotToString, isTextFileEditorModel, ITextFileEditorModelSaveEvent } from '../../common/textfiles.js';
+import { EncodingMode, TextFileEditorModelState, snapshotToString, isTextFileEditorModel, ITextFileEditorModelSaveEvent, ITextFileService, TextFileReconcileResult } from '../../common/textfiles.js';
 import { createFileEditorInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel, getLastResolvedFileStat } from '../../../../test/browser/workbenchTestServices.js';
 import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { TextFileEditorModelManager } from '../../common/textFileEditorModelManager.js';
@@ -20,6 +20,18 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { UTF16be } from '../../common/encoding.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { BrowserTextFileService } from '../../browser/browserTextFileService.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
+import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
+import { TestEditorWorkerService } from '../../../../../editor/test/common/services/testEditorWorkerService.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { EndOfLineSequence } from '../../../../../editor/common/model.js';
 
 suite('Files - TextFileEditorModel', () => {
 
@@ -889,4 +901,292 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+suite('Files - TextFileEditorModel external changes', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const resource = URI.file('/reconciliation.txt');
+	const baseline = 'first\nmiddle\nlast\n';
+
+	async function createModel(initial = baseline, encoding = 'utf8', retain = true) {
+		const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+			private revision = Date.now();
+			readFileCount = 0;
+			override async stat(...args: Parameters<InMemoryFileSystemProvider['stat']>) {
+				return { ...await super.stat(...args), mtime: this.revision };
+			}
+			override async readFile(...args: Parameters<InMemoryFileSystemProvider['readFile']>) {
+				this.readFileCount++;
+				return super.readFile(...args);
+			}
+			override async writeFile(...args: Parameters<InMemoryFileSystemProvider['writeFile']>) {
+				await super.writeFile(...args);
+				this.revision++;
+			}
+		}());
+		const files = disposables.add(new FileService(new NullLogService()));
+		disposables.add(files.registerProvider(Schemas.file, provider));
+		const instantiation = disposables.add(workbenchInstantiationService({
+			fileService: () => files,
+			textFileService: service => disposables.add(service.createInstance(BrowserTextFileService)),
+		}, disposables));
+		const worker = new class extends TestEditorWorkerService {
+			gate: { started: DeferredPromise<void>; release: DeferredPromise<void> } | undefined;
+			coarse = false;
+			override async computeStringEditFromDiffWithMetadata(...args: Parameters<IEditorWorkerService['computeStringEditFromDiffWithMetadata']>) {
+				const result = await computeStringDiffWithMetadata(...args);
+				if (this.gate) {
+					this.gate.started.complete();
+					await this.gate.release.p;
+				}
+				return { ...result, isCoarse: this.coarse || result.isCoarse };
+			}
+		}();
+		instantiation.stub(IEditorWorkerService, worker);
+		const service = instantiation.get(ITextFileService);
+		await files.writeFile(resource, VSBuffer.fromString(initial));
+		const model = disposables.add(instantiation.createInstance(TextFileEditorModel, resource, encoding, undefined));
+		const retention = retain ? disposables.add(model.retainResolvedContent()) : undefined;
+		await model.resolve();
+		assert.ok(model.isResolved());
+		const text = model.textEditorModel;
+		const type = () => {
+			text.pushStackElement();
+			text.pushEditOperations(null, [{ range: new Range(2, 1, 2, 1), text: 'user ' }], () => null);
+			text.pushStackElement();
+		};
+		const readDisk = async () => (await files.readFile(resource)).value.toString();
+		const writeDisk = (value: string) => files.writeFile(resource, VSBuffer.fromString(value));
+		return { model, text, type, readDisk, writeDisk, worker, service, retention, provider };
+	}
+
+	test('revalidates the disk snapshot using metadata without rereading its contents', async () => {
+		const { model, text, type, writeDisk, provider } = await createModel();
+		type();
+		await writeDisk('FIRST\nmiddle\nlast\n');
+		provider.readFileCount = 0;
+		const result = await model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', CancellationToken.None);
+
+		assert.deepStrictEqual({ result, reads: provider.readFileCount, text: text.getValue(), dirty: model.isDirty() }, {
+			result: TextFileReconcileResult.Reconciled, reads: 1, text: 'FIRST\nuser middle\nlast\n', dirty: true,
+		});
+	});
+
+	test('merges a dirty buffer without saving and a later normal save preserves both edits', async () => {
+		const { model, text, type, readDisk, writeDisk } = await createModel();
+		type();
+		await writeDisk('FIRST\nmiddle\nlast\n');
+		const result = await model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', CancellationToken.None);
+		const merged = { text: text.getValue(), dirty: model.isDirty(), disk: await readDisk() };
+		const saved = await model.save({ skipSaveParticipants: true, ignoreErrorHandler: true });
+		assert.deepStrictEqual({ result, merged, saved, dirty: model.isDirty(), disk: await readDisk() }, {
+			result: TextFileReconcileResult.Reconciled,
+			merged: { text: 'FIRST\nuser middle\nlast\n', dirty: true, disk: 'FIRST\nmiddle\nlast\n' },
+			saved: true, dirty: false, disk: 'FIRST\nuser middle\nlast\n',
+		});
+	});
+
+	test('does not retain saved text without an explicit consumer', async () => {
+		const { model, type } = await createModel(baseline, 'utf8', false);
+		const afterResolve = await model.reconcileExternalChanges(baseline, CancellationToken.None);
+		type();
+		await model.save({ skipSaveParticipants: true, ignoreErrorHandler: true });
+		const afterSave = await model.reconcileExternalChanges('first\nuser middle\nlast\n', CancellationToken.None);
+		assert.deepStrictEqual({ afterResolve, afterSave }, { afterResolve: TextFileReconcileResult.Unavailable, afterSave: TextFileReconcileResult.Unavailable });
+	});
+
+	test('retains one ancestor until the final consumer releases it', async () => {
+		const { model, type, retention } = await createModel();
+		const second = disposables.add(model.retainResolvedContent());
+		type();
+		retention!.dispose();
+		const whileRetained = await model.reconcileExternalChanges(baseline, CancellationToken.None);
+		second.dispose();
+		const afterRelease = await model.reconcileExternalChanges(baseline, CancellationToken.None);
+		await model.save({ skipSaveParticipants: true, ignoreErrorHandler: true });
+		const afterSave = await model.reconcileExternalChanges('first\nuser middle\nlast\n', CancellationToken.None);
+		assert.deepStrictEqual({ whileRetained, afterRelease, afterSave }, {
+			whileRetained: TextFileReconcileResult.Reconciled, afterRelease: TextFileReconcileResult.Unavailable, afterSave: TextFileReconcileResult.Unavailable,
+		});
+	});
+
+	test('enabling retention on an already dirty document does not invent an ancestor', async () => {
+		const { model, text, type, writeDisk } = await createModel(baseline, 'utf8', false);
+		type();
+		disposables.add(model.retainResolvedContent());
+		await writeDisk('FIRST\nmiddle\nlast\n');
+		const result = await model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', CancellationToken.None);
+		assert.deepStrictEqual({ result, text: text.getValue() }, {
+			result: TextFileReconcileResult.Unavailable, text: 'first\nuser middle\nlast\n',
+		});
+	});
+
+	test('releasing retention invalidates a pending reconciliation without recreating its ancestor', async () => {
+		const { model, text, type, writeDisk, worker, retention } = await createModel();
+		type();
+		await writeDisk('FIRST\nmiddle\nlast\n');
+		const gate = worker.gate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		const pending = model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', CancellationToken.None);
+		await gate.started.p;
+		retention!.dispose();
+		gate.release.complete();
+		const result = await pending;
+		const afterRelease = await model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', CancellationToken.None);
+		assert.deepStrictEqual({ result, text: text.getValue(), afterRelease }, {
+			result: TextFileReconcileResult.Stale, text: 'first\nuser middle\nlast\n', afterRelease: TextFileReconcileResult.Unavailable,
+		});
+	});
+
+	test('uses the most recent disk baseline for consecutive writes while the buffer stays dirty', async () => {
+		const { model, text, type, writeDisk } = await createModel();
+		type();
+		await writeDisk('FIRST\nmiddle\nlast\n');
+		await model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', CancellationToken.None);
+		await writeDisk('FIRST\nmiddle\nLAST\n');
+		const result = await model.reconcileExternalChanges('FIRST\nmiddle\nLAST\n', CancellationToken.None);
+		assert.deepStrictEqual({ result, text: text.getValue(), dirty: model.isDirty() }, {
+			result: TextFileReconcileResult.Reconciled, text: 'FIRST\nuser middle\nLAST\n', dirty: true,
+		});
+	});
+
+	test('takes a successful save as the next merge ancestor', async () => {
+		const { model, text, type, writeDisk } = await createModel();
+		type();
+		await model.save({ skipSaveParticipants: true, ignoreErrorHandler: true });
+		type();
+		await writeDisk('FIRST\nuser middle\nlast\n');
+		const result = await model.reconcileExternalChanges('FIRST\nuser middle\nlast\n', CancellationToken.None);
+		assert.deepStrictEqual({ result, text: text.getValue(), dirty: model.isDirty() }, {
+			result: TextFileReconcileResult.Reconciled, text: 'FIRST\nuser user middle\nlast\n', dirty: true,
+		});
+	});
+
+	test('recognizes identical user and disk contents as saved without dropping undo history', async () => {
+		const { model, text, type, writeDisk } = await createModel();
+		type();
+		await writeDisk(text.getValue());
+		const result = await model.reconcileExternalChanges(text.getValue(), CancellationToken.None);
+		const mergedDirty = model.isDirty();
+		await text.undo();
+		assert.deepStrictEqual({ result, mergedDirty, afterUndo: { text: text.getValue(), dirty: model.isDirty() } }, {
+			result: TextFileReconcileResult.Reconciled, mergedDirty: false, afterUndo: { text: baseline, dirty: true },
+		});
+	});
+
+	for (const capture of ['resolve', 'save'] as const) {
+		test(`an EOL change cannot mutate the disk ancestor captured by ${capture}`, async () => {
+			const { model, text, type, writeDisk } = await createModel();
+			if (capture === 'save') {
+				await model.save({ force: true, skipSaveParticipants: true, ignoreErrorHandler: true });
+			}
+			type();
+			text.pushEOL(EndOfLineSequence.CRLF);
+			await writeDisk('FIRST\nmiddle\nlast\n');
+			const result = await model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', CancellationToken.None);
+			assert.deepStrictEqual({ result, text: text.getValue(), dirty: model.isDirty() }, {
+				result: TextFileReconcileResult.Reconciled, text: 'FIRST\r\nuser middle\r\nlast\r\n', dirty: true,
+			});
+		});
+	}
+
+	test('a no-op disk reconciliation preserves undo back to the saved version', async () => {
+		const { model, text, type } = await createModel();
+		type();
+		const result = await model.reconcileExternalChanges(baseline, CancellationToken.None);
+		await text.undo();
+		assert.deepStrictEqual({ result, text: text.getValue(), dirty: model.isDirty() }, {
+			result: TextFileReconcileResult.Reconciled, text: baseline, dirty: false,
+		});
+	});
+
+	test('keeps undo history and never treats the old disk version as saved after a merge', async () => {
+		const { model, text, type, writeDisk } = await createModel();
+		type();
+		await writeDisk('FIRST\nmiddle\nlast\n');
+		await model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', CancellationToken.None);
+		await text.undo();
+		const undoAgent = { text: text.getValue(), dirty: model.isDirty() };
+		await text.undo();
+		const undoUser = { text: text.getValue(), dirty: model.isDirty() };
+		await text.redo();
+		await text.redo();
+		assert.deepStrictEqual({ undoAgent, undoUser, redo: { text: text.getValue(), dirty: model.isDirty() } }, {
+			undoAgent: { text: 'first\nuser middle\nlast\n', dirty: true },
+			undoUser: { text: baseline, dirty: true },
+			redo: { text: 'FIRST\nuser middle\nlast\n', dirty: true },
+		});
+	});
+
+	test('does not suppress a later, unincorporated disk write when saving', async () => {
+		const { model, type, readDisk, writeDisk } = await createModel();
+		type();
+		await writeDisk('FIRST\nmiddle\nlast\n');
+		await model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', CancellationToken.None);
+		await writeDisk('FIRST\nmiddle\nanother external edit\n');
+		await assert.rejects(model.save({ skipSaveParticipants: true, ignoreErrorHandler: true }), error =>
+			error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE);
+		assert.deepStrictEqual({ dirty: model.isDirty(), disk: await readDisk() }, { dirty: true, disk: 'FIRST\nmiddle\nanother external edit\n' });
+	});
+
+	test('overlapping edits preserve the buffer, dirty flag and old save protection', async () => {
+		const { model, text, type, writeDisk } = await createModel();
+		type();
+		const stat = model.lastResolvedFileStat;
+		await writeDisk('first\nagent middle\nlast\n');
+		const result = await model.reconcileExternalChanges('first\nagent middle\nlast\n', CancellationToken.None);
+		assert.deepStrictEqual({ result, text: text.getValue(), dirty: model.isDirty(), unchangedStat: model.lastResolvedFileStat === stat }, {
+			result: TextFileReconcileResult.Conflict, text: 'first\nuser middle\nlast\n', dirty: true, unchangedStat: true,
+		});
+	});
+
+	for (const race of ['typing', 'disk', 'save', 'cancel', 'dispose'] as const) {
+		test(`does not apply a reconciliation made stale by ${race}`, async () => {
+			const { model, text, type, writeDisk, worker } = await createModel();
+			type();
+			const gate = worker.gate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+			const source = disposables.add(new CancellationTokenSource());
+			await writeDisk('FIRST\nmiddle\nlast\n');
+			const reconciliation = model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', source.token);
+			await gate.started.p;
+			switch (race) {
+				case 'typing': type(); break;
+				case 'disk': await writeDisk('FIRST\nmiddle\nLAST\n'); break;
+				case 'save': await model.save({ ignoreModifiedSince: true, skipSaveParticipants: true, ignoreErrorHandler: true }); break;
+				case 'cancel': source.cancel(); break;
+				case 'dispose': model.dispose(); break;
+			}
+			const before = race === 'dispose' ? undefined : text.getValue();
+			gate.release.complete();
+			const result = await reconciliation;
+			assert.deepStrictEqual({ result, textUnchanged: race === 'dispose' || text.getValue() === before }, {
+				result: TextFileReconcileResult.Stale, textUnchanged: true,
+			});
+		});
+	}
+
+	test('rejects timed-out diffs and content with no known disk ancestor', async () => {
+		const { model, text, type, writeDisk, worker } = await createModel();
+		type();
+		await writeDisk('FIRST\nmiddle\nlast\n');
+		worker.coarse = true;
+		const coarse = await model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', CancellationToken.None);
+		await model.resolve({ contents: createTextBufferFactory(text.getValue()) });
+		const noBase = await model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', CancellationToken.None);
+		assert.deepStrictEqual({ coarse, noBase, text: text.getValue(), dirty: model.isDirty() }, {
+			coarse: TextFileReconcileResult.Unavailable, noBase: TextFileReconcileResult.Unavailable,
+			text: 'first\nuser middle\nlast\n', dirty: true,
+		});
+	});
+
+	test('preserves CRLF, UTF-8 BOM and dirty text through reconciliation and save', async () => {
+		const { model, text, type, readDisk, writeDisk } = await createModel('\uFEFFfirst\r\nmiddle\r\nlast\r\n', 'utf8bom');
+		type();
+		await writeDisk('\uFEFFFIRST\r\nmiddle\r\nlast\r\n');
+		const result = await model.reconcileExternalChanges('\uFEFFFIRST\r\nmiddle\r\nlast\r\n', CancellationToken.None);
+		const dirty = model.isDirty();
+		await model.save({ skipSaveParticipants: true, ignoreErrorHandler: true });
+		assert.deepStrictEqual({ result, dirty, eol: text.getEOL(), encoding: model.getEncoding(), disk: await readDisk() }, {
+			result: TextFileReconcileResult.Reconciled, dirty: true, eol: '\r\n', encoding: 'utf8bom', disk: '\uFEFFFIRST\r\nuser middle\r\nlast\r\n',
+		});
+	});
 });

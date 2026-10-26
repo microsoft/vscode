@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
@@ -18,7 +18,7 @@ import { type ICustomizationSyncProvider } from '../../../common/customizationHa
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
-import type { ISyncableFile, ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { SYNCED_CUSTOMIZATION_SCHEME, type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
@@ -195,7 +195,7 @@ export async function resolveLocalCustomAgents(
 
 /**
  * Collects declaratively forwardable MCP servers, excluding plugin-sourced servers, duplicate built-ins, and workspace-discovered servers other than resolvable `.vscode/mcp.json` entries.
- * Copilot-home `mcp-config.json` (`COPILOT_HOME`, otherwise `~/.copilot`) is runtime-discovered only by the window's own Copilot host on the same machine.
+ * Copilot-home `mcp-config.json` (`COPILOT_HOME`, otherwise `~/.copilot`) is runtime-discovered only by the window's own Copilot host on the same machine and is never forwarded.
  */
 export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[], windowRemoteAuthority: string | null): Promise<ISyncableMcpServer[]> {
 	const resolved = await resolveMcpServersForAgentHostDelivery(mcpService.servers.get(), configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority);
@@ -216,13 +216,36 @@ export async function collectNonPluginMcpServers(mcpService: IMcpService, config
 }
 
 /**
+ * The bundlers that package forwarded files and MCP servers for an agent host.
+ */
+export interface ISyncedCustomizationBundlers {
+	/** Bundles the remaining loose files, such as extension and built-in skills and agents, prompt files, and instructions. */
+	readonly synced: SyncedCustomizationBundler;
+	/** Bundles standalone user and workspace skills and agents, and every forwarded MCP server. */
+	readonly standalone: SyncedCustomizationBundler;
+}
+
+/**
+ * Whether a forwarded file is a standalone user or workspace skill or agent.
+ * Extension and built-in skills and agents stay in the synced bundle, as the
+ * workbench lockdown blocks only standalone prompt files.
+ */
+function isStandaloneSkillOrAgent(file: ISyncableFile): boolean {
+	return (file.type === PromptsType.skill || file.type === PromptsType.agent)
+		&& (file.source === AICustomizationSources.local || file.source === AICustomizationSources.user);
+}
+
+/**
  * Resolves the customization refs to include in an `activeClientSet`
  * message.
  *
  * Every eligible local file is synced unless the user opted out. Files
  * belonging to installed plugins are de-duped to a single plugin ref;
- * remaining loose files — together with MCP servers configured directly in
- * VS Code — are bundled into a synthetic Open Plugin.
+ * remaining loose files are bundled into a synthetic Open Plugin. Standalone
+ * user and workspace skills and agents, together with the MCP servers that
+ * VS Code forwards (user, workspace, or extension-contributed), go into a
+ * separate standalone bundle so that the host does not deliver them as
+ * plugin-provided content.
  */
 export async function resolveCustomizationRefs(
 	fileService: IFileService,
@@ -231,7 +254,7 @@ export async function resolveCustomizationRefs(
 	agentPluginService: IAgentPluginService,
 	mcpService: IMcpService,
 	configurationResolverService: IConfigurationResolverService,
-	bundler: SyncedCustomizationBundler,
+	bundlers: ISyncedCustomizationBundlers,
 	sessionType: string,
 	options: ILocalCustomizationSyncOptions | undefined,
 	workingDirectories: readonly URI[] = [],
@@ -307,8 +330,22 @@ export async function resolveCustomizationRefs(
 
 	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
 	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority);
-	if (looseFiles.length > 0 || mcpServers.length > 0) {
-		refs.push(bundler.bundle(looseFiles, mcpServers).then(r => r?.ref));
+	const syncedFiles = looseFiles.filter(file => !isStandaloneSkillOrAgent(file));
+	if (isRemoteAgentHostSessionType(sessionType) && parseAgentHostHarness(sessionType) === 'copilot') {
+		syncedFiles.push({
+			uri: URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/builtin/vscode-local-images.mdc' }),
+			type: PromptsType.instructions,
+			source: AICustomizationSources.builtin,
+			content: '---\ndescription: Showing image files in VS Code\nalwaysApply: true\n---\n\nTo show the user an image file, reference its absolute path with `![alt](/absolute/path.png)`. If no earlier tool call in this session (such as a screenshot) already returned that image, call `view` on the path once first; never re-view an image just to show it.\n',
+		});
+	}
+	if (syncedFiles.length > 0) {
+		refs.push(bundlers.synced.bundle(syncedFiles, []).then(r => r?.ref));
+	}
+	// Plugin MCP servers travel with their plugin refs, so every server collected here is standalone.
+	const standaloneFiles = looseFiles.filter(isStandaloneSkillOrAgent);
+	if (standaloneFiles.length > 0 || mcpServers.length > 0) {
+		refs.push(bundlers.standalone.bundle(standaloneFiles, mcpServers).then(r => r?.ref));
 	}
 	return await Promise.all(refs).then(r => r.filter(isDefined));
 }

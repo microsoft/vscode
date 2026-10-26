@@ -9,7 +9,10 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
+import { withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -23,6 +26,64 @@ suite('AgentHostLanguageModelProvider', () => {
 	function createProvider(): AgentHostLanguageModelProvider {
 		return store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli'));
 	}
+
+	test('passes host-owned defaults and locks through without assuming model identifiers', async () => {
+		const provider = createProvider();
+		const model: SessionModelInfo = {
+			id: 'opaque-model-id', provider: 'conforming-provider', name: 'Example',
+			configSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'high', readOnly: true } } },
+			_meta: withAgentManagedModelDefaults(withAgentModelConfigurationDefaults(undefined, ['reasoningEffort']), { model: true, keys: ['reasoningEffort'] }),
+		};
+		const observations = [];
+		for (const meta of [model._meta, undefined, { 'vscode.modelConfiguration.defaults': ['removedOption'] }]) {
+			provider.updateModels([{ ...model, _meta: meta }]);
+			const [result] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			observations.push({
+				keys: result.metadata.configurationDefaultKeys,
+				default: result.metadata.configurationSchema?.properties?.reasoningEffort.default,
+				readOnly: result.metadata.configurationSchema?.properties?.reasoningEffort.readOnly,
+				managed: result.metadata.managedModelDefaults,
+			});
+		}
+		assert.deepStrictEqual(observations, [
+			{ keys: ['reasoningEffort'], default: 'high', readOnly: true, managed: { model: true, keys: ['reasoningEffort'] } },
+			{ keys: undefined, default: 'high', readOnly: true, managed: undefined },
+			{ keys: undefined, default: 'high', readOnly: true, managed: undefined },
+		]);
+	});
+	test('announces the first models, even none, and later only models that changed', () => {
+		const provider = createProvider();
+		let changes = 0;
+		store.add(provider.onDidChange(() => changes++));
+		const observations = [];
+		for (const models of [[], [], [makeModel('auto')], [makeModel('auto')], [makeModel('auto'), makeModel('gpt-5')]]) {
+			provider.updateModels(models);
+			observations.push(changes);
+		}
+		assert.deepStrictEqual(observations, [1, 1, 2, 2, 3]);
+	});
+	test('retains cloud-service models omitted from the host catalog across root updates', async () => {
+		const provider = createProvider();
+		provider.updateAdditionalModels([
+			{ ...makeModel('claude-sonnet-4.6'), configSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', title: 'Effort', enum: ['low', 'high'] } } } },
+			makeModel('disabled'),
+		]);
+		provider.updateModels([makeModel('auto'), { ...makeModel('disabled'), policyState: PolicyState.Disabled }]);
+		const first = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		provider.updateModels([makeModel('auto'), makeModel('host-only'), { ...makeModel('disabled'), policyState: PolicyState.Disabled }]);
+		const updated = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		provider.updateAdditionalModels([]);
+		const cleared = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual({
+			first: first.map(model => model.metadata.id),
+			efforts: first[1].metadata.configurationSchema?.properties?.reasoningEffort.enum,
+			updated: updated.map(model => model.metadata.id),
+			cleared: cleared.map(model => model.metadata.id),
+		}, {
+			first: ['auto', 'claude-sonnet-4.6'], efforts: ['low', 'high'],
+			updated: ['auto', 'host-only', 'claude-sonnet-4.6'], cleared: ['auto', 'host-only'],
+		});
+	});
 
 	test('groups native autoTier without inventing a default or losing fast', async () => {
 		const provider = createProvider();
@@ -61,7 +122,7 @@ suite('AgentHostLanguageModelProvider', () => {
 				configSchema: {
 					type: 'object',
 					properties: {
-						thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'] },
+						thinkingLevel: { type: 'string', title: 'Effort Level', enum: ['low', 'high'] },
 						contextSize: { type: 'number', title: 'Context Size', enum: [200_000, 1_000_000] },
 						somethingElse: { type: 'string', title: 'Something Else' },
 					},
@@ -160,7 +221,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		);
 	});
 
-	test('renders the auto-mode discount as the Auto model detail (and a tooltip)', async () => {
+	test('renders the auto-mode discount as the Auto model detail, leaving it out of the tooltip', async () => {
 		const provider = createProvider();
 		provider.updateModels([makeModel('auto', { discountPercent: 10 }), makeModel('gpt-5')]);
 
@@ -169,12 +230,116 @@ suite('AgentHostLanguageModelProvider', () => {
 		const concrete = infos.find(m => m.metadata.id === 'gpt-5');
 
 		assert.strictEqual(auto?.metadata.detail, '10% discount');
-		assert.ok(auto?.metadata.tooltip?.includes('10% discount'), 'Auto tooltip should mention the discount');
-		assert.ok(auto?.metadata.tooltip?.includes('Learn More'), 'Auto tooltip should include the Learn More link');
+		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, 10);
+		// The picker describes the discount from `autoModelDiscountPercent`, alongside Auto's tiers.
+		assert.strictEqual(auto?.metadata.tooltip, ILanguageModelChatMetadata.getAutoModelDescription());
 
 		// Concrete models get neither the discount detail nor the Auto tooltip.
 		assert.strictEqual(concrete?.metadata.detail, undefined);
 		assert.strictEqual(concrete?.metadata.tooltip, undefined);
+		assert.strictEqual(concrete?.metadata.autoModelDiscountPercent, undefined);
+	});
+
+	test('presents Auto as Fusion only when its host marks it so', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			{ ...makeModel('auto', withAgentModelFusionMeta(undefined)), name: 'Copilot Fusion' },
+			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined)) },
+		]);
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const fusionOf = async (meta?: Record<string, unknown>) => {
+			const host = createProvider();
+			host.updateModels([makeModel('auto', meta)]);
+			return (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.autoModelFusion;
+		};
+		assert.deepStrictEqual({
+			models: infos.map(m => ({ name: m.metadata.name, fusion: m.metadata.autoModelFusion, detail: m.metadata.detail, tooltip: m.metadata.tooltip })),
+			plain: await fusionOf(),
+			malformed: [await fusionOf({ 'vscode.chat.fusion': true }), await fusionOf({ 'vscode.chat.fusion': 'fusion' })],
+		}, {
+			models: [
+				{ name: 'Copilot Fusion', fusion: true, detail: undefined, tooltip: 'Copilot Fusion selects a single model or orchestrates multiple models to complete your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
+				{ name: 'gpt-5', fusion: undefined, detail: undefined, tooltip: undefined },
+			],
+			plain: undefined,
+			malformed: [undefined, undefined],
+		});
+	});
+
+	test('lists the provider\'s unavailable Auto tiers as disabled entries in the provider\'s order', async () => {
+		const tierOf = async (model: SessionModelInfo) => {
+			const host = createProvider();
+			host.updateModels([model]);
+			const property = (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.configurationSchema?.properties?.tier;
+			return { enum: property?.enum, labels: property?.enumItemLabels, descriptions: property?.enumDescriptions, disabled: property?.enumItemDisabled, default: property?.default };
+		};
+		const configSchema: SessionModelInfo['configSchema'] = {
+			type: 'object',
+			properties: { tier: { type: 'string', title: 'Optimize for', enum: ['balance', 'hydrafusion'], enumLabels: ['Balance', 'High'], enumDescriptions: ['', 'Fusion'], default: 'balance' } },
+		};
+		const meta = withAgentModelAutoTiersMeta(undefined, {
+			tiers: [
+				{ id: 'balance', label: 'Balance', enabled: true },
+				{ id: 'premium', label: 'Premium', enabled: false },
+				{ id: 'hydrafusion', label: 'High', enabled: true },
+				{ id: 'hydrafusion-max', label: 'Max', enabled: false, message: 'This tier requires models that the user does not have access to.' },
+			],
+		});
+
+		assert.deepStrictEqual({
+			withUnavailable: await tierOf({ ...makeModel('auto', meta), configSchema }),
+			plain: await tierOf({ ...makeModel('auto'), configSchema }),
+			notAuto: await tierOf({ ...makeModel('gpt-5', meta), configSchema }),
+			allUnavailable: await tierOf({
+				...makeModel('auto', withAgentModelAutoTiersMeta(undefined, { tiers: [{ id: 'balance', label: 'Balance', enabled: false, message: 'Paused' }, { id: 'hydrafusion-max', label: 'Max', enabled: false }] })),
+				configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Optimize for', enum: [] } } },
+			}),
+		}, {
+			withUnavailable: {
+				enum: ['balance', 'premium', 'hydrafusion', 'hydrafusion-max'],
+				labels: ['Balance', 'Premium', 'High', 'Max'],
+				descriptions: ['', '', 'Fusion', 'This tier requires models that the user does not have access to.'],
+				disabled: [false, true, false, true],
+				default: 'balance',
+			},
+			plain: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
+			notAuto: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
+			allUnavailable: { enum: ['balance', 'hydrafusion-max'], labels: ['Balance', 'Max'], descriptions: ['Paused', ''], disabled: [true, true], default: undefined },
+		});
+	});
+
+	test('Fusion\'s discount comes only from the service\'s running tier promotions, never from Auto\'s own discount', async () => {
+		const day = 24 * 60 * 60 * 1000;
+		const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
+		const configSchema: SessionModelInfo['configSchema'] = {
+			type: 'object',
+			properties: { tier: { type: 'string', title: 'Effort Level', enum: ['balance', 'hydrafusion'], default: 'balance' } },
+		};
+		const running = { id: 'launch', message: 'Get 30% off', discountPercent: 30, tierIds: ['balance', 'hydrafusion', 'hydrafusion-max'], startsAt: iso(-day), endsAt: iso(day), showBanner: true };
+		const presented = async (fusion: boolean, promotions: IAgentModelAutoTierPromotion[]) => {
+			const provider = createProvider();
+			let meta = withAgentModelAutoTierPromotionsMeta({ discountPercent: 10 }, promotions);
+			meta = fusion ? withAgentModelFusionMeta(meta) : meta;
+			provider.updateModels([{ ...makeModel('auto', meta), configSchema }]);
+			const { metadata } = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
+			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => promotion.id) };
+		};
+
+		assert.deepStrictEqual({
+			running: await presented(true, [running]),
+			upcoming: await presented(true, [{ ...running, startsAt: iso(day), endsAt: iso(2 * day) }]),
+			ended: await presented(true, [{ ...running, startsAt: iso(-2 * day), endsAt: iso(-day) }]),
+			oneTier: await presented(true, [{ ...running, tierIds: ['hydrafusion'] }]),
+			none: await presented(true, []),
+			notFusion: await presented(false, [running]),
+		}, {
+			running: { detail: '30% discount', discount: undefined, promotions: ['launch'] },
+			upcoming: { detail: undefined, discount: undefined, promotions: undefined },
+			ended: { detail: undefined, discount: undefined, promotions: undefined },
+			oneTier: { detail: undefined, discount: undefined, promotions: ['launch'] },
+			none: { detail: undefined, discount: undefined, promotions: undefined },
+			notFusion: { detail: '10% discount', discount: 10, promotions: undefined },
+		});
 	});
 
 	test('shows the Auto tooltip but no detail when there is no positive discount', async () => {
@@ -184,6 +349,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		provider.updateModels([makeModel('auto')]);
 		let auto = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None)).find(m => m.metadata.id === 'auto');
 		assert.strictEqual(auto?.metadata.detail, undefined, 'absent discount → no detail');
+		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, undefined);
 		assert.ok(auto?.metadata.tooltip && auto.metadata.tooltip.length > 0, 'Auto still has a tooltip');
 		assert.ok(!auto?.metadata.tooltip?.includes('discount'), 'no discount → tooltip omits the discount sentence');
 
@@ -191,16 +357,24 @@ suite('AgentHostLanguageModelProvider', () => {
 		provider.updateModels([makeModel('auto', { discountPercent: 0 })]);
 		auto = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None)).find(m => m.metadata.id === 'auto');
 		assert.strictEqual(auto?.metadata.detail, undefined, 'discountPercent 0 → no detail');
+		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, undefined);
 	});
 
-	test('tags HydraFusion as a research preview and describes its routing', async () => {
+	test('tags HydraFusion models as research previews and describes their routing', async () => {
 		const provider = createProvider();
-		provider.updateModels([makeModel('hydrafusion'), makeModel('gpt-5')]);
+		provider.updateModels([
+			{ ...makeModel('hydrafusion'), name: 'HydraFusion' },
+			{ ...makeModel('hydrafusion-max'), name: 'HydraFusion Max' },
+			{ ...makeModel('gpt-5') },
+			{ ...makeModel('hydrafusion-max'), provider: 'claude', name: 'Other' },
+		]);
 
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		assert.deepStrictEqual(infos.map(m => [m.metadata.id, m.metadata.detail, m.metadata.tooltip]), [
-			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.'],
+			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models.'],
+			['hydrafusion-max', 'Research preview', 'HydraFusion Max routes the first eligible turn and may use multiple models.'],
 			['gpt-5', undefined, undefined],
+			['hydrafusion-max', undefined, undefined],
 		]);
 	});
 
@@ -486,6 +660,23 @@ suite('AgentHostLanguageModelProvider', () => {
 
 		const info = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
 		assert.strictEqual(info.metadata.modelGroup, undefined);
+	});
+
+	test('groups on-device direct rows under the harness, not their sentinel provider prefix', async () => {
+		const provider = createProvider();
+		// The rows are published as `vscode-on-device/<alias>` with `_meta["vscode.localModel"]`.
+		provider.updateModels([
+			{ id: 'vscode-on-device/MAI-Code-1.1-Flash', provider: 'copilotcli', name: 'Example Flash 1.0', _meta: createLocalModelRowMeta({ familyId: 'mai-code-1.1-flash-local', contentId: 'c1', active: true }) },
+			{ id: 'vscode-on-device/Qwen-Coder', provider: 'copilotcli', name: 'Qwen Coder' },
+			{ id: 'openai/gpt-5-nano', provider: 'copilotcli', name: 'GPT-5 nano' },
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(Object.fromEntries(infos.map(m => [m.metadata.id, m.metadata.modelGroup])), {
+			'vscode-on-device/MAI-Code-1.1-Flash': { id: 'copilotcli' },
+			'vscode-on-device/Qwen-Coder': { id: 'copilotcli' },
+			'openai/gpt-5-nano': { id: 'openai' },
+		});
 	});
 
 	test('keeps duplicate Codex model names distinct and provider scoped', async () => {

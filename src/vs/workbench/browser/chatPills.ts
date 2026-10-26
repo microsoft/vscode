@@ -5,17 +5,21 @@
 
 import { $, addDisposableListener, DisposableResizeObserver, EventHelper, EventType, isHTMLElement, reset } from '../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../base/browser/keyboardEvent.js';
+import { Gesture, EventType as TouchEventType } from '../../base/browser/touch.js';
 import { mainWindow, type CodeWindow } from '../../base/browser/window.js';
 import { IActionViewItem } from '../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../base/browser/ui/button/button.js';
-import type { IManagedHoverContent } from '../../base/browser/ui/hover/hover.js';
+import type { IManagedHoverContent, IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../../base/browser/ui/hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DomScrollableElement } from '../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ToolBar } from '../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, IActionRunner } from '../../base/common/actions.js';
 import { disposableTimeout } from '../../base/common/async.js';
 import { CancellationToken, cancelOnDispose } from '../../base/common/cancellation.js';
 import { Emitter, Event } from '../../base/common/event.js';
+import { onUnexpectedError } from '../../base/common/errors.js';
 import { KeyCode } from '../../base/common/keyCodes.js';
 import { isMacintosh } from '../../base/common/platform.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
@@ -27,9 +31,11 @@ import { localize } from '../../nls.js';
 import type { IActionListItemHover } from '../../platform/actionWidget/browser/actionList.js';
 import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
 import { IFileService } from '../../platform/files/common/files.js';
+import type { IHoverService } from '../../platform/hover/browser/hover.js';
 import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground } from '../../platform/theme/common/colorRegistry.js';
 import { defaultButtonStyles } from '../../platform/theme/browser/defaultStyles.js';
 import { createChatImageHoverContent } from './chatImagePreview.js';
+import { createChatPillHoverElement } from './chatPillHover.js';
 import './media/chatPills.css';
 
 /**
@@ -51,8 +57,12 @@ export interface IChatPillsModel {
 export interface IChatPillEntry {
 	readonly id: string;
 	readonly label: string;
-	/** Optional trailing metadata rendered after the dropdown row label. */
+	/** Optional metadata rendered after the dropdown row label by default. */
 	readonly badge?: string;
+	/** Places the badge before the label, keeping resource identity ahead of a resolving title. */
+	readonly badgeBeforeLabel?: boolean;
+	/** Keeps a resolved label stable until an open dropdown is dismissed. */
+	readonly preserveLabelOnRefresh?: boolean;
 	/** Optional CSS class added to the dropdown row. */
 	readonly className?: string;
 	/** Short label used when this entry renders as the pill itself. */
@@ -77,6 +87,8 @@ export interface IChatPillEntry {
 	readonly promotedAction?: IChatPillAction;
 	/** Accessible name used when this entry is rendered as the pill itself. */
 	readonly ariaLabel?: string;
+	/** Accessible name for the dropdown row when it differs from the compact pill. */
+	readonly dropdownAriaLabel?: string;
 	/** Plain-text description of the content shown beside the dropdown entry. */
 	readonly ariaDescription?: string;
 	/** Content shown beside the entry while it is focused or hovered. */
@@ -85,6 +97,8 @@ export interface IChatPillEntry {
 	readonly tooltip?: string;
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
+	/** Optional structured rendering when this entry is the only item. The entry's owner owns its lifetime. */
+	readonly inlinePill?: IChatPill;
 	/** Starts resolving metadata for this entry without opening it. */
 	readonly prefetch?: () => void;
 	open(): void;
@@ -93,6 +107,34 @@ export interface IChatPillEntry {
 export interface IChatPillAction extends IAction {
 	/** Concise label used in the hover footer; the full label remains the row-action tooltip. */
 	readonly hoverLabel?: string;
+}
+
+export type ChatReferenceKind = 'pullRequest' | 'issue';
+
+export function getChatReferencePillPresentation(kind: ChatReferenceKind, reference: string, title?: string, fallbackTitle?: string) {
+	const displayTitle = title || fallbackTitle;
+	const typeLabel = kind === 'pullRequest'
+		? localize('chatPills.pullRequest', "Pull Request")
+		: localize('chatPills.issue', "Issue");
+	const resourceLabel = displayTitle
+		? localize('chatPills.referenceWithTitle', "{0} {1}: {2}", typeLabel, reference, displayTitle)
+		: localize('chatPills.reference', "{0} {1}", typeLabel, reference);
+	const dropdownAriaLabel = displayTitle
+		? localize('chatPills.openReferenceWithTitle', "{0}, Open {1}: {2}", reference, typeLabel, displayTitle)
+		: localize('chatPills.openReference', "{0}, Open {1}", reference, typeLabel);
+	return {
+		resourceLabel,
+		entry: {
+			label: displayTitle || typeLabel,
+			badge: reference,
+			badgeBeforeLabel: true,
+			pillLabel: reference,
+			className: 'chat-pill-reference',
+			preserveLabelOnRefresh: title !== undefined,
+			ariaLabel: localize('chatPills.openResource', "Open {0}", resourceLabel),
+			dropdownAriaLabel,
+		} satisfies Pick<IChatPillEntry, 'label' | 'badge' | 'badgeBeforeLabel' | 'pillLabel' | 'className' | 'preserveLabelOnRefresh' | 'ariaLabel' | 'dropdownAriaLabel'>,
+	};
 }
 
 export const chatPillCopyUrlHoverLabel = localize('chatPills.copyUrl', "Copy URL");
@@ -105,9 +147,12 @@ export function withChatPillHoverLabel<T extends IAction>(action: T, hoverLabel:
 }
 
 export function getChatPillLocationHover(location: string): IActionListItemHover {
+	const element = createChatPillHoverElement('chat-pill-location-hover', 'compact', 'content');
+	element.textContent = location;
 	return {
-		content: $('.chat-pill-location-hover', undefined, location),
-		panelClassName: 'chat-pill-location-hover-panel',
+		content: element,
+		contentOwnsPadding: true,
+		panelClassName: 'chat-pill-hover-panel',
 	};
 }
 
@@ -121,7 +166,8 @@ const MAX_CHAT_PILL_IMAGE_PREVIEW_FILE_SIZE = 20 * 1024 * 1024;
 /** Creates the visual preview shared by direct image pills and image rows in a dropdown. */
 export function createChatPillImagePreview(entry: IChatPillEntry & { readonly imagePreview: NonNullable<IChatPillEntry['imagePreview']> }, fileService: IFileService, token = CancellationToken.None): IChatPillImagePreview {
 	const preview = entry.imagePreview;
-	const container = $('.chat-pill-image-preview', { 'aria-busy': 'true' });
+	const container = createChatPillHoverElement('chat-pill-image-preview');
+	container.setAttribute('aria-busy', 'true');
 	const disposables = new DisposableStore();
 	const readToken = cancelOnDispose(disposables);
 	disposables.add(token.onCancellationRequested(() => disposables.dispose()));
@@ -187,6 +233,35 @@ export function getChatPillEntryHoverActions(entry: IChatPillEntry): readonly IC
 		actions.push(entry.promotedAction);
 	}
 	return actions;
+}
+
+export function getChatPillEntryHoverContents(entry: IChatPillEntry | undefined, fileService: IFileService, imageContents: WeakMap<IChatPillEntry, IManagedHoverContent>): IManagedHoverContent | undefined {
+	if (!entry?.imagePreview) {
+		return entry?.pillHover;
+	}
+	const imagePreview = entry.imagePreview;
+	let content = imageContents.get(entry);
+	if (!content) {
+		content = {
+			element: token => createChatPillImagePreview({ ...entry, imagePreview }, fileService, token).element,
+			contentOwnsPadding: true,
+		};
+		imageContents.set(entry, content);
+	}
+	return content;
+}
+
+export function getChatPillEntryHoverOptions(entry: IChatPillEntry | undefined): IManagedHoverOptions | undefined {
+	const actions = entry ? getChatPillEntryHoverActions(entry) : undefined;
+	return actions?.length ? {
+		trapFocus: true,
+		actions: actions.map(action => ({
+			commandId: action.id,
+			label: action.hoverLabel ?? action.label,
+			iconClass: action.class,
+			run: () => { void action.run(); },
+		})),
+	} : undefined;
 }
 
 /** A titled group of entries, rendered as a dropdown section. */
@@ -263,6 +338,7 @@ export class ChatPillsRow extends Disposable {
 			horizontalScrollbarSize: 6,
 			scrollYToX: true,
 			vertical: ScrollbarVisibility.Hidden,
+			useShadows: false,
 		}));
 		this.element = this._scrollable.getDomNode();
 		this.element.classList.add('chat-pills-row');
@@ -287,10 +363,13 @@ export class ChatPillsRow extends Disposable {
 			this._mutationObserver = undefined;
 		}
 		this._register(this._scrollable.onScroll(event => {
+			this.element.classList.toggle('can-scroll-left', event.width > 0 && event.scrollLeft > 1);
+			this.element.classList.toggle('can-scroll-right', event.width > 0 && event.scrollLeft + event.width < event.scrollWidth - 1);
 			if (event.scrollLeftChanged) {
 				this._onDidChangeLayout.fire();
 			}
 		}));
+		this._register(addDisposableListener(this.content, EventType.SCROLL, () => this.scanDomNode()));
 		this._register(addDisposableListener(this.content, EventType.FOCUS_IN, event => {
 			if (isHTMLElement(event.target)) {
 				event.target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -567,6 +646,22 @@ class ChatPillsToolBar extends ToolBar {
 /** Opaque base so a pill never shows the content it floats over; `chatPills.css` tints it. */
 const chatPillBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
 
+/** Creates a shared chat pill button. The caller owns its lifetime. */
+export function createChatPillButton(container: HTMLElement, options?: { readonly supportIcons?: boolean }): Button {
+	const button = new Button(container, {
+		secondary: true,
+		small: true,
+		...options,
+		...defaultButtonStyles,
+		// Keep border sizing in CSS so joined segments can share edges without overriding inline styles.
+		buttonSecondaryBorder: undefined,
+		buttonSecondaryBackground: chatPillBackground,
+		buttonSecondaryHoverBackground: chatPillBackground,
+	});
+	button.element.classList.add('monaco-text-button', 'chat-pill-button');
+	return button;
+}
+
 /**
  * Shared plumbing for every chat pill: the button, click routing, enabled
  * state, and the roving-focus hooks the toolbar drives. Subclasses own only
@@ -575,6 +670,8 @@ const chatPillBackground = asCssVariableWithDefault('chat.list.background', asCs
 export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 
 	protected button: Button | undefined;
+	private _promotedAction: IChatPillAction | undefined;
+	private _promotedActionElement: HTMLElement | undefined;
 
 	/** The rendered button owned by this pill. */
 	get buttonElement(): HTMLElement | undefined {
@@ -597,16 +694,7 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 			container.classList.add(this.itemModifierClass);
 		}
 
-		// Hover uses the same opaque base; CSS layers the hover tint on top.
-		const button = this.button = this._register(new Button(container, {
-			secondary: true,
-			small: true,
-			...this.buttonOptions,
-			...defaultButtonStyles,
-			buttonSecondaryBackground: chatPillBackground,
-			buttonSecondaryHoverBackground: chatPillBackground,
-		}));
-		button.element.classList.add('monaco-text-button', 'chat-pill-button');
+		const button = this.button = this._register(createChatPillButton(container, this.buttonOptions));
 		if (this.buttonModifierClass) {
 			button.element.classList.add(this.buttonModifierClass);
 		}
@@ -636,6 +724,48 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 
 	protected onDidClickButton(): void {
 		this.actionRunner.run(this._action, this._context);
+	}
+
+	protected updatePromotedAction(action: IChatPillAction | undefined, icon: ThemeIcon | undefined, hoverService?: IHoverService): void {
+		this._promotedAction = action;
+		const container = this.element;
+		if (!container) {
+			return;
+		}
+		container.classList.toggle('has-promoted-action', !!action && !!icon);
+		if (!action || !icon) {
+			this._promotedActionElement?.remove();
+			this._promotedActionElement = undefined;
+			return;
+		}
+		const element = this._promotedActionElement ??= this._createPromotedActionElement(icon, hoverService);
+		element.setAttribute('aria-label', action.label);
+		if (element.parentElement !== container) {
+			container.appendChild(element);
+		}
+	}
+
+	private _createPromotedActionElement(icon: ThemeIcon, hoverService: IHoverService | undefined): HTMLElement {
+		// Not a tab stop: the toolbar moves focus between whole pills, so keyboard
+		// users take the action from the pill's context menu instead.
+		const element = $(`span.chat-pill-promoted-action${ThemeIcon.asCSSSelector(icon)}`, { role: 'button', tabindex: '-1' });
+		const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
+		this._register(hoverService
+			? hoverService.setupManagedHover(hoverDelegate, element, () => this._promotedAction?.tooltip || this._promotedAction?.label)
+			: getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, element, () => this._promotedAction?.tooltip || this._promotedAction?.label));
+		// Leave focus where it is, so a click that removes the pill cannot strand it.
+		this._register(addDisposableListener(element, EventType.MOUSE_DOWN, event => event.preventDefault()));
+		this._register(Gesture.addTarget(element));
+		for (const eventType of [EventType.CLICK, TouchEventType.Tap]) {
+			this._register(addDisposableListener(element, eventType, event => {
+				EventHelper.stop(event, true);
+				const action = this._promotedAction;
+				if (action?.enabled) {
+					Promise.resolve(action.run()).catch(onUnexpectedError);
+				}
+			}));
+		}
+		return element;
 	}
 
 	override focus(): void {

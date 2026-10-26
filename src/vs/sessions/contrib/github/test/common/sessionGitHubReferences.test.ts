@@ -137,12 +137,44 @@ suite('Session GitHub References', () => {
 		});
 	});
 
-	test('resolves a chat\'s pull requests from its own repository only', () => {
+	test('leaves another chat\'s echoed records out of a chat\'s pills, keeping discoveries no chat recorded', () => {
+		const link = (path: string) => URI.parse(`https://github.com/owner/repo/${path}`);
+		const mainResource = URI.parse('ahp-chat://default/session');
+		const peerResource = URI.parse('ahp-chat://peer/session');
+		const baseSession = createSession([
+			{ id: 'main-pr', chat: mainResource, kind: SessionArtifactKind.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: link('pull/1') },
+			{ id: 'peer-pr', chat: peerResource, kind: SessionArtifactKind.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: link('pull/2') },
+			{ id: 'peer-issue', chat: peerResource, kind: SessionArtifactKind.Issue, label: 'Peer issue', isArtifact: true, isGitHub: true, link: link('issues/3') },
+		], {
+			owner: 'owner', repo: 'repo',
+			pullRequests: [
+				{ owner: 'owner', repo: 'repo', number: 1, uri: link('pull/1'), recordedReferenceId: 'main-pr' },
+				{ owner: 'owner', repo: 'repo', number: 2, uri: link('pull/2'), recordedReferenceId: 'peer-pr', createdByThisSession: true },
+				{ owner: 'owner', repo: 'repo', number: 4, uri: link('pull/4'), createdByThisSession: true },
+			],
+			issues: [{ owner: 'owner', repo: 'repo', number: 3, uri: link('issues/3'), recordedReferenceId: 'peer-issue' }],
+		});
+		const main = upcastPartial<IChat>({ resource: mainResource, workspace: constObservable(undefined) });
+		const session = upcastPartial<ISession>({ ...baseSession, mainChat: constObservable(main) });
+		const snapshot = (resource: URI) => {
+			const references = getSessionGitHubReferences(session, undefined, upcastPartial<IChat>({ resource, workspace: constObservable(undefined) }));
+			return { pullRequests: references.pullRequests.map(ref => [ref.number, ref.recordedReferenceId]), issues: references.issues.map(ref => [ref.number, ref.recordedReferenceId]) };
+		};
+
+		assert.deepStrictEqual({ main: snapshot(mainResource), peer: snapshot(peerResource) }, {
+			main: { pullRequests: [[1, 'main-pr'], [4, undefined]], issues: [] },
+			peer: { pullRequests: [[2, 'peer-pr'], [4, undefined]], issues: [[3, 'peer-issue']] },
+		});
+	});
+
+	test('keeps every recorded GitHub artifact while resolving associations from the chat repositories', () => {
 		const sessionPullRequest = { owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/pull/1') };
 		const chatPullRequest = { owner: 'contoso', repo: 'tools', number: 7, uri: URI.parse('https://github.com/contoso/tools/pull/7') };
+		const chatIssue = { owner: 'contoso', repo: 'tools', number: 10, uri: URI.parse('https://github.com/contoso/tools/issues/10') };
 		const session = createSession([
 			{ id: 'session-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Session repo PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/pull/2') },
 			{ id: 'chat-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Chat repo PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/Contoso/Tools/pull/8') },
+			{ id: 'foreign-issue', kind: SessionArtifactKind.Issue, label: 'Foreign issue', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/other/project/issues/9') },
 		], { owner: 'microsoft', repo: 'vscode', pullRequests: [sessionPullRequest] });
 		const chatRoot = URI.file('/other');
 		const chat = upcastPartial<IChat>({
@@ -150,7 +182,7 @@ suite('Session GitHub References', () => {
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({
 				folders: [{
 					root: chatRoot, workingDirectory: chatRoot, name: 'other', description: undefined,
-					gitRepository: { uri: chatRoot, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable<IGitHubInfo | undefined>({ owner: 'contoso', repo: 'tools', pullRequests: [chatPullRequest] }) },
+					gitRepository: { uri: chatRoot, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable<IGitHubInfo | undefined>({ owner: 'contoso', repo: 'tools', pullRequests: [chatPullRequest], issues: [chatIssue] }) },
 				}],
 			})),
 		});
@@ -158,13 +190,15 @@ suite('Session GitHub References', () => {
 		assert.deepStrictEqual({
 			session: getSessionGitHubReferences(session, undefined).pullRequests.map(ref => ref.uri.toString()),
 			chat: getSessionGitHubReferences(session, undefined, chat).pullRequests.map(ref => ref.uri.toString()),
+			chatIssues: getSessionGitHubReferences(session, undefined, chat).issues.map(ref => ref.uri.toString()),
 		}, {
 			session: ['https://github.com/microsoft/vscode/pull/2', 'https://github.com/Contoso/Tools/pull/8', 'https://github.com/microsoft/vscode/pull/1'],
-			chat: ['https://github.com/Contoso/Tools/pull/8', 'https://github.com/contoso/tools/pull/7'],
+			chat: ['https://github.com/microsoft/vscode/pull/2', 'https://github.com/Contoso/Tools/pull/8', 'https://github.com/contoso/tools/pull/7'],
+			chatIssues: ['https://github.com/other/project/issues/9', 'https://github.com/contoso/tools/issues/10'],
 		});
 	});
 
-	test('resolves pull requests from every folder of a chat', () => {
+	test('keeps recorded pull requests while resolving associations from every chat folder', () => {
 		const folder = (path: string, gitHubInfo: IGitHubInfo) => {
 			const root = URI.file(path);
 			return { root, workingDirectory: root, name: path, description: undefined, gitRepository: { uri: root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable<IGitHubInfo | undefined>(gitHubInfo) } };
@@ -183,8 +217,95 @@ suite('Session GitHub References', () => {
 		});
 
 		assert.deepStrictEqual(getSessionGitHubReferences(session, undefined, chat).pullRequests.map(ref => ref.uri.toString()), [
+			'https://github.com/other/project/pull/3',
 			'https://github.com/microsoft/vscode/pull/1',
 			'https://github.com/contoso/tools/pull/7',
 		]);
+	});
+
+	test('restricts shared-folder pull requests to their creating chat only when automatic association is disabled', () => {
+		const mainResource = URI.parse('custom-chat://host/main');
+		const peerResource = URI.parse('custom-chat://host/peer');
+		const link = (number: number) => URI.parse(`https://github.com/owner/repo/pull/${number}`);
+		const entries: readonly ISessionArtifact[] = [
+			{ id: 'main', chat: mainResource, kind: SessionArtifactKind.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: link(1) },
+			{ id: 'peer', chat: peerResource, kind: SessionArtifactKind.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: link(2) },
+			{ id: 'legacy', kind: SessionArtifactKind.PullRequest, label: 'Legacy PR', isArtifact: true, isGitHub: true, link: link(3) },
+			{ id: 'reference', chat: peerResource, kind: SessionArtifactKind.PullRequest, label: 'Reference', isArtifact: false, isGitHub: true, link: link(4) },
+		];
+		const baseSession = createSession(entries, {
+			owner: 'owner', repo: 'repo',
+			pullRequests: [1, 2, 3, 4, 5].map(number => ({ owner: 'owner', repo: 'repo', number, uri: link(number), title: `Live ${number}`, createdByThisSession: true })),
+		});
+		const workspace = baseSession.workspace;
+		const main = upcastPartial<IChat>({ resource: mainResource, workspace });
+		const peer = upcastPartial<IChat>({ resource: peerResource, workspace });
+		const session = upcastPartial<ISession>({ ...baseSession, mainChat: constObservable(main) });
+		const snapshot = (chat: IChat | undefined, automatic: boolean) => getSessionGitHubReferences(session, undefined, chat, automatic).pullRequests.map(ref => [ref.number, ref.title]);
+
+		assert.deepStrictEqual({
+			restrictedMain: snapshot(main, false),
+			restrictedPeer: snapshot(peer, false),
+			automaticMain: snapshot(main, true),
+			automaticPeer: snapshot(peer, true),
+			session: snapshot(undefined, false),
+		}, {
+			restrictedMain: [[1, 'Live 1'], [3, 'Live 3']],
+			restrictedPeer: [[2, 'Live 2']],
+			automaticMain: [[1, 'Live 1'], [3, 'Live 3'], [2, 'Live 2'], [4, 'Live 4'], [5, 'Live 5']],
+			// The legacy PR belongs to the main chat, so the peer only gets it as a discovered association.
+			automaticPeer: [[2, 'Live 2'], [1, 'Live 1'], [3, 'Live 3'], [4, 'Live 4'], [5, 'Live 5']],
+			session: [[1, 'Live 1'], [2, 'Live 2'], [3, 'Live 3'], [4, 'Live 4'], [5, 'Live 5']],
+		});
+	});
+
+	test('keeps a chat-owned PR without a workspace and leaves the main chat\'s legacy PR out of restricted peer pills', () => {
+		const resource = URI.parse('custom-chat://host/peer');
+		const baseSession = createSession([
+			{ id: 'own', chat: resource, kind: SessionArtifactKind.PullRequest, label: 'Own PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/1') },
+			{ id: 'legacy', kind: SessionArtifactKind.PullRequest, label: 'Legacy PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/2') },
+		]);
+		const session = upcastPartial<ISession>({ ...baseSession, mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('custom-chat://host/main') })) });
+		const chat = upcastPartial<IChat>({ resource, workspace: constObservable(undefined) });
+		assert.deepStrictEqual(getSessionGitHubReferences(session, undefined, chat, false).pullRequests.map(ref => ref.number), [1]);
+	});
+
+	test('keeps a cross-repository legacy artifact in the restricted main chat pill', () => {
+		const mainResource = URI.parse('custom-chat://host/main');
+		const foreignPullRequest = URI.parse('https://github.com/other/project/pull/2');
+		const baseSession = createSession([
+			{ id: 'foreign', kind: SessionArtifactKind.PullRequest, label: 'Foreign PR', isArtifact: true, isGitHub: true, link: foreignPullRequest },
+		], { owner: 'owner', repo: 'repo' });
+		const main = upcastPartial<IChat>({ resource: mainResource, workspace: baseSession.workspace });
+		const session = upcastPartial<ISession>({ ...baseSession, mainChat: constObservable(main) });
+
+		assert.deepStrictEqual(getSessionGitHubReferences(session, undefined, main, false).pullRequests.map(ref => [ref.uri.toString(), ref.recordedReferenceId]), [
+			[foreignPullRequest.toString(), 'foreign'],
+		]);
+	});
+
+	test('shows the selected PR through standard main-chat artifacts without automatic attachment', () => {
+		const mainResource = URI.parse('custom-chat://host/main');
+		const peerResource = URI.parse('custom-chat://host/peer');
+		const link = (number: number) => URI.parse(`https://github.com/owner/repo/pull/${number}`);
+		const baseSession = createSession([
+			{ id: 'selected', chat: mainResource, kind: SessionArtifactKind.PullRequest, label: '', isArtifact: true, isGitHub: true, link: link(1) },
+			{ id: 'peer', chat: peerResource, kind: SessionArtifactKind.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: link(2) },
+		], {
+			owner: 'owner', repo: 'repo',
+			pullRequests: [
+				{ owner: 'owner', repo: 'repo', number: 1, uri: link(1), createdByThisSession: true, recordedReferenceId: 'selected' },
+				{ owner: 'owner', repo: 'repo', number: 2, uri: link(2), createdByThisSession: true, recordedReferenceId: 'peer' },
+				{ owner: 'owner', repo: 'repo', number: 3, uri: link(3), createdByThisSession: true },
+			],
+		});
+		const main = upcastPartial<IChat>({ resource: mainResource, workspace: baseSession.workspace });
+		const peer = upcastPartial<IChat>({ resource: peerResource, workspace: baseSession.workspace });
+		const session = upcastPartial<ISession>({ ...baseSession, mainChat: constObservable(main) });
+
+		assert.deepStrictEqual({
+			main: getSessionGitHubReferences(session, undefined, main, false).pullRequests.map(ref => ref.number),
+			peer: getSessionGitHubReferences(session, undefined, peer, false).pullRequests.map(ref => ref.number),
+		}, { main: [1], peer: [2] });
 	});
 });

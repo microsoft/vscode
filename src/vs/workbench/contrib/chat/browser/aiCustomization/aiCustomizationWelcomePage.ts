@@ -37,6 +37,7 @@ export interface ICustomizationMigrationCategorySummary {
 
 export interface IWelcomePageCallbacks {
 	selectSection(section: AICustomizationManagementSection): void;
+	createCustomization(section: AICustomizationManagementSection): Promise<void>;
 	selectSectionWithMarketplace(section: AICustomizationManagementSection): void;
 	openInstalled?(target: IInstalledCustomizationTarget): void;
 	openMarketplaceItem(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void;
@@ -79,6 +80,7 @@ export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	getAccessibilityContent?(): string;
 	restoreMarketplaceItemFocus?(origin: ICustomizationMarketplaceOrigin): void;
 	setSearchQuery?(value: string): void;
+	showMarketplace?(query: string, sourceId: string | undefined): void;
 	resetFilters?(): void;
 	reset?(): void;
 }
@@ -218,5 +220,9 @@ export class AICustomizationWelcomePage extends Disposable {
 
 	setSearchQuery(value: string): void {
 		this.implementation.value?.setSearchQuery?.(value);
+	}
+
+	showMarketplace(query: string, sourceId: string | undefined): void {
+		this.implementation.value?.showMarketplace?.(query, sourceId);
 	}
 }

@@ -8,6 +8,7 @@ import { hasVSCodeToolCallMeta } from './vscode/agentToolCallMeta.js';
 import { readPermissionRequestMeta, type IAgentPermissionRequestMeta } from './copilotd/agentPermissionRequestMeta.js';
 
 export { AgentPermissionRequestKind } from './copilotd/agentPermissionRequestMeta.js';
+export { withPermissionDiff } from './copilotd/agentPermissionRequestMeta.js';
 export type { IAgentPermissionRequestMeta } from './copilotd/agentPermissionRequestMeta.js';
 
 export function readAgentPermissionRequestMeta(source: IAgentMetadataSource): IAgentPermissionRequestMeta {

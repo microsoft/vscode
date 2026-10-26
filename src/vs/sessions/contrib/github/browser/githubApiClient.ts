@@ -4,239 +4,114 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellationError } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { abortOnDispose, CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { deriveGitHubEndpoints, IGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IRequestService, asJson } from '../../../../platform/request/common/request.js';
-import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { IGitHubAccountClient } from '../../../../platform/github/common/account/account.js';
+import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
+import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
+import { IWorkbenchGitHubService } from '../../../../workbench/services/github/common/githubService.js';
 
-const LOG_PREFIX = '[GitHubApiClient]';
-const TRACE_PREFIX = '[PR-ICON-TRACE]';
-
-export interface IGitHubApiRequestOptions {
-	readonly data?: unknown;
-	readonly etag?: string;
-	readonly token?: CancellationToken;
-	readonly createAuthenticationSession?: boolean;
-	/** Require these scopes instead of falling back to any available session. */
-	readonly authenticationScopes?: readonly string[];
-}
-
-export interface IGitHubApiResponse<T> {
-	readonly data: T | undefined;
-	readonly statusCode: number;
-	readonly etag?: string;
-}
-
-interface IGitHubGraphQLError {
-	readonly message: string;
-}
-
-interface IGitHubGraphQLResponse<T> {
-	readonly data?: T;
-	readonly errors?: readonly IGitHubGraphQLError[];
-}
-
-export class GitHubApiError extends Error {
-	constructor(
-		message: string,
-		readonly statusCode: number,
-		readonly rateLimitRemaining: number | undefined,
-	) {
-		super(message);
-		this.name = 'GitHubApiError';
-	}
-}
-
-export class GitHubAuthenticationError extends Error {
-	constructor() {
-		super('No GitHub authentication sessions available');
-		this.name = 'GitHubAuthenticationError';
-	}
-}
-
-/**
- * Low-level GitHub REST API client. Handles authentication,
- * request construction, and error classification.
- *
- * This class is stateless with respect to domain data — it only
- * manages auth tokens and raw HTTP communication.
- */
+/** Retains the selected account's client and notifies models when its grant changes. */
 export class GitHubApiClient extends Disposable {
+	private readonly _clientStore = this._register(new DisposableStore());
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
+	private _signal = abortOnDispose(this._clientStore);
+	private _client: Promise<IGitHubAccountClient> | undefined;
+	private _generation = 0;
+
+	get generation(): number {
+		return this._generation;
+	}
 
 	constructor(
-		@IRequestService private readonly _requestService: IRequestService,
-		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IWorkbenchGitHubService private readonly _gitHubService: IWorkbenchGitHubService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
-		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._register(_gitHubService.onDidChangeDefaultClient(() => this.reset()));
 	}
 
 	get enterpriseHost(): string | undefined {
-		return this._getConnection()?.endpoints.enterpriseHost;
+		const provider = this._defaultAccountService.getDefaultAccountAuthenticationProvider();
+		const url = provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined;
+		return provider.enterprise && url ? deriveGitHubEndpoints(url).enterpriseHost : undefined;
 	}
 
 	async authenticate(scopes: readonly string[], token: CancellationToken): Promise<void> {
-		await this._getAuthToken(this._defaultAccountService.getDefaultAccountAuthenticationProvider().id, true, token, scopes);
-	}
-
-	async request<T>(method: string, path: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
-		const connection = this._getConnection();
-		if (!connection) {
-			throw new GitHubAuthenticationError();
-		}
-		return this._request<T>(method, `${connection.endpoints.apiBaseUri}${path}`, path, 'application/vnd.github.v3+json', callSite, connection.authenticationProviderId, options);
-	}
-
-	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>, options?: Pick<IGitHubApiRequestOptions, 'token' | 'createAuthenticationSession'>): Promise<T> {
-		const connection = this._getConnection();
-		if (!connection) {
-			throw new GitHubAuthenticationError();
-		}
-		const response = await this._request<IGitHubGraphQLResponse<T>>(
-			'POST',
-			connection.endpoints.graphQlUri,
-			'/graphql',
-			'application/vnd.github+json',
-			callSite,
-			connection.authenticationProviderId,
-			{ ...options, data: { query, variables } }
-		);
-
-		if (response.data?.errors?.length) {
-			throw new GitHubApiError(
-				response.data.errors.map(error => error.message).join('; '),
-				200,
-				undefined,
-			);
-		}
-
-		if (!response.data?.data) {
-			throw new GitHubApiError('GitHub GraphQL response did not include data', 200, undefined);
-		}
-
-		return response.data.data;
-	}
-
-	private _getConnection(): { readonly authenticationProviderId: string; readonly endpoints: IGitHubEndpoints } | undefined {
-		const authenticationProvider = this._defaultAccountService.getDefaultAccountAuthenticationProvider();
-		const enterpriseUri = authenticationProvider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined;
-		if (authenticationProvider.enterprise && !enterpriseUri) {
-			return undefined;
-		}
-		return {
-			authenticationProviderId: authenticationProvider.id,
-			endpoints: deriveGitHubEndpoints(enterpriseUri),
-		};
-	}
-
-	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, authenticationProviderId: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
-		const cancellationToken = options?.token ?? CancellationToken.None;
-		const token = await this._getAuthToken(authenticationProviderId, options?.createAuthenticationSession !== false, cancellationToken, options?.authenticationScopes);
-		if (cancellationToken.isCancellationRequested) {
-			throw new CancellationError();
-		}
-
-		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
-		this._logService.trace(`${TRACE_PREFIX} [GitHubApiClient] -> ${method} ${pathForLogging} (callSite ${callSite}${options?.etag !== undefined ? `, ifNoneMatch ${options.etag}` : ''})`);
-
-		const response = await this._requestService.request({
-			type: method,
-			url,
-			headers: {
-				'Authorization': `token ${token}`,
-				'Accept': accept,
-				'User-Agent': 'VSCode-Sessions-GitHub',
-				...(options?.etag !== undefined ? { 'If-None-Match': options.etag } : {}),
-				...(options?.data !== undefined ? { 'Content-Type': 'application/json' } : {}),
-			},
-			data: options?.data !== undefined ? JSON.stringify(options.data) : undefined,
-			// The renderer cache can return stale 200 responses despite ETag polling.
-			disableCache: true,
-			callSite
-		}, cancellationToken);
-
-		const rateLimitRemaining = parseRateLimitHeader(response.res.headers?.['x-ratelimit-remaining']);
-		if (rateLimitRemaining !== undefined && rateLimitRemaining < 100) {
-			this._logService.warn(`${LOG_PREFIX} GitHub API rate limit low: ${rateLimitRemaining} remaining`);
-		}
-
-		const statusCode = response.res.statusCode ?? 0;
-		const responseETag = response.res.headers?.['etag'];
-
-		this._logService.trace(`${TRACE_PREFIX} [GitHubApiClient] <- ${method} ${pathForLogging} status ${statusCode}${responseETag ? `, etag ${responseETag}` : ''}${rateLimitRemaining !== undefined ? `, rateLimitRemaining ${rateLimitRemaining}` : ''} (callSite ${callSite})`);
-
-		if (
-			statusCode === 204 /* No Content */ ||
-			statusCode === 304 /* Not Modified */
-		) {
-			return { data: undefined, statusCode, etag: responseETag };
-		}
-
-		if (statusCode < 200 || statusCode >= 300) {
-			const errorBody = await asJson<{ message?: string }>(response).catch(() => undefined);
-			throw new GitHubApiError(
-				errorBody?.message ?? `GitHub API request failed: ${method} ${pathForLogging} (${statusCode})`,
-				statusCode,
-				rateLimitRemaining,
-			);
-		}
-
-		const data = await asJson<T>(response);
-		if (!data) {
-			throw new GitHubApiError(
-				`Failed to parse response for ${method} ${pathForLogging}`,
-				statusCode,
-				rateLimitRemaining,
-			);
-		}
-
-		return { data, statusCode, etag: responseETag };
-	}
-
-	private async _getAuthToken(authenticationProviderId: string, createIfNone: boolean, token: CancellationToken, scopes?: readonly string[]): Promise<string> {
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		let sessions = await raceCancellationError(this._authenticationService.getSessions(authenticationProviderId, [], { silent: true }), token);
-		if (!scopes && sessions.length === 0 && createIfNone) {
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			sessions = await raceCancellationError(this._authenticationService.getSessions(authenticationProviderId, [], { createIfNone: true }), token);
-		}
-		const matchingSessions = sessions.filter(session => session.accessToken && (!scopes || scopes.every(scope => session.scopes.includes(scope))));
-		let session = matchingSessions.find(session => session.scopes.includes('repo')) ?? matchingSessions[0];
-		if (!session && scopes && createIfNone) {
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			try {
-				session = await raceCancellationError(this._authenticationService.createSession(authenticationProviderId, scopes, { activateImmediate: true }), token);
-			} catch (error) {
-				if (error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
-					throw new CancellationError();
-				}
+		try {
+			await this.withClient(async () => { }, token);
+			return;
+		} catch (error) {
+			if (!(error instanceof GitHubRequestError) || error.kind !== 'authentication') {
 				throw error;
 			}
 		}
-		if (!session?.accessToken || (scopes && !scopes.every(scope => session.scopes.includes(scope)))) {
-			throw new GitHubAuthenticationError();
+		try {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			const account = await raceCancellationError(this._defaultAccountService.signIn({ additionalScopes: scopes }), token);
+			if (!account) {
+				throw new GitHubRequestError(localize('githubSignInRequired', "Sign in to GitHub with repository access."), 'authentication');
+			}
+		} catch (error) {
+			if (error === 'Cancelled' || error instanceof Error && error.message === 'Cancelled') {
+				throw new CancellationError();
+			}
+			throw error;
 		}
-
-		return session.accessToken;
+		await this.withClient(async () => { }, token);
 	}
-}
 
-function parseRateLimitHeader(value: string | string[] | undefined): number | undefined {
-	if (value === undefined) {
-		return undefined;
+	async withClient<T>(task: (client: IGitHubAccountClient, signal: AbortSignal) => Promise<T>, token: CancellationToken = CancellationToken.None): Promise<T> {
+		const lifetime = new DisposableStore();
+		const signal = AbortSignal.any([this._signal, CancellationToken.toAbortSignal(token, lifetime)]);
+		try {
+			signal.throwIfAborted();
+			const pending = this._client ??= this.acquireClient(this._signal);
+			const client = await raceCancellationError(pending, CancellationToken.fromAbortSignal(signal, lifetime));
+			const result = await task(client, signal);
+			signal.throwIfAborted();
+			return result;
+		} catch (error) {
+			if (signal.aborted) {
+				throw new CancellationError();
+			}
+			throw error;
+		} finally {
+			lifetime.dispose();
+		}
 	}
-	const str = Array.isArray(value) ? value[0] : value;
-	const parsed = parseInt(str, 10);
-	return isNaN(parsed) ? undefined : parsed;
+
+	private async acquireClient(signal: AbortSignal): Promise<IGitHubAccountClient> {
+		try {
+			const client = await this._gitHubService.acquireDefaultAccountApiClient(signal);
+			if (signal.aborted) {
+				client.dispose();
+				throw new CancellationError();
+			}
+			this._clientStore.add(client);
+			this._clientStore.add(client.onDidInvalidate(() => this.reset()));
+			return client;
+		} catch (error) {
+			if (signal === this._signal) {
+				this._client = undefined;
+			}
+			throw error;
+		}
+	}
+
+	private reset(): void {
+		this._client = undefined;
+		this._generation++;
+		this._clientStore.clear();
+		this._signal = abortOnDispose(this._clientStore);
+		this._onDidChange.fire();
+	}
+
 }

@@ -6,6 +6,7 @@
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import type { IAgentTelemetryContext } from '../../common/agent.js';
+import { toCopilotTelemetryData } from '../shared/copilotSkuTelemetry.js';
 import type { ModelCallTurnCorrelationOutcome, ModelCallTurnCorrelationRecordStatus } from './modelCallTurnCorrelation.js';
 
 export interface ICopilotModelCallCorrelationTelemetry {
@@ -101,6 +102,10 @@ type ModelCallTurnCorrelatedClassification = {
 		"numToolCalls": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tool calls returned by the model.", "isMeasurement": true },
 		"isBYOK": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether bring-your-own-key authentication was used, encoded as 1 for true and -1 for false.", "isMeasurement": true },
 		"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether automatic model selection was used, encoded as 1 for true and -1 for false.", "isMeasurement": true },
+		"autoTier": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Auto routing tier committed for the agent that made the call, present only when Auto served it: efficiency, balance, intelligence or the internal fast tier. A provider-advertised custom tier is a SHA-256 hash on standard rows and raw only on restricted rows." },
+		"fusionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion turn that made the call, for joining with copilotSdk/hydrafusion_route, hydrafusion_phase and hydrafusion_turn. Absent for calls not made by a HydraFusion phase." },
+		"fusionPattern": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion orchestration pattern of the turn that made the call: single, cascade or critique." },
+		"fusionPhaseKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Kind of HydraFusion phase that made the call, such as primary, draft, judge, critic, repair or revision." },
 		"totalTokenMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Effective maximum number of prompt tokens.", "isMeasurement": true },
 		"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Requested maximum number of output tokens.", "isMeasurement": true },
 		"acceptedPredictionTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of accepted speculative prediction tokens.", "isMeasurement": true },
@@ -225,9 +230,47 @@ type ModelCallTurnCorrelatedClassification = {
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
 		"duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Wall-clock duration of the tool execution in milliseconds.", "isMeasurement": true },
-		"result_token_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Token count of the model-facing tool result, measured with the model tokenizer. Present only for successful results.", "isMeasurement": true },
+		"result_token_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Local runtime estimate of the tokens in the tool's explicit model-facing text output (o200k_base scaled by a per-model multiplier); not an exact model-tokenizer count or billed usage. Reported only for successful text results up to 20 KiB without binary or structured-reference content; absence does not mean zero.", "isMeasurement": true },
 		"binary_result_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of binary result parts returned by the tool.", "isMeasurement": true },
 		"binary_result_total_bytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total byte size of binary result parts returned by the tool.", "isMeasurement": true }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/skill_invoked": {
+		"owner": "jruales",
+		"comment": "Existing runtime skill-invocation telemetry forwarded by the SDK. Standard rows identify skills by hash, including create-canvas; plaintext metadata is restricted telemetry only.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"event_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime skill invocation event identifier." },
+		"skill_name_hash": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime SHA-256 hash of the skill name." },
+		"skill_content_hash": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime hash of the skill content, never the content itself." },
+		"has_allowed_tools": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the skill defines allowed tools, encoded as a string boolean." },
+		"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime-sanitized model requesting the skill; original model on restricted rows." },
+		"agent_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Subagent identifier when invoked by a subagent." },
+		"initiator": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime initiator category when supplied." },
+		"plugin_name_hash": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime hash of the contributing plugin name." },
+		"plugin_version_hash": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime hash of the contributing plugin version." },
+		"skill_name": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Skill name; restricted telemetry only." },
+		"skill_path": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Skill path; restricted telemetry only." },
+		"skill_description": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Skill description; restricted telemetry only." },
+		"plugin_name": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Contributing plugin name; restricted telemetry only." },
+		"plugin_version": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Contributing plugin version; restricted telemetry only." },
+		"skill_content_length": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Skill content length reported by the runtime." },
+		"allowed_tools_count": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of allowed tools declared by the skill." }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/extension_startup": {
+		"owner": "jruales",
+		"comment": "Reports aggregate initial startup for all Runtime extensions on create or cold resume, not resident joins or reloads. Contains no extension identities, paths, content, or error text.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Initial startup outcome: success, settled_with_failures, failed, cancelled, or superseded." },
+		"duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Monotonic aggregate elapsed wall time in milliseconds from before initial extension setup/discovery until native provider settlement, not a remaining wait or per-request TTFT.", "isMeasurement": true },
+		"discovered_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of extensions in the authoritative startup snapshot; omitted when unavailable, with zero representing observed empty discovery.", "isMeasurement": true },
+		"running_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of running extensions in the authoritative startup snapshot; omitted when unavailable.", "isMeasurement": true },
+		"failed_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of failed extensions in the authoritative startup snapshot; omitted when unavailable.", "isMeasurement": true },
+		"disabled_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of disabled extensions in the authoritative startup snapshot; omitted when unavailable.", "isMeasurement": true }
 	}
 */
 
@@ -283,6 +326,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
 		"fusion_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier correlating HydraFusion route, phase, and turn events." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent host turn that owns the HydraFusion workflow, for joining with agentHost.turnCompleted. Absent when the host had not yet attributed the workflow to a turn, which can happen for a route event; other events with the same fusion_id carry it." },
 		"synthetic_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Synthetic HydraFusion model selected for the turn." },
 		"policy": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion routing policy selected for the turn." },
 		"route_source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Source that produced the HydraFusion route." },
@@ -330,6 +374,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
 		"fusion_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier correlating HydraFusion route, phase, and turn events." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent host turn that owns the HydraFusion workflow, for joining with agentHost.turnCompleted. Absent when the host had not yet attributed the workflow to a turn, which can happen for a route event; other events with the same fusion_id carry it." },
 		"phase_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier of the constituent phase within a HydraFusion turn." },
 		"phase_kind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Kind of constituent phase executed by HydraFusion." },
 		"role": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Logical role performed by the constituent phase." },
@@ -358,6 +403,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
 		"fusion_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier correlating HydraFusion route, phase, and turn events." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent host turn that owns the HydraFusion workflow, for joining with agentHost.turnCompleted. Absent when the host had not yet attributed the workflow to a turn, which can happen for a route event; other events with the same fusion_id carry it." },
 		"synthetic_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Synthetic HydraFusion model used for the turn." },
 		"pattern": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion execution pattern used for the turn." },
 		"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Aggregate completion outcome of the HydraFusion turn." },
@@ -374,6 +420,11 @@ type ModelCallTurnCorrelatedClassification = {
 		"duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Aggregate wall-clock duration of the HydraFusion turn in milliseconds.", "isMeasurement": true }
 	}
 */
+
+/** The HydraFusion route, phase, and turn events, which carry the `fusion_id` of a workflow owned by a host turn. */
+export function isHydraFusionTelemetryKind(kind: string): boolean {
+	return kind === 'hydrafusion_route' || kind === 'hydrafusion_phase' || kind === 'hydrafusion_turn';
+}
 
 /**
  * Re-emits GitHub-shaped telemetry events forwarded by the Copilot CLI runtime
@@ -416,7 +467,7 @@ export class CopilotGitHubTelemetryForwarder {
 			copilot_tracking_id: event.copilot_tracking_id,
 			kind: event.kind,
 			restricted: notification.restricted,
-			...telemetryContext,
+			...toCopilotTelemetryData(telemetryContext),
 		};
 		delete data.secondary_assignment_context;
 		delete data.ahCorrelationOutcome;
@@ -441,6 +492,13 @@ export class CopilotGitHubTelemetryForwarder {
 			const knownCounters = [data.promptTokenCount, data.completionTokens, data.promptCacheTokenCount]
 				.filter(value => typeof value === 'number' && Number.isFinite(value) && value >= 0).length;
 			data.usageStatus = knownCounters === 3 ? 'known' : knownCounters > 0 ? 'partial' : 'notReported';
+			if (agentHostTurnId) {
+				data.turnId = agentHostTurnId;
+			} else {
+				delete data.turnId;
+			}
+		} else if (isHydraFusionTelemetryKind(event.kind)) {
+			// The workflow's owning host turn, so these rows join to agent host turn telemetry.
 			if (agentHostTurnId) {
 				data.turnId = agentHostTurnId;
 			} else {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spy, restore } from 'sinon';
+import { spy, stub, restore } from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -14,23 +14,26 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { IActionViewItemService, NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { createActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { isIMenuItem, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys.js';
-import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../../browser/menus.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { ChangesHeaderChangesetOperationsActionContribution } from '../../browser/changesActions.js';
+import { ChangesetOperationsActionControllerContribution, ChangesHeaderChangesetOperationsActionContribution } from '../../browser/changesActions.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
+import { ISessionChangesService } from '../../browser/sessionChangesService.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
 
 suite('Changes Actions', () => {
@@ -66,7 +69,7 @@ suite('Changes Actions', () => {
 		assert.deepStrictEqual(opened, [workspaceResource.toString()]);
 	});
 
-	test('only the draft Changes header Commit action renders its icon and label', async () => {
+	test('only the tab-level Commit action renders its icon and label through the Changes editor', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const actionViewItemService = new NullActionViewItemService();
 		const register = spy(actionViewItemService, 'register');
@@ -77,9 +80,15 @@ suite('Changes Actions', () => {
 
 		const commandId = 'workbench.contrib.sessions.changesHeaderChangesetOperation.commit';
 		assert.deepStrictEqual(register.getCalls().map(call => [call.args[0], call.args[1]]), [
-			[Menus.SessionsEditorHeaderLayout, commandId],
+			[Menus.SessionsEditorTitle, commandId],
 		]);
 		const factory = register.firstCall.args[2];
+		stub(actionViewItemService, 'lookUp').callsFake((menu, id) => menu === Menus.SessionsEditorTitle && id === commandId ? factory : undefined);
+		instantiationService.stub(IActionViewItemService, actionViewItemService);
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() { }());
+		instantiationService.stub(IAgentWorkbenchLayoutService, {});
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
+		const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
 		const invokedCommands: string[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override async executeCommand<T>(id: string): Promise<T | undefined> {
@@ -100,9 +109,8 @@ suite('Changes Actions', () => {
 		const container = dom.append(document.body, dom.$('.monaco-workbench'));
 		disposables.add(toDisposable(() => container.remove()));
 		const actionBar = disposables.add(new ActionBar(container, {
-			actionViewItemProvider: (action, options) => action.id === commandId
-				? factory(action, options, instantiationService, dom.getWindow(container).vscodeWindowId)
-				: createActionViewItem(instantiationService, action, options),
+			actionViewItemProvider: (action, options) => editor.getActionViewItem(action, options)
+				?? createActionViewItem(instantiationService, action, options),
 		}));
 		actionBar.push([commit, other, disabledCommit]);
 
@@ -151,7 +159,81 @@ suite('Changes Actions', () => {
 		});
 	});
 
-	test('changesets contribute operations to the Changes editor header for draft and existing sessions', async () => {
+	test('resource operations are limited to Changes resources and remain visible but disabled while unavailable or running', async () => {
+		const operation = {
+			id: 'discard-changes',
+			label: 'Discard Changes',
+			scopes: [SessionChangesetOperationScope.Resource],
+			status: SessionChangesetOperationStatus.Idle,
+		} satisfies ISessionChangesetOperation;
+		const operations = observableValue<readonly ISessionChangesetOperation[]>('test.operations', [operation]);
+		const resource = URI.file('/workspace/changed.ts');
+		const invokedResources: string[] = [];
+		const changeset = upcastPartial<ISessionChangeset>({
+			operations,
+			invokeOperation: async (_operationId, target) => {
+				if (target?.kind === 'resource') {
+					invokedResources.push(target.resource.toString());
+				}
+			},
+		});
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesObs = constObservable([{
+				uri: resource,
+				modifiedUri: resource,
+				insertions: 1,
+				deletions: 0,
+			}]);
+			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
+			override readonly activeSessionLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionChangesetOperationsObs = operations;
+			override readonly activeSessionStateObs = constObservable(undefined);
+		}();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
+		disposables.add(new ChangesetOperationsActionControllerContribution(changesViewService, contextKeyService, new NullLogService()));
+
+		const commandId = 'workbench.contrib.sessions.changesetOperation.discard-changes';
+		const getAction = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === commandId);
+		const states = [SessionChangesetOperationStatus.Idle, SessionChangesetOperationStatus.Disabled, SessionChangesetOperationStatus.Running].map(status => {
+			operations.set([{ ...operation, status }], undefined);
+			const action = getAction(MenuId.AgentsChangeInlineToolbar);
+			return {
+				present: action !== undefined,
+				precondition: action?.command.precondition?.serialize(),
+			};
+		});
+		operations.set([operation], undefined);
+		const multiDiffAction = getAction(MenuId.MultiDiffEditorFileToolbar)!;
+		const context = new Context(1, null);
+		context.setValue('resourceScheme', 'changes-multi-diff-source');
+		const visibleForChanges = multiDiffAction.when?.evaluate(context) ?? true;
+		context.setValue('resourceScheme', 'file');
+		const visibleForOtherEditors = multiDiffAction.when?.evaluate(context) ?? true;
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler, URI.file('/workspace/unrelated.ts'));
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler, resource);
+
+		assert.deepStrictEqual({
+			states,
+			visibleForChanges,
+			visibleForOtherEditors,
+			invokedResources,
+		}, {
+			states: [
+				{ present: true, precondition: undefined },
+				{ present: true, precondition: 'false' },
+				{ present: true, precondition: 'false' },
+			],
+			visibleForChanges: true,
+			visibleForOtherEditors: false,
+			invokedResources: [resource.toString()],
+		});
+	});
+
+	test('changesets contribute operations to the Changes tab-level toolbar for draft and existing sessions', async () => {
 		const invokedOperations: string[] = [];
 		const operations = observableValue<readonly ISessionChangesetOperation[]>('test.operations', [{
 			id: AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID,
@@ -213,7 +295,7 @@ suite('Changes Actions', () => {
 		disposables.add(new ChangesHeaderChangesetOperationsActionContribution(sessionsService, changesViewService, new NullActionViewItemService()));
 
 		const actionPrefix = 'workbench.contrib.sessions.changesHeaderChangesetOperation.';
-		const getActions = () => MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+		const getActions = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith(actionPrefix));
 		const disabledActions = getActions();

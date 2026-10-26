@@ -52,7 +52,7 @@ class RunSessionCodeReviewAction extends Action2 {
 			icon: Codicon.codeReview,
 			precondition: ContextKeyExpr.or(ChatContextKeys.hasAgentSessionChanges, SessionHasChangesContext),
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
+				id: Menus.SessionsEditorTitle,
 				group: 'navigation',
 				order: 10,
 				when: desktopCodeReviewWhen,

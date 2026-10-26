@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { ConfigKey } from '../../../configuration/common/configurationService';
@@ -14,6 +14,7 @@ import { IProxyModelsService } from '../../../proxyModels/common/proxyModelsServ
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
 import { TestLogService } from '../../../testing/common/testLogService';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { autorun } from '../../../../util/vs/base/common/observable';
@@ -29,11 +30,16 @@ class FakeProxyModelsService implements IProxyModelsService {
 	readonly onModelListUpdated = this._onModelListUpdated.event;
 
 	private _models: WireTypes.ModelList.t | undefined;
+	ensureModelsLoadedCallCount = 0;
 
 	get models() { return this._models; }
 	get nesModels() { return this._models?.models.filter(m => m.serviceType === 'NESChat'); }
 	get cursorJumpModels() { return undefined; }
 	get instantApplyModels() { return undefined; }
+	get modelsLoaded() { return this._models !== undefined; }
+	async ensureModelsLoaded(): Promise<void> {
+		this.ensureModelsLoadedCallCount++;
+	}
 
 	/** Stands in for the `/models` response landing. */
 	respondWith(promptStrategy: PromptingStrategy, name = 'fetched-model'): void {
@@ -53,14 +59,14 @@ describe('InlineEditsModelService', () => {
 		configurationService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
 	});
 
-	function createService(copilotToken?: CopilotToken): InlineEditsModelService {
+	function createService(copilotToken?: CopilotToken, experimentationService = new NullExperimentationService()): InlineEditsModelService {
 		const tokenStore: ICopilotTokenStore = { copilotToken, onDidStoreUpdate: Event.None } as ICopilotTokenStore;
 		return store.add(new InlineEditsModelService(
 			tokenStore,
 			proxyModelsService,
 			new NullUndesiredModelsManager(),
 			configurationService,
-			new NullExperimentationService(),
+			experimentationService,
 			new NullTelemetryService(),
 			new TestLogService() as unknown as ILogService,
 		));
@@ -118,7 +124,65 @@ describe('InlineEditsModelService', () => {
 		};
 		await configurationService.setConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration, localModel);
 		const service = createService();
+		await service.ensureModelSelection(CancellationToken.None);
 
-		expect(service.supportsUnifiedCompletions.get()).toBe(true);
+		expect({
+			supportsUnifiedCompletions: service.supportsUnifiedCompletions.get(),
+			modelLoads: proxyModelsService.ensureModelsLoadedCallCount,
+		}).toEqual({
+			supportsUnifiedCompletions: true,
+			modelLoads: 0,
+		});
+	});
+
+	it.each(['local', 'experiment', 'defaultExperiment'] as const)('preserves request arguments from %s model configuration', async source => {
+		const modelConfig: ModelConfiguration = {
+			modelName: 'configured-model',
+			promptingStrategy: PromptingStrategy.PatchBased02Unified,
+			includeTagsInCurrentFile: false,
+			lintOptions: undefined,
+			reasoningEffort: 'low',
+			maxCompletionTokens: 8192,
+		};
+		const experimentationService = new NullExperimentationService();
+		await configurationService.setConfig(ConfigKey.TeamInternal.InlineEditsUseSlashModels, false);
+		if (source === 'local') {
+			await configurationService.setConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration, modelConfig);
+		} else {
+			const key = source === 'experiment'
+				? ConfigKey.TeamInternal.InlineEditsXtabProviderModelConfigurationString
+				: ConfigKey.TeamInternal.InlineEditsXtabProviderDefaultModelConfigurationString;
+			vi.spyOn(experimentationService, 'getTreatmentVariable').mockImplementation(name =>
+				name === `copilotchat.config.${key.id}` ? JSON.stringify(modelConfig) : undefined);
+		}
+		const service = createService(undefined, experimentationService);
+		await service.ensureModelSelection(CancellationToken.None);
+		const selected = service.selectedModelConfiguration();
+		expect({
+			modelName: selected.modelName,
+			reasoningEffort: selected.reasoningEffort,
+			maxCompletionTokens: selected.maxCompletionTokens,
+		}).toEqual({
+			modelName: 'configured-model',
+			reasoningEffort: 'low',
+			maxCompletionTokens: 8192,
+		});
+	});
+
+	it('loads server models when they can replace the default selection', async () => {
+		const service = createService();
+
+		await service.ensureModelSelection(CancellationToken.None);
+
+		expect(proxyModelsService.ensureModelsLoadedCallCount).toBe(1);
+	});
+
+	it('does not load server models when slash models are disabled', async () => {
+		await configurationService.setConfig(ConfigKey.TeamInternal.InlineEditsUseSlashModels, false);
+		const service = createService();
+
+		await service.ensureModelSelection(CancellationToken.None);
+
+		expect(proxyModelsService.ensureModelsLoadedCallCount).toBe(0);
 	});
 });

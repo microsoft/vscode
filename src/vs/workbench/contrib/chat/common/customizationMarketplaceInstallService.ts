@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -12,14 +13,14 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 export type CustomizationMarketplaceInstallState =
 	| { readonly kind: 'available' | 'installing' }
-	| { readonly kind: 'checking' | 'installed' | 'repairing' | 'uninstalling'; readonly target: CustomizationMarketplaceInstallationTarget }
+	| { readonly kind: 'checking' | 'installed' | 'repairing' | 'uninstalling'; readonly target: CustomizationMarketplaceInstallationTarget; readonly uninstallUnavailableMessage?: string }
 	| { readonly kind: 'missing'; readonly target: CustomizationMarketplaceInstallationTarget; readonly repairUnavailableMessage?: string }
 	| { readonly kind: 'error'; readonly target: CustomizationMarketplaceInstallationTarget; readonly message: string }
 	| { readonly kind: 'unavailable'; readonly message: string; readonly setupUrl?: URI };
 
 export type CustomizationMarketplaceInstallationTarget =
-	| { readonly kind: 'skill' | 'plugin'; readonly uri: URI }
-	| { readonly kind: 'mcp'; readonly id: string }
+	| { readonly kind: 'skill' | 'plugin'; readonly uri?: URI; readonly name?: string }
+	| { readonly kind: 'mcp'; readonly id?: string; readonly name?: string }
 	| { readonly kind: 'copilotConnector'; readonly name: string };
 
 export type RecordedCustomizationMarketplaceInstallState = Extract<CustomizationMarketplaceInstallState, { readonly target: CustomizationMarketplaceInstallationTarget }>;
@@ -27,6 +28,17 @@ export type RecordedCustomizationMarketplaceInstallState = Extract<Customization
 export interface IRecordedCustomizationMarketplaceResource {
 	readonly resource: ICustomizationMarketplaceResource;
 	readonly state: RecordedCustomizationMarketplaceInstallState;
+	/** Provider-owned durable installation identity, when available. */
+	readonly installationId?: string;
+}
+
+export interface ICustomizationMarketplaceInstallProvider {
+	readonly onDidChange: Event<void>;
+	getInstallations(sessionResource: URI, token: CancellationToken): Promise<readonly IRecordedCustomizationMarketplaceResource[]>;
+	getInstallUnavailableMessage?(resource: ICustomizationMarketplaceResource): string | undefined;
+	install(sessionResource: URI, resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void>;
+	repair(sessionResource: URI, installation: IRecordedCustomizationMarketplaceResource, token: CancellationToken): Promise<void>;
+	uninstall(sessionResource: URI, installation: IRecordedCustomizationMarketplaceResource, token: CancellationToken): Promise<void>;
 }
 
 export interface ICustomizationMarketplaceInstallationSnapshot {
@@ -37,6 +49,7 @@ export interface ICustomizationMarketplaceInstallationSnapshot {
 
 export function createCustomizationMarketplaceInstallationSnapshot(
 	installations: readonly IRecordedCustomizationMarketplaceResource[],
+	isCompatibleResource?: (recorded: ICustomizationMarketplaceResource, resource: ICustomizationMarketplaceResource) => boolean,
 ): ICustomizationMarketplaceInstallationSnapshot {
 	const snapshotInstallations = [...installations];
 	const byResource = new Map<string, IRecordedCustomizationMarketplaceResource>();
@@ -52,17 +65,17 @@ export function createCustomizationMarketplaceInstallationSnapshot(
 		const target = installation.state.target;
 		switch (target.kind) {
 			case 'skill':
-				if (!skillsByUri.has(target.uri)) {
+				if (target.uri && !skillsByUri.has(target.uri)) {
 					skillsByUri.set(target.uri, installation);
 				}
 				break;
 			case 'plugin':
-				if (!pluginsByUri.has(target.uri)) {
+				if (target.uri && !pluginsByUri.has(target.uri)) {
 					pluginsByUri.set(target.uri, installation);
 				}
 				break;
 			case 'mcp':
-				if (!mcpById.has(target.id)) {
+				if (target.id && !mcpById.has(target.id)) {
 					mcpById.set(target.id, installation);
 				}
 				break;
@@ -75,12 +88,13 @@ export function createCustomizationMarketplaceInstallationSnapshot(
 	}
 	return {
 		installations: snapshotInstallations,
-		findByResource: resource => byResource.get(getCustomizationMarketplaceResourceKey(resource)),
+		findByResource: resource => byResource.get(getCustomizationMarketplaceResourceKey(resource))
+			?? snapshotInstallations.find(installation => isCompatibleResource?.(installation.resource, resource)),
 		findByTarget: target => {
 			switch (target.kind) {
-				case 'skill': return skillsByUri.get(target.uri);
-				case 'plugin': return pluginsByUri.get(target.uri);
-				case 'mcp': return mcpById.get(target.id);
+				case 'skill': return target.uri ? skillsByUri.get(target.uri) : undefined;
+				case 'plugin': return target.uri ? pluginsByUri.get(target.uri) : undefined;
+				case 'mcp': return target.id ? mcpById.get(target.id) : undefined;
 				case 'copilotConnector': return connectorsByName.get(target.name);
 			}
 		},
@@ -91,6 +105,8 @@ export const emptyCustomizationMarketplaceInstallationSnapshot = createCustomiza
 
 export const ICustomizationMarketplaceInstallService = createDecorator<ICustomizationMarketplaceInstallService>('customizationMarketplaceInstallService');
 
+export type CustomizationMarketplaceInstallOrigin = 'curatedSection' | 'search' | 'browseFallback';
+
 export interface ICustomizationMarketplaceInstallService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
@@ -98,7 +114,7 @@ export interface ICustomizationMarketplaceInstallService {
 	readonly installations: IObservable<ICustomizationMarketplaceInstallationSnapshot>;
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState;
 	/** Uses the owning install flow; cancellation rejects with a CancellationError. */
-	install(resource: ICustomizationMarketplaceResource): Promise<void>;
+	install(resource: ICustomizationMarketplaceResource, origin?: CustomizationMarketplaceInstallOrigin): Promise<void>;
 	/** Restores files, registrations, or account connections missing from a recorded installation. */
 	repair(resource: ICustomizationMarketplaceResource): Promise<void>;
 	/** Cancels an in-progress Connector install or repair. */

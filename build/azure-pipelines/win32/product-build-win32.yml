@@ -10,22 +10,28 @@ parameters:
   - name: VSCODE_RUN_TESTS
     type: boolean
     default: false
+  # Whether to include the steps and jobs that need a privileged service
+  # connection (signing, CDN uploads, Copilot test setup). Only
+  # sdk-validation-build.yml sets this to false.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+    default: true
 
 # The product is built by the following jobs, so that retrying a failed job
 # never repeats the work of the jobs that already succeeded:
 #   1. Compile: compiles the client, server and web server builds and
 #      publishes them as the compilation_win32_<arch> artifact.
 #   2. Sign: code signs the builds of the compilation artifact together with
-#      the CLI, packages them and publishes the product artifacts, including
-#      the standalone CLI.
+#      the CLI and the Copilot shim, packages them and publishes the product
+#      artifacts, including the standalone CLI.
 # The test jobs are declared next to this template (see
 # product-build-win32-test.yml) and depend on the compile job. The sign job
 # also depends on the CLI job (see product-build-win32-cli.yml), which builds
-# the unsigned CLI in parallel with the compile job, so the CLI job must be
-# part of the same stage. The sign and test jobs run in parallel, but the
-# Publish stage only publishes the x64 product artifacts once all
-# Windows_<arch>_Test_<name> jobs have succeeded (see artifactsByGatingJob in
-# ../common/publish.ts).
+# the unsigned CLI and Copilot shim in parallel with the compile job, so the
+# CLI job must be part of the same stage. The sign and test jobs run in
+# parallel, but the Publish stage only publishes the x64 product artifacts once
+# all Windows_<arch>_Test_<name> jobs have succeeded (see artifactsByGatingJob
+# in ../common/publish.ts).
 jobs:
   - job: Windows_${{ parameters.VSCODE_ARCH }}_Compile
     displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - Compile
@@ -57,6 +63,7 @@ jobs:
           VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+          VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       # See ./steps/product-build-win32-download-compilation.yml for the consumer
       - powershell: |
@@ -80,70 +87,95 @@ jobs:
             exec { 7z.exe a -mx1 "$(Build.ArtifactStagingDirectory)\compilation\out-build.7z" "out-build" }
           displayName: Archive out-build
 
-  - job: Windows_${{ parameters.VSCODE_ARCH }}_Sign
-    displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
-    dependsOn:
-      - Windows_${{ parameters.VSCODE_ARCH }}_Compile
-      - Windows_${{ parameters.VSCODE_ARCH }}_CLI
-    timeoutInMinutes: 90
-    cancelTimeoutInMinutes: 10
-    variables:
-      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
-      BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-    templateContext:
-      outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
-      outputs:
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/system-setup/VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe
-          artifactName: vscode_client_win32_$(VSCODE_ARCH)_setup
-          displayName: Publish system setup
-          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
-          sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/user-setup/VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe
-          artifactName: vscode_client_win32_$(VSCODE_ARCH)_user-setup
-          displayName: Publish user setup
-          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
-          sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/archive/VSCode-win32-$(VSCODE_ARCH)-$(VSCODE_VERSION).zip
-          artifactName: vscode_client_win32_$(VSCODE_ARCH)_archive
-          displayName: Publish archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH)"
-          sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-win32-$(VSCODE_ARCH).zip
-          artifactName: vscode_server_win32_$(VSCODE_ARCH)_archive
-          displayName: Publish server archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
-          sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-win32-$(VSCODE_ARCH)-web.zip
-          artifactName: vscode_web_win32_$(VSCODE_ARCH)_archive
-          displayName: Publish web server archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
-          sbomPackageVersion: $(Build.SourceVersion)
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/cli/vscode_cli_win32_$(VSCODE_ARCH)_cli.zip
-          artifactName: vscode_cli_win32_$(VSCODE_ARCH)_cli
-          displayName: Publish CLI
-          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli-standalone
-          sbomPackageName: "VS Code Windows $(VSCODE_ARCH) CLI"
-          sbomPackageVersion: $(Build.SourceVersion)
-      sdl:
-        suppression:
-          suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
-    steps:
-      - template: ./steps/product-build-win32-setup.yml@self
-        parameters:
-          VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
-          VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
+  # Signing needs the ESRP connection, which the SDK validation pipeline
+  # (sdk-validation-build.yml) must not reference.
+  - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+    - job: Windows_${{ parameters.VSCODE_ARCH }}_Sign
+      displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
+      dependsOn:
+        - Windows_${{ parameters.VSCODE_ARCH }}_Compile
+        - Windows_${{ parameters.VSCODE_ARCH }}_CLI
+      timeoutInMinutes: 90
+      cancelTimeoutInMinutes: 10
+      variables:
+        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+        BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
+      templateContext:
+        outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
+        outputs:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/system-setup/VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe
+            artifactName: vscode_client_win32_$(VSCODE_ARCH)_setup
+            condition: and(succeeded(), ne(variables['SETUP_PUBLISHED'], 'true'))
+            displayName: Publish system setup
+            sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+            sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
+            sbomPackageVersion: $(Build.SourceVersion)
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/user-setup/VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe
+            artifactName: vscode_client_win32_$(VSCODE_ARCH)_user-setup
+            condition: and(succeeded(), ne(variables['USER_SETUP_PUBLISHED'], 'true'))
+            displayName: Publish user setup
+            sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+            sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
+            sbomPackageVersion: $(Build.SourceVersion)
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/archive/VSCode-win32-$(VSCODE_ARCH)-$(VSCODE_VERSION).zip
+            artifactName: vscode_client_win32_$(VSCODE_ARCH)_archive
+            condition: and(succeeded(), ne(variables['ARCHIVE_PUBLISHED'], 'true'))
+            displayName: Publish archive
+            sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+            sbomPackageName: "VS Code Windows $(VSCODE_ARCH)"
+            sbomPackageVersion: $(Build.SourceVersion)
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-win32-$(VSCODE_ARCH).zip
+            artifactName: vscode_server_win32_$(VSCODE_ARCH)_archive
+            condition: and(succeeded(), ne(variables['SERVER_ARCHIVE_PUBLISHED'], 'true'))
+            displayName: Publish server archive
+            sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
+            sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
+            sbomPackageVersion: $(Build.SourceVersion)
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-win32-$(VSCODE_ARCH)-web.zip
+            artifactName: vscode_web_win32_$(VSCODE_ARCH)_archive
+            condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
+            displayName: Publish web server archive
+            sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
+            sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
+            sbomPackageVersion: $(Build.SourceVersion)
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/cli/vscode_cli_win32_$(VSCODE_ARCH)_cli.zip
+            artifactName: vscode_cli_win32_$(VSCODE_ARCH)_cli
+            condition: and(succeeded(), ne(variables['CLI_PUBLISHED'], 'true'))
+            displayName: Publish CLI
+            sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli-standalone
+            sbomPackageName: "VS Code Windows $(VSCODE_ARCH) CLI"
+            sbomPackageVersion: $(Build.SourceVersion)
+        sdl:
+          suppression:
+            suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
+      steps:
+        - template: ./steps/product-build-win32-setup.yml@self
+          parameters:
+            VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+            VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
 
-      - template: ./steps/product-build-win32-download-compilation.yml@self
+        - template: ./steps/product-build-win32-download-compilation.yml@self
 
-      - template: ./steps/product-build-win32-sign.yml@self
+        - template: ./steps/product-build-win32-sign.yml@self
+
+        # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+        # the artifacts that an earlier attempt already published, for example
+        # before timing out (see ../common/checkForArtifact.ts)
+        - script: >-
+            node build/azure-pipelines/common/checkForArtifact.ts
+            SETUP_PUBLISHED vscode_client_win32_$(VSCODE_ARCH)_setup
+            USER_SETUP_PUBLISHED vscode_client_win32_$(VSCODE_ARCH)_user-setup
+            ARCHIVE_PUBLISHED vscode_client_win32_$(VSCODE_ARCH)_archive
+            SERVER_ARCHIVE_PUBLISHED vscode_server_win32_$(VSCODE_ARCH)_archive
+            WEB_ARCHIVE_PUBLISHED vscode_web_win32_$(VSCODE_ARCH)_archive
+            CLI_PUBLISHED vscode_cli_win32_$(VSCODE_ARCH)_cli
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          continueOnError: true
+          displayName: Check for artifacts published by an earlier attempt

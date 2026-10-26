@@ -11,6 +11,8 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import * as resources from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode, IFileService, IFileStat } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -48,6 +50,36 @@ suite('SimpleFileDialog', () => {
 		});
 
 		return { dialog, get promptedUri() { return promptedUri; } };
+	}
+
+	for (const value of ['Q:\\', 'Q:/', 'Q:']) {
+		test(`handles typing ${value} from a scoped Windows filesystem root`, async () => {
+			const currentFolder = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'windows-host', path: '/' });
+			const navigatedFolders: { value: string; path: string }[] = [];
+			const filteredValues: string[] = [];
+			const dialog = Object.assign(Object.create(SimpleFileDialog.prototype), {
+				currentFolder,
+				filePickBox: { value, validationMessage: undefined },
+				isWindows: true,
+				scheme: AGENT_HOST_SCHEME,
+				scopedAuthority: 'windows-host',
+				separator: '\\',
+				userEnteredPathSegment: '',
+				autoCompletePathSegment: '',
+				setActiveItems: (value: string) => filteredValues.push(value),
+				tryUpdateItems: async (value: string, folder: URI) => {
+					navigatedFolders.push({ value, path: folder.path });
+					return 0;
+				},
+			});
+
+			await dialog.handleValueChange(value);
+
+			assert.deepStrictEqual({ navigatedFolders, filteredValues }, {
+				navigatedFolders: value === 'Q:' ? [] : [{ value, path: '/Q:/' }],
+				filteredValues: value === 'Q:' ? [value] : [],
+			});
+		});
 	}
 
 	test('creates nested missing folders from a folder-only open dialog', async () => {
@@ -132,6 +164,29 @@ suite('SimpleFileDialog', () => {
 		assert.strictEqual(result.promptedUri, undefined);
 		assert.strictEqual(await fileService.exists(nestedFolder), false);
 	});
+
+	for (const permitted of [true, false]) {
+		test(`${permitted ? 'accepts' : 'rejects'} the selected folder independently of denied parent access`, async () => {
+			const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
+			const folder = resources.joinPath(root, 'granted');
+			await fileService.createFolder(folder);
+			const requests: string[] = [];
+			const guardedFileService = new class extends mock<IFileService>() {
+				override async stat(resource: URI) {
+					requests.push(resource.path);
+					if (resources.isEqual(resource, root) || !permitted) {
+						throw createFileSystemProviderError('No permissions', FileSystemProviderErrorCode.NoPermissions);
+					}
+					return fileService.stat(resource);
+				}
+			}();
+			const result = createFolderOnlyDialog(guardedFileService);
+			const accepted = await result.dialog.validate(folder);
+			assert.deepStrictEqual({ accepted, prompted: result.promptedUri, requests }, {
+				accepted: permitted, prompted: undefined, requests: permitted ? ['/root', '/root/granted'] : ['/root', '/root/granted', '/root'],
+			});
+		});
+	}
 
 	test('matches a direct child synchronously before accepting a folder', async () => {
 		const folder = URI.file('/root/folder');
@@ -247,6 +302,7 @@ suite('SimpleFileDialog', () => {
 		await dialog.resolvePathFormatting();
 		const path = dialog.pathFromUri(resource, true);
 		const roundTripped = dialog.remoteUriFrom(path, resource);
+		const anotherDrive = dialog.remoteUriFrom('D:\\code\\project\\', resource);
 
 		assert.deepStrictEqual({
 			path,
@@ -254,6 +310,11 @@ suite('SimpleFileDialog', () => {
 				scheme: roundTripped.scheme,
 				authority: roundTripped.authority,
 				path: roundTripped.path,
+			},
+			typedDrive: {
+				scheme: anotherDrive.scheme,
+				authority: anotherDrive.authority,
+				path: anotherDrive.path,
 			},
 			separator: dialog.separator,
 			isWindows: dialog.isWindows,
@@ -264,6 +325,11 @@ suite('SimpleFileDialog', () => {
 				scheme: 'vscode-agent-host',
 				authority: 'windows-host',
 				path: '/C:/Users/test/project/',
+			},
+			typedDrive: {
+				scheme: 'vscode-agent-host',
+				authority: 'windows-host',
+				path: '/D:/code/project/',
 			},
 			separator: '\\',
 			isWindows: true,

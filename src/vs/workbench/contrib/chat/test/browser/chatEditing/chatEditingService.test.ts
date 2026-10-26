@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableValue, waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IReader, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -20,6 +20,8 @@ import { TextEdit } from '../../../../../../editor/common/languages.js';
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { NullCommandService } from '../../../../../../platform/commands/test/common/nullCommandService.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -41,6 +43,7 @@ import { ChatEditingSessionState, IChatEditReviewSession, IChatEditingService, I
 import { ChatModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { ChatTransferService, IChatTransferService } from '../../../common/model/chatTransferService.js';
@@ -83,6 +86,7 @@ suite('ChatEditingService', function () {
 
 	setup(function () {
 		const collection = new ServiceCollection();
+		collection.set(ICommandService, NullCommandService);
 		collection.set(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 		collection.set(IChatAgentService, new SyncDescriptor(ChatAgentService));
 		collection.set(IChatVariablesService, new MockChatVariablesService());
@@ -92,6 +96,7 @@ suite('ChatEditingService', function () {
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestWorkerService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
+		collection.set(IChatOpenDiagnosticsService, new SyncDescriptor(ChatOpenDiagnosticsService));
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(IPromptsService, new MockPromptsService());
 		collection.set(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { });
@@ -158,7 +163,7 @@ suite('ChatEditingService', function () {
 		return store.add(new class extends Disposable implements IChatEditReviewSession {
 			private readonly onDidDisposeEmitter = this._register(new Emitter<void>());
 
-			readonly isGlobalEditingSession = false;
+			readonly isGlobalEditingSession = constObservable(false);
 			readonly chatSessionResource = URI.parse('test://review-session');
 			readonly onDidDispose = this.onDidDisposeEmitter.event;
 			readonly entries = observableValue<readonly IModifiedFileEntry[]>('entries', [entry]);
@@ -198,7 +203,7 @@ suite('ChatEditingService', function () {
 		const session = editingService.createEditingSession(model, true);
 
 		assert.strictEqual(session.chatSessionResource.toString(), model.sessionResource.toString());
-		assert.strictEqual(session.isGlobalEditingSession, true);
+		assert.strictEqual(session.isGlobalEditingSession.get(), true);
 
 		await assertThrowsAsync(async () => {
 			// DUPE not allowed

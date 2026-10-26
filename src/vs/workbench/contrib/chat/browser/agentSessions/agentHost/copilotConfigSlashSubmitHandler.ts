@@ -18,6 +18,7 @@ import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { applyAgentHostSubmitConfig } from './applyAgentHostSubmitConfig.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 
 export interface ICopilotConfigSlashSubmitResolution {
 	readonly applyConfig: Readonly<Record<string, string>>;
@@ -37,6 +38,7 @@ export class CopilotConfigSlashSubmitHandlerContribution extends Disposable impl
 	constructor(
 		@IChatSubmitRequestHandlerService submitRequestHandlerService: IChatSubmitRequestHandlerService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -61,6 +63,7 @@ export class CopilotConfigSlashSubmitHandlerContribution extends Disposable impl
 		}
 		await applyAgentHostSubmitConfig(request.sessionResource, configAction.applyConfig, {
 			agentHostService: this._agentHostService,
+			connectionsService: this._connectionsService,
 			provisionalService: this._provisionalService,
 			workingDirectoryResolver: this._workingDirectoryResolver,
 			workspaceContextService: this._workspaceContextService,

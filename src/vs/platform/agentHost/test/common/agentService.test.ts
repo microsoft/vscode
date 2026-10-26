@@ -6,11 +6,11 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../configuration/common/configuration.js';
+import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, thirdPartyAgentEnabledValue } from '../../../policy/common/copilotManagedSettings.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../common/agent.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelPolicyState, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
+import { affectsAgentHostProviderPreference, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelPolicyState, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
 suite('AgentSession namespace', () => {
@@ -37,6 +37,29 @@ suite('AgentSession namespace', () => {
 	test('provider extracts copilot from a copilot-scheme URI', () => {
 		const session = AgentSession.uri('copilot', 'sess-1');
 		assert.strictEqual(AgentSession.provider(session), 'copilot');
+	});
+
+	test('native URI helpers preserve legacy schemes without assigning a provider to standard sessions', () => {
+		const session = AgentSession.uri('copilotcli', 'mc-test');
+		assert.deepStrictEqual({
+			session: session.toString(),
+			id: AgentSession.id(session),
+			provider: AgentSession.provider(session),
+			stringProvider: AgentSession.provider(session.toString()),
+			legacyProvider: AgentSession.provider('copilotcli:/existing-session'),
+			standardProvider: AgentSession.provider('ahp-session:/standard-session'),
+			claude: AgentSession.uri('claude', 'unchanged').toString(),
+			codex: AgentSession.uri('codex', 'unchanged').toString(),
+		}, {
+			session: 'copilotcli:/mc-test',
+			id: 'mc-test',
+			provider: 'copilotcli',
+			stringProvider: 'copilotcli',
+			legacyProvider: 'copilotcli',
+			standardProvider: undefined,
+			claude: 'claude:/unchanged',
+			codex: 'codex:/unchanged',
+		});
 	});
 });
 
@@ -110,7 +133,7 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 		});
 	});
 
-	test('hides disabled providers in their governed windows', () => {
+	test('hides disabled providers in both windows even when the editor prefers Codex', () => {
 		const configurationService = new TestConfigurationService({
 			[AgentHostClaudeAgentEnabledSettingId]: false,
 			[AgentHostCodexAgentEnabledSettingId]: false,
@@ -126,8 +149,56 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 			agentsClaude: false,
 			editorClaude: false,
 			agentsCodex: false,
-			editorCodex: true,
+			editorCodex: false,
 		});
+	});
+
+	test('reacts to Codex enablement changes in both windows', () => {
+		const event: IConfigurationChangeEvent = {
+			source: ConfigurationTarget.DEFAULT,
+			affectedKeys: new Set([AgentHostCodexAgentEnabledSettingId]),
+			change: { keys: [AgentHostCodexAgentEnabledSettingId], overrides: [] },
+			affectsConfiguration: key => key === AgentHostCodexAgentEnabledSettingId,
+		};
+		assert.deepStrictEqual({
+			agentsWindow: affectsAgentHostProviderPreference(event, true),
+			editorWindow: affectsAgentHostProviderPreference(event, false),
+		}, { agentsWindow: true, editorWindow: true });
+	});
+
+	test('preserves editor preference and restores availability when policy is removed', async () => {
+		const configurationService = new TestConfigurationService({
+			[AgentHostCodexAgentEnabledSettingId]: true,
+			[CodexPreferAgentHostEditorSettingId]: false,
+		});
+		const before = [true, false].map(window => shouldSurfaceLocalAgentHostProvider('codex', configurationService, window));
+		await configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, false);
+		const governed = [true, false].map(window => shouldSurfaceLocalAgentHostProvider('codex', configurationService, window));
+		await configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+		const restored = [true, false].map(window => shouldSurfaceLocalAgentHostProvider('codex', configurationService, window));
+		assert.deepStrictEqual({ before, governed, restored }, {
+			before: [true, false],
+			governed: [false, false],
+			restored: [true, false],
+		});
+	});
+
+	test('managed-settings and preview-feature denials suppress both harnesses on every surface', () => {
+		for (const policyData of [
+			{ managedSettingsActive: true },
+			{ chat_preview_features_enabled: false },
+			{ managedSettings: { [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: false } },
+		]) {
+			const configurationService = new TestConfigurationService({
+				[AgentHostClaudeAgentEnabledSettingId]: thirdPartyAgentEnabledValue(policyData) ?? true,
+				[AgentHostCodexAgentEnabledSettingId]: thirdPartyAgentEnabledValue(policyData) ?? true,
+				[CodexPreferAgentHostEditorSettingId]: true,
+			});
+			assert.deepStrictEqual({
+				editor: ['claude', 'codex', 'copilot'].map(provider => shouldSurfaceLocalAgentHostProvider(provider, configurationService, false)),
+				agents: ['claude', 'codex', 'copilot'].map(provider => shouldSurfaceLocalAgentHostProvider(provider, configurationService, true)),
+			}, { editor: [false, false, true], agents: [false, false, true] });
+		}
 	});
 });
 
@@ -252,6 +323,74 @@ suite('buildAgentHostOTelEnv', () => {
 		assert.strictEqual(env[AgentHostOTelEnvVars.Enabled], 'false');
 		assert.strictEqual(env[AgentHostOTelEnvVars.OtlpEndpoint], '');
 		assert.strictEqual(env[AgentHostOTelEnvVars.FilePath], '');
+	});
+
+	test('managed file export enables telemetry and overrides collector destinations', () => {
+		const env = buildAgentHostOTelEnv(
+			{ exporterType: 'otlp-http', otlpEndpoint: 'http://local:4318' },
+			{
+				[AgentHostOTelEnvVars.OtlpEndpoint]: 'http://environment:4318',
+				[AgentHostOTelEnvVars.OtlpTracesEndpoint]: 'http://environment:4318/v1/traces',
+				[AgentHostOTelEnvVars.OtlpMetricsEndpoint]: 'http://environment:4318/v1/metrics',
+				[AgentHostOTelEnvVars.OtlpTracesProtocol]: 'http/protobuf',
+				[AgentHostOTelEnvVars.OtlpMetricsProtocol]: 'http/protobuf',
+				[AgentHostOTelEnvVars.OtlpHeaders]: 'authorization=environment',
+				[AgentHostOTelEnvVars.OtlpTracesHeaders]: 'authorization=environment-traces',
+				[AgentHostOTelEnvVars.OtlpMetricsHeaders]: 'authorization=environment-metrics',
+			},
+			{ exporterType: 'file', outfile: '/managed/copilot.jsonl', otlpEndpoint: 'http://managed:4318', otlpProtocol: 'grpc' },
+		);
+		assert.deepStrictEqual(env, {
+			[AgentHostOTelEnvVars.Enabled]: 'true',
+			[AgentHostOTelEnvVars.ExporterType]: 'file',
+			[AgentHostOTelEnvVars.FilePath]: '/managed/copilot.jsonl',
+			[AgentHostOTelEnvVars.FilePathIsManaged]: 'true',
+			[AgentHostOTelEnvVars.OtlpEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpEndpointAlt]: '',
+			[AgentHostOTelEnvVars.OtlpTracesEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpMetricsEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpProtocol]: '',
+			[AgentHostOTelEnvVars.OtlpProtocolAlt]: '',
+			[AgentHostOTelEnvVars.OtlpTracesProtocol]: '',
+			[AgentHostOTelEnvVars.OtlpMetricsProtocol]: '',
+			[AgentHostOTelEnvVars.OtlpHeaders]: '',
+			[AgentHostOTelEnvVars.OtlpTracesHeaders]: '',
+			[AgentHostOTelEnvVars.OtlpMetricsHeaders]: '',
+		});
+	});
+
+	test('managed disabled policy suppresses file, collector, and database destinations', () => {
+		const env = buildAgentHostOTelEnv(
+			{ enabled: true, exporterType: 'file', outfile: 'local.jsonl', dbSpanExporterEnabled: true },
+			{
+				[AgentHostOTelEnvVars.OtlpEndpoint]: 'http://environment:4318',
+				[AgentHostOTelEnvVars.DbSpanExporterEnabled]: 'true',
+			},
+			{ enabled: false, exporterType: 'file', outfile: '/managed/copilot.jsonl', otlpEndpoint: 'http://managed:4318', dbSpanExporterEnabled: true },
+		);
+		assert.deepStrictEqual(env, {
+			[AgentHostOTelEnvVars.Enabled]: 'false',
+			[AgentHostOTelEnvVars.ExporterType]: 'file',
+			[AgentHostOTelEnvVars.FilePath]: '',
+			[AgentHostOTelEnvVars.OtlpEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpEndpointAlt]: '',
+			[AgentHostOTelEnvVars.OtlpTracesEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpMetricsEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpProtocol]: '',
+			[AgentHostOTelEnvVars.OtlpProtocolAlt]: '',
+			[AgentHostOTelEnvVars.OtlpTracesProtocol]: '',
+			[AgentHostOTelEnvVars.OtlpMetricsProtocol]: '',
+			[AgentHostOTelEnvVars.OtlpHeaders]: '',
+			[AgentHostOTelEnvVars.OtlpTracesHeaders]: '',
+			[AgentHostOTelEnvVars.OtlpMetricsHeaders]: '',
+			[AgentHostOTelEnvVars.DbSpanExporterEnabled]: '',
+		});
+	});
+
+	test('overrides an inherited managed-file marker outside the current managed-file branch', () => {
+		const inherited = { [AgentHostOTelEnvVars.FilePathIsManaged]: 'true' };
+		assert.strictEqual(buildAgentHostOTelEnv({}, inherited)[AgentHostOTelEnvVars.FilePathIsManaged], 'false');
+		assert.strictEqual(buildAgentHostOTelEnv({}, {})[AgentHostOTelEnvVars.FilePathIsManaged], undefined);
 	});
 
 	test('managed service name wins over inherited env', () => {
@@ -506,23 +645,6 @@ suite('AgentHostOTelPolicyState', () => {
 			duplicateAfterRestart: false,
 			nextChange: true,
 		});
-	});
-});
-
-suite('resolveChatUri', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	const session = AgentSession.uri('copilot', 'sess-1');
-
-	test('default chat collapses onto the scope (session) URI', () => {
-		const defaultChat = URI.parse(buildDefaultChatUri(session));
-		assert.strictEqual(resolveChatUri(session, defaultChat).toString(), session.toString());
-	});
-
-	test('peer chat is addressed by its own URI', () => {
-		const peer = URI.parse(buildChatUri(session, 'peer-42'));
-		assert.strictEqual(resolveChatUri(session, peer).toString(), peer.toString());
 	});
 });
 

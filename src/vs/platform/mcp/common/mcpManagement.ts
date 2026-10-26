@@ -297,6 +297,8 @@ export interface IAllowedMcpServersService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeAllowedMcpServers: Event<void>;
+	/** Original allow/deny URL and command strings containing environment references, to be resolved into {@link IMcpServerIdentity.policyValues} by the executing host. */
+	getServerPolicyVariableValues(): readonly string[];
 	/** Checks a server definition before resolution, deferring rules for variable-dependent URL/command fields. */
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString;
 
@@ -304,8 +306,8 @@ export interface IAllowedMcpServersService {
 	isServerAllowedBeforeResolution(identity: IMcpServerIdentity): true | IMarkdownString;
 
 	/**
-	 * Checks access and allow/deny rules against a resolved runtime identity without deferring URL rules.
-	 * Runtime callers must use this after resolving a server definition.
+	 * Checks the resolved command or destination against access and allow/deny rules, substituting `identity.policyValues` into the policy matchers.
+	 * Call before execution and for every request destination; missing host expansions fail closed, while preliminary checks only defer the decision.
 	 */
 	isServerAllowed(identity: IMcpServerIdentity): true | IMarkdownString;
 }

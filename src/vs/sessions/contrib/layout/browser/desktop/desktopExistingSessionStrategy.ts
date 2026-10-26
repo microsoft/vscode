@@ -8,34 +8,44 @@ import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, IReader, observableFromEvent, observableSignal } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
+import { GroupModelChangeKind, isEditorCommandsContext } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { HasDockedDetailsContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
-import { isChangesEditorInput, isEditorWithoutDockedDetails, isFileEditorInput, isMainPartEmpty } from './desktopSharedHelpers.js';
+import { FilesDetailsState, getFilesDetailsState, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty } from './desktopSharedHelpers.js';
 import { IDesktopLayoutContext, DesktopLayoutStrategy } from './desktopLayoutStrategy.js';
 import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
 
 /** Command that toggles the desktop detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
 const desktopHeaderToggleDetailsOrder = 10;
+
+/**
+ * Whether Toggle Details toggles the changed files list of the multi diff editor shown in
+ * the editor area instead of the detail panel. Evaluated against an editor group's context.
+ */
+const toggleMultiDiffEditorFileListContext = ContextKeyExpr.and(MainEditorAreaVisibleContext, ActiveMultiDiffEditorHasFileListContext)!;
 
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed
@@ -54,9 +64,6 @@ const desktopHeaderToggleDetailsOrder = 10;
 export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 	private _managedTabs: DesktopDockedTabsCoordinator | undefined;
-	private _detailHiddenTransiently = false;
-	private _detailHiddenByEditor = false;
-	private _changingDetailTransiently = false;
 
 	constructor(
 		ctx: IDesktopLayoutContext,
@@ -79,6 +86,12 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	/** Toggle the detail panel and return whether it is now visible. */
 	toggleDetails(): boolean {
 		const nowVisible = !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		const activeEditor = this._editorService.activeEditor;
+		if (nowVisible && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)
+			&& activeEditor && isChangesEditorInput(activeEditor, this._sessionChangesService)
+			&& !this._detailPanel.hasChangesDetails.get()) {
+			return false;
+		}
 		this._layoutService.setPartHidden(!nowVisible, Parts.AUXILIARYBAR_PART);
 		return nowVisible;
 	}
@@ -92,7 +105,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 			const session = this._sessionsService.activeSession.get();
 			if (this._ctx.isRestoringSessionLayout
-				|| this._ctx.multipleSessionsVisibleObs.get()
+				|| this._otherSessionShown()
 				|| this._layoutService.isEditorPartAutoVisibilitySuppressed()
 				|| !session
 				|| session.isQuickChat?.get()
@@ -132,50 +145,72 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		let previousQuickChatResource: URI | undefined;
 		let previousIsCreated: boolean | undefined;
 		let previousSession: IActiveSession | undefined;
+		let previousOwnerKey: URI | undefined;
+		let wasSuspended = false;
 		let togglingSidePane = false;
-
 		this._register(autorun(reader => {
-			const multipleSessionsVisible = this._ctx.multipleSessionsVisibleObs.read(reader);
+			const multipleLayoutOwnersVisible = this._multipleLayoutOwnersVisible(reader);
 			const activeSession = this._sessionsService.activeSession.read(reader);
+			activeSession?.activeChat.read(reader);
 			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
+
+			if (this._ctx.chatLayoutSuspended(reader)) {
+				wasSuspended = true;
+				return;
+			}
+			const resuming = wasSuspended;
+			wasSuspended = false;
+
 			const wasQuickChatActive = previousQuickChatResource !== undefined;
 			const isWorkspaceConversion = !isQuickChat && !!activeSession && isEqual(previousQuickChatResource, activeSession.resource);
 			previousQuickChatResource = isQuickChat ? activeSession?.resource : undefined;
-			if (isWorkspaceConversion) {
+			if (isWorkspaceConversion && !this._ctx.sharedChatLayout) {
 				this._captureExistingProfile();
 			}
 
-			if (multipleSessionsVisible) {
-				const activeChat = activeSession?.activeChat.read(reader);
-				const workspace = activeChat?.workspace.read(reader);
-				const isCreated = activeSession?.isCreated.read(reader);
-				if (!isWorkspaceConversion && activeSession && !isQuickChat && workspace && isCreated === true) {
-					this._ctx.withSessionLayoutRestore(() => this._reveal(this._visibilityStore.get(SessionVisibilityProfile.Existing)));
+			const ownerKey = this._ctx.chatLayoutActive(reader) && activeSession ? this._ctx.ownerKeyFor(activeSession, reader) : undefined;
+
+			if (multipleLayoutOwnersVisible) {
+				if (!this._ctx.chatLayoutActive(reader) || this._ctx.sharedChatLayout) {
+					const activeChat = activeSession?.activeChat.read(reader);
+					const workspace = activeChat?.workspace.read(reader);
+					const isCreated = activeSession?.isCreated.read(reader);
+					if ((!isWorkspaceConversion || this._ctx.sharedChatLayout) && activeSession && !isQuickChat && workspace && isCreated === true) {
+						const resolved = this._resolveComposition(activeSession, ownerKey);
+						this._ctx.withSessionLayoutRestore(() => this._apply(resolved, !ownerKey));
+					}
 				}
 				wasExistingActive = false;
+				previousOwnerKey = ownerKey;
 				return;
 			}
 
 			if (!activeSession) {
+				previousOwnerKey = ownerKey;
 				return;
 			}
 
 			if (isQuickChat) {
 				wasExistingActive = false;
+				previousOwnerKey = ownerKey;
 				return;
 			}
 
 			const isCreated = activeSession.isCreated.read(reader);
 			const sessionChanged = previousSession !== undefined && !isEqual(previousSession.resource, activeSession.resource);
+			const ownerChanged = !sessionChanged && ownerKey !== undefined && (resuming || !isEqual(previousOwnerKey, ownerKey));
 			const isSubmit = !wasQuickChatActive && previousIsCreated === false && isCreated
 				&& (previousSession === activeSession || previousSession?.isCreated.read(undefined) === true);
-			if (isSubmit) {
+			if (isSubmit && !this._ctx.sharedChatLayout) {
 				this._captureExistingProfile();
 			}
 
 			if (isCreated) {
-				if (!isSubmit && !isWorkspaceConversion && (!initialized || !wasExistingActive || wasQuickChatActive || sessionChanged)) {
-					this._ctx.withSessionLayoutRestore(() => this._apply(this._visibilityStore.get(SessionVisibilityProfile.Existing)));
+				if ((this._ctx.sharedChatLayout && (isSubmit || isWorkspaceConversion))
+					|| (!isSubmit && !isWorkspaceConversion && (!initialized || !wasExistingActive || wasQuickChatActive || sessionChanged || ownerChanged))) {
+					const compositionKey = this._ctx.chatLayoutActive(reader) ? this._ctx.compositionKeyFor(activeSession, reader) : undefined;
+					const revealSavedComposition = !this._ctx.sharedChatLayout && initialized && !!compositionKey && this._ctx.compositionStore.get(compositionKey) !== undefined;
+					this._ctx.withSessionLayoutRestore(() => this._apply(this._resolveComposition(activeSession, ownerKey), false, revealSavedComposition));
 				}
 				wasExistingActive = true;
 			} else {
@@ -184,6 +219,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 			previousIsCreated = isCreated;
 			previousSession = activeSession;
+			previousOwnerKey = ownerKey;
 			initialized = true;
 		}));
 
@@ -191,16 +227,18 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			if (e.partId !== Parts.EDITOR_PART && e.partId !== Parts.AUXILIARYBAR_PART) {
 				return;
 			}
-			if (togglingSidePane || (e.partId === Parts.AUXILIARYBAR_PART && this._changingDetailTransiently)) {
+			if (togglingSidePane || (e.partId === Parts.AUXILIARYBAR_PART && this._detailPanel.changingVisibility)) {
 				return;
 			}
 			this._captureExistingProfileIfApplicable();
 		}));
 		this._register(this._layoutService.onWillToggleSidePane(() => {
 			togglingSidePane = true;
+			this._capturePreHideComposition();
 		}));
-		this._register(this._layoutService.onDidToggleSidePane(() => {
+		this._register(this._layoutService.onDidToggleSidePane(e => {
 			try {
+				this._correctToggleReopen(e);
 				this._captureExistingProfileIfApplicable();
 			} finally {
 				togglingSidePane = false;
@@ -208,54 +246,134 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}));
 	}
 
+	private _capturePreHideComposition(): void {
+		if (!this._ctx.chatLayoutActive() || this._ctx.chatLayoutSuspended()
+			|| (this._ctx.multipleChatsVisibleObs.get() && !this._ctx.sharedChatLayout)
+			|| !this._layoutService.isSidePaneVisible()) {
+			return;
+		}
+		const ownerKey = this._activeOwnerKey();
+		if (!ownerKey) {
+			return;
+		}
+		this._ctx.compositionStore.setPreHide(ownerKey, {
+			editor: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+			auxiliaryBar: this._detailPanel.intendedVisible,
+		});
+	}
+
+	private _correctToggleReopen(e: ISidePaneToggleEvent): void {
+		const wasFullyHidden = !e.before.editor && !e.before.auxiliaryBar;
+		const nowVisible = e.after.editor || e.after.auxiliaryBar;
+		if (!wasFullyHidden || !nowVisible || this._ctx.chatLayoutSuspended()
+			|| (this._ctx.multipleChatsVisibleObs.get() && !this._ctx.sharedChatLayout)) {
+			return;
+		}
+		const composition = this._getToggleReopenComposition();
+		if (!composition || (!composition.editor && !composition.auxiliaryBar)) {
+			return;
+		}
+		if (composition.editor !== e.after.editor || composition.auxiliaryBar !== e.after.auxiliaryBar) {
+			this._layoutService.restoreSidePaneComposition(composition);
+		}
+	}
+
+	private _getToggleReopenComposition(): ISidePaneState | undefined {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession || activeSession.isQuickChat?.get()) {
+			return undefined;
+		}
+		const ownerKey = this._ctx.chatLayoutActive() ? this._ctx.compositionKeyFor(activeSession) : undefined;
+		if (ownerKey) {
+			const saved = this._ctx.compositionStore.getPreHide(ownerKey) ?? this._ctx.compositionStore.get(ownerKey);
+			if (saved) {
+				return saved;
+			}
+		}
+		if (!activeSession.isCreated.get()) {
+			return undefined;
+		}
+		const state = this._visibilityStore.get(SessionVisibilityProfile.Existing);
+		return { editor: state.editorVisible, auxiliaryBar: state.auxiliaryBarVisible };
+	}
+
+	private _activeOwnerKey(): URI | undefined {
+		const activeSession = this._sessionsService.activeSession.get();
+		return activeSession && !activeSession.isQuickChat?.get() ? this._ctx.compositionKeyFor(activeSession) : undefined;
+	}
+
+	private _resolveComposition(activeSession: IActiveSession, ownerKey: URI | undefined): { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean } {
+		if (!ownerKey) {
+			return this._visibilityStore.get(SessionVisibilityProfile.Existing);
+		}
+		const compositionKey = this._ctx.compositionKeyFor(activeSession);
+		const stored = compositionKey && this._ctx.compositionStore.get(compositionKey);
+		if (stored) {
+			return { editorVisible: stored.editor, auxiliaryBarVisible: stored.auxiliaryBar };
+		}
+		const state = this._visibilityStore.get(SessionVisibilityProfile.Existing);
+		// Defaults applied to a closed side pane are never shown, so recording them would make a
+		// later visit reveal a pane that this owner never had open.
+		if (compositionKey && (this._ctx.sharedChatLayout || this._layoutService.isSidePaneVisible())) {
+			this._ctx.compositionStore.set(compositionKey, { editor: state.editorVisible, auxiliaryBar: state.auxiliaryBarVisible });
+		}
+		return state;
+	}
+
 	private _captureExistingProfileIfApplicable(): void {
-		if (this._ctx.isRestoringSessionLayout || this._ctx.multipleSessionsVisibleObs.get()) {
+		if (this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended()) {
 			return;
 		}
 		const activeSession = this._sessionsService.activeSession.get();
+		if (this._ctx.multipleChatsVisibleObs.get()) {
+			const ownerKey = activeSession && this._ctx.chatLayoutActive() ? this._ctx.ownerKeyFor(activeSession) : undefined;
+			if (!ownerKey || !this._ctx.sharedChatLayout) {
+				return;
+			}
+		}
 		if (!activeSession || activeSession.isQuickChat?.get() || !activeSession.isCreated.get()
+			|| (this._ctx.sharedChatLayout && !activeSession.activeChat.get().workspace.get())
 			|| this._layoutService.isEditorMaximized() || this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
 			return;
 		}
 		this._captureExistingProfile();
 	}
 
-	/** Seeds the Existing profile from the on-screen composition for an in-place lifecycle transition. */
 	private _captureExistingProfile(): void {
+		if (this._ctx.chatLayoutSuspended()) {
+			return;
+		}
 		const state = {
 			editorVisible: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
-			auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+			auxiliaryBarVisible: this._detailPanel.intendedVisible,
 		};
+
+		if (this._ctx.chatLayoutActive()) {
+			const activeSession = this._sessionsService.activeSession.get();
+			const ownerKey = activeSession && this._ctx.compositionKeyFor(activeSession);
+			if (ownerKey) {
+				this._ctx.compositionStore.set(ownerKey, { editor: state.editorVisible, auxiliaryBar: state.auxiliaryBarVisible });
+			}
+			return;
+		}
 		this._visibilityStore.set(SessionVisibilityProfile.Existing, state);
 	}
 
-	private _apply(state: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean }): void {
+	private _apply(state: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean }, revealOnly = false, revealSavedComposition = false): void {
+		this._detailPanel.resetTransientVisibility();
+		const sidePaneVisible = this._layoutService.isSidePaneVisible();
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		try {
-			if (!state.editorVisible && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			if (!revealOnly && !state.editorVisible && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._layoutService.setPartHidden(true, Parts.EDITOR_PART);
 			}
-			if (!state.auxiliaryBarVisible && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			if (!revealOnly && !state.auxiliaryBarVisible && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			}
-			if (state.auxiliaryBarVisible && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			if ((sidePaneVisible || revealSavedComposition) && state.auxiliaryBarVisible && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			}
-			if (state.editorVisible && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
-			}
-		} finally {
-			suppression.dispose();
-		}
-	}
-
-	private _reveal(state: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean }): void {
-		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
-		try {
-			if (state.auxiliaryBarVisible && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-				this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-			}
-			if (state.editorVisible && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			if ((sidePaneVisible || revealSavedComposition) && state.editorVisible && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 			}
 		} finally {
@@ -266,10 +384,12 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	// --- Detail panel ----------------------------------------------------------------------
 
 	private _registerDetailPanel(): void {
+		const layoutRestored = observableSignal(this);
 		const activeEditorObs = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorService.activeEditor);
 		const mainPartEmptyObs = observableFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange, this._editorService.onDidCloseEditor), () => isMainPartEmpty(this._editorGroupsService));
 		const editorPartVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		const editorMaximizedObs = observableFromEvent(this, this._layoutService.onDidChangeEditorMaximized, () => this._layoutService.isEditorMaximized());
+		const detailVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
 		let initialized = false;
 		let wasExistingActive = false;
 		let activeSessionKey: string | undefined;
@@ -281,15 +401,20 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		let previousQuickChatResource: URI | undefined;
 
 		const sync = (reader: IReader | undefined) => {
+			layoutRestored.read(reader);
+			if (this._ctx.chatLayoutSuspended(reader)) {
+				return;
+			}
 			const activeSession = this._sessionsService.activeSession.read(reader);
 			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
 			const isWorkspaceConversion = !isQuickChat && !!activeSession && isEqual(previousQuickChatResource, activeSession.resource);
 			if (!isWorkspaceConversion) {
 				previousQuickChatResource = isQuickChat ? activeSession?.resource : undefined;
 			}
+			const workspace = activeSession?.activeChat.read(reader).workspace.read(reader);
 			if (!activeSession
 				|| isQuickChat
-				|| !activeSession.activeChat.read(reader).workspace.read(reader)
+				|| !workspace
 				|| !activeSession.isCreated.read(reader)) {
 				wasExistingActive = false;
 				previousActiveEditor = undefined;
@@ -299,7 +424,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			}
 			previousQuickChatResource = undefined;
 
-			const sessionKey = activeSession.resource.toString();
+			const sessionKey = this._ctx.ownerKeyFor(activeSession, reader)?.toString();
 			const sessionChanged = activeSessionKey !== undefined && activeSessionKey !== sessionKey;
 			if (!wasExistingActive || sessionChanged) {
 				activeSessionKey = sessionKey;
@@ -313,14 +438,18 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			if (isWorkspaceConversion) {
 				pendingSessionKey = undefined;
 				pendingOutgoingEditor = undefined;
-				this._detailHiddenTransiently = false;
-				this._detailHiddenByEditor = false;
+				this._detailPanel.resetTransientVisibility();
 			}
 
 			const activeEditor = activeEditorObs.read(reader);
 			const mainPartEmpty = mainPartEmptyObs.read(reader);
 			const editorMaximized = editorMaximizedObs.read(reader);
 			const editorPartVisible = editorPartVisibleObs.read(reader);
+			if (mainPartEmpty && editorPartVisible) {
+				// Revealing the side pane shows the editor before the detail; re-evaluate once the
+				// detail appears so it stays hidden beside an empty editor group.
+				detailVisibleObs.read(reader);
+			}
 			if (pendingSessionKey && activeEditor && activeEditor !== pendingOutgoingEditor) {
 				pendingSessionKey = undefined;
 				pendingOutgoingEditor = undefined;
@@ -335,8 +464,11 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			previousActiveEditor = activeEditor;
 			previousEditorPartVisible = editorPartVisible;
 			previousEditorSessionKey = sessionKey;
-			const target = this._computeTarget(activeEditor, mainPartEmpty, editorMaximized, editorPartVisible);
-			const revealOnly = this._ctx.multipleSessionsVisibleObs.read(reader);
+			const target = this._computeTarget(reader, activeEditor, mainPartEmpty, editorMaximized, editorPartVisible, workspace);
+			if (target === DetailPanelTarget.EditorHidden && activeEditor && isChangesEditorInput(activeEditor, this._sessionChangesService)) {
+				detailVisibleObs.read(reader);
+			}
+			const revealOnly = this._multipleLayoutOwnersVisible(reader);
 			if (!isWorkspaceConversion) {
 				this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
 			}
@@ -346,60 +478,40 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		this._register(autorun(sync));
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
 			const activeSession = this._sessionsService.activeSession.get();
-			if (pendingSessionKey && activeSession?.resource.toString() !== pendingSessionKey) {
+			if (pendingSessionKey && (!activeSession || this._ctx.ownerKeyFor(activeSession)?.toString() !== pendingSessionKey)) {
 				return;
 			}
 			pendingSessionKey = undefined;
 			pendingOutgoingEditor = undefined;
-			sync(undefined);
-		}));
-		this._register(this._layoutService.onDidChangePartVisibility(event => {
-			if (event.partId === Parts.AUXILIARYBAR_PART && event.source !== 'resize') {
-				this._detailHiddenTransiently = false;
-				this._detailHiddenByEditor = false;
-			}
+			layoutRestored.trigger(undefined);
 		}));
 	}
 
 	private _syncDetailVisibility(target: DetailPanelTarget, revealOnly: boolean, emptyFilesShown: boolean): void {
 		const detailVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		if (emptyFilesShown && !detailVisible) {
-			this._detailHiddenTransiently = false;
-			this._detailHiddenByEditor = false;
-			this._setDetailHiddenTransiently(false);
+			this._detailPanel.setHiddenTransiently(false);
 			return;
 		}
 		if (this._ctx.isRestoringSessionLayout || target === DetailPanelTarget.Preserve) {
 			return;
 		}
 
-		if (target === DetailPanelTarget.Hidden || target === DetailPanelTarget.EditorHidden) {
-			if ((target === DetailPanelTarget.EditorHidden || !revealOnly) && detailVisible) {
-				this._detailHiddenTransiently = true;
-				this._detailHiddenByEditor = target === DetailPanelTarget.EditorHidden;
-				this._setDetailHiddenTransiently(true);
+		if (target === DetailPanelTarget.Hidden || target === DetailPanelTarget.EditorHidden || target === DetailPanelTarget.FilesHidden) {
+			const hiddenByEditor = target === DetailPanelTarget.EditorHidden || target === DetailPanelTarget.FilesHidden;
+			if ((hiddenByEditor || !revealOnly) && detailVisible) {
+				this._detailPanel.setHiddenTransiently(true, hiddenByEditor);
 			}
 			return;
 		}
 
-		if (!this._detailHiddenTransiently || (revealOnly && !this._detailHiddenByEditor) || !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+		if (!this._detailPanel.hiddenTransiently || (revealOnly && !this._detailPanel.hiddenByEditor) || !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			return;
 		}
-		this._detailHiddenTransiently = false;
-		this._detailHiddenByEditor = false;
-		this._setDetailHiddenTransiently(false);
+		this._detailPanel.setHiddenTransiently(false);
 	}
 
-	private _setDetailHiddenTransiently(hidden: boolean): void {
-		this._changingDetailTransiently = true;
-		try {
-			this._layoutService.setAuxiliaryBarHiddenForResize(hidden);
-		} finally {
-			this._changingDetailTransiently = false;
-		}
-	}
-
-	private _computeTarget(activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean): DetailPanelTarget {
+	private _computeTarget(reader: IReader | undefined, activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean, workspace: ISessionWorkspace): DetailPanelTarget {
 		if (mainPartEmpty) {
 			return this._ctx.isRestoringSessionLayout ? DetailPanelTarget.Preserve : DetailPanelTarget.Hidden;
 		}
@@ -417,14 +529,19 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}
 
 		if (isChangesEditorInput(activeEditor, this._sessionChangesService)) {
-			return DetailPanelTarget.ChangesForced;
+			return editorPartVisible && !this._detailPanel.hasChangesDetails.read(reader)
+				? DetailPanelTarget.EditorHidden
+				: DetailPanelTarget.ChangesForced;
 		}
 
-		if (isFileEditorInput(activeEditor)) {
-			return DetailPanelTarget.FilesForced;
+		switch (getFilesDetailsState(activeEditor, workspace)) {
+			case FilesDetailsState.Active:
+				return DetailPanelTarget.FilesForced;
+			case FilesDetailsState.Available:
+				return editorPartVisible ? DetailPanelTarget.FilesHidden : DetailPanelTarget.Changes;
 		}
 
-		return DetailPanelTarget.Preserve;
+		return editorPartVisible ? DetailPanelTarget.EditorHidden : DetailPanelTarget.Changes;
 	}
 
 	// --- Managed-tabs supplement (submit "activate Changes" nuance) ------------------------
@@ -439,7 +556,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			const session = this._sessionsService.activeSession.read(reader);
 			const isQuickChat = session?.isQuickChat?.read(reader) ?? false;
 			const isCreated = session && !isQuickChat ? session.isCreated.read(reader) : false;
-			const sessionKey = session?.resource.toString();
+			const sessionKey = session && this._ctx.ownerKeyFor(session, reader)?.toString();
 
 			const isSubmit = !isQuickChat && previousIsCreated === false && isCreated
 				&& (previousSession === session || previousSession?.isCreated.read(undefined) === true);
@@ -457,7 +574,10 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 					changesActivationPendingForSession = undefined;
 				}
 				if (isSubmit || ensureChangesActive) {
-					this.managedTabs.queueReconcile(target, { openDefaultsIfEmpty: isSubmit, ensureChangesActive });
+					this.managedTabs.queueReconcile(target, {
+						openDefaultsIfEmpty: isSubmit && this._layoutService.isSidePaneVisible(),
+						ensureChangesActive,
+					});
 				}
 			}
 
@@ -476,7 +596,9 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 					title: localize2('toggleDetails', "Toggle Details"),
 					icon: Codicon.listSelection,
 					f1: false,
-					toggled: AuxiliaryBarVisibleContext,
+					toggled: ContextKeyExpr.or(
+						ContextKeyExpr.and(toggleMultiDiffEditorFileListContext, MultiDiffEditorFileListEnabledContext),
+						ContextKeyExpr.and(toggleMultiDiffEditorFileListContext.negate(), AuxiliaryBarVisibleContext)),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
 						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyL,
@@ -490,19 +612,30 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 						group: 'navigation',
 						order: desktopHeaderToggleDetailsOrder,
 						// Not every tab type has a detail panel to show/hide (e.g. browser and
-						// search tabs), so only surface the toggle for tab types that do.
+						// search tabs), so only surface the toggle for tab types that do, or
+						// for a multi diff editor whose file list it toggles instead.
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
 							IsAuxiliaryWindowContext.toNegated(),
 							IsTopRightEditorGroupContext,
 							DesktopLayoutContext,
 							MainEditorAreaVisibleContext,
-							HasDockedDetailsContext)
+							ContextKeyExpr.or(HasDockedDetailsContext, toggleMultiDiffEditorFileListContext))
 					}
 				});
 			}
 
-			run(): void {
+			run(accessor: ServicesAccessor, ...args: unknown[]): void {
+				// The editor title toolbar passes the group it renders in; the keybinding targets the active editor.
+				const context = args.find(isEditorCommandsContext);
+				const group = context
+					? accessor.get(IEditorGroupsService).getGroup(context.groupId)
+					: accessor.get(IEditorService).activeEditorPane?.group;
+				if (group?.scopedContextKeyService.contextMatchesRules(toggleMultiDiffEditorFileListContext)) {
+					toggleMultiDiffEditorFileList(accessor.get(IStorageService));
+					return;
+				}
+
 				that.toggleDetails();
 			}
 		});

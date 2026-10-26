@@ -11,6 +11,7 @@ import { AuthenticationGetSessionOptions, AuthenticationInteractiveOptions, ExtH
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId, NotificationActionTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
 import { ActivationKind, IExtensionService } from '../../services/extensions/common/extensions.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -177,8 +178,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(authenticationService.registerAuthenticationProviderHostDelegate({
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
 			priority: extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
-			create: async (authorizationServer, serverMetadata, resource, overrideClientId, overrideClientSecret) => {
-				const authProviderId = getDynamicAuthenticationProviderId(authorizationServer, resource);
+			create: async (authorizationServer, serverMetadata, resource, overrideClientId, overrideClientSecret, providerId) => {
+				const authProviderId = providerId ?? getDynamicAuthenticationProviderId(authorizationServer, resource);
 				const clientDetails = await this.dynamicAuthProviderStorageService.getClientRegistration(authProviderId);
 				let clientId = overrideClientId ?? clientDetails?.clientId;
 				const clientSecret = overrideClientId
@@ -198,7 +199,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					resource,
 					clientId,
 					clientSecret,
-					initialTokens
+					initialTokens,
+					authProviderId
 				);
 			},
 			createXaa: async (issuer) => {
@@ -332,12 +334,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			Severity.Warning,
 			message,
 			[{
+				telemetryId: NotificationActionTelemetryId.Continue,
 				label: yes,
 				run: () => result = true
 			}, {
+				telemetryId: NotificationActionTelemetryId.Decline,
 				label: no,
 				run: () => result = false
-			}]);
+			}], { telemetry: NotificationTelemetryId.AuthenticationContinue });
 		const disposable = handle.onDidClose(() => {
 			deferredPromise.complete(result);
 			disposable.dispose();

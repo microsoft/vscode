@@ -89,6 +89,27 @@ suite('Sessions - External Session Banner', () => {
 		});
 	});
 
+	test('uses the session content inset for its width', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const container = append(mainWindow.document.body, $('div'));
+		container.style.width = '800px';
+		container.style.setProperty('--session-view-content-horizontal-padding', '24px');
+		container.style.setProperty('--vscode-spacing-size320', '32px');
+		disposables.add(toDisposable(() => container.remove()));
+		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, container, {}));
+		banner.setSession(externalSession('codex'));
+
+		const containerBounds = container.getBoundingClientRect();
+		const bannerBounds = banner.domNode.getBoundingClientRect();
+		assert.deepStrictEqual({
+			containerWidth: containerBounds.width,
+			bannerWidth: bannerBounds.width,
+		}, {
+			containerWidth: 800,
+			bannerWidth: 752,
+		});
+	});
+
 	test('closing permanently dismisses every external session banner and restores focus', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const container = append(mainWindow.document.body, $('div'));
@@ -143,6 +164,40 @@ suite('Sessions - External Session Banner', () => {
 			before: { visible: true, hidden: false },
 			after: { visible: false, hidden: true },
 			layoutChanges: [true, false],
+		});
+	});
+
+	test('hides external automation sessions reactively', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const layoutChanges: boolean[] = [];
+		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, $('div'), {
+			onDidChangeLayout: visible => layoutChanges.push(visible),
+		}));
+		const isAutomation = observableValue('automation', false);
+		const session = new class extends mock<ISession>() {
+			override readonly resource = URI.parse('test://external-automation');
+			override readonly isAutomation = isAutomation;
+			override readonly isExternal = constObservable(true);
+			override readonly updatedAt = constObservable(new Date());
+		};
+
+		layoutChanges.length = 0;
+		banner.setSession(session);
+		const before = { visible: banner.visible, hidden: banner.domNode.classList.contains('hidden') };
+		isAutomation.set(true, undefined);
+		const automation = { visible: banner.visible, hidden: banner.domNode.classList.contains('hidden') };
+		isAutomation.set(false, undefined);
+
+		assert.deepStrictEqual({
+			before,
+			automation,
+			after: { visible: banner.visible, hidden: banner.domNode.classList.contains('hidden') },
+			layoutChanges,
+		}, {
+			before: { visible: true, hidden: false },
+			automation: { visible: false, hidden: true },
+			after: { visible: true, hidden: false },
+			layoutChanges: [true, false, true],
 		});
 	});
 

@@ -13,6 +13,9 @@ const STORAGE_VERSION = 1;
 const MAX_SERVERS = 128;
 const MAX_TOOLS_PER_SERVER = 256;
 const MAX_DESCRIPTION_LENGTH = 4096;
+const MCP_ROUTING_PROXY_NAME_PREFIX = 'mcp_route_';
+const MCP_ROUTING_PROXY_NAME_HASH_LENGTH = 16;
+const MCP_ROUTING_PROXY_NAME_MAX_LENGTH = 64;
 
 export interface ICopilotMcpRoutingTool {
 	readonly name: string;
@@ -92,10 +95,19 @@ export class CopilotMcpToolRoutingCache {
 	}
 }
 
-export function getMcpRoutingCacheKey(server: ICopilotMcpRoutingServer): string {
+export function getMcpRoutingCacheKey(server: ICopilotMcpRoutingServer, source?: string): string {
 	return createHash('sha256')
-		.update(stableStringify([server.serverName, server.configuration]), 'utf8')
+		.update(stableStringify(source === undefined ? [server.serverName, server.configuration] : [server.serverName, server.configuration, source]), 'utf8')
 		.digest('hex');
+}
+
+export function getMcpRoutingProxyName(server: ICopilotMcpRoutingServer): string {
+	const hash = getMcpRoutingCacheKey(server).slice(0, MCP_ROUTING_PROXY_NAME_HASH_LENGTH);
+	const suffix = `_${hash}`;
+	const maxServerNameLength = MCP_ROUTING_PROXY_NAME_MAX_LENGTH - MCP_ROUTING_PROXY_NAME_PREFIX.length - suffix.length;
+	const sanitizedServerName = server.serverName.toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'server';
+	const serverName = sanitizedServerName.slice(0, maxServerNameLength).replace(/_+$/g, '');
+	return `${MCP_ROUTING_PROXY_NAME_PREFIX}${serverName}${suffix}`;
 }
 
 function isStoredCache(value: unknown): value is IStoredMcpRoutingCache {

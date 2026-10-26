@@ -5,7 +5,7 @@
 
 import { dirname, extUri } from '../../../../../../base/common/resources.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -15,6 +15,9 @@ import { CharCode } from '../../../../../../base/common/charCode.js';
 import { getWordAtText } from '../../../../../../editor/common/core/wordHelper.js';
 import { chatVariableLeader } from '../../requestParser/chatParserTypes.js';
 import { ILanguageModelToolsService } from '../../tools/languageModelToolsService.js';
+import { IPromptsService } from '../service/promptsService.js';
+import { getTarget, githubCopilotBodyPlaceholders } from './promptFileAttributes.js';
+import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
 
 /**
  * Provides autocompletion for the variables inside prompt bodies.
@@ -30,11 +33,13 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 	/**
 	 * List of trigger characters handled by this provider.
 	 */
-	public readonly triggerCharacters = [':', '.', '/', '\\'];
+	public readonly triggerCharacters = [':', '.', '/', '\\', '{'];
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) {
 	}
 
@@ -46,6 +51,11 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 		const promptsType = getPromptsTypeForLanguageId(model.getLanguageId());
 		if (!promptsType) {
 			return undefined;
+		}
+		const promptAST = this.promptsService.getParsedPromptFile(model);
+		const target = getTarget(promptsType, promptAST.header ?? model.uri, this.customizationHarnessService.getActiveDescriptor().customAgentTarget);
+		if (promptsType === PromptsType.agent && target === Target.GitHubCopilot) {
+			return this.provideGithubCopilotPlaceholderCompletions(model, position, promptAST.body?.range);
 		}
 		const reference = await this.findVariableReference(model, position, token);
 		if (!reference) {
@@ -74,6 +84,36 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 				await this.collectDefaultCompletions(model, reference.range, promptsType, suggestions);
 		}
 		return { suggestions };
+	}
+
+	private provideGithubCopilotPlaceholderCompletions(model: ITextModel, position: Position, bodyRange: Range | undefined): CompletionList | undefined {
+		if (!bodyRange?.containsPosition(position)) {
+			return undefined;
+		}
+		const lineContent = model.getLineContent(position.lineNumber);
+		const linePrefix = lineContent.substring(0, position.column - 1);
+		const placeholderStart = linePrefix.lastIndexOf('{{');
+		if (placeholderStart === -1 || linePrefix.substring(placeholderStart + 2).includes('}')) {
+			return undefined;
+		}
+		let placeholderEnd = position.column - 1;
+		while (placeholderEnd < lineContent.length && /[a-zA-Z0-9]/.test(lineContent[placeholderEnd])) {
+			placeholderEnd++;
+		}
+		if (lineContent.substring(placeholderEnd, placeholderEnd + 2) === '}}') {
+			placeholderEnd += 2;
+		}
+		const range = new Range(position.lineNumber, placeholderStart + 1, position.lineNumber, placeholderEnd + 1);
+		return {
+			suggestions: Object.entries(githubCopilotBodyPlaceholders).map(([name, description]) => ({
+				label: name,
+				filterText: `{{${name}}}`,
+				documentation: description,
+				kind: CompletionItemKind.Variable,
+				insertText: `{{${name}}}`,
+				range,
+			}))
+		};
 	}
 
 	private async collectToolCompletions(model: ITextModel, position: Position, toolRange: Range, suggestions: CompletionItem[]): Promise<void> {
