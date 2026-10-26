@@ -107,7 +107,9 @@ function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDisco
  * connected so reconnecting does not visibly regroup the session.
  *
  * The `https` URI identifies the repository but is not backed by a file system provider, so a
- * session discovered this way cannot browse its files until it connects.
+ * session discovered this way cannot browse its files until it connects. The Agents window reads
+ * a folder of this form, `https://github.com/<owner>/<repo>`, as naming the session's repository
+ * (see `getSessionFolderGitHubRepository`), so it groups with its repository before it connects.
  */
 export function discoveredSessionProject(repoName: string | undefined): IAgentSessionMetadata['project'] {
 	if (!repoName) {

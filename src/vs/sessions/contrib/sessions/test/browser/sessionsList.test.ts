@@ -52,7 +52,7 @@ import { IListService, ListService, WorkbenchObjectTree } from '../../../../../p
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -2622,25 +2622,120 @@ suite('Sessions - SessionsList', () => {
 
 		test('groups a repository across environments, names sections by repository, and keeps sessions without one in their workspace', () => {
 			const cloudRoot = URI.parse('github-remote-file://github/microsoft/vscode/main');
+			// A cloud sandbox session names its repository by URL and reports no Git metadata until its sandbox connects.
+			const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
+			const otherHostRoot = URI.parse('https://example.com/microsoft/vscode');
 			const sessions = [
 				// A cloud session names its repository only through its workspace.
 				createSession('cloud', { workspaceLabel: 'microsoft/vscode', workspaceResource: cloudRoot, folders: [folder(cloudRoot)] }),
+				createSession('sandbox', { workspaceLabel: 'microsoft/vscode', workspaceResource: sandboxRoot, folders: [folder(sandboxRoot)] }),
+				createSession('git url', { workspaceLabel: 'vscode', folders: [folder(URI.parse('https://github.com/microsoft/vscode.git'))] }),
 				createSession('local', { workspaceLabel: 'vscode', folders: [folder(URI.file('/src/vscode'), 'microsoft/vscode')] }),
 				createSession('remote', { workspaceLabel: 'vscode [Host]', folders: [folder(URI.parse('vscode-agent-host://host/src/vscode'), 'Microsoft/VSCode')] }),
 				createSession('fork', { workspaceLabel: 'vscode', folders: [folder(URI.file('/src/fork'), 'someone/vscode')] }),
+				// Git metadata takes precedence over a repository URL.
+				createSession('fork by url', { workspaceLabel: 'vscode', folders: [folder(sandboxRoot, 'someone/vscode')] }),
 				createSession('docs', { workspaceLabel: 'docs', folders: [folder(URI.file('/src/docs'), 'microsoft/vscode-docs')] }),
 				createSession('scratch', { workspaceLabel: 'scratch', folders: [folder(URI.file('/tmp/scratch'))] }),
+				createSession('other host', { workspaceLabel: 'example', workspaceResource: otherHostRoot, folders: [folder(otherHostRoot)] }),
 				createSession('unknown', {}),
 			];
 
 			assert.deepStrictEqual(groupByRepository(sessions).map(section => ({ id: section.id, label: section.label, sessions: section.sessions.map(session => session.sessionId) })), [
+				{ id: 'workspace:example', label: 'example', sessions: ['other host'] },
 				// Repository names are shared by two repository sections, so they include their owner.
-				{ id: 'repository:microsoft/vscode', label: 'microsoft/vscode', sessions: ['cloud', 'local', 'remote'] },
+				{ id: 'repository:microsoft/vscode', label: 'microsoft/vscode', sessions: ['cloud', 'sandbox', 'git url', 'local', 'remote'] },
 				{ id: 'workspace:scratch', label: 'scratch', sessions: ['scratch'] },
-				{ id: 'repository:someone/vscode', label: 'someone/vscode', sessions: ['fork'] },
+				{ id: 'repository:someone/vscode', label: 'someone/vscode', sessions: ['fork', 'fork by url'] },
 				{ id: 'repository:microsoft/vscode-docs', label: 'vscode-docs', sessions: ['docs'] },
 				{ id: 'workspace:Unknown', label: 'Unknown', sessions: ['unknown'] },
 			]);
+		});
+	});
+
+	suite('migrateCloudSandboxRepositorySections', () => {
+		test('gives repository sections the state recorded for their cloud sandbox sessions\' workspace sections, once', () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const store = (key: string, value: object) => storageService.store(key, JSON.stringify(value), StorageScope.PROFILE, StorageTarget.USER);
+			const read = (key: string) => JSON.parse(storageService.get(key, StorageScope.PROFILE) ?? 'null');
+			store('sessionsListControl.groups', {
+				groups: [{ id: 'work', name: 'Work', createdAt: 1 }, { id: 'other', name: 'Other', createdAt: 2 }],
+				membership: {},
+				sectionMembership: {
+					// Repository grouping placed the workspace sections of sessions without a repository under these keys.
+					'repository:workspace:osortega/simple-server': 'work',
+					'repository:workspace:microsoft/vscode': 'work',
+					'repository:workspace:scratch': 'work',
+					// The user placed `repository:contoso/app` at the top level, which promotes it.
+					'repository:workspace:contoso/app': 'work',
+					// Workspace grouping's placement, and a repository section's own placement.
+					'workspace:osortega/simple-server': 'other',
+					'repository:microsoft/vscode': 'other',
+				},
+				sectionAppearance: {
+					'workspace:osortega/simple-server': { color: 'charts.red' },
+					// Without cloud sandbox sessions, this only names a Copilot cloud session's workspace section.
+					'workspace:microsoft/vscode-docs': { icon: 'book' },
+				},
+			});
+			store('sessionsListControl.sectionOrder', {
+				order: ['workspace:osortega/simple-server', 'group:work', 'workspace:microsoft/vscode-docs', 'repository:contoso/app'],
+				promoted: ['workspace:osortega/simple-server', 'workspace:microsoft/vscode-docs', 'repository:contoso/app'],
+			});
+			store('sessionsListControl.sectionCollapseState', {
+				'workspace:https://github.com/contoso/app': true,
+				'workspace:https://github.com/microsoft/vscode': true,
+				'repository:microsoft/vscode': false,
+				'workspace:github-remote-file://github/microsoft/vscode-docs/HEAD': true,
+			});
+			store('sessionsListControl.sessionGroupExpansionState', { 'workspace:https://github.com/contoso/app': true });
+			const orderService = disposables.add(new SessionSectionOrderService(storageService));
+			const groupsService = disposables.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
+				onDidChangeSessions: Event.None,
+				onDidDeleteSession: Event.None,
+				onDidArchiveSession: Event.None,
+				onWillSendRequest: Event.None,
+				onDidReplaceNewDraftSession: Event.None,
+				onDidReplaceSession: Event.None,
+				onDidStartSession: Event.None,
+				onDidDiscardNewSession: Event.None,
+				onDidMoveChat: Event.None,
+				getSessions: () => [],
+				getInFlightNewSessionRequests: () => [],
+				getSession: () => undefined,
+			}), orderService));
+			const migrate = () => SessionsList.migrateCloudSandboxRepositorySections(storageService, groupsService, orderService);
+
+			migrate();
+			const migrated = {
+				work: groupsService.getChildIds('work'),
+				other: groupsService.getChildIds('other'),
+				appearances: ['repository:osortega/simple-server', 'repository:microsoft/vscode-docs'].map(id => groupsService.getSectionAppearance(id)),
+				order: orderService.capturePositions([]).order,
+				promoted: ['repository:osortega/simple-server', 'repository:microsoft/vscode-docs'].filter(id => orderService.isPromoted(id)),
+				collapsed: read('sessionsListControl.sectionCollapseState'),
+				expanded: read('sessionsListControl.sessionGroupExpansionState'),
+			};
+			// A later choice of the user stays, as the migration runs once.
+			groupsService.moveSection('repository:osortega/simple-server', undefined);
+			migrate();
+
+			assert.deepStrictEqual({ ...migrated, groupAfterRerun: groupsService.getGroupOfSection('repository:osortega/simple-server') }, {
+				work: ['repository:workspace:osortega/simple-server', 'repository:osortega/simple-server', 'repository:workspace:microsoft/vscode', 'repository:workspace:scratch', 'repository:workspace:contoso/app'],
+				other: ['workspace:osortega/simple-server', 'repository:microsoft/vscode'],
+				appearances: [{ color: 'charts.red' }, undefined],
+				order: ['workspace:osortega/simple-server', 'repository:osortega/simple-server', 'group:work', 'workspace:microsoft/vscode-docs', 'repository:contoso/app'],
+				promoted: ['repository:osortega/simple-server'],
+				collapsed: {
+					'workspace:https://github.com/contoso/app': true,
+					'workspace:https://github.com/microsoft/vscode': true,
+					'repository:microsoft/vscode': false,
+					'workspace:github-remote-file://github/microsoft/vscode-docs/HEAD': true,
+					'repository:contoso/app': true,
+				},
+				expanded: { 'workspace:https://github.com/contoso/app': true, 'repository:contoso/app': true },
+				groupAfterRerun: undefined,
+			});
 		});
 	});
 
