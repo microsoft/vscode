@@ -34,6 +34,8 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 
 	private readonly _listener = new DisposableStore();
 	private readonly _watches = new DisposableMap<number>();
+	private readonly _watchRequests = new Map<number /* session */, number /* request */>();
+	private _watchRequestCounter = 0;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -210,6 +212,11 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions, correlate: boolean): Promise<void> {
 		const uri = URI.revive(resource);
 
+		// A session may request to watch again with different options while
+		// a previous request is still pending, so remember the latest one
+		const request = ++this._watchRequestCounter;
+		this._watchRequests.set(session, request);
+
 		const canHandleWatcher = await this._fileService.canHandleResource(uri);
 		if (!canHandleWatcher) {
 			this._logService.warn(`MainThreadFileSystemEventService#$watch(): cannot watch resource as its scheme is not handled by the file service (extension: ${extensionId}, path: ${uri.toString(true)})`);
@@ -232,6 +239,14 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 			} catch (error) {
 				// ignore
 			}
+		}
+
+		// Ignore the request if a newer request, `$unwatch` or disposal
+		// happened meanwhile, otherwise it would replace a newer watcher
+		// or never be disposed
+		if (this._watchRequests.get(session) !== request) {
+			this._logService.trace(`MainThreadFileSystemEventService#$watch(): ignoring an outdated request to start watching (extension: ${extensionId}, path: ${uri.toString(true)}, session: ${session})`);
+			return;
 		}
 
 		// Correlated file watching: use an exclusive `createWatcher()`
@@ -263,6 +278,8 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 	}
 
 	$unwatch(session: number): void {
+		this._watchRequests.delete(session);
+
 		if (this._watches.has(session)) {
 			this._logService.trace(`MainThreadFileSystemEventService#$unwatch(): request to stop watching (session: ${session})`);
 			this._watches.deleteAndDispose(session);
@@ -272,6 +289,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 	dispose(): void {
 		this._listener.dispose();
 		this._watches.dispose();
+		this._watchRequests.clear();
 	}
 }
 
