@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { resolveEditorHeaderSessionScope } from '../../browser/changesView.js';
 import { ChatWindowEditorGroupContext, IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
@@ -19,24 +21,28 @@ suite('Editor header session scope', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function resolve(groupId: number | undefined) {
+	test('a chat window header follows the session of its window, other headers the host scope', () => {
 		const mainSession = constObservable(upcastPartial<IActiveSession>({ sessionId: 'main' }));
-		const windowSession = constObservable(upcastPartial<IActiveSession>({ sessionId: 'window' }));
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionScope, { session: mainSession });
-		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
-			override getContextKeyValue<T>(key: string): T | undefined {
-				return (key === ChatWindowEditorGroupContext.key ? groupId : undefined) as T | undefined;
-			}
-		}());
-		instantiationService.stub(IChatWindowService, {
-			windows: constObservable([upcastPartial<IChatWindow>({ session: windowSession, editorGroup: { id: 7 } as IChatWindow['editorGroup'] })])
-		});
-		const scope = instantiationService.invokeFunction(accessor => resolveEditorHeaderSessionScope(accessor));
-		return scope.session.get()?.sessionId;
-	}
+		const windowSession = observableValue<IActiveSession | undefined>('windowSession', upcastPartial<IActiveSession>({ sessionId: 'window' }));
+		const root = store.add(new ContextKeyService(new TestConfigurationService()));
+		const windowKeys = store.add(root.createScoped(document.createElement('div')));
+		ChatWindowEditorGroupContext.bindTo(windowKeys).set(7);
+		const mainKeys = store.add(root.createScoped(document.createElement('div')));
 
-	test('a chat window header shows the session of its window, other headers the host scope', () => {
-		assert.deepStrictEqual({ chatWindow: resolve(7), main: resolve(undefined), unknownGroup: resolve(3) }, { chatWindow: 'window', main: 'main', unknownGroup: 'main' });
+		const resolve = (keys: IContextKeyService) => {
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(ISessionScope, { session: mainSession });
+			instantiationService.stub(IContextKeyService, keys);
+			instantiationService.stub(IChatWindowService, {
+				windows: constObservable([upcastPartial<IChatWindow>({ session: windowSession, editorGroup: { id: 7 } as IChatWindow['editorGroup'] })])
+			});
+			return instantiationService.invokeFunction(accessor => resolveEditorHeaderSessionScope(accessor));
+		};
+
+		const chatWindowScope = resolve(windowKeys);
+		const before = chatWindowScope.session.get()?.sessionId;
+		windowSession.set(upcastPartial<IActiveSession>({ sessionId: 'window2' }), undefined);
+		assert.deepStrictEqual({ before, after: chatWindowScope.session.get()?.sessionId, main: resolve(mainKeys).session.get()?.sessionId }, { before: 'window', after: 'window2', main: 'main' });
 	});
 });

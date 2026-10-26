@@ -52,7 +52,7 @@ export class ChangesetReviewAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).activeSession.get(), session);
+		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).mainWindowActiveSession.get(), session);
 		if (changes.changesetObs.get()?.capabilities?.review !== true) {
 			return;
 		}

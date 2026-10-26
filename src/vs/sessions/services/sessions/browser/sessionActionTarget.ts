@@ -18,11 +18,11 @@ function isSession(value: unknown): value is IActiveSession {
 
 /**
  * Finds the session shown for `resource`: the active session first, then the
- * other visible sessions and the sessions of chat windows. The one place to extend when more hosts show sessions.
+ * other visible sessions. The one place to extend when more hosts show sessions.
  */
 export function findSessionByResource(sessionsService: ISessionsService, resource: URI, reader?: IReader): IActiveSession | undefined {
 	const key = resource.toString();
-	return [sessionsService.activeSession.read(reader), ...sessionsService.visibleSessions.read(reader), ...sessionsService.windowSessions.read(reader)].find(session => session?.resource.toString() === key);
+	return [sessionsService.activeSession.read(reader), sessionsService.mainWindowActiveSession.read(reader), ...sessionsService.windowSessions.read(reader), ...sessionsService.visibleSessions.read(reader)].find(session => session?.resource.toString() === key);
 }
 
 /**

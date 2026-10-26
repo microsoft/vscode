@@ -694,7 +694,7 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 		super.render(container);
 		const scope = createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope);
 		let instantiationService = this.instantiationService;
-		if (scope.session !== this.sessionsService.activeSession) {
+		if (scope.session !== this.sessionsService.mainWindowActiveSession) {
 			// The globally bound session action context keys belong to the active session.
 			const host = createSessionActionsInstantiationService(this.instantiationService, container, scope);
 			this._register(host.store);
@@ -734,8 +734,14 @@ function createChangesPickerLabelObservable(owner: object, changes: IChangesSess
  */
 export function resolveEditorHeaderSessionScope(accessor: ServicesAccessor): ISessionScope {
 	const groupId = ChatWindowEditorGroupContext.getValue(accessor.get(IContextKeyService));
-	const window = groupId !== undefined && groupId >= 0 ? accessor.get(IChatWindowService).windows.get().find(candidate => candidate.editorGroup?.id === groupId) : undefined;
-	return window ? { _serviceBrand: undefined, session: window.session } : accessor.get(ISessionScope);
+	if (groupId === undefined || groupId < 0) {
+		return accessor.get(ISessionScope);
+	}
+	const chatWindowService = accessor.get(IChatWindowService);
+	return {
+		_serviceBrand: undefined,
+		session: derived(reader => chatWindowService.windows.read(reader).find(candidate => candidate.editorGroup?.id === groupId)?.session.read(reader)),
+	};
 }
 
 /** Registers custom Changes action view items. */
@@ -762,7 +768,7 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 			}
 			// The shared summary and label follow the active session; other sessions get their own.
 			const scope = instantiationService.invokeFunction(accessor => createChangesSessionScope(changesViewService, accessor.get(ISessionsService), resolveEditorHeaderSessionScope(accessor)));
-			if (scope.session === sessionsService.activeSession) {
+			if (scope.session === sessionsService.mainWindowActiveSession) {
 				return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs, undefined);
 			}
 			const summary = instantiationService.createInstance(ChangesPickerSummary, scope.changes.changesSummaryObs);

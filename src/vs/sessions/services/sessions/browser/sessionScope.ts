@@ -21,12 +21,13 @@ export interface ISessionScope {
 
 export const ISessionScope = createDecorator<ISessionScope>('sessionScope');
 
-class ActiveSessionScope implements ISessionScope {
+export class ActiveSessionScope implements ISessionScope {
 	declare readonly _serviceBrand: undefined;
 	readonly session: IObservable<IActiveSession | undefined>;
 
 	constructor(@ISessionsService sessionsService: ISessionsService) {
-		this.session = sessionsService.activeSession;
+		// The main window keeps its session while a chat window has focus.
+		this.session = sessionsService.mainWindowActiveSession;
 	}
 }
 

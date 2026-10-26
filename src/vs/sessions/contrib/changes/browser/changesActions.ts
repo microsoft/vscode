@@ -123,7 +123,7 @@ class OpenChangedFileAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).activeSession.get(), session);
+		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).mainWindowActiveSession.get(), session);
 		await accessor.get(IEditorService).openEditor({
 			resource: getWorkspaceResource(resource, changes.changesObs.get()),
 		});
@@ -435,7 +435,7 @@ export class ChangesHeaderChangesetOperationsActionContribution extends Disposab
 		}));
 
 		this._register(autorun(reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
+			const activeSession = sessionsService.mainWindowActiveSession.read(reader);
 			if (!activeSession) {
 				return;
 			}
