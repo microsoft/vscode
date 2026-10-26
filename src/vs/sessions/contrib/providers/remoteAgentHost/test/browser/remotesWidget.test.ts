@@ -1480,7 +1480,7 @@ suite('RemotesWidget', () => {
 			link.click();
 		}
 		assert.deepStrictEqual(documentation, Array.from({ length: 4 }, () => [
-			'https://aka.ms/vscode-agent-environments', 'https://aka.ms/vscode-agent-ssh', 'https://aka.ms/vscode-agent-tunnel', 'https://aka.ms/vscode-remote/wsl/install-wsl',
+			'https://aka.ms/vscode-agent-environments', 'https://aka.ms/vscode-agent-ssh', 'https://aka.ms/vscode-agent-tunnel', 'https://aka.ms/vscode-agent-wsl',
 		]).flat());
 	});
 
@@ -1503,7 +1503,7 @@ suite('RemotesWidget', () => {
 			documentation: [
 				'https://aka.ms/vscode-agent-ssh',
 				'https://aka.ms/vscode-agent-tunnel',
-				'https://aka.ms/vscode-remote/wsl/install-wsl',
+				'https://aka.ms/vscode-agent-wsl',
 			],
 			accessibleGuidance: true,
 		});
