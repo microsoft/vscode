@@ -4343,10 +4343,13 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await exec(database, 'PRAGMA foreign_keys = ON');
 					const versionRow = await get(database, 'PRAGMA user_version', []);
 					const currentVersion = await normalizePreReleaseCatalogSchema(database, (versionRow?.user_version as number | undefined) ?? 0);
-					for (const migration of migrations) {
-						if (migration.version > currentVersion) {
-							await exec(database, 'BEGIN TRANSACTION');
-							try {
+					const pendingMigrations = migrations.filter(migration => migration.version > currentVersion);
+					if (pendingMigrations.length > 0) {
+						// One transaction for all pending migrations: every commit flushes the disk, so a
+						// commit per migration multiplies a fresh profile's startup time when flushes are slow.
+						await exec(database, 'BEGIN TRANSACTION');
+						try {
+							for (const migration of pendingMigrations) {
 								if (migration.version === 14 || migration.version === PROJECTED_REVISION_MIGRATION_VERSION) {
 									await migrateChatV2Schema(database);
 								} else if (migration.version === CHAT_ORIGIN_MIGRATION_VERSION) {
@@ -4355,11 +4358,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 									await exec(database, migration.sql);
 								}
 								await exec(database, `PRAGMA user_version = ${migration.version}`);
-								await exec(database, 'COMMIT');
-							} catch (error) {
-								await exec(database, 'ROLLBACK');
-								throw error;
 							}
+							await exec(database, 'COMMIT');
+						} catch (error) {
+							await exec(database, 'ROLLBACK');
+							throw error;
 						}
 					}
 					if (currentVersion >= 14) {

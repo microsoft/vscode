@@ -287,6 +287,17 @@ suite('AgentHostDatabase sessions_v2', () => {
 		}
 	});
 
+	test('migrates a fresh database in a single write transaction', async () => {
+		const path = join(temporaryDirectory!, 'agent-host.db');
+		database = new AgentHostDatabase(path);
+		await database.isSessionRegistryEmpty();
+		await database.close();
+		database = undefined;
+
+		// SQLite's file change counter (header offset 24) counts committed write transactions, each of which flushes the disk.
+		assert.strictEqual((await fs.readFile(path)).readUInt32BE(24), 1);
+	});
+
 	test('stores revisioned authoritative peer-chat membership', async () => {
 		database = new AgentHostDatabase(join(temporaryDirectory!, 'agent-host.db'));
 		const session = 'session://chat-catalog';
@@ -794,6 +805,63 @@ suite('AgentHostDatabase sessions_v2', () => {
 		} finally {
 			await close(rawDatabase);
 		}
+	});
+
+	test('rolls back every pending migration when a later one fails, and retries them on the next open', async () => {
+		const path = join(temporaryDirectory!, 'agent-host-upstream-v4.db');
+		const execRaw = async (sql: string) => {
+			const raw = await openDatabase(path);
+			try {
+				await exec(raw, sql);
+			} finally {
+				await close(raw);
+			}
+		};
+		const readSchema = async () => {
+			const raw = await openDatabase(path);
+			try {
+				return {
+					version: await all(raw, 'PRAGMA user_version'),
+					tables: (await all(raw, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
+				};
+			} finally {
+				await close(raw);
+			}
+		};
+		await createUpstreamVersion4Database(path);
+		// Migration 18 keeps an existing removal table, so one without the later columns makes migration 20's rebuild fail.
+		await execRaw('CREATE TABLE pending_worktree_removals (kind TEXT NOT NULL, owner TEXT NOT NULL, PRIMARY KEY (kind, owner)) WITHOUT ROWID');
+
+		database = new AgentHostDatabase(path);
+		await assert.rejects(database.isSessionRegistryEmpty(), /no such column/);
+		await database.close();
+		database = undefined;
+		const afterFailure = await readSchema();
+
+		await execRaw('DROP TABLE pending_worktree_removals');
+		database = new AgentHostDatabase(path);
+		const registration = await database.getSessionV2Registration('copilotcli:/upstream-v4');
+		await database.close();
+		database = undefined;
+
+		assert.deepStrictEqual({ afterFailure, registration, afterRetry: await readSchema() }, {
+			afterFailure: {
+				version: [{ user_version: 4 }],
+				tables: ['metadata', 'pending_worktree_removals', 'sessions'],
+			},
+			registration: {
+				session: 'copilotcli:/upstream-v4',
+				provider: 'copilotcli',
+				startTime: 10,
+				modifiedTime: 20,
+				external: false,
+				source: 'explicit',
+			},
+			afterRetry: {
+				version: [{ user_version: 21 }],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
+			},
+		});
 	});
 
 	test('normalizes a pre-release v7 catalog and requires payload reseeding', async () => {
