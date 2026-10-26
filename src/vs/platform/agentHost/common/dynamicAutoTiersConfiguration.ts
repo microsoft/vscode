@@ -14,6 +14,5 @@ export const dynamicAutoTiersConfigurationProperties = {
 		default: true,
 		experiment: { mode: 'startup' },
 		scope: ConfigurationScope.APPLICATION_MACHINE,
-		tags: ['preview', 'experimental', 'advanced'],
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;
