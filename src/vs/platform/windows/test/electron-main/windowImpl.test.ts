@@ -197,6 +197,17 @@ suite('BaseWindow - hidden window mode', () => {
 		assert.deepStrictEqual([maximize.callCount, setFullScreen.callCount, show.callCount], [0, 0, 0]);
 	});
 
+	for (const hidden of [false, true]) {
+		test(`toggleFullScreen ${hidden ? 'does not change' : 'changes'} fullscreen (hidden: ${hidden})`, () => {
+			const { window } = createWindow(hidden);
+			const setFullScreen = sinon.stub(window as unknown as { setFullScreen(fullscreen: boolean, fromRestore: boolean): void }, 'setFullScreen');
+			sinon.stub(window, 'isFullScreen').get(() => false);
+			window.toggleFullScreen();
+
+			assert.deepStrictEqual(setFullScreen.args, hidden ? [] : [[true, false]]);
+		});
+	}
+
 	for (const [mode, name] of [[FocusMode.Notify, 'Notify'], [FocusMode.Force, 'Force']] as const) {
 		test(`focus with mode ${name} touches neither window nor application when hidden`, () => {
 			const { window, show, focus } = createWindow(true);
