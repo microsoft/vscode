@@ -11,6 +11,7 @@ mod deps;
 mod engine;
 mod git;
 mod graph;
+mod newtests;
 
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
@@ -23,13 +24,14 @@ use anyhow::{Context, Result, bail};
 use crate::config::{Config, Role};
 use crate::engine::{Engine, blob_texts, changed_nodes, select};
 use crate::graph::{Graph, Snapshot};
+use crate::newtests::{Kind, new_tests};
 
 const USAGE: &str = "usage: ripple <command> --config FILE [--repo PATH] [options]\n\
 	\n\
 	\tstats [--rev REV]: graph statistics of a commit\n\
 	\taffected --base REV [--head REV]: the test files a change can affect\n\
 	\tanalyze --file PATH: analysis summary of one module\n\
-	\tplan --base REV [--head REV] [--out-dir DIR]: the unit test files to run for a change\n\
+	\tplan --base REV [--head REV] [--out-dir DIR]: the unit test files to run for a change, and the unit tests it adds\n\
 	\tblame --test PATH --since REV [--until REV]: the commits in a range that can affect a test\n\
 	\twhy --test PATH --base REV [--head REV]: how a change reaches a test that it selects\n\
 	\treplay --since DATE [--until REV] [--out FILE] [--hubs 1]: selection statistics over first-parent history";
@@ -190,6 +192,23 @@ fn stats(config: &Config, repo: PathBuf, rev: &str) -> Result<()> {
 		tests(Role::UnitTest),
 		tests(Role::IntegrationTest)
 	);
+	let cases: Vec<_> = snap
+		.entries
+		.iter()
+		.filter(|e| e.role == Role::UnitTest)
+		.filter_map(|e| e.facts.as_ref())
+		.flat_map(|f| &f.test_cases)
+		.collect();
+	let exact = cases.iter().filter(|t| t.exact).count();
+	let in_suite = cases
+		.iter()
+		.filter(|t| !t.exact && !t.title_path.is_empty())
+		.count();
+	println!(
+		"unit tests: {} ({exact} known by their title path, {in_suite} by a suite's, {} by their file)",
+		cases.len(),
+		cases.len() - exact - in_suite
+	);
 	println!(
 		"nodes: {} ({} declarations, {} pinned to module load, {} packages), edges: {}, unresolved imports: {}",
 		graph.node_count(),
@@ -342,9 +361,11 @@ fn affected(config: &Config, repo: PathBuf, base: &str, head: &str) -> Result<()
 /// test of the kind; otherwise the plan selects the files the change can affect, however many.
 /// With `out_dir`, also writes the plan to `<out_dir>/plan.json` and, when selection is on and
 /// selects any file, the selected files to `<out_dir>/unit.txt` and `<out_dir>/integration.txt`,
-/// one per line. Each test runner runs the listed files it would run by default. On GitHub Actions
-/// it writes the output `select` (whether to run only the listed unit test files; the integration
-/// tests can only be selected when it is true) and a job summary.
+/// one per line. Each test runner runs the listed files it would run by default. The unit tests
+/// that the change adds go to `<out_dir>/new-tests.json` (see `newtests.rs`), which the test
+/// runners read with `--testList`. On GitHub Actions it writes the outputs `select` (whether to
+/// run only the listed unit test files; the integration tests can only be selected when it is
+/// true) and `new-tests` (how many entries new-tests.json has), and a job summary.
 fn plan(
 	config: &Config,
 	repo: PathBuf,
@@ -359,6 +380,7 @@ fn plan(
 	let (bg, hg) = (Graph::build(&bs, config), Graph::build(&hs, config));
 	let changes = git::diff_tree(&repo, base, head)?;
 	let sel = select(config, &mut blobs, &bs, &bg, &hs, &hg, &changes)?;
+	let added = new_tests(&bs, &hs);
 
 	let all = |role: Role| -> Vec<&str> {
 		hs.entries
@@ -418,11 +440,18 @@ fn plan(
 			"reason": integration_reason,
 			"files": integration,
 		},
+		"newTests": added.len(),
 	})
 	.to_string();
 	println!("{json}");
 	eprintln!("{reason}");
 	eprintln!("{integration_reason}");
+	if !added.is_empty() {
+		eprintln!(
+			"the change adds unit tests: {} tests, or suites or files with new tests",
+			added.len()
+		);
+	}
 
 	if let Some(dir) = out_dir {
 		let dir = Path::new(dir);
@@ -434,10 +463,17 @@ fn plan(
 			select_integration,
 			&integration,
 		)?;
+		let list = dir.join("new-tests.json");
+		if !added.is_empty() {
+			std::fs::write(list, serde_json::to_string_pretty(&added)? + "\n")?;
+		} else if list.exists() {
+			std::fs::remove_file(list)?;
+		}
 	}
 	if let Some(path) = std::env::var_os("GITHUB_OUTPUT") {
 		let mut out = std::fs::OpenOptions::new().append(true).open(path)?;
 		writeln!(out, "select={select_only}")?;
+		writeln!(out, "new-tests={}", added.len())?;
 	}
 	if let Some(path) = std::env::var_os("GITHUB_STEP_SUMMARY") {
 		let mut out = std::fs::OpenOptions::new().append(true).open(path)?;
@@ -456,6 +492,22 @@ fn plan(
 			all_integration.len(),
 			"integration",
 		)?;
+		if !added.is_empty() {
+			writeln!(
+				out,
+				"### New unit tests\n\nThe unit test jobs repeat the unit tests that the change adds, to find flaky tests before they merge.\n\n<details><summary>{} tests, or suites or files with new tests</summary>\n",
+				added.len()
+			)?;
+			for t in &added {
+				let titles = t.title_path.join(" > ");
+				match t.kind {
+					Kind::Test => writeln!(out, "- `{}`: `{titles}`", t.file)?,
+					Kind::Suite => writeln!(out, "- `{}`: the tests of `{titles}`", t.file)?,
+					Kind::File => writeln!(out, "- `{}`: every test", t.file)?,
+				}
+			}
+			writeln!(out, "\n</details>\n")?;
+		}
 	}
 	Ok(())
 }

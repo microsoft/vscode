@@ -17,6 +17,8 @@ const minimatch = require('minimatch');
 const fs = require('fs');
 const playwright = require('@playwright/test');
 const { applyReporter } = require('../reporter');
+const { readTestList, listedTestFiles } = require('../testList.mts');
+const { parseRepeatCount, RepeatedRuns } = require('../repeat.mts');
 const yaserver = require('yaserver');
 const http = require('http');
 const { randomBytes } = require('crypto');
@@ -28,6 +30,7 @@ const { execFile } = require('node:child_process');
  * @type {{
  * run: string;
  * runList: string;
+ * testList: string;
  * grep: string;
  * runGlob: string;
  * browser: string;
@@ -36,6 +39,8 @@ const { execFile } = require('node:child_process');
  * tfs: string;
  * 'stall-timeout': string;
  * 'rerun-failed-files': string;
+ * repeat: string;
+ * 'repeat-budget': string;
  * build: boolean;
  * debug: boolean;
  * sequential: boolean;
@@ -44,7 +49,7 @@ const { execFile } = require('node:child_process');
 */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'debug', 'sequential', 'help'],
-	string: ['run', 'runList', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs', 'stall-timeout', 'rerun-failed-files'],
+	string: ['run', 'runList', 'testList', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs', 'stall-timeout', 'rerun-failed-files', 'repeat', 'repeat-budget'],
 	default: {
 		build: false,
 		browser: ['chromium', 'firefox', 'webkit'],
@@ -62,6 +67,7 @@ const args = minimist(process.argv.slice(2), {
 		build: 'run with build output (out-build)',
 		run: 'only run tests matching <relative_file_path>',
 		runList: 'only run tests whose files are listed in <file>, one per line',
+		testList: 'only run the tests listed in <file>, a JSON array',
 		grep: 'only run tests matching <pattern>',
 		debug: 'do not run browsers headless',
 		sequential: 'only run suites for a single browser at a time',
@@ -71,6 +77,8 @@ const args = minimist(process.argv.slice(2), {
 		tfs: 'tfs',
 		'stall-timeout': 'abort with diagnostics when no test progress is reported for <seconds> (0 disables)',
 		'rerun-failed-files': 'rerun the failed tests in a freshly launched browser up to <count> more times',
+		repeat: 'run the selected tests <count> times, each time in a freshly launched browser',
+		'repeat-budget': 'start no attempt of --repeat that would end after <seconds>',
 		help: 'show the help'
 	}
 });
@@ -82,6 +90,7 @@ Options:
 --build              run with build output (out-build)
 --run <relative_file_path> only run tests matching <relative_file_path>
 --runList <file>     only run tests whose files are listed in <file>, one per line
+--testList <file>    only run the tests listed in <file>, a JSON array of { file, kind, titlePath } (see test/unit/README.md)
 --grep, -g, -f <pattern> only run tests matching <pattern>
 --debug, --debug-browser do not run browsers headless
 --sequential         only run suites for a single browser at a time
@@ -91,6 +100,8 @@ Options:
 --tfs <tfs>          tfs
 --stall-timeout <seconds> abort with diagnostics when no test progress is reported for <seconds> (default 300, 0 disables)
 --rerun-failed-files <count> rerun the failed tests (the suite of a failed hook) in a freshly launched browser up to <count> more times, or their whole test files when there are too many failures
+--repeat <count>     run the selected tests <count> times, each time in a freshly launched browser, and fail when a test fails in any attempt
+--repeat-budget <seconds> start no attempt of --repeat that would end after <seconds>
 --help, -h           show the help`);
 	process.exit(0);
 }
@@ -98,8 +109,14 @@ Options:
 // --runList: the listed test files as compiled modules relative to the output folder (src/vs/a.test.ts is vs/a.test.js)
 const runList = args.runList ? new Set(fs.readFileSync(args.runList, 'utf8').split(/\r?\n/).map(line => line.trim().replace(/\\/g, '/')).filter(line => line.length > 0).map(line => line.replace(/^src\//, '').replace(/\.ts$/, '.js'))) : undefined;
 
+// --testList: the listed tests, and their test files as compiled modules relative to the output folder
+const testList = args.testList ? readTestList(args.testList) : undefined;
+const testListFiles = testList ? listedTestFiles(testList) : undefined;
+
 const isDebug = !!args.debug;
 const stallTimeoutMs = isDebug ? 0 : Math.max(0, Number(args['stall-timeout']) || 0) * 1000;
+// the browser stays open for debugging
+const repeatCount = isDebug ? 0 : parseRepeatCount(args.repeat);
 
 /**
  * With more failed tests and suites than this, a rerun repeats whole test files
@@ -162,7 +179,7 @@ const testModules = (async function () {
 				if (err) {
 					reject(err);
 				} else {
-					resolve(runList ? files.filter(file => runList.has(file)) : files);
+					resolve(files.filter(file => (!runList || runList.has(file)) && (!testListFiles || testListFiles.has(file))));
 				}
 			});
 		});
@@ -271,7 +288,7 @@ async function createServer() {
  * @param {string | undefined} browserChannel
  * @param {string | undefined} grep
  * @param {number} attempt
- * @param {IRerunTarget[] | undefined} rerunTargets
+ * @param {Pick<IRerunTarget, 'kind' | 'file' | 'titlePath'>[] | undefined} rerunTargets the only tests to run: the failures that a rerun reruns, or the tests of --testList
  * @returns {Promise<{ message: string | undefined; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }>}
  */
 async function runTestsInBrowser(testModules, browserType, browserChannel, grep, attempt, rerunTargets) {
@@ -642,6 +659,15 @@ async function runTestsWithReruns(modules, browserType, browserChannel) {
 	const maxReruns = isDebug ? 0 : Math.max(0, Number(args['rerun-failed-files']) || 0);
 	const browserName = browserChannel ? `${browserType}-${browserChannel}` : browserType;
 
+	if (repeatCount) {
+		// Failures are not rerun: every attempt runs the same tests in a freshly launched browser.
+		const runs = new RepeatedRuns({ count: repeatCount, budget: args['repeat-budget'], listed: testList?.filter(test => modules.includes(test.file)), runner: browserName, fresh: 'a freshly launched browser' });
+		for (let attempt = 1; runs.shouldRun(attempt); attempt++) {
+			runs.record(attempt, await runTestsInBrowser(modules, browserType, browserChannel, args.grep, attempt, testList));
+		}
+		return runs.report() ? `[${browserName}] Tests failed when repeated, see above.\n` : undefined;
+	}
+
 	/** @type {Map<string, IRerunRecord>} every failure that was a rerun target, by key */
 	const records = new Map();
 	/** @type {Map<string, IRerunTarget>} the failures that did not pass since they failed */
@@ -653,7 +679,7 @@ async function runTestsWithReruns(modules, browserType, browserChannel) {
 	let grep = args.grep;
 
 	for (let attempt = 1; ; attempt++) {
-		const result = await runTestsInBrowser(attemptModules, browserType, browserChannel, grep, attempt, plan?.targets);
+		const result = await runTestsInBrowser(attemptModules, browserType, browserChannel, grep, attempt, plan?.targets ?? testList);
 		if (!plan && result.failures.length === 0 && result.unattributedFailures.length === 0) {
 			return undefined;
 		}
@@ -843,6 +869,12 @@ testModules.then(async modules => {
 
 	if (runList) {
 		console.log(`Running the ${modules.length} browser test files of the ${runList.size} files listed in ${args.runList}`);
+		if (modules.length === 0) {
+			process.exit(0);
+		}
+	}
+	if (testListFiles) {
+		console.log(`Running the listed tests of ${modules.length} browser test files of the ${testListFiles.size} files listed in ${args.testList}`);
 		if (modules.length === 0) {
 			process.exit(0);
 		}

@@ -21,7 +21,7 @@ interface IWorkflowJob {
 	readonly uses?: string;
 	readonly with?: Record<string, unknown>;
 	readonly outputs?: Record<string, string>;
-	readonly steps?: readonly { readonly id?: string; readonly name?: string; readonly 'continue-on-error'?: boolean; readonly env?: Record<string, string> }[];
+	readonly steps?: readonly { readonly id?: string; readonly name?: string; readonly run?: string; readonly with?: Record<string, unknown>; readonly 'continue-on-error'?: boolean; readonly env?: Record<string, string> }[];
 }
 
 /**
@@ -237,6 +237,26 @@ suite('Detect Changes', () => {
 		assert.ok(folders, `unexpected excludeGlob in test/unit/browser/index.js: ${excludeGlob}`);
 		const checkRipple = loadWorkflow().jobs.changes.steps?.find(step => step.id === 'ripple');
 		assert.deepStrictEqual(checkRipple?.env?.BROWSER_EXCLUDED_FOLDERS, folders.split(',').join('|'));
+	});
+
+	test('every unit test job repeats the unit tests that the pull request adds with each runner it runs', () => {
+		const upload = (loadWorkflow().jobs.changes.steps ?? []).find(step => step.with?.name === 'new-unit-tests');
+		const repeats = ['linux', 'darwin', 'win32'].map(os => {
+			const steps = Object.values(loadWorkflow(`pr-${os}-test.yml`).jobs).flatMap(job => job.steps ?? []);
+			const runners = (prefix: string) => steps.filter(step => step.name?.startsWith(prefix)).map(step => step.name?.slice(prefix.length));
+			const repeated = runners('🧪 Repeat new unit tests ');
+			return {
+				os,
+				notRepeated: runners('🧪 Run unit tests ').filter(runner => !repeated.includes(runner)),
+				otherCommands: steps.filter(step => step.name?.startsWith('🧪 Repeat new unit tests ') && !step.run?.includes(' --testList .build/new-unit-tests/new-tests.json --repeat 20 --repeat-budget 300')).map(step => step.name),
+				// Without new tests there is no artifact to download, and the download must not fail the job.
+				downloadFails: steps.filter(step => step.with?.pattern === 'new-unit-tests' && step['continue-on-error'] !== true).length > 0,
+			};
+		});
+		assert.deepStrictEqual({ upload: { path: upload?.with?.path, 'continue-on-error': upload?.['continue-on-error'] }, repeats }, {
+			upload: { path: '.build/test-plan/new-tests.json', 'continue-on-error': true },
+			repeats: ['linux', 'darwin', 'win32'].map(os => ({ os, notRepeated: [], otherCommands: [], downloadFails: false })),
+		});
 	});
 
 	test('the core test jobs skip only when the changes cannot affect them', () => {

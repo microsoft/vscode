@@ -53,6 +53,21 @@ All three runners accept `--runList=<file>`: a file listing test files (such as 
     build/ripple/target/release/ripple affected --config build/ripple/vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head "${head:-HEAD}" > .build/affected-tests.txt
     ./scripts/test.sh --runList=.build/affected-tests.txt
 
+## Run tests repeatedly to find flaky ones
+
+All three runners accept `--testList=<file>`: a JSON array of tests such as `{ "file": "src/vs/base/test/common/strings.test.ts", "kind": "test", "titlePath": ["Strings", "format"] }`, where `kind` is `test` (the test with that title path, the default with a title path), `suite` (the tests of the suite with that title path) or `file` (every test of the file, the default without a title path). A runner given a list runs the listed tests it would run by default, and nothing else of their files; the runner's own checks still run.
+
+All three runners also accept `--repeat=<count>`: they run the selected tests `<count>` times, each time in a fresh process, window or browser, and report how many attempts each test failed in. The run fails when a test fails in any attempt, when a failure belongs to no test, or when an attempt does not complete. Failures are not rerun (`--rerun-failed-files` does not apply), and a test that fails in every attempt may depend on other tests of its file, which do not run. Tests listed with `--testList` that run in no attempt, such as skipped tests or tests that only other platforms define, are reported but do not fail the run. Repeating stops after the first attempt when it runs no test, and `--repeat-budget=<seconds>` starts no attempt that would end later than `<seconds>` after the first one started. `--repeat` works with any selection (`--run`, `--runList`, `--grep`, `--testList`), and is ignored with `--dev` (Electron) and `--debug` (browser), which keep the window or browser open.
+
+In pull requests, every unit test job runs the unit tests that the pull request adds 20 more times this way, from the `new-tests.json` that [ripple](../../build/ripple/README.md#new-tests) writes. To do the same locally for the commits of your branch:
+
+    build/ripple/target/release/ripple plan --config build/ripple/vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head HEAD --out-dir .build/test-plan
+    ./scripts/test.sh --testList=.build/test-plan/new-tests.json --repeat=20
+
+Or to check whether one test is flaky:
+
+    npm run test-node -- --run src/vs/base/test/common/strings.test.ts --grep "^Strings format$" --repeat 50
+
 ## Coverage
 
 The following command will create a `coverage` folder in the `.build` folder at the root of the workspace:

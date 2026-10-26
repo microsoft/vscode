@@ -20,13 +20,15 @@ import minimist from 'minimist';
 import * as module from 'module';
 import { fileURLToPath, pathToFileURL } from 'url';
 import semver from 'semver';
+import { readTestList, listedTestFiles, selectListedTests } from '../testList.mts';
+import { parseRepeatCount, RepeatedRuns } from '../repeat.mts';
 
 /**
- * @type {{ build: boolean; run: string; runList: string; runGlob: string; grep?: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; 'rerun-failed-files'?: string; }}
+ * @type {{ build: boolean; run: string; runList: string; testList?: string; runGlob: string; grep?: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; 'rerun-failed-files'?: string; repeat?: string; 'repeat-budget'?: string; }}
  */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'coverage', 'help'],
-	string: ['run', 'runList', 'grep', 'coveragePath', 'coverageFormats', 'timeout', 'rerun-failed-files'],
+	string: ['run', 'runList', 'testList', 'grep', 'coveragePath', 'coverageFormats', 'timeout', 'rerun-failed-files', 'repeat', 'repeat-budget'],
 	alias: {
 		h: 'help',
 		t: 'timeout'
@@ -40,11 +42,14 @@ const args = minimist(process.argv.slice(2), {
 		build: 'Run from out-build',
 		run: 'Run a single file',
 		runList: 'Only run the tests whose files are listed in a file, one per line',
+		testList: 'Only run the tests listed in a JSON file',
 		grep: 'Only run tests matching <pattern>',
 		coverage: 'Generate a coverage report',
 		coveragePath: 'Path to coverage report to generate',
 		coverageFormats: 'Coverage formats to generate',
 		timeout: 'Timeout for tests',
+		repeat: 'Run the selected tests <count> times, each time in a fresh process',
+		'repeat-budget': 'Start no attempt of --repeat that would end after <seconds>',
 		help: 'Show help'
 	}
 });
@@ -56,16 +61,25 @@ Options:
 --build          Run from out-build
 --run <file>     Run a single file
 --runList <file> Only run the tests whose files are listed in <file>, one per line
+--testList <file> Only run the tests listed in <file>, a JSON array of { file, kind, titlePath } (see test/unit/README.md)
 --grep <pattern> Only run tests matching <pattern>
 --coverage       Generate a coverage report
 --timeout <ms>   Test timeout (default: 5000 locally, 30000 in CI; alias: -t)
 --rerun-failed-files <count>  Rerun failed tests (suites for failed hooks) in a fresh process up to <count> more times; use whole files for many failures
+--repeat <count> Run the selected tests <count> times, each time in a fresh process, and fail when a test fails in any attempt
+--repeat-budget <seconds>  Start no attempt of --repeat that would end after <seconds>
 --help           Show help`);
 	process.exit(0);
 }
 
 // --runList: the listed test files as compiled modules relative to the output folder (src/vs/a.test.ts is vs/a.test.js)
 const runList = args.runList ? new Set(fs.readFileSync(args.runList, 'utf8').split(/\r?\n/).map(line => line.trim().replace(/\\/g, '/')).filter(line => line.length > 0).map(line => line.replace(/^src\//, '').replace(/\.ts$/, '.js'))) : undefined;
+
+// --testList: the listed tests, and their test files as compiled modules relative to the output folder
+const testList = args.testList ? readTestList(args.testList) : undefined;
+const testListFiles = testList ? listedTestFiles(testList) : undefined;
+
+const repeatCount = parseRepeatCount(args.repeat);
 
 const TEST_GLOB = '**/test/**/*.test.js';
 const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
@@ -230,12 +244,15 @@ function main() {
 				/** @type {string[]} */
 				const modules = [];
 				for (const file of files) {
-					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob)) && (!runList || runList.has(file))) {
+					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob)) && (!runList || runList.has(file)) && (!testListFiles || testListFiles.has(file))) {
 						modules.push(file.replace(/\.js$/, ''));
 					}
 				}
 				if (runList) {
 					console.log(`Running the ${modules.length} node.js test files of the ${runList.size} files listed in ${args.runList}`);
+				}
+				if (testListFiles) {
+					console.log(`Running the listed tests of ${modules.length} node.js test files of the ${testListFiles.size} files listed in ${args.testList}`);
 				}
 				loadModules(modules).then(() => cb(null), cb);
 			});
@@ -249,6 +266,10 @@ function main() {
 		}
 
 		process.stderr.write = write;
+
+		if (testList) {
+			selectListedTests(runner.suite, testList);
+		}
 
 		if (checkLoader) {
 			// set up last test
@@ -304,11 +325,11 @@ function main() {
 				process.exit(failureCount ? rerunFailedTests(result) : 0);
 			});
 
-			mochaRunner.on('pass', test => passed.push({ title: test.fullTitle(), file: test.file }));
+			mochaRunner.on('pass', test => passed.push({ title: test.fullTitle(), titlePath: test.titlePath(), file: test.file }));
 			mochaRunner.on('fail', (runnable) => {
 				if (runnable.file) {
 					// a failed test is rerun by itself, a failed hook with the rest of its suite
-					failures.push({ title: runnable.fullTitle(), file: runnable.file, type: runnable.type, parentTitle: runnable.parent?.fullTitle() });
+					failures.push({ title: runnable.fullTitle(), titlePath: runnable.titlePath(), file: runnable.file, type: runnable.type, parentTitle: runnable.parent?.fullTitle() });
 				} else {
 					unattributedFailures.push(runnable.fullTitle());
 				}
@@ -344,12 +365,12 @@ function includeOwnTests(grep) {
 
 /**
  * A failed test or hook of a test file.
- * @typedef {{ title: string; file: string; type: string; parentTitle?: string }} IFailure
+ * @typedef {{ title: string; titlePath: string[]; file: string; type: string; parentTitle?: string }} IFailure
  */
 
 /**
  * A test that passed.
- * @typedef {{ title: string; file: string | undefined }} IPassed
+ * @typedef {{ title: string; titlePath: string[]; file: string | undefined }} IPassed
  */
 
 /**
@@ -420,7 +441,12 @@ function rerunFailedTests(result) {
 				console.log(plan.byTitle
 					? `\nRerunning ${targets.size} failed test(s) in a fresh process (attempt ${attempt + 1} of ${maxReruns + 1}):\n${[...targets.values()].map(target => `  ${describeTarget(target)}`).join('\n')}\n`
 					: `\nRerunning the test files of ${targets.size} failed test(s) in a fresh process (attempt ${attempt + 1} of ${maxReruns + 1}):\n${plan.files.map(file => `  ${file}`).join('\n')}\n`);
-				current = runInFreshProcess(plan);
+				current = runInFreshProcess([
+					// the = form keeps a grep that starts with a dash from reading as an option
+					...(plan.grep !== undefined ? [`--grep=${plan.grep}`] : []),
+					...plan.files.flatMap(file => ['--run', path.join(src, `${file}.js`)]),
+					...(args.testList !== undefined ? ['--testList', path.resolve(args.testList)] : []),
+				]);
 				continue;
 			}
 		}
@@ -434,13 +460,13 @@ function rerunFailedTests(result) {
 }
 
 /**
- * Runs the tests of the plan in a new process, the same way `npm run test-node` runs
- * all of them, and returns its result, or `undefined` when it did not complete
+ * Runs the tests that `selection` selects in a new process, the same way `npm run test-node`
+ * runs all of them, and returns its result, or `undefined` when it did not complete
  * normally or report one.
- * @param {IRerunPlan} plan
+ * @param {string[]} selection the arguments that select the tests, such as `--run` and `--grep`
  * @returns {IAttemptResult | undefined}
  */
-function runInFreshProcess(plan) {
+function runInFreshProcess(selection) {
 	const reportDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-node-rerun-'));
 	const reportPath = path.join(reportDir, 'result.json');
 	try {
@@ -450,9 +476,7 @@ function runInFreshProcess(plan) {
 			mochaCli, fileURLToPath(import.meta.url), '--delay', '--ui=tdd', '--exit',
 			...(args.build ? ['--build'] : []),
 			...(args.timeout !== undefined ? ['--timeout', args.timeout] : []),
-			// the = form keeps a grep that starts with a dash from reading as an option
-			...(plan.grep !== undefined ? [`--grep=${plan.grep}`] : []),
-			...plan.files.flatMap(file => ['--run', path.join(src, `${file}.js`)]),
+			...selection,
 		], {
 			stdio: 'inherit',
 			env: { ...process.env, [RESULT_REPORT_ENV]: reportPath, [CHECK_LOADER_ENV]: checkLoader ? '1' : '0' },
@@ -614,4 +638,36 @@ function escapeRegExp(value) {
 	return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&').replace(/[\n\r\u2028\u2029]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
-main();
+/**
+ * Runs the selected tests `--repeat` times, each time in a fresh process, and reports how
+ * often each test failed. Failures are not rerun. Returns the exit code.
+ * @returns {number}
+ */
+function repeatTests() {
+	// the listed tests of the test files that this runner runs
+	const listed = testList?.filter(test => !excludeGlobs.some(excludeGlob => minimatch(`${test.file}.js`, excludeGlob)));
+	if (testList && listed?.length === 0) {
+		console.log(`None of the ${testList.length} tests listed in ${args.testList} are in node.js test files.`);
+		return 0;
+	}
+
+	const selection = [
+		// the = form keeps a grep that starts with a dash from reading as an option
+		...(args.grep !== undefined ? [`--grep=${args.grep}`] : []),
+		...(args.run !== undefined ? [args.run].flat().flatMap(file => ['--run', file]) : []),
+		...(args.runGlob !== undefined ? ['--runGlob', args.runGlob] : []),
+		...(args.runList !== undefined ? ['--runList', path.resolve(args.runList)] : []),
+		...(args.testList !== undefined ? ['--testList', path.resolve(args.testList)] : []),
+	];
+	const runs = new RepeatedRuns({ count: repeatCount, budget: args['repeat-budget'], listed, runner: 'node.js', fresh: 'a fresh process' });
+	for (let attempt = 1; runs.shouldRun(attempt); attempt++) {
+		runs.record(attempt, runInFreshProcess(selection));
+	}
+	return runs.report();
+}
+
+if (repeatCount) {
+	process.exit(repeatTests());
+} else {
+	main();
+}
