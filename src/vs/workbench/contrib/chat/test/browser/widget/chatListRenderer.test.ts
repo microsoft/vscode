@@ -18,7 +18,7 @@ import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDispos
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { revive } from '../../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -58,6 +58,8 @@ import { ChatDropdownPillActionViewItem } from '../../../../../browser/chatDropd
 import type { IChatPillEntry, IChatPillSection } from '../../../../../browser/chatPills.js';
 import { sessionBackgroundShellsPillOptions, sessionSubagentsPillOptions } from '../../../browser/sessionChatPillOptions.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../../browser/sessionSubagentsPill.js';
+import { SessionBackgroundShellsControl } from '../../../browser/sessionBackgroundShellsControl.js';
+import type { IChatBackgroundShell } from '../../../common/sessionChatPills.js';
 import { IChatOutputRendererService, RenderedOutputPart } from '../../../browser/chatOutputItemRenderer.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
@@ -6571,6 +6573,137 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	for (const combined of [false, true]) {
+		test(`disposing transcript activity leaves input-pill shell details intact (combined=${combined})`, () => {
+			const { disposables, instantiationService, request, response, container } = createPersistentProgressRenderer();
+			const backgroundShells = constObservable<readonly IChatBackgroundShell[]>([{
+				id: 'shell', description: 'Running tests', command: 'npm test',
+				startedAt: new Date(0).toISOString(), stop: async () => true,
+			}]);
+			const inputShells = disposables.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable({ backgroundShells })));
+			let visible = false;
+			let onHide = () => { };
+			const actionWidgets = instantiationService.stub(IActionWidgetService, {
+				get isVisible() { return visible; },
+				show: (_id, _preview, _items, delegate) => { visible = true; onHide = delegate.onHide; },
+				hide: () => { visible = false; onHide(); },
+			});
+			const working = {
+				kind: 'working' as const,
+				content: new MarkdownString(combined ? '1 subagent and 1 background command running' : '1 background command running'),
+				backgroundActivity: { subagents: combined ? '1 subagent running' : undefined, backgroundShells: '1 background command running' },
+			};
+			const context = new class extends mock<IChatContentPartRenderContext>() {
+				override readonly element = response;
+				override readonly content = [working];
+				override readonly contentIndex = 0;
+				override readonly suppressProgressShimmer = true;
+				override readonly backgroundActivityPillSections = {
+					subagents: constObservable<readonly IChatPillSection[]>([{ title: 'Subagents', entries: [{ id: 'agent', label: 'Review', open: () => { } }] }]),
+					backgroundShells,
+				};
+			}();
+			const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+			container.appendChild(part.domNode);
+			part.domNode.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.click();
+			actionWidgets.hide();
+
+			const inputPill = disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem,
+				disposables.add(new Action('inputShells')), {}, inputShells.sections, sessionBackgroundShellsPillOptions));
+			const inputContainer = dom.append(container, dom.$('div'));
+			inputPill.render(inputContainer);
+			inputContainer.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.click();
+			const content = inputShells.sections.get()[0].entries[0].hover?.content;
+			const details = typeof content === 'function' ? content() : content;
+			assert.ok(dom.isHTMLElement(details));
+			container.appendChild(details);
+			const commandView = details.querySelector('.chat-background-shell-command');
+			assert.ok(commandView);
+			const stopAction = details.querySelector('[aria-label="Stop Shell"]');
+			assert.ok(stopAction);
+
+			request.response?.complete();
+			part.dispose();
+			assert.deepStrictEqual({
+				menuVisible: visible,
+				commandViewConnected: commandView.isConnected,
+				stopActionConnected: stopAction.isConnected,
+				sameCommandView: details.querySelector('.chat-background-shell-command') === commandView,
+			}, { menuVisible: true, commandViewConnected: true, stopActionConnected: true, sameCommandView: true });
+			actionWidgets.hide();
+		});
+	}
+
+	for (const ending of ['lastActivity', 'complete', 'cancel'] as const) {
+		for (const focus of ['trigger', 'menu', 'elsewhere'] as const) {
+			test(`activity removal restores input focus only when owned (${ending}, ${focus})`, () => {
+				const { disposables, instantiationService, request, response, container } = createPersistentProgressRenderer();
+				const input = dom.append(container, dom.$('textarea'));
+				const menu = dom.append(container, dom.$('div', { tabindex: '0' }));
+				let focusCalls = 0;
+				const widget = new class extends mock<IChatWidget>() {
+					override focusInput(): void { focusCalls++; input.focus(); }
+				}();
+				instantiationService.stub(IChatWidgetService, {
+					getWidgetBySessionResource: resource => {
+						assert.strictEqual(resource.toString(), response.sessionResource.toString());
+						return widget;
+					},
+				});
+				let visible = false;
+				let onHide = () => { };
+				instantiationService.stub(IActionWidgetService, {
+					get isVisible() { return visible; },
+					show: (_id, _preview, _items, delegate) => { visible = true; onHide = delegate.onHide; menu.focus(); },
+					hide: () => { visible = false; onHide(); },
+				});
+				const sections = observableValue<readonly IChatPillSection[]>('subagents', [{
+					title: 'Subagents', entries: [{ id: 'running', label: 'Review', open: () => { } }],
+				}]);
+				const working = { kind: 'working' as const, content: new MarkdownString('1 subagent running'), backgroundActivity: { subagents: '1 subagent running' } };
+				const context = new class extends mock<IChatContentPartRenderContext>() {
+					override readonly element = response;
+					override readonly content = [working];
+					override readonly contentIndex = 0;
+					override readonly suppressProgressShimmer = true;
+					override readonly backgroundActivityPillSections = { subagents: sections };
+				}();
+				const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+				container.appendChild(part.domNode);
+				const button = part.domNode.querySelector<HTMLElement>('.chat-dropdown-pill-button');
+				assert.ok(button);
+				if (focus === 'elsewhere') {
+					input.focus();
+				} else {
+					button.focus();
+					if (focus === 'menu') {
+						button.click();
+					}
+				}
+				if (ending === 'lastActivity') {
+					sections.set([], undefined);
+				} else {
+					request.response?.[ending]();
+				}
+				assert.deepStrictEqual({
+					inputFocused: mainWindow.document.activeElement === input,
+					focusCalls,
+					menuVisible: visible,
+					hasTrigger: !!part.domNode.querySelector('.chat-dropdown-pill-button'),
+				}, { inputFocused: true, focusCalls: focus === 'elsewhere' ? 0 : 1, menuVisible: false, hasTrigger: false });
+			});
+		}
+	}
+
+	function backgroundShellsForSections(sections: IObservable<readonly IChatPillSection[]>): IObservable<readonly IChatBackgroundShell[]> {
+		return derived(reader => sections.read(reader).flatMap(section => section.entries.map(entry => ({
+			id: entry.id,
+			description: entry.label,
+			command: 'npm test',
+			startedAt: new Date(0).toISOString(),
+		}))));
+	}
+
 	for (const kind of ['subagents', 'backgroundShells', 'combined'] as const) {
 		for (const fontSize of [13, 18]) {
 			test(`persistent ${kind} label matches ordinary working progress typography and alignment (fontSize=${fontSize})`, () => {
@@ -6602,7 +6735,7 @@ suite('ChatListRenderer', () => {
 						override readonly content = [working];
 						override readonly contentIndex = 0;
 						override readonly suppressProgressShimmer = true;
-						override readonly backgroundActivityPillSections = interactive ? { subagents: sections, backgroundShells: sections } : undefined;
+						override readonly backgroundActivityPillSections = interactive ? { subagents: sections, backgroundShells: backgroundShellsForSections(sections) } : undefined;
 					}();
 					const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
 					value.appendChild(part.domNode);
@@ -6615,23 +6748,35 @@ suite('ChatListRenderer', () => {
 					const textBounds = range.getBoundingClientRect();
 					const iconBounds = icon.getBoundingClientRect();
 					return {
-						fontSize: style.fontSize,
-						fontFamily: style.fontFamily,
-						fontWeight: style.fontWeight,
-						lineHeight: style.lineHeight,
-						letterSpacing: style.letterSpacing,
-						fontFeatureSettings: style.fontFeatureSettings,
-						fontVariantNumeric: style.fontVariantNumeric,
-						textOffset: textBounds.left - iconBounds.left,
-						textTop: textBounds.top - iconBounds.top,
-						textHeight: textBounds.height,
-						textWidth: textBounds.width,
-						lineBoxHeight: text.getBoundingClientRect().height,
+						typography: {
+							fontSize: style.fontSize,
+							fontFamily: style.fontFamily,
+							fontWeight: style.fontWeight,
+							lineHeight: style.lineHeight,
+							letterSpacing: style.letterSpacing,
+							fontFeatureSettings: style.fontFeatureSettings,
+							fontVariantNumeric: style.fontVariantNumeric,
+						},
+						geometry: {
+							textOffset: textBounds.left - iconBounds.left,
+							textTop: textBounds.top - iconBounds.top,
+							textHeight: textBounds.height,
+							textWidth: textBounds.width,
+							lineBoxHeight: text.getBoundingClientRect().height,
+						},
 					};
 				};
 				const ordinary = createProgress(false);
 				const interactive = createProgress(true);
-				assert.deepStrictEqual(interactive, ordinary);
+				const geometryKeys = ['textOffset', 'textTop', 'textHeight', 'textWidth', 'lineBoxHeight'] as const;
+				// Browser engines can differ by a fractional layout unit when measuring text ranges.
+				assert.deepStrictEqual({
+					typography: interactive.typography,
+					geometry: geometryKeys.map(key => ({ key, aligned: Math.abs(interactive.geometry[key] - ordinary.geometry[key]) < 1 / 64 })),
+				}, {
+					typography: ordinary.typography,
+					geometry: geometryKeys.map(key => ({ key, aligned: true })),
+				});
 			});
 		}
 
@@ -6663,7 +6808,10 @@ suite('ChatListRenderer', () => {
 				override readonly content = [working];
 				override readonly contentIndex = 0;
 				override readonly suppressProgressShimmer = true;
-				override readonly backgroundActivityPillSections = kind === 'combined' ? { subagents: sections, backgroundShells: sections } : { [kind]: sections };
+				override readonly backgroundActivityPillSections = {
+					subagents: kind !== 'backgroundShells' ? sections : undefined,
+					backgroundShells: kind !== 'subagents' ? backgroundShellsForSections(sections) : undefined,
+				};
 			}();
 			const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
 			dom.append(container, dom.$('.interactive-item-container')).appendChild(part.domNode);
@@ -6748,7 +6896,10 @@ suite('ChatListRenderer', () => {
 					override readonly content = [working];
 					override readonly contentIndex = 0;
 					override readonly suppressProgressShimmer = true;
-					override readonly backgroundActivityPillSections = kind === 'combined' ? { subagents: sections, backgroundShells: sections } : { [kind]: sections };
+					override readonly backgroundActivityPillSections = {
+						subagents: kind !== 'backgroundShells' ? sections : undefined,
+						backgroundShells: kind !== 'subagents' ? backgroundShellsForSections(sections) : undefined,
+					};
 				}();
 				const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
 				dom.append(container, dom.$('.interactive-item-container')).appendChild(part.domNode);
@@ -6813,15 +6964,15 @@ suite('ChatListRenderer', () => {
 		]);
 		const showAll = observableValue('showAll', true);
 		const subagentData = createSessionSubagentsPillData(subagents, { showAll, setShowAll: value => showAll.set(value, undefined) });
-		const backgroundShells = observableValue<readonly IChatPillSection[]>('shells', [{
-			title: 'Active background shells',
-			entries: [{ id: 'work', label: 'Running tests', badge: '1m', hover: { content: dom.$('div', undefined, 'npm test'), expandable: true }, open: () => { } }],
+		const backgroundShells = observableValue<readonly IChatBackgroundShell[]>('shells', [{
+			id: 'work', description: 'Running tests', command: 'npm test', startedAt: new Date(0).toISOString(),
 		}]);
 		const backgroundShellCount = observableValue<number | undefined>('shellCount', 1);
 		const { disposables, instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
 			backgroundShellCount,
 			rendererOptions: { backgroundActivityPillSections: { subagents: subagentData.inProgressSections, backgroundShells } },
 		});
+		const inputShells = disposables.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable({ backgroundShells })));
 		let onHide = () => { };
 		let selectAgent = () => { };
 		let visible = false;
@@ -6868,7 +7019,7 @@ suite('ChatListRenderer', () => {
 		const existingMenus = [];
 		for (const [options, sections] of [
 			[sessionSubagentsPillOptions, subagentData.sections],
-			[sessionBackgroundShellsPillOptions, backgroundShells],
+			[sessionBackgroundShellsPillOptions, inputShells.sections],
 		] as const) {
 			const pill = disposables.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, disposables.add(new Action(options.widgetId)), {}, sections, options));
 			const container = dom.append(template.rowContainer, dom.$('div'));
@@ -6884,13 +7035,13 @@ suite('ChatListRenderer', () => {
 		subagents.set(subagents.get().map(agent => ({ ...agent, isActive: false })), undefined);
 		const afterSubagentCompletion = menu?.rows;
 		subagents.set(subagents.get().map(agent => agent.id === 'work' ? { ...agent, isActive: true } : agent), undefined);
-		const shellSections = backgroundShells.get();
+		const activeShells = backgroundShells.get();
 		backgroundShells.set([], undefined);
 		const partial = {
 			buttons: buttons().map(button => button.textContent),
 			rows: menu?.rows,
 		};
-		backgroundShells.set(shellSections, undefined);
+		backgroundShells.set(activeShells, undefined);
 		backgroundShellCount.set(0, undefined);
 		await timeout(0);
 		const closedOnTransition = !visible;
@@ -6901,7 +7052,7 @@ suite('ChatListRenderer', () => {
 		const agentHeader = { label: 'Subagents: In Progress', details: false, badge: undefined, id: undefined };
 		const shellHeader = { label: 'Active background shells', details: false, badge: undefined, id: undefined };
 		const agentRow = { label: 'Reviewing code', details: false, badge: undefined, id: 'work' };
-		const shellRow = { label: 'Running tests', details: true, badge: '1m', id: 'work' };
+		const shellRow = { label: 'Running tests', details: true, badge: inputShells.sections.get()[0].entries[0].badge, id: 'work' };
 		assert.deepStrictEqual({ combined, existingMenus, opened, updated, afterSubagentCompletion, partial, closedOnTransition, focusPreserved, remaining }, {
 			combined: {
 				label: '1 subagent and 1 background command running',

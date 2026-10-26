@@ -534,7 +534,7 @@ export class SessionChatInputToolbar extends Disposable {
 		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, this._chat));
 		this.backgroundActivityPillSections = {
 			subagents: this._backgroundActivities.inProgressSections,
-			backgroundShells: backgroundShells.sections,
+			backgroundShells: derived(this, reader => this._chat.read(reader)?.backgroundShells?.read(reader) ?? []),
 		};
 		const pullRequestRefs = derivedOpts<readonly IGitHubPullRequestRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).pullRequests);
 		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, gitHubService));

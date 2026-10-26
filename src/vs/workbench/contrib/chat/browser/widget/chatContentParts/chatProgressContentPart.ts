@@ -21,7 +21,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { localize } from '../../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent, IChatWorkingProgress, isResponseVM } from '../../../common/model/chatViewModel.js';
-import { ChatTreeItem } from '../../chat.js';
+import { ChatTreeItem, IChatWidgetService } from '../../chat.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { getToolApprovalMessage, isAskQuestionsToolInvocation } from './toolInvocationParts/chatToolPartUtilities.js';
@@ -35,12 +35,13 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
 import { getChatWorkingProgressIcon, getCompactCodicon } from '../../chatIcons.js';
 import { ChatWorkingProgressLogo } from '../chatWorkingLogo.js';
-import { autorun, derived, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { animateChatProgress } from '../chatProgressAnimation.js';
 import { ChatDropdownPillActionViewItem } from '../../../../../browser/chatDropdownPill.js';
 import { ChatPillsWidget, type IChatPill } from '../../../../../browser/chatPills.js';
 import { sessionBackgroundShellsPillOptions, sessionSubagentsPillOptions } from '../../sessionChatPillOptions.js';
+import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -438,6 +439,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		@IConfigurationService private readonly workingConfigurationService: IConfigurationService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 		@IProductService productService: IProductService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		const explicitContent = workingProgress.content;
 		const isActive = workingProgress.isActive ?? true;
@@ -482,7 +484,13 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		});
 		if (this.workingLogo && context.backgroundActivityPillSections) {
 			const response = context.element;
-			const sources = context.backgroundActivityPillSections;
+			const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable({
+				backgroundShells: context.backgroundActivityPillSections.backgroundShells,
+			})));
+			const sources = {
+				subagents: context.backgroundActivityPillSections.subagents,
+				backgroundShells: backgroundShells.sections,
+			};
 			const combinedPillOptions = {
 				...sessionBackgroundShellsPillOptions,
 				widgetId: 'chatBackgroundActivity',
@@ -536,6 +544,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			}, { ariaLabel: combinedPillOptions.title }));
 			pills.element.classList.add('chat-working-activities');
 			this.progressIconElement?.after(pills.element);
+			this._register(pills.onDidRemoveFocusedPill(() => chatWidgetService.getWidgetBySessionResource(response.sessionResource)?.focusInput()));
 			this._register(autorun(reader => {
 				this.domNode.classList.toggle('chat-working-progress-has-activities', pills.isVisible.read(reader));
 			}));

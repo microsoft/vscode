@@ -1854,7 +1854,7 @@ suite('SessionChatInputToolbar', () => {
 		});
 		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
 		toolbar.setSession(session, chat);
-		const labels = () => toolbar.backgroundActivityPillSections.backgroundShells?.get().flatMap(section => section.entries.map(entry => entry.label));
+		const labels = () => toolbar.backgroundActivityPillSections.backgroundShells?.get().map(shell => shell.description);
 		const running = labels();
 		const initialShells = shells.get();
 		shells.set([], undefined);

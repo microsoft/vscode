@@ -313,7 +313,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
 				githubEnvironment: content.includes('GitHub environment'),
-				sharingKeyboard: content.includes('Enter or Space to open it'),
+				sharingKeyboard: content.includes('Use Tab to reach the title bar, arrow keys to reach the button, Enter or Space to open it'),
 				fileSystemAccess: content.includes('read and modify files across this machine'),
 				backendPicker: content.includes('Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments when available'),
 				enabling: content.includes('Selecting a method updates the setting and enables sharing'),

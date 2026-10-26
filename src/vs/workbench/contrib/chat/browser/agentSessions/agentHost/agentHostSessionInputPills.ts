@@ -1014,14 +1014,15 @@ export class AgentHostSessionInputPills extends Disposable {
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, chatCustomizations, customizationFolders));
 		// A new source per chat keeps one chat's shell details from carrying over to another.
 		const backgroundShellOutputs = new AgentHostBackgroundShellOutputs(reader => resolution.read(reader)?.connection);
-		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, derived(this, reader => chatResource.read(reader) ? {
+		const backgroundShellSource = derived(this, reader => chatResource.read(reader) ? {
 			backgroundShells: derivedOpts<readonly IChatBackgroundShell[]>({ owner: this, equalsFn: structuralEquals }, shellReader => backgroundShellOutputs.project(chatState.read(shellReader)?.backgroundWork, chatResource.read(shellReader))),
-		} : undefined)));
+		} : undefined);
+		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, backgroundShellSource));
 
 		const subagentPillData = createSessionSubagentsPillData(subagents, visibility.subagents);
 		this._register(this._widget.registerBackgroundActivityPillSections({
 			subagents: derived(this, reader => subagentChat.read(reader) ? [] : subagentPillData.inProgressSections.read(reader)),
-			backgroundShells: derived(this, reader => subagentChat.read(reader) ? [] : backgroundShells.sections.read(reader)),
+			backgroundShells: derived(this, reader => subagentChat.read(reader) ? [] : backgroundShellSource.read(reader)?.backgroundShells.read(reader) ?? []),
 		}));
 		const sources = this._register(instantiationService.createInstance(StandardChatInputPillSources, {
 			changes: {

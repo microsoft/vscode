@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Event } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -31,7 +31,6 @@ import { IChatResponseViewModel } from '../../../../contrib/chat/common/model/ch
 import { IChatResponseModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ISessionChatPillVisibilityService, type IChatBackgroundShell } from '../../../../contrib/chat/common/sessionChatPills.js';
 import { createSessionSubagentsPillData } from '../../../../contrib/chat/browser/sessionSubagentsPill.js';
-import { SessionBackgroundShellsControl } from '../../../../contrib/chat/browser/sessionBackgroundShellsControl.js';
 import { registerChatFixtureServices } from './chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 
@@ -160,7 +159,6 @@ async function renderWorkingBackgroundActivity(context: ComponentFixtureContext,
 		command: 'npm test',
 		startedAt: new Date(Date.now() - 60_000).toISOString(),
 	}]);
-	const backgroundShells = disposableStore.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable({ backgroundShells: shells })));
 	const element = new class extends mock<IChatResponseViewModel>() {
 		override readonly id = 'running-subagents';
 		override readonly sessionResource = URI.parse('chat-fixture:/running-subagents');
@@ -176,7 +174,7 @@ async function renderWorkingBackgroundActivity(context: ComponentFixtureContext,
 		...createMockContext(),
 		element,
 		suppressProgressShimmer: true,
-		backgroundActivityPillSections: { subagents: subagents.inProgressSections, backgroundShells: backgroundShells.sections },
+		backgroundActivityPillSections: { subagents: subagents.inProgressSections, backgroundShells: shells },
 	};
 	const part = disposableStore.add(instantiationService.createInstance(ChatWorkingProgressContentPart, {
 		kind: 'working',

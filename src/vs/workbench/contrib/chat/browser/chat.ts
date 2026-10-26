@@ -35,6 +35,7 @@ import { ChatInputPart, IChatInputHostModelSelection, IChatInputHostSubmit } fro
 import { IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
+import type { IChatBackgroundShell } from '../common/sessionChatPills.js';
 import type { IResolvedResponseSelection } from './responseSelectionResolver.js';
 
 export { ChatOutline } from './chatOutline.js';
@@ -258,7 +259,8 @@ export function unwrapChatContextMenuActionContext(context: unknown): unknown {
 /** In-progress work for the transcript status, independent of input-pill filters. */
 export interface IChatBackgroundActivityPillSections {
 	readonly subagents?: IObservable<readonly IChatPillSection[]>;
-	readonly backgroundShells?: IObservable<readonly IChatPillSection[]>;
+	/** Shell metadata; each transcript part owns its detail views. */
+	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 }
 
 export interface IChatListItemRendererOptions {

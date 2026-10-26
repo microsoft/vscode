@@ -3924,7 +3924,7 @@ suite('AgentHostSessionInputPills', () => {
 		));
 		const pills = () => Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
 		const running = pills();
-		const transcriptShells = () => backgroundActivityPillSections?.backgroundShells?.get().flatMap(section => section.entries.map(entry => entry.label));
+		const transcriptShells = () => backgroundActivityPillSections?.backgroundShells?.get().map(shell => shell.description);
 		const runningTranscriptShells = transcriptShells();
 		connection.setState(StateComponents.Chat, upcastPartial<ChatState>({ backgroundWork: [] }));
 
