@@ -50,10 +50,12 @@ suite('CloudSandboxModels', () => {
 	test('supplements the connected host catalog without dropping its models on account changes', async () => {
 		const provider = store.add(new AgentHostLanguageModelProvider('sandbox', 'sandbox'));
 		provider.updateModels([{ id: 'host-model', name: 'Host Model', provider: 'copilot' }]);
-		const { catalog, accounts } = setup(async () => ({ models: [
-			{ id: 'host-model', name: 'Host Model', provider: 'copilot', _meta: { inputCost: 5 } },
-			{ id: 'claude-sonnet-4.6', name: 'Sonnet 4.6', provider: 'copilot' },
-		] }), provider);
+		const { catalog, accounts } = setup(async () => ({
+			models: [
+				{ id: 'host-model', name: 'Host Model', provider: 'copilot', _meta: { inputCost: 5 } },
+				{ id: 'claude-sonnet-4.6', name: 'Sonnet 4.6', provider: 'copilot' },
+			]
+		}), provider);
 		const ready = Event.toPromise(Event.filter(catalog.onDidChange, () => catalog.ready));
 		catalog.load();
 		await ready;
