@@ -119,6 +119,8 @@ import { IAgentHostService } from '../platform/agentHost/common/agentService.js'
 import { EditorRemoteAgentHostServiceClient } from '../workbench/services/agentHost/browser/editorRemoteAgentHostServiceClient.js';
 import '../workbench/services/agentHost/browser/webAgentHostEnablementService.js';
 import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from '../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
+import { IAgentHostPolicyContinuationPresenter } from '../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostPolicyContinuation.js';
+import { WebAgentHostPolicyContinuationPresenter } from './contrib/providers/agentHost/browser/webAgentHostPolicyContinuationPresenter.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -144,6 +146,7 @@ registerSingleton(ISSHRemoteAgentHostService, NullSSHRemoteAgentHostService, Ins
 registerSingleton(IWSLRemoteAgentHostService, NullWSLRemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(IAgentHostService, EditorRemoteAgentHostServiceClient, InstantiationType.Delayed);
 registerSingleton(IAgentHostDebugLogsExportService, BrowserAgentHostDebugLogsExportService, InstantiationType.Delayed);
+registerSingleton(IAgentHostPolicyContinuationPresenter, WebAgentHostPolicyContinuationPresenter, InstantiationType.Delayed);
 
 //#endregion
 
