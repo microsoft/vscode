@@ -14,6 +14,7 @@ import { LanguageFeaturesService } from '../../../../../../../../editor/common/s
 import { getLinks } from '../../../../../../../../editor/contrib/links/browser/getLinks.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../../platform/actions/common/actions.js';
+import { NullLogService } from '../../../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
 import { ChatInputSessionLinkProvider } from '../../../../../browser/widget/input/editor/chatInputSessionLinkProvider.js';
 
@@ -30,7 +31,7 @@ suite('ChatInputSessionLinkProvider', () => {
 		}));
 		store.add(new ChatInputSessionLinkProvider(languageFeaturesService, new class extends mock<IProductService>() {
 			override readonly urlProtocol = 'code-oss';
-		}));
+		}, store.add(new NullLogService())));
 		const model = store.add(createTextModel(text, 'chatinput', undefined, URI.from({ scheme: modelScheme, path: '/input' })));
 		const result = store.add(await getLinks(languageFeaturesService.linkProvider, model, CancellationToken.None));
 		return result.links.map(link => ({ text: model.getValueInRange(link.range), url: typeof link.url === 'string' ? link.url : link.url?.toString(true) }));
@@ -71,6 +72,34 @@ suite('ChatInputSessionLinkProvider', () => {
 			{ text: internalLink, url: internalLink },
 		]);
 	});
+
+	for (const protocol of ['agent-host-session', 'vscode', 'vscode-insiders', 'code-oss']) {
+		const sessionLink = protocol === 'agent-host-session' ? internalLink : `${protocol}://${externalPath}`;
+
+		test(`preserves ordinary links containing ${protocol} session URLs`, async () => {
+			const ordinaryLinks = [
+				`https://example.com/?next=${sessionLink}`,
+				`http://example.com/?next=${sessionLink}`,
+				`file:///tmp/example?next=${sessionLink}`,
+			];
+			assert.deepStrictEqual(await detect([...ordinaryLinks, sessionLink].join(' ')), [
+				...ordinaryLinks.map(text => ({ text, url: text })),
+				{ text: sessionLink, url: internalLink },
+			]);
+		});
+
+		test(`skips malformed ${protocol} links without losing valid session links`, async () => {
+			const externalLink = `vscode://${externalPath}`;
+			assert.deepStrictEqual(await detect([
+				internalLink,
+				`${sessionLink}?session=not-a-uri`,
+				externalLink,
+			].join('\n')), [
+				{ text: internalLink, url: internalLink },
+				{ text: externalLink, url: internalLink },
+			]);
+		});
+	}
 
 	test('ignores unrelated product URLs and incomplete session links', async () => {
 		assert.deepStrictEqual(await detect([

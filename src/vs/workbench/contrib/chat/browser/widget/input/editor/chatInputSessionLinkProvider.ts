@@ -14,6 +14,7 @@ import { ILanguageFeaturesService } from '../../../../../../../editor/common/ser
 import { localize2 } from '../../../../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, parseExternalOpenSessionLinkUri, parseOpenSessionLinkUri } from '../../../../../../../platform/agentHost/common/openSessionLink.js';
+import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { chatInputSchemes } from '../../../../common/constants.js';
@@ -24,6 +25,7 @@ export class ChatInputSessionLinkProvider extends Disposable implements LinkProv
 	constructor(
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IProductService productService: IProductService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		const schemes = new Set([AGENT_HOST_SESSION_LINK_SCHEME, Schemas.vscode, `${Schemas.vscode}-insiders`, productService.urlProtocol]);
@@ -46,15 +48,22 @@ export class ChatInputSessionLinkProvider extends Disposable implements LinkProv
 
 	provideLinks(model: ITextModel): ILinksList {
 		const links: ILink[] = [];
+		const ordinaryLinks = LinkComputer.computeLinks(model);
 		for (const stateMachine of this.stateMachines) {
 			for (const link of LinkComputer.computeLinks(model, stateMachine)) {
-				if (typeof link.url !== 'string') {
+				if (typeof link.url !== 'string' || ordinaryLinks.some(ordinaryLink => Range.containsRange(ordinaryLink.range, link.range))) {
 					continue;
 				}
-				const uri = URI.parse(link.url);
-				const sessionLink = uri.scheme === AGENT_HOST_SESSION_LINK_SCHEME
-					? parseOpenSessionLinkUri(uri) ? uri : undefined
-					: parseExternalOpenSessionLinkUri(uri, uri.scheme);
+				let sessionLink: URI | undefined;
+				try {
+					const uri = URI.parse(link.url);
+					sessionLink = uri.scheme === AGENT_HOST_SESSION_LINK_SCHEME
+						? parseOpenSessionLinkUri(uri) ? uri : undefined
+						: parseExternalOpenSessionLinkUri(uri, uri.scheme);
+				} catch (error) {
+					this.logService.warn('Failed to parse session link in chat input', error);
+					continue;
+				}
 				if (sessionLink) {
 					links.push({ range: link.range, url: sessionLink });
 				}
