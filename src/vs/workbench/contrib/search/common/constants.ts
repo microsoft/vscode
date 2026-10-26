@@ -18,6 +18,7 @@ export const enum SearchCommandIds {
 	OpenInEditorCommandId = 'search.action.openInEditor',
 	ClearSearchHistoryCommandId = 'search.action.clearHistory',
 	FocusSearchListCommandID = 'search.action.focusSearchList',
+	FocusSearchInputCommandId = 'search.action.focusSearchInput',
 	ReplaceActionId = 'search.action.replace',
 	ReplaceAllInFileActionId = 'search.action.replaceAllInFile',
 	ReplaceAllInFolderActionId = 'search.action.replaceAllInFolder',
