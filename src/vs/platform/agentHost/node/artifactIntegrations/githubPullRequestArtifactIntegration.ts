@@ -388,6 +388,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			const failed = checkStates.filter(state => state === 'failed').length;
 			const passed = checkStates.filter(state => state === 'passed').length;
 			const skipped = checkStates.filter(state => state === 'skipped').length;
+			const completedWithoutFailure = passed + skipped;
 			const checksIcon = checkIcon(failed ? 'failed' : checkStates.includes('pending') ? 'pending' : passed ? 'passed' : 'skipped');
 			const mergeability = snapshot.mergeability;
 			const conflicting = hasCore && open && hasPresentationData(mergeability, core.headSha) && mergeability.value.mergeable === 'CONFLICTING';
@@ -407,9 +408,9 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 					...(checks.length ? [{
 						id: 'checks', detailsId: 'checks',
 						icon: checksIcon,
-						label: `${passed}/${checks.length}`,
+						label: `${completedWithoutFailure}/${checks.length}`,
 						description: skipped
-							? localize('prArtifact.checksSummaryWithSkipped', "{0} of {1} checks passed; {2} failed; {3} skipped.", passed, checks.length, failed, skipped)
+							? localize('prArtifact.checksSummaryWithSkipped', "{0} of {1} checks completed without failure; {2} failed; {3} skipped.", completedWithoutFailure, checks.length, failed, skipped)
 							: localize('prArtifact.checksSummary', "{0} of {1} checks passed; {2} failed.", passed, checks.length, failed),
 					}] : []),
 					...(conflicting ? [{
@@ -547,7 +548,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				const checks = exposed && detailsId === 'checks' && hasPresentationData(snapshot.checks, snapshot.core.value?.headSha)
 					&& snapshot.checks.value.headSha === snapshot.core.value?.headSha
 					? getPullRequestArtifactChecks(snapshot).toSorted((a, b) => checkStateOrder[checkPresentationState(a)] - checkStateOrder[checkPresentationState(b)]) : [];
-				const passed = checks.filter(check => checkPresentationState(check) === 'passed').length;
+				const completedWithoutFailure = checks.filter(check => getPullRequestArtifactCheckState(check) === 'passed').length;
 				const threads = exposed && detailsId === 'comments' && hasPresentationData(snapshot.reviewThreads, snapshot.core.value?.headSha) ? this.threads(snapshot, reader) : [];
 				const fragment = main ? snapshot.core : detailsId === 'checks' ? snapshot.checks : snapshot.reviewThreads;
 				const total = main ? 0 : detailsId === 'checks' ? checks.length : threads.length;
@@ -560,7 +561,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 						: fragment.status === 'loading' || fragment.status === 'missing' ? { kind: 'loading' }
 							: fragment.status === 'stale' ? { kind: 'stale', reason: localize('prArtifact.detailsStale', "Showing the last known state while refreshing.") } : view.availability,
 					title: main ? snapshot.core.value?.title ?? `#${this.resource.target.number}` : detailsId === 'checks'
-						? checks.length ? localize('prArtifact.checksTitle', "Checks ({0}/{1})", passed, checks.length) : localize('prArtifact.checks', "Checks")
+						? checks.length ? localize('prArtifact.checksTitle', "Checks ({0}/{1})", completedWithoutFailure, checks.length) : localize('prArtifact.checks', "Checks")
 						: localize('prArtifact.commentsTitle', "Comments ({0})", threads.length),
 					description: main ? snapshot.core.value?.body : total > 200
 						? localize('prArtifact.detailsDescriptionPage', "{0}\nShowing {1}-{2} of {3}.", description, start + 1, Math.min(start + 200, total), total) : description,

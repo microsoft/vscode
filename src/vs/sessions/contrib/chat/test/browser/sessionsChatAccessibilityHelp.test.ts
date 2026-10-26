@@ -922,7 +922,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				conversationDescription: content.some(line => line.includes(expectedConversation)),
 				menuAvailability: content.some(line => line.includes(`For sessions that support multiple chats, use Show Chat Tabs in the session overflow menu to ${expectedConversation}.`)),
 				sessionListAction: content.some(line => line.includes(expectedListAction)),
-				markNestedSessionsRead: content.includes('When a parent session has unread nested sessions, open its context menu and choose Mark All as Read.'),
+				markNestedSessionsRead: content.includes('When a parent session has unread nested sessions, open its context menu and choose Mark Nested Sessions as Read.'),
 				pinHelp: content.some(line => line.includes('Pin keeps that chat visible when another chat opens')),
 				groupCloseHelp: content.some(line => line.includes('Close removes that chat group')),
 				lastGroupCloseHelp: content.some(line => line.includes('Closing the last group closes the session from the grid. Non-main chats are hidden and can be reopened later.')),

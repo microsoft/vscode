@@ -35666,10 +35666,10 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				async function createSessionWithChats(service: AgentService, names: readonly string[]): Promise<{ readonly session: URI; readonly defaultChat: URI; readonly chats: readonly URI[] }> {
-					const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const session = await createStartedSession(service, { legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const chats = names.map(name => URI.parse(buildChatUri(session, name)));
 					for (const chat of chats) {
-						await service.createChat(session, chat);
+						await createStartedChat(service, session, chat);
 					}
 					await timeout(0);
 					return { session, defaultChat: URI.parse(buildDefaultChatUri(session)), chats };
@@ -35725,8 +35725,6 @@ suite('AgentService (node dispatcher)', () => {
 					const first = createService();
 					const source = await createSessionWithChats(first, ['stays', 'unread']);
 					const [stays, unread] = source.chats;
-					// A chat becomes its own session only once it has a turn.
-					completeTurn(first, unread);
 					markChatsRead(first, [source.defaultChat, stays], [unread]);
 					const before = await listedRead(first, { source: source.session });
 

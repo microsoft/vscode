@@ -1128,6 +1128,7 @@ export function autoAuthenticateMcpServer(
 	});
 }
 
+/** Resolves an MCP credential, propagating discovery and provider failures for interactive requests. */
 export async function resolveMcpServerAuthentication(
 	accessor: ServicesAccessor,
 	protectedResource: ProtectedResourceMetadata,
@@ -1161,6 +1162,9 @@ export async function resolveMcpServerAuthentication(
 			protectedResource = { ...protectedResource, ...metadata };
 		} catch (error) {
 			logService.warn(`${options.logPrefix} Failed to discover MCP authentication for ${options.mcpServerName}`, error);
+			if (options.allowInteraction) {
+				throw error;
+			}
 			return false;
 		}
 	}
@@ -1169,22 +1173,32 @@ export async function resolveMcpServerAuthentication(
 		? options.scopes
 		: protectedResource.scopes_supported ?? [];
 	const authenticationOperations = getMcpAuthenticationOperations(authenticationService);
+	let providerError: unknown;
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
 		const providerOperationId = await getMcpAuthenticationProviderId(authorizationServerUri, protectedResource, options.oauthClient, dynamicAuthenticationProviderStorageService);
 		const authenticated = await authenticationOperations.queue(providerOperationId, async () => {
-			const providerId = await getOrCreateProviderForMcpResource(
-				authorizationServerUri,
-				protectedResource,
-				options.oauthClient,
-				providerOperationId,
-				authenticationService,
-				dynamicAuthenticationProviderStorageService,
-				logService,
-				options.logPrefix,
-				options.allowInteraction,
-				authorizationServerMetadataFetcher,
-			);
+			let providerId: string | undefined;
+			try {
+				providerId = await getOrCreateProviderForMcpResource(
+					authorizationServerUri,
+					protectedResource,
+					options.oauthClient,
+					providerOperationId,
+					authenticationService,
+					dynamicAuthenticationProviderStorageService,
+					logService,
+					options.logPrefix,
+					options.allowInteraction,
+					authorizationServerMetadataFetcher,
+				);
+			} catch (error) {
+				if (!options.allowInteraction || isCancellationError(error)) {
+					throw error;
+				}
+				providerError = error;
+				return false;
+			}
 			if (!providerId) {
 				return false;
 			}
@@ -1222,10 +1236,18 @@ export async function resolveMcpServerAuthentication(
 				});
 			await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true, agentHostMeta);
 			return true;
+		}).catch(error => {
+			if (error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
+				throw new CancellationError();
+			}
+			throw error;
 		});
 		if (authenticated) {
 			return true;
 		}
+	}
+	if (providerError !== undefined) {
+		throw providerError;
 	}
 	return false;
 }
@@ -1316,6 +1338,9 @@ async function getOrCreateProviderForMcpResource(
 		return provider?.id;
 	} catch (err) {
 		logService.warn(`${logPrefix} Failed to create MCP auth provider for ${authorizationServer.toString(true)}`, err);
+		if (allowCreation) {
+			throw err;
+		}
 		return undefined;
 	}
 }
