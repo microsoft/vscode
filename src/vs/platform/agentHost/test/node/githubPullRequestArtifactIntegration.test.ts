@@ -320,7 +320,7 @@ suite('GitHub pull request artifact integration', () => {
 		});
 	}));
 
-	test('checks and comments retain list icons with empty data and no pill sections', () => run(async store => {
+	test('omits empty checks summaries while retaining checks and comments lists', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const snapshot = {
 			...base,
@@ -328,17 +328,77 @@ suite('GitHub pull request artifact integration', () => {
 			reviewThreads: { ...base.reviewThreads, value: [] },
 		};
 		const f = await fixture(store, snapshot);
+		const details = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'checks'));
 		const icons = () => f.model.snapshot.get().contributions[0].view.lists?.map(list => [list.id, list.icon]);
 		const empty = icons();
+		const emptySections = f.model.snapshot.get().contributions[0].view.sections;
+		const emptyTitle = details.details.get().title;
 		f.snapshot.set({ ...snapshot, checks: { status: 'loading', complete: false } }, undefined);
 		const loading = icons();
+		const loadingSections = f.model.snapshot.get().contributions[0].view.sections;
+		const loadingTitle = details.details.get().title;
 		f.snapshot.set({ ...snapshot, core: { ...snapshot.core, value: { ...snapshot.core.value!, state: 'merged' } } }, undefined);
 		assert.deepStrictEqual({
+			emptySections, emptyTitle, loadingSections, loadingTitle,
 			empty, loading, merged: icons(), sections: f.model.snapshot.get().contributions[0].view.sections,
 		}, {
+			emptySections: [], emptyTitle: 'Checks', loadingSections: [], loadingTitle: 'Checks',
 			empty: [['checks', { id: 'checklist' }], ['comments', { id: 'comment-discussion' }]],
 			loading: [['checks', { id: 'checklist' }], ['comments', { id: 'comment-discussion' }]],
 			merged: [['checks', { id: 'checklist' }], ['comments', { id: 'comment-discussion' }]], sections: [],
+		});
+	}));
+
+	test('shows merge conflicts independently of checks and links to branch repair details', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const snapshot = {
+			...base,
+			checks: { ...base.checks, value: { ...base.checks.value!, checks: [] } },
+			mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeable: 'CONFLICTING' as const } },
+		};
+		const f = await fixture(store, snapshot);
+		const details = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'main'));
+		const initial = {
+			sections: f.model.snapshot.get().contributions[0].view.sections,
+			repairLink: details.details.get().links.find(link => link.kind === 'action' && link.actionId === 'resolveConflicts'),
+			repairEnabled: f.model.snapshot.get().contributions[0].view.stateActions.find(action => action.id === 'resolveConflicts')?.enabled,
+		};
+		const sections = () => f.model.snapshot.get().contributions[0].view.sections.map(section => section.id);
+		f.snapshot.set({ ...snapshot, checks: base.checks }, undefined);
+		const withChecks = sections();
+		f.snapshot.set({ ...snapshot, checks: { status: 'loading', complete: false } }, undefined);
+		const withoutChecks = sections();
+		const refreshing = [];
+		for (const status of ['loading', 'stale'] as const) {
+			f.snapshot.set({ ...snapshot, mergeability: { ...snapshot.mergeability, status, complete: false } }, undefined);
+			refreshing.push(sections());
+		}
+		const hidden = [];
+		for (const state of ['closed', 'merged'] as const) {
+			f.snapshot.set({ ...snapshot, core: { ...snapshot.core, value: { ...snapshot.core.value!, state } } }, undefined);
+			hidden.push(sections());
+		}
+		f.snapshot.set({ ...snapshot, core: { status: 'loading', complete: false } }, undefined);
+		hidden.push(sections());
+		f.snapshot.set({ ...snapshot, core: { ...snapshot.core, value: { ...snapshot.core.value!, headSha: 'new-head' } } }, undefined);
+		hidden.push(sections());
+		f.snapshot.set({
+			...snapshot, mergeability: { ...snapshot.mergeability, status: 'error', error: { kind: 'server', message: 'Mergeability is unavailable.' } },
+		}, undefined);
+		hidden.push(sections());
+		f.snapshot.set({ ...snapshot, mergeability: base.mergeability }, undefined);
+		hidden.push(sections());
+		assert.deepStrictEqual({ initial, withChecks, withoutChecks, refreshing, hidden }, {
+			initial: {
+				sections: [{
+					id: 'conflicts', detailsId: 'main', icon: { id: 'git-compare', colorId: 'editorWarning.foreground' },
+					label: 'Conflicts', description: 'This pull request has merge conflicts.',
+				}],
+				repairLink: { kind: 'action', actionId: 'resolveConflicts' },
+				repairEnabled: true,
+			},
+			withChecks: ['checks', 'conflicts'], withoutChecks: ['conflicts'],
+			refreshing: [['conflicts'], ['conflicts']], hidden: [[], [], [], [], [], []],
 		});
 	}));
 
