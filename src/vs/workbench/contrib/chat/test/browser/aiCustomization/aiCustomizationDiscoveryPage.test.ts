@@ -1212,37 +1212,63 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
-	test('source-specific Canvas search does not query the GitHub Feed fallback', async () => {
+	test('source-specific canvas-compatible plugins appear under Plugins and Canvases without the GitHub Feed fallback', async () => {
 		const fixture = createPage([configuredMarketplaceSourceId]);
-		fixture.page.showMarketplace('@type:canvas', configuredMarketplaceSourceId);
+		fixture.page.showMarketplace('@type:plugin', configuredMarketplaceSourceId);
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
 			items: [
 				resource('configured-canvas', {
 					sourceId: configuredMarketplaceSourceId,
 					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-					compatibilityTags: ['canvas'],
+					compatibilityTags: ['canvas-only'],
 				}),
 			],
 		});
 		await timeout(0);
+		const pluginResults = [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent);
+
+		fixture.page.setSearchQuery('@type:canvas');
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
+			items: [
+				resource('configured-canvas', {
+					sourceId: configuredMarketplaceSourceId,
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					compatibilityTags: ['canvas-only'],
+				}),
+			],
+		});
+		await timeout(0);
+		const canvasResults = [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent);
 
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(request => request.options),
-			visible: fixture.page.getAccessibilityContent().includes('configured-canvas'),
+			pluginResults,
+			canvasResults,
 		}, {
-			requests: [{
-				query: undefined,
-				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-				sourceIds: [configuredMarketplaceSourceId],
-				pageSize: 50,
-				cursor: undefined,
-			}],
-			visible: true,
+			requests: [
+				{
+					query: undefined,
+					mediaType: undefined,
+					sourceIds: [configuredMarketplaceSourceId],
+					pageSize: 24,
+					cursor: undefined,
+				},
+				{
+					query: undefined,
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					sourceIds: [configuredMarketplaceSourceId],
+					pageSize: 50,
+					cursor: undefined,
+				},
+			],
+			pluginResults: ['configured-canvas'],
+			canvasResults: ['configured-canvas'],
 		});
 	});
 
-	test('plugin search excludes canvas-only plugins but includes canvas-capable plugins', async () => {
+	test('plugin search includes ordinary, canvas-capable, and canvas-only plugins', async () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('@type:plugin');
 		fixture.page.setVisible(true);
@@ -1263,11 +1289,11 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, {
 			ordinary: true,
 			canvas: true,
-			canvasOnly: false,
+			canvasOnly: true,
 		});
 	});
 
-	test('installed canvas-only provider plugins appear only in Canvas results', async () => {
+	test('installed plugin and Canvas filters overlap without duplicate rows', async () => {
 		const plugin = resource('canvas-only-plugin', {
 			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 			compatibilityTags: ['canvas', 'canvas-only'],
@@ -1288,25 +1314,47 @@ suite('AICustomizationDiscoveryPage', () => {
 				source: 'plugin',
 				extensionId: undefined,
 				pluginUri: undefined,
+			}, {
+				uri: URI.file('/provider/ordinary-plugin'),
+				type: 'plugin',
+				name: 'ordinary-plugin',
+				description: 'Ordinary plugin',
+				source: 'plugin',
+				extensionId: undefined,
+				pluginUri: undefined,
 			}],
 		);
 		fixture.setInstallState(plugin, { kind: 'installed', target: { kind: 'plugin', name: 'canvas-only-plugin' } });
 		fixture.notifyInstallChange();
-		fixture.page.setSearchQuery('@installed @type:plugin');
 		fixture.page.setVisible(true);
+
+		const getRows = () => [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent).sort();
+		fixture.page.setSearchQuery('@installed');
 		await timeout(0);
-		const pluginResults = fixture.page.getAccessibilityContent();
+		const allResults = getRows();
+
+		fixture.page.setSearchQuery('@installed @type:plugin');
+		await timeout(0);
+		const pluginResults = getRows();
 
 		fixture.page.setSearchQuery('@installed @type:canvas');
 		await timeout(0);
-		const canvasResults = fixture.page.getAccessibilityContent();
+		const canvasResults = getRows();
+
+		fixture.page.setSearchQuery('@installed @type:plugin @type:canvas');
+		await timeout(0);
+		const combinedResults = getRows();
 
 		assert.deepStrictEqual({
-			plugin: pluginResults.includes('canvas-only-plugin'),
-			canvas: canvasResults.includes('canvas-only-plugin'),
+			allResults,
+			pluginResults,
+			canvasResults,
+			combinedResults,
 		}, {
-			plugin: false,
-			canvas: true,
+			allResults: ['canvas-only-plugin', 'ordinary-plugin'],
+			pluginResults: ['canvas-only-plugin', 'ordinary-plugin'],
+			canvasResults: ['canvas-only-plugin'],
+			combinedResults: ['canvas-only-plugin', 'ordinary-plugin'],
 		});
 	});
 
