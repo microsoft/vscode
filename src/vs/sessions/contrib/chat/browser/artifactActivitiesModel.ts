@@ -55,7 +55,7 @@ export class ArtifactActivitiesModel extends Disposable {
 				expanded: state.activitiesExpanded,
 				items,
 				summary: localize('artifactActivitiesLoadedCount', "{0} loaded", items.length),
-				message: this.error || (this.loading ? localize('artifactActivitiesLoading', "Loading activities...") : ''),
+				message: this.error,
 				more: this.error ? {
 					id: 'retry', label: localize('artifactActivitiesRetry', "Retry Loading Activities"),
 					enabled: !this.loading, run: () => { void this.loadPage(this.retryPage); },

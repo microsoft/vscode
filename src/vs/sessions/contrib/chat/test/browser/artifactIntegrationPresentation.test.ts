@@ -431,6 +431,7 @@ suite('Artifact Integration Presentation', () => {
 		const data = model.data.get();
 		const summary = {
 			loading: loading.lists.map(list => list.loading),
+			loadingMessages: [loading.message, ...loading.lists.map(list => list.message)],
 			title: data.title, description: data.description, resource: data.resource,
 			lists: data.lists.map(list => ({ id: list.id, title: list.title, items: list.items.map(item => item.label), loading: list.loading })),
 			actions: data.stateActions.map(action => ({ id: action.id, label: action.label, enabled: action.enabled, primary: action.primary })),
@@ -440,7 +441,7 @@ suite('Artifact Integration Presentation', () => {
 			panels: f.host.querySelectorAll('.artifact-integration-panel').length,
 		};
 		assert.deepStrictEqual(summary, {
-			loading: [true, true], title: 'Full title for artifact', description: 'The actual resource description.', resource: 'https://example.test/artifact',
+			loading: [true, true], loadingMessages: ['', '', ''], title: 'Full title for artifact', description: 'The actual resource description.', resource: 'https://example.test/artifact',
 			lists: [
 				{ id: artifactViewKey('test', 'checks'), title: 'Checks', items: ['Lint', 'Build'], loading: false },
 				{ id: artifactViewKey('test', 'comments'), title: 'Review threads', items: ['Preserve focus after refresh'], loading: false },
@@ -833,6 +834,29 @@ suite('Artifact Integration Presentation', () => {
 				summaries: [firstSummary, panel.querySelector('.artifact-activities-summary')?.textContent],
 				moreHidden: panel.querySelector<HTMLElement>('.artifact-activities-more')?.hidden,
 			}, { requests: [undefined, 'entry-10'], firstPageCount: 50, totalCount: 60, newest: 'Fix CI: Completed', summaries: ['50 loaded', '60 loaded'], moreHidden: true });
+		});
+
+		test('loading activity history does not add a message or move existing rows', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			const recent = activity(a, 'recent');
+			setActivities(a, [recent]);
+			const history = new DeferredPromise<{ runs: readonly ArtifactRun[] }>();
+			a.setHistoryResult(history.p);
+			const panel = await open(f, a);
+			await expand(f, panel);
+			const bounds = () => {
+				const panelBounds = panel.getBoundingClientRect();
+				const rowBounds = rows(panel)[0].getBoundingClientRect();
+				const message = panel.querySelector<HTMLElement>('.artifact-activities-message')!;
+				return { top: panelBounds.top, height: panelBounds.height, rowTop: rowBounds.top, message: message.textContent, hidden: message.hidden };
+			};
+			const loading = bounds();
+			await history.complete({ runs: [recent] });
+			await settle(f);
+			assert.deepStrictEqual({ loading, loaded: bounds() }, {
+				loading: { ...loading, message: '', hidden: true }, loaded: { ...loading, message: '', hidden: true },
+			});
 		});
 
 		test('retains recent activity on load failures and offers an explicit retry', async () => {
@@ -1277,6 +1301,41 @@ suite('Artifact Integration Presentation', () => {
 		]);
 	});
 
+	test('refreshing artifact details does not add loading messages or move the panel and its rows', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		const panel = await open(f, a, 0);
+		const list = panel.querySelector<HTMLElement>('[role="tabpanel"]:not([hidden])')!;
+		const geometry = () => [panel, ...list.querySelectorAll<HTMLElement>('.artifact-details-item')].map(element => {
+			const { top, height } = element.getBoundingClientRect();
+			return { top, height };
+		});
+		const original = a.snapshot.get();
+		const originalDetails = Object.values(a.details).map(details => details.get());
+		const before = geometry();
+		const results = [];
+		for (const loading of [true, false, true, false]) {
+			transaction(tx => {
+				a.snapshot.set({
+					...original, contributions: original.contributions.map(contribution => ({
+						...contribution, view: { ...contribution.view, availability: { kind: loading ? 'loading' : 'available' } },
+					})),
+				}, tx);
+				Object.values(a.details).forEach((details, index) => {
+					details.set({ ...originalDetails[index], availability: { kind: loading ? 'loading' : 'available' } }, tx);
+				});
+			});
+			await settle(f);
+			results.push({
+				geometry: geometry(), busy: list.getAttribute('aria-busy'),
+				messages: [...panel.querySelectorAll<HTMLElement>('.artifact-details-availability, .artifact-state-list-message')].map(message => ({ text: message.textContent, hidden: message.hidden })),
+			});
+		}
+		assert.deepStrictEqual(results, [true, false, true, false].map(loading => ({
+			geometry: before, busy: String(loading), messages: Array.from({ length: 3 }, () => ({ text: '', hidden: true })),
+		})));
+	});
+
 	test('refresh does not reclaim focus after the user moves to another control', async () => {
 		const f = fixture();
 		const a = f.artifact();
@@ -1431,6 +1490,39 @@ suite('Artifact Integration Presentation', () => {
 			focusKept: true,
 			calls: [{ detailsId: 'checks', itemId: 'lint', actionId: 'rerun' }], invoked: [], opened: [], open: true,
 			accessible: ['Lint: Failed (actions: Rerun Check)'],
+		});
+	});
+
+	test('revealing rerun actions and their loading spinner keeps the row icon and label vertically centered', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		withRerunActions(a);
+		const finish = new DeferredPromise<void>();
+		a.setItemActionResult(finish.p);
+		const panel = await open(f, a, 0);
+		panel.focus();
+		const row = itemRow(panel, 'Build');
+		const bounds = () => {
+			const rowBounds = row.getBoundingClientRect();
+			return ['.artifact-details-item-icon', '.artifact-details-item-label'].map(selector => {
+				const element = row.querySelector<HTMLElement>(selector)!.getBoundingClientRect();
+				return { top: element.top - rowBounds.top, height: element.height };
+			});
+		};
+		const idle = bounds();
+		row.classList.add('hovered');
+		const hovered = bounds();
+		row.classList.remove('hovered');
+		row.classList.add('focused');
+		const focused = bounds();
+		row.querySelector<HTMLElement>('.artifact-details-item-actions .action-label')!.click();
+		await settle(f);
+		const spinner = !!row.querySelector('.codicon-loading.codicon-modifier-spin');
+		const running = bounds();
+		await finish.complete();
+		await settle(f);
+		assert.deepStrictEqual({ hovered, focused, running, completed: bounds(), spinner }, {
+			hovered: idle, focused: idle, running: idle, completed: idle, spinner: true,
 		});
 	});
 
