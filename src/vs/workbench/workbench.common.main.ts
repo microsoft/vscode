@@ -107,6 +107,7 @@ import './services/workingCopy/common/workingCopyService.js';
 import './services/workingCopy/common/workingCopyFileService.js';
 import './services/workingCopy/common/workingCopyEditorService.js';
 import './services/filesConfiguration/common/filesConfigurationService.js';
+import './services/files/common/gitIgnoreWatcherExcludesService.js';
 import './services/views/browser/viewDescriptorService.js';
 import './services/views/browser/viewsService.js';
 import './services/quickinput/browser/quickInputService.js';
