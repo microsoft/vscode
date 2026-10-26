@@ -3469,6 +3469,8 @@ interface ISessionsListDndDelegate {
 	setHeaderInsertionDepth(depth: number | undefined): void;
 	/** The dragged chat row's chat, with its session, when moving chats by drag and drop is on and it can move. */
 	getMovableDraggedChat(item: ISessionChatItem): { readonly session: ISession; readonly chat: IChat } | undefined;
+	/** Whether nested chat rows are shown in their session's chat order, so that a position among them is a position in that order. */
+	areChatPositionsShown(): boolean;
 	/** Whether the session can move under another session, when moving chats by drag and drop is on. */
 	canMoveSessionUnder(session: ISession): boolean;
 	/** Move the chat of `session` as the drop says. */
@@ -3643,7 +3645,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (elements.length > 0 && elements.every(isSessionChatItem)) {
 			// Only the provider orders nested chats: a chat it can't move, or several chats, can't be dropped.
 			const movable = elements.length === 1 ? this.movableChat(elements[0]) : undefined;
-			return movable ? this.resolveChatMove(movable, target, sector) : undefined;
+			return movable ? this.resolveChatMove(movable, target, targetIndex, sector) : undefined;
 		}
 		const sessions = elements.filter(isSessionItem);
 		if (sessions.length === 0) {
@@ -3653,7 +3655,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (nest?.kind === 'nest') {
 			const session = sessions[0];
 			return {
-				reaction: nest.position === 'over' ? intoSessionDropReaction() : toDropReaction({ position: toEffectPosition(nest.position) }),
+				reaction: nest.position === 'over' ? this.intoSessionDropReaction(target, targetIndex) : toDropReaction({ position: toEffectPosition(nest.position) }),
 				moveFeedback: nest.position === 'over' ? 'move' : 'nested',
 				run: () => this.delegate.moveSessionUnder(session, nest.session, nest.after),
 			};
@@ -3704,14 +3706,14 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	 * Where a chat that its provider can move goes when dropped here (see {@link getSessionsListChatDrop}): within or
 	 * into a session, or into a new session. The provider then owns the chat order.
 	 */
-	private resolveChatMove(dragged: { readonly session: ISession; readonly chat: IChat }, targetElement: SessionListItem | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
+	private resolveChatMove(dragged: { readonly session: ISession; readonly chat: IChat }, targetElement: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
 		let target: ISessionsListChatDropTarget | undefined;
 		if (targetElement && isSessionChatItem(targetElement)) {
 			target = { session: targetElement.session, chat: targetElement.chat, position: sectorToPosition(sector) };
 		} else if (targetElement && isSessionItem(targetElement)) {
 			target = { session: targetElement, chat: undefined, position: 'before' };
 		}
-		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target);
+		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target, this.delegate.areChatPositionsShown());
 		if (!drop) {
 			return undefined;
 		}
@@ -3720,7 +3722,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			// The whole list shows it receives the chat as a new session.
 			reaction = { accept: true, feedback: [-1], effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
 		} else if (drop.position === 'over') {
-			reaction = intoSessionDropReaction();
+			reaction = this.intoSessionDropReaction(targetElement, targetIndex);
 		} else {
 			reaction = toDropReaction({ position: toEffectPosition(drop.position) });
 		}
@@ -3729,6 +3731,21 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			moveFeedback: drop.kind === 'session' && drop.position !== 'over' ? 'nested' : 'move',
 			run: () => this.delegate.moveChat(dragged.session, dragged.chat, drop),
 		};
+	}
+
+	/** Dropping into a session at its end highlights all of its rows, also when the pointer is over one of its nested chat rows. */
+	private intoSessionDropReaction(target: SessionListItem | undefined, targetIndex: number | undefined): ITreeDragOverReaction {
+		const reaction = intoSessionDropReaction();
+		if (!target || !isSessionChatItem(target) || targetIndex === undefined) {
+			return reaction;
+		}
+		const chatIndex = this.delegate.getVisibleChatRows(target.session).indexOf(target);
+		if (chatIndex < 0) {
+			return reaction;
+		}
+		const sessionIndex = targetIndex - chatIndex - 1;
+		const rowCount = this.delegate.getRenderedRowCount(target.session);
+		return { ...reaction, feedback: Array.from({ length: rowCount }, (_, i) => sessionIndex + i) };
 	}
 
 	/**
@@ -3751,7 +3768,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			isManuallyOrdered: () => this.delegate.isInManuallyOrderedSection(session),
 			isLastInSection: () => this.delegate.isLastRowOfSection(chatItem ?? session),
 			canPlace: position => !!this.resolveSessionDrop(sessions, session, undefined, position === 'before' ? ListViewTargetSector.TOP : ListViewTargetSector.BOTTOM),
-		});
+		}, this.delegate.areChatPositionsShown());
 	}
 
 	private resolveSessionDrop(sessions: readonly ISession[], target: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
@@ -4631,6 +4648,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					getRenderedRowCount: element => this.tree.hasElement(element) ? this.tree.getListRenderCount(element) : 1,
 					moveHeader: (header, drop) => this.moveHeader(header, drop),
 					getMovableDraggedChat: item => this.getMovableDraggedChat(item),
+					areChatPositionsShown: () => this.areChatPositionsShown(),
 					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
 					moveChat: (session, chat, drop) => this.moveChatByDrop(session, chat, drop),
 					moveSessionUnder: (session, target, after) => this.moveSessionUnderByDrop(session, target, after),
@@ -6597,6 +6615,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.filter((element): element is ISessionChatItem => !!element && isSessionChatItem(element));
 	}
 
+	/** Nested chats are shown in their session's chat order, which the provider owns, only when sorting by creation. */
+	private areChatPositionsShown(): boolean {
+		return this.options.sorting() === SessionsSorting.Created;
+	}
+
 	/** The sibling chat row a nested chat swaps with when moved up or down, if any. */
 	private getAdjacentChatRow(item: ISessionChatItem, direction: 'up' | 'down'): ISessionChatItem | undefined {
 		const rows = this.getChatRows(item.session);
@@ -6609,9 +6632,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * there or its provider can't move the chat there. Only the provider orders nested chats.
 	 */
 	private getAdjacentChatMove(item: ISessionChatItem, direction: 'up' | 'down'): { readonly session: ISession; readonly chat: IChat; readonly drop: SessionsListChatDrop } | undefined {
-		const target = this.getAdjacentChatRow(item, direction);
+		const positionsShown = this.areChatPositionsShown();
+		const target = positionsShown ? this.getAdjacentChatRow(item, direction) : undefined;
 		const movable = target && this.getMovableDraggedChat(item);
-		const drop = target && movable && getSessionsListChatDrop(movable.session, movable.chat, { session: target.session, chat: target.chat, position: direction === 'up' ? 'before' : 'after' });
+		const drop = target && movable && getSessionsListChatDrop(movable.session, movable.chat, { session: target.session, chat: target.chat, position: direction === 'up' ? 'before' : 'after' }, positionsShown);
 		return movable && drop ? { session: movable.session, chat: movable.chat, drop } : undefined;
 	}
 
