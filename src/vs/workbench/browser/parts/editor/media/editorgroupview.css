@@ -100,7 +100,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper > .editor-group-watermark  {
 	display: flex;
 	height: 100%;
-	width: calc(100% - 2 * var(--vscode-spacing-size240));
+	width: calc(100% - var(--vscode-spacing-size240) - var(--vscode-spacing-size240));
 	max-width: 320px;
 	margin: auto;
 	flex-direction: column;

@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/modalEditorPart.css';
-import { $, addDisposableListener, append, Dimension, EventHelper, EventType, hide, IDimension, isHTMLElement, setVisibility, show } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, Dimension, EventHelper, EventType, getWindow, hide, IDimension, isHTMLElement, setVisibility, show } from '../../../../base/browser/dom.js';
 import { GlobalPointerMoveMonitor } from '../../../../base/browser/globalPointerMoveMonitor.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Action, Separator } from '../../../../base/common/actions.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Orientation, Sash, SashState } from '../../../../base/browser/ui/sash/sash.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -55,6 +56,44 @@ const MODAL_SIDEBAR_MIN_WIDTH = 160;
 const MODAL_SIDEBAR_DEFAULT_WIDTH = 260;
 const MODAL_SIDEBAR_PADDING = 8; // matches CSS padding on sidebar container
 const MODAL_SIDEBAR_BORDER_RIGHT = 1; // matches CSS border-right on sidebar container
+const MODAL_FOCUSABLE_SELECTOR = 'a[href], area[href], button, input, select, textarea, iframe, object, embed, [contenteditable="true"], [tabindex]';
+
+function getModalTabbableElements(modalElement: HTMLElement): HTMLElement[] {
+	// eslint-disable-next-line no-restricted-syntax
+	const elements = Array.from(modalElement.querySelectorAll<HTMLElement>(MODAL_FOCUSABLE_SELECTOR))
+		.filter(element => {
+			if (element.tabIndex < 0 || element.matches(':disabled') || element.closest('[inert]')) {
+				return false;
+			}
+
+			for (let current: HTMLElement | null = element; current && current !== modalElement; current = current.parentElement) {
+				const style = getWindow(current).getComputedStyle(current);
+				if (current.hidden || current.getAttribute('aria-hidden') === 'true' || style.display === 'none' || style.visibility === 'hidden') {
+					return false;
+				}
+			}
+
+			return true;
+		})
+		.map((element, index) => ({ element, index }));
+
+	elements.sort((first, second) => {
+		const firstTabIndex = first.element.tabIndex;
+		const secondTabIndex = second.element.tabIndex;
+		if (firstTabIndex > 0 && secondTabIndex > 0) {
+			return firstTabIndex - secondTabIndex || first.index - second.index;
+		}
+		if (firstTabIndex > 0) {
+			return -1;
+		}
+		if (secondTabIndex > 0) {
+			return 1;
+		}
+		return first.index - second.index;
+	});
+
+	return elements.map(({ element }) => element);
+}
 
 const defaultModalEditorAllowableCommands = new Set([
 
@@ -294,6 +333,27 @@ export class ModalEditorPart {
 		editorPart.create(editorPartContainer);
 
 		disposables.add(Event.once(editorPart.onWillClose)(() => disposables.dispose()));
+		disposables.add(addDisposableListener(modalElement, EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			const isForwardTab = event.equals(KeyCode.Tab);
+			const isBackwardTab = event.equals(KeyMod.Shift | KeyCode.Tab);
+			if (!isForwardTab && !isBackwardTab) {
+				return;
+			}
+			if (this.keybindingService.softDispatch(event, event.target).kind !== ResultKind.NoMatchingKb) {
+				return;
+			}
+
+			const tabbableElements = getModalTabbableElements(modalElement);
+			const target = isBackwardTab ? tabbableElements.at(-1) : tabbableElements[0];
+			const boundary = isBackwardTab ? tabbableElements[0] : tabbableElements.at(-1);
+			if (!target || mainWindow.document.activeElement !== boundary) {
+				return;
+			}
+
+			EventHelper.stop(event, true);
+			target.focus();
+		}, true));
 		const pendingBubbleCloseEvents = new WeakSet<KeyboardEvent>();
 		disposables.add(addDisposableListener(mainWindow, EventType.KEY_DOWN, e => pendingBubbleCloseEvents.delete(e)));
 		// Capture close keybindings before focused controls can stop propagation.

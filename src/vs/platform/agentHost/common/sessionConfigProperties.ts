@@ -20,6 +20,15 @@ const copilotApprovalValues = new Set(['manual', 'assisted', 'allow-all']);
 const vscodeIsolationValues = new Set(['folder', 'worktree']);
 const copilotIsolationValues = new Set(['workspace', 'worktree']);
 
+/** Copilot creation-time integration options are not user-facing chat controls. */
+export function isHiddenSessionConfigProperty(key: string): boolean {
+	return key === 'remoteSession'
+		|| key === 'enableManagedSettings'
+		|| key === 'enableSessionStore'
+		|| key === 'imageGeneration'
+		|| key === 'allowTranscriptRecovery';
+}
+
 function getEnumProperty(schema: SessionConfigSchema | undefined, key: string, values: ReadonlySet<string>, required: string): ISessionConfigProperty | undefined {
 	const property = schema?.properties[key];
 	return property?.type === 'string' && !property.enumDynamic && Array.isArray(property.enum) && property.enum.includes(required)
@@ -98,6 +107,15 @@ export function getAvailableSessionApprovalValues(property: ISessionConfigProper
 	const available = values.availableApprovalModes;
 	return schema.properties.availableApprovalModes?.type === 'array' && schema.properties.availableApprovalModes.readOnly === true && Array.isArray(available)
 		? offered.filter(value => available.includes(value)) : offered;
+}
+
+/**
+ * Supported approval values that the host's read-only availability report withholds. Unlike values absent from
+ * the schema, they are supported but not currently allowed; the report does not say why.
+ */
+export function getWithheldSessionApprovalValues(property: ISessionConfigProperty, schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): readonly string[] {
+	const available = getAvailableSessionApprovalValues(property, schema, values);
+	return (property.schema.enum ?? []).filter((value): value is string => isString(value) && readSessionApprovalLevel(property, value) !== undefined && !available.includes(value));
 }
 
 export function getEffectiveSessionApprovalValue(property: ISessionConfigProperty, schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): unknown {

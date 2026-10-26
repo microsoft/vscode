@@ -1,0 +1,405 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Layout */
+
+.agents-window-graphic {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: var(--vscode-spacing-size240) var(--vscode-spacing-size320);
+	max-width: 100%;
+}
+
+.agents-window-graphic-figure {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	max-width: 100%;
+	margin: 0;
+}
+
+/* Design 1's two windows shrink together, then stack when they don't fit side by side. */
+.agents-window-graphic.window-comparison .agents-window-graphic-figure {
+	flex: 1 1 0;
+	min-width: min(200px, 100%);
+	max-width: 240px;
+}
+
+/* Design 2 scales down to fit: a replaced element with a percentage max-width doesn't add to its container's min-content width. */
+.agents-window-graphic.many-windows-to-one .agents-window-graphic-svg {
+	width: 540px;
+	max-width: 100%;
+}
+
+.agents-window-graphic-svg {
+	display: block;
+	width: 100%;
+	height: auto;
+	overflow: visible;
+}
+
+/* Compact graphics fill the width of their container, such as a hover card. */
+.agents-window-graphic.compact {
+	flex-wrap: nowrap;
+	gap: var(--vscode-spacing-size120);
+}
+
+.agents-window-graphic.compact .agents-window-graphic-figure {
+	gap: var(--vscode-spacing-size60);
+}
+
+.agents-window-graphic.window-comparison.compact .agents-window-graphic-figure {
+	min-width: 0;
+	max-width: none;
+}
+
+.agents-window-graphic.many-windows-to-one.compact .agents-window-graphic-figure {
+	flex: 1 1 auto;
+}
+
+.agents-window-graphic.many-windows-to-one.compact .agents-window-graphic-svg {
+	width: 100%;
+}
+
+.agents-window-graphic.compact .agents-window-graphic-caption {
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 16px;
+}
+
+.agents-window-graphic.compact .agents-window-graphic-title {
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.agents-window-graphic-caption {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	text-align: center;
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 18px;
+}
+
+.agents-window-graphic-title {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	color: var(--vscode-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agents-window-graphic.window-comparison .agents-window-graphic-description {
+	color: var(--vscode-descriptionForeground);
+}
+
+.agents-window-graphic.many-windows-to-one .agents-window-graphic-description {
+	color: var(--vscode-foreground);
+}
+
+.agents-window-graphic-badge {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-activityBarBadge-background);
+	color: var(--vscode-activityBarBadge-foreground);
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 14px;
+}
+
+/* Window surfaces */
+
+.agents-window-graphic .awg-window-shape {
+	rx: var(--vscode-cornerRadius-large);
+}
+
+.agents-window-graphic .awg-window-frame {
+	rx: calc(var(--vscode-cornerRadius-large) - 0.5px);
+	fill: none;
+	stroke: var(--vscode-foreground);
+	stroke-opacity: 0.16;
+}
+
+.agents-window-graphic .awg-window-shadow {
+	filter: drop-shadow(0 2px 4px var(--vscode-widget-shadow));
+}
+
+.agents-window-graphic .awg-editor {
+	fill: var(--vscode-editor-background);
+}
+
+.agents-window-graphic .awg-titlebar {
+	fill: var(--vscode-titleBar-activeBackground);
+}
+
+.agents-window-graphic .awg-sidebar {
+	fill: var(--vscode-sideBar-background);
+}
+
+.agents-window-graphic .awg-divider {
+	fill: var(--vscode-foreground);
+	fill-opacity: 0.07;
+}
+
+.agents-window-graphic .awg-command-center {
+	fill: var(--vscode-foreground);
+	fill-opacity: 0.05;
+	stroke: var(--vscode-foreground);
+	stroke-opacity: 0.12;
+}
+
+.agents-window-graphic .awg-radius-small {
+	rx: var(--vscode-cornerRadius-small);
+}
+
+.agents-window-graphic .awg-radius-medium {
+	rx: var(--vscode-cornerRadius-medium);
+}
+
+/* Text and content, from faint to full emphasis */
+
+.agents-window-graphic :is(.awg-ink-faint, .awg-ink-subtle, .awg-ink-medium, .awg-ink-strong, .awg-ink-full, .awg-row-selected, .awg-surface-subtle, .awg-surface-faint, .awg-input) {
+	fill: var(--vscode-foreground);
+}
+
+.agents-window-graphic .awg-ink-faint {
+	fill-opacity: 0.2;
+}
+
+.agents-window-graphic .awg-ink-subtle {
+	fill-opacity: 0.28;
+}
+
+.agents-window-graphic .awg-ink-medium {
+	fill-opacity: 0.4;
+}
+
+.agents-window-graphic .awg-ink-strong {
+	fill-opacity: 0.55;
+}
+
+.agents-window-graphic .awg-ink-full {
+	fill-opacity: 0.85;
+}
+
+.agents-window-graphic :is(.awg-icon, .awg-icon-active) {
+	fill: none;
+	stroke: var(--vscode-foreground);
+	stroke-opacity: 0.3;
+}
+
+.agents-window-graphic .awg-icon-active {
+	stroke-opacity: 0.55;
+}
+
+.agents-window-graphic .awg-row-selected,
+.agents-window-graphic .awg-surface-subtle {
+	fill-opacity: 0.08;
+}
+
+.agents-window-graphic .awg-surface-faint {
+	fill-opacity: 0.04;
+}
+
+.agents-window-graphic .awg-input {
+	fill-opacity: 0.04;
+	stroke: var(--vscode-foreground);
+	stroke-opacity: 0.14;
+}
+
+.agents-window-graphic .awg-accent {
+	fill: var(--vscode-focusBorder);
+}
+
+.agents-window-graphic .awg-button {
+	fill: var(--vscode-button-background);
+}
+
+.agents-window-graphic .awg-button-icon {
+	fill: none;
+	stroke: var(--vscode-button-foreground);
+	stroke-width: 1.2;
+	stroke-linecap: round;
+}
+
+.agents-window-graphic .awg-button-label {
+	fill: var(--vscode-button-foreground);
+	fill-opacity: 0.9;
+}
+
+/* Code and projects */
+
+.agents-window-graphic .awg-syntax-blue {
+	fill: var(--vscode-charts-blue);
+	fill-opacity: 0.75;
+}
+
+.agents-window-graphic .awg-syntax-yellow {
+	fill: var(--vscode-charts-yellow);
+	fill-opacity: 0.6;
+}
+
+.agents-window-graphic .awg-syntax-orange {
+	fill: var(--vscode-agentsWindowGraphic-orange);
+	fill-opacity: 0.6;
+}
+
+.agents-window-graphic .awg-project-blue {
+	fill: var(--vscode-charts-blue);
+	fill-opacity: 0.9;
+}
+
+.agents-window-graphic .awg-project-purple {
+	fill: var(--vscode-charts-purple);
+	fill-opacity: 0.9;
+}
+
+.agents-window-graphic .awg-project-orange {
+	fill: var(--vscode-agentsWindowGraphic-orange);
+	fill-opacity: 0.9;
+}
+
+.agents-window-graphic .awg-avatar {
+	fill: var(--vscode-charts-blue);
+	fill-opacity: 0.85;
+}
+
+.agents-window-graphic .awg-diff-added {
+	fill: var(--vscode-charts-green);
+	fill-opacity: 0.9;
+}
+
+.agents-window-graphic .awg-diff-removed {
+	fill: var(--vscode-charts-red);
+	fill-opacity: 0.9;
+}
+
+.agents-window-graphic .awg-arrow {
+	fill: none;
+	stroke: var(--vscode-foreground);
+	stroke-opacity: 0.4;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+/* Agent states */
+
+.agents-window-graphic :is(.awg-spinner-track, .awg-spinner-arc, .awg-done) {
+	fill: none;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.agents-window-graphic :is(.awg-spinner-track, .awg-spinner-arc) {
+	stroke: var(--vscode-charts-blue);
+}
+
+.agents-window-graphic .awg-spinner-track {
+	stroke-opacity: 0.25;
+}
+
+.agents-window-graphic .awg-done {
+	stroke: var(--vscode-charts-green);
+}
+
+.agents-window-graphic .awg-waiting {
+	fill: var(--vscode-charts-yellow);
+}
+
+.agents-window-graphic .awg-waiting-halo {
+	fill: var(--vscode-charts-yellow);
+	fill-opacity: 0.25;
+}
+
+.agents-window-graphic .awg-spinner {
+	transform-box: fill-box;
+	transform-origin: center;
+	animation: agents-window-graphic-spin 2s linear infinite;
+}
+
+@keyframes agents-window-graphic-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agents-window-graphic .awg-spinner {
+		animation: none;
+	}
+}
+
+.monaco-reduce-motion .agents-window-graphic .awg-spinner {
+	animation: none;
+}
+
+/* High contrast: outline the structure and keep low-opacity content visible. */
+
+:is(.hc-black, .hc-light) .agents-window-graphic :is(.awg-window-frame, .awg-command-center, .awg-input, .awg-surface-subtle) {
+	fill: none;
+	stroke: var(--vscode-contrastBorder);
+	stroke-opacity: 1;
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic .awg-row-selected {
+	fill: none;
+	stroke: var(--vscode-contrastActiveBorder);
+	stroke-opacity: 1;
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic .awg-surface-faint {
+	fill: none;
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic .awg-divider {
+	fill: var(--vscode-contrastBorder);
+	fill-opacity: 1;
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic .awg-button {
+	stroke: var(--vscode-contrastBorder);
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic .awg-window-shadow {
+	filter: none;
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic .awg-ink-faint {
+	fill-opacity: 0.55;
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic .awg-ink-subtle {
+	fill-opacity: 0.65;
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic .awg-ink-medium {
+	fill-opacity: 0.75;
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic :is(.awg-ink-strong, .awg-ink-full) {
+	fill-opacity: 1;
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic :is(.awg-icon, .awg-icon-active, .awg-arrow) {
+	stroke-opacity: 1;
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic :is(.awg-syntax-blue, .awg-syntax-yellow, .awg-syntax-orange, .awg-project-blue, .awg-project-purple, .awg-project-orange, .awg-avatar, .awg-diff-added, .awg-diff-removed, .awg-button-label) {
+	fill-opacity: 1;
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic .awg-spinner-track {
+	stroke-opacity: 0.5;
+}
+
+:is(.hc-black, .hc-light) .agents-window-graphic .awg-waiting-halo {
+	fill-opacity: 0.4;
+}

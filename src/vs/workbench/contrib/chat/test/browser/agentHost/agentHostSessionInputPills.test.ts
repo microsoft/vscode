@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -17,7 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
-import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CanvasesEnabledSettingId, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -27,7 +28,7 @@ import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../
 import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
-import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ChildCustomization, ComponentToState, Customization, CustomizationType, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ChildCustomization, ComponentToState, Customization, CustomizationType, FileEditKind, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -42,6 +43,8 @@ import { GitHubIssue } from '../../../../../../platform/github/common/githubQuer
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { FragmentState, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -57,6 +60,8 @@ import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../
 import { IChatWidgetService, type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
+import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
+import { WorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
@@ -66,7 +71,7 @@ import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import type { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo } from '../../../browser/widget/input/chatSessionWorkingSet.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
-import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { TestCustomizationJobScheduler } from '../../common/testCustomizationJobScheduler.js';
@@ -156,6 +161,10 @@ suite('AgentHostSessionInputPills', () => {
 	});
 	const createInstantiationService = () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatEditingService, upcastPartial<IChatEditingService>({
+			editingSessionsObs: constObservable([]),
+			getEditingSession: () => undefined,
+		}));
 		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({
 			onDidChangeDefaultClient: Event.None,
 			acquireDefaultAccountClient: () => new Promise(() => { }),
@@ -273,13 +282,16 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean }) {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper }) {
 		const instantiationService = createInstantiationService();
 		if (options?.configurationService) {
 			instantiationService.stub(IConfigurationService, options.configurationService);
 		}
 		if (options?.dialogService) {
 			instantiationService.stub(IDialogService, options.dialogService);
+		}
+		if (options?.openerService) {
+			instantiationService.stub(IOpenerService, options.openerService);
 		}
 		if (options?.getUriLabel) {
 			instantiationService.stub(ILabelService, 'getUriLabel', options.getUriLabel);
@@ -298,13 +310,18 @@ suite('AgentHostSessionInputPills', () => {
 			states.set(StateComponents.Chat, initialChat);
 		}
 		const connection = new StaticAgentConnection(states);
-		connection.resourceUris = createAgentHostResourceUriMapper(connectionAuthority);
+		connection.resourceUris = options?.resourceUris ?? createAgentHostResourceUriMapper(connectionAuthority);
 		const sessionResource = options?.sessionResource ?? URI.parse('agent-host-test:/session');
 		const persistentContent = document.createElement('div');
 		document.body.appendChild(persistentContent);
 		store.add(toDisposable(() => persistentContent.remove()));
 		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		let viewModel = upcastPartial<ChatViewModel>({ sessionResource });
+		const editingSessions = observableValue<readonly IChatEditingSession[]>('editingSessions', []);
+		instantiationService.stub(IChatEditingService, upcastPartial<IChatEditingService>({
+			editingSessionsObs: editingSessions,
+			getEditingSession: resource => editingSessions.get().find(session => session.chatSessionResource.toString() === resource.toString()),
+		}));
 		let inputFocused = false;
 		let workingSetChanges: readonly IEditSessionEntryDiff[] | undefined;
 		let workingSetUndo: IChatSessionWorkingSetUndo | undefined;
@@ -463,9 +480,11 @@ suite('AgentHostSessionInputPills', () => {
 				viewModelChanged.fire({ previousSessionResource, currentSessionResource: resource });
 			},
 			showModel: (model: IChatModel) => {
+				editingSessions.set(model.editingSession ? [model.editingSession] : [], undefined);
 				viewModel = upcastPartial<ChatViewModel>({ sessionResource: viewModel.sessionResource, model });
 				viewModelChanged.fire({ previousSessionResource: viewModel.sessionResource, currentSessionResource: viewModel.sessionResource });
 			},
+			addEditingSession: (session: IChatEditingSession) => editingSessions.set([...editingSessions.get(), session], undefined),
 			inputFocused: () => inputFocused,
 		};
 	}
@@ -689,6 +708,31 @@ suite('AgentHostSessionInputPills', () => {
 		}, { resources: [name], collections: 0 });
 	});
 
+	test('opens file artifacts through the connection that owns them', () => {
+		const artifact = URI.file('/home/user/videos/walkthrough.mp4');
+		const openArtifact = (connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper) => {
+			const openerService = new TestOpenerService();
+			const harness = createActivityPills(upcastPartial<SessionState>({
+				defaultChat: 'vendor-chat:/main', chats: [],
+				_meta: withSessionArtifacts(undefined, [{ id: 'video', label: 'Walkthrough', uri: artifact.toString(), type: SessionArtifactType.File, isArtifact: true }]),
+			}), undefined, undefined, connectionAuthority, undefined, undefined, { openerService, resourceUris });
+			// A single artifact pill opens its resource synchronously when clicked
+			harness.persistentContent.querySelector<HTMLElement>('.chat-resource-pill-button')?.click();
+			return openerService.opened.map(({ resource }) => resource.toString());
+		};
+
+		assert.deepStrictEqual({
+			localWindow: openArtifact('local', identityAgentHostResourceUriMapper),
+			// The ambient host of a remote window resolves as `local` but runs on the remote
+			remoteWindow: openArtifact('local', createAgentHostResourceUriMapper('ambient-remote')),
+			remoteHost: openArtifact('remote', createAgentHostResourceUriMapper('remote')),
+		}, {
+			localWindow: [artifact.toString()],
+			remoteWindow: [toAgentHostUri(artifact, 'ambient-remote').toString()],
+			remoteHost: [toAgentHostUri(artifact, 'remote').toString()],
+		});
+	});
+
 	test('opens single subagent input pills and every dropdown entry to the side', async () => {
 		const mainChat = 'vendor-chat:/conversations/main';
 		const children: ChatSummary[] = [
@@ -862,7 +906,7 @@ suite('AgentHostSessionInputPills', () => {
 		const summarizedClose = harness.persistentContent.querySelector('.chat-pill-promoted-action');
 		const dropdown = harness.dropdown('2 Canvases');
 		dropdown.find(item => item.label === dashboard.title)?.select();
-		await dropdown.find(item => item.label === dashboard.title)?.toolbarActions[0]?.run();
+		await dropdown.find(item => item.label === dashboard.title)?.toolbarActions.find(action => action.label === 'Close Canvas Dashboard')?.run();
 		harness.showModel(upcastPartial<IChatModel>({}));
 
 		assert.deepStrictEqual({
@@ -881,7 +925,7 @@ suite('AgentHostSessionInputPills', () => {
 			offersToggle: true,
 			summarizedClose: null,
 			dropdown: ['Canvases', 'Preview', 'Dashboard'],
-			closeActions: ['Close Canvas Preview', 'Close Canvas Dashboard'],
+			closeActions: ['Pin Preview', 'Close Canvas Preview', 'Pin Dashboard', 'Close Canvas Dashboard'],
 			commands: [{ id: REVEAL_CANVAS_COMMAND_ID, args: [{ ...owner, canvas: dashboard.resource }] }],
 			closed: [preview.resource.toString(), dashboard.resource.toString()],
 			withoutCanvasContext: [],
@@ -1370,6 +1414,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
 		viewModel = upcastPartial<ChatViewModel>({ sessionResource: draft });
@@ -1851,6 +1896,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		await timeout(0);
 
@@ -1970,8 +2016,10 @@ suite('AgentHostSessionInputPills', () => {
 				hoverText: 'microsoft/vscodeon Sep 1Live pull request 332982 #332982OpenLive pull request bodymain←feature@pr-author opened this pull request',
 				actionLabels: [
 					'Copy Pull Request URL',
+					'Pin Live pull request 332982',
 					'Remove Artifact Chat: unify Agent Host status pills across chat surfaces from Session',
 					'Copy Pull Request URL',
+					'Pin Live pull request 335387',
 					'Remove Artifact sessions: preserve recorded issue titles in pills from Session',
 				],
 			},
@@ -2196,6 +2244,7 @@ suite('AgentHostSessionInputPills', () => {
 				notificationService,
 				instantiationService.get(ICommandService),
 				instantiationService.get(IDialogService),
+				instantiationService.get(IChatEditingService),
 			));
 			const button = persistentContent.querySelector<HTMLElement>('.chat-changes-pill-button');
 			button?.click();
@@ -2253,7 +2302,14 @@ suite('AgentHostSessionInputPills', () => {
 		});
 		setFiles([first]);
 		const states = [readState()];
-		await setEnabled(true);
+		harness.instantiationService.stub(IConfigurationService, 'updateValue', async (key: string, value: boolean) => {
+			assert.strictEqual(key, ChatConfiguration.EditorWorkingSetEnabled);
+			assert.strictEqual(typeof value, 'boolean');
+			await setEnabled(value === true);
+		});
+		const showWorkingSet = harness.menu(harness.persistentContent.querySelector('.chat-changes-pill-button')).find(action => action.label === 'Show Working Set');
+		assert.ok(showWorkingSet);
+		await showWorkingSet.run();
 		states.push(readState());
 		setFiles([first, second]);
 		states.push(readState());
@@ -2781,10 +2837,11 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 			notificationService: upcastPartial<INotificationService>({ error: message => { errors.push(String(message)); } }),
 		});
-		const setOperations = (operations: ChangesetOperation[]) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+		const setOperations = (operations: ChangesetOperation[], nonce?: string) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
 			status: ChangesetStatus.Ready,
 			files: [{
 				id: 'file.ts',
+				...(nonce !== undefined ? { nonce } : {}),
 				edit: {
 					before: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/before/file.ts' } },
 					after: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/after/file.ts' } },
@@ -2806,6 +2863,74 @@ suite('AgentHostSessionInputPills', () => {
 	const acceptChanges = (status: ChangesetOperationStatus, confirmation?: string): ChangesetOperation => ({ id: 'accept-changes', label: 'Accept Changes', scopes: [ChangesetOperationScope.Resource], status, ...(confirmation ? { confirmation } : {}) });
 	// Like undoing a file in the editing session's working set, the host doesn't ask to confirm discarding a Working Set file.
 	const discardWorkingSetChanges = (status: ChangesetOperationStatus): ChangesetOperation => ({ id: 'discard-changes', label: 'Discard Changes', scopes: [ChangesetOperationScope.Resource], status });
+
+	test('checkpoint preview observes a lazily created editing session without a view-model change', async () => {
+		const { harness, setOperations } = createSessionWorkingSetPills();
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)], 'shown');
+		await harness.setWorkingSetEnabled(true);
+		const controller = store.add(new AgentHostSnapshotController(harness.sessionResource, 'remote-test', undefined, new NullLogService(), upcastPartial<IFileService>({
+			readFile: async () => upcastPartial<IFileContent>({ value: VSBuffer.fromString('baseline') }),
+		}), store.add(new WorkingCopyService())));
+		harness.showModel(upcastPartial<IChatModel>({}));
+		harness.addEditingSession(controller);
+		const [diff] = harness.workingSetChanges()!;
+		const update = await controller.checkpointReview.prepareRestore([{
+			edits: [{
+				kind: FileEditKind.Edit,
+				resource: diff.modifiedURI,
+				beforeContentUri: diff.originalURI,
+				afterContentUri: diff.modifiedSnapshotURI,
+				undoStopId: 'request',
+			}]
+		}], true, [diff.modifiedURI]);
+		transaction(update);
+		const afterRestore = { changes: harness.workingSetChanges(), pill: harness.labels().some(label => label.includes('File')) };
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)], 'new-edit');
+		assert.deepStrictEqual({ afterRestore, afterNewEdit: harness.workingSetChanges()?.length }, {
+			afterRestore: { changes: [], pill: false },
+			afterNewEdit: 1,
+		});
+	});
+
+	for (const nonce of [undefined, 'opaque-file-nonce']) {
+		test(`echoes an optional file nonce for working-set Keep and Undo (nonce=${nonce})`, async () => {
+			const { harness, setOperations, errors } = createSessionWorkingSetPills();
+			setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)], nonce);
+			await harness.setWorkingSetEnabled(true);
+			const keep = harness.workingSetKeep();
+			const undo = harness.workingSetUndo();
+			const [diff] = harness.workingSetChanges() ?? [];
+			assert.ok(keep && undo && diff);
+			const results = [await keep.keep([diff], false), await undo.undo([diff], false)];
+
+			assert.deepStrictEqual({ results, requests: harness.connection.invokedChangesetOperations, errors }, {
+				results: [true, true],
+				requests: ['accept-changes', 'discard-changes'].map(operationId => ({
+					channel: 'vendor-diff:/opaque/working-set',
+					operationId,
+					target: { kind: ChangesetOperationTargetKind.Resource, resource: 'file:///repo/file.ts', ...(nonce !== undefined ? { nonce } : {}) },
+				})),
+				errors: [],
+			});
+		});
+	}
+
+	test('does not replace a displayed nonce with a newer one on unchanged content URIs', async () => {
+		const { harness, setOperations, errors } = createSessionWorkingSetPills();
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle)], 'first');
+		await harness.setWorkingSetEnabled(true);
+		const keep = harness.workingSetKeep();
+		const [before] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && before);
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle)], 'second');
+		const [after] = harness.workingSetChanges() ?? [];
+		assert.ok(after);
+		const results = [await keep.keep([before], false), await keep.keep([after], false)];
+
+		assert.deepStrictEqual({ results, nonces: harness.connection.invokedChangesetOperations.map(params => params.target?.nonce), errors: errors.length }, {
+			results: [false, true], nonces: ['second'], errors: 1,
+		});
+	});
 
 	test('shows the session\'s Working Set instead of Session Changes, keeping and undoing its files with the host operations', async () => {
 		const { harness, session, errors, confirmations, setConfirmed, setOperations, readState, readInvoked } = createSessionWorkingSetPills();
@@ -3136,6 +3261,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 
@@ -3244,6 +3370,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 		const initial = {
@@ -3417,6 +3544,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const icon = button?.querySelector<HTMLElement>('.chat-pill-icon');
@@ -3597,6 +3725,7 @@ suite('AgentHostSessionInputPills', () => {
 			upcastPartial<INotificationService>({ error: error => errors.push(String(error)) }),
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
 		const copied: string[] = [];
@@ -3620,12 +3749,16 @@ suite('AgentHostSessionInputPills', () => {
 			empty: false,
 			dropdownActionLabels: [
 				'Copy Commit URL',
+				'Pin Commit',
 				'Remove Reference Commit from Session',
 				'Copy Website URL',
+				'Pin Preview',
 				'Remove Reference Preview from Session',
 				'Copy Path',
+				'Pin README.md',
 				'Remove Reference README from Session',
 				'Copy URI',
+				'Pin Chat settings',
 				'Remove Reference Chat settings from Session',
 			],
 			dropdownFooterActionLabels: ['Copy Hash', 'Copy Relative Path'],
@@ -3715,6 +3848,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		const showChat = (resource: URI) => {
 			const previousSessionResource = viewModel.sessionResource;
@@ -3802,6 +3936,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		const pills = () => Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
 		const running = pills();

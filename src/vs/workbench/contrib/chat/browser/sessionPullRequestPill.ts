@@ -32,16 +32,7 @@ export function createSessionPullRequestPillData(
 			...section,
 			entries: section.entries.filter(entry => visibility.isVisible(entry.pullRequestState, reader)),
 		})).filter(section => section.entries.length > 0);
-		if (getChatPillEntries(visibleSections).length <= 1) {
-			return visibleSections;
-		}
-		return visibleSections.map(section => ({
-			...section,
-			entries: section.entries.map(entry => entry.promotedAction ? {
-				...entry,
-				toolbarActions: [...entry.toolbarActions ?? [], entry.promotedAction],
-			} : entry),
-		}));
+		return visibleSections;
 	});
 	return {
 		sections: filteredSections,

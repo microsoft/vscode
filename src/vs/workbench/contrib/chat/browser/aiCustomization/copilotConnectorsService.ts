@@ -18,8 +18,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { gitHubCopilotResource } from '../../../../../platform/agentHost/common/githubEndpoints.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { ConnectorCatalog, ConnectorPlugin, copilotConnectorsScope } from '../../../../../platform/github/common/connectors/connectors.js';
+import { deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
 import { GitHubAuthorizationContext, GitHubRequestError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -44,7 +46,17 @@ const maxMcpServersPerConnector = 64;
 const refreshInterval = 60_000;
 const connectionPollInterval = 2_000;
 const connectionTimeout = 5 * 60_000;
+const maxConnectCatalogResets = 3;
 const requestTimeout = 30_000;
+/** Scopes of the Copilot credential forwarded to the Agent Host; Connectors are only available on GitHub.com. */
+const copilotCredentialScopes = gitHubCopilotResource(deriveGitHubEndpoints(undefined)).scopes_supported ?? [];
+
+/** Progress of a connection whose consent was requested, preserved when polling resumes after a catalog reset. */
+interface IConnectorConnectionPollState {
+	readonly initialStatus: CopilotConnectorConnectionStatus | undefined;
+	readonly deadline: number;
+	observedPending: boolean;
+}
 
 export class CopilotConnectorsError extends Error {
 	constructor(message: string, readonly statusCode?: number) {
@@ -311,9 +323,11 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		if (!authentication) {
 			throw connectorSignInRequired();
 		}
-		// Connector-owned Agent Host servers use the Copilot session credential, so only a session that also keeps
-		// the default session's scopes authorizes them; a narrow Connector-only session is not enough.
-		const authorized = authentication.sessions.find(session => hasConnectorScope(session, false) && authentication.session.scopes.every(scope => session.scopes.includes(scope)));
+		// Connector-owned Agent Host servers use the Copilot credential the Agent Host is given, which is resolved for
+		// the Copilot resource's scopes. Only a session that keeps those and the default session's scopes can become
+		// that credential; a narrower Connector session is never forwarded, even when it covers a narrow default session.
+		const requiredScopes = distinct([...authentication.session.scopes, ...copilotCredentialScopes]);
+		const authorized = authentication.sessions.find(session => hasConnectorScope(session, false) && requiredScopes.every(scope => session.scopes.includes(scope)));
 		if (authorized) {
 			this._authorizationRequired = false;
 			return authorized;
@@ -327,7 +341,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		try {
 			const session = await raceCancellationError(this.authenticationService.createSession(
 				authentication.account.authenticationProvider.id,
-				distinct([...authentication.session.scopes, copilotConnectorsScope]),
+				distinct([...requiredScopes, copilotConnectorsScope]),
 				{ account: authentication.session.account },
 			), cancellation.token);
 			const account = this.defaultAccountService.currentDefaultAccount;
@@ -425,61 +439,94 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 
 	async connect(name: string, token: CancellationToken): Promise<void> {
 		await this.trackConnectionAction('connect', name, async () => {
-			await this.authorize(token);
-			const operation = await this.createOperation(token);
-			try {
-				const connectors = await this.refresh(operation.token);
-				if (operation.token.isCancellationRequested) {
-					throw new CancellationError();
-				}
-				const initialStatus = connectors.find(connector => connector.name === name)?.connectionStatus;
-				if (initialStatus === 'connected') {
-					await this.refreshAgentHostConnectorSessions(name);
-					return;
-				}
-				const document = await this.withClient(
-					await this.getAuthentication(operation.token, true),
-					operation.token,
-					(client, signal, deadline) => client.connectors.connect(name, signal, { caller: 'copilotConnectors.connect', deadline })
-				);
-				const consentLink = parseHttpsUri(document.consent_link);
-				if (consentLink && !await this.openerService.open(consentLink)) {
-					throw new CopilotConnectorsError(localize('copilotConnectors.openConsentFailed', "The connector authorization page could not be opened."));
-				}
-
-				// The catalog may briefly report the pre-connect state after the PUT, and the user may
-				// legitimately take a long time on the consent page. So `not_connected` (and an `error`
-				// that was already present before connecting) is only treated as terminal once this
-				// connect has been observed as `pending`; a new `error` is terminal immediately.
-				let observedPending = false;
-				const deadline = Date.now() + connectionTimeout;
-				while (Date.now() < deadline) {
-					const refreshed = await this.refresh(operation.token);
-					const connector = refreshed.find(connector => connector.name === name);
-					switch (connector?.connectionStatus) {
-						case 'connected':
-							return;
-						case 'pending':
-							observedPending = true;
-							break;
-						case 'error':
-							if (observedPending || initialStatus !== 'error') {
-								throw createConnectionFailedError(connector);
-							}
-							break;
-						case 'not_connected':
-							if (observedPending) {
-								throw createConnectionFailedError(connector);
-							}
-							break;
+			let accountIdentity: string | undefined;
+			let pollState: IConnectorConnectionPollState | undefined;
+			for (let resets = 0; ; resets++) {
+				await this.authorize(token);
+				const operation = await this.createOperation(token);
+				try {
+					const currentIdentity = getAccountIdentity(this.defaultAccountService.currentDefaultAccount);
+					if (resets === 0) {
+						accountIdentity = currentIdentity;
+					} else if (currentIdentity !== accountIdentity) {
+						throw new CancellationError();
 					}
-					await timeout(connectionPollInterval, operation.token);
+					pollState ??= await this.requestConnection(name, operation.token);
+					if (!pollState) {
+						return;
+					}
+					await this.pollConnection(name, pollState, operation.token);
+					return;
+				} catch (error) {
+					// Authentication session changes (such as the connector authorization created above or a token
+					// refresh) reset the catalog context and cancel its operations. For the same account, keep
+					// connecting with a fresh operation instead of abandoning a consent the user may still complete.
+					if (!isCancellationError(error) || token.isCancellationRequested || !operation.cacheToken.isCancellationRequested ||
+						resets >= maxConnectCatalogResets || !this.isEnabled() || this._store.isDisposed ||
+						accountIdentity !== getAccountIdentity(this.defaultAccountService.currentDefaultAccount)) {
+						throw error;
+					}
+				} finally {
+					operation.dispose();
 				}
-				throw new CopilotConnectorsError(localize('copilotConnectors.connectionTimedOut', "Connector authorization did not finish in time. Complete authorization in the browser, then try again."));
-			} finally {
-				operation.dispose();
 			}
 		});
+	}
+
+	/**
+	 * Requests a connection and opens its consent page, resolving to the polling state, or `undefined` when the
+	 * connector is already connected.
+	 */
+	private async requestConnection(name: string, token: CancellationToken): Promise<IConnectorConnectionPollState | undefined> {
+		const connectors = await this.refresh(token);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const initialStatus = connectors.find(connector => connector.name === name)?.connectionStatus;
+		if (initialStatus === 'connected') {
+			await this.refreshAgentHostConnectorSessions(name);
+			return undefined;
+		}
+		const document = await this.withClient(
+			await this.getAuthentication(token, true),
+			token,
+			(client, signal, deadline) => client.connectors.connect(name, signal, { caller: 'copilotConnectors.connect', deadline })
+		);
+		const consentLink = parseHttpsUri(document.consent_link);
+		if (consentLink && !await this.openerService.open(consentLink)) {
+			throw new CopilotConnectorsError(localize('copilotConnectors.openConsentFailed', "The connector authorization page could not be opened."));
+		}
+		return { initialStatus, deadline: Date.now() + connectionTimeout, observedPending: false };
+	}
+
+	private async pollConnection(name: string, state: IConnectorConnectionPollState, token: CancellationToken): Promise<void> {
+		// The catalog may briefly report the pre-connect state after the PUT, and the user may
+		// legitimately take a long time on the consent page. So `not_connected` (and an `error`
+		// that was already present before connecting) is only treated as terminal once this
+		// connect has been observed as `pending`; a new `error` is terminal immediately.
+		while (Date.now() < state.deadline) {
+			const refreshed = await this.refresh(token);
+			const connector = refreshed.find(connector => connector.name === name);
+			switch (connector?.connectionStatus) {
+				case 'connected':
+					return;
+				case 'pending':
+					state.observedPending = true;
+					break;
+				case 'error':
+					if (state.observedPending || state.initialStatus !== 'error') {
+						throw createConnectionFailedError(connector);
+					}
+					break;
+				case 'not_connected':
+					if (state.observedPending) {
+						throw createConnectionFailedError(connector);
+					}
+					break;
+			}
+			await timeout(connectionPollInterval, token);
+		}
+		throw new CopilotConnectorsError(localize('copilotConnectors.connectionTimedOut', "Connector authorization did not finish in time. Complete authorization in the browser, then try again."));
 	}
 
 	async checkConnection(token: CancellationToken): Promise<void> {

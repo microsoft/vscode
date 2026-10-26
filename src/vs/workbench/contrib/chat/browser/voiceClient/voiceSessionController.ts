@@ -22,9 +22,9 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, getVoiceRecentTurns, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { voiceCloseCodeInfo, VoiceCloseCode } from '../../common/voiceClient/voiceCloseCodes.js';
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
@@ -36,7 +36,7 @@ import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js'
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { ChatSendResult, ConfirmedReason, IChatConfirmation, IChatElicitationRequest, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, ConfirmedReason, IChatConfirmation, IChatElicitationRequest, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
 import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -49,6 +49,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -203,6 +204,8 @@ export interface IVoiceSessionController {
 	readonly isConnected: IObservable<boolean>;
 	readonly isConnecting: IObservable<boolean>;
 	readonly isReconnecting: IObservable<boolean>;
+	/** Whether the current connection uses OpenAI GPT Live rather than hosted voice. */
+	readonly isUsingGptLive: boolean;
 	/** Whether the user has muted the microphone while keeping the session connected. */
 	readonly isMuted: IObservable<boolean>;
 	readonly pendingToolConfirmations: IObservable<readonly IPendingToolConfirmation[]>;
@@ -361,6 +364,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private readonly _isConnected = observableValue<boolean>(this, false);
 	readonly isConnected: IObservable<boolean> = this._isConnected;
+
+	get isUsingGptLive(): boolean {
+		return this._usingGptLiveByok;
+	}
 
 	private readonly _isConnecting = observableValue<boolean>(this, false);
 	readonly isConnecting: IObservable<boolean> = this._isConnecting;
@@ -865,6 +872,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IAgentHostConnectionsService private readonly connectionsService: IAgentHostConnectionsService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -1841,10 +1849,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Session ready: the backend has acked start_session. This is the
 		// point at which the mic/handshake is settled and a turn will stick,
 		// so enter hands-free listening here (armed in the connect handler).
-		let didNotifyGptLiveByok = false;
 		this._voiceEventDisposables.add(this.voiceClientService.onSessionInit(() => {
-			if (hasGptLiveByok && byokModelId && !didNotifyGptLiveByok) {
-				didNotifyGptLiveByok = true;
+			if (hasGptLiveByok && byokModelId && !this.storageService.getBoolean(AgentsVoiceStorageKeys.GptLiveNoticeShown, StorageScope.PROFILE, false)) {
+				this.storageService.store(AgentsVoiceStorageKeys.GptLiveNoticeShown, true, StorageScope.PROFILE, StorageTarget.USER);
 				this.notificationService.info(localize('voiceMode.usingOpenAIModel', "Using {0} from your OpenAI provider for Voice Mode.", byokModelId));
 			}
 			// The ack the socket-open path was waiting on: this is the first proof
@@ -3618,7 +3625,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private async _sendVoiceRequest(sessionResource: URI, text: string): Promise<ChatSendResult | undefined> {
 		const generation = this._connectAttemptGeneration;
 		const initializationGeneration = this._sessionInitializationGeneration;
-		const result = await this.chatService.sendRequest(sessionResource, text, { isVoiceModeInput: this._isVoiceProgressEnabled() }).catch(err => {
+		const result = await this.chatService.sendRequest(sessionResource, text, {
+			isVoiceModeInput: this._isVoiceProgressEnabled(),
+			...(this.chatService.getSession(sessionResource)?.requestInProgress.get() ? { queue: ChatRequestQueueKind.Steering } : {}),
+		}).catch(err => {
 			this.logService.warn('[voice] Error sending transcription:', err);
 			return undefined;
 		});
@@ -5063,7 +5073,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		return {
 			kind: 'question',
-			text: formatQuestionPrompt(question, pending.allow_skip === true),
+			text: formatQuestionPrompt(question, pending.allow_skip === true, pending.message, pending.questions?.length),
 			pending: { pendingId: pending.pending_id },
 		};
 	}
@@ -6664,7 +6674,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * so it stays accurate even though the backend isn't told about it.
 	 */
 	private _reportedAgentState(realState: string, isActive: boolean): { state: string; hideConfirmationDetail: boolean } {
-		if (realState === 'waiting_for_confirmation' && !isActive) {
+		if (realState === 'waiting_for_confirmation' && !isActive && !this.voiceClientService.isSessionAwarenessEnabled) {
 			return { state: 'thinking', hideConfirmationDetail: true };
 		}
 		return { state: realState, hideConfirmationDetail: false };
@@ -6825,6 +6835,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		if (targetSessionId && !sessionList.some(session => session.id === targetSessionId)) {
 			sessionList.push({ id: targetSessionId, is_active: true, agent_state: 'unknown' });
+		}
+		if (this.voiceClientService.isSessionAwarenessEnabled) {
+			const active = sessionList.find(session => session.is_active);
+			const model = active ? this.chatService.getSession(URI.parse(active.id)) : undefined;
+			if (active && model) {
+				active.recent_turns = getVoiceRecentTurns(model, 3, true);
+			}
 		}
 
 		// `active_session` is not sent: the per-session `is_active` flag already

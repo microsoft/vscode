@@ -446,6 +446,32 @@ suite('OnboardingScenarioService', () => {
 		assert.deepStrictEqual({ runs, a, b }, { runs: ['inflight-1'], a: OnboardingOutcome.Completed, b: OnboardingOutcome.Completed });
 	});
 
+	test('isPresenting is true while a scenario is queued or running', async () => {
+		let release!: () => void;
+		const gate = new Promise<void>(resolve => { release = resolve; });
+		const kind = uniqueKind();
+		registerPresentation({
+			kind,
+			async run(): Promise<IOnboardingRunResult> {
+				await gate;
+				return completedResult();
+			}
+		});
+		registerScenario({ id: 'presenting-1', trigger: { kind: 'command', commandId: 'noop' }, presentation: { kind, payload: undefined } });
+
+		const { service } = createService();
+		service.start();
+		const before = service.isPresenting.get();
+		const run = service.runScenario('presenting-1');
+		const queued = service.isPresenting.get();
+		await timeout(0);
+		const running = service.isPresenting.get();
+		release();
+		await run;
+
+		assert.deepStrictEqual({ before, queued, running, after: service.isPresenting.get() }, { before: false, queued: true, running: true, after: false });
+	});
+
 	test('runScenario does not enqueue an already cancelled request', async () => {
 		const presentation = new RecordingPresentation(uniqueKind());
 		registerPresentation(presentation);

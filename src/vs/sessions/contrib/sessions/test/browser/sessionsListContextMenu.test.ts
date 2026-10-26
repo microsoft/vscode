@@ -348,7 +348,7 @@ suite('Sessions list context menus', () => {
 		dispatchContextMenu(groupHeader);
 
 		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
-			ids: ['sessions.createSubgroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
+			ids: ['sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			disposableIds: [],
 		});
 	});
@@ -424,7 +424,7 @@ suite('Sessions list context menus', () => {
 			moveToGroup: { label: moveToGroup?.label, targets: moveToGroup?.actions.map(action => action.label) },
 			created: harness.createdGroups,
 		}, {
-			groupMenu: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
+			groupMenu: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			moveToGroup: { label: 'Move to Group', targets: ['Release work', 'Release work › Hotfixes › Urgent', 'Triage'] },
 			created: [
 				{ name: 'New Group', sessionIds: [], parentId: hotfixes.id },
@@ -665,8 +665,8 @@ suite('Sessions list context menus', () => {
 				grouped,
 				actions: {
 					ids: grouped
-						? ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
-						: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createGroup'],
+						? ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
+						: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.moveSectionToGroup', 'sessions.moveSectionToGroup.target', 'sessions.moveSectionToGroup.group', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.createGroup'],
 					disposableIds: [],
 				},
 				readSessions: ['Visible', 'Filtered'],
@@ -717,8 +717,9 @@ suite('Sessions list context menus', () => {
 		const configurationService = new TestConfigurationService({ 'chat.agentHost.moveChats.enabled': true });
 		const harness = createListHarness(disposables, [session], instantiationService => {
 			instantiationService.stub(IConfigurationService, configurationService);
-			// No sessions list view: nothing to reveal the new session in.
+			// No sessions list view showing: nothing to reveal the new session in, and a refusal is a notification.
 			instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+				override isViewVisible() { return false; }
 				override getViewWithId() { return null; }
 			});
 			instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {

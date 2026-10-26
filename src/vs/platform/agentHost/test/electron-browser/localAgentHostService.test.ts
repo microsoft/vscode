@@ -7,7 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../base/common/observable.js';
+import { constObservable, autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChannel, IChannelClient, IChannelServer, IServerChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -75,6 +75,7 @@ suite('LocalAgentHostServiceClient events', () => {
 		const onDidNotification = disposables.add(new Emitter<INotification>());
 		const onMcpNotification = disposables.add(new Emitter<IMcpNotification>());
 		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
+		const connectionAvailable = observableValue('test connection availability', false);
 		const createdChats: { session: URI; chat: URI; options?: IAgentCreateChatRequestOptions }[] = [];
 		let connectCount = 0;
 		const fire = () => {
@@ -89,6 +90,11 @@ suite('LocalAgentHostServiceClient events', () => {
 			onMcpNotification: onMcpNotification.event,
 			onDidChangeConnectionState: onDidChangeConnectionState.event,
 			onDidFatalClose: Event.None,
+			connectionAvailable,
+			artifactIntegrationTransport: {
+				onDidUpdate: Event.None, onDidReset: Event.None, available: connectionAvailable,
+				request: async () => { throw new Error('Artifact requests are not used by this test.'); },
+			},
 			registerMcpAuthenticationHandler: () => Disposable.None,
 			createChat: async (session: URI, chat: URI, options?: IAgentCreateChatRequestOptions) => {
 				createdChats.push({ session, chat, options });
@@ -119,6 +125,10 @@ suite('LocalAgentHostServiceClient events', () => {
 		};
 		return {
 			service, received, listen, fire, onDidChangeConnectionState, createdChats,
+			setConnectionState: (state: AgentHostClientState) => {
+				connectionAvailable.set(state === AgentHostClientState.Connected, undefined);
+				onDidChangeConnectionState.fire(state);
+			},
 			connectCount: () => connectCount,
 			listening: () => [onDidAction.hasListeners(), onDidNotification.hasListeners(), onMcpNotification.hasListeners()],
 		};
@@ -131,6 +141,15 @@ suite('LocalAgentHostServiceClient events', () => {
 		const beforeStart = service.clientConnectionKind;
 		service.startAgentHost();
 		assert.deepStrictEqual([beforeStart, service.clientConnectionKind], [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.Local]);
+	});
+
+	test('reads the environment display name from local host management', async () => {
+		const { service } = createService();
+		const managementService = new class extends mock<IAgentHostManagementService>() {
+			override async getMissionControlEnvironmentName() { return 'Host-owned name (VS Code Insiders)'; }
+		}();
+		sinon.stub(Object.getPrototypeOf(service), '_getManagementService').returns(managementService);
+		assert.strictEqual(await service.getMissionControlEnvironmentName(), 'Host-owned name (VS Code Insiders)');
 	});
 
 	test('routes title-only and prompt-bearing creation through AHP, while retaining legacy model management routing', async () => {
@@ -283,6 +302,23 @@ suite('LocalAgentHostServiceClient events', () => {
 		assert.deepStrictEqual(received, expected);
 	});
 
+	test('artifact transport subscribed before startup follows connection and reconnect availability', () => {
+		const { service, setConnectionState } = createService();
+		const transport = service.artifactIntegrationTransport;
+		const availability: boolean[] = [];
+		disposables.add(autorun(reader => availability.push(transport.available.read(reader))));
+		service.startAgentHost();
+		setConnectionState(AgentHostClientState.Connected);
+		setConnectionState(AgentHostClientState.Reconnecting);
+		setConnectionState(AgentHostClientState.Connected);
+		service.startAgentHost();
+		setConnectionState(AgentHostClientState.Closed);
+		assert.deepStrictEqual({
+			stableTransport: service.artifactIntegrationTransport === transport,
+			availability,
+		}, { stableTransport: true, availability: [false, true, false, true, false] });
+	});
+
 	test('preserves subscriptions across reconnects and repeated start calls', () => {
 		const { service, received, listen, fire, onDidChangeConnectionState, connectCount } = createService();
 		listen();
@@ -405,6 +441,10 @@ suite('registerAgentHostClientChannels', () => {
 			onDidAction: Event.None,
 			onDidNotification: Event.None,
 			onMcpNotification: Event.None,
+			artifactIntegrationTransport: {
+				onDidUpdate: Event.None, onDidReset: Event.None, available: constObservable(false),
+				request: async () => { throw new Error('Artifact requests are not used by this test.'); },
+			},
 			registerMcpAuthenticationHandler: () => Disposable.None,
 			initializeResult: constObservable(undefined),
 			rootState: {

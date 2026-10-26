@@ -65,7 +65,7 @@ import { logSessionsInteraction, SessionsInteractionSource } from '../../../comm
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
@@ -765,15 +765,14 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 			return false;
 		}
 		const move: SessionsListMove = { kind: 'chat', session: context.session, chat: context.chat, destination: { kind: 'newSession' } };
-		// Like a drop on the list, reveal and select the new session in the list once it shows it.
-		const revealMoved = getSessionsList(accessor)?.watchMoveForReveal(move);
-		let moved = false;
-		try {
-			moved = await runSessionsListMove(move, sessionsManagementService, accessor.get(INotificationService), accessor.get(ILogService));
-		} finally {
-			revealMoved?.(moved);
-		}
-		return moved;
+		const viewsService = accessor.get(IViewsService);
+		const sessionsList = getSessionsList(accessor);
+		// Like a drop on the list, report the move in the list's notice when the list shows, and reveal and select the
+		// new session in the list once it shows it.
+		return runSessionsListMove(move, sessionsManagementService, accessor.get(INotificationService), accessor.get(ILogService), {
+			notice: viewsService.isViewVisible(SessionsViewId) ? viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification : undefined,
+			watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
+		});
 	}
 });
 
@@ -832,7 +831,7 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				id: Menus.SessionItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate()),
+				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate(), SessionItemIsCloudContext.negate()),
 			}, {
 				id: Menus.SessionItemContextMenu,
 				group: '1_newChat',
@@ -1466,7 +1465,7 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
 		this._register(this.hoverService.setupDelayedHover(button.element, () => ({
 			content: this.getHoverContent(getKeybinding()?.getLabel() ?? undefined),
-			appearance: { compact: true },
+			appearance: { compact: true, showPointer: true },
 			position: { hoverPosition: HoverPosition.BELOW },
 		})));
 

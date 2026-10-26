@@ -64,6 +64,51 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.customization-migration-dashboard .migration-category-error {
+	box-sizing: border-box;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	column-gap: var(--vscode-spacing-size120);
+	min-width: 0;
+	margin-top: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-inputValidation-errorBorder) 70%, var(--vscode-agentsPanel-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: color-mix(in srgb, var(--vscode-inputValidation-errorBackground) 45%, var(--vscode-agentsPanel-background));
+}
+
+.vscode-high-contrast .customization-migration-dashboard .migration-category-error {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.customization-migration-dashboard .migration-category-error-icon {
+	align-self: start;
+	padding-top: var(--vscode-spacing-size20);
+	color: var(--vscode-errorForeground);
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.customization-migration-dashboard .migration-category-error-content {
+	min-width: 0;
+}
+
+.customization-migration-dashboard .migration-category-error-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.customization-migration-dashboard .migration-category-error-description {
+	margin: var(--vscode-spacing-size20) 0 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	overflow-wrap: anywhere;
+}
+
+.customization-migration-dashboard .migration-category-error-actions {
+	display: flex;
+	align-items: center;
+}
 
 .customization-migration-dashboard .monaco-button {
 	width: auto;
@@ -109,6 +154,24 @@
 	margin-top: var(--vscode-spacing-size80);
 }
 
+/* Guidance details share the header and migration card of the other customization migration details. */
+.customization-migration-dashboard .migration-guidance-detail-header {
+	gap: var(--vscode-spacing-size80);
+	padding: 0 0 var(--vscode-spacing-size80);
+}
+
+.customization-migration-dashboard .migration-guidance-detail-header .editor-back-button {
+	width: var(--vscode-spacing-size280);
+	height: var(--vscode-spacing-size280);
+}
+
+.customization-migration-dashboard .migration-guidance-card {
+	flex: 0 0 auto;
+}
+
+.customization-migration-dashboard .migration-guidance-card .mcp-detail-diagnostic-message + .mcp-detail-diagnostic-message {
+	margin-top: var(--vscode-spacing-size60);
+}
 .customization-migration-dashboard .migration-tree .monaco-list-row {
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -310,6 +373,17 @@
 }
 
 @container (max-width: 520px) {
+	.customization-migration-dashboard .migration-category-error {
+		grid-template-columns: auto minmax(0, 1fr);
+		align-items: start;
+		row-gap: var(--vscode-spacing-size80);
+	}
+
+	.customization-migration-dashboard .migration-category-error-actions {
+		grid-column: 2;
+		justify-self: start;
+	}
+
 	.customization-migration-dashboard .migration-tree-group-actions .migration-secondary-button {
 		padding-inline: var(--vscode-spacing-size60);
 	}

@@ -21,6 +21,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../../browser/workbench.j
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
+import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionChangesService } from '../../../../changes/browser/sessionChangesService.js';
@@ -69,6 +70,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 		}());
 	}());
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme, additionalServices: registerWorkbenchServices });
+	instantiationService.stub(ISessionInputPickerVisibility, disposableStore.add(new SessionInputPickerVisibility()));
 	const providers: ISessionsProvider[] = [provider];
 	instantiationService.stub(ISessionsProvidersService, {
 		onDidChangeProviders: Event.None,

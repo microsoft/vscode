@@ -43,6 +43,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
 	private readonly root: HTMLElement;
+	private readonly headerEl: HTMLElement;
 	private readonly leadingSlotEl: HTMLElement;
 	private readonly iconEl: HTMLElement;
 	private readonly titleEl: HTMLElement;
@@ -65,6 +66,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 	private readonly previewDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private renderGeneration = 0;
 	private current: ICustomizationMarketplaceResource | undefined;
+	private primaryActionButton: Button | undefined;
 	private locationFactEl: HTMLElement | undefined;
 	private readmeContent: string | undefined;
 
@@ -80,7 +82,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 	) {
 		super();
 		this.root = DOM.append(parent, $('article.ai-customization-embedded-detail.embedded-marketplace-detail'));
-		const header = DOM.append(this.root, $('header.embedded-detail-header.marketplace-detail-header'));
+		const header = this.headerEl = DOM.append(this.root, $('header.embedded-detail-header.marketplace-detail-header'));
 		this.leadingSlotEl = DOM.append(header, $('.embedded-detail-leading-slot'));
 		this.iconEl = DOM.append(header, $('.embedded-detail-icon.marketplace-detail-icon'));
 		const identity = DOM.append(header, $('.embedded-detail-header-text'));
@@ -127,6 +129,15 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		return this.leadingSlotEl;
 	}
 
+	get headerElement(): HTMLElement {
+		return this.headerEl;
+	}
+
+	/** The header's primary (non-secondary) action, if one is shown. */
+	get primaryAction(): Button | undefined {
+		return this.primaryActionButton;
+	}
+
 	setInput(resource: ICustomizationMarketplaceResource): void {
 		const previous = this.current;
 		this.current = resource;
@@ -151,6 +162,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.iconDisposables.clear();
 		DOM.clearNode(this.iconEl);
 		DOM.clearNode(this.titleActionsEl);
+		this.primaryActionButton = undefined;
 		DOM.clearNode(this.queriesEl);
 		DOM.clearNode(this.factsEl);
 		DOM.clearNode(this.readmeContentEl);
@@ -237,6 +249,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 	private renderInstallState(resource: ICustomizationMarketplaceResource): void {
 		this.installActionDisposables.clear();
 		DOM.clearNode(this.titleActionsEl);
+		this.primaryActionButton = undefined;
 		this.locationFactEl?.remove();
 		this.locationFactEl = undefined;
 
@@ -380,6 +393,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 			...defaultButtonStyles,
 			ariaLabel: localize('marketplaceDetail.actionAria', "{0} {1}", label, resource.displayName),
 		}));
+		this.primaryActionButton = button;
 		button.label = label;
 		button.enabled = action !== undefined;
 		button.element.setAttribute('aria-busy', String(state.kind === 'installing' || state.kind === 'repairing'));
@@ -436,9 +450,24 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 			secondary: state.kind === 'installed',
 			ariaLabel: localize('marketplaceDetail.actionAria', "{0} {1}", label, resource.displayName),
 		}));
+		if (state.kind !== 'installed') {
+			this.primaryActionButton = button;
+		}
 		button.label = label;
 		button.enabled = action !== undefined;
 		button.element.setAttribute('aria-busy', String(state.kind === 'installing' || state.kind === 'checking' || state.kind === 'repairing' || state.kind === 'uninstalling'));
+		if (state.kind === 'installing' || state.kind === 'repairing') {
+			const cancel = this.installActionDisposables.add(new Button(this.titleActionsEl, {
+				...defaultButtonStyles,
+				secondary: true,
+				ariaLabel: state.kind === 'installing'
+					? localize('marketplaceDetail.cancelConnectingAria', "Cancel connecting {0}", resource.displayName)
+					: localize('marketplaceDetail.cancelReconnectingAria', "Cancel reconnecting {0}", resource.displayName),
+			}));
+			this.primaryActionButton = cancel;
+			cancel.label = localize('marketplaceDetail.cancel', "Cancel");
+			this.installActionDisposables.add(cancel.onDidClick(() => this.installService.cancelConnectorOperation(resource)));
+		}
 		if (!action) {
 			return;
 		}
@@ -453,6 +482,12 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 					status(localize('marketplaceDetail.connectedStatus', "Connected {0}.", resource.displayName));
 				}
 			} catch (error) {
+				if (isCancellationError(error)) {
+					status(state.kind === 'missing'
+						? localize('marketplaceDetail.reconnectCancelledStatus', "Reconnection cancelled for {0}.", resource.displayName)
+						: localize('marketplaceDetail.connectCancelledStatus', "Connection cancelled for {0}.", resource.displayName));
+					return;
+				}
 				const message = state.kind === 'installed'
 					? localize('marketplaceDetail.disconnectError', "Could not disconnect {0}. {1}", resource.displayName, getErrorMessage(error))
 					: state.kind === 'missing'

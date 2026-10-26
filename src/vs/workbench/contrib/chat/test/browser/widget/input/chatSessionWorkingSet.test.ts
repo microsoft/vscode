@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { IAction } from '../../../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
@@ -20,6 +22,8 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IUntypedEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
 import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
@@ -31,18 +35,34 @@ import { AgentChatAccessibilityHelp } from '../../../../browser/actions/chatAcce
 import '../../../../browser/chatEditing/chatEditingActions.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
-import { emptySessionEntryDiff, IChatEditingService, IChatEditingSession, IEditSessionEntryDiff } from '../../../../common/editing/chatEditingService.js';
+import { emptySessionEntryDiff, IChatEditingService, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
+import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { IChatViewModel } from '../../../../common/model/chatViewModel.js';
 
 suite('ChatSessionWorkingSet', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keepEnabled?: IObservable<boolean>, keepResult?: Promise<boolean>) {
+	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keepEnabled?: IObservable<boolean>, keepResult?: Promise<boolean>, editingSession?: () => IChatEditingSession | undefined) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.OpenChangedFileInDiffEditor]: openInDiffEditor });
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.OpenChangedFileInDiffEditor]: openInDiffEditor, [ChatConfiguration.EditorWorkingSetEnabled]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IConfigurationService, 'updateValue', (key: string, value: boolean) => configurationService.setUserConfiguration(key, value));
+		const reviewPreferences = store.add(instantiationService.createInstance(ChatSessionReviewPreferencesService));
+		instantiationService.stub(IChatSessionReviewPreferencesService, reviewPreferences);
+		let menuActions: readonly IAction[] = [];
+		let closeMenu = () => { };
+		let inputFocusCalls = 0;
+		instantiationService.stub(IContextMenuService, {
+			showContextMenu: delegate => {
+				assert.ok(delegate.getActions);
+				menuActions = delegate.getActions();
+				closeMenu = () => delegate.onHide?.(false);
+			},
+		});
+		const warnings: string[] = [];
+		instantiationService.stub(INotificationService, { warn: message => warnings.push(String(message)) });
 		instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
 		// Runs the commands of the rows' menu, which the working set's file actions are.
 		const executed: { readonly id: string; readonly resource: string | undefined }[] = [];
@@ -78,19 +98,83 @@ suite('ChatSessionWorkingSet', () => {
 			},
 			keepEnabled,
 			undo,
-		}));
+			editingSession,
+		}, () => { inputFocusCalls++; }));
 		document.body.appendChild(workingSet.domNode);
 		store.add(toDisposable(() => workingSet.domNode.remove()));
 		const rows = () => [...workingSet.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')];
 		const fileAction = (row: HTMLElement, label: string) => row.querySelector<HTMLElement>(`.action-label[aria-label="${label}"]`)!;
 		const headerButtons = () => [...workingSet.domNode.querySelectorAll<HTMLElement>('.chat-editing-session-actions .monaco-button')];
 		const headerButton = (label: string) => headerButtons().find(button => button.getAttribute('aria-label') === label)!;
-		return { workingSet, diffs, collapsed, opened, instantiationService, kept, signals, executed, rows, fileAction, headerButtons, headerButton };
+		return { workingSet, diffs, collapsed, opened, warnings, instantiationService, configurationService, reviewPreferences, kept, signals, executed, rows, fileAction, headerButtons, headerButton, menuActions: () => menuActions, closeMenu: () => closeMenu(), inputFocusCalls: () => inputFocusCalls };
 	}
 
 	const readFileActions = (rows: readonly HTMLElement[]) => rows.map(row => [...row.querySelectorAll('.action-label')]
 		.map(action => action.getAttribute('aria-disabled') === 'true' ? `${action.getAttribute('aria-label')} (disabled)` : action.getAttribute('aria-label')));
 	const readHeaderButtons = (buttons: readonly HTMLElement[]) => buttons.map(button => button.getAttribute('aria-disabled') === 'true' ? `${button.getAttribute('aria-label')} (disabled)` : button.getAttribute('aria-label'));
+
+	test('the context menu toggles header and file review controls without hiding diffs', async () => {
+		const undone: string[] = [];
+		const { workingSet, rows, headerButtons, menuActions, kept, signals } = createWorkingSet([
+			emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts')),
+		], true, constObservable({
+			enabled: constObservable(true),
+			undo: async diffs => { undone.push(...diffs.map(diff => diff.modifiedURI.path)); return true; },
+		}));
+		const read = () => ({ header: readHeaderButtons(headerButtons()), rows: readFileActions(rows()) });
+		const states = [read()];
+		rows()[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const menu = menuActions().map(action => ({ label: action.label, checked: action.checked }));
+		await menuActions()[0].run();
+		await timeout(0);
+		states.push(read());
+		await workingSet.keepFiles([URI.file('/after.ts')]);
+		await workingSet.undoFiles([URI.file('/after.ts')]);
+		workingSet.domNode.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const unchecked = menuActions()[0].checked;
+		await menuActions()[0].run();
+		await timeout(0);
+		states.push(read());
+
+		assert.deepStrictEqual({ states, menu, unchecked, kept, undone, signals }, {
+			states: [
+				{ header: ['Keep All Edits', 'Undo All Edits', 'View All Edits'], rows: [['Keep', 'Undo', 'Open Changes in Diff Editor']] },
+				{ header: ['View All Edits'], rows: [['Open Changes in Diff Editor']] },
+				{ header: ['Keep All Edits', 'Undo All Edits', 'View All Edits'], rows: [['Keep', 'Undo', 'Open Changes in Diff Editor']] },
+			],
+			menu: [{ label: 'Keep and Undo', checked: true }, { label: '', checked: undefined }, { label: 'Show Pill', checked: undefined }],
+			unchecked: false, kept: [], undone: [], signals: [],
+		});
+	});
+
+	test('keyboard context menu toggles review and restores focus when an action disappears', async () => {
+		const { workingSet, rows, fileAction, menuActions, closeMenu } = createWorkingSet([emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts'))]);
+		const keep = fileAction(rows()[0], 'Keep');
+		keep.focus();
+		const event = new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true });
+		keep.dispatchEvent(event);
+		await menuActions()[0].run();
+		await timeout(0);
+		closeMenu();
+
+		assert.deepStrictEqual({ prevented: event.defaultPrevented, enabled: workingSet.keepUndoEnabled, focused: dom.getActiveElement() === workingSet.domNode.querySelector('.monaco-button') }, {
+			prevented: true, enabled: false, focused: true,
+		});
+	});
+
+	test('Show Pill disables the existing Working Set setting without changing the review preference', async () => {
+		const { workingSet, configurationService, menuActions, closeMenu, inputFocusCalls } = createWorkingSet([emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts'))]);
+		workingSet.domNode.querySelector<HTMLElement>('.monaco-button')!.focus();
+		workingSet.domNode.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+		const showPill = menuActions().find(action => action.label === 'Show Pill')!;
+		closeMenu();
+		await showPill.run();
+		workingSet.domNode.remove();
+
+		assert.deepStrictEqual({ workingSet: configurationService.getValue(ChatConfiguration.EditorWorkingSetEnabled), review: workingSet.keepUndoEnabled, inputFocusCalls: inputFocusCalls() }, {
+			workingSet: false, review: true, inputFocusCalls: 1,
+		});
+	});
 
 	test('shows session files and counts with Keep and Open Changes in Diff Editor on each file and Keep and View All Edits in the heading', () => {
 		const { workingSet, rows, headerButtons } = createWorkingSet([
@@ -408,7 +492,7 @@ suite('ChatSessionWorkingSet', () => {
 	});
 
 	for (const openInDiffEditor of [false, true]) {
-		test(`opens a file itself, and a deleted file's content before the deletion (response setting: ${openInDiffEditor})`, () => {
+		test(`honors the diff preference and shows deleted files with an empty modified side (response setting: ${openInDiffEditor})`, () => {
 			const { workingSet, opened } = createWorkingSet([{
 				...emptySessionEntryDiff(URI.parse('snapshot:/before/changed.ts'), URI.file('/changed.ts')),
 				modifiedSnapshotURI: URI.parse('snapshot:/after/changed.ts'),
@@ -420,9 +504,141 @@ suite('ChatSessionWorkingSet', () => {
 				row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 			}
 
-			assert.deepStrictEqual(opened.map(input => isResourceEditorInput(input) ? input.resource.toString() : undefined), ['file:///changed.ts', 'snapshot:/before/deleted.ts']);
+			assert.deepStrictEqual(opened.map(input => isResourceDiffEditorInput(input)
+				? { original: input.original.resource?.toString(), modified: input.modified.resource?.toString() }
+				: isResourceMultiDiffEditorInput(input) ? input.resources?.map(resource => ({
+					original: resource.original.resource?.toString(),
+					modified: resource.modified.resource?.toString(),
+				})) : isResourceEditorInput(input) ? input.resource.toString() : undefined), [
+				openInDiffEditor ? { original: 'snapshot:/before/changed.ts', modified: 'snapshot:/after/changed.ts' } : 'file:///changed.ts',
+				[{ original: 'snapshot:/before/deleted.ts', modified: undefined }],
+			]);
 		});
 	}
+
+	test('opens the owning session live review from rows and View All Edits, including after a session switch', async () => {
+		const file = URI.file('/changed.ts');
+		const snapshot = { ...emptySessionEntryDiff(URI.parse('snapshot:/before/changed.ts'), file), modifiedSnapshotURI: URI.parse('snapshot:/after/changed.ts') };
+		const entry = (original: string) => upcastPartial<IModifiedFileEntry>({
+			modifiedURI: file,
+			originalURI: URI.parse(original),
+			state: constObservable(ModifiedFileEntryState.Modified),
+		});
+		let currentEntry = entry('chat-editing:/first');
+		let shown = 0;
+		const session = upcastPartial<IChatEditingSession>({
+			supportsKeepUndo: constObservable(true),
+			additionalReviewFiles: constObservable([snapshot]),
+			getEntry: () => currentEntry,
+			show: async () => { shown++; },
+		});
+		const { rows, fileAction, headerButton, opened } = createWorkingSet([snapshot], true, undefined, undefined, undefined, () => session);
+		rows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		currentEntry = entry('chat-editing:/second');
+		fileAction(rows()[0], 'Open Changes in Diff Editor').click();
+		headerButton('View All Edits').click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			shown,
+			opened: opened.map(input => isResourceDiffEditorInput(input) ? [input.original.resource?.toString(), input.modified.resource?.toString()] : undefined),
+		}, {
+			shown: 1,
+			opened: [['chat-editing:/first', 'file:///changed.ts'], ['chat-editing:/second', 'file:///changed.ts']],
+		});
+	});
+
+	for (const kind of ['created', 'deleted'] as const) {
+		test(`preserves preview focus and double-click pinning for ${kind} file diffs`, () => {
+			const { rows, opened } = createWorkingSet([{
+				...emptySessionEntryDiff(URI.parse('snapshot:/before/file.ts'), URI.file('/file.ts')),
+				modifiedSnapshotURI: URI.parse('snapshot:/after/file.ts'),
+				isCreated: kind === 'created',
+				isDeleted: kind === 'deleted',
+			}]);
+			rows()[0].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			rows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
+			assert.deepStrictEqual(opened.map(input => isResourceMultiDiffEditorInput(input) ? input.options : undefined), [
+				{ preserveFocus: true, pinned: false, revealIfVisible: true },
+				{ preserveFocus: false, pinned: true, revealIfVisible: true },
+			]);
+		});
+	}
+
+	test('View All Edits preserves Session Changes when the host has no live Working Set', async () => {
+		const snapshot = { ...emptySessionEntryDiff(URI.parse('snapshot:/before/file.ts'), URI.file('/file.ts')), modifiedSnapshotURI: URI.parse('snapshot:/after/file.ts') };
+		let liveOpened = false;
+		const session = upcastPartial<IChatEditingSession>({
+			supportsKeepUndo: constObservable(true),
+			additionalReviewFiles: constObservable([]),
+			show: async () => { liveOpened = true; },
+		});
+		const { headerButton, opened } = createWorkingSet([snapshot], true, undefined, undefined, undefined, () => session);
+		headerButton('View All Edits').click();
+		await timeout(0);
+		assert.deepStrictEqual({ liveOpened, resources: opened.map(input => isResourceMultiDiffEditorInput(input) ? input.resources?.length : undefined) }, {
+			liveOpened: false, resources: [1],
+		});
+	});
+
+	test('View All Edits does not offer entry-only decisions when the working set includes a deleted file', async () => {
+		const snapshot = { ...emptySessionEntryDiff(URI.parse('snapshot:/before/deleted.ts'), URI.file('/deleted.ts')), isDeleted: true };
+		let liveOpened = false;
+		const session = upcastPartial<IChatEditingSession>({
+			supportsKeepUndo: constObservable(true),
+			additionalReviewFiles: constObservable([snapshot]),
+			getEntry: () => undefined,
+			show: async () => { liveOpened = true; },
+		});
+		const { headerButton, opened } = createWorkingSet([snapshot], true, undefined, undefined, undefined, () => session);
+		headerButton('View All Edits').click();
+		await timeout(0);
+		assert.deepStrictEqual({ liveOpened, resources: opened.map(input => isResourceMultiDiffEditorInput(input) ? input.resources?.length : undefined) }, {
+			liveOpened: false, resources: [1],
+		});
+	});
+
+	for (const cancelled of [false, true]) {
+		test(`a live review lookup failure ${cancelled ? 'does not open cancelled content' : 'warns and opens the recorded diff'}`, async () => {
+			const snapshot = { ...emptySessionEntryDiff(URI.parse('snapshot:/before/file.ts'), URI.file('/file.ts')), modifiedSnapshotURI: URI.parse('snapshot:/after/file.ts') };
+			const session = upcastPartial<IChatEditingSession>({
+				resolveEntry: async () => { throw cancelled ? new CancellationError() : new Error('offline'); },
+			});
+			const { rows, fileAction, opened, warnings } = createWorkingSet([snapshot], true, undefined, undefined, undefined, () => session);
+			fileAction(rows()[0], 'Open Changes in Diff Editor').click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				resources: opened.map(input => isResourceDiffEditorInput(input) ? input.modified.resource?.toString() : undefined),
+				warnings,
+			}, {
+				resources: cancelled ? [] : ['snapshot:/after/file.ts'],
+				warnings: cancelled ? [] : ['The live review could not be loaded. Showing the recorded changes instead: offline'],
+			});
+		});
+	}
+
+	test('Alt reverses the configured file opening behavior', () => {
+		const diff = emptySessionEntryDiff(URI.parse('snapshot:/before/changed.ts'), URI.file('/changed.ts'));
+		const { rows, opened } = createWorkingSet([diff], true);
+		rows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true, altKey: true }));
+		assert.deepStrictEqual(opened.map(input => isResourceEditorInput(input) ? input.resource.toString() : undefined), ['file:///changed.ts']);
+	});
+
+	test('Right Arrow reaches Undo in the file action bar and Enter invokes it', async () => {
+		let undone = 0;
+		const { rows, fileAction } = createWorkingSet([emptySessionEntryDiff(URI.file('/before/first.ts'), URI.file('/first.ts'))], true, constObservable({
+			enabled: constObservable(true),
+			undo: async () => { undone++; return false; },
+		}));
+		rows()[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		fileAction(rows()[0], 'Keep').focus();
+		dom.getActiveElement()!.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		dom.getActiveElement()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		const focused = dom.getActiveElement()?.getAttribute('aria-label');
+		dom.getActiveElement()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		dom.getActiveElement()!.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await timeout(0);
+		assert.deepStrictEqual({ focused, undone }, { focused: 'Undo', undone: 1 });
+	});
 
 	test('opens changes in a diff editor from their rows, with the absent side of additions and deletions empty', async () => {
 		const { rows, fileAction, opened } = createWorkingSet([{

@@ -232,13 +232,20 @@ export class EditorGroupWatermark extends Disposable {
 			clearNode(box);
 			this.shortcutDisposables.clear();
 
+			const shortcuts = new Map<string, { entry: WatermarkEntry; keybinding: ResolvedKeybinding }>();
+			for (const entry of entries) {
+				const keybinding = this.keybindingService.lookupKeybinding(entry.id);
+				if (keybinding) {
+					shortcuts.set(entry.id, { entry, keybinding });
+				}
+			}
+
 			const actionBar = this.shortcutDisposables.add(new ActionBar(box, {
 				orientation: ActionsOrientation.VERTICAL,
 				ariaLabel: localize('watermark.shortcuts', "Editor Shortcuts"),
 				actionViewItemProvider: action => {
-					const entry = entries.find(entry => entry.id === action.id);
-					const keys = this.keybindingService.lookupKeybinding(action.id);
-					return entry && keys ? this.instantiationService.createInstance(WatermarkActionViewItem, action, entry.icon, keys) : undefined;
+					const shortcut = shortcuts.get(action.id);
+					return shortcut ? this.instantiationService.createInstance(WatermarkActionViewItem, action, shortcut.entry.icon, shortcut.keybinding) : undefined;
 				},
 			}));
 			this.shortcutDisposables.add(actionBar.onDidRun(e => {
@@ -247,12 +254,7 @@ export class EditorGroupWatermark extends Disposable {
 				}
 			}));
 
-			for (const entry of entries) {
-				const keys = this.keybindingService.lookupKeybinding(entry.id);
-				if (!keys) {
-					continue;
-				}
-
+			for (const { entry } of shortcuts.values()) {
 				actionBar.push(this.shortcutDisposables.add(new Action(entry.id, entry.text, undefined, true, () => this.commandService.executeCommand(entry.id))));
 			}
 		};

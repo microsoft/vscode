@@ -41,7 +41,10 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 			}
 			const { url, basePath } = resolveRawContentUrl(this.apiBaseUri, metadata.path);
 			const response = await this.transport.anonymousDownload({ kind: 'anonymous', host: url.host, origin: url.origin }, basePath, {
-				url: url.href, maximumBytes: 1024 * 1024, timeout: 5 * 60_000, ...metadata.options,
+				url: url.href, maximumBytes: 1024 * 1024, timeout: 5 * 60_000,
+				caller: metadata.options?.caller,
+				deadline: metadata.options?.deadline,
+				priority: metadata.options?.priority,
 				domain: metadata.domain,
 			}, signal);
 			if (response.truncated) {
