@@ -94,6 +94,19 @@ export function retryAfterFromRateLimitHeaders(headers: HttpHeaders, now: () => 
 	return undefined;
 }
 
+/** Converts a `Retry-After` value (seconds or an HTTP date) to milliseconds; `undefined` if missing or malformed. */
+export function parseRetryAfter(value: string | number | null | undefined, now: number = Date.now()): number | undefined {
+	if (value === undefined || value === null || value === '') {
+		return undefined;
+	}
+	const seconds = Number(value);
+	if (Number.isFinite(seconds)) {
+		return seconds >= 0 ? seconds * 1000 : undefined;
+	}
+	const date = typeof value === 'string' ? Date.parse(value) : NaN;
+	return isNaN(date) ? undefined : Math.max(0, date - now);
+}
+
 /** HTTP header names are case insensitive, but not every headers implementation normalises them. */
 function readHeader(headers: HttpHeaders, lowerCaseName: string): string | undefined {
 	const canonical = lowerCaseName.replace(/(^|-)([a-z])/g, (_, separator: string, char: string) => separator + char.toUpperCase());

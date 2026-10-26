@@ -13,6 +13,9 @@ import { TerminalNativeContribution } from './terminalNativeContribution.js';
 import { ElectronTerminalProfileResolverService } from './terminalProfileResolverService.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { LocalTerminalBackendContribution } from './localTerminalBackend.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { InstallShellScriptWithCopilotAction, registerInstallShellScriptWithCopilotMenu } from './terminalInstallActions.js';
 
 // Register services
 registerMainProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);
@@ -25,3 +28,8 @@ const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Workbench
 // terminal while connecting to the remote.
 registerWorkbenchContribution2(LocalTerminalBackendContribution.ID, LocalTerminalBackendContribution, WorkbenchPhase.BlockStartup);
 workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, LifecyclePhase.Restored);
+
+if (isMacintosh) {
+	registerAction2(InstallShellScriptWithCopilotAction);
+	registerInstallShellScriptWithCopilotMenu();
+}

@@ -38,26 +38,57 @@ import {
 suite('remoteHostOptions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('inventory-owned hosts offer local hide and disconnect without SSH location controls', () => {
+	test('disconnected hovers retain the connection error with an optional address', () => {
+		const status = RemoteAgentHostConnectionStatus.disconnected;
+		assert.deepStrictEqual({
+			error: getStatusHover(status, undefined, 'Connection refused'),
+			withAddress: getStatusHover(status, 'ssh:host', 'Connection refused'),
+			plain: getStatusHover(RemoteAgentHostConnectionStatus.disconnected),
+		}, {
+			error: 'Connection refused', withAddress: 'Remote agent host is disconnected: Connection refused\n\nAddress: ssh:host',
+			plain: 'Remote agent host is disconnected.',
+		});
+	});
+
+	test('automatic retry hovers retain the last error without changing the status label', () => {
+		assert.deepStrictEqual([
+			RemoteAgentHostConnectionStatus.connecting,
+			RemoteAgentHostConnectionStatus.reconnecting,
+		].map(status => ({ label: getStatusLabel(status), hover: getStatusHover(status, undefined, 'Connection refused'), withAddress: getStatusHover(status, 'ssh:host', 'Connection refused') })), [
+			{ label: 'Connecting', hover: 'Retrying connection. Last error: Connection refused', withAddress: 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host' },
+			{ label: 'Reconnecting', hover: 'Retrying connection. Last error: Connection refused', withAddress: 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host' },
+		]);
+	});
+
+	test('inventory-owned hosts offer disconnect and rename without local removal or SSH location controls', () => {
 		const snapshot = (isConnected: boolean) => buildRemoteHostOptionItems({
-			address: 'cloudsandbox:environment', isConnected, removeLabel: 'Hide in This Profile', disconnectLabel: 'Disconnect',
+			address: 'cloudsandbox:environment', isConnected, canRemove: false, disconnectLabel: 'Disconnect',
 		}).map(item => ({ id: item.id, label: item.label }));
 		assert.deepStrictEqual({ connected: snapshot(true), disconnected: snapshot(false) }, {
 			connected: [
 				{ id: 'disconnect', label: '$(debug-disconnect) Disconnect' },
 				{ id: 'rename', label: '$(edit) Rename...' },
-				{ id: 'remove', label: '$(trash) Hide in This Profile' },
 				{ id: 'copy', label: '$(copy) Copy Address' },
 				{ id: 'settings', label: '$(settings-gear) Open Settings' },
 			],
 			disconnected: [
 				{ id: 'reconnect', label: '$(debug-restart) Reconnect' },
 				{ id: 'rename', label: '$(edit) Rename...' },
-				{ id: 'remove', label: '$(trash) Hide in This Profile' },
 				{ id: 'copy', label: '$(copy) Copy Address' },
 				{ id: 'settings', label: '$(settings-gear) Open Settings' },
 			],
 		});
+	});
+
+	test('externally owned inventory cannot be removed or disconnected through the removal fallback', async () => {
+		const calls: string[] = [];
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly canRemove = false;
+			override async remove() { calls.push('remove'); }
+			override async disconnect() { calls.push('disconnect'); }
+		}();
+		await assert.rejects(removeRemoteHost(provider, new class extends mock<IRemoteAgentHostService>() { }(), new TestConfigurationService()), /cannot be removed locally/);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	for (const hasRemove of [false, true]) {

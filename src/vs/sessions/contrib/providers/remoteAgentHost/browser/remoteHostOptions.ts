@@ -11,7 +11,7 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import Severity from '../../../../../base/common/severity.js';
-import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
@@ -27,6 +27,7 @@ import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessions
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { INotificationService, Severity as NotificationSeverity } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
 
 export async function reconnectRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService): Promise<void> {
 	if (provider.connect) {
@@ -37,6 +38,9 @@ export async function reconnectRemoteHost(provider: IAgentHostSessionsProvider, 
 }
 
 export async function removeRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService, configurationService: IConfigurationService): Promise<void> {
+	if (provider.canRemove === false) {
+		throw new Error(localize('workspacePicker.cannotRemoveRemote', "This host cannot be removed locally."));
+	}
 	if (provider.remove) {
 		await provider.remove();
 	} else if (provider.disconnect) {
@@ -44,6 +48,64 @@ export async function removeRemoteHost(provider: IAgentHostSessionsProvider, rem
 	} else if (provider.remoteAddress) {
 		await removeWebSocketRemoteAgentHostEntry(configurationService, provider.remoteAddress);
 		await remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
+	}
+}
+
+export function sshConnectionKey(connection: IRemoteAgentHostSSHConnection): string {
+	return connection.sshConfigHost
+		? `ssh:${connection.sshConfigHost}`
+		: `${connection.user ?? connection.hostName}@${connection.hostName}:${connection.port ?? 22}`;
+}
+
+/** Drop the persisted SSH entry before teardown so reconciliation cannot immediately reconnect it. */
+export async function disconnectSSHEntry(
+	connection: IRemoteAgentHostSSHConnection,
+	remoteAgentHostService: Pick<IRemoteAgentHostService, 'removeRemoteAgentHost'>,
+	sshService: Pick<ISSHRemoteAgentHostService, 'disconnect'>,
+): Promise<void> {
+	await sshService.disconnect(sshConnectionKey(connection));
+	await remoteAgentHostService.removeRemoteAgentHost(connection.address);
+}
+
+export async function confirmTunnelDeletion(dialogService: IDialogService, name: string): Promise<boolean> {
+	const { confirmed } = await dialogService.confirm({
+		type: 'warning',
+		message: localize('tunnelDeleteConfirmation', "Are you sure you want to delete dev tunnel '{0}'?", name),
+		detail: localize('tunnelDeleteDetail', "This deletes the tunnel registration and disconnects its clients. Files on the remote machine will not be deleted. The tunnel may be recreated if a machine starts hosting it again."),
+		primaryButton: localize('tunnelDeleteButton', "&&Delete"),
+	});
+	return confirmed;
+}
+
+export async function renameRemoteHost(
+	provider: Pick<IAgentHostSessionsProvider, 'remoteAddress' | 'label' | 'setDisplayName'>,
+	quickInputService: IQuickInputService,
+	remoteAgentHostService: IRemoteAgentHostService,
+): Promise<void> {
+	const address = provider.remoteAddress;
+	if (!address) {
+		throw new Error(localize('workspacePicker.remoteUnavailable', "This remote is no longer available."));
+	}
+	const name = await quickInputService.input({
+		title: localize('workspacePicker.renameRemoteTitle', "Rename Remote Agent Host"),
+		prompt: localize('workspacePicker.renameRemotePrompt', "Enter a display name for this remote agent host in this client. Leave empty to use the default name."),
+		value: provider.label,
+		valueSelection: [0, provider.label.length],
+		ignoreFocusLost: true,
+	});
+	if (name !== undefined) {
+		try {
+			if (provider.setDisplayName) {
+				provider.setDisplayName(name);
+			} else {
+				remoteAgentHostService.setDisplayName(address, name);
+			}
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			throw new Error(localize('workspacePicker.renameRemoteFailed', "Failed to rename {0}: {1}", provider.label, error instanceof Error ? error.message : String(error)), { cause: error });
+		}
 	}
 }
 
@@ -65,22 +127,21 @@ export function hasUpgradeReconnectStarted(status: RemoteAgentHostConnectionStat
  * surfaced error). All user-facing errors are reported via the
  * notification service.
  */
-export async function runServerUpgrade(
-	accessor: ServicesAccessor,
+export async function upgradeRemoteHost(
 	provider: IAgentHostSessionsProvider,
 	upgradeMethod: string,
+	remoteAgentHostService: IRemoteAgentHostService,
+	notificationService: INotificationService,
+	progressService: IProgressService,
 ): Promise<void> {
 	const address = provider.remoteAddress;
 	if (!address) {
 		return;
 	}
-	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
-	const notificationService = accessor.get(INotificationService);
-	const progressService = accessor.get(IProgressService);
-
 	await progressService.withProgress(
 		{
 			location: ProgressLocation.Notification,
+			telemetry: NotificationTelemetryId.RemoteAgentHostUpdate,
 			title: localize('workspacePicker.upgradingServer', "Updating {0}...", provider.label),
 		},
 		async (progress) => {
@@ -157,6 +218,10 @@ export async function runServerUpgrade(
 	);
 }
 
+export async function runServerUpgrade(accessor: ServicesAccessor, provider: IAgentHostSessionsProvider, upgradeMethod: string): Promise<void> {
+	await upgradeRemoteHost(provider, upgradeMethod, accessor.get(IRemoteAgentHostService), accessor.get(INotificationService), accessor.get(IProgressService));
+}
+
 /**
  * Surface a transient notification each time a provider transitions into
  * the `incompatible` state. Fires once per transition (not on every
@@ -224,7 +289,12 @@ export function getStatusLabel(status: RemoteAgentHostConnectionStatus): string 
 	}
 }
 
-export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string): string {
+export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string, lastConnectionError?: string): string {
+	if ((status.kind === 'connecting' || status.kind === 'reconnecting') && lastConnectionError) {
+		return address
+			? localize('workspacePicker.hoverRetryingAfterErrorAddr', "Retrying connection. Last error: {0}\n\nAddress: {1}", lastConnectionError, address)
+			: localize('workspacePicker.hoverRetryingAfterError', "Retrying connection. Last error: {0}", lastConnectionError);
+	}
 	switch (status.kind) {
 		case 'connected':
 			return address
@@ -239,6 +309,11 @@ export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?
 				? localize('workspacePicker.hoverReconnectingAddr', "The remote agent host connection dropped and is being restored automatically.\n\nAddress: {0}", address)
 				: localize('workspacePicker.hoverReconnecting', "The remote agent host connection dropped and is being restored automatically.");
 		case 'disconnected':
+			if (lastConnectionError) {
+				return address
+					? localize('workspacePicker.hoverDisconnectedErrorAddr', "Remote agent host is disconnected: {0}\n\nAddress: {1}", lastConnectionError, address)
+					: lastConnectionError;
+			}
 			return address
 				? localize('workspacePicker.hoverDisconnectedAddr', "Remote agent host is disconnected.\n\nAddress: {0}", address)
 				: localize('workspacePicker.hoverDisconnected', "Remote agent host is disconnected.");
@@ -318,6 +393,7 @@ export interface IBuildRemoteHostOptionItemsOptions {
 	readonly preferenceKey?: string;
 	readonly isConnected: boolean;
 	readonly removeLabel?: string;
+	readonly canRemove?: boolean;
 	readonly disconnectLabel?: string;
 	readonly upgradeMethod?: string;
 	/** Defaults to the ambient {@link isWeb} constant; overridable for tests. See {@link supportsRemoteAgentHostLocationPreference}. */
@@ -337,11 +413,11 @@ export function buildRemoteHostOptionItems(options: IBuildRemoteHostOptionItemsO
 	} else if (options.disconnectLabel) {
 		items.push({ label: '$(debug-disconnect) ' + options.disconnectLabel, id: 'disconnect' });
 	}
-	items.push(
-		{ label: '$(edit) ' + localize('workspacePicker.renameRemote', "Rename..."), id: 'rename' },
-		{ label: '$(trash) ' + (options.removeLabel ?? localize('workspacePicker.removeRemote', "Remove Remote")), id: 'remove' },
-		{ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' },
-	);
+	items.push({ label: '$(edit) ' + localize('workspacePicker.renameRemote', "Rename..."), id: 'rename' });
+	if (options.canRemove !== false) {
+		items.push({ label: '$(trash) ' + (options.removeLabel ?? localize('workspacePicker.removeRemote', "Remove Remote")), id: 'remove' });
+	}
+	items.push({ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' });
 	// An SSH host aliased in `~/.ssh/config` is authored there, not in
 	// settings, so point at the file that actually defines it.
 	items.push(usesSSHConfigFile(options.preferenceKey ?? options.address, options.isWebPlatform ?? isWeb)
@@ -410,6 +486,7 @@ export async function changeRemoteAgentHostLocationPreference(options: IChangeRe
 	await options.progressService.withProgress(
 		{
 			location: ProgressLocation.Notification,
+			telemetry: NotificationTelemetryId.RemoteAgentHostReconnect,
 			title: localize('workspacePicker.locationPreferenceReconnecting', "Reconnecting to {0}...", options.hostLabel),
 		},
 		async () => {
@@ -468,7 +545,7 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	// separate stable identity (tunnels, WSL, cloud sandbox).
 	const preferenceKey = provider.remoteLocationPreferenceKey ?? address;
 
-	const items = buildRemoteHostOptionItems({ address, preferenceKey, isConnected, upgradeMethod, removeLabel: provider.removeLabel, disconnectLabel: provider.disconnectLabel });
+	const items = buildRemoteHostOptionItems({ address, preferenceKey, isConnected, upgradeMethod, canRemove: provider.canRemove, removeLabel: provider.removeLabel, disconnectLabel: provider.disconnectLabel });
 
 	const result = await new Promise<'back' | RemoteOptionPickItem | undefined>((resolve) => {
 		const store = new DisposableStore();
@@ -541,24 +618,11 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 			}
 			break;
 		case 'rename': {
-			const name = await quickInputService.input({
-				title: localize('workspacePicker.renameRemoteTitle', "Rename Remote Agent Host"),
-				prompt: localize('workspacePicker.renameRemotePrompt', "Enter a display name for this remote agent host in this client. Leave empty to use the default name."),
-				value: provider.label,
-				valueSelection: [0, provider.label.length],
-				ignoreFocusLost: true,
-			});
-			if (name !== undefined) {
-				try {
-					if (provider.setDisplayName) {
-						provider.setDisplayName(name);
-					} else {
-						remoteAgentHostService.setDisplayName(address, name);
-					}
-				} catch (err) {
-					if (!isCancellationError(err)) {
-						notificationService.error(localize('workspacePicker.renameRemoteFailed', "Failed to rename {0}: {1}", provider.label, err instanceof Error ? err.message : String(err)));
-					}
+			try {
+				await renameRemoteHost(provider, quickInputService, remoteAgentHostService);
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					notificationService.error(error instanceof Error ? error.message : String(error));
 				}
 			}
 			break;

@@ -24,7 +24,7 @@ import {
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, sessionTurnFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { createActiveSessionSubscriptionObs } from './agentHostSessionChangesets.js';
-import { createIncrementalChatCustomizationRefsParser, customizationRefsEqual, CustomizationIndex, resolveChatCustomizations, sessionChatCustomizationsEqual, type ICustomizationRef } from '../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
+import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type CustomizationIndexFactory, type ICustomizationJobScheduler } from '../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
 /**
@@ -94,6 +94,8 @@ export function createSessionOutputObs(
 	isArchivedObs: IObservable<boolean>,
 	workspaceObs: IObservable<ISessionWorkspace | undefined>,
 	cache: Map<string, unknown>,
+	createCustomizationIndex?: CustomizationIndexFactory,
+	customizationScheduler?: ICustomizationJobScheduler,
 ): ISessionOutputObs {
 	const mapDiffUri = options.mapDiffUri;
 
@@ -108,7 +110,7 @@ export function createSessionOutputObs(
 	// while one of the derived values below is observed.
 	interface IChatOutput {
 		readonly lastTurnEdits: IObservable<readonly IParsedFileEdit[]>;
-		readonly customizationRefs: IObservable<readonly ICustomizationRef[]>;
+		readonly chatState: IObservable<ChatState | undefined>;
 	}
 	const outputByChat = new Map<string, IChatOutput>();
 	const getChatOutput = (chatUri: URI): IChatOutput => {
@@ -122,24 +124,17 @@ export function createSessionOutputObs(
 				constObservable(chatUri),
 			);
 			const parseFileEdits = createIncrementalChatFileEditsParser(mapDiffUri);
-			const parseCustomizationRefs = createIncrementalChatCustomizationRefsParser();
 			output = {
+				chatState: derived<ChatState | undefined>(reader => {
+					const chatState = chatStateObs.read(reader).read(reader);
+					return !chatState || chatState instanceof Error ? undefined : chatState;
+				}),
 				lastTurnEdits: derivedOpts<readonly IParsedFileEdit[]>({ equalsFn: parsedFileEditsEqual }, reader => {
 					const chatState = chatStateObs.read(reader).read(reader);
 					if (!chatState || chatState instanceof Error) {
 						return [];
 					}
 					return parseFileEdits(chatState);
-				}),
-				// Kept separate from `lastTurnEdits` so a delta that only carries
-				// file edits does not invalidate the customization references,
-				// and vice versa.
-				customizationRefs: derivedOpts<readonly ICustomizationRef[]>({ equalsFn: customizationRefsEqual }, reader => {
-					const chatState = chatStateObs.read(reader).read(reader);
-					if (!chatState || chatState instanceof Error) {
-						return [];
-					}
-					return parseCustomizationRefs(chatState);
 				}),
 			};
 			outputByChat.set(key, output);
@@ -170,20 +165,20 @@ export function createSessionOutputObs(
 		StateComponents.Session,
 		constObservable(sessionUri),
 	);
-	const customizationsObs = derivedOpts<readonly Customization[] | undefined>({ equalsFn: (a, b) => a === b }, reader => {
+	const customizationsObs = derived<readonly Customization[] | undefined>(reader => {
 		const sessionState = sessionStateObs.read(reader).read(reader);
 		return !sessionState || sessionState instanceof Error ? undefined : sessionState.customizations;
 	});
-	const customizationIndexObs = derived(reader =>
-		new CustomizationIndex(customizationsObs.read(reader), getWorkspaceAndWorktreeRoots(workspaceObs.read(reader))));
+	const customizationRootsObs = derived<readonly URI[]>(reader => getWorkspaceAndWorktreeRoots(workspaceObs.read(reader)));
+	const customizationIndexObs = createCustomizationIndexObservable(undefined, customizationsObs, customizationRootsObs, undefined, { createIndex: createCustomizationIndex });
 
 	const customizationsByChat = new Map<string, IObservable<readonly ISessionChatCustomization[]>>();
 	const getChatCustomizations = (chatUri: URI): IObservable<readonly ISessionChatCustomization[]> => {
 		const key = chatUri.toString();
 		let customizations = customizationsByChat.get(key);
 		if (!customizations) {
-			customizations = derivedOpts<readonly ISessionChatCustomization[]>({ equalsFn: sessionChatCustomizationsEqual }, reader =>
-				resolveChatCustomizations(getChatOutput(chatUri).customizationRefs.read(reader), customizationIndexObs.read(reader)));
+			// Parsing and resolving happen in idle slices, never in the task that selects the chat.
+			customizations = createProgressiveChatCustomizations(undefined, getChatOutput(chatUri).chatState, customizationIndexObs, { scheduler: customizationScheduler });
 			customizationsByChat.set(key, customizations);
 		}
 		return customizations;

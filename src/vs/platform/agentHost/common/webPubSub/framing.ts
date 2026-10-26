@@ -103,6 +103,7 @@ export type InboundResult =
 	| { readonly kind: 'batch'; readonly group: ParsedGroup; readonly payloads: readonly unknown[]; readonly generation?: number }
 	| { readonly kind: 'closed'; readonly group: ParsedGroup; readonly generation?: number }
 	| { readonly kind: 'capabilities'; readonly group: ParsedGroup; readonly accepts: readonly string[] }
+	| { readonly kind: 'hostOffline'; readonly group: ParsedGroup }
 	| { readonly kind: 'pending'; readonly group: ParsedGroup }
 	| { readonly kind: 'ignored' };
 
@@ -154,6 +155,19 @@ export function parseInbound(frame: unknown, options: ParseInboundOptions): Inbo
 
 	const group = parseGroupName(frame['group'], options.groupValidation);
 	const fields = frame['data'];
+	if (group.scope === 'env' && group.lane === 'clients') {
+		const notice = fields['kind'] === 'message' ? fields['data'] : fields;
+		if (isObject(notice) && notice['kind'] === 'host_offline') {
+			if (notice['environment_id'] !== group.eid || notice['status'] !== 'offline'
+				|| typeof notice['timestamp'] !== 'string' || !Number.isFinite(Date.parse(notice['timestamp']))) {
+				throw new FramingError('Invalid Mission Control host-offline advisory');
+			}
+			return { kind: 'hostOffline', group };
+		}
+	}
+	if (group.scope === 'env' && group.lane === 'clients') {
+		return { kind: 'ignored' };
+	}
 	const generation = fields['generation'];
 	if (generation !== undefined && (typeof generation !== 'number' || !Number.isSafeInteger(generation) || generation < 1)) {
 		throw new FramingError('Invalid host connection generation');

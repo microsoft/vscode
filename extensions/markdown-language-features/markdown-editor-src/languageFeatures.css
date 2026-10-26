@@ -1,0 +1,85 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.md-diagnostics-layer {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+.md-diagnostic {
+	position: absolute;
+	height: 3px;
+	background: currentColor;
+	/* Use the code editor's 6x3 squiggle glyph, tinted with the webview theme. */
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 3' height='3' width='6'%3E%3Cg fill='white'%3E%3Cpolygon points='5.5,0 2.5,3 1.1,3 4.1,0'/%3E%3Cpolygon points='4,0 6,2 6,0.6 5.4,0'/%3E%3Cpolygon points='0,2 1,3 2.4,3 0,0.6'/%3E%3C/g%3E%3C/svg%3E") repeat-x bottom left;
+}
+
+.md-diagnostic-error { color: var(--vscode-editorError-foreground); }
+.md-diagnostic-warning { color: var(--vscode-editorWarning-foreground); }
+.md-diagnostic-info { color: var(--vscode-editorInfo-foreground); }
+.md-diagnostic-hint {
+	color: var(--vscode-editorHint-foreground);
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='3' width='12'%3E%3Cg fill='white'%3E%3Ccircle cx='1' cy='1' r='1'/%3E%3Ccircle cx='5' cy='1' r='1'/%3E%3Ccircle cx='9' cy='1' r='1'/%3E%3C/g%3E%3C/svg%3E") no-repeat bottom left;
+}
+
+.md-language-status {
+	position: absolute;
+	bottom: 0;
+	padding: 4px 8px;
+	color: var(--vscode-errorForeground);
+	background: var(--vscode-editorWidget-background);
+}
+
+.md-completion-overlay {
+	position: absolute;
+	z-index: 100;
+	max-width: 100%;
+}
+
+.md-diagnostic-hover {
+	position: fixed;
+	z-index: 110;
+	box-sizing: border-box;
+	max-width: min(750px, calc(100vw - 8px));
+	max-height: calc(100vh - 8px);
+	overflow: auto;
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+	border-radius: var(--vscode-cornerRadius-large, 8px);
+	color: var(--vscode-editorHoverWidget-foreground);
+	background: var(--vscode-editorHoverWidget-background);
+	box-shadow: var(--vscode-shadow-lg, 0 2px 8px var(--vscode-widget-shadow));
+	font: var(--vscode-editor-font-size, 14px)/19px var(--vscode-editor-font-family, monospace);
+	user-select: text;
+	cursor: text;
+}
+
+.md-diagnostic-hover[hidden] {
+	display: none;
+}
+
+.md-diagnostic-hover-row {
+	padding: 4px 8px;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.md-diagnostic-hover-row + .md-diagnostic-hover-row {
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
+.md-diagnostic-hover-details {
+	opacity: 0.6;
+	padding-left: 6px;
+}
+
+.md-diagnostic-hover a {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.md-diagnostic-hover a:hover {
+	color: var(--vscode-textLink-activeForeground);
+}

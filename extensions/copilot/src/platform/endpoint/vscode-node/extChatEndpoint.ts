@@ -38,6 +38,8 @@ import { ExtensionContributedChatTokenizer } from './extChatTokenizer';
 export interface ExtensionLanguageModelRequestOptions extends OTelModelOptions {
 	readonly _enableThinking?: boolean;
 	readonly _conversationId?: string;
+	/** The VS Code core feature that made the request, e.g. `thinkingTitle`; only honored for core requests. */
+	readonly _requestPurpose?: string;
 }
 
 enum ChatImageMimeType {

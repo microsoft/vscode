@@ -6,6 +6,7 @@
 import { Sequencer } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { LRUCache } from '../../../base/common/map.js';
+import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ISessionFileDiff, ISessionGitState } from './state/sessionState.js';
@@ -35,6 +36,15 @@ export function resolveDiffBaseBranchName(persistedBaseBranch: string | undefine
 	return branchName
 		.replace(/^refs\/remotes\/origin\//, '')
 		.replace(/^origin\//, '');
+}
+
+/** Selects the session's default base, preferring the default branch's upstream over its local name. */
+export function resolveDefaultBaseBranchName(defaultBranch: Branch | undefined, fallbackBranch: string | undefined): string | undefined {
+	return defaultBranch?.kind === GitRefType.Head
+		? defaultBranch.upstream?.name ?? defaultBranch.name
+		: defaultBranch?.kind === GitRefType.RemoteHead
+			? defaultBranch.name
+			: fallbackBranch;
 }
 
 /**
@@ -228,13 +238,19 @@ export interface IGitRemote {
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
+	/** Returns an existing branch or detached commit; undefined for an unborn HEAD. */
+	getHEAD(workingDirectory: URI): Promise<IBranch | IDetachedHead | undefined>;
 	/** With `throwOnError`, only a successful detached-HEAD lookup returns `undefined`. */
 	getCurrentBranchName?(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
+	getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined>;
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
-	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
+	/** Observes exact probe results or a known ancestor root; undefined is unresolved, false is a confirmed non-repository. */
+	hasGitRoot(workingDirectory: URI): IObservable<boolean | undefined>;
+	/** Caches roots and confirmed non-repositories; refreshIfNone retries only cached non-repositories. */
+	getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined>;
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	/**
@@ -267,6 +283,8 @@ export interface IAgentHostGitService {
 	 * whose worktree was previously cleaned up on archive).
 	 */
 	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void>;
+	/** Whether Git still registers the exact worktree path; registry failures conservatively return true. */
+	isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean>;
 	/** Removes a worktree, preserving Git's dirty-worktree protection unless `force` is explicitly requested. */
 	removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void>;
 	/**
@@ -402,9 +420,10 @@ export interface IAgentHostGitService {
 
 	/**
 	 * Creates a commit object from a tree (optionally chained to a parent)
-	 * and returns its OID. Does NOT update any ref.
+	 * and returns its OID. Does NOT update any ref. `useInternalIdentity`
+	 * avoids requiring user Git identity for VS Code-owned commits.
 	 */
-	commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string): Promise<string | undefined>;
+	commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string, options?: { readonly useInternalIdentity?: boolean }): Promise<string | undefined>;
 
 	/**
 	 * Updates a ref to point at `newOid`. Creates the ref if missing.

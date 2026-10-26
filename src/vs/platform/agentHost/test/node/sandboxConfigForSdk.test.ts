@@ -22,7 +22,7 @@ suite('VS Code sandbox read roots', () => {
 	test('grants only the current session attachments and an optional shell init root', () => {
 		const sessionDataDirectory = URI.file('/data/agentSessionData/session-1');
 		const shellInitDirectory = URI.file('/data/agentHost/shellInit/session-1');
-		assert.deepStrictEqual(getVSCodeSandboxReadRoots({ sessionDataDirectory, shellInitDirectory }), [
+		assert.deepStrictEqual(getVSCodeSandboxReadRoots({ sessionDataDirectories: [sessionDataDirectory], shellInitDirectory }), [
 			URI.file('/data/agentSessionData/session-1/attachments'),
 			shellInitDirectory,
 		]);
@@ -51,10 +51,10 @@ function sandbox(
 	if (fs) {
 		cfg[AgentHostSandboxKey.UserConfiguredPaths] = fs;
 	}
-	if (hosts?.allowedHosts?.length) {
+	if (hosts?.allowedHosts !== undefined) {
 		cfg[AgentHostSandboxKey.AllowedNetworkDomains] = [...hosts.allowedHosts];
 	}
-	if (hosts?.blockedHosts?.length) {
+	if (hosts?.blockedHosts !== undefined) {
 		cfg[AgentHostSandboxKey.DeniedNetworkDomains] = [...hosts.blockedHosts];
 	}
 	if (allowNetwork !== undefined) {
@@ -99,8 +99,10 @@ function expectedSandboxConfig(options?: {
 				network: {
 					...(options?.allowOutbound !== undefined ? { allowOutbound: options.allowOutbound } : {}),
 					...(options?.allowLocalNetwork !== undefined ? { allowLocalNetwork: options.allowLocalNetwork } : {}),
-					...(options?.allowedHosts?.length ? { allowedHosts: options.allowedHosts } : {}),
-					...(options?.blockedHosts?.length ? { blockedHosts: options.blockedHosts } : {}),
+					...(options?.allowedHosts?.length || options?.blockedHosts?.length ? {
+						allowedHosts: options.allowedHosts ?? [],
+						blockedHosts: options.blockedHosts ?? [],
+					} : {}),
 				},
 			} : {}),
 		},
@@ -111,6 +113,15 @@ suite('buildSandboxConfigForSdk', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('enablement', () => {
+		test('defaults current working directory access on and preserves explicit denial on every platform', () => {
+			assert.deepStrictEqual((['darwin', 'linux', 'win32'] as const).map(platform =>
+				[undefined, false, true].map(value => buildSandboxConfigForSdk(platform, {
+					enabled: AgentSandboxEnabledValue.On,
+					...(value !== undefined ? { addCurrentWorkingDirectory: value } : {}),
+				})?.addCurrentWorkingDirectory),
+			), [[true, false, true], [true, false, true], [true, false, true]]);
+		});
+
 		test('returns undefined when no setting is set', () => {
 			assert.strictEqual(buildSandboxConfigForSdk('darwin', undefined), undefined);
 			assert.strictEqual(buildSandboxConfigForSdk('win32', undefined), undefined);
@@ -244,6 +255,44 @@ suite('buildSandboxConfigForSdk', () => {
 			}
 		});
 
+		test('forwards environment credentials independently of authentication on every platform', () => {
+			const maskedCredentials = {
+				envVars: { MY_API_TOKEN: { injectHosts: ['api.example.com', '*.example.org'] } },
+				authenticategit: true,
+				authenticategh: true,
+			};
+			for (const platform of ['linux', 'darwin', 'win32'] as const) {
+				assert.deepStrictEqual([undefined, {}, maskedCredentials, { envVars: {} }].map(value => buildSandboxConfigForSdk(platform, {
+					enabled: AgentSandboxEnabledValue.On,
+					authenticateGit: false,
+					authenticateGh: false,
+					credentials: value,
+				})), [undefined, {}, maskedCredentials.envVars, {}].map(envVars => ({
+					...expectedSandboxConfig(),
+					auth: { git: false, gh: false },
+					...(envVars !== undefined ? { credentials: { envVars } } : {}),
+				})));
+				assert.strictEqual(buildSandboxConfigForSdk(platform, {
+					enabled: AgentSandboxEnabledValue.Off,
+					credentials: maskedCredentials,
+				}), undefined);
+			}
+		});
+
+		test('validates the credentials container and leaves map entries to the runtime', () => {
+			assert.deepStrictEqual([
+				{},
+				{ envVars: {} },
+				{ envVars: { MY_API_TOKEN: { injectHosts: ['api.example.com'] } } },
+				null,
+				[],
+				{ envVars: null },
+				{ envVars: [] },
+				{ envVars: 'MY_API_TOKEN' },
+			].map(maskedCredentials => sandboxConfigSchema.validate(AgentHostSandboxConfigKey.Sandbox, { credentials: maskedCredentials })),
+				[true, true, true, false, false, false, false, false]);
+		});
+
 	});
 
 	suite('filesystem policy', () => {
@@ -362,12 +411,56 @@ suite('buildSandboxConfigForSdk', () => {
 			}
 		});
 
-		test('ignores empty host lists', () => {
-			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: [], blockedHosts: [] }))?.userPolicy?.network, undefined);
+		test('writes both host lists when either is non-empty', () => {
+			assert.deepStrictEqual([
+				buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['allowed.example'] }))?.userPolicy?.network,
+				buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { blockedHosts: ['blocked.example'] }))?.userPolicy?.network,
+				buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['allowed.example'], blockedHosts: [] }))?.userPolicy?.network,
+				buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: [], blockedHosts: ['blocked.example'] }))?.userPolicy?.network,
+				buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: [], blockedHosts: [] }))?.userPolicy?.network,
+				buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: [], blockedHosts: [] }, true))?.userPolicy?.network,
+			], [
+				{ allowedHosts: ['allowed.example'], blockedHosts: [] },
+				{ allowedHosts: [], blockedHosts: ['blocked.example'] },
+				{ allowedHosts: ['allowed.example'], blockedHosts: [] },
+				{ allowedHosts: [], blockedHosts: ['blocked.example'] },
+				undefined,
+				{ allowOutbound: true },
+			]);
+		});
+
+		test('omits empty host lists while preserving outbound and local network access', () => {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', {
+				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+				[AgentHostSandboxKey.AllowNetwork]: true,
+				[AgentHostSandboxKey.AllowLocalNetwork]: true,
+				[AgentHostSandboxKey.AllowedNetworkDomains]: [],
+				[AgentHostSandboxKey.DeniedNetworkDomains]: [],
+			})?.userPolicy?.network, {
+				allowOutbound: true,
+				allowLocalNetwork: true,
+			});
 		});
 	});
 
 	suite('extraReadonlyPaths', () => {
+
+		test('suppresses extra grants only when managed readonly paths are present, including an empty list', () => {
+			assert.deepStrictEqual((['linux', 'darwin', 'win32'] as const).map(platform =>
+				[undefined, ['managed-reference'], []].map(readonlyPaths =>
+					buildSandboxConfigForSdk(
+						platform,
+						sandbox(platform, AgentSandboxEnabledValue.On, { readonlyPaths: readonlyPaths ?? ['local-reference'] }),
+						['host-generated'],
+						{ enabled: true, ...(readonlyPaths !== undefined ? { readonlyPaths } : {}) },
+					)?.userPolicy?.filesystem,
+				),
+			), Array.from({ length: 3 }, () => [
+				{ readonlyPaths: ['local-reference', 'host-generated'] },
+				{ readonlyPaths: ['managed-reference'] },
+				undefined,
+			]));
+		});
 
 		test('grants read access to host-generated paths', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On), ['/data/shellInit/s1'])?.userPolicy?.filesystem, {

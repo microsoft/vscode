@@ -33,7 +33,7 @@ function Exit-Usage([string]$message) {
 }
 
 function Get-UsableNode([string]$repoPath) {
-	$command = Get-Command node -CommandType Application -ErrorAction SilentlyContinue
+	$command = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 	$nvmrcPath = Join-Path $repoPath '.nvmrc'
 	$requiredVersion = if (Test-Path -LiteralPath $nvmrcPath -PathType Leaf) {
 		(Get-Content -LiteralPath $nvmrcPath -Raw).Trim().TrimStart('v')

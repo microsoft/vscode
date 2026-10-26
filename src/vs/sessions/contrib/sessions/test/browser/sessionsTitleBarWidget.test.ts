@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -47,6 +49,7 @@ suite('SessionsTitleBarWidget', () => {
 	test('uses only the workspace context in the command center', () => {
 		const widget = Object.create(SessionsTitleBarWidget.prototype) as SessionsTitleBarWidget;
 		Reflect.set(widget, '_workspaceInfo', { label: 'vscode-tools' });
+		Reflect.set(widget, 'sessionsService', upcastPartial<ISessionsService>({ activeSession: constObservable(undefined) }));
 		Reflect.set(widget, '_isQuickChat', false);
 		Reflect.set(widget, '_sessionTitle', undefined);
 		const workspaceTitle = getCommandCenterTitle.call(widget);
@@ -82,7 +85,15 @@ suite('SessionsTitleBarWidget', () => {
 		});
 		Reflect.set(widget, '_isQuickChat', false);
 		Reflect.set(widget, '_sessionTitle', undefined);
-		Reflect.set(widget, 'hoverService', upcastPartial<IHoverService>({ setupDelayedHover: () => Disposable.None }));
+		const hoverDelegate: IHoverDelegate = { placement: 'element', delay: 500, showHover: () => undefined };
+		const hovers: { content: string | undefined; sharedDelegate: boolean }[] = [];
+		Reflect.set(widget, 'options', { hoverDelegate });
+		Reflect.set(widget, 'hoverService', upcastPartial<IHoverService>({
+			setupManagedHover: (delegate, _target, content) => {
+				hovers.push({ content: typeof content === 'string' ? content : undefined, sharedDelegate: delegate === hoverDelegate });
+				return { ...Disposable.None, show: () => { }, hide: () => { }, update: () => { } };
+			},
+		}));
 
 		renderActiveSession.call(widget);
 
@@ -93,6 +104,8 @@ suite('SessionsTitleBarWidget', () => {
 			workspaceIcon: !!container.querySelector('.codicon-worktree-compact'),
 			branchIcon: !!container.querySelector('.codicon-git-branch-compact'),
 			branch: container.querySelector('.agent-sessions-titlebar-branch')?.textContent,
+			hovers,
+			nativeTitles: container.querySelectorAll('[title]').length,
 		}, {
 			ariaLabel: 'Show Sessions: vscode, branch feature/session-branch',
 			text: 'vscode·feature/session-branch',
@@ -100,6 +113,11 @@ suite('SessionsTitleBarWidget', () => {
 			workspaceIcon: true,
 			branchIcon: true,
 			branch: 'feature/session-branch',
+			hovers: [
+				{ content: 'vscode', sharedDelegate: true },
+				{ content: 'feature/session-branch', sharedDelegate: true },
+			],
+			nativeTitles: 0,
 		});
 	});
 });

@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { CustomMenubarControl } from '../../../../browser/parts/titlebar/menubarControl.js';
 import { BrowserTitlebarPart } from '../../../../browser/parts/titlebar/titlebarPart.js';
 import { WindowTitle } from '../../../../browser/parts/titlebar/windowTitle.js';
 import { MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
@@ -26,6 +27,11 @@ suite('TitlebarPart colors', () => {
 		protected override createContentArea(parent: HTMLElement): HTMLElement {
 			this.element = parent;
 			return parent;
+		}
+
+		installTestMenubar(leftContent: HTMLElement): void {
+			Reflect.set(this, 'leftContent', leftContent);
+			this.installMenubar();
 		}
 	}
 
@@ -122,6 +128,72 @@ suite('TitlebarPart colors', () => {
 			assert.deepStrictEqual({ active, inactive }, {
 				active: 'rgb(17, 34, 51)',
 				inactive: 'rgb(68, 85, 102)',
+			});
+		} finally {
+			workbench.remove();
+		}
+	});
+
+	test('updates inactive title bar opacity from menubar focus state', () => {
+		const workbench = mainWindow.document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		const titlebar = mainWindow.document.createElement('div');
+		titlebar.className = 'part titlebar';
+		const titlebarContainer = mainWindow.document.createElement('div');
+		titlebarContainer.className = 'titlebar-container';
+		titlebar.appendChild(titlebarContainer);
+		workbench.appendChild(titlebar);
+		mainWindow.document.body.appendChild(workbench);
+
+		const focusStateEmitter = store.add(new Emitter<boolean>());
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IContextMenuService, new TestContextMenuService());
+		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
+			override getContainer(): HTMLElement { return workbench; }
+		}());
+		instantiationService.stubInstance(WindowTitle, { dispose() { } });
+		instantiationService.stubInstance(CustomMenubarControl, {
+			onVisibilityChange: Event.None,
+			onFocusStateChange: focusStateEmitter.event,
+			create(parent) { return parent; },
+			dispose() { },
+		});
+
+		const groups = new class extends mock<IEditorGroupsContainer>() {
+			override onDidChangeEditorPartOptions = Event.None;
+		}();
+		const part = store.add(instantiationService.createInstance(TestTitlebarPart, Parts.TITLEBAR_PART, mainWindow, groups));
+
+		try {
+			part.create(titlebar);
+			titlebar.classList.add('inactive');
+			part.installTestMenubar(titlebarContainer);
+
+			const state = () => ({
+				focused: titlebar.classList.contains('menubar-focused'),
+				opacity: mainWindow.getComputedStyle(titlebarContainer).opacity,
+			});
+			const initial = state();
+			focusStateEmitter.fire(true);
+			const focused = state();
+			focusStateEmitter.fire(false);
+			const blurred = state();
+			focusStateEmitter.fire(true);
+			const refocused = state();
+
+			const uninstallMenubar = Reflect.get(BrowserTitlebarPart.prototype, 'uninstallMenubar') as (this: BrowserTitlebarPart) => void;
+			uninstallMenubar.call(part);
+			const uninstalled = state();
+			focusStateEmitter.fire(true);
+			const afterUninstallEvent = state();
+
+			assert.deepStrictEqual({ initial, focused, blurred, refocused, uninstalled, afterUninstallEvent }, {
+				initial: { focused: false, opacity: '0.6' },
+				focused: { focused: true, opacity: '1' },
+				blurred: { focused: false, opacity: '0.6' },
+				refocused: { focused: true, opacity: '1' },
+				uninstalled: { focused: false, opacity: '0.6' },
+				afterUninstallEvent: { focused: false, opacity: '0.6' },
 			});
 		} finally {
 			workbench.remove();

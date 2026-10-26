@@ -30,6 +30,7 @@ import { AgentPluginEnablementService, IAgentPluginEnablementService } from '../
 import { IFetchMarketplacePluginsOptions, IMarketplaceInstalledPlugin, IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../../../common/plugins/pluginSource.js';
 import { isMarketplaceReferenceAllowed, StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
+import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 
 suite('PluginInstallService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -60,7 +61,7 @@ suite('PluginInstallService', () => {
 
 	interface MockState {
 		notifications: { severity: number; message: string }[];
-		addedPlugins: { uri: string; plugin: IMarketplacePlugin }[];
+		addedPlugins: { uri: string; plugin: IMarketplacePlugin; previousPluginUri?: string }[];
 		dialogConfirmResult: boolean;
 		fileExistsResult: boolean | ((uri: URI) => Promise<boolean>);
 		ensureRepositoryResult: URI;
@@ -175,7 +176,7 @@ suite('PluginInstallService', () => {
 			state.durablePluginUris = state.installedPlugins.map(candidate => candidate.pluginUri);
 		}
 		const instantiationService = store.add(new TestInstantiationService());
-		const enablementService = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService())));
+		const enablementService = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
 		instantiationService.stub(IAgentPluginEnablementService, enablementService);
 
 		// IFileService
@@ -340,8 +341,8 @@ suite('PluginInstallService', () => {
 		const installedPlugins = observableValue('test.installedPlugins', state.installedPlugins);
 		instantiationService.stub(IPluginMarketplaceService, {
 			installedPlugins,
-			addInstalledPlugin: (uri: URI, plugin: IMarketplacePlugin) => {
-				state.addedPlugins.push({ uri: uri.toString(), plugin });
+			addInstalledPlugin: (uri: URI, plugin: IMarketplacePlugin, previousPluginUri?: URI) => {
+				state.addedPlugins.push({ uri: uri.toString(), plugin, ...(previousPluginUri ? { previousPluginUri: previousPluginUri.toString() } : {}) });
 				state.durablePluginUris = [...state.durablePluginUris, uri];
 				if (state.recordInstalledPlugins) {
 					state.installedPlugins = [...state.installedPlugins, { pluginUri: uri, plugin }];
@@ -943,7 +944,7 @@ suite('PluginInstallService', () => {
 				}, {
 					updated: true,
 					ensured: [sourceDescriptor],
-					added: [{ uri: newUri.toString(), plugin }],
+					added: [{ uri: newUri.toString(), plugin, previousPluginUri: oldUri.toString() }],
 					removed: [oldUri.toString()],
 					installed: [{ pluginUri: newUri, plugin }],
 					silent: true,

@@ -210,7 +210,10 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly minThinkingBudget?: number;
 	public readonly maxThinkingBudget?: number;
 	public readonly supportsReasoningEffort?: string[];
-	public readonly supportsToolSearch?: boolean;
+	private readonly _supportsToolSearch: boolean | undefined;
+	public get supportsToolSearch(): boolean | undefined {
+		return this._supportsToolSearch;
+	}
 	public readonly supportsContextEditing?: boolean;
 	public readonly isPremium?: boolean | undefined;
 	public readonly multiplier?: number | undefined;
@@ -271,7 +274,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.minThinkingBudget = modelMetadata.capabilities.supports.min_thinking_budget;
 		this.maxThinkingBudget = modelMetadata.capabilities.supports.max_thinking_budget;
 		this.supportsReasoningEffort = modelMetadata.capabilities.supports.reasoning_effort;
-		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this);
+		this._supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this);
 		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this);
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
@@ -523,6 +526,13 @@ export class ChatEndpoint implements IChatEndpoint {
 		return body;
 	}
 
+	/**
+	 * Whether the Responses API can resume this response on the next request.
+	 */
+	protected canResumeResponses(_responseId: string): boolean {
+		return this.modelMetadata.zeroDataRetentionEnabled !== true;
+	}
+
 	public async processResponseFromChatEndpoint(
 		telemetryService: ITelemetryService,
 		logService: ILogService,
@@ -534,7 +544,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	): Promise<AsyncIterableObject<ChatCompletion>> {
 		if (this.useResponsesApi) {
 			const compactionThreshold = getResponsesApiCompactionThreshold(this._configurationService, this._expService, this);
-			return processResponseFromChatEndpoint(this._instantiationService, telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, compactionThreshold);
+			return processResponseFromChatEndpoint(this._instantiationService, telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, compactionThreshold, responseId => this.canResumeResponses(responseId));
 		} else if (this.useMessagesApi) {
 			return processResponseFromMessagesEndpoint(this._instantiationService, telemetryService, logService, response, finishCallback, telemetryData);
 		} else if (!this._supportsStreaming) {

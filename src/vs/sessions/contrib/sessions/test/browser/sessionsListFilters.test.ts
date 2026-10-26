@@ -20,14 +20,14 @@ suite('SessionsListFilters', () => {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
 	}
 
-	test('always offers the three harnesses, Local and Cloud, and their VS Code application choices', () => {
+	test('always offers the three harnesses, This Computer and Cloud, and their VS Code application choices', () => {
 		assert.deepStrictEqual(getSessionFilterOptions([], []), [
 			{ filter: { kind: 'harness', id: 'copilot' }, label: 'Copilot', group: '1_harnesses' },
 			{ filter: { kind: 'harness', id: 'claude' }, label: 'Claude', group: '1_harnesses' },
 			{ filter: { kind: 'harness', id: 'codex' }, label: 'Codex', group: '1_harnesses' },
-			{ filter: { kind: 'environment', id: 'local' }, label: 'Local', group: '2_environments' },
+			{ filter: { kind: 'environment', id: 'local' }, label: 'This Computer', group: '2_environments' },
 			{ filter: { kind: 'environment', id: 'cloud' }, label: 'Cloud', group: '2_environments' },
-			{ filter: { kind: 'application', environment: 'local', id: 'vscode' }, label: 'VS Code (Local)', group: '3_applications_000000' },
+			{ filter: { kind: 'application', environment: 'local', id: 'vscode' }, label: 'VS Code (This Computer)', group: '3_applications_000000' },
 			{ filter: { kind: 'application', environment: 'cloud', id: 'vscode' }, label: 'VS Code (Cloud)', group: '3_applications_000001' },
 		]);
 	});
@@ -47,8 +47,8 @@ suite('SessionsListFilters', () => {
 			environments: options.filter(option => option.filter.kind === 'environment').map(option => option.label),
 			applications: options.filter(option => option.filter.kind === 'application').map(option => option.label),
 		}, {
-			environments: ['Local', 'Cloud', 'Connected Host'],
-			applications: ['VS Code (Local)', 'Custom Cloud App (Cloud)', 'VS Code (Cloud)', 'Copilot CLI (Cached Host)', 'VS Code (Cached Host)', 'VS Code (Connected Host)'],
+			environments: ['This Computer', 'Cloud', 'Connected Host'],
+			applications: ['VS Code (This Computer)', 'Custom Cloud App (Cloud)', 'VS Code (Cloud)', 'Copilot CLI (Cached Host)', 'VS Code (Cached Host)', 'VS Code (Connected Host)'],
 		});
 	});
 
@@ -79,6 +79,55 @@ suite('SessionsListFilters', () => {
 			['remote'],
 			['claude', 'remote'],
 		]);
+	});
+
+	test('filters task client applications independently of external status and reuses existing preferences', () => {
+		const filters = createFilters();
+		const sessions = ['copilot-vscode', 'copilot-cli', 'copilot-app'].map(application =>
+			buildTestSession({ id: application, title: application, environment: 'cloud', application, isExternal: false }).session);
+		const before = sessions.filter(session => filters.matches(session)).map(session => session.sessionId);
+		filters.setExcluded({ kind: 'application', environment: 'cloud', id: 'github/cli' }, true);
+		assert.deepStrictEqual({
+			before,
+			after: sessions.filter(session => filters.matches(session)).map(session => session.sessionId),
+			external: sessions.map(session => session.isExternal?.get()),
+			applications: getSessionFilterOptions(sessions, [])
+				.filter(option => option.filter.kind === 'application' && option.filter.environment === 'cloud')
+				.map(option => option.label),
+		}, {
+			before: ['copilot-vscode', 'copilot-cli', 'copilot-app'],
+			after: ['copilot-vscode', 'copilot-app'],
+			external: [false, false, false],
+			applications: ['Copilot App (Cloud)', 'Copilot CLI (Cloud)', 'VS Code (Cloud)'],
+		});
+	});
+
+	test('omits unknown creating applications without hiding their sessions', () => {
+		const filters = createFilters();
+		const sessions = ['agent_tasks_api', 'agent_tasks_public_api', 'api_call_received', 'unknown'].map(application =>
+			buildTestSession({ id: application, title: application, environment: 'cloud', application }).session);
+		for (const id of ['vscode', 'unknown', 'agent_tasks_api']) {
+			filters.setExcluded({ kind: 'application', environment: 'cloud', id }, true);
+		}
+		const visible = () => sessions.filter(session => filters.matches(session)).map(session => session.sessionId);
+		const before = visible();
+		filters.setExcluded({ kind: 'environment', id: 'cloud' }, true);
+		const excludedEnvironment = visible();
+		filters.setExcluded({ kind: 'environment', id: 'cloud' }, false);
+		filters.setExcluded({ kind: 'harness', id: 'copilot' }, true);
+		assert.deepStrictEqual({
+			applications: getSessionFilterOptions(sessions, [])
+				.filter(option => option.filter.kind === 'application' && option.filter.environment === 'cloud')
+				.map(option => option.label),
+			before,
+			excludedEnvironment,
+			excludedHarness: visible(),
+		}, {
+			applications: ['VS Code (Cloud)'],
+			before: ['agent_tasks_api', 'agent_tasks_public_api', 'api_call_received', 'unknown'],
+			excludedEnvironment: [],
+			excludedHarness: [],
+		});
 	});
 
 	for (const environment of ['local', 'remote-id', 'agenthost-build-server:8080']) {
@@ -140,10 +189,10 @@ suite('SessionsListFilters', () => {
 		remote.application.set(getSessionApplication('github/cli'), undefined);
 		catalog.set([local.session], undefined);
 		assert.deepStrictEqual(snapshots, [
-			['2_environments: Local', '2_environments: Cloud', '2_environments: Workstation', '3_applications_000000: VS Code (Local)', '3_applications_000001: VS Code (Cloud)', '3_applications_000002: VS Code (Workstation)'],
-			['2_environments: Local', '2_environments: Cloud', '3_applications_000000: VS Code (Local)', '3_applications_000001: VS Code (Cloud)', '3_applications_000002: VS Code (Workstation)'],
-			['2_environments: Local', '2_environments: Cloud', '3_applications_000000: VS Code (Local)', '3_applications_000001: VS Code (Cloud)', '3_applications_000002: Copilot CLI (Workstation)', '3_applications_000002: VS Code (Workstation)'],
-			['2_environments: Local', '2_environments: Cloud', '3_applications_000000: VS Code (Local)', '3_applications_000001: VS Code (Cloud)'],
+			['2_environments: This Computer', '2_environments: Cloud', '2_environments: Workstation', '3_applications_000000: VS Code (This Computer)', '3_applications_000001: VS Code (Cloud)', '3_applications_000002: VS Code (Workstation)'],
+			['2_environments: This Computer', '2_environments: Cloud', '3_applications_000000: VS Code (This Computer)', '3_applications_000001: VS Code (Cloud)', '3_applications_000002: VS Code (Workstation)'],
+			['2_environments: This Computer', '2_environments: Cloud', '3_applications_000000: VS Code (This Computer)', '3_applications_000001: VS Code (Cloud)', '3_applications_000002: Copilot CLI (Workstation)', '3_applications_000002: VS Code (Workstation)'],
+			['2_environments: This Computer', '2_environments: Cloud', '3_applications_000000: VS Code (This Computer)', '3_applications_000001: VS Code (Cloud)'],
 		]);
 	});
 
@@ -167,7 +216,7 @@ suite('SessionsListFilters', () => {
 			visible: restored.matches(session),
 			localChoice: restored.isExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }),
 		}, {
-			absentApplications: ['VS Code (Local)', 'VS Code (Cloud)', 'VS Code (Old Name)'],
+			absentApplications: ['VS Code (This Computer)', 'VS Code (Cloud)', 'VS Code (Old Name)'],
 			label: 'Copilot CLI (New Name)',
 			excluded: true,
 			visible: false,
@@ -194,7 +243,7 @@ suite('SessionsListFilters', () => {
 			{ id: 'vscode', label: 'VS Code' },
 			{ id: 'github/cli', label: 'Copilot CLI' },
 			{ id: 'github/autopilot', label: 'Copilot App' },
-			{ id: 'issues_agent_assignment', label: 'Issues Assignment' },
+			{ id: 'copilot-web', label: 'GitHub' },
 			{ id: 'CUSTOM_EVENT', label: 'Custom Event' },
 			{ id: 'custom_cloud_APPLICATION', label: 'Custom Cloud Application' },
 			{ id: 'another cloud application', label: 'Another Cloud Application' },

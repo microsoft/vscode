@@ -53,6 +53,24 @@ suite('Onboarding target providers', () => {
 	});
 
 	for (const owner of ['registration', 'provider'] as const) {
+		test(`exposes a separate keyboard focus target from the ${owner}`, () => {
+			const element = createTarget();
+			const focusElement = createTarget();
+			const focusTarget = { element: focusElement, focus: () => focusElement.focus() };
+			if (owner === 'registration') {
+				disposables.add(markOnboardingTarget(element, 'test.focus', { focusTarget }));
+			} else {
+				disposables.add(registerOnboardingTargetProvider('test.focus', () => ({ element, focusTarget })));
+			}
+			const target = resolveOnboardingTarget(mainWindow, 'test.focus');
+			target?.focusTarget?.focus();
+			assert.deepStrictEqual({
+				visualTarget: target?.element === element,
+				focusTarget: target?.focusTarget === focusTarget,
+				focused: mainWindow.document.activeElement === focusElement,
+			}, { visualTarget: true, focusTarget: true, focused: true });
+		});
+
 		test(`exposes the activation event from the ${owner}`, () => {
 			const element = createTarget();
 			const activated = disposables.add(new Emitter<void>());

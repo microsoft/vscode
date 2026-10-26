@@ -114,7 +114,7 @@ export function createClaudeThinkingLevelSchema(supportedEfforts: readonly Claud
 		properties: {
 			[CLAUDE_THINKING_LEVEL_KEY]: {
 				type: 'string',
-				title: localize('claude.modelThinkingLevel.title', "Thinking Level"),
+				title: localize('claude.modelThinkingLevel.title', "Effort Level"),
 				description: localize('claude.modelThinkingLevel.description', "Controls how much reasoning effort Claude uses."),
 				enum: [...supportedEfforts],
 				enumLabels: supportedEfforts.map(getReasoningEffortLabel),

@@ -87,21 +87,31 @@ suite('Agents frosted glass styles', () => {
 		assert.deepStrictEqual(state(), before);
 	});
 
-	test('keeps sticky picker headings and the automation titlebar solid', () => {
+	test('uses the Agents panel color for the automation dialog and its glass tint', () => {
 		const { root, quickInput, dialog } = createOverlays();
 		dialog.classList.add('automation-dialog');
 		const titlebar = append(dialog, 'automation-titlebar');
 		const sticky = append(quickInput, 'monaco-tree-sticky-container');
 		sticky.style.backgroundColor = 'var(--vscode-quickInput-background)';
-		const original = [titlebar, sticky].map(element => readColor(element).rgba);
+		root.classList.add('automation-dialog-open');
+		const panel = new RGBA(32, 48, 64, 1);
+		const solidDialog = readColor(dialog).rgba;
+		const originalSticky = readColor(sticky).rgba;
 		root.classList.add('modern-ui-frosted-glass');
 		root.style.setProperty('--modern-ui-glass-opacity', '50%');
+		const supported = supportsGlass(root);
 		assert.deepStrictEqual({
-			headings: [titlebar, sticky].map(element => readColor(element).rgba),
-			dialogTint: Math.round(readColor(dialog, '::before').rgba.a * 100),
+			solidDialog,
+			titlebar: readColor(titlebar).rgba,
+			sticky: readColor(sticky).rgba,
+			dialog: readColor(dialog).rgba,
+			dialogTint: readColor(dialog, '::before').rgba,
 		}, {
-			headings: original,
-			dialogTint: supportsGlass(root) ? 50 : 0,
+			solidDialog: panel,
+			titlebar: new RGBA(0, 0, 0, 0),
+			sticky: originalSticky,
+			dialog: supported ? new RGBA(0, 0, 0, 0) : panel,
+			dialogTint: supported ? new RGBA(32, 48, 64, 128 / 255) : new RGBA(0, 0, 0, 0),
 		});
 	});
 

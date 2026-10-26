@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { LanguageModelToolInformation } from 'vscode';
+import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { Embedding, EmbeddingType, IEmbeddingsComputer, isValidEmbedding, rankEmbeddings } from '../../../../platform/embeddings/common/embeddingsComputer';
 import { EmbeddingsGrouper, Node } from '../../../../platform/embeddings/common/embeddingsGrouper';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -15,7 +16,7 @@ import { Lazy } from '../../../../util/vs/base/common/lazy';
 import { StopWatch } from '../../../../util/vs/base/common/stopwatch';
 import { isDefined } from '../../../../util/vs/base/common/types';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { PreComputedToolEmbeddingsCache } from './preComputedToolEmbeddingsCache';
+import { EMBEDDING_TYPE_FOR_NO_AUTH_TOOL_SEARCH, EMBEDDING_TYPE_FOR_TOOL_GROUPING, PreComputedToolEmbeddingsCache } from './preComputedToolEmbeddingsCache';
 import { ToolEmbeddingLocalCache } from './toolEmbeddingsLocalCache';
 import { MIN_TOOLSET_SIZE_TO_GROUP } from './virtualToolsConstants';
 
@@ -28,6 +29,11 @@ export interface IToolEmbeddingsCache {
 interface IInit {
 	embeddingType: EmbeddingType;
 	caches: readonly IToolEmbeddingsCache[];
+}
+
+interface IToolEmbeddingsProfile extends IInit {
+	readonly store: Map<string, Promise<Embedding | undefined>>;
+	readonly initialized: Lazy<Promise<void>>;
 }
 
 export interface IToolEmbeddingsComputer {
@@ -54,33 +60,47 @@ export const IToolEmbeddingsComputer = createServiceIdentifier<IToolEmbeddingsCo
 export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 	declare _serviceBrand: undefined;
 
-	private readonly embeddingsStore = new Map<string, Promise<Embedding | undefined>>();
-	private readonly _initialized = new Lazy(() => this.ensureInitialized());
-	private readonly _caches: readonly IToolEmbeddingsCache[];
-	private readonly _embeddingType: EmbeddingType;
+	private readonly _profiles = new Map<string, IToolEmbeddingsProfile>();
 
 	constructor(
 		@IEmbeddingsComputer private readonly _embeddingsComputer: IEmbeddingsComputer,
 		@ILogService private readonly _logService: ILogService,
 		@IGithubAvailableEmbeddingTypesService private readonly _availableEmbeddingTypesService: IGithubAvailableEmbeddingTypesService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		const { caches, embeddingType } = this.getCaches(instantiationService);
-		this._caches = caches;
-		this._embeddingType = embeddingType;
+		@IAuthenticationService private readonly _authService: IAuthenticationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) { }
+
+	protected getCaches(instantiationService: IInstantiationService, embeddingType: EmbeddingType): IInit {
+		const caches: IToolEmbeddingsCache[] = [instantiationService.createInstance(PreComputedToolEmbeddingsCache, embeddingType)];
+		// The local cache file holds a single embedding type, so only the primary type persists to disk.
+		if (embeddingType.equals(EMBEDDING_TYPE_FOR_TOOL_GROUPING)) {
+			caches.push(instantiationService.createInstance(ToolEmbeddingLocalCache, embeddingType));
+		}
+		return { embeddingType, caches };
 	}
 
-	protected getCaches(instantiationService: IInstantiationService): IInit {
-		const precomputed = instantiationService.createInstance(PreComputedToolEmbeddingsCache);
-		const embeddingType = precomputed.embeddingType;
+	private _getProfile(embeddingType: EmbeddingType): IToolEmbeddingsProfile {
+		let profile = this._profiles.get(embeddingType.id);
+		if (!profile) {
+			const init = this.getCaches(this._instantiationService, embeddingType);
+			profile = {
+				...init,
+				store: new Map(),
+				initialized: new Lazy(async () => { await Promise.all(init.caches.map(c => c.initialize())); }),
+			};
+			this._profiles.set(embeddingType.id, profile);
+		}
+		return profile;
+	}
 
-		return {
-			embeddingType,
-			caches: [
-				precomputed,
-				instantiationService.createInstance(ToolEmbeddingLocalCache, embeddingType),
-			],
-		};
+	private async _getProfileForSearch(): Promise<IToolEmbeddingsProfile> {
+		let isNoAuthUser = false;
+		try {
+			isNoAuthUser = (await this._authService.getCopilotToken()).isNoAuthUser;
+		} catch {
+			// Fall through to the default embedding type.
+		}
+		return this._getProfile(isNoAuthUser ? EMBEDDING_TYPE_FOR_NO_AUTH_TOOL_SEARCH : EMBEDDING_TYPE_FOR_TOOL_GROUPING);
 	}
 
 	async isEmbeddingModelAvailable(): Promise<boolean> {
@@ -91,13 +111,17 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 	 * Legacy method name for backward compatibility
 	 */
 	public async retrieveSimilarEmbeddingsForAvailableTools(queryEmbedding: Embedding, availableToolNames: readonly LanguageModelToolInformation[], count: number, token: CancellationToken): Promise<string[]> {
-		await this._initialized.value;
+		return this._retrieveSimilar(this._getProfile(queryEmbedding.type), queryEmbedding, availableToolNames, count, token);
+	}
+
+	private async _retrieveSimilar(profile: IToolEmbeddingsProfile, queryEmbedding: Embedding, availableToolNames: readonly LanguageModelToolInformation[], count: number, token: CancellationToken): Promise<string[]> {
+		await profile.initialized.value;
 
 		if (token.isCancellationRequested) {
 			return [];
 		}
 
-		const availableEmbeddings = await this.getAvailableToolEmbeddings(availableToolNames, token);
+		const availableEmbeddings = await this.getAvailableToolEmbeddings(profile, availableToolNames, token);
 		if (availableEmbeddings.length === 0) {
 			return [];
 		}
@@ -110,18 +134,19 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 	}
 
 	public async searchToolsByQuery(query: string, availableTools: readonly LanguageModelToolInformation[], limit: number, token: CancellationToken): Promise<string[]> {
-		await this._initialized.value;
-
 		if (!query || token.isCancellationRequested) {
 			return [];
 		}
 
-		const queryEmbedding = await this._embeddingsComputer.computeEmbeddings(this._embeddingType, [query], { inputType: 'query' }, new TelemetryCorrelationId('ToolEmbeddingsComputer::searchToolsByQuery'), token);
+		const profile = await this._getProfileForSearch();
+		await profile.initialized.value;
+
+		const queryEmbedding = await this._embeddingsComputer.computeEmbeddings(profile.embeddingType, [query], { inputType: 'query' }, new TelemetryCorrelationId('ToolEmbeddingsComputer::searchToolsByQuery'), token);
 		if (!queryEmbedding || queryEmbedding.values.length === 0) {
 			return [];
 		}
 
-		return this.retrieveSimilarEmbeddingsForAvailableTools(queryEmbedding.values[0], availableTools, limit, token);
+		return this._retrieveSimilar(profile, queryEmbedding.values[0], availableTools, limit, token);
 	}
 
 	private rankEmbeddings(queryEmbedding: Embedding, availableEmbeddings: ReadonlyArray<readonly [string, Embedding]>, count: number) {
@@ -129,22 +154,14 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 	}
 
 	/**
-	 * Ensures pre-computed embeddings are loaded into the store
-	 */
-	private async ensureInitialized(): Promise<void> {
-		await Promise.all(this._caches.map(c => c.initialize()));
-	}
-
-
-	/**
 	 * Computes embeddings for missing tools and stores them
 	 */
-	private computeMissingEmbeddings(missingTools: LanguageModelToolInformation[], token: CancellationToken) {
+	private computeMissingEmbeddings(profile: IToolEmbeddingsProfile, missingTools: LanguageModelToolInformation[], token: CancellationToken) {
 		if (token.isCancellationRequested || missingTools.length === 0) {
 			return;
 		}
 
-		const computedEmbeddings = this.computeEmbeddingsForTools(missingTools, token).catch(e => {
+		const computedEmbeddings = this.computeEmbeddingsForTools(profile.embeddingType, missingTools, token).catch(e => {
 			this._logService.error('Failed to compute embeddings for tools', e);
 			return undefined;
 		});
@@ -153,38 +170,38 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 			const promise = computedEmbeddings.then(async (c) => {
 				const found = c?.find(([name]) => name === tool.name)?.[1];
 				if (found === undefined) {
-					this.embeddingsStore.delete(tool.name);
+					profile.store.delete(tool.name);
 					return undefined;
 				}
 
 				if (!isValidEmbedding(found)) {
 					this._logService.warn(`[virtual-tools] Computed embedding for tool ${tool.name} is invalid: ${JSON.stringify(found)}`);
-					this.embeddingsStore.delete(tool.name);
+					profile.store.delete(tool.name);
 					return undefined;
 				}
 
-				for (const cache of this._caches) {
+				for (const cache of profile.caches) {
 					cache.set(tool, found);
 				}
 
 				return found;
 			});
 
-			this.embeddingsStore.set(tool.name, promise);
+			profile.store.set(tool.name, promise);
 		}
 	}
 
 	/**
 	 * Computes embeddings for a list of tool names
 	 */
-	private async computeEmbeddingsForTools(tools: LanguageModelToolInformation[], token: CancellationToken): Promise<[string, Embedding][] | undefined> {
+	private async computeEmbeddingsForTools(embeddingType: EmbeddingType, tools: LanguageModelToolInformation[], token: CancellationToken): Promise<[string, Embedding][] | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 
 		const toolNames = tools.map(t => t.name + '\n\n' + t.description);
 		const start = new StopWatch();
-		const embeddings = await this._embeddingsComputer.computeEmbeddings(this._embeddingType, toolNames, { inputType: 'document' }, new TelemetryCorrelationId('ToolEmbeddingsComputer::computeEmbeddingsForTools'), token);
+		const embeddings = await this._embeddingsComputer.computeEmbeddings(embeddingType, toolNames, { inputType: 'document' }, new TelemetryCorrelationId('ToolEmbeddingsComputer::computeEmbeddingsForTools'), token);
 		this._logService.trace(`[virtual-tools] Computed embeddings for ${toolNames.length} tools in ${start.elapsed()}ms`);
 
 		if (embeddings?.values.length === 0 || embeddings?.values.length !== toolNames.length) {
@@ -197,9 +214,9 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 	/**
 	 * Gets embeddings for available tools as an array suitable for ranking
 	 */
-	private async getAvailableToolEmbeddings(tools: readonly LanguageModelToolInformation[], token: CancellationToken): Promise<ReadonlyArray<readonly [string, Embedding]>> {
+	private async getAvailableToolEmbeddings(profile: IToolEmbeddingsProfile, tools: readonly LanguageModelToolInformation[], token: CancellationToken): Promise<ReadonlyArray<readonly [string, Embedding]>> {
 		const fromCaches = new Map(tools.map(t => {
-			for (const cache of this._caches) {
+			for (const cache of profile.caches) {
 				const embedding = cache.get(t);
 				if (isValidEmbedding(embedding)) {
 					return [t.name, embedding] as [string, Embedding];
@@ -207,8 +224,8 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 			}
 		}).filter(isDefined));
 
-		const missingTools = tools.filter(t => !this.embeddingsStore.has(t.name) && !fromCaches.has(t.name));
-		this.computeMissingEmbeddings(missingTools, token);
+		const missingTools = tools.filter(t => !profile.store.has(t.name) && !fromCaches.has(t.name));
+		this.computeMissingEmbeddings(profile, missingTools, token);
 
 		const result: [string, Embedding][] = [];
 
@@ -223,7 +240,7 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 				continue;
 			}
 
-			const embedding = await this.embeddingsStore.get(name);
+			const embedding = await profile.store.get(name);
 			if (embedding) {
 				result.push([name, embedding]);
 			}
@@ -236,14 +253,15 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 	 * Groups tools using embedding-based clustering to optimize for target cluster count
 	 */
 	async computeToolGroupings(tools: readonly LanguageModelToolInformation[], limit: number, token: CancellationToken): Promise<LanguageModelToolInformation[][]> {
-		await this._initialized.value;
+		const profile = this._getProfile(EMBEDDING_TYPE_FOR_TOOL_GROUPING);
+		await profile.initialized.value;
 
 		if (token.isCancellationRequested || tools.length === 0) {
 			return [];
 		}
 
 		// Get embeddings for all tools
-		const toolEmbeddings = await this.getAvailableToolEmbeddings(tools, token);
+		const toolEmbeddings = await this.getAvailableToolEmbeddings(profile, tools, token);
 		if (toolEmbeddings.length === 0) {
 			this._logService.trace('[virtual-tools] No embeddings available for tools, returning empty groups');
 			return [];

@@ -14,6 +14,7 @@ import { isString } from '../../../../../base/common/types.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ISessionWorkspaceBrowseAction } from '../../../../services/sessions/common/session.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 /** Prefix used for ids of dynamically-loaded folder rows in the sheet. */
 const SEARCH_RESULT_ID_PREFIX = 'searchResult:';
@@ -162,7 +163,12 @@ export async function showMobileWorkspacePickerSheet(
 	dispatch: (item: IWorkspacePickerItem) => void,
 	browseActions: readonly ISessionWorkspaceBrowseAction[],
 	showSearch = false,
+	cancellationToken: CancellationToken = CancellationToken.None,
+	caption?: string,
 ): Promise<void> {
+	if (cancellationToken.isCancellationRequested) {
+		return;
+	}
 	const { rowItems, headerBrowseActions } = partitionItems(items, dispatch, browseActions);
 
 	// Restrict inline folder search to browse actions the picker
@@ -282,11 +288,12 @@ export async function showMobileWorkspacePickerSheet(
 			localize('mobileWorkspacePicker.title', "Choose Workspace"),
 			showSearch ? [] : rows.map(r => r.sheetItem),
 			{
+				cancellationToken,
 				headerActions,
 				search,
-				caption: inlineFolderActions.length > 0
+				caption: caption ?? (inlineFolderActions.length > 0
 					? localize('mobileWorkspacePicker.caption', "Search to browse folders on the host")
-					: undefined,
+					: undefined),
 				stayOpenOnSelect: true,
 				doneLabel: localize('mobileWorkspacePicker.cancel', "Cancel"),
 				onDidSelect: (id) => {

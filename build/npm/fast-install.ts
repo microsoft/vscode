@@ -6,9 +6,7 @@
 import * as child_process from 'child_process';
 import { ensureElectronTypes } from './electronTypes.ts';
 import { root, isUpToDate, forceInstallMessage } from './installStateHash.ts';
-import { prepareCloudSandbox, finishCloudSandbox } from './cloudSandbox.ts';
-
-const cloudSandbox = prepareCloudSandbox();
+import { finishCloudSandbox } from './cloudSandbox.ts';
 
 if (!process.argv.includes('--force') && isUpToDate()) {
 	// Mirror postinstall.ts, which restores the
@@ -22,14 +20,6 @@ if (!process.argv.includes('--force') && isUpToDate()) {
 }
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-if (cloudSandbox) {
-	// npm may build native dependencies before root preinstall. Prepare their headers first.
-	child_process.execFileSync(process.execPath, ['build/npm/preinstall.ts'], {
-		cwd: root,
-		stdio: 'inherit',
-		env: { ...process.env, npm_command: 'ci', VSCODE_FORCE_INSTALL: '1' },
-	});
-}
 const result = child_process.spawnSync(npm, ['install'], {
 	cwd: root,
 	stdio: 'inherit',

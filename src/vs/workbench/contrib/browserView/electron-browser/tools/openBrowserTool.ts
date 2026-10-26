@@ -130,7 +130,7 @@ export class OpenBrowserTool implements IToolImpl {
 			if (policyError) {
 				return errorResult(policyError);
 			}
-			const rewrite = rewriteRemoteLocalhostUrl(params.url, this.browserViewService, this.remoteExplorerService);
+			const rewrite = rewriteRemoteLocalhostUrl(params.url, this.remoteExplorerService, !!this.browserViewService.resolveNetwork({ type: 'agent', sessionId }));
 			const tunnelError = getExternalTunnelNetworkPolicyError(rewrite, this.agentNetworkFilterService);
 			if (tunnelError) {
 				return errorResult(tunnelError);
@@ -158,7 +158,8 @@ export class OpenBrowserTool implements IToolImpl {
 		// runs locally and cannot reach the remote's localhost directly. Rewrite to
 		// the forwarded local address (if any) so the page can be reached.
 		const logicalUrl = params.url;
-		const rewrite = rewriteRemoteLocalhostUrl(logicalUrl, this.browserViewService, this.remoteExplorerService);
+		const network = this.browserViewService.resolveNetwork({ type: 'agent', sessionId });
+		const rewrite = rewriteRemoteLocalhostUrl(logicalUrl, this.remoteExplorerService, !!network);
 		const rewriteNotice = rewrite.rewritten ? remoteUrlRewriteNotice(logicalUrl, rewrite.url) : undefined;
 		params.url = rewrite.url;
 
@@ -173,14 +174,14 @@ export class OpenBrowserTool implements IToolImpl {
 
 		if (!params.forceNew) {
 			// If there are already-shared pages, tell the model to reuse them
-			const shared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: true, sharingState: BrowserViewSharingState.Shared, activeSessionId });
+			const shared = findExistingPagesByHost(this.browserViewService, params.url, network, { includeBlank: true, sharingState: BrowserViewSharingState.Shared, activeSessionId });
 			const alreadyShared = await getExistingPagesResult(this.editorService, shared, { agentNetworkFilterService: this.agentNetworkFilterService });
 			if (alreadyShared) {
 				return withNotice(alreadyShared);
 			}
 
 			// If there are unshared pages on the same host, prompt user to share one
-			const unshared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: false, activeSessionId })
+			const unshared = findExistingPagesByHost(this.browserViewService, params.url, network, { includeBlank: false, activeSessionId })
 				.filter(editor => editor.model?.sharingState === BrowserViewSharingState.Available);
 			if (unshared.length > 0) {
 				const shareResult = await this._promptForUnsharedPages(invocation, unshared, params, token);
@@ -328,7 +329,7 @@ export class OpenBrowserTool implements IToolImpl {
 
 	private async _openNewPage(sessionId: string, url: string, restrictions?: ISandboxNetworkRestrictions): Promise<IToolResult> {
 		const input = await this.browserViewService.createBrowserView({
-			...getAgentBrowserViewCreationDefaults(sessionId, restrictions || this.environmentService.isSessionsWindow ? sessionId : undefined),
+			...getAgentBrowserViewCreationDefaults(sessionId, restrictions || this.environmentService.isSessionsWindow ? sessionId : undefined, this.browserViewService.resolveNetwork({ type: 'agent', sessionId })),
 			...(restrictions?.sandboxEnabled ? { initialAudiences: [{ type: 'agent' as const, sessionId }] } : {}),
 			...(restrictions ? { sandboxNetworkRestrictions: restrictions } : {}),
 			initialUrl: url,

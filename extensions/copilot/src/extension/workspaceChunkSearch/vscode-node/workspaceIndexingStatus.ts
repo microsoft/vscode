@@ -12,7 +12,7 @@ import { ExternalIngestEnablement } from '../../../platform/workspaceChunkSearch
 import { CodeSearchRepoStatus } from '../../../platform/workspaceChunkSearch/node/codeSearch/codeSearchRepo';
 import { IWorkspaceChunkSearchService, WorkspaceIndexState } from '../../../platform/workspaceChunkSearch/node/workspaceChunkSearchService';
 import { coalesce } from '../../../util/vs/base/common/arrays';
-import { Emitter, Event } from '../../../util/vs/base/common/event';
+import { Event } from '../../../util/vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { commandUri } from '../../linkify/common/commands';
 import { buildRemoteIndexCommandId, enableExternalIngestCommandId } from './commands';
@@ -37,28 +37,6 @@ interface WorkspaceIndexStateReporter {
 	readonly onDidChangeIndexState: Event<void>;
 
 	getIndexState(): Promise<WorkspaceIndexState>;
-}
-
-export class MockWorkspaceIndexStateReporter extends Disposable implements WorkspaceIndexStateReporter {
-	private _indexState: WorkspaceIndexState;
-
-	private readonly _onDidChangeIndexState = this._register(new Emitter<void>());
-	public readonly onDidChangeIndexState = this._onDidChangeIndexState.event;
-
-	constructor(initialState: WorkspaceIndexState) {
-		super();
-
-		this._indexState = initialState;
-	}
-
-	async getIndexState(): Promise<WorkspaceIndexState> {
-		return this._indexState;
-	}
-
-	updateIndexState(newState: WorkspaceIndexState): void {
-		this._indexState = newState;
-		this._onDidChangeIndexState.fire();
-	}
 }
 
 interface ChatStatusItemState {
@@ -404,4 +382,3 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 		return disposables;
 	}
 }
-

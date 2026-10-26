@@ -161,9 +161,11 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
+				override readonly onDidChangeSessionTypes = Event.None;
 			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
+				override getProvider(): undefined { return undefined; }
 			}());
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;

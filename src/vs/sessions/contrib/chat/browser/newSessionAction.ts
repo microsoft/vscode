@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { resolveDevContainerSourceWorkspace } from '../../../browser/openInVSCodeUtils.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { SessionsListRearrangeContext, SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -59,11 +61,46 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, options?: { toSide?: boolean }): Promise<void> {
+	override async run(accessor: ServicesAccessor, options?: INewSessionInAgentsWindowOptions): Promise<URI | undefined> {
 		accessor.get(INewSessionComposerService).notifyUserNavigation();
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = options?.prompt ? accessor.get(ISessionsPartService) : undefined;
 		const activeSession = sessionsService.activeSession.get();
+		const sendPrompt = (): void => {
+			if (!options?.prompt) {
+				return;
+			}
+			const sessionId = sessionsService.activeSession.get()?.sessionId;
+			const sessionView = sessionsPartService?.getSessionView(sessionId);
+			if (!sessionView) {
+				throw new Error(localize('sessions.newSession.chatUnavailable', "The new session chat is unavailable."));
+			}
+			if (options.prefillPrompt) {
+				sessionView.prefillInput(options.prompt);
+			} else {
+				sessionView.sendQuery(options.prompt);
+			}
+		};
+		if (options?.noWorkspace) {
+			const target = options.agentHostProvider ? {
+				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				sessionTypeId: options.agentHostProvider,
+			} : activeSession ? {
+				providerId: activeSession.providerId,
+				sessionTypeId: activeSession.sessionType,
+			} : undefined;
+			const availableTarget = target && sessionsManagementService.isQuickChatTargetAvailable(target) ? target : undefined;
+			if (options.agentHostProvider && !availableTarget) {
+				throw new Error(localize('sessions.newSession.agentUnavailable', "The requested Agent Host provider '{0}' is unavailable.", options.agentHostProvider));
+			}
+			const session = sessionsService.openQuickChat(availableTarget, true);
+			if (options.agentHostProvider && !session) {
+				throw new Error(localize('sessions.newSession.creationFailed', "Could not create a session for Agent Host provider '{0}'.", options.agentHostProvider));
+			}
+			sendPrompt();
+			return session?.resource;
+		}
 		// Clear the no-workspace latch before unsetNewSession(), or the replacement composer recreates the quick chat.
 		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
 		if (isQuickChat && activeSession?.isCreated?.get() === false && !options?.toSide) {
@@ -74,6 +111,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			sessionsService.unsetNewSession();
 			const replacementSessionId = sessionsService.activeSession.get()?.sessionId;
 			accessor.get(ISessionsPartService).getSessionView(replacementSessionId)?.focusWorkspacePicker();
+			sendPrompt();
 			return;
 		}
 		const activeFolderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
@@ -92,12 +130,14 @@ export class NewChatInSessionsWindowAction extends Action2 {
 				: activeSession,
 			folderUri,
 		);
-		await sessionsService.openNewSession({
+		const { session } = await sessionsService.openNewSession({
 			folderUri,
 			toSide: options?.toSide,
 			...(containerSourceProviderId ? { providerId: containerSourceProviderId } : {}),
 			...inheritedTarget,
 			...(containerSourceProviderId ? { requireDevContainer: true } : {}),
 		});
+		sendPrompt();
+		return session?.resource;
 	}
 }

@@ -298,20 +298,35 @@ pub struct AgentHostArgs {
 	/// Alias for `code tunnel`: expose remote editor and agent host access.
 	#[clap(
 		long,
+		group = "remote_host",
 		conflicts_with_all = [
 			"host", "port", "connection_token", "connection_token_file",
 			"without_connection_token", "replace", "new_instance", "foreground", "idle_timeout"
 		]
 	)]
 	pub tunnel: bool,
-	/// Sets the machine name for the tunnel.
-	#[clap(long, requires = "tunnel")]
+	/// Register this agent host as a GitHub environment. Runs in the foreground.
+	#[clap(
+		long,
+		group = "remote_host",
+		conflicts_with_all = [
+			"host", "port", "connection_token", "connection_token_file",
+			"without_connection_token", "replace", "new_instance", "foreground", "idle_timeout",
+			"random_name", "tunnel_id", "host_token", "cluster", "tunnel_name"
+		]
+	)]
+	pub github_environment: bool,
+	/// Grant access to a project directory. Repeat for multiple projects. Defaults to the current directory.
+	#[clap(long, requires = "github_environment", conflicts_with = "tunnel")]
+	pub github_environment_root: Vec<PathBuf>,
+	/// Sets the machine name for the tunnel or GitHub environment.
+	#[clap(long, requires = "remote_host")]
 	pub name: Option<String>,
 	/// Randomly name the machine for the tunnel.
 	#[clap(long, requires = "tunnel")]
 	pub random_name: bool,
-	/// Accept the server license terms when starting a tunnel.
-	#[clap(long, requires = "tunnel")]
+	/// Accept the server license terms when starting a tunnel or GitHub environment.
+	#[clap(long, requires = "remote_host")]
 	pub accept_server_license_terms: bool,
 
 	/// Automatically terminate this supervisor once no client has been
@@ -360,7 +375,7 @@ pub struct AgentArgs {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum AgentSubcommand {
-	/// Start a local agent host server.
+	/// Start an agent host server, with optional remote access.
 	Host(AgentHostArgs),
 
 	/// List active sessions on a running agent host.
@@ -1148,6 +1163,103 @@ mod tests {
 			Some(AgentSubcommand::Host(args)) => args,
 			None => args.host_args,
 			_ => panic!("expected agent host arguments"),
+		}
+	}
+
+	#[test]
+	fn agent_github_environment_accepts_remote_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--github-environment",
+				"--name",
+				"build-machine",
+				"--github-environment-root",
+				"project-a",
+				"--github-environment-root",
+				"project-b",
+				"--user-data-dir",
+				"profile",
+				"--server-data-dir",
+				"server-data",
+				"--accept-server-license-terms",
+			]);
+			let args = parse_agent_host_args(&argv);
+			assert_eq!(
+				(
+					args.github_environment,
+					args.name.as_deref(),
+					args.github_environment_root,
+					args.accept_server_license_terms
+				),
+				(
+					true,
+					Some("build-machine"),
+					vec!["project-a".into(), "project-b".into()],
+					true
+				)
+			);
+		}
+	}
+
+	#[test]
+	fn agent_github_environment_rejects_incompatible_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			for options in [
+				vec!["--tunnel"],
+				vec!["--host", "0.0.0.0"],
+				vec!["--port", "0"],
+				vec!["--connection-token", "token"],
+				vec!["--connection-token-file", "token"],
+				vec!["--without-connection-token"],
+				vec!["--replace"],
+				vec!["--new-instance"],
+				vec!["--foreground"],
+				vec!["--idle-timeout", "300"],
+				vec!["--random-name"],
+				vec!["--tunnel-id", "id"],
+				vec!["--host-token", "token"],
+				vec!["--cluster", "cluster"],
+				vec!["--tunnel-name", "name"],
+			] {
+				let mut argv = command.clone();
+				argv.push("--github-environment");
+				argv.extend(options);
+				assert_eq!(
+					IntegratedCli::try_parse_from(&argv).unwrap_err().kind(),
+					clap::error::ErrorKind::ArgumentConflict,
+					"{argv:?}"
+				);
+			}
+		}
+	}
+
+	#[test]
+	fn github_environment_options_require_hosting() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command.clone();
+			argv.extend(["--github-environment-root", "project"]);
+			assert!(IntegratedCli::try_parse_from(&argv).is_err());
+			let mut argv = command;
+			argv.extend(["--tunnel", "--github-environment-root", "project"]);
+			assert!(IntegratedCli::try_parse_from(&argv).is_err());
+		}
+	}
+
+	#[test]
+	fn github_environment_rejects_token_file_option() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--github-environment",
+				"--github-environment-token-file",
+				"token",
+			]);
+			assert_eq!(
+				IntegratedCli::try_parse_from(&argv).unwrap_err().kind(),
+				clap::error::ErrorKind::UnknownArgument,
+				"{argv:?}"
+			);
 		}
 	}
 

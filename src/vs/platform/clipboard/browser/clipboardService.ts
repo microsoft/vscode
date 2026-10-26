@@ -73,6 +73,17 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		return new Uint8Array(0);
 	}
 
+	async writeImage(data: Uint8Array | Promise<Uint8Array>): Promise<void> {
+		// Clear resources given we are writing an image
+		this.clearResourcesState();
+
+		// Start the write synchronously and let the clipboard wait for the image data
+		const image = Promise.resolve(data).then(bytes => new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'image/png' }));
+		await getActiveWindow().navigator.clipboard.write([
+			new ClipboardItem({ 'image/png': image })
+		]);
+	}
+
 	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
 
 	// In Safari, it has the following note:

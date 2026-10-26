@@ -709,7 +709,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 		});
 
 		function createSnapshotMirror(output: { text: string; truncated?: boolean; lineCount?: number } | undefined): DetachedTerminalSnapshotMirror {
-			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined));
+			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined, undefined));
 		}
 
 		test('resizes the detached terminal to cols computed from the width', async () => {
@@ -847,6 +847,37 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			} finally {
 				container.remove();
 			}
+		});
+	});
+
+	suite('DetachedTerminalSnapshotMirror.render', () => {
+		let instantiationService: TestInstantiationService;
+		let XTermBaseCtor: typeof Terminal;
+		let fakes: ReturnType<typeof createFakeDetachedTerminal>[];
+
+		setup(async () => {
+			instantiationService = workbenchInstantiationService(undefined, store);
+			XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+			fakes = [];
+			instantiationService.stub(ITerminalService, {
+				createDetachedTerminal: async (options: IDetachedXTermOptions) => {
+					const fake = createFakeDetachedTerminal(XTermBaseCtor, options);
+					fakes.push(fake);
+					return fake.instance;
+				}
+			} as Partial<ITerminalService>);
+		});
+
+		test('writes only appended output while a stream drops its oldest output', async () => {
+			const mirror = store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, undefined, () => undefined, undefined));
+			mirror.setOutput({ text: 'one\r\ntwo\r\n' }, { generation: 1, start: 0 });
+			await mirror.render();
+			// The stream dropped "one\r\n" and appended "three\r\n".
+			mirror.setOutput({ text: 'two\r\nthree\r\n' }, { generation: 1, start: 5 });
+			await mirror.render();
+			mirror.setOutput({ text: 'fresh\r\n' }, { generation: 2, start: 0 });
+			await mirror.render();
+			deepStrictEqual(fakes[0].writes, ['one\r\ntwo\r\n', 'three\r\n', '\x1b[2J\x1b[3J\x1b[Hfresh\r\n']);
 		});
 	});
 
@@ -1047,7 +1078,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 		});
 
 		function createSnapshotMirror(output: { text: string } | undefined): DetachedTerminalSnapshotMirror {
-			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined));
+			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined, undefined));
 		}
 
 		async function createLaidOutCommandMirror(): Promise<DetachedTerminalCommandMirror> {

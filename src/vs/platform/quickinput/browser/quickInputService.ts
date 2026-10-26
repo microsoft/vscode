@@ -65,6 +65,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		@IThemeService themeService: IThemeService,
 		@ILayoutService protected readonly layoutService: ILayoutService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(themeService);
 	}
@@ -77,11 +78,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			backKeybindingLabel: () => undefined,
 			setContextKey: (id?: string) => this.setContextKey(id),
 			linkOpenerDelegate: (content) => {
-				// HACK: https://github.com/microsoft/vscode/issues/173691
-				this.instantiationService.invokeFunction(accessor => {
-					const openerService = accessor.get(IOpenerService);
-					openerService.open(content, { allowCommands: true, fromUserGesture: true });
-				});
+				this.openerService.open(content, { allowCommands: true, fromUserGesture: true });
 			},
 			returnFocus: () => host.focus(),
 			styles: this.computeStyles(),
