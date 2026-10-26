@@ -24,7 +24,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { SessionWorktreeCleanupEditor } from '../../browser/sessionWorktreeCleanupEditor.js';
 import { SessionWorktreeCleanupEditorInput } from '../../browser/sessionWorktreeCleanupEditorInput.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktree, ISessionWorktreeCleanupService } from '../../browser/sessionWorktreeCleanupService.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktree, ISessionWorktreeCleanupService, ISessionWorktreeMeasurementProgress } from '../../browser/sessionWorktreeCleanupService.js';
 
 suite('SessionWorktreeCleanupEditor', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -148,6 +148,55 @@ suite('SessionWorktreeCleanupEditor', () => {
 		editor.clearInput();
 		assert.strictEqual(scanToken.isCancellationRequested, true);
 		await finished.complete([worktree]);
+	}));
+
+	test('keeps overall measurement counts across filters and includes failed measurements', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const finished = new DeferredPromise<readonly ISessionWorktree[]>();
+		let publish: ((worktrees: readonly ISessionWorktree[], progress?: ISessionWorktreeMeasurementProgress) => void) | undefined;
+		const first = { ...createWorktree('first', '/repos/app'), worktreeCount: 2 };
+		const second = createWorktree('second', '/repos/other');
+		const pending = { ...second, sizeBytes: undefined, isMeasuring: true };
+		const failed = { ...second, sizeBytes: undefined, measurementFailed: true };
+		const { editor, container } = createEditor({
+			getWorktrees: async (_age, onUpdate) => {
+				publish = onUpdate;
+				onUpdate?.([{ ...first, sizeBytes: undefined, isMeasuring: true }, pending], { scannedWorktrees: 0, totalWorktrees: 4 });
+				return finished.p;
+			},
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		const progress = container.querySelector<HTMLElement>('.session-worktree-cleanup-measurement-progress')!;
+		const counts = [progress.textContent];
+		try {
+			publish?.([first, pending], { scannedWorktrees: 3, totalWorktrees: 4 });
+			await timeout(100);
+			counts.push(progress.textContent);
+			const workspace = container.querySelector<HTMLSelectElement>('.session-worktree-cleanup-workspace')!;
+			workspace.value = URI.file('/repos/other').toString();
+			workspace.dispatchEvent(new mainWindow.Event('change'));
+			counts.push(progress.textContent);
+		} finally {
+			publish?.([first, failed], { scannedWorktrees: 4, totalWorktrees: 4 });
+			await finished.complete([first, failed]);
+			await timeout(0);
+		}
+		counts.push(progress.textContent);
+		assert.deepStrictEqual({
+			counts,
+			sameStatus: container.querySelector('.session-worktree-cleanup-measurement-progress') === progress,
+			role: progress.getAttribute('role'),
+			visible: progress.style.display !== 'none',
+		}, {
+			counts: [
+				'Measuring worktree storage: 0 of 4 worktrees processed.',
+				'Measuring worktree storage: 3 of 4 worktrees processed.',
+				'Measuring worktree storage: 3 of 4 worktrees processed.',
+				'Worktree storage scan complete: 4 of 4 worktrees processed.',
+			],
+			sameStatus: true,
+			role: 'status',
+			visible: true,
+		});
 	}));
 
 	test('keeps calculating rows visible and hides finished unknown storage', async () => {

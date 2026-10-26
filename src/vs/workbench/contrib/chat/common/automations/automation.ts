@@ -69,10 +69,13 @@ export interface IAutomationSessionTemplate {
 	readonly config?: Readonly<Record<string, unknown>>;
 }
 
-export function isAutomationModelConfiguration(value: unknown): value is NonNullable<IAutomationSessionTemplate['modelConfiguration']> {
+export function isAutomationModelConfiguration(value: unknown, allowUndefined?: false): value is NonNullable<IAutomationSessionTemplate['modelConfiguration']>;
+export function isAutomationModelConfiguration(value: unknown, allowUndefined: true): value is Readonly<Record<string, JsonPrimitive | undefined>>;
+export function isAutomationModelConfiguration(value: unknown, allowUndefined = false): value is Readonly<Record<string, JsonPrimitive | undefined>> {
 	return !!value && typeof value === 'object' && !Array.isArray(value)
 		&& (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
 		&& Object.values(value).every(entry => entry === null
+			|| (allowUndefined && entry === undefined)
 			|| typeof entry === 'string'
 			|| typeof entry === 'boolean'
 			|| (typeof entry === 'number' && Number.isFinite(entry)));

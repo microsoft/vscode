@@ -173,7 +173,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IFileService protected readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -192,6 +192,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		this.extensionPromptFiles = this._register(this.instantiationService.createInstance(ExtensionPromptFileService));
 		const onDidChangeExtensionPromptFiles = this.extensionPromptFiles.onDidChange;
+		const onDidChangeBundledPromptFiles = Event.any(this._onDidPluginPromptFilesChange.event, this.onDidChangeBuiltinPromptFiles);
+		this._register(onDidChangeBundledPromptFiles(type => {
+			this.cachedFileLocations[type] = undefined;
+		}));
 		const onDidChangeCustomizationLockdown = Event.filter(this.configurationService.onDidChangeConfiguration,
 			e => e.affectsConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG) || e.affectsConfiguration(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG));
 		this._register(onDidChangeCustomizationLockdown(() => {
@@ -216,7 +220,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.agent),
 				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CHAT_HOOKS)),
 				Event.filter(onDidChangeExtensionPromptFiles, e => e.type === PromptsType.agent),
-				Event.filter(this._onDidPluginPromptFilesChange.event, t => t === PromptsType.agent),
+				Event.filter(onDidChangeBundledPromptFiles, t => t === PromptsType.agent),
 				onDidChangeCustomizationLockdown,
 				this.workspaceTrustService.onDidChangeTrust,
 			)
@@ -230,7 +234,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.prompt),
 				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.skill),
 				Event.filter(onDidChangeExtensionPromptFiles, e => e.type === PromptsType.prompt || e.type === PromptsType.skill),
-				Event.filter(this._onDidPluginPromptFilesChange.event, t => t === PromptsType.prompt || t === PromptsType.skill),
+				Event.filter(onDidChangeBundledPromptFiles, t => t === PromptsType.prompt || t === PromptsType.skill),
 				onDidChangeCustomizationLockdown),
 		));
 
@@ -240,7 +244,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				this.getFileLocatorEvent(PromptsType.skill),
 				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.skill),
 				Event.filter(onDidChangeExtensionPromptFiles, e => e.type === PromptsType.skill),
-				Event.filter(this._onDidPluginPromptFilesChange.event, t => t === PromptsType.skill),
+				Event.filter(onDidChangeBundledPromptFiles, t => t === PromptsType.skill),
 				onDidChangeCustomizationLockdown)
 		));
 
@@ -251,6 +255,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CHAT_HOOKS) || e.affectsConfiguration(PromptsConfig.USE_CLAUDE_HOOKS)),
 				onDidChangeCustomizationLockdown,
 				this._onDidPluginHooksChange.event,
+				Event.filter(onDidChangeBundledPromptFiles, t => t === PromptsType.hook),
 				this.workspaceTrustService.onDidChangeTrust,
 			)
 		));
@@ -260,7 +265,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			() => Event.any(
 				this.getFileLocatorEvent(PromptsType.instructions),
 				Event.filter(onDidChangeExtensionPromptFiles, e => e.type === PromptsType.instructions),
-				Event.filter(this._onDidPluginPromptFilesChange.event, t => t === PromptsType.instructions),
+				Event.filter(onDidChangeBundledPromptFiles, t => t === PromptsType.instructions),
 				onDidChangeCustomizationLockdown,
 			)
 		));
@@ -342,7 +347,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 			nextFiles.sort((a, b) => `${a.name ?? ''}|${a.uri.toString()}`.localeCompare(`${b.name ?? ''}|${b.uri.toString()}`));
 			this._pluginPromptFilesByType.set(type, nextFiles);
-			this.cachedFileLocations[type] = undefined;
 			this._onDidPluginPromptFilesChange.fire(type);
 		});
 	}
@@ -476,6 +480,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	protected async getBuiltinPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IBuiltinPromptPath[]> {
 		return [];
+	}
+
+	/** Notifies discovery and slash-command consumers when a subclass changes its built-in prompt files. */
+	protected get onDidChangeBuiltinPromptFiles(): Event<PromptsType> {
+		return Event.None;
 	}
 
 	public async getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]> {

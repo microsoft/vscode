@@ -1193,7 +1193,12 @@ class AdditionalChat extends Disposable {
 		this._movable = summary.movable === true;
 		transaction(tx => {
 			this._title.set(summary.title || localize('newChatTab', "New Chat"), tx);
-			this._status.set(mapProtocolStatus(summary.status), tx);
+			const status = mapProtocolStatus(summary.status);
+			this._status.set(status, tx);
+			if (status !== SessionStatus.Completed) {
+				// The host reports a turn (running, waiting or failed): another client sent the first message.
+				this._isNew.set(false, tx);
+			}
 			this._updatedAt.set(modifiedAt, tx);
 			this._workingDirectories.set(summary.workingDirectories, tx);
 			this._description.set(summary.activity ? new MarkdownString().appendText(summary.activity) : undefined, tx);
