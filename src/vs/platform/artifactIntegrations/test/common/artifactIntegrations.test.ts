@@ -1059,17 +1059,17 @@ suite('Artifact Integrations', () => {
 		const merged = mergeArtifactAutomationNotices(
 			{ changes: [change('test', 'repair', 'Repair', 'enabled', 'Repair failures.'), change('test', 'merge', 'Merge', 'enabled', 'Merge when ready.', 'Mode: When Ready')], enabledRules: [{ integrationId: 'test', labels: ['Repair', 'Merge'] }] },
 			{ changes: [change('test', 'merge', 'Merge', 'changed', 'Merge when ready.', 'Mode: Only if Unchanged'), change('test', 'review', 'Address *Reviews*', 'disabled', 'Attempt limit reached')], enabledRules: [{ integrationId: 'test', labels: ['Repair', 'Merge'] }] },
-		);
+		)!;
 		const toggled = mergeArtifactAutomationNotices(
 			{ changes: [change('test', 'repair', 'Repair', 'enabled', 'Repair failures.')], enabledRules: [{ integrationId: 'test', labels: ['Repair'] }] },
 			{ changes: [change('test', 'repair', 'Repair', 'disabled')], enabledRules: [{ integrationId: 'test', labels: [] }] },
-		);
+		)!;
 		// Each integration keeps its own enabled rules, so disabling a rule of one does not hide the other's.
 		const integrations = mergeArtifactAutomationNotices(
 			{ changes: [change('a', 'repair', 'Repair', 'enabled')], enabledRules: [{ integrationId: 'a', labels: ['Repair'] }] },
 			{ changes: [change('b', 'review', 'Review', 'disabled')], enabledRules: [{ integrationId: 'b', labels: [] }] },
-		);
-		const disabledAcrossIntegrations = mergeArtifactAutomationNotices(integrations, { changes: [change('a', 'repair', 'Repair', 'disabled')], enabledRules: [{ integrationId: 'a', labels: [] }] });
+		)!;
+		const disabledAcrossIntegrations = mergeArtifactAutomationNotices(integrations, { changes: [change('a', 'repair', 'Repair', 'disabled')], enabledRules: [{ integrationId: 'a', labels: [] }] })!;
 		const stillEnabled = (notice: { changes: readonly ArtifactAutomationNoticeChange[]; enabledRules: Parameters<typeof formatArtifactAutomationNotice>[2] }) => formatArtifactAutomationNotice('Example', notice.changes, notice.enabledRules).content.split('\n\n').at(-1);
 		assert.deepStrictEqual({
 			merged: formatArtifactAutomationNotice('Example', merged.changes, merged.enabledRules),
@@ -1102,8 +1102,21 @@ suite('Artifact Integrations', () => {
 				].join('\n\n'),
 			},
 			integrations: 'Still enabled: Repair.',
-			disabledAcrossIntegrations: 'No automation rules remain enabled for this artifact.',
+			disabledAcrossIntegrations: 'No automation rules remain enabled for these artifact integrations.',
 		});
+	});
+
+	test('notices stay separate when merging them would exceed the limits their readers accept', () => {
+		const notice = (offset: number) => ({
+			changes: Array.from({ length: 50 }, (_, index): ArtifactAutomationNoticeChange => ({ integrationId: 'test', optionId: `rule${offset + index}`, label: `Rule ${offset + index}`, kind: 'enabled', details: [] })),
+			enabledRules: [{ integrationId: 'test', labels: [] }],
+		});
+		const twice = mergeArtifactAutomationNotices(notice(0), notice(50));
+		assert.deepStrictEqual({
+			twice: twice?.changes.length,
+			thrice: twice && mergeArtifactAutomationNotices(twice, notice(100)),
+			repeated: twice && mergeArtifactAutomationNotices(twice, notice(50))?.changes.length,
+		}, { twice: 100, thrice: undefined, repeated: 100 });
 	});
 
 	test('notice validation rejects repeated rules and integrations', () => {

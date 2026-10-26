@@ -6213,11 +6213,19 @@ suite('ChatService', () => {
 			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
+			// Billing reported only as a session aggregate is kept when a notice without usage is replaced.
+			ref.object.setSessionCost({ credits: 2, status: 'complete' });
 			onDidStartServerRequest.fire({ id: 'notice-2', prompt: 'merged notice', isSystemInitiated: true, replacesRequestId: 'notice-1' });
 			onDidStartServerRequest.fire({ id: 'notice-3', prompt: 'merged again', isSystemInitiated: true, replacesRequestId: 'notice-2' });
 			onDidStartServerRequest.fire({ id: 'notice-4', prompt: 'unknown replacement', isSystemInitiated: true, replacesRequestId: 'missing' });
 
-			assert.deepStrictEqual(ref.object.getRequests().map(request => request.id), ['user', 'notice-3', 'notice-4']);
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => request.id),
+				sessionCost: ref.object.sessionCostInfo,
+			}, {
+				requests: ['user', 'notice-3', 'notice-4'],
+				sessionCost: { credits: 2, status: 'complete' },
+			});
 		});
 
 		test('uses the Agent Host timestamp for live server-initiated requests', async () => {

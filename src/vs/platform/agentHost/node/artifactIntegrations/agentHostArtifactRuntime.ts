@@ -62,7 +62,11 @@ function mergeNoticeParts(previous: SystemNotificationResponsePart, next: System
 	if (!earlier || !later || earlier.artifactId !== later.artifactId) {
 		return undefined;
 	}
-	const merged = { artifactId: later.artifactId, artifactLabel: later.artifactLabel, ...mergeArtifactAutomationNotices(earlier, later) };
+	const notices = mergeArtifactAutomationNotices(earlier, later);
+	if (!notices) {
+		return undefined;
+	}
+	const merged = { artifactId: later.artifactId, artifactLabel: later.artifactLabel, ...notices };
 	const iconId = readArtifactIntegrationNotice(next)?.iconId ?? readArtifactIntegrationNotice(previous)?.iconId;
 	return toNoticeResponsePart(formatArtifactAutomationNotice(merged.artifactLabel, merged.changes, merged.enabledRules), iconId, merged);
 }

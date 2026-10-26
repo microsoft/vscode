@@ -96,7 +96,8 @@ export function formatArtifactAutomationNotice(artifactLabel: string, changes: r
 		blocks.push(escapeMarkdownSyntaxTokens(remaining.length
 			? localize('artifactAutomationRemainingNotice', "Still enabled: {0}.", remaining.join(', '))
 			: enabledRules.length > 1
-				? localize('artifactAutomationNoneRemainingForArtifactNotice', "No automation rules remain enabled for this artifact.")
+				// Only the integrations of these changes are known, not every integration of the artifact.
+				? localize('artifactAutomationNoneRemainingForIntegrationsNotice', "No automation rules remain enabled for these artifact integrations.")
 				: localize('artifactAutomationNoneRemainingNotice', "No automation rules remain enabled for this artifact integration.")));
 	}
 	const kind = changes.every(change => change.kind === changes[0].kind) ? changes[0].kind : 'changed';
@@ -107,9 +108,10 @@ export function formatArtifactAutomationNotice(artifactLabel: string, changes: r
  * Adds the changes of `next` to an earlier notice, keeping only the latest
  * change of each rule and the latest enabled rules of each integration. A rule
  * that was enabled in the earlier notice stays newly enabled when only its mode
- * changes.
+ * changes. Returns `undefined` when the merged notice would exceed the limits
+ * that its readers accept, so that the notices stay separate.
  */
-export function mergeArtifactAutomationNotices(previous: Required<Pick<ArtifactAutomationNotice, 'changes' | 'enabledRules'>>, next: Required<Pick<ArtifactAutomationNotice, 'changes' | 'enabledRules'>>): Required<Pick<ArtifactAutomationNotice, 'changes' | 'enabledRules'>> {
+export function mergeArtifactAutomationNotices(previous: Required<Pick<ArtifactAutomationNotice, 'changes' | 'enabledRules'>>, next: Required<Pick<ArtifactAutomationNotice, 'changes' | 'enabledRules'>>): Required<Pick<ArtifactAutomationNotice, 'changes' | 'enabledRules'>> | undefined {
 	const changes = [...previous.changes];
 	for (const change of next.changes) {
 		const index = changes.findIndex(candidate => isSameRule(candidate, change));
@@ -128,7 +130,7 @@ export function mergeArtifactAutomationNotices(previous: Required<Pick<ArtifactA
 			enabledRules[index] = rules;
 		}
 	}
-	return { changes, enabledRules };
+	return isArtifactAutomationNoticeChanges(changes) && isArtifactAutomationEnabledRules(enabledRules) ? { changes, enabledRules } : undefined;
 }
 
 function isSameRule(a: ArtifactAutomationNoticeChange, b: ArtifactAutomationNoticeChange): boolean {

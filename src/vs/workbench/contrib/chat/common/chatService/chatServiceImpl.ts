@@ -1330,7 +1330,8 @@ export class ChatService extends Disposable implements IChatService {
 					// Requests are applied in order, so a replaced request that arrived just before is already in the model.
 					const replaced = replacesRequestId === undefined ? undefined : model.getRequests().find(request => request.id === replacesRequestId);
 					if (replaced?.response?.isComplete) {
-						model.removeRequest(replaced.id);
+						// A replaced request without usage did not bill anything, so the session cost stays valid.
+						model.removeRequest(replaced.id, replaced.response.usage ? ChatRequestRemovalReason.Removal : ChatRequestRemovalReason.Replacement);
 					}
 
 					// Create a new request in the model
