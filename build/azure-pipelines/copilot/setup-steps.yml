@@ -27,7 +27,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: '"copilot_build_cache" | .build/packagelockhash | .build/vscode-capi/package-lock.json'
+      key: '"copilot_build_cache" | "forced-npm-202610261608" | .build/packagelockhash | .build/vscode-capi/package-lock.json'
       path: .build/node_modules_cache
       cacheHitVar: BUILD_CACHE_RESTORED
     displayName: Restore node_modules cache
@@ -66,6 +66,29 @@ steps:
 
   # npm ci removes node_modules before installing, so retrying it after a transient registry error
   # such as ECONNRESET starts from a clean state.
+  # VALIDATION ONLY (do not merge): fail the first `npm ci` in each working directory so
+  # retryCountOnTaskFailure has to fire.
+  - script: |
+      set -e
+      SHIM_DIR="$(Agent.TempDirectory)/npm-shim"
+      mkdir -p "$SHIM_DIR"
+      REAL_NPM="$(command -v npm)"
+      cat > "$SHIM_DIR/npm" <<EOF
+      #!/usr/bin/env bash
+      if [ "\$1" = "ci" ]; then
+        key=\$(pwd | sed 's#[^A-Za-z0-9]#_#g')
+        f="$SHIM_DIR/count-\$key"
+        n=\$(( \$(cat "\$f" 2>/dev/null || echo 0) + 1 )); echo \$n > "\$f"
+        if [ \$n -le 1 ]; then echo "NPM-SHIM: forced failure \$n/1 for npm ci in \$(pwd)" >&2; exit 1; fi
+        echo "NPM-SHIM: attempt \$n for npm ci in \$(pwd) passes through" >&2
+      fi
+      exec "$REAL_NPM" "\$@"
+      EOF
+      chmod +x "$SHIM_DIR/npm"
+      echo "##vso[task.prependpath]$SHIM_DIR"
+      echo "Installed npm shim in front of $REAL_NPM"
+    condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
+    displayName: "VALIDATION: install failing npm shim"
   - script: npm ci
     workingDirectory: build
     displayName: Install build dependencies
