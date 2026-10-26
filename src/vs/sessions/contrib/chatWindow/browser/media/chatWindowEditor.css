@@ -53,3 +53,8 @@
 .agent-sessions-workbench .chat-window-card .title > .editor-group-header {
 	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tabs-border, var(--vscode-widget-border));
 }
+
+/* The first diff block keeps the multi-diff's block-to-block gap below the header row's line. */
+.agent-sessions-workbench .chat-window-card .session-changes-editor-body .multiDiffEditor-card .multiDiffEntry.first-diff-entry > .header:not(.shadow) > .header-content {
+	margin-top: var(--vscode-spacing-size40);
+}
