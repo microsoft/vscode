@@ -224,6 +224,8 @@ suite('Menu', () => {
 			disposables.add(menu.onScroll(e => scrolls.push({ scrollTopChanged: e.scrollTopChanged, scrollLeftChanged: e.scrollLeftChanged })));
 			const parentElement = host.querySelector<HTMLElement>('.monaco-menu')!;
 			const submenuItem = host.querySelectorAll<HTMLElement>('.action-menu-item')[12];
+			// Clamp the parent to its bottom before opening the submenu so scroll state is deterministic across engines.
+			drag(parentElement, -1000);
 			menu.focus(13);
 			menu.trigger(12);
 			await clock.tickAsync(100);
@@ -263,10 +265,12 @@ suite('Menu', () => {
 			scrolls.length = 0;
 			drag(parentElement, 30);
 			await clock.tickAsync(500);
-			assert.deepStrictEqual(snapshot(host, submenuItem, scrolls), {
+			// The number of scroll events differs between engines, so only record whether the parent scrolled vertically.
+			assert.deepStrictEqual({ ...snapshot(host, submenuItem, []), scrolledVertically: scrolls.length > 0 && scrolls.every(e => e.scrollTopChanged && !e.scrollLeftChanged) }, {
 				expanded: 'false',
 				parentFocused: true,
-				scrolls: [{ scrollTopChanged: true, scrollLeftChanged: false }, { scrollTopChanged: true, scrollLeftChanged: false }]
+				scrolls: [],
+				scrolledVertically: true
 			});
 		});
 	});
