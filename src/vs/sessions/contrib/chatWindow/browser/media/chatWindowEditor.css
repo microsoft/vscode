@@ -60,14 +60,10 @@
 	height: var(--vscode-spacing-size320);
 }
 
-/* The diffs start one block-to-block gap below the header row's line, so the first card sits as far from it as from the next card. */
-.agent-sessions-workbench .chat-window-card .session-changes-editor-body {
+/* The diffs start one block-to-block gap below the header row's line, so the first card sits as far from it as from the next card. The file list and the separator start at the line. */
+.agent-sessions-workbench .chat-window-card .session-changes-editor-body .multi-diff-editor-with-file-list .split-view-view:not(:has(> .multi-diff-editor-with-file-list-files)) {
 	padding-top: var(--vscode-spacing-size40);
-}
-
-/* The file list and its separator belong to the header row's line, not to the diffs' spacing: they start at the line while the diffs keep the gap. */
-.agent-sessions-workbench .chat-window-card .session-changes-editor-body .multi-diff-editor-with-file-list-files {
-	margin-top: calc(-1 * var(--vscode-spacing-size40));
+	box-sizing: border-box;
 }
 
 /* The split view draws its separator on the view's wrapper, which stays inside the body's padding. The list draws the separator itself, so it starts at the line. */
