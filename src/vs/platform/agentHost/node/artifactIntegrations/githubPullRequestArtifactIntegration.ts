@@ -381,8 +381,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			const core = snapshot.core.value;
 			const open = core?.state === 'open';
 			const hasCore = !authenticationError && hasPresentationData(snapshot.core);
-			const showChecks = hasCore && open && hasPresentationData(snapshot.checks, core.headSha) && snapshot.checks.value.headSha === core.headSha;
-			const checks = showChecks ? getPullRequestArtifactChecks(snapshot) : [];
+			const checks = hasCore && open && hasPresentationData(snapshot.checks, core.headSha) && snapshot.checks.value.headSha === core.headSha
+				? getPullRequestArtifactChecks(snapshot) : [];
 			const threads = hasCore && hasPresentationData(snapshot.reviewThreads, core?.headSha) ? this.threads(snapshot, reader) : [];
 			const checkStates = checks.map(checkPresentationState);
 			const failed = checkStates.filter(state => state === 'failed').length;
@@ -390,7 +390,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			const skipped = checkStates.filter(state => state === 'skipped').length;
 			const checksIcon = checkIcon(failed ? 'failed' : checkStates.includes('pending') ? 'pending' : passed ? 'passed' : 'skipped');
 			const mergeability = snapshot.mergeability;
-			const conflicting = hasPresentationData(mergeability, core?.headSha) && mergeability.value.mergeable === 'CONFLICTING';
+			const conflicting = hasCore && open && hasPresentationData(mergeability, core.headSha) && mergeability.value.mergeable === 'CONFLICTING';
 			const visibleActions = new Set([
 				...threads.length ? ['addressReviews'] : [],
 				...failed ? ['fixCI'] : [],
@@ -404,13 +404,19 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				main: { label: `#${resource.target.number}`, icon: this.mainIcon(snapshot), detailsId: 'main', description: core ? `${this.stateLabel(snapshot)}: ${core.title}` : localize('prArtifact.loading', "Loading pull request.") },
 				...(hasCore && core ? { group: getPullRequestGroupPresentation(core, { needsRepair: open && (failed > 0 || conflicting), hasComments: threads.length > 0 }) } : {}),
 				sections: [
-					...(showChecks ? [{
+					...(checks.length ? [{
 						id: 'checks', detailsId: 'checks',
 						icon: checksIcon,
 						label: `${passed}/${checks.length}`,
 						description: skipped
 							? localize('prArtifact.checksSummaryWithSkipped', "{0} of {1} checks passed; {2} failed; {3} skipped.", passed, checks.length, failed, skipped)
 							: localize('prArtifact.checksSummary', "{0} of {1} checks passed; {2} failed.", passed, checks.length, failed),
+					}] : []),
+					...(conflicting ? [{
+						id: 'conflicts', detailsId: 'main',
+						icon: { id: 'git-compare', colorId: 'editorWarning.foreground' },
+						label: localize('prArtifact.conflicts', "Conflicts"),
+						description: localize('prArtifact.conflictsSummary', "This pull request has merge conflicts."),
 					}] : []),
 					...(threads.length ? [{
 						id: 'comments', detailsId: 'comments', icon: reviewThreadIcon, label: String(threads.length),
@@ -554,7 +560,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 						: fragment.status === 'loading' || fragment.status === 'missing' ? { kind: 'loading' }
 							: fragment.status === 'stale' ? { kind: 'stale', reason: localize('prArtifact.detailsStale', "Showing the last known state while refreshing.") } : view.availability,
 					title: main ? snapshot.core.value?.title ?? `#${this.resource.target.number}` : detailsId === 'checks'
-						? localize('prArtifact.checksTitle', "Checks ({0}/{1})", passed, checks.length)
+						? checks.length ? localize('prArtifact.checksTitle', "Checks ({0}/{1})", passed, checks.length) : localize('prArtifact.checks', "Checks")
 						: localize('prArtifact.commentsTitle', "Comments ({0})", threads.length),
 					description: main ? snapshot.core.value?.body : total > 200
 						? localize('prArtifact.detailsDescriptionPage', "{0}\nShowing {1}-{2} of {3}.", description, start + 1, Math.min(start + 200, total), total) : description,
