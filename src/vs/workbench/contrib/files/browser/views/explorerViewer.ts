@@ -55,7 +55,7 @@ import { IExplorerService } from '../files.js';
 import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm } from '../fileImportExport.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { WebFileSystemAccess } from '../../../../../platform/files/browser/webFileSystemAccess.js';
-import { IgnoreFile } from '../../../../services/search/common/ignoreFile.js';
+import { IgnoreFile } from '../../../../../base/common/ignoreFile.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
 import { defaultCountBadgeStyles } from '../../../../../platform/theme/browser/defaultStyles.js';

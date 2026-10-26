@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from '../../../../base/common/glob.js';
-import { startsWithIgnoreCase } from '../../../../base/common/strings.js';
+import * as glob from './glob.js';
+import { startsWithIgnoreCase } from './strings.js';
 
 export class IgnoreFile {
 
