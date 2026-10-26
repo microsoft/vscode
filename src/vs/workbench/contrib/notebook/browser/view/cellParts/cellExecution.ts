@@ -119,11 +119,11 @@ export class CellExecutionPart extends CellContentPart {
 		const cellIsRunning = !!this._notebookExecutionStateService.getCellExecution(this.currentCell.uri);
 
 		// Store sticky state before potentially removing the class
-		const wasSticky = this._executionOrderLabel.classList.contains('sticky');
+		const wasSticky = this._executionOrderLabel.classList.contains('sticky-spinner');
 
 		if (!cellIsRunning) {
 			// Keep showing the execution order label but remove sticky class
-			this._executionOrderLabel.classList.remove('sticky');
+			this._executionOrderLabel.classList.remove('sticky-spinner');
 
 			// If we were sticky and cell stopped running, restore the proper content
 			if (wasSticky) {
@@ -168,8 +168,8 @@ export class CellExecutionPart extends CellContentPart {
 				// When already sticky, we don't need to recreate the content
 			} else if (!statusBarVisible && cellIsRunning) {
 				// Status bar is hidden but cell is running: show execution order label at the bottom of the editor area
-				const wasStickyHere = this._executionOrderLabel.classList.contains('sticky');
-				this._executionOrderLabel.classList.remove('sticky');
+				const wasStickyHere = this._executionOrderLabel.classList.contains('sticky-spinner');
+				this._executionOrderLabel.classList.remove('sticky-spinner');
 				top = this.currentCell.layoutInfo.editorHeight - lineHeight; // Place at the bottom of the editor
 				// Only update content if we were previously sticky or content is not correct
 				// eslint-disable-next-line no-restricted-syntax
@@ -183,8 +183,8 @@ export class CellExecutionPart extends CellContentPart {
 				}
 			} else {
 				// Only update if the current state is sticky
-				const currentlySticky = this._executionOrderLabel.classList.contains('sticky');
-				this._executionOrderLabel.classList.remove('sticky');
+				const currentlySticky = this._executionOrderLabel.classList.contains('sticky-spinner');
+				this._executionOrderLabel.classList.remove('sticky-spinner');
 
 				// When transitioning from sticky to non-sticky, restore the proper content
 				if (currentlySticky) {
