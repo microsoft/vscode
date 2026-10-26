@@ -92,7 +92,8 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 		const client = URI.parse('agent-host-copilotcli:/session');
 		const results: Record<string, unknown> = {};
 		for (const [name, existingViewContext, openToSide] of [
-			['notOpen', undefined, false],
+			// No widget: the session is not open, or only as an inactive tab; the editor service looks for that tab.
+			['noWidget', undefined, false],
 			['inEditor', {}, false],
 			['inChatView', { viewId: 'workbench.panel.chat.view.copilot' }, false],
 			['toSide', undefined, true],
@@ -139,7 +140,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			}
 		}
 		assert.deepStrictEqual(results, {
-			notOpen: [{ target: ACTIVE_GROUP, options: { pinned: true, revealIfOpened: false } }],
+			noWidget: [{ target: ACTIVE_GROUP, options: { pinned: true, revealIfOpened: true } }],
 			inEditor: [{ target: ACTIVE_GROUP, options: { pinned: true, revealIfOpened: true } }],
 			inChatView: [{ target: ACTIVE_GROUP, options: { pinned: true, revealIfOpened: false } }],
 			toSide: [{ target: SIDE_GROUP, options: { pinned: true, revealIfOpened: false } }],

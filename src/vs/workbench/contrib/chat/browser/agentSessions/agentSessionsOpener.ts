@@ -211,13 +211,13 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 }
 
 /**
- * With `chat.agentSessions.openInEditor`, sessions open like files: an editor
- * that already shows the session is revealed, while a session shown in the Chat
- * view (or nowhere) opens in a new editor, which moves it out of the Chat view.
+ * With `chat.agentSessions.openInEditor`, sessions open like files: an existing
+ * editor is revealed, including an inactive tab without a widget, while a session
+ * shown in the Chat view opens in a new editor, which moves it out of the Chat view.
  */
 export function shouldRevealSessionEditor(chatWidgetService: IChatWidgetService, sessionResource: URI): boolean {
 	const existingWidget = chatWidgetService.getWidgetBySessionResource(sessionResource);
-	return !!existingWidget && !isIChatViewViewContext(existingWidget.viewContext);
+	return !existingWidget || !isIChatViewViewContext(existingWidget.viewContext);
 }
 
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {

@@ -229,14 +229,15 @@ suite('AgentSessionsOpener', () => {
 		assert.deepStrictEqual({
 			chatView: await open(false, 'none'),
 			modifierWithoutSetting: await open(false, 'none', true),
-			editor: await open(true, 'none'),
+			// No widget: the session is not open, or only as an inactive tab; the editor service looks for that tab.
+			noWidget: await open(true, 'none'),
 			movedFromChatView: await open(true, 'chatView'),
 			revealedEditor: await open(true, 'editor'),
 			toTheSide: await open(true, 'editor', true),
 		}, {
 			chatView: { target: ChatViewPaneTarget, revealIfOpened: true },
 			modifierWithoutSetting: { target: ACTIVE_GROUP, revealIfOpened: true },
-			editor: { target: ACTIVE_GROUP, revealIfOpened: false },
+			noWidget: { target: ACTIVE_GROUP, revealIfOpened: true },
 			movedFromChatView: { target: ACTIVE_GROUP, revealIfOpened: false },
 			revealedEditor: { target: ACTIVE_GROUP, revealIfOpened: true },
 			toTheSide: { target: SIDE_GROUP, revealIfOpened: false },
