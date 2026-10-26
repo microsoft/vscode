@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -48,6 +48,11 @@ import { getSessionCreationEnvironments } from '../../../../chat/browser/session
 suite('RemotesModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const tunnel: ITunnelInfo = { tunnelId: 'laptop', clusterId: 'eu', name: 'Laptop', protocolVersion: 6, tags: [], hostConnectionCount: 1 };
+	const savedSSHHost = {
+		name: 'Saved host',
+		connectionToken: undefined,
+		connection: { type: RemoteAgentHostEntryType.SSH as const, address: 'ssh:removed', sshConfigHost: 'removed', hostName: 'removed.example', user: undefined, port: undefined },
+	};
 
 	function setup(discover: (token: CancellationToken) => Promise<readonly IDiscoveredDevContainer[]> = async () => [{ id: 'container', name: 'Project', workspaceFolder: '/project' }], restoreProvidersDuringInitialization = false, initialConnections: readonly IRemoteAgentHostConnectionInfo[] = [], initialTunnelStatus?: Promise<TunnelStatus>) {
 		const instantiationService = store.add(new TestInstantiationService());
@@ -72,6 +77,8 @@ suite('RemotesModel', () => {
 		let initializationReentered = false;
 		const dismissed = new Set<string>();
 		const removals: string[] = [];
+		const sshDisconnects: string[] = [];
+		const removedConnections: string[] = [];
 		const connectionChanges: { id: string; connected: boolean }[] = [];
 		const reconnects: string[] = [];
 		const tunnelConnections: { tunnel: ITunnelInfo; authProvider?: 'github' | 'microsoft' }[] = [];
@@ -148,6 +155,7 @@ suite('RemotesModel', () => {
 			getDisplayNameOverride: address => displayNames.get(address),
 			setDisplayName,
 			reconnect: address => { reconnects.push(address); },
+			removeRemoteAgentHost: async address => { removedConnections.push(address); },
 			triggerServerUpgrade: async (address, method) => {
 				upgrades.push({ address, method });
 				if (upgrade.failure) {
@@ -195,6 +203,13 @@ suite('RemotesModel', () => {
 		});
 		instantiationService.stub(ISSHRemoteAgentHostService, {
 			listSSHConfigHosts: () => sshDiscovery(),
+			disconnect: async key => {
+				sshDisconnects.push(key);
+				if (connectionFailure) {
+					throw connectionFailure;
+				}
+				removeSSHRemoteAgentHostEntry(storage, key);
+			},
 			resolveSSHConfig: async () => ({ hostname: 'build.example', user: 'developer', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined }),
 		});
 		instantiationService.stub(IWSLRemoteAgentHostService, {
@@ -300,7 +315,7 @@ suite('RemotesModel', () => {
 		});
 		const model = store.add(instantiationService.createInstance(RemotesModel, discover));
 		return {
-			model, storage, configuration, removals, logEntries, initializationReentered, providers, providersChanged, connectionChanges, reconnects, signIns,
+			model, storage, configuration, removals, sshDisconnects, removedConnections, logEntries, initializationReentered, providers, providersChanged, connectionChanges, reconnects, signIns,
 			copiedAddresses, locationPromptResult, locationPreferences, notifications, upgrades, upgrade,
 			setConnections: (value: readonly IRemoteAgentHostConnectionInfo[]) => { connections = value; connectionsChanged.fire(); },
 			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
@@ -615,6 +630,136 @@ suite('RemotesModel', () => {
 			ssh: { name: 'build', connectionToken: undefined, connection: { type: 'ssh', address: 'ssh:build', hostName: 'build.example', user: 'developer', port: 22, sshConfigHost: 'build' } },
 			rediscovered: [{ kind: 'ssh', canRemove: false }, ...(isWindows ? [{ kind: 'wsl', canRemove: false }] : []), { kind: 'tunnel', canRemove: false }],
 		});
+	});
+
+	test('SSH Delete is offered only for saved hosts absent from successfully read configuration', async () => {
+		const { model, storage, setSSHDiscovery } = setup();
+		addSSHRemoteAgentHostEntry(storage, savedSSHHost);
+		const deletable = () => model.remotes.get().find(remote => remote.id === 'ssh:removed')?.canDelete;
+		const unknown = deletable();
+		await model.refresh(CancellationToken.None);
+		const absent = deletable();
+		const discoveryOnly = model.remotes.get().find(remote => remote.id === 'ssh:build')?.canDelete;
+		setSSHDiscovery(async () => ['removed']);
+		await model.refresh(CancellationToken.None);
+		const configured = deletable();
+		setSSHDiscovery(async () => { throw new Error('Cannot read SSH config'); });
+		await model.refresh(CancellationToken.None);
+		const failed = deletable();
+		setSSHDiscovery(async () => []);
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ unknown, absent, discoveryOnly, configured, failed, recovered: deletable() }, {
+			unknown: false, absent: true, discoveryOnly: false, configured: false, failed: false, recovered: true,
+		});
+	});
+
+	for (const confirmed of [true, false]) {
+		test(`SSH Delete ${confirmed ? 'forgets and disconnects' : 'preserves'} an orphaned saved host after confirmation without a provider`, async () => {
+			const { model, storage, environmentState, confirmations, sshDisconnects, removedConnections, connectionChanges } = setup();
+			addSSHRemoteAgentHostEntry(storage, savedSSHHost);
+			await model.refresh(CancellationToken.None);
+			environmentState.pendingConfirmation = new DeferredPromise<IConfirmationResult>();
+			const deletion = model.deleteSSHHost('ssh:removed');
+			await timeout(0);
+			const pending = { cached: readSSHRemoteAgentHostEntries(storage).length, disconnects: [...sshDisconnects], confirmations: [...confirmations] };
+			await environmentState.pendingConfirmation.complete({ confirmed });
+			await deletion;
+			await model.refresh(CancellationToken.None);
+			assert.deepStrictEqual({
+				pending, cached: readSSHRemoteAgentHostEntries(storage), sshDisconnects, removedConnections, connectionChanges,
+				present: model.remotes.get().some(remote => remote.id === 'ssh:removed'),
+			}, {
+				pending: {
+					cached: 1, disconnects: [], confirmations: [{
+						type: 'warning',
+						message: 'Are you sure you want to delete saved SSH connection \'Saved host\'?',
+						detail: 'This forgets the saved connection and disconnects this client. Your SSH configuration and files on the remote machine will not be deleted.',
+						primaryButton: '&&Delete',
+					}],
+				},
+				cached: confirmed ? [] : [savedSSHHost],
+				sshDisconnects: confirmed ? ['ssh:removed'] : [],
+				removedConnections: confirmed ? ['ssh:removed'] : [],
+				connectionChanges: [], present: !confirmed,
+			});
+		});
+	}
+
+	test('SSH Delete removes forwarded saved addresses using their stable SSH connection key', async () => {
+		const { model, storage, sshDisconnects, removedConnections } = setup();
+		addSSHRemoteAgentHostEntry(storage, {
+			name: 'Forwarded host',
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'localhost:4321', hostName: 'removed.example', user: 'alice', port: 2222 },
+		});
+		await model.refresh(CancellationToken.None);
+		await model.deleteSSHHost('localhost:4321');
+		assert.deepStrictEqual({ cached: readSSHRemoteAgentHostEntries(storage), sshDisconnects, removedConnections }, {
+			cached: [], sshDisconnects: ['alice@removed.example:2222'], removedConnections: ['localhost:4321'],
+		});
+	});
+
+	test('SSH Delete rejects configured hosts and unreadable config before confirmation', async () => {
+		const { model, storage, setSSHDiscovery, confirmations, sshDisconnects } = setup();
+		addSSHRemoteAgentHostEntry(storage, savedSSHHost);
+		setSSHDiscovery(async () => ['removed']);
+		await model.refresh(CancellationToken.None);
+		await assert.rejects(model.deleteSSHHost('ssh:removed'), /still in your SSH configuration/);
+		setSSHDiscovery(async () => { throw new Error('Cannot read SSH config'); });
+		await assert.rejects(model.deleteSSHHost('ssh:removed'), /Cannot read SSH config/);
+		assert.deepStrictEqual({ confirmations, sshDisconnects, cached: readSSHRemoteAgentHostEntries(storage) }, {
+			confirmations: [], sshDisconnects: [], cached: [savedSSHHost],
+		});
+	});
+
+	for (const change of ['configured', 'removed', 'disabled', 'disposed', 'config-error'] as const) {
+		test(`SSH Delete revalidates ${change} during confirmation`, async () => {
+			const { model, storage, setSSHDiscovery, setConfiguration, environmentState, sshDisconnects, removedConnections } = setup();
+			addSSHRemoteAgentHostEntry(storage, savedSSHHost);
+			await model.refresh(CancellationToken.None);
+			environmentState.pendingConfirmation = new DeferredPromise<IConfirmationResult>();
+			const deletion = model.deleteSSHHost('ssh:removed');
+			const rejected = assert.rejects(deletion);
+			await timeout(0);
+			switch (change) {
+				case 'configured':
+					setSSHDiscovery(async () => ['removed']);
+					break;
+				case 'removed':
+					removeSSHRemoteAgentHostEntry(storage, 'ssh:removed');
+					break;
+				case 'disabled':
+					await setConfiguration(RemoteAgentHostsEnabledSettingId, false);
+					break;
+				case 'disposed':
+					model.dispose();
+					break;
+				case 'config-error':
+					setSSHDiscovery(async () => { throw new Error('Cannot read SSH config'); });
+					break;
+			}
+			await environmentState.pendingConfirmation.complete({ confirmed: true });
+			await rejected;
+			assert.deepStrictEqual({ sshDisconnects, removedConnections, cached: readSSHRemoteAgentHostEntries(storage) }, {
+				sshDisconnects: [], removedConnections: [], cached: change === 'removed' ? [] : [savedSSHHost],
+			});
+		});
+	}
+
+	test('SSH deletion invalidates discovery that started before the saved entry was deleted', async () => {
+		const { model, storage, setSSHDiscovery } = setup();
+		addSSHRemoteAgentHostEntry(storage, savedSSHHost);
+		await model.refresh(CancellationToken.None);
+		const oldDiscovery = new DeferredPromise<string[]>();
+		setSSHDiscovery(() => oldDiscovery.p);
+		const refresh = model.refresh(CancellationToken.None);
+		setSSHDiscovery(async () => []);
+		await model.deleteSSHHost('ssh:removed');
+		await oldDiscovery.complete(['removed']);
+		await refresh;
+		assert.deepStrictEqual({
+			cached: readSSHRemoteAgentHostEntries(storage),
+			present: model.remotes.get().some(remote => remote.id === 'ssh:removed'),
+		}, { cached: [], present: false });
 	});
 
 	test('identifies failed sources and logs details without returning raw errors to the UI', async () => {

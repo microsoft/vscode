@@ -571,7 +571,7 @@ registerAction2(class ToggleCompactSessionsViewAction extends Action2 {
 			toggled: SessionsViewCompactContext,
 			menu: [{
 				id: Menus.SidebarSessionsHeader,
-				group: 'view',
+				group: '1_view',
 				order: 0,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 			}]
@@ -640,7 +640,7 @@ registerAction2(class CollapseAllGroupsAction extends Action2 {
 			id: 'sessionsViewPane.collapseAllGroups',
 			title: localize2('collapseAllGroups', "Collapse All Groups"),
 			category: SessionsCategories.Sessions,
-			menu: [{ id: Menus.SidebarSessionsHeader, group: 'view', order: 1, when: ChatContextKeys.enabled }]
+			menu: [{ id: Menus.SidebarSessionsHeader, group: '1_view', order: 1, when: ChatContextKeys.enabled }]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
