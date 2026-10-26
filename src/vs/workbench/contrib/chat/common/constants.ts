@@ -115,7 +115,10 @@ export enum ChatConfiguration {
 	ChatClosedPromoNotification = 'chat.closedPromoNotification',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 	WelcomePageSignInEnabled = 'chat.welcomePage.signIn.enabled',
+	WelcomePageAgentsWindowGraphic = 'chat.welcomePage.agentsWindowGraphic',
+	WelcomePageAgentsWindowSectionStyle = 'chat.welcomePage.agentsWindowSectionStyle',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
+	TitleBarOpenInAgentsWindowRichHover = 'chat.titleBar.openInAgentsWindow.richHover',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
 	AgentsWindowBannerEnabled = 'chat.agentsWindowBanner.enabled',
@@ -136,7 +139,6 @@ export enum ChatConfiguration {
 	ExperimentalModePermissionsPicker = 'chat.experimentalModePermissionsPicker',
 	DefaultConfiguration = 'chat.defaultConfiguration',
 	DefaultModel = 'chat.defaultModel',
-	FusionModelPickerInlineTiers = 'chat.modelPicker.fusionInlineTiers',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
@@ -184,6 +186,88 @@ export function getCopilotHarnessIntroductionMode(configurationService: IConfigu
 export const enum ChatClosedPromoNotification {
 	None = 'none',
 	CopilotIconPopup = 'copilotIconPopup',
+}
+
+/** The graphic that explains the Agents window above the Agents window button on the Welcome page. */
+export const enum AgentsWindowGraphicVariant {
+	None = 'none',
+	/** The editor window and the Agents window side by side. */
+	WindowComparison = 'windowComparison',
+	/** Editor windows for several projects become one Agents window. */
+	ManyWindowsToOne = 'manyWindowsToOne',
+	/** {@link ManyWindowsToOne} when more than one editor window is open, and {@link WindowComparison} otherwise. */
+	Auto = 'auto',
+}
+
+export function getAgentsWindowGraphicVariant(configurationService: IConfigurationService): AgentsWindowGraphicVariant {
+	const variant = configurationService.getValue<AgentsWindowGraphicVariant>(ChatConfiguration.WelcomePageAgentsWindowGraphic);
+	switch (variant) {
+		case AgentsWindowGraphicVariant.WindowComparison:
+		case AgentsWindowGraphicVariant.ManyWindowsToOne:
+		case AgentsWindowGraphicVariant.Auto:
+			return variant;
+		default:
+			return AgentsWindowGraphicVariant.None;
+	}
+}
+
+/**
+ * What hovering or focusing the title bar's Agents window button shows to users who are new to the Agents window.
+ * Each hover card is named after the graphic it shows, like the values of {@link AgentsWindowGraphicVariant}.
+ */
+export const enum OpenInAgentsTitleBarHoverVariant {
+	/** A simple tooltip, and the button grows to show its label. */
+	None = 'none',
+	/** A hover card with the {@link AgentsWindowGraphicVariant.ManyWindowsToOne} graphic, and the button stays an icon. */
+	ManyWindowsToOne = 'manyWindowsToOne',
+	/** A hover card with the {@link AgentsWindowGraphicVariant.WindowComparison} graphic, and the button stays an icon. */
+	WindowComparison = 'windowComparison',
+}
+
+/**
+ * Reads the graphic of the hover card that the title bar's Agents window button shows to users who are new to the Agents window,
+ * or `undefined` for a simple tooltip, the setting's default {@link OpenInAgentsTitleBarHoverVariant.None}.
+ */
+export function getOpenInAgentsTitleBarHoverCardDesign(configurationService: IConfigurationService): AgentsWindowGraphicVariant.ManyWindowsToOne | AgentsWindowGraphicVariant.WindowComparison | undefined {
+	switch (configurationService.getValue<OpenInAgentsTitleBarHoverVariant>(ChatConfiguration.TitleBarOpenInAgentsWindowRichHover)) {
+		case OpenInAgentsTitleBarHoverVariant.ManyWindowsToOne:
+			return AgentsWindowGraphicVariant.ManyWindowsToOne;
+		case OpenInAgentsTitleBarHoverVariant.WindowComparison:
+			return AgentsWindowGraphicVariant.WindowComparison;
+		default:
+			return undefined;
+	}
+}
+
+/** How the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. */
+export const enum AgentsWindowSectionStyle {
+	None = 'none',
+	/** A subtle surface around the section, like the walkthrough tiles. */
+	Card = 'card',
+	/** A subtle border around the section. The default. */
+	Outline = 'outline',
+	/** A surface tinted with the accent color around the section. */
+	Tint = 'tint',
+	/** A subtle surface across the width of the page's content. */
+	Band = 'band',
+	/** Lines across the width of the page's content above and below the section. */
+	Separator = 'separator',
+}
+
+/** Reads the section style, falling back to the setting's default, {@link AgentsWindowSectionStyle.Outline}. */
+export function getAgentsWindowSectionStyle(configurationService: IConfigurationService): AgentsWindowSectionStyle {
+	const style = configurationService.getValue<AgentsWindowSectionStyle>(ChatConfiguration.WelcomePageAgentsWindowSectionStyle);
+	switch (style) {
+		case AgentsWindowSectionStyle.None:
+		case AgentsWindowSectionStyle.Card:
+		case AgentsWindowSectionStyle.Outline:
+		case AgentsWindowSectionStyle.Tint:
+		case AgentsWindowSectionStyle.Band:
+		case AgentsWindowSectionStyle.Separator:
+			return style;
+		default:
+			return AgentsWindowSectionStyle.Outline;
+	}
 }
 
 export const AGENT_SESSION_CLEANUP_SETTINGS_TAG = 'agentSessionCleanup';
@@ -290,6 +374,7 @@ export enum ChatProgressAnimation {
 export enum ChatProgressVerbosity {
 	Verbose = 'verbose',
 	Compact = 'compact',
+	Conversation = 'conversation',
 }
 
 export enum CollapsedToolsDisplayMode {

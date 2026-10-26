@@ -9,8 +9,6 @@ export const USE_WORKTREE_SETTING = 'sessions.useWorktree';
 
 export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 
-export const SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING = 'sessions.experimental.emptyFileEditorActions';
-
 /** Whether the Session Activity Bar is shown beside the active chat in the desktop Agents window. */
 export const SESSION_ACTIVITY_BAR_SETTING = 'sessions.showSessionActivityBar';
 
@@ -22,9 +20,16 @@ export const LEGACY_SESSION_TOOLBAR_SETTING = 'sessions.showSessionToolbar';
 
 export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.groupExternalSessions';
 
+/** Whether agents get tools to read and organize the Agents window Sessions list. */
+export const SESSIONS_LIST_AGENT_TOOLS_SETTING = 'sessions.list.agentTools.enabled';
+
 export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.externalApplicationBadge';
 
-export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING = 'sessions.list.externalApplicationBadge.showFrom';
+/**
+ * Not nested under {@link SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING}: a setting cannot also be
+ * the parent of another setting, so the configuration model would ignore the nested value.
+ */
+export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING = 'sessions.list.externalApplicationBadgeShowFrom';
 
 export const enum ExternalSessionApplicationBadgeMode {
 	Off = 'off',

@@ -233,6 +233,27 @@ suite('CopilotFailureTelemetry', () => {
 		}]);
 	});
 
+	test('attributes a failed model call to the HydraFusion workflow and phase that made it', () => {
+		const telemetryService = new CapturingTelemetryService();
+		const session = AgentSession.uri('copilotcli', 'agent-session-id');
+		const correlation = createCopilotFailureCorrelation(session, URI.parse(buildChatUri(session, 'peer-chat-id')), 'turn-id', 'sdk-session-id');
+		const failure = (fusion: SessionEventPayload<'model.call_failure'>['data']['fusion']): SessionEventPayload<'model.call_failure'> => ({
+			type: 'model.call_failure', id: 'event-1', parentId: null, timestamp: '2026-01-01T00:00:00.000Z', ephemeral: true,
+			data: { source: 'top_level', failureKind: 'transport', model: 'claude-sonnet-5.5', isAuto: true, fusion },
+		});
+
+		reportCopilotModelCallFailure(telemetryService, failure({ fusionId: 'fusion-1', syntheticModel: 'hydrafusion-max', pattern: 'single', policy: 'max', phaseId: 'phase-1', phaseKind: 'primary' }), correlation);
+		reportCopilotModelCallFailure(telemetryService, failure({ fusionId: 'fusion-2', syntheticModel: 'not a fusion model', pattern: 'single', policy: 'max' }), correlation);
+
+		// An unknown synthetic model is not reported as a HydraFusion model.
+		assert.deepStrictEqual(telemetryService.events.map(({ data }) => ({
+			fusionId: data?.fusionId, fusionModel: data?.fusionModel, fusionPattern: data?.fusionPattern, fusionPhaseKind: data?.fusionPhaseKind,
+		})), [
+			{ fusionId: 'fusion-1', fusionModel: 'hydrafusion-max', fusionPattern: 'single', fusionPhaseKind: 'primary' },
+			{ fusionId: 'fusion-2', fusionModel: undefined, fusionPattern: 'single', fusionPhaseKind: undefined },
+		]);
+	});
+
 	test('drops empty provider request identifiers', () => {
 		assert.deepStrictEqual(readAgentErrorTelemetryMeta({
 			errorType: 'test',

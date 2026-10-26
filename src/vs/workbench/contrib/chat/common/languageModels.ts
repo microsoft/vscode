@@ -25,7 +25,7 @@ import { isEqualOrParent, joinPath } from '../../../../base/common/resources.js'
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -256,8 +256,6 @@ export interface IAutoModelTierPromotion {
 	readonly tierIds: readonly string[];
 	readonly startsAt?: string;
 	readonly endsAt?: string;
-	/** Published with the promotion so the metadata changes, and pickers refresh, when it starts. */
-	readonly upcoming?: boolean;
 }
 
 export interface ILanguageModelChatMetadata {
@@ -279,8 +277,13 @@ export interface ILanguageModelChatMetadata {
 	 * in {@link tooltip} instead.
 	 */
 	readonly autoModelDiscountPercent?: number;
-	/** How the agent host presents its Auto model as Fusion, when it does. */
-	readonly autoModelFusion?: { readonly balanceUsesHydraFusion: boolean };
+	/** Whether the agent host presents its Auto model as Copilot Fusion. */
+	readonly autoModelFusion?: boolean;
+	/**
+	 * The tier the agent host runs Copilot Fusion at for editor and terminal inline chat, whatever
+	 * effort level is selected, so inline chat offers none. Absent when the host pins no tier there.
+	 */
+	readonly autoModelFusionInlineChatTier?: string;
 	/** Set only on the agent host's Auto model presented as Fusion. */
 	readonly autoModelTierPromotions?: readonly IAutoModelTierPromotion[];
 	/** Auto's tiers come from the provider, which may hide some, including HydraFusion ones. */
@@ -443,33 +446,30 @@ export namespace ILanguageModelChatMetadata {
 		return localize('chat.promo.endsAt', "Ends {0}.", formattedDate);
 	}
 
-	export function getPromoStartsAtLabel(startsAt: string | undefined): string | undefined {
-		const startsAtDate = startsAt ? new Date(startsAt) : undefined;
-		if (!startsAtDate || isNaN(startsAtDate.getTime())) {
+	export function isAutoTierPromotionActive(promotion: IAutoModelTierPromotion, now: number): boolean {
+		const startsAt = promotion.startsAt ? Date.parse(promotion.startsAt) : -Infinity;
+		const endsAt = promotion.endsAt ? Date.parse(promotion.endsAt) : Infinity;
+		// An unparsable boundary yields NaN, which fails both comparisons.
+		return now >= startsAt && now < endsAt;
+	}
+
+	/** The active promotion with the largest discount. */
+	export function getAutoTierPromotion(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): IAutoModelTierPromotion | undefined {
+		if (typeof tier !== 'string') {
 			return undefined;
 		}
-		const formattedDate = startsAtDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-		return localize('chat.promo.startsAt', "Starts {0}.", formattedDate);
-	}
-
-	export function isAutoTierPromotionActive(promotion: IAutoModelTierPromotion, now: number): boolean {
-		return !(promotion.startsAt && now < Date.parse(promotion.startsAt)) && !(promotion.endsAt && now >= Date.parse(promotion.endsAt));
-	}
-
-	export function isAutoTierPromotionUpcoming(promotion: IAutoModelTierPromotion, now: number): boolean {
-		return !!promotion.startsAt && now < Date.parse(promotion.startsAt) && !(promotion.endsAt && now >= Date.parse(promotion.endsAt));
-	}
-
-	/** The active promotion with the largest discount, else the one starting soonest. */
-	export function getAutoTierPromotion(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): IAutoModelTierPromotion | undefined {
-		const promotions = (metadata.autoModelTierPromotions ?? []).filter(promotion => typeof tier === 'string' && promotion.tierIds.includes(tier));
-		const active = promotions.filter(promotion => isAutoTierPromotionActive(promotion, now)).sort((a, b) => b.discountPercent - a.discountPercent)[0];
-		return active ?? promotions.filter(promotion => isAutoTierPromotionUpcoming(promotion, now)).sort((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!))[0];
+		let best: IAutoModelTierPromotion | undefined;
+		for (const promotion of metadata.autoModelTierPromotions ?? []) {
+			if ((!best || promotion.discountPercent > best.discountPercent) && promotion.tierIds.includes(tier) && isAutoTierPromotionActive(promotion, now)) {
+				best = promotion;
+			}
+		}
+		return best;
 	}
 
 	export function getAutoTierDiscountPercent(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): number | undefined {
 		const promotion = getAutoTierPromotion(metadata, tier, now);
-		return promotion && promotion.discountPercent > 0 && isAutoTierPromotionActive(promotion, now) ? promotion.discountPercent : metadata.autoModelDiscountPercent;
+		return promotion && promotion.discountPercent > 0 ? promotion.discountPercent : metadata.autoModelDiscountPercent;
 	}
 
 	/**
@@ -478,19 +478,27 @@ export namespace ILanguageModelChatMetadata {
 	 */
 	export const autoModelSelectionDocsUrl = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
 
+	/** Where Copilot Fusion's description links for more about it. */
+	export const fusionDocsUrl = 'https://aka.ms/vscode-copilot-fusion';
+
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
-	 * (Auto's contains a "Learn More" link; Fusion's does not). The discount is
-	 * described separately by {@link getAutoModelDiscountDescription}.
+	 * with a "Learn More" link. The discount is described separately by
+	 * {@link getAutoModelDiscountDescription}.
 	 */
 	export function getAutoModelDescription(fusion?: boolean): string {
 		if (fusion) {
-			// The Auto docs don't describe Fusion, so it has no Learn More link.
-			return localize('autoModel.fusionDescription', "Fusion routes based on your task and real-time system health and model performance.");
+			const fusionLearnMore = localize('autoModel.fusionLearnMore', "[Learn more]({0})", fusionDocsUrl);
+			return `${getFusionSummary()} ${fusionLearnMore}`;
 		}
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
 		return `${base} ${learnMore}`;
+	}
+
+	/** Copilot Fusion's one-sentence description, as plain text without its "Learn more" link. */
+	export function getFusionSummary(): string {
+		return localize('autoModel.fusionDescription', "Copilot Fusion selects a single model or orchestrates multiple models to complete your task.");
 	}
 
 	/**
@@ -498,14 +506,8 @@ export namespace ILanguageModelChatMetadata {
 	 *
 	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%).
 	 * @param tierLabel The label of Auto's selected tier, e.g. "Efficiency".
-	 * @param fusion Whether Auto is presented as Fusion.
 	 */
-	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string, fusion?: boolean): string {
-		if (fusion) {
-			return tierLabel
-				? localize('autoModel.fusionTierDiscount', "Models routed via Fusion {0} receive a {1}% discount.", tierLabel, discountPercent)
-				: localize('autoModel.fusionDiscount', "Models routed via Fusion receive a {0}% discount.", discountPercent);
-		}
+	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string): string {
 		return tierLabel
 			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)
 			: localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
@@ -1213,6 +1215,13 @@ export function createModelConfigurationActions(
 	return actions;
 }
 
+/** A model resolution for a vendor that is waiting behind another one and can still be joined. */
+interface IQueuedModelResolution {
+	readonly provider: ILanguageModelChatProvider;
+	readonly silent: boolean;
+	readonly promise: Promise<void>;
+}
+
 export class LanguageModelsService implements ILanguageModelsService {
 
 	private static SECRET_KEY_PREFIX = 'chat.lm.secret.';
@@ -1224,6 +1233,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	private readonly _providers = new Map<string, ILanguageModelChatProvider>();
 	private readonly _vendors = new Map<string, ILanguageModelProviderDescriptor>();
+	/** Parsed `when` clauses of {@link _vendors}, by their source text, since {@link getVendors} is read for every model. */
+	private readonly _vendorWhenClauses = new Map<string, ContextKeyExpression | undefined>();
 
 	/** Vendors for which a deprecation notice has already been shown this session. */
 	private readonly _deprecationNoticeShownVendors = new Set<string>();
@@ -1234,6 +1245,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _modelsGroups = new Map<string, ILanguageModelsGroup[]>();
 	private readonly _modelCache = new Map<string, ILanguageModelChatMetadata>();
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
+	/**
+	 * The resolution each vendor has queued but not started. Requests made meanwhile join it rather
+	 * than queue another, e.g. `selectChatModels` calls that each re-resolve every vendor.
+	 */
+	private readonly _queuedResolutions = new Map<string, IQueuedModelResolution>();
 	private readonly _modelConfigurations = new Map<string, IStringDictionary<unknown>>();
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 	private readonly _hasNonCopilotUserSelectableModels: IContextKey<boolean>;
@@ -1407,7 +1423,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!vendor.when) {
 					return true; // No when clause means always visible
 				}
-				const whenClause = ContextKeyExpr.deserialize(vendor.when);
+				let whenClause = this._vendorWhenClauses.get(vendor.when);
+				if (!this._vendorWhenClauses.has(vendor.when)) {
+					whenClause = ContextKeyExpr.deserialize(vendor.when);
+					this._vendorWhenClauses.set(vendor.when, whenClause);
+				}
 				return whenClause ? this._contextKeyService.contextMatchesRules(whenClause) : false;
 			});
 	}
@@ -1452,7 +1472,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return;
 		}
 
-		return this._resolveLMSequencer.queue(vendorId, async () => {
+		// A resolution that has not started yet will see everything that changed before this request.
+		const queued = this._queuedResolutions.get(vendorId);
+		if (queued?.provider === provider && queued.silent === silent) {
+			return queued.promise;
+		}
+
+		const promise = this._resolveLMSequencer.queue(vendorId, async () => {
+			if (this._queuedResolutions.get(vendorId)?.promise === promise) {
+				this._queuedResolutions.delete(vendorId);
+			}
 			if (this._providers.get(vendorId) !== provider) {
 				return;
 			}
@@ -1597,6 +1626,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 				this._logService.trace(`[LM] No changes in language models for vendor ${vendorId}`);
 			}
 		});
+		this._queuedResolutions.set(vendorId, { provider, silent, promise });
+		return promise;
 	}
 
 	private _hasGroupStructureChanged(oldGroups: readonly ILanguageModelsGroup[], newGroups: readonly ILanguageModelsGroup[]): boolean {
@@ -1839,16 +1870,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 			group = allGroups.find(g => g.vendor === metadata.vendor);
 		}
 
-		// Merge new values into existing config, removing properties set to their schema default
+		// Reset keys must be removed from both persisted settings and the in-memory cache.
 		const existingConfig = this._modelConfigurations.get(modelId) ?? {};
 		const updatedConfig = { ...existingConfig, ...values };
 		const schema = metadata.configurationSchema;
-		if (schema?.properties) {
-			for (const [key, value] of Object.entries(updatedConfig)) {
-				const propSchema = schema.properties[key];
-				if (propSchema?.default !== undefined && propSchema.default === value && !metadata.configurationDefaultKeys?.includes(key)) {
-					delete updatedConfig[key];
-				}
+		for (const [key, value] of Object.entries(updatedConfig)) {
+			const propSchema = schema?.properties?.[key];
+			if (value === undefined || (propSchema?.default !== undefined && propSchema.default === value && !metadata.configurationDefaultKeys?.includes(key))) {
+				delete updatedConfig[key];
 			}
 		}
 

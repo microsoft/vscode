@@ -35,7 +35,7 @@ import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration } from 
 import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
 import { ILogService } from '../../../log/common/log.js';
 import { LOCAL_MODEL_META_KEY } from '../../common/localModel.js';
-import { createLocalModelTurnExecutionMeta } from '../../common/meta/agentUsageMeta.js';
+import { compactAutoModeResolved, createLocalModelTurnExecutionMeta } from '../../common/meta/agentUsageMeta.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -53,7 +53,7 @@ type AutoModeResolvedData = Extract<SessionEvent, { type: 'session.auto_mode_res
  */
 function autoModeResolvedMeta(autoModeResolved: AutoModeResolvedData): Record<string, unknown> {
 	return {
-		autoModeResolved,
+		autoModeResolved: compactAutoModeResolved(autoModeResolved),
 		...(/-local$/i.test(autoModeResolved.chosenModel) ? createLocalModelTurnExecutionMeta({ execution: 'unknown' }) : {}),
 	};
 }

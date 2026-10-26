@@ -8,6 +8,10 @@ import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/
 import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../workbench/common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from './sessionConfig.js';
 
+export function sessionActivityBarChatActionContext(commandId: string): RawContextKey<boolean> {
+	return new RawContextKey<boolean>(`sessionActivityBar.chatAction.${commandId}`, false);
+}
+
 //#region < --- Active Session --- >
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
@@ -137,6 +141,10 @@ export const SessionWorkspacePickerGroupContext = new RawContextKey<string>('ses
 
 export const NewSessionCreationProviderIdContext = new RawContextKey<string>('newSessionCreationProviderId', '', localize('newSessionCreationProviderId', "The provider selected for new session creation before a draft exists"));
 export const SessionWorkspacePickerVisibleContext = new RawContextKey<boolean>('sessionWorkspacePickerVisible', false, localize('sessionWorkspacePickerVisible', "Whether the new-session view's workspace picker is rendered (as opposed to being replaced by the no-agent-host empty state)"));
+export const SessionEnvironmentPickerVisibleContext = new RawContextKey<boolean>('sessionEnvironmentPickerVisible', false, localize('sessionEnvironmentPickerVisible', "Whether the new-session view's environment picker is visible"));
+export const SessionBranchPickerVisibleContext = new RawContextKey<boolean>('sessionBranchPickerVisible', false, localize('sessionBranchPickerVisible', "Whether the new-session view's branch picker is visible"));
+export const SessionWorktreePickerVisibleContext = new RawContextKey<boolean>('sessionWorktreePickerVisible', false, localize('sessionWorktreePickerVisible', "Whether the new-session view's worktree picker is visible"));
+export const SessionSyncActionVisibleContext = new RawContextKey<boolean>('sessionSyncActionVisible', false, localize('sessionSyncActionVisible', "Whether the new-session view's sync action is visible"));
 export const SessionHarnessPickerVisibleContext = new RawContextKey<boolean>('sessionHarnessPickerVisible', false, localize('sessionHarnessPickerVisible', "Whether the new-session view's harness (session type) picker is visible — it is hidden when at most one harness can serve the selected workspace"));
 export const SessionIsolationPickerVisibleContext = new RawContextKey<boolean>('sessionIsolationPickerVisible', false, localize('sessionIsolationPickerVisible', "Whether the new-session view's isolation picker is visible — it is shown only when the isolation option is enabled and the workspace has a git repository"));
 export const AgentHostSessionTypesAvailableContext = new RawContextKey<boolean>('agentHostSessionTypesAvailable', false, localize('agentHostSessionTypesAvailable', "Whether at least one connected agent-host provider has advertised session types"));

@@ -9,7 +9,6 @@ import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotSdkLogLevelSettin
 
 export class CopilotAgentStartupConfig {
 	constructor(
-		readonly sessionSync: boolean,
 		readonly rubberDuck: boolean,
 		readonly claudeAdvisor: boolean,
 		readonly tgrep: boolean,
@@ -33,6 +32,8 @@ export class CopilotAgentStartupConfig {
 		readonly executionSubagent = false,
 		readonly executionSubagentModel = DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
 		readonly dynamicAutoTiers = false,
+		/** `chat.agentHost.computerUse.enabled`: built-in plugins can only be registered before any session exists. */
+		readonly computerUse = false,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

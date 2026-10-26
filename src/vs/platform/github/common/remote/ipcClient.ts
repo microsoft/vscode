@@ -66,6 +66,7 @@ export class GitHubChannelClient implements ISharedProcessGitHubService {
 			const client = resolved ? new AccountClient(resolved, {
 				rest: provider, graphql, rawContent,
 				missionControl: new RemoteApiRequestProvider(this.channel, clientId, 'missionControl', controller.signal),
+				connectors: new RemoteApiRequestProvider(this.channel, clientId, 'connectors', controller.signal),
 				onDidInvalidate: this.channel.listen('onDidInvalidate', { clientId }),
 				onDidChangeCredentials: this.channel.listen('onDidChangeCredentials', { clientId }),
 			}, lease) : new AnonymousClient(provider, rawContent, lease);

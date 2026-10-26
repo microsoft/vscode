@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableProducer } from '../../../../../base/common/async.js';
+import { AsyncIterableSource } from '../../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservableWithChange, observableValue, runOnChange, transaction, RemoveUndefined } from '../../../../../base/common/observable.js';
 
@@ -29,18 +29,14 @@ export function mapObservableDelta<T, TDelta, TDeltaNew>(obs: IObservableWithCha
 }
 
 export function iterateObservableChanges<T, TChange>(obs: IObservableWithChange<T, TChange>, store: DisposableStore): AsyncIterable<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }> {
-	return new AsyncIterableProducer<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }>((e) => {
-		if (store.isDisposed) {
-			return;
-		}
+	const source = new AsyncIterableSource<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }>();
+	if (!store.isDisposed) {
 		store.add(runOnChange(obs, (value, prevValue, change) => {
-			e.emitOne({ value, prevValue, change: change });
+			source.emitOne({ value, prevValue, change });
 		}));
-
-		return new Promise((res) => {
-			store.add(toDisposable(() => {
-				res(undefined);
-			}));
-		});
-	});
+		store.add(toDisposable(() => source.resolve()));
+	} else {
+		source.resolve();
+	}
+	return source.asyncIterable;
 }

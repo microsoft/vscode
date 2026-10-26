@@ -234,6 +234,29 @@ suite('ChatMarkdownRenderer', () => {
 		});
 	});
 
+	test('renders <br> inside table cells as line breaks', () => {
+		const md = new MarkdownString([
+			'| Country | Demographics |',
+			'| --- | --- |',
+			'| Japan | • Population: 123M<br>• Median age: **49<BR/>years**<br />• `<br>` stays code |',
+			'',
+			'Outside tables <br> stays text',
+		].join('\n'));
+		const render = (fillInIncompleteTokens: boolean) => {
+			const result = store.add(testRenderer.render(md, { fillInIncompleteTokens, markedOptions: { gfm: true, breaks: true } }));
+			return {
+				cell: result.element.querySelector('tbody td:last-child')?.innerHTML,
+				paragraph: result.element.querySelector('p')?.innerHTML,
+			};
+		};
+
+		const expected = {
+			cell: '• Population: 123M<br>• Median age: <strong>49<br>years</strong><br>• <code>&lt;br&gt;</code> stays code',
+			paragraph: 'Outside tables &lt;br&gt; stays text',
+		};
+		assert.deepStrictEqual({ complete: render(false), streaming: render(true) }, { complete: expected, streaming: expected });
+	});
+
 	test('supportHtml with one-line markdown', async () => {
 		const md = new MarkdownString('**hello**');
 		md.supportHtml = true;

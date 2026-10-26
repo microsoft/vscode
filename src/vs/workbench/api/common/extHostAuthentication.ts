@@ -279,7 +279,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		clientId: string | undefined,
 		clientSecret: string | undefined,
-		initialTokens: IAuthorizationToken[] | undefined
+		initialTokens: IAuthorizationToken[] | undefined,
+		providerId?: string
 	): Promise<string> {
 		if (!clientId) {
 			const authorizationServer = URI.revive(authorizationServerComponents);
@@ -322,7 +323,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			clientId,
 			clientSecret,
 			this._onDidDynamicAuthProviderTokensChange,
-			initialTokens || []
+			initialTokens || [],
+			providerId
 		);
 
 		// Use the sequencer to ensure dynamic provider registration is serialized
@@ -511,13 +513,14 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		protected _clientSecret: string | undefined,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: IAuthorizationToken[] }>,
 		initialTokens: IAuthorizationToken[],
+		providerId?: string,
 		private readonly _fetch: typeof fetch = fetch,
 	) {
 		const stringifiedServer = authorizationServer.toString(true);
-		// Auth Provider Id is a combination of the authorization server and the resource, if provided.
-		this.id = _resourceMetadata?.resource
+		// The default provider ID combines the authorization server and the resource, if provided.
+		this.id = providerId ?? (_resourceMetadata?.resource
 			? stringifiedServer + ' ' + _resourceMetadata?.resource
-			: stringifiedServer;
+			: stringifiedServer);
 		// Auth Provider label is just the resource name if provided, otherwise the authority of the authorization server.
 		this.label = _resourceMetadata?.resource_name ?? this.authorizationServer.authority;
 		// Metadata is untrusted, so the token endpoint must also be Microsoft to earn Microsoft-specific treatment.

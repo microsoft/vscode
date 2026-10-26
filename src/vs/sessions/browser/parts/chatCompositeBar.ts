@@ -47,6 +47,10 @@ import { CONNECTED_EDITOR_TABS_SELECTOR } from '../../../workbench/browser/parts
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { getSessionToolbarSecondaryActionsPosition, getSessionChatAncestors } from './sessionHeaderBar.js';
+import { SessionStatusIcon } from '../sessionStatusIcon.js';
+import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';
+import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -108,6 +112,8 @@ export interface IChatCompositeBarDelegate {
  */
 export class ChatCompositeBar extends Disposable {
 
+	private readonly _hoverDelegate = this._register(createInstantHoverDelegate());
+	private readonly _tabHoverLifecycleOptions = { groupId: generateUuid() };
 	private readonly _container: HTMLElement;
 	private readonly _tabsRow: HTMLElement;
 	private readonly _tabsContainer: HTMLElement;
@@ -193,6 +199,7 @@ export class ChatCompositeBar extends Disposable {
 		const sessionToolbarContainer = $('.chat-composite-bar-toolbar');
 		this._sessionActionsContainer.appendChild(sessionToolbarContainer);
 		this._sessionToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
+			hoverDelegate: this._hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
@@ -408,7 +415,7 @@ export class ChatCompositeBar extends Disposable {
 		tab.appendChild(inputContainer);
 
 		// Delayed hover showing the full chat title (useful when the title is truncated)
-		this._tabDisposables.add(this._hoverService.setupDelayedHover(tab, () => ({ content: titlePath })));
+		this._tabDisposables.add(this._hoverService.setupDelayedHover(tab, () => ({ content: titlePath, style: HoverStyle.Pointer }), this._tabHoverLifecycleOptions));
 		this._tabDisposables.add(addDisposableListener(tab, EventType.MOUSE_ENTER, () => {
 			this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', tab.classList.contains('active'));
 		}));
@@ -422,12 +429,10 @@ export class ChatCompositeBar extends Disposable {
 			tab.classList.toggle('untitled', status === SessionStatus.Untitled);
 		}));
 
-		// Track unread / needs-input / in-progress state for the indicator.
-		// Precedence: needs-input (unread) > in-progress (spinner) > unread when not active.
-		// At most one indicator is shown at a time.
-		const indicator = $('.chat-composite-bar-tab-indicator');
+		const indicator = $('.chat-composite-bar-tab-indicator', { 'aria-hidden': true });
 		const indicatorIcon = $('.chat-composite-bar-tab-indicator-icon');
 		indicator.appendChild(indicatorIcon);
+		const statusIcon = this._tabDisposables.add(this._instantiationService.createInstance(SessionStatusIcon, indicatorIcon));
 		this._tabDisposables.add(autorun(reader => {
 			const isActive = delegate?.activeChatResource.read(reader) === chat.resource.toString();
 			const status = chat.status.read(reader);
@@ -446,13 +451,14 @@ export class ChatCompositeBar extends Disposable {
 			tab.classList.toggle('unread', mode === 'unread');
 			tab.classList.toggle('in-progress', mode === 'in-progress');
 
-			indicatorIcon.className = 'chat-composite-bar-tab-indicator-icon';
 			if (mode === 'in-progress') {
-				indicatorIcon.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
+				statusIcon.setStatus(status, isRead, chat.isArchived.read(reader));
+			} else {
+				statusIcon.reset();
 			}
 		}));
 
-		tab.appendChild(indicator);
+		tab.insertBefore(indicator, lockIcon);
 
 		// Close button — contributed via Menus.SessionChatTab (the chat tab menu).
 		// Only non-main chats can be closed; the main chat lives and dies with its
@@ -463,6 +469,7 @@ export class ChatCompositeBar extends Disposable {
 			const actionsContainer = $('.chat-composite-bar-tab-actions');
 			tab.appendChild(actionsContainer);
 			tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
+				hoverDelegate: this._hoverDelegate,
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 				menuOptions: { args: [session, chat] },
 				toolbarOptions: { primaryGroup: () => true },

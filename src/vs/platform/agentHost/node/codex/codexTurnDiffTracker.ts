@@ -12,6 +12,8 @@ interface INativeTurn {
 	readonly ready: DeferredPromise<void>;
 	readonly snapshots: ICodexTurnDiffSnapshot[];
 	readonly initialDiffs: Map<string, string>;
+	/** Paths this native turn has touched, including ones a later update reverted. */
+	readonly paths: Set<string>;
 	readonly fileSequences: Map<string, { readonly first: number; readonly last: number }>;
 	notification: TurnDiffUpdatedNotification;
 	hostTurnId: string;
@@ -20,21 +22,63 @@ interface INativeTurn {
 	status: 'active' | 'complete' | 'storing' | 'failed';
 }
 
-/** Groups native parents and children by their host checkpoints before reconstructing shared file contents. */
+/** The paths a diff section names: its `---` and `+++` sides, or its `diff --git` line when it has neither. */
+function sectionPaths(section: string): string[] {
+	const hunks = section.search(/^@@/m);
+	const header = hunks === -1 ? section : section.slice(0, hunks);
+	const paths = [...header.matchAll(/^(?:---|\+\+\+) (?:[ab]\/)?(.+)$/gm)].map(match => match[1]).filter(path => path !== '/dev/null');
+	const samePath = /^diff --git a\/(.+) b\/\1$/m.exec(header);
+	return paths.length || !samePath ? paths : [samePath[1]];
+}
+
+/**
+ * Groups the native turns of a host turn, such as a parent and its children, with the turns that touched
+ * the same paths, before reconstructing their shared file contents. A group is stored once all its turns complete.
+ */
 export class CodexTurnDiffTracker implements IDisposable {
+	private readonly _discardedTurnIds = new Set<string>();
 	private readonly _nativeTurns = new Map<string, INativeTurn>();
 	private readonly _pendingChildren = new Map<string, INativeTurn>();
 	private readonly _hostTurns = new Map<string, Set<INativeTurn>>();
 	private _sequence = 0;
+	/** While events are replayed into a reserved slot, the last sequence taken from it. */
+	private _replaySequence: number | undefined;
 
-	constructor(private readonly _store: (captures: readonly ICodexTurnDiffCapture[], relatedDiffs: readonly string[]) => Promise<void>) { }
+	constructor(private readonly _store: (captures: readonly ICodexTurnDiffCapture[], relatedDiffs: readonly string[], discardedTurnIds: ReadonlySet<string>) => Promise<void>) { }
+
+	/** Sequences order edits across native turns, so events processed later than they arrived take them from a reserved slot. */
+	private _nextSequence(): number {
+		if (this._replaySequence === undefined) {
+			return ++this._sequence;
+		}
+		// Fractional steps keep every sequence of the slot below the next one reserved or taken afterwards.
+		this._replaySequence += 1 / 1024;
+		return this._replaySequence;
+	}
+
+	/** Reserves the position of an event that arrives now but is processed later, such as one from a child thread not yet registered. */
+	reserveSequence(): number {
+		return ++this._sequence;
+	}
+
+	/** Processes an event at the position {@link reserveSequence} reserved when it arrived, so its edits keep their arrival order. */
+	replayAt(reserved: number, replay: () => void): void {
+		const previous = this._replaySequence;
+		this._replaySequence = reserved;
+		try {
+			replay();
+		} finally {
+			this._replaySequence = previous;
+		}
+	}
 
 	private _createTurn(threadId: string, nativeTurnId: string, hostTurnId: string): INativeTurn {
 		const turn: INativeTurn = {
-			ready: new DeferredPromise<void>(), snapshots: [], initialDiffs: new Map(), fileSequences: new Map(), hostTurnId,
+			ready: new DeferredPromise<void>(), snapshots: [], initialDiffs: new Map(), paths: new Set(), fileSequences: new Map(), hostTurnId,
 			notification: { threadId, turnId: nativeTurnId, diff: '' },
-			startSequence: ++this._sequence, sequence: this._sequence, status: 'active',
+			startSequence: 0, sequence: 0, status: 'active',
 		};
+		turn.startSequence = turn.sequence = this._nextSequence();
 		void turn.ready.p.catch(() => { });
 		this._addHostTurn(hostTurnId, turn);
 		return turn;
@@ -54,8 +98,13 @@ export class CodexTurnDiffTracker implements IDisposable {
 		if ([...this._hostTurns.get(hostTurnId) ?? []].some(turn => turn.status === 'failed')) {
 			return;
 		}
-		const turn = this._pendingChildren.get(threadId) ?? this._createTurn(threadId, nativeTurnId, hostTurnId);
+		const pending = this._pendingChildren.get(threadId);
+		const turn = pending ?? this._createTurn(threadId, nativeTurnId, hostTurnId);
 		this._pendingChildren.delete(threadId);
+		if (pending && this._replaySequence !== undefined) {
+			// The child sent this event before its spawn registered it, so it started then.
+			turn.startSequence = turn.sequence = this._nextSequence();
+		}
 		turn.notification = { threadId, turnId: nativeTurnId, diff: '' };
 		this._nativeTurns.set(nativeTurnId, turn);
 	}
@@ -70,12 +119,15 @@ export class CodexTurnDiffTracker implements IDisposable {
 			return;
 		}
 		turn.notification = notification;
-		turn.sequence = ++this._sequence;
+		turn.sequence = this._nextSequence();
 		// Retain each path's first diff even if it later vanishes from a cumulative revert.
 		for (const section of notification.diff.split(/(?=^diff --git )/m).filter(section => section.length > 0)) {
 			const header = section.split('\n', 1)[0];
 			if (!turn.initialDiffs.has(header)) {
 				turn.initialDiffs.set(header, section);
+				for (const path of sectionPaths(section)) {
+					turn.paths.add(path);
+				}
 			}
 		}
 	}
@@ -84,7 +136,7 @@ export class CodexTurnDiffTracker implements IDisposable {
 	markEdited(nativeTurnId: string, paths: readonly string[]): void {
 		const turn = this._nativeTurns.get(nativeTurnId);
 		if (turn?.status === 'active') {
-			const sequence = ++this._sequence;
+			const sequence = this._nextSequence();
 			turn.sequence = sequence;
 			for (const path of paths) {
 				turn.fileSequences.set(path, { first: turn.fileSequences.get(path)?.first ?? sequence, last: sequence });
@@ -99,7 +151,7 @@ export class CodexTurnDiffTracker implements IDisposable {
 				this._snapshot(turn);
 			}
 			turn.hostTurnId = hostTurnId;
-			turn.startSequence = ++this._sequence;
+			turn.startSequence = this._nextSequence();
 			this._addHostTurn(hostTurnId, turn);
 		}
 	}
@@ -130,21 +182,35 @@ export class CodexTurnDiffTracker implements IDisposable {
 		await turn.ready.p;
 	}
 
-	/** Native completion is waiting for a child, rather than only for database persistence. */
+	/** Native completion waits for another turn that touched the same paths, rather than only for database persistence. */
 	isWaitingForRelatedTurns(nativeTurnId: string): boolean {
 		return this._nativeTurns.get(nativeTurnId)?.status === 'complete';
 	}
 
+	/**
+	 * The pending native turns stored together with `turn`: those of its host turns and those that touched one of its paths, transitively.
+	 * A child can edit a file its parent touched before its diff arrives, so a parent always waits for its children.
+	 * A turn a truncation removed neither joins nor holds back another group; its diffs still help resolve contents.
+	 */
 	private _relatedTurns(turn: INativeTurn): Set<INativeTurn> {
 		const group = new Set([turn]);
+		if (this._isDiscarded(turn)) {
+			return group;
+		}
+		const candidates = [...this._nativeTurns.values(), ...this._pendingChildren.values()].filter(member => (member.status === 'active' || member.status === 'complete') && !this._isDiscarded(member));
 		for (const member of group) {
-			for (const host of [member.hostTurnId, ...member.snapshots.map(snapshot => snapshot.turnId)]) {
-				for (const related of this._hostTurns.get(host) ?? []) {
-					group.add(related);
+			const hostTurnIds = this._hostTurnIds(member);
+			for (const other of candidates) {
+				if (!group.has(other) && (this._hostTurnIds(other).some(id => hostTurnIds.includes(id)) || [...other.paths].some(path => member.paths.has(path)))) {
+					group.add(other);
 				}
 			}
 		}
 		return group;
+	}
+
+	private _hostTurnIds(turn: INativeTurn): string[] {
+		return [turn.hostTurnId, ...turn.snapshots.map(snapshot => snapshot.turnId)];
 	}
 
 	private async _flushGroup(turn: INativeTurn): Promise<void> {
@@ -152,11 +218,14 @@ export class CodexTurnDiffTracker implements IDisposable {
 		if ([...group].some(member => member.status !== 'complete')) {
 			return;
 		}
-		const start = (member: INativeTurn) => member.snapshots[0]?.startSequence ?? member.startSequence;
-		const groupStart = Math.min(...[...group].map(start));
-		// Database row order defines the session delta. A replacement turn must not
-		// overtake the cancelled turn's child snapshots while they are still pending.
-		if ([...this._nativeTurns.values()].some(member => !group.has(member) && member.status !== 'failed' && start(member) < groupStart)) {
+		// A removed turn's diffs still resolve the contents of kept turns that touched its paths, so it is released after them.
+		if (this._isDiscarded(turn) && [...this._nativeTurns.values()].some(member => (member.status === 'active' || member.status === 'complete')
+			&& !this._isDiscarded(member) && [...member.paths].some(path => turn.paths.has(path)))) {
+			return;
+		}
+		// Database row order defines each path's session delta: an overlapping store that started first must finish first.
+		const paths = new Set([...group].flatMap(member => [...member.paths]));
+		if ([...this._nativeTurns.values()].some(member => member.status === 'storing' && !this._isDiscarded(member) && [...member.paths].some(path => paths.has(path)))) {
 			return;
 		}
 		const captures = [...group].map(member => ({ notification: member.notification, snapshots: member.snapshots, initialDiffs: [...member.initialDiffs.values()] }));
@@ -166,7 +235,7 @@ export class CodexTurnDiffTracker implements IDisposable {
 			member.status = 'storing';
 		}
 		try {
-			await this._store(captures, relatedDiffs);
+			await this._store(captures, relatedDiffs, this._discardedTurnIds);
 			for (const member of group) {
 				this._nativeTurns.delete(member.notification.turnId);
 				for (const [id, pending] of this._hostTurns) {
@@ -183,14 +252,29 @@ export class CodexTurnDiffTracker implements IDisposable {
 				member.ready.error(error);
 			}
 		}
-		this._flushNextGroup();
+		this._flushCompleteGroups();
 	}
 
-	private _flushNextGroup(): void {
+	private _isDiscarded(turn: INativeTurn): boolean {
+		return this._hostTurnIds(turn).every(id => this._discardedTurnIds.has(id));
+	}
+
+	/**
+	 * Marks host turns a truncation removed. Snapshots still being captured for them, e.g. by a child
+	 * that outlives its turn, are not stored, and their running turns hold back no other group.
+	 */
+	discard(hostTurnIds: Iterable<string>): void {
+		for (const hostTurnId of hostTurnIds) {
+			this._discardedTurnIds.add(hostTurnId);
+		}
+		this._flushCompleteGroups();
+	}
+
+	/** Flushes, in start order, every complete group whose turns all completed and no overlapping store holds back. */
+	private _flushCompleteGroups(): void {
 		const start = (turn: INativeTurn) => turn.snapshots[0]?.startSequence ?? turn.startSequence;
-		const next = [...this._nativeTurns.values()].filter(member => member.status === 'complete').sort((a, b) => start(a) - start(b))[0];
-		if (next) {
-			void this._flushGroup(next);
+		for (const member of [...this._nativeTurns.values()].filter(member => member.status === 'complete').sort((a, b) => start(a) - start(b))) {
+			void this._flushGroup(member);
 		}
 	}
 
@@ -205,32 +289,26 @@ export class CodexTurnDiffTracker implements IDisposable {
 				this._hostTurns.delete(pending.hostTurnId);
 			}
 			pending.ready.complete();
-			this._flushNextGroup();
+			this._flushCompleteGroups();
 		}
 		await Promise.all([...this._nativeTurns.values()]
 			.filter(turn => turn.notification.threadId === threadId && turn.status !== 'failed')
 			.map(turn => this.complete(turn.notification.turnId)));
 	}
 
-	/** A stuck child must fail its checkpoint instead of holding all future persistence behind it. */
-	failWaitingTurn(hostTurnId: string, error: Error): void {
-		const turn = this._hostTurns.get(hostTurnId)?.values().next().value;
-		if (!turn) {
-			return;
-		}
-		const group = this._relatedTurns(turn);
-		if ([...group].some(member => member.status === 'storing')) {
-			return;
-		}
-		for (const member of group) {
-			member.status = 'failed';
-			member.initialDiffs.clear();
-			member.ready.error(error);
-			if (this._pendingChildren.get(member.notification.threadId) === member) {
-				this._pendingChildren.delete(member.notification.threadId);
-			}
-		}
-		this._flushNextGroup();
+	/** Whether disposing the tracker would drop edits it can still store: kept turns still captured, or waiting for related turns. A running store finishes either way. */
+	hasPendingTurns(): boolean {
+		return [...this._nativeTurns.values(), ...this._pendingChildren.values()].some(turn => (turn.status === 'active' || turn.status === 'complete') && !this._isDiscarded(turn));
+	}
+
+	/** Whether a kept turn is still being captured on a thread outside `except`. */
+	isCapturing(except: ReadonlySet<string>): boolean {
+		return [...this._nativeTurns.values(), ...this._pendingChildren.values()].some(turn => turn.status === 'active' && !this._isDiscarded(turn) && !except.has(turn.notification.threadId));
+	}
+
+	/** Whether a kept turn's store is running, which holds back a completed group that touched one of its paths. */
+	isStoring(): boolean {
+		return [...this._nativeTurns.values()].some(turn => turn.status === 'storing' && !this._isDiscarded(turn));
 	}
 
 	async waitForTurnEdits(hostTurnId: string): Promise<void> {
@@ -243,7 +321,10 @@ export class CodexTurnDiffTracker implements IDisposable {
 	dispose(): void {
 		for (const turns of this._hostTurns.values()) {
 			for (const turn of turns) {
-				turn.ready.cancel();
+				// A store already running settles its turns when it finishes.
+				if (turn.status !== 'storing') {
+					turn.ready.cancel();
+				}
 			}
 		}
 		this._hostTurns.clear();

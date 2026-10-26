@@ -33,11 +33,12 @@ import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionForkOptions, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
+import { IChatSideChatOrigin, IChatSideChatSelection } from '../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
-import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignal } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
@@ -355,6 +356,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessionTypeOptions = new Map<string, IChatSessionProviderOptionGroup[]>();
 
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
+	private readonly _sessionsChanged = observableSignal(this);
 	private readonly _resourceAliases = new ResourceMap<URI>(); // real resource -> untitled resource (kept for the workbench lifetime so option lookups for the real session resolve to the untitled entry)
 	private readonly _realResources = new ResourceMap<URI>(); // untitled resource -> real resource (cleared when the session is disposed)
 	private readonly _pendingSessionResolutions = new Map<string, IPendingSessionResolution>();
@@ -1226,6 +1228,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					if (session.chatSessionType === chatSessionType) {
 						session.dispose();
 						this._sessions.delete(key);
+						this._sessionsChanged.trigger(undefined);
 					}
 				}
 			}
@@ -1296,6 +1299,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const sessionData = this._sessions.get(sessionResource) ?? this._sessions.get(resolvedResource);
 		if (sessionData) {
 			this._sessions.delete(sessionData.resource);
+			this._sessionsChanged.trigger(undefined);
 			sessionData.dispose();
 			sessionData.session.dispose();
 		}
@@ -1464,9 +1468,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const sessionData = new ContributedChatSessionData(session, sessionType, sessionResource, session.options, resource => {
 			sessionData.dispose();
 			this._sessions.delete(resource);
+			this._sessionsChanged.trigger(undefined);
 		});
 
 		this._sessions.set(sessionResource, sessionData);
+		this._sessionsChanged.trigger(undefined);
 
 		// Make sure any listeners are aware of the new session and its options
 		if (session.options) {
@@ -1572,6 +1578,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public registerSessionResourceAlias(untitledResource: URI, realResource: URI): void {
 		this._resourceAliases.set(realResource, untitledResource);
+		this._sessionsChanged.trigger(undefined);
 	}
 
 	public setMaterializedSessionResource(untitledResource: URI, realResource: URI): void {
@@ -1702,6 +1709,28 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			throw new Error(`Session ${sessionResource.toString()} does not support forking`);
 		}
 		return session.session.forkSession(request, token, options);
+	}
+
+	public sessionSupportsSideChat(sessionResource: URI): boolean {
+		const session = this._sessions.get(sessionResource) ?? this._sessions.get(this._resolveResource(sessionResource));
+		return !!session?.session.createSideChat;
+	}
+
+	public observeSideChatOrigin(sessionResource: URI): IObservable<IChatSideChatOrigin | undefined> {
+		return derived(this, reader => {
+			this._sessionsChanged.read(reader);
+			const session = this._sessions.get(sessionResource) ?? this._sessions.get(this._resolveResource(sessionResource));
+			return session?.session.sideChatOrigin?.read(reader);
+		});
+	}
+
+	public async createSideChat(sessionResource: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection): Promise<IChatSessionItem> {
+		const session = this._sessions.get(sessionResource) ?? this._sessions.get(this._resolveResource(sessionResource));
+		if (!session?.session.createSideChat) {
+			this._logService.trace(`[ChatSessionsService] Cannot create a side chat for unsupported session '${sessionResource.toString()}'`);
+			throw new Error(localize('chatSessions.sideChatsUnsupported', "This conversation does not support side chats."));
+		}
+		return session.session.createSideChat(turnId, token, selection);
 	}
 
 	public sessionSupportsRename(sessionResource: URI): boolean {
