@@ -10,8 +10,10 @@ import { Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -19,6 +21,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { enumerateLocalCustomizationsForHarness } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
@@ -35,7 +38,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { SetChatBackgroundTool } from '../../browser/chatBackgroundTool.js';
 import { GetThemeColorsTool } from '../../browser/getThemeColorsTool.js';
 import { AgenticPromptsService, BUILTIN_SKILLS_URI } from '../../browser/promptsService.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../../common/constants.js';
 import '../../browser/chat.contribution.js';
 
 const appearanceToolsProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING];
@@ -170,5 +173,61 @@ suite('Sessions - Appearance tools', () => {
 			disabled: [false, false],
 			reenabled: [true, true],
 		});
+	});
+
+	test('offers Generate Background before recent images and prefills a workspace-less session', async () => {
+		const results = [];
+		for (const scenario of [
+			{ name: 'available', enabled: true, quickChatAvailable: true },
+			{ name: 'appearance tools disabled', enabled: false, quickChatAvailable: true },
+			{ name: 'no workspace-less target', enabled: true, quickChatAvailable: false },
+		]) {
+			const t = await setup(scenario.enabled);
+			IsSessionsWindowContext.bindTo(t.context).set(true);
+			ChatContextKeys.enabled.bindTo(t.context).set(true);
+			let items: string[] = [];
+			const executed: unknown[][] = [];
+			t.instantiationService.stub(ISessionsChatBackgroundService, upcastPartial<ISessionsChatBackgroundService>({
+				getBackground: () => undefined,
+				getRecentBackgroundImages: () => [URI.file('/backgrounds/recent.png')],
+				getConfiguredBackgroundImage: () => undefined,
+			}));
+			t.instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+				isQuickChatTargetAvailable: () => scenario.quickChatAvailable,
+			}));
+			t.instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+				executeCommand: async (id: string, ...args: unknown[]) => { executed.push([id, ...args]); return undefined; },
+			}));
+			t.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
+				pick: (async (picks: Promise<QuickPickInput<IQuickPickItem>[]> | QuickPickInput<IQuickPickItem>[]) => {
+					const resolved = await picks;
+					items = resolved.map(item => item.type === 'separator' ? `--- ${item.label ?? ''}` : item.label);
+					return resolved.find((item): item is IQuickPickItem => item.type !== 'separator' && item.label === 'Generate Background...');
+				}) as IQuickInputService['pick'],
+			}));
+
+			await t.instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.chat.changeAgentSessionsBackground')!.handler(accessor));
+			results.push({ name: scenario.name, items, executed });
+		}
+
+		const backgroundTypes = ['No Background', 'Codicons', 'Image...'];
+		const recentImages = ['--- recently used', 'recent.png'];
+		assert.deepStrictEqual(results, [{
+			name: 'available',
+			items: [...backgroundTypes, '--- ', 'Generate Background...', ...recentImages],
+			executed: [[NEW_SESSION_ACTION_ID, {
+				prompt: 'Generate a chat background of ',
+				prefillPrompt: true,
+				noWorkspace: true,
+			}]],
+		}, {
+			name: 'appearance tools disabled',
+			items: [...backgroundTypes, ...recentImages],
+			executed: [],
+		}, {
+			name: 'no workspace-less target',
+			items: [...backgroundTypes, ...recentImages],
+			executed: [],
+		}]);
 	});
 });
