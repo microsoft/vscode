@@ -14,7 +14,7 @@ import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../..
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
-import { ChatWindowContext } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowContext, ChatWindowEditorGroupContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -727,11 +727,18 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			// A header scoped to another session (e.g. in a chat window) needs its own label and summary.
-			if (instantiationService.invokeFunction(accessor => accessor.get(IChangesViewService)) !== changesViewService) {
-				const scopedSummary = instantiationService.createInstance(ChangesPickerSummary);
-				const item = instantiationService.createInstance(ChangesPickerActionItem, action, scopedSummary, undefined);
-				item.own(scopedSummary);
+			// The header of a chat window's editor area shows the window's own session, not the main window's.
+			const chatWindow = instantiationService.invokeFunction(accessor => {
+				const groupId = accessor.get(IContextKeyService).getContextKeyValue<number>(ChatWindowEditorGroupContext.key);
+				return accessor.get(IChatWindowService).windows.get().find(window => window.editorGroup?.id === groupId);
+			});
+			if (chatWindow) {
+				const store = new DisposableStore();
+				const scoped = store.add(changesViewService.createScoped(chatWindow.session.map(session => session?.resource), instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService))));
+				const scopedInstantiationService = store.add(instantiationService.createChild(new ServiceCollection([IChangesViewService, scoped])));
+				const scopedSummary = store.add(scopedInstantiationService.createInstance(ChangesPickerSummary));
+				const item = scopedInstantiationService.createInstance(ChangesPickerActionItem, action, scopedSummary, undefined);
+				item.own(store);
 				return item;
 			}
 			return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs);
@@ -2121,7 +2128,7 @@ class VersionsPickerAction extends Action2 {
 				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.or(desktopChangesEditorHeader, ChatWindowContext),
+				when: ContextKeyExpr.or(desktopChangesEditorHeader, ContextKeyExpr.and(ChatWindowContext, ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID))),
 			}],
 		});
 	}
