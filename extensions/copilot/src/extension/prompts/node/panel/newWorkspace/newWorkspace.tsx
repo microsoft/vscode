@@ -105,7 +105,7 @@ export class NewWorkspacePrompt extends PromptElement<NewWorkspacePromptProps, N
 			}
 			else if (instruction.intent === 'Project') {
 				if (this.props.useTemplates) {
-					const result = await this.embeddingsComputer.computeEmbeddings(EmbeddingType.text3small_512, [instruction.question], {}, undefined);
+					const result = await this.embeddingsComputer.computeEmbeddings(EmbeddingType.metis_1024_I16_Binary, [instruction.question], { inputType: 'query' }, undefined);
 					if (result.values.length === 0) {
 						return { intent: instruction };
 					}

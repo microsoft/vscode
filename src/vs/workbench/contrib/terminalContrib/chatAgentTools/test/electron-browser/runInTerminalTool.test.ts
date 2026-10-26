@@ -123,7 +123,6 @@ suite('RunInTerminalTool', () => {
 		setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, Object.freeze({ path: 'bash' }));
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
-		setConfig(AgentSandboxSettingId.AgentSandboxAllowAutoApprove, false);
 		sandboxEnabled = false;
 		sandboxPrereqResult = {
 			enabled: false,
@@ -671,6 +670,8 @@ suite('RunInTerminalTool', () => {
 
 		test('should automatically repair AppArmor, probe again, and execute', async () => {
 			runInTerminalTool.disableProcessIdAssociation();
+			// The mocked command finishes immediately; don't wait a real second per idle poll.
+			setConfig(TerminalChatAgentToolsSettingId.IdlePollInterval, 1);
 			let forceRefreshCalled = false;
 			terminalSandboxService.checkForSandboxingPrereqs = async forceRefresh => {
 				forceRefreshCalled ||= forceRefresh === true;
@@ -1411,7 +1412,7 @@ suite('RunInTerminalTool', () => {
 			if (!confirmationMessage || typeof confirmationMessage === 'string') {
 				throw new Error('Expected markdown confirmation message');
 			}
-			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: This command accesses evil.com, which is blocked by chat.agent.deniedNetworkDomains.'));
+			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: This command accesses evil.com, which is blocked by chat.agent.sandbox.network.deniedDomains.'));
 		});
 
 		test('should force confirmation for explicit sandboxed allow-network requests', async () => {
@@ -1473,7 +1474,7 @@ suite('RunInTerminalTool', () => {
 			if (!confirmationMessage || typeof confirmationMessage === 'string') {
 				throw new Error('Expected markdown confirmation message');
 			}
-			ok(confirmationMessage.value.includes('Reason for allowing unrestricted network access in the sandbox: This command accesses evil.com, which is blocked by chat.agent.deniedNetworkDomains.'));
+			ok(confirmationMessage.value.includes('Reason for allowing unrestricted network access in the sandbox: This command accesses evil.com, which is blocked by chat.agent.sandbox.network.deniedDomains.'));
 		});
 
 		test('should reject explicit allow-network requests when per-command network access is disabled', async () => {
@@ -1628,8 +1629,7 @@ suite('RunInTerminalTool', () => {
 			ok(result.content[0].kind === 'text' && result.content[0].value.includes('chat.agent.sandbox.allowUnsandboxedCommands'));
 		});
 
-		test('should auto-approve sandboxed commands when sandbox auto approve is enabled', async () => {
-			setConfig(AgentSandboxSettingId.AgentSandboxAllowAutoApprove, true);
+		test('should auto-approve sandboxed commands', async () => {
 			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
 			sandboxEnabled = true;
 			sandboxPrereqResult = {
@@ -1646,23 +1646,6 @@ suite('RunInTerminalTool', () => {
 			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
 		});
 
-		test('should use existing approval flow for sandboxed commands when sandbox auto approve is disabled', async () => {
-			setConfig(AgentSandboxSettingId.AgentSandboxAllowAutoApprove, false);
-			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
-			sandboxEnabled = true;
-			sandboxPrereqResult = {
-				enabled: true,
-				sandboxConfigPath: '/tmp/sandbox.json',
-				failedCheck: undefined,
-			};
-			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-
-			const result = await executeToolTest({ command: 'rm dangerous-file.txt' });
-
-			assertConfirmationRequired(result);
-			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
-			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
-		});
 	});
 
 	suite('prepareToolInvocation - auto approval behavior', () => {

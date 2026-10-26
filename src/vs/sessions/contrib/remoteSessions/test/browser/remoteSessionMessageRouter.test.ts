@@ -19,6 +19,7 @@ import { AgentHostConnectionsService } from '../../../../../platform/agentHost/b
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { getPendingSteeringMessages } from '../../../../../platform/agentHost/common/agentSessionMessage.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { withRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
@@ -31,6 +32,7 @@ import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatState, Com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { messageToRequestOrigin } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -38,6 +40,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatSession, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatModel, IChatPendingRequest } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IToolInvocation } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatInteractivity, IChat, ISession } from '../../../../services/sessions/common/session.js';
@@ -48,6 +51,7 @@ import { SendRemoteMessageTool } from '../../browser/sendRemoteMessageTool.js';
 import { resolveRemoteSessionSource } from '../../browser/remoteSessionSource.js';
 import { IRemoteSessionChatService, RemoteSessionChatService } from '../../browser/remoteSessionChatService.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
+import { mintedTestChatOwner } from '../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
 class TestSubscription<T> implements IAgentSubscription<T> {
 	value: T | Error | undefined;
@@ -121,6 +125,8 @@ class TestConnection extends mock<IAgentHostService>() {
 		};
 	}
 
+	override getSubscriptionUnmanaged<T extends StateComponents>(): IAgentSubscription<ComponentToState[T]> | undefined { return undefined; }
+
 	override getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
 		const get = this.subscriptions[kind];
 		assert.ok(get);
@@ -162,7 +168,7 @@ class TestConnection extends mock<IAgentHostService>() {
 		const subscription = this.chatStates.get(channel)!;
 		const state = subscription.verifiedValue!;
 		const next = state.queuedMessages?.[0];
-		if (!next || state.activeTurn || state.steeringMessage) {
+		if (!next || state.activeTurn || getPendingSteeringMessages(state).length > 0) {
 			return;
 		}
 		const action = {
@@ -202,7 +208,7 @@ suite('RemoteSessionMessageRouter', () => {
 			}
 			override getConnectionByAuthority(authority: string): IAgentConnection | undefined { return this.getConnection(authority); }
 		}();
-		const connections = store.add(new AgentHostConnectionsService(local, remoteService));
+		const connections = store.add(new AgentHostConnectionsService(local, remoteService, new TestPathService(), new NullLogService()));
 		const sessions = ['agent-host-copilot', 'remote-first-copilot', 'remote-second-copilot'].map((scheme, index) => {
 			const resource = URI.from({ scheme, path: '/same-id' });
 			const chats = ['', 'original-chat', 'other-chat'].map(fragment => upcastPartial<IChat>({
@@ -328,7 +334,7 @@ suite('RemoteSessionMessageRouter', () => {
 			first: 0,
 			channel: buildChatUri(backendSession, 'other-chat'),
 			origin: { kind: MessageKind.Agent },
-			delegation: { sourceSession: sessions[1].resource.toString(), sourceChat: buildChatUri(sessions[1].resource, 'original-chat') },
+			delegation: { sourceSession: sessions[1].resource.toString(), sourceChat: buildChatUri(backendSession, 'original-chat') },
 			result: {
 				status: 'sent',
 				session: sessions[2].resource.toString(), chat: target.toString(),
@@ -336,6 +342,18 @@ suite('RemoteSessionMessageRouter', () => {
 				host: { id: 'agenthost-second', label: 'agenthost-second' },
 			},
 			link: URI.parse(buildOpenSessionLinkUri(sessions[1].resource, 'original-chat')).toString(),
+		});
+	});
+
+	test('a default-chat source names its advertised default chat, not the default-shaped chat', async () => {
+		const { router, first, second, sessions } = setup();
+		const recreatedDefault = URI.parse(buildDefaultChatUri(backendSession)).with({ query: 'generation=1' }).toString();
+		const state = first.sessionState.verifiedValue!;
+		first.sessionState.set({ ...state, defaultChat: recreatedDefault, chats: state.chats.map((chat, index) => index === 0 ? { ...chat, resource: recreatedDefault } : chat) });
+		await router.send(sessions[1].resource, { session: sessions[2].chats.get()[2].resource.toString(), message: 'Report' }, 'default-source', CancellationToken.None);
+		assert.deepStrictEqual(readAgentMessageDelegationMeta(second.dispatched[0].action.message), {
+			sourceSession: sessions[1].resource.toString(),
+			sourceChat: recreatedDefault,
 		});
 	});
 
@@ -446,7 +464,7 @@ suite('RemoteSessionMessageRouter', () => {
 		await router.send(source.resource, { session: sessions[1].resource.toString(), message: 'From a subagent' }, 'subagent', CancellationToken.None);
 		const delegation = readAgentMessageDelegationMeta(first.dispatched[0].action.message);
 		assert.ok(delegation && hasKey(delegation, { sourceSession: true }) && delegation.sourceChat);
-		assert.deepStrictEqual(parseChatUri(delegation.sourceChat), { session: session.resource.toString(), chatId: 'subagent/call-1' });
+		assert.deepStrictEqual({ session: mintedTestChatOwner(delegation.sourceChat), chatId: parseChatUri(delegation.sourceChat)?.chatId }, { session: backendSession.toString(), chatId: 'subagent/call-1' });
 	});
 
 	test('a saved peer origin that no longer exists never falls back to the main chat', async () => {
@@ -542,7 +560,7 @@ suite('RemoteSessionMessageRouter', () => {
 		}));
 		const result = await router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Later' }, 'steering', CancellationToken.None);
 		assert.deepStrictEqual({ status: result.status, started: first.started, queued: state.verifiedValue!.queuedMessages?.map(pending => pending.message.text) }, {
-			status: 'queued', started: [], queued: ['Later'],
+			status: 'queued', started: [], queued: ['Steer', 'Later'],
 		});
 	});
 
@@ -655,11 +673,14 @@ suite('RemoteSessionMessageRouter', () => {
 		assert.deepStrictEqual(first.dispatched, []);
 	});
 
-	test('a target catalog entry for a different backend session is never used', async () => {
+	test('a target catalog entry belongs to its session whatever session its URI encodes', async () => {
 		const { router, first, sessions } = setup();
-		first.sessionState.set({ ...first.sessionState.verifiedValue!, defaultChat: buildDefaultChatUri('copilot:/another-session') });
-		await assert.rejects(router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Hi' }, 'wrong-session', CancellationToken.None), /exact target chat/);
-		assert.deepStrictEqual(first.dispatched, []);
+		const moved = buildDefaultChatUri('copilot:/another-session');
+		const defaultChat = first.chatStates.get(buildDefaultChatUri(backendSession))!.verifiedValue!;
+		first.chatStates.set(moved, new TestSubscription<ChatState>({ ...defaultChat, resource: moved }, store));
+		first.sessionState.set({ ...first.sessionState.verifiedValue!, defaultChat: moved });
+		await router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Hi' }, 'moved-chat', CancellationToken.None);
+		assert.deepStrictEqual(first.dispatched.map(dispatch => dispatch.channel), [moved]);
 	});
 
 	test('a hydrated chat snapshot must match the requested exact channel', async () => {

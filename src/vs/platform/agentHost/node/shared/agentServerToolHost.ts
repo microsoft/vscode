@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { equals } from '../../../../base/common/objects.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost, IServerToolConfirmationDisplay } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { parseRequiredSessionUriFromChatUri, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
+import { isAhpChatChannel, isSubagentSession, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 
@@ -134,6 +135,9 @@ export interface IServerToolGroup {
 	getDisplay?(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined;
 }
 
+/** What the pure display path ({@link IServerToolGroup.getDisplay} without a host) needs of a group. */
+export type IServerToolDisplaySource = Pick<IServerToolGroup, 'definitions' | 'legacyToolNames' | 'getDisplay'>;
+
 /**
  * Bridges the agent host's server tools to the authoritative state tree.
  * Agents execute a server tool by name; the host routes it to the owning
@@ -192,7 +196,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[] {
 		const materializedDefinitions = this._stateManager.getSessionState(sessionUri)?.serverTools;
 		const isEphemeral = this._stateManager.isEphemeralSession(sessionUri);
-		return this._groups.flatMap(group => {
+		return this._groups.flatMap<IAgentServerToolDefinition>(group => {
 			const currentDefinitions = group.getDefinitions?.() ?? group.definitions;
 			if (materializedDefinitions && group.materializeDefinitions) {
 				// A session's tool membership is fixed at materialization time, but
@@ -211,7 +215,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 				.filter(definition => group.isEnabled(definition.name, sessionUri) && group.isEnabledForSession(definition.name, sessionUri))
 				.map(definition => group.getDefinitionForSession?.(definition, sessionUri) ?? definition);
 			return isEphemeral ? definitions.filter(definition => definition.enabledForEphemeralSessions) : definitions;
-		});
+		}).filter(definition => !definition.topLevelChatOnly || !isSubagentSession(sessionUri));
 	}
 
 	get toolNames(): readonly string[] {
@@ -225,14 +229,21 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		];
 	}
 
-	advertise(sessionUri: URI): void {
+	/** Publishes server-tool definitions only when the session's advertised catalogue changes. */
+	advertise(sessionOrChatUri: URI): void {
+		const sessionUri = isAhpChatChannel(sessionOrChatUri) ? this._stateManager.getChatOwner(sessionOrChatUri) : sessionOrChatUri;
+		const state = sessionUri ? this._stateManager.getSessionState(sessionUri) : undefined;
 		// Provider materialization can precede restore; AgentService advertises again once the session is registered.
-		if (!this._stateManager.getSessionState(sessionUri)) {
+		if (!sessionUri || !state) {
+			return;
+		}
+		const tools = this._toProtocolDefinitions(this.getDefinitionsForSession(sessionUri));
+		if (equals(state.serverTools, tools)) {
 			return;
 		}
 		this._stateManager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionServerToolsChanged,
-			tools: this._toProtocolDefinitions(this.getDefinitionsForSession(sessionUri)),
+			tools,
 		});
 	}
 
@@ -253,6 +264,15 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 			?? false;
 	}
 
+	getConfirmationDisplay(toolName: string, args: unknown): IServerToolConfirmationDisplay | undefined {
+		const display = this._groupByToolName.get(toolName)?.getDisplay?.(this._currentToolName(toolName), args);
+		return display && {
+			...(display.confirmationTitle !== undefined ? { confirmationTitle: display.confirmationTitle } : {}),
+			...(display.confirmationMessage !== undefined ? { confirmationMessage: display.confirmationMessage } : {}),
+			...(display.hideConfirmationInput !== undefined ? { hideConfirmationInput: display.hideConfirmationInput } : {}),
+		};
+	}
+
 	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
@@ -267,18 +287,21 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 
 	private _executionContext(chatUri: URI): IServerToolExecutionContext {
 		return {
-			sessionUri: parseRequiredSessionUriFromChatUri(chatUri),
+			sessionUri: this._stateManager.requireChatOwner(chatUri),
 			chatUri,
 			turnId: this._stateManager.getActiveTurnId(chatUri),
 		};
 	}
 
 	private _toProtocolDefinitions(definitions: readonly IAgentServerToolDefinition[]): ToolDefinition[] {
-		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, deferLoading: _deferLoading, ...definition }) => definition);
+		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, topLevelChatOnly: _topLevelChatOnly, deferLoading: _deferLoading, ...definition }) => definition);
 	}
 
 	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string, requestedToolName = toolName): boolean {
-		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
+		const sessionUri = this._stateManager.requireChatOwner(chatUri);
+		if (group.definitions.find(definition => definition.name === toolName)?.topLevelChatOnly && isSubagentSession(sessionUri)) {
+			return false;
+		}
 		if (!group.isEnabledForSession(toolName, sessionUri)) {
 			return false;
 		}

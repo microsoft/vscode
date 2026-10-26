@@ -71,6 +71,13 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 	}
 
 	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): McpServerConfigurationParseResult {
+		return new McpServerManifestParser().getMcpServerConfigurationFromManifest(manifest, packageType);
+	}
+}
+
+export class McpServerManifestParser {
+
+	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): McpServerConfigurationParseResult {
 
 		// remote
 		if (packageType === RegistryType.REMOTE && manifest.remotes?.length) {

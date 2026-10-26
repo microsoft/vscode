@@ -9,12 +9,12 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, ExtensionUntrustedWorkspaceSupportType, IExtensionContributions, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IWorkspaceTrustEnablementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService } from '../../common/extensionManifestPropertiesService.js';
+import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService, getSessionsWindowSuggestedContributions } from '../../common/extensionManifestPropertiesService.js';
 import { TestProductService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
@@ -145,34 +145,104 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 		], [true, false, false]);
 	});
 
-	test('uses configured sessions window support override', async () => {
-		await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.a': true, 'pub.b': false });
+	test('preserves built-in defaults when no agents window support is declared', () => {
 		testObject = createTestObject();
 
 		assert.deepStrictEqual([
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: false } }, contributes: { commands: [] } })),
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', capabilities: { agentsWindow: { supported: true } }, contributes: { themes: [] } })),
-		], [true, false]);
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js' }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ browser: './out/extension.js' }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { views: {} } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { viewsContainers: {} } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { debuggers: [] } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { walkthroughs: [] } }), true),
+		], [true, true, false, false, false, false]);
 	});
 
-	test('ignores declared agents window support when the experimental feature is disabled', () => {
-		testObject = createTestObject();
+	for (const isBuiltin of [false, true]) {
+		test(`uses configured sessions window support override for ${isBuiltin ? 'built-in' : 'user'} extensions`, async () => {
+			await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.a': true, 'pub.b': false });
+			testObject = createTestObject();
+
+			assert.deepStrictEqual([
+				testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: false } }, contributes: { views: {} } }), isBuiltin),
+				testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', capabilities: { agentsWindow: { supported: true } }, contributes: { themes: [] } }), isBuiltin),
+			], [true, false]);
+		});
+
+		test(`uses declared agents window support for ${isBuiltin ? 'built-in' : 'user'} extensions without the proposal`, async () => {
+			await testConfigurationService.setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, true);
+			testObject = createTestObject();
+
+			assert.deepStrictEqual([
+				testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: true } }, contributes: { commands: [] } }), isBuiltin),
+				testObject.canExecuteOnSessionsWindow(getExtensionManifest({ browser: './out/extension.js', capabilities: { agentsWindow: { supported: true } }, contributes: { views: {} } }), isBuiltin),
+				testObject.canExecuteOnSessionsWindow(getExtensionManifest({ capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } }), isBuiltin),
+			], [true, true, false]);
+		});
+	}
+
+	test('supports product allow-listed extensions regardless of overrides and declarations', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.a': false });
+		testObject = disposables.add(new ExtensionManifestPropertiesService({ ...TestProductService, sessionsWindowAllowedExtensions: ['Pub.A'] }, testConfigurationService, new TestWorkspaceTrustEnablementService(), new NullLogService()));
 
 		assert.deepStrictEqual([
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: true } }, contributes: { commands: [] } })),
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } })),
-		], [false, true]);
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { commands: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { views: {} } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', main: './out/extension.js' })),
+		], [true, true, false]);
 	});
 
-	test('uses declared agents window support when the experimental feature is enabled', async () => {
-		await testConfigurationService.setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, true);
+	test('ignores declared agents window support for user extensions when the capability setting is disabled', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, false);
 		testObject = createTestObject();
 
 		assert.deepStrictEqual([
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: true } }, contributes: { commands: [] } })),
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } })),
 			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: true } }, contributes: { commands: [] } })),
-		], [true, false, false]);
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: true } }, contributes: { views: {} } }), true),
+		], [false, true, true]);
+	});
+
+	test('automatically enables extensions that contribute something useful and nothing that relies on missing features', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.configuredUnsupported': false });
+		testObject = createTestObject();
+		const extension = (name: string, contributes: Record<string, unknown>, properties: Partial<IExtensionManifest> = {}) =>
+			getExtensionManifest({ name, main: './out/extension.js', contributes: contributes as IExtensionContributions, ...properties });
+		const manifests = [
+			extension('tools', { languageModelTools: [{}] }),
+			extension('mcp', { commands: [{}], mcpServerDefinitionProviders: [{}] }),
+			extension('markdownPlugin', { 'markdown.markdownItPlugins': true }),
+			extension('toolsWithViews', { languageModelTools: [{}], views: { explorer: [{}] } }),
+			extension('grammarWithDebugger', { grammars: [{}], debuggers: [{}] }),
+			extension('toolsWithStatusBarItem', { languageModelTools: [{}], statusBarItems: { item: {} } }),
+			extension('commandsOnly', { commands: [{}] }),
+			extension('noTools', { languageModelTools: [] }),
+			extension('declaredUnsupported', { languageModelTools: [{}] }, { capabilities: { agentsWindow: { supported: false } } }),
+			extension('configuredUnsupported', { languageModelTools: [{}] }),
+			getExtensionManifest({ name: 'supported', contributes: { grammars: [{ language: 'a' }] } }),
+		];
+
+		assert.deepStrictEqual({
+			user: Object.fromEntries(manifests.map(manifest => [manifest.name, testObject.canAutoEnableOnSessionsWindow(manifest)])),
+			builtin: testObject.canAutoEnableOnSessionsWindow(manifests[0], true),
+			suggestedContributions: getSessionsWindowSuggestedContributions(manifests[1]),
+		}, {
+			user: {
+				tools: true,
+				mcp: true,
+				markdownPlugin: true,
+				toolsWithViews: false,
+				grammarWithDebugger: false,
+				toolsWithStatusBarItem: false,
+				commandsOnly: false,
+				noTools: false,
+				declaredUnsupported: false,
+				configuredUnsupported: false,
+				supported: false,
+			},
+			builtin: false,
+			suggestedContributions: ['mcpServerDefinitionProviders'],
+		});
 	});
 });
 

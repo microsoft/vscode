@@ -145,6 +145,7 @@ import '../platform/agentHost/browser/agentHostConnectionsService.js';
 import './services/log/common/defaultLogLevels.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
+import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
 import { IAllowedExtensionsService, IGlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionManagement.js';
 import { ContextViewService } from '../platform/contextview/browser/contextViewService.js';
@@ -172,8 +173,10 @@ import { McpGalleryService } from '../platform/mcp/common/mcpGalleryService.js';
 import { AllowedMcpServersService } from '../platform/mcp/common/allowedMcpServersService.js';
 import { IWebWorkerService } from '../platform/webWorker/browser/webWorkerService.js';
 import { WebWorkerService } from '../platform/webWorker/browser/webWorkerServiceImpl.js';
+import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
+registerSingleton(IArtifactIntegrationRegistry, ArtifactIntegrationRegistry, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, InstantiationType.Delayed);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, InstantiationType.Delayed);
@@ -189,6 +192,7 @@ registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
 registerSingleton(IWebWorkerService, WebWorkerService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
 registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, InstantiationType.Delayed);
+registerSingleton(IAgentHostMcpOAuthMetadataService, AgentHostMcpOAuthMetadataService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -319,6 +323,9 @@ import './contrib/webviewPanel/browser/webviewPanel.contribution.js';
 import './contrib/webviewView/browser/webviewView.contribution.js';
 import './contrib/customEditor/browser/customEditor.contribution.js';
 
+// Media Preview
+import './contrib/mediaPreview/browser/mediaPreview.contribution.js';
+
 // External Uri Opener
 import './contrib/externalUriOpener/common/externalUriOpener.contribution.js';
 
@@ -399,6 +406,7 @@ import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
 // Onboarding (scenario engine)
 import './contrib/onboarding/browser/onboarding.contribution.js';
 import './contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
+import './contrib/chat/browser/onboarding/chatInputSpotlightTour.js';
 import './contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 
 // Call Hierarchy

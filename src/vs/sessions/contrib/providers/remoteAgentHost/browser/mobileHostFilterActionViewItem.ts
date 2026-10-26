@@ -271,7 +271,9 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		const text = dom.append(row, $('span.host-picker-sheet-item-text'));
 		dom.append(text, $('span.host-picker-sheet-item-name')).textContent = host.label;
 		if (host.connectable) {
-			dom.append(text, $('span.host-picker-sheet-item-sub')).textContent = this._statusLabel(host.status);
+			dom.append(text, $('span.host-picker-sheet-item-sub')).textContent = host.description
+				? localize('agentHostFilter.hostDescription', "{0}. {1}", this._statusLabel(host.status), host.description)
+				: this._statusLabel(host.status);
 		}
 
 		if (checked) {

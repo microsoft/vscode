@@ -19,6 +19,45 @@ import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnector
 
 const $ = DOM.$;
 
+type ConnectorDetailAction = Exclude<ConnectorRowAction, 'more'> | 'disconnect' | 'refresh';
+
+interface IPendingConnectorAction {
+	readonly connectorName: string;
+	readonly action: ConnectorDetailAction;
+}
+
+interface IPendingConnectorActionPresentation {
+	readonly actionLabel: string;
+	readonly statusLabel?: string;
+}
+
+function getPendingActionPresentation(action: ConnectorDetailAction): IPendingConnectorActionPresentation {
+	switch (action) {
+		case 'disconnect':
+			return {
+				actionLabel: localize('connectorDetailDisconnecting', "Disconnecting..."),
+				statusLabel: localize('connectorDetailDisconnectingStatus', "Disconnecting"),
+			};
+		case 'reconnect':
+			return {
+				actionLabel: localize('connectorDetailReconnecting', "Reconnecting..."),
+				statusLabel: localize('connectorDetailReconnectingStatus', "Reconnecting"),
+			};
+		case 'connect':
+		case 'sign_in':
+		case 'review':
+		case 'retry':
+			return {
+				actionLabel: localize('connectorDetailConnecting', "Connecting..."),
+				statusLabel: localize('connectorDetailConnectingStatus', "Connecting"),
+			};
+		case 'check':
+			return { actionLabel: localize('connectorDetailChecking', "Checking...") };
+		case 'refresh':
+			return { actionLabel: localize('connectorDetailRefreshing', "Refreshing...") };
+	}
+}
+
 export class EmbeddedConnectorDetail extends Disposable {
 
 	private readonly root: HTMLElement;
@@ -38,6 +77,8 @@ export class EmbeddedConnectorDetail extends Disposable {
 	private readonly narrowLayoutUpdate = this._register(new MutableDisposable());
 	private readonly actionCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private current: ICopilotConnector | undefined;
+	private primaryActionButton: Button | undefined;
+	private pendingAction: IPendingConnectorAction | undefined;
 	private narrowLayout = false;
 
 	constructor(
@@ -104,9 +145,15 @@ export class EmbeddedConnectorDetail extends Disposable {
 		return this.leadingSlotEl;
 	}
 
+	/** The header's primary (non-secondary) action, if one is shown. */
+	get primaryAction(): Button | undefined {
+		return this.primaryActionButton;
+	}
+
 	setInput(connector: ICopilotConnector): void {
 		this.actionCancellation.value?.cancel();
 		this.actionCancellation.clear();
+		this.pendingAction = undefined;
 		this.current = connector;
 		this.renderItem();
 	}
@@ -114,12 +161,14 @@ export class EmbeddedConnectorDetail extends Disposable {
 	clearInput(): void {
 		this.actionCancellation.value?.cancel();
 		this.actionCancellation.clear();
+		this.pendingAction = undefined;
 		this.current = undefined;
 		this.renderItem();
 	}
 
 	override dispose(): void {
 		this.actionCancellation.value?.cancel();
+		this.pendingAction = undefined;
 		super.dispose();
 	}
 
@@ -133,6 +182,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 			this.nameEl.textContent = '';
 			this.statusBadgeEl.textContent = '';
 			DOM.clearNode(this.titleActionsEl);
+			this.primaryActionButton = undefined;
 			this.descriptionEl.textContent = '';
 			DOM.clearNode(this.factsEl);
 			this.detailsEl.style.display = 'none';
@@ -149,32 +199,27 @@ export class EmbeddedConnectorDetail extends Disposable {
 		this.statusBadgeEl.className = 'inline-badge embedded-detail-status-badge';
 		this.descriptionEl.textContent = connector.description;
 
+		const actionHadFocus = DOM.isAncestorOfActiveElement(this.titleActionsEl);
 		DOM.clearNode(this.titleActionsEl);
+		this.primaryActionButton = undefined;
 		const presentation = getConnectorRowPresentation(connector);
+		const pending = this.pendingAction?.connectorName === connector.name ? getPendingActionPresentation(this.pendingAction.action) : undefined;
 		const action = presentation.action === 'more' ? 'disconnect' : presentation.action ?? (connector.connectionStatus === 'pending' ? 'refresh' : undefined);
-		if (action) {
+		if (pending) {
+			const actionButton = this.renderActionButton(connector, pending.actionLabel, actionHadFocus);
+			actionButton.enabled = false;
+			actionButton.element.setAttribute('aria-busy', 'true');
+		} else if (action) {
 			const actionLabel = presentation.actionLabel ?? getConnectorActionLabel(action === 'disconnect' ? 'disconnect' : 'refresh');
-			const actionButton = this.renderDisposables.add(new Button(this.titleActionsEl, {
-				...defaultButtonStyles,
-				secondary: connector.connectionStatus === 'connected',
-				ariaLabel: localize('connectorDetailActionAriaLabel', "{0} {1}", actionLabel, connector.displayName),
-			}));
-			actionButton.label = actionLabel;
-			this.renderDisposables.add(actionButton.onDidClick(async () => {
-				actionButton.enabled = false;
-				try {
-					await this.runAction(connector, action, actionLabel);
-				} finally {
-					actionButton.enabled = true;
-				}
-			}));
+			const actionButton = this.renderActionButton(connector, actionLabel, actionHadFocus);
+			this.renderDisposables.add(actionButton.onDidClick(() => this.runAction(connector, action, actionLabel)));
 		}
 
 		DOM.clearNode(this.factsEl);
 		DOM.clearNode(this.containsListEl);
 		DOM.clearNode(this.otherInfoFactsEl);
 		this.detailsEl.style.display = '';
-		this.appendFact(this.factsEl, localize('connectorStatusFact', "Status"), presentation.statusLabel);
+		this.appendFact(this.factsEl, localize('connectorStatusFact', "Status"), pending?.statusLabel ?? presentation.statusLabel);
 		this.appendFact(this.factsEl, localize('connectorIdentifierFact', "Identifier"), connector.name);
 		this.appendFact(this.factsEl, localize('connectorVersionFact', "Version"), connector.version);
 		this.appendFact(this.factsEl, localize('connectorAuthorFact', "Author"), this.formatAuthor(connector.author));
@@ -188,6 +233,22 @@ export class EmbeddedConnectorDetail extends Disposable {
 		otherInformationCount += this.appendFact(this.otherInfoFactsEl, localize('connectorTierFact', "Tier"), connector.tier) ? 1 : 0;
 		otherInformationCount += this.appendFact(this.otherInfoFactsEl, localize('connectorExportSupportedFact', "Export Supported"), connector.isExportSupported === undefined ? undefined : connector.isExportSupported ? localize('connectorYes', "Yes") : localize('connectorNo', "No")) ? 1 : 0;
 		this.otherInfoEl.style.display = otherInformationCount > 0 ? '' : 'none';
+	}
+
+	private renderActionButton(connector: ICopilotConnector, label: string, focus: boolean): Button {
+		const actionButton = this.renderDisposables.add(new Button(this.titleActionsEl, {
+			...defaultButtonStyles,
+			secondary: connector.connectionStatus === 'connected',
+			ariaLabel: localize('connectorDetailActionAriaLabel', "{0} {1}", label, connector.displayName),
+		}));
+		actionButton.label = label;
+		if (connector.connectionStatus !== 'connected') {
+			this.primaryActionButton = actionButton;
+		}
+		if (focus) {
+			actionButton.focus();
+		}
+		return actionButton;
 	}
 
 	private appendFact(parent: HTMLElement, label: string, value: string | undefined): boolean {
@@ -250,10 +311,13 @@ export class EmbeddedConnectorDetail extends Disposable {
 		}
 	}
 
-	private async runAction(connector: ICopilotConnector, action: Exclude<ConnectorRowAction, 'more'> | 'disconnect' | 'refresh', actionLabel: string): Promise<void> {
+	private async runAction(connector: ICopilotConnector, action: ConnectorDetailAction, actionLabel: string): Promise<void> {
 		this.actionCancellation.value?.cancel();
 		const cancellation = new CancellationTokenSource();
 		this.actionCancellation.value = cancellation;
+		const pendingAction: IPendingConnectorAction = { connectorName: connector.name, action };
+		this.pendingAction = pendingAction;
+		this.renderItem();
 		try {
 			switch (action) {
 				case 'check':
@@ -288,6 +352,10 @@ export class EmbeddedConnectorDetail extends Disposable {
 			if (this.actionCancellation.value === cancellation) {
 				this.actionCancellation.clear();
 			}
+			if (this.pendingAction === pendingAction) {
+				this.pendingAction = undefined;
+				this.updateCurrent(this.connectorsService.connectors, connector.name);
+			}
 		}
 	}
 
@@ -315,6 +383,9 @@ export class EmbeddedConnectorDetail extends Disposable {
 		}
 		const connector = connectors.find(candidate => candidate.name === connectorName);
 		if (!connector) {
+			if (this.pendingAction && !this.connectorsService.connectionStateKnown) {
+				return;
+			}
 			this.clearInput();
 			this.closeDetail();
 			return;

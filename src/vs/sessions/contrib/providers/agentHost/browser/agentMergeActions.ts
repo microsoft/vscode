@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Action2, ISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { AgentMergeMergePullRequest, AgentMergeRepairAction, AgentMergeSessionOverrides, AgentMergeSettingId, agentMergeMergePullRequestValues, AGENT_MERGE_SETTING_TAG, resolveAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostPullRequestOperationId } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -22,7 +23,7 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext, SinglePaneChangesEditorTransitionContext } from '../../../../common/contextkeys.js';
+import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext, DesktopChangesEditorTransitionContext } from '../../../../common/contextkeys.js';
 import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../changes/browser/changesView.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -36,6 +37,7 @@ const agentMergeCommandPrecondition = ContextKeyExpr.and(
 	ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 	SessionIsArchivedContext.negate(),
 	ContextKeyExpr.equals(`config.${AgentMergeSettingId.Enabled}`, true),
+	ContextKeyExpr.notEquals(`config.${ArtifactIntegrationsSettingId}`, true),
 );
 
 /**
@@ -143,7 +145,7 @@ class AgentMergeContextContribution extends Disposable implements IWorkbenchCont
 		const actionKeys = new Map(agentMergeRepairActions.map(action => [action, AgentMergeSessionActionContexts[action].bindTo(contextKeyService)]));
 		const mergePullRequestKey = AgentMergeSessionMergePullRequestContext.bindTo(contextKeyService);
 		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
-			SinglePaneChangesEditorTransitionContext.getValue(contextKeyService) === true);
+			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		let lastLogged: string | undefined;
 		this._register(autorun(reader => {
 			if (changesEditorTransitionObs.read(reader)
@@ -184,6 +186,9 @@ abstract class AgentMergeActionBase extends Action2 {
 
 	/** The active session and its active chat, whose folder's Agent Merge the actions change. */
 	protected getActiveSession(accessor: ServicesAccessor) {
+		if (accessor.get(IConfigurationService).getValue<boolean>(ArtifactIntegrationsSettingId) === true) {
+			throw new Error(localize('agentMerge.artifactIntegrationsEnabled', "Agent Merge is unavailable while artifact integrations are enabled."));
+		}
 		const session = accessor.get(ISessionsService).activeSession.get();
 		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId);
 		return session && provider && isAgentHostProvider(provider) ? { session, provider, chat: session.activeChat.get().resource } : undefined;

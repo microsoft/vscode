@@ -4,19 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../base/browser/dom.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionListDelegate, IActionListItem, ActionListItemKind } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -29,6 +33,7 @@ import { IProviderSessionType, ISessionsManagementService } from '../../../../se
 import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerOptions, SessionTypePicker } from '../../browser/sessionTypePicker.js';
+import '../../browser/media/chatWidget.css';
 
 // ---- Mocks ------------------------------------------------------------------
 
@@ -171,6 +176,7 @@ function createPicker(
 		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
 }
 
@@ -197,6 +203,36 @@ suite('SessionTypePicker', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('scopes preferred and stored harnesses to the selected environment', () => {
+		management.setSessionTypes([sessionType('local', 'cli', 'Copilot'), sessionType('cloud', 'cloud-agent', 'Cloud')]);
+		storage.store('sessions.userSelectedSessionType', JSON.stringify({ providerId: 'local', sessionTypeId: 'cli' }), 0, 0);
+		const picker = createPicker(disposables, session, management, storage, { allowedProviders: constObservable(['cloud']) });
+		picker.setFolderSource(constObservable(folder));
+		assert.deepStrictEqual({
+			offered: picker.offeredSessionTypeIds,
+			stored: picker.getUserPickedSessionType(),
+			preferred: picker.getPreferredSessionType(folder),
+		}, { offered: ['cloud-agent'], stored: undefined, preferred: { providerId: 'cloud', sessionTypeId: 'cloud-agent' } });
+	});
+
+	for (const id of ['copilot-cloud-agent', 'copilot-cloud-sandbox']) {
+		test(`presents ${id} as Copilot without changing routing identity`, () => {
+			management.setSessionTypes([sessionType('cloud', id, 'Cloud')]);
+			const picker = createPicker(disposables, session, management, storage, {
+				presentation: constObservable({ label: 'Copilot', icon: Codicon.copilot }),
+				allowedProviders: constObservable(['cloud']),
+			});
+			picker.setFolderSource(constObservable(folder));
+			const container = document.createElement('div');
+			picker.render(container);
+			assert.deepStrictEqual({
+				label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+				icon: !!container.querySelector('.codicon-copilot'),
+				pick: picker.selectedPick,
+			}, { label: 'Copilot', icon: true, pick: { providerId: 'cloud', sessionTypeId: id } });
+		});
+	}
 
 	test('filters Automation targets to available hosts without affecting ordinary session choices', () => {
 		management.setSessionTypes([
@@ -341,32 +377,130 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(visibility, [false, true, false, true, false]);
 	});
 
-	test('reflects the desktop popup state on the trigger', () => {
+	test('mouse and keyboard activation expose popup state and restore focus when closed', () => {
 		management.setSessionTypes([
 			sessionType('copilot', 'copilot-cli', 'Copilot'),
 			sessionType('claude', 'claude', 'Claude'),
 		]);
-		let hidePicker: (() => void) | undefined;
-		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+		let onHide: (() => void) | undefined;
+		const actionWidget = new class extends mock<IActionWidgetService>() {
 			override readonly isVisible = false;
 			override show<T>(_user: string, _supportsPreview: boolean, _items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
-				hidePicker = () => delegate.onHide();
+				onHide = () => delegate.onHide();
 			}
 		}();
-		const picker = createPicker(disposables, session, management, storage, undefined, actionWidgetService);
+		const picker = createPicker(disposables, session, management, storage, undefined, actionWidget);
 		picker.setFolderSource(constObservable(folder));
 		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
 		picker.render(container);
-		const trigger = container.querySelector<HTMLElement>('.action-label');
+		const trigger = container.querySelector<HTMLElement>('.action-label')!;
+		const states: { expanded: string | null; focused: boolean }[] = [];
+		for (const key of [undefined, 'Enter', ' ', 'ArrowDown']) {
+			if (key) {
+				trigger.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+			} else {
+				trigger.click();
+			}
+			states.push({ expanded: trigger.getAttribute('aria-expanded'), focused: document.activeElement === trigger });
+			assert.ok(onHide);
+			onHide();
+			states.push({ expanded: trigger.getAttribute('aria-expanded'), focused: document.activeElement === trigger });
+			trigger.blur();
+		}
+		assert.deepStrictEqual({ popup: trigger.getAttribute('aria-haspopup'), states }, {
+			popup: 'listbox',
+			states: Array.from({ length: 4 }, () => [
+				{ expanded: 'true', focused: false },
+				{ expanded: 'false', focused: true },
+			]).flat(),
+		});
+	});
 
-		const expanded = [trigger?.getAttribute('aria-expanded')];
-		picker.showPicker();
-		expanded.push(trigger?.getAttribute('aria-expanded'));
-		assert.ok(hidePicker);
-		hidePicker();
-		expanded.push(trigger?.getAttribute('aria-expanded'));
+	for (const hostClass of ['new-chat-session-options', 'new-chat-bottom-container', 'new-session-quick-chat-header']) {
+		test(`an environment without harnesses hides the whole picker in ${hostClass} and restores its label when types arrive`, () => {
+			const copilot = sessionType('local', 'copilot-cli', 'Copilot');
+			management.setSessionTypes([copilot]);
+			const allowedProviders = observableValue<readonly string[]>('allowedProviders', ['local']);
+			const picker = createPicker(disposables, session, management, storage, { allowedProviders });
+			picker.setFolderSource(constObservable(folder));
+			const container = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+			disposables.add(toDisposable(() => container.remove()));
+			const widget = dom.append(container, dom.$('.new-chat-widget-container.revealed'));
+			const content = dom.append(widget, dom.$('.experimental-new-session-composer'));
+			const host = dom.append(content, dom.$(`.${hostClass}`));
+			picker.render(host, { className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' });
+			const trigger = host.querySelector<HTMLElement>('.action-label')!;
+			const slot = host.querySelector<HTMLElement>('.sessions-chat-picker-slot')!;
+			const readState = () => ({
+				slotVisible: slot.checkVisibility(),
+				triggerVisible: trigger.checkVisibility(),
+				label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent ?? null,
+				interactive: picker.isVisible.get(),
+			});
 
-		assert.deepStrictEqual(expanded, ['false', 'true', 'false']);
+			const states = [readState()];
+			allowedProviders.set(['remote'], undefined);
+			states.push(readState());
+			management.setSessionTypes([
+				copilot,
+				sessionType('remote', 'claude', 'Claude'),
+				sessionType('remote', 'codex', 'Codex'),
+			]);
+			states.push(readState());
+			allowedProviders.set(['local'], undefined);
+			states.push(readState());
+
+			assert.deepStrictEqual(states, [
+				{ slotVisible: true, triggerVisible: true, label: 'Copilot', interactive: false },
+				{ slotVisible: false, triggerVisible: false, label: null, interactive: false },
+				{ slotVisible: true, triggerVisible: true, label: 'Claude', interactive: true },
+				{ slotVisible: true, triggerVisible: true, label: 'Copilot', interactive: false },
+			]);
+		});
+	}
+
+	test('a single harness retains disabled styling through toolbar nesting in every theme', () => {
+		const copilot = sessionType('copilot', 'copilot-cli', 'Copilot');
+		management.setSessionTypes([copilot]);
+		const picker = createPicker(disposables, session, management, storage);
+		picker.setFolderSource(constObservable(folder));
+		const container = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => container.remove()));
+		const widget = dom.append(container, dom.$('.new-chat-widget-container'));
+		const row = dom.append(widget, dom.$('.new-chat-session-options'));
+		picker.render(row, { className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' });
+		const trigger = row.querySelector<HTMLElement>('.action-label')!;
+		const slot = row.querySelector<HTMLElement>('.sessions-chat-picker-slot')!;
+		const readState = () => {
+			const style = dom.getWindow(trigger).getComputedStyle(trigger);
+			return {
+				slotDisabled: slot.classList.contains('disabled'),
+				actionDisabled: trigger.classList.contains('disabled'),
+				ariaDisabled: trigger.getAttribute('aria-disabled'),
+				opacity: style.opacity,
+				cursor: style.cursor,
+				pointerEvents: style.pointerEvents,
+			};
+		};
+		const disabled = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
+			container.classList.add(theme);
+			const state = readState();
+			container.classList.remove(theme);
+			return state;
+		});
+		management.setSessionTypes([copilot, sessionType('claude', 'claude', 'Claude')]);
+		assert.deepStrictEqual({ disabled, enabled: readState() }, {
+			disabled: Array(4).fill({
+				slotDisabled: true, actionDisabled: true, ariaDisabled: 'true',
+				opacity: '0.5', cursor: 'default', pointerEvents: 'none',
+			}),
+			enabled: {
+				slotDisabled: false, actionDisabled: false, ariaDisabled: 'false',
+				opacity: '1', cursor: 'pointer', pointerEvents: 'auto',
+			},
+		});
 	});
 
 	test('a creation destination keeps Copilot fixed without overwriting a saved Cloud preference', () => {
@@ -570,6 +704,36 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilotcli' });
 	});
 
+	test('retains a committed backend label and model target without offering it for new sessions', () => {
+		const cloud = sessionType('cloud', 'cloud', 'Cloud');
+		const backend = sessionType('agenthost-environment', 'copilot', 'GitHub Copilot', 'remote-environment-copilot');
+		management.setQuickChatSessionTypes([cloud]);
+		const picker = createPicker(disposables, session, management, storage, undefined, undefined, [], {
+			providers: [upcastPartial<ISessionsProvider>({
+				id: backend.providerId, sessionTypes: [backend.sessionType],
+			})],
+		});
+		session.set(upcastPartial<ISession>({
+			providerId: backend.providerId,
+			sessionType: backend.sessionType.id,
+			status: constObservable(SessionStatus.Completed),
+			isQuickChat: constObservable(true),
+		}), undefined);
+		const container = document.createElement('div');
+		picker.render(container);
+		assert.deepStrictEqual({
+			offered: picker.offeredSessionTypeIds,
+			selected: picker.selectedPick,
+			modelTarget: picker.modelTargetChatSessionType.get(),
+			label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+		}, {
+			offered: ['cloud'],
+			selected: { providerId: backend.providerId, sessionTypeId: backend.sessionType.id },
+			modelTarget: 'remote-environment-copilot',
+			label: 'GitHub Copilot',
+		});
+	});
+
 	test('a stored pick for a hidden harness does not survive into an offering picker', () => {
 		management.setSessionTypes([
 			sessionType('local-agent-host', 'copilotcli', 'Copilot'),
@@ -637,6 +801,64 @@ suite('SessionTypePicker', () => {
 				tabIndex: 0,
 				label: 'Pick Session Type, Cloud',
 			},
+		});
+	});
+
+	test('shows an additional workflow action without changing the selected session type', () => {
+		management.setSessionTypes([sessionType('copilot', 'cloud', 'Copilot')]);
+		let shownItems: readonly IActionListItem<unknown>[] = [];
+		let selectAdditionalAction: (() => void) | undefined;
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override isVisible = false;
+			override hide(): void { }
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+				shownItems = items;
+				const actionItem = items.find(item => item.item && (item.item as { kind?: string }).kind === 'additionalAction');
+				selectAdditionalAction = actionItem?.item ? () => void delegate.onSelect(actionItem.item!) : undefined;
+			}
+		};
+		let runCount = 0;
+		const infoAction = disposables.add(new Action('test.info', 'Info'));
+		const picker = createPicker(disposables, session, management, storage, {
+			additionalAction: {
+				id: 'test.runMultiple',
+				label: 'Run and Compare Agents...',
+				description: 'Run isolated attempts, then compare them.',
+				icon: Codicon.diffMultiple,
+				infoAction,
+				isVisible: () => true,
+				run: () => runCount++,
+			},
+		}, actionWidgetService);
+		session.set(createFakeSession('copilot', 'cloud', folder), undefined);
+		const container = document.createElement('div');
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label');
+
+		picker.showPicker();
+		selectAdditionalAction?.();
+
+		assert.deepStrictEqual({
+			triggerDisabled: trigger?.getAttribute('aria-disabled'),
+			items: shownItems.map(item => ({
+				kind: item.kind,
+				label: item.label,
+				icon: item.group?.icon?.id,
+				toolbarActions: item.toolbarActions?.map(action => action.id),
+			})),
+			runCount,
+			selected: picker.selectedPick,
+			stored: picker.getUserPickedSessionType(),
+		}, {
+			triggerDisabled: 'false',
+			items: [
+				{ kind: ActionListItemKind.Action, label: 'Copilot', icon: 'terminal', toolbarActions: undefined },
+				{ kind: ActionListItemKind.Separator, label: '', icon: undefined, toolbarActions: undefined },
+				{ kind: ActionListItemKind.Action, label: 'Run and Compare Agents...', icon: 'diff-multiple', toolbarActions: ['test.info'] },
+			],
+			runCount: 1,
+			selected: { providerId: 'copilot', sessionTypeId: 'cloud' },
+			stored: undefined,
 		});
 	});
 
@@ -772,6 +994,29 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(picker.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
 	});
 
+	test('offers Cloud alongside local quick-chat harnesses and updates when it is withdrawn', () => {
+		const localTypes = [
+			sessionType('agent-host', 'copilotcli', 'Copilot'),
+			sessionType('agent-host', 'claude', 'Claude'),
+			sessionType('agent-host', 'codex', 'Codex'),
+		];
+		management.setQuickChatSessionTypes([...localTypes, sessionType('default-copilot', 'copilot-cloud-agent', 'Cloud')]);
+		const picker = createPicker(disposables, session, management, storage);
+		session.set(createFakeQuickChatSession('agent-host', 'copilotcli'), undefined);
+		const offered = picker.offeredSessionTypeIds;
+
+		picker.pick({ providerId: 'default-copilot', sessionTypeId: 'copilot-cloud-agent' });
+		const chosen = picker.selectedPick;
+		management.setQuickChatSessionTypes(localTypes);
+
+		assert.deepStrictEqual({ offered, chosen, remaining: picker.offeredSessionTypeIds, fallback: picker.selectedPick }, {
+			offered: ['copilotcli', 'claude', 'codex', 'copilot-cloud-agent'],
+			chosen: { providerId: 'default-copilot', sessionTypeId: 'copilot-cloud-agent' },
+			remaining: ['copilotcli', 'claude', 'codex'],
+			fallback: { providerId: 'agent-host', sessionTypeId: 'copilotcli' },
+		});
+	});
+
 	test('folder-driven quick-chat mode preserves an unavailable saved target through late discovery', () => {
 		const saved = { providerId: 'agent-host', sessionTypeId: 'copilotcli' };
 		management.setQuickChatSessionTypes([
@@ -855,6 +1100,56 @@ suite('SessionTypePicker', () => {
 		picker.setFolderSource(observableValue<URI | undefined>('folder', folderA));
 
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'local-1', sessionTypeId: 'local' });
+	});
+
+	test('offers and preserves harness choices before selecting and after clearing a workspace', () => {
+		const copilot = sessionType('local', 'copilot', 'Copilot');
+		const claude = sessionType('local', 'claude', 'Claude');
+		const remote = sessionType('remote', 'remote', 'Remote');
+		management.setSessionTypes([copilot, claude, remote]);
+		management.setSessionTypesForFolder(folder, [copilot, claude]);
+		const selectedWorkspace = observableValue<URI | undefined>('selectedWorkspace', undefined);
+		const picker = createPicker(disposables, session, management, storage);
+		picker.setSessionWorkspaceFolderSource(selectedWorkspace);
+		const container = document.createElement('div');
+		picker.render(container);
+		const snapshot = () => ({
+			offered: picker.offeredSessionTypeIds,
+			label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			hidden: container.querySelector('.action-label')?.classList.contains('hidden'),
+			pick: picker.selectedPick,
+		});
+		const beforeSelection = snapshot();
+		picker.pick({ providerId: 'local', sessionTypeId: 'claude' });
+		const chosenWithoutWorkspace = snapshot();
+		selectedWorkspace.set(folder, undefined);
+		session.set(createFakeSession('local', 'claude', folder), undefined);
+		const withWorkspace = snapshot();
+		selectedWorkspace.set(undefined, undefined);
+		session.set(undefined, undefined);
+		const afterClearing = snapshot();
+		assert.deepStrictEqual({ beforeSelection, chosenWithoutWorkspace, withWorkspace, afterClearing }, {
+			beforeSelection: { offered: ['copilot', 'claude', 'remote'], label: 'Copilot', hidden: false, pick: { providerId: 'local', sessionTypeId: 'copilot' } },
+			chosenWithoutWorkspace: { offered: ['copilot', 'claude', 'remote'], label: 'Claude', hidden: false, pick: { providerId: 'local', sessionTypeId: 'claude' } },
+			withWorkspace: { offered: ['copilot', 'claude'], label: 'Claude', hidden: false, pick: { providerId: 'local', sessionTypeId: 'claude' } },
+			afterClearing: { offered: ['copilot', 'claude', 'remote'], label: 'Claude', hidden: false, pick: { providerId: 'local', sessionTypeId: 'claude' } },
+		});
+	});
+
+	test('filters and refreshes harnesses offered before choosing a workspace', () => {
+		management.setSessionTypes([
+			sessionType('local', 'copilot', 'Copilot'),
+			sessionType('remote', 'claude', 'Claude'),
+		]);
+		const allowedProviders = observableValue<readonly string[]>('availableHosts', ['local']);
+		const picker = createPicker(disposables, session, management, storage, { allowedProviders });
+		picker.setSessionWorkspaceFolderSource(constObservable(undefined));
+		const offered = [picker.offeredSessionTypeIds];
+		allowedProviders.set(['remote'], undefined);
+		offered.push(picker.offeredSessionTypeIds);
+		management.setSessionTypes([sessionType('remote', 'codex', 'Codex')]);
+		offered.push(picker.offeredSessionTypeIds);
+		assert.deepStrictEqual(offered, [['copilot'], ['claude'], ['codex']]);
 	});
 
 	test('session-driven mode uses the selected workspace for availability while displaying the draft type', () => {

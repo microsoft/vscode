@@ -4,20 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
 export const customizationMarketplaceConfigurationProperties = {
 	[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: {
 		type: 'boolean',
-		tags: ['experimental'],
-		description: localize('chat.customizations.marketplace.enabled', "Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages."),
+		tags: ['experimental', 'advanced'],
+		description: localize('chat.customizations.marketplace.enabled', "Shows Browse instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages."),
 		default: false,
+		experiment: { mode: 'auto' },
 	},
 	[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: {
 		type: 'boolean',
-		tags: ['experimental'],
-		description: localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins when Marketplace is shown. If Marketplace or this setting is disabled, the GitHub Feed is not queried."),
+		tags: ['experimental', 'advanced'],
+		description: localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the SDK-backed GitHub Feed for agent harnesses that provide marketplace search. Local does not provide this source. If Marketplace or this setting is disabled, or a strict marketplace policy is configured, the GitHub Feed is not queried."),
 		default: true,
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;
+
+export function isAgentFinderPublicFeedAvailable(marketplaceService: IPluginMarketplaceService, harnessProvidesMarketplaceSearch: boolean): boolean {
+	return harnessProvidesMarketplaceSearch && !marketplaceService.isStrictMarketplacePolicyActive();
+}
+
+export function isCustomizationDiscoveryAvailable(configurationService: IConfigurationService, marketplaceService: ICustomizationMarketplaceService): boolean {
+	return getVisibleCustomizationMarketplaceSources(configurationService, marketplaceService.sources).length > 0;
+}
+
+export function isCustomizationMarketplaceValueFromDefault(configurationService: IConfigurationService): boolean {
+	const inspected = configurationService.inspect<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled);
+	return inspected.applicationValue === undefined &&
+		inspected.userValue === undefined &&
+		inspected.userLocalValue === undefined &&
+		inspected.userRemoteValue === undefined &&
+		inspected.workspaceValue === undefined &&
+		inspected.workspaceFolderValue === undefined &&
+		inspected.memoryValue === undefined &&
+		inspected.policyValue === undefined;
+}
+
+export function affectsCustomizationDiscoveryAvailability(event: IConfigurationChangeEvent, marketplaceService: ICustomizationMarketplaceService): boolean {
+	return affectsCustomizationMarketplaceSources(event, marketplaceService.allSources ?? marketplaceService.sources);
+}

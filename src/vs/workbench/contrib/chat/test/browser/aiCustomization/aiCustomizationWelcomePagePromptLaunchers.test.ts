@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -25,6 +26,7 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 			selectSectionWithMarketplace() { },
 			openMarketplaceItem() { },
 			closeEditor() { },
+			async createCustomization() { },
 			reviewMigrations: () => reviewedMigrations = true,
 			prefillChat() { },
 		};
@@ -49,6 +51,8 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 		try {
 			page.setMigrationCategories([category]);
 			const card = parent.querySelector<HTMLButtonElement>('.welcome-prompts-migration-card');
+			parent.classList.add('ai-customization-management-editor');
+			parent.style.setProperty('--vscode-inputValidation-warningForeground', 'rgb(1, 2, 3)');
 			card?.click();
 			page.focus();
 
@@ -56,11 +60,13 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 				cardTagName: card?.tagName,
 				buttonCount: card?.querySelectorAll('button').length,
 				focusedCard: document.activeElement === card,
+				actionColor: mainWindow.getComputedStyle(card!.querySelector('.welcome-prompts-card-action-label')!).color,
 				reviewedMigrations,
 			}, {
 				cardTagName: 'BUTTON',
 				buttonCount: 0,
 				focusedCard: true,
+				actionColor: 'rgb(1, 2, 3)',
 				reviewedMigrations: true,
 			});
 		} finally {
@@ -80,6 +86,7 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 				selectSectionWithMarketplace() { },
 				openMarketplaceItem() { },
 				closeEditor() { },
+				async createCustomization() { },
 				reviewMigrations() { },
 				prefillChat() { },
 			},

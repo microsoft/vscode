@@ -629,7 +629,9 @@ async function getPipelineTimeline(): Promise<Timeline> {
 /**
  * Artifacts that can only be published once a job succeeded, by job name. The
  * platform test jobs run in parallel with the jobs that produce these artifacts
- * (see the platform-specific product-build job templates).
+ * (see the platform-specific product-build job templates). The tests of a
+ * platform can be sharded across several jobs named `<job name>_<shard>`, in
+ * which case every shard must succeed.
  */
 const artifactsByGatingJob: Readonly<Record<string, readonly string[]>> = {
 	'Windows_x64_Test': [
@@ -661,12 +663,17 @@ const artifactsByGatingJob: Readonly<Record<string, readonly string[]>> = {
 };
 
 interface IGatingJob {
+	/** The job that blocks the publishing, or all gating jobs when none does. */
 	readonly name: string;
 	/** `missing` when the job is not part of the pipeline run, e.g. when tests are skipped. */
 	readonly state: 'succeeded' | 'pending' | 'failed' | 'missing';
 }
 
-/** Returns the job that gates the publishing of the artifact, if any, see `artifactsByGatingJob`. */
+/**
+ * Returns the job that gates the publishing of the artifact, if any, see
+ * `artifactsByGatingJob`. When the tests are sharded, returns a failed shard,
+ * else a pending one, else all shards once they all succeeded.
+ */
 function getGatingJob(timeline: Timeline, artifactName: string): IGatingJob | undefined {
 	const name = Object.keys(artifactsByGatingJob).find(job => artifactsByGatingJob[job].includes(artifactName));
 
@@ -675,15 +682,35 @@ function getGatingJob(timeline: Timeline, artifactName: string): IGatingJob | un
 	}
 
 	// Job identifiers have the form `<stage>.<job>.__default`, and a retried job has a record for each attempt
-	const attempts = timeline.records.filter(r => r.type === 'Job' && (r.name === name || r.identifier?.split('.').includes(name)));
+	const attemptsByJob = new Map<string, TimelineRecord[]>();
 
-	if (attempts.length === 0) {
-		return { name, state: 'missing' };
-	} else if (attempts.some(r => r.state === 'completed' && (r.result === 'succeeded' || r.result === 'succeededWithIssues'))) {
-		return { name, state: 'succeeded' };
-	} else {
-		return { name, state: attempts.some(r => r.state !== 'completed') ? 'pending' : 'failed' };
+	for (const record of timeline.records) {
+		if (record.type !== 'Job') {
+			continue;
+		}
+
+		const job = record.identifier?.split('.').find(part => part === name || part.startsWith(`${name}_`)) ?? (record.name === name ? name : undefined);
+
+		if (job) {
+			attemptsByJob.set(job, [...attemptsByJob.get(job) ?? [], record]);
+		}
 	}
+
+	if (attemptsByJob.size === 0) {
+		return { name, state: 'missing' };
+	}
+
+	const jobs: IGatingJob[] = [...attemptsByJob].map(([job, attempts]) => {
+		if (attempts.some(r => r.state === 'completed' && (r.result === 'succeeded' || r.result === 'succeededWithIssues'))) {
+			return { name: job, state: 'succeeded' };
+		} else {
+			return { name: job, state: attempts.some(r => r.state !== 'completed') ? 'pending' : 'failed' };
+		}
+	});
+
+	return jobs.find(job => job.state === 'failed')
+		?? jobs.find(job => job.state === 'pending')
+		?? { name: jobs.map(job => job.name).join(', '), state: 'succeeded' };
 }
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
@@ -1136,10 +1163,10 @@ async function main() {
 
 	// Also fail the job if any of the stages did not succeed, or if any of the
 	// artifacts was not published because its gating job did not succeed
-	let shouldFail = false;
+	const failed = new Set<string>();
 
 	for (const name of artifactsBlocked) {
-		shouldFail = true;
+		failed.add(`job ${gatingJobs.get(name)!.name}`);
 		console.error(`[${name}] Not published, since job ${gatingJobs.get(name)!.name} did not succeed`);
 	}
 
@@ -1147,12 +1174,14 @@ async function main() {
 		const record = timeline.records.find(r => isStage(r, stage))!;
 
 		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
-			shouldFail = true;
+			failed.add(`stage ${stage}`);
 			console.error(`Stage ${stage} did not succeed: ${record.result}`);
 		}
 	}
 
-	if (shouldFail) {
+	if (failed.size > 0) {
+		// Retrying only the failed stage doesn't rerun this job, since it doesn't depend on any stage
+		console.log(`##vso[task.logissue type=error]Publishing is incomplete because ${[...failed].join(', ')} did not succeed. To publish the remaining artifacts, use "Rerun failed jobs" on the run, which also reruns Publish. If you retry only the failed stage, retry the Publish stage as well once it succeeds.`);
 		throw new Error(artifactsBlocked.length > 0 ? 'Some artifacts were not published because their gating job did not succeed' : 'Some stages did not succeed');
 	}
 

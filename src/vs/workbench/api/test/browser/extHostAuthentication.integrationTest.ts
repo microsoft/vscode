@@ -306,10 +306,10 @@ suite('ExtHostAuthentication', () => {
 
 		suite('multi-server sessions', () => {
 			const sessions: AuthenticationSession[] = [authorizationServer, otherAuthorizationServer].map((server, index) => ({
-				id: `host-${index}:session`,
+				id: `native-session-${index}`,
 				accessToken: `host-${index}-token`,
 				account: {
-					id: `host-${index}:account`,
+					id: '42',
 					label: `octocat (${server.toString()})`,
 					icon: URI.joinPath(server, 'avatar.png')
 				},
@@ -330,7 +330,7 @@ suite('ExtHostAuthentication', () => {
 						lookups.push(options);
 						return storedSessions.filter(session =>
 							(!scopes || scopes.every(scope => session.scopes.includes(scope)))
-							&& (!options.account || options.account.id === session.account.id)
+							&& (!options.account || options.account.id === session.account.id && options.account.label === session.account.label)
 							&& (!options.authorizationServer || isEqual(options.authorizationServer, session.authorizationServer)));
 					},
 					createSession: async (scopes, options = {}) => {
@@ -987,6 +987,7 @@ suite('ExtHostAuthentication', () => {
 					{ issuer: authorizationServer.toString(true), response_types_supported: ['code'], token_endpoint: 'https://issuer.example/token' },
 					undefined, 'original-client', undefined, disposables.add(new Emitter()),
 					[{ access_token: 'expired-token', token_type: 'Bearer', scope: 'read', refresh_token: 'refresh-token', expires_in: 1, created_at: 0 }],
+					undefined,
 					async () => {
 						refreshRequests++;
 						return new Response(JSON.stringify({ error: 'invalid_client' }), { status: 400 });

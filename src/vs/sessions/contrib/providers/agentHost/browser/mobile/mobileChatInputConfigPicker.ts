@@ -98,7 +98,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		// The input-scoped selection model owns model initialization even when
 		// the desktop picker is gated off, so this surface only renders it.
 		this._register(autorun(reader => {
-			this._session.read(reader);
+			this._session.read(reader)?.activeChat.read(reader);
 			this._selectionModel.state.read(reader);
 			this._updateTrigger();
 		}));
@@ -109,7 +109,7 @@ class MobileChatInputConfigPicker extends Disposable {
 			this._watchProviders(e.added);
 			this._updateTrigger();
 		}));
-		this._watchProviders(this._sessionsProvidersService.getProviders());
+		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }));
 	}
 
 	/**
@@ -172,7 +172,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		}
 
 		// Mode (optional — agent may not advertise a well-known schema)
-		const config = provider.getSessionConfig(session.sessionId);
+		const config = provider.getSessionConfig(session.sessionId, session.activeChat.get().resource);
 		const modeSchema = config?.schema.properties[SessionConfigKey.Mode];
 		const modeItems = (modeSchema && isWellKnownModeSchema(modeSchema))
 			? (modeSchema.enum ?? []).map((value, index) => ({
@@ -256,7 +256,7 @@ class MobileChatInputConfigPicker extends Disposable {
 
 		// Sheet's mode row writes through `setSessionConfigValue`, so
 		// disable the button while a resolve is in flight.
-		const isResolving = ctx.provider.isSessionConfigResolving(ctx.session.sessionId).get();
+		const isResolving = ctx.provider.isSessionConfigResolving(ctx.session.sessionId, ctx.session.activeChat.get().resource).get();
 		this._slotElement.classList.toggle('resolving', isResolving);
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
@@ -278,7 +278,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		// button retains its tap target while visually disabled, so
 		// guard explicitly.
 		const ctx = this._getContext();
-		if (ctx && ctx.provider.isSessionConfigResolving(ctx.session.sessionId).get()) {
+		if (ctx && ctx.provider.isSessionConfigResolving(ctx.session.sessionId, ctx.session.activeChat.get().resource).get()) {
 			return;
 		}
 		// Delegate sheet construction to the shared phone presenter so
@@ -348,15 +348,15 @@ registerAction2(class extends Action2 {
 			title: localize2('mobileChatInputConfigPicker', "Mode and Model"),
 			f1: false,
 			menu: [{
-				id: Menus.NewSessionConfig,
-				group: 'navigation',
-				order: 0,
-				when: ContextKeyExpr.and(SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
-			}, {
 				id: Menus.AutomationsDialogInputToolbar,
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
+			}, {
+				id: Menus.NewSessionChatInputToolbar,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
 			}],
 		});
 	}
@@ -396,7 +396,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 
-		for (const menu of [Menus.NewSessionConfig, Menus.AutomationsDialogInputToolbar]) {
+		for (const menu of [Menus.AutomationsDialogInputToolbar, Menus.NewSessionChatInputToolbar]) {
 			this._register(actionViewItemService.register(
 				menu,
 				MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,

@@ -17,9 +17,9 @@ suite('AgentHostManagedSettingsService', () => {
 		service.setClientPermissions('client-1', { disableBypassPermissionsMode: 'disable' });
 		service.setClientPermissions('client-2', { ask: ['Shell'], deny: ['Write(**)'] });
 		const combined = service.permissions;
-		service.removeClientPermissions('client-1');
+		service.removeClient('client-1');
 		const afterFirstRemoval = service.permissions;
-		service.removeClientPermissions('client-2');
+		service.removeClient('client-2');
 
 		assert.deepStrictEqual({
 			combined,
@@ -46,9 +46,31 @@ suite('AgentHostManagedSettingsService', () => {
 
 		service.setClientPermissions('client-1', { ask: ['Shell'] });
 		service.setClientPermissions('client-2', { ask: ['Shell'] });
-		service.removeClientPermissions('client-1');
-		service.removeClientPermissions('client-2');
+		service.removeClient('client-1');
+		service.removeClient('client-2');
 
 		assert.strictEqual(changes, 2);
 	});
+
+	test('intersects domain boundaries without enabling sandboxing and removes each owner independently', () => {
+		const service = store.add(new AgentHostManagedSettingsService());
+		service.setClientPermissions('a', { limitTo: ['Domain(*.example.com)'] });
+		service.setClientPermissions('b', { limitTo: ['Domain(api.example.com)', 'Domain(other.example)'] });
+		const overlapping = service.permissions;
+		service.setClientPermissions('b', { limitTo: ['Domain(other.example)'] });
+		const disjoint = service.permissions;
+		service.removeClient('b');
+		const remaining = service.permissions;
+		service.setClientPermissions('a', { limitTo: [] });
+		const empty = service.permissions;
+		service.removeClient('a');
+		assert.deepStrictEqual({ overlapping, disjoint, remaining, empty, removed: service.permissions }, {
+			overlapping: { limitTo: ['Domain(api.example.com)'] },
+			disjoint: { limitTo: [] },
+			remaining: { limitTo: ['Domain(*.example.com)'] },
+			empty: { limitTo: [] },
+			removed: {},
+		});
+	});
+
 });

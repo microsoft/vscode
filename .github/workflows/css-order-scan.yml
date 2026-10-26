@@ -17,7 +17,10 @@ concurrency:
 jobs:
   scan:
     name: Scan CSS cascade-order dependencies
-    runs-on: ubuntu-latest
+    runs-on: vscode-large-runners-ubuntu-8-core
+    # The scan stops localizing after its own time budget (below) and still
+    # writes a report; this is the hard stop if anything hangs.
+    timeout-minutes: 180
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -92,6 +95,7 @@ jobs:
         run: |
           node test/componentFixtures/cssOrderScan.mts \
             --fixture-id-regex ".*" \
+            --time-budget-minutes 150 \
             --image-base-url "https://hediet-screenshots.azurewebsites.net/images"
 
       - name: Generate random commit SHA
@@ -235,8 +239,13 @@ jobs:
         if: always()
         run: |
           REPORT="test/componentFixtures/.build/css-order-report/report.md"
-          if [ -f "$REPORT" ]; then
+          # Job summaries are limited to 1 MiB; the full report is in the css-order-report artifact.
+          MAX_BYTES=1000000
+          if [ ! -f "$REPORT" ]; then
+            echo "No report was produced." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$(wc -c < "$REPORT")" -le "$MAX_BYTES" ]; then
             cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "No report was produced." >> "$GITHUB_STEP_SUMMARY"
+            head -c "$MAX_BYTES" "$REPORT" | sed '$d' >> "$GITHUB_STEP_SUMMARY"
+            printf '\n\n> Report truncated to fit the job summary. Download the `css-order-report` artifact for the full report.\n' >> "$GITHUB_STEP_SUMMARY"
           fi

@@ -9,10 +9,11 @@ import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import product from '../../../../platform/product/common/product.js';
@@ -49,30 +50,34 @@ import { ChatViewFactory } from './chatView.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
+import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionWorktreeCleanupAccessibilityHelp } from '../../sessionInputBanners/browser/sessionWorktreeCleanupAccessibilityHelp.js';
+import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView } from './artifactDetailsContextView.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../common/constants.js';
-import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
+import { DesktopLayoutContext, IsPhoneLayoutContext, SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
+import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID } from '../../../browser/layoutActions.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
-import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageExtensions, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING, unifiedWorkspacePickerConfigurationMigration } from './unifiedWorkspacePickerConfiguration.js';
 import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudgeContribution, SessionArchiveNudgeService } from './sessionArchiveNudge.js';
 import { NewChatInSessionsWindowAction } from './newSessionAction.js';
-import { FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
+import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../sessionComparison/common/sessionComparison.js';
+import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_BRANCH_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID, FOCUS_SESSION_SYNC_ACTION_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_KEYBINDING, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN, FOCUS_NEW_SESSION_BRANCH_PICKER_KEYBINDING, FOCUS_NEW_SESSION_BRANCH_PICKER_WHEN, FOCUS_NEW_SESSION_WORKTREE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKTREE_PICKER_WHEN, FOCUS_SESSION_SYNC_ACTION_KEYBINDING, FOCUS_SESSION_SYNC_ACTION_WHEN } from './newChatPickerKeybinding.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, SessionsChatBackgroundTint, ToggleChatBackgroundTintAction } from './chatBackgroundTint.js';
+import { GetThemeColorsToolContribution } from './getThemeColorsTool.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { sessionStorageCleanupSuggestionConfigurationMigration } from '../../sessionInputBanners/browser/sessionStorageCleanupConfiguration.js';
 import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktreeCleanupService, MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID, SessionWorktreeCleanupService } from '../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
@@ -196,6 +201,31 @@ class FocusNewSessionWorkspacePickerAction extends Action2 {
 
 registerAction2(FocusNewSessionWorkspacePickerAction);
 
+class FocusNewSessionEnvironmentPickerAction extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID,
+			title: localize2('sessions.focusNewSessionEnvironmentPicker', "Focus Environment Picker"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN,
+				primary: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_KEYBINDING,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusEnvironmentPicker();
+	}
+}
+
+registerAction2(FocusNewSessionEnvironmentPickerAction);
+
 class FocusNewSessionHarnessPickerAction extends Action2 {
 	constructor() {
 		super({
@@ -221,12 +251,87 @@ class FocusNewSessionHarnessPickerAction extends Action2 {
 
 registerAction2(FocusNewSessionHarnessPickerAction);
 
-class SetNewSessionWelcomeNameAction extends Action2 {
+class FocusNewSessionBranchPickerAction extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_NEW_SESSION_BRANCH_PICKER_COMMAND_ID,
+			title: localize2('sessions.focusNewSessionBranchPicker', "Focus Branch Picker"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: FOCUS_NEW_SESSION_BRANCH_PICKER_WHEN,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: FOCUS_NEW_SESSION_BRANCH_PICKER_WHEN,
+				primary: FOCUS_NEW_SESSION_BRANCH_PICKER_KEYBINDING,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusBranchPicker();
+	}
+}
+
+registerAction2(FocusNewSessionBranchPickerAction);
+
+class FocusNewSessionWorktreePickerAction extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID,
+			title: localize2('sessions.focusNewSessionWorktreePicker', "Focus Worktree Picker"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: FOCUS_NEW_SESSION_WORKTREE_PICKER_WHEN,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: FOCUS_NEW_SESSION_WORKTREE_PICKER_WHEN,
+				primary: FOCUS_NEW_SESSION_WORKTREE_PICKER_KEYBINDING,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusWorktreePicker();
+	}
+}
+
+registerAction2(FocusNewSessionWorktreePickerAction);
+
+class FocusSessionSyncActionAction extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_SESSION_SYNC_ACTION_COMMAND_ID,
+			title: localize2('sessions.focusSessionSyncAction', "Focus Sync Action"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: FOCUS_SESSION_SYNC_ACTION_WHEN,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: FOCUS_SESSION_SYNC_ACTION_WHEN,
+				primary: FOCUS_SESSION_SYNC_ACTION_KEYBINDING,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusSyncAction();
+	}
+}
+
+registerAction2(FocusSessionSyncActionAction);
+
+class CustomizeNewSessionWelcomeMessageAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.sessions.setWelcomeName',
-			title: localize2('sessions.chat.setWelcomeName', "Set Welcome Name..."),
+			id: 'workbench.action.sessions.customizeWelcomeMessage',
+			title: localize2('sessions.chat.customizeWelcomeMessage', "Customize Welcome Message..."),
 			category: CHAT_CATEGORY,
 			icon: Codicon.edit,
 			precondition: IsSessionsWindowContext,
@@ -243,14 +348,39 @@ class SetNewSessionWelcomeNameAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
+	override async run(accessor: ServicesAccessor, anchor?: unknown): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
+		const commandService = accessor.get(ICommandService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const namePick: IQuickPickItem = {
+			id: 'name',
+			label: localize('sessions.chat.customizeWelcomeMessage.name', "Name"),
+			description: localize('sessions.chat.customizeWelcomeMessage.nameDescription', "Set the name used in welcome messages"),
+		};
+		const phrasesPick: IQuickPickItem = {
+			id: 'phrases',
+			label: localize('sessions.chat.customizeWelcomeMessage.phrases', "Phrases"),
+			description: localize('sessions.chat.customizeWelcomeMessage.phrasesDescription', "Add to or replace the welcome phrases"),
+		};
+		const pick = await quickInputService.pick([namePick, phrasesPick], {
+			placeHolder: localize('sessions.chat.customizeWelcomeMessage.placeholder', "Choose what to customize"),
+			anchor,
+		});
+		if (pick === namePick) {
+			await this._setWelcomeName(quickInputService, configurationService, anchor);
+		} else if (pick === phrasesPick) {
+			await commandService.executeCommand('workbench.action.openSettings', NEW_SESSION_WELCOME_MESSAGES_SETTING);
+		}
+	}
+
+	private async _setWelcomeName(quickInputService: IQuickInputService, configurationService: IConfigurationService, anchor: unknown): Promise<void> {
 		const configuredName = configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim();
 		const name = await quickInputService.input({
 			value: configuredName,
 			prompt: localize('sessions.chat.setWelcomeName.prompt', "Enter the name to use in new-session welcome messages"),
 			placeHolder: localize('sessions.chat.setWelcomeName.placeholder', "Leave empty to use your GitHub first name when available"),
+			anchor,
 		});
 		if (name === undefined) {
 			return;
@@ -264,7 +394,31 @@ class SetNewSessionWelcomeNameAction extends Action2 {
 	}
 }
 
-registerAction2(SetNewSessionWelcomeNameAction);
+registerAction2(CustomizeNewSessionWelcomeMessageAction);
+
+class HideNewSessionWelcomeMessageAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.sessions.hideWelcomeMessage',
+			title: localize2('sessions.chat.hideWelcomeMessage', "Hide Welcome Message"),
+			category: CHAT_CATEGORY,
+			icon: Codicon.eyeClosed,
+			precondition: IsSessionsWindowContext,
+			menu: [{
+				id: Menus.NewSessionWelcomeContext,
+				group: 'navigation',
+				order: 1,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IConfigurationService).updateValue(NEW_SESSION_WELCOME_PHRASES_SETTING, false, ConfigurationTarget.USER);
+	}
+}
+
+registerAction2(HideNewSessionWelcomeMessageAction);
 
 class SetChatBackgroundAction extends Action2 {
 
@@ -345,7 +499,7 @@ class SetChatBackgroundAction extends Action2 {
 			canSelectMany: false,
 			filters: [{
 				name: localize('chat.agentSessions.changeBackground.images', "Images"),
-				extensions: ['avif', 'bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'svg', 'webp'],
+				extensions: [...chatBackgroundImageExtensions],
 			}],
 			availableFileSystems: [Schemas.file],
 			defaultUri: backgroundService.getConfiguredBackgroundImage(),
@@ -410,11 +564,32 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 registerAction2(ChangeChatBackgroundLayoutAction);
 registerAction2(ToggleChatBackgroundTintAction);
 
+const toggleSessionActivityBarCommand = {
+	id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID,
+	title: localize('sessionActivityBar', "Session Activity Bar"),
+	toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
+};
+const toggleSessionActivityBarWhen = ContextKeyExpr.and(IsSessionsWindowContext, DesktopLayoutContext, IsPhoneLayoutContext.negate());
+// The transcript's background menu, for chats in a session.
+MenuRegistry.appendMenuItem(MenuId.ChatContext, {
+	command: toggleSessionActivityBarCommand,
+	group: 'zz_view',
+	order: 1,
+	when: ContextKeyExpr.and(toggleSessionActivityBarWhen, ChatContextKeys.contextMenuIsBackground),
+});
+// The new-session view's background menu, which only opens on its background.
+MenuRegistry.appendMenuItem(Menus.SessionChatBackgroundContext, {
+	command: toggleSessionActivityBarCommand,
+	group: 'zz_view',
+	order: 1,
+	when: toggleSessionActivityBarWhen,
+});
+
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		SessionWorktreeCleanupEditor,
 		SessionWorktreeCleanupEditor.ID,
-		localize('sessionWorktreeCleanupEditor', "Clean Up Agent Worktrees Editor"),
+		localize('sessionWorktreeCleanupEditor', "Open worktree cleanup editor"),
 	),
 	[new SyncDescriptor(SessionWorktreeCleanupEditorInput)],
 );
@@ -423,18 +598,13 @@ registerAction2(class ManageAgentSessionStorageAction extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID,
-			title: localize2('manageAgentSessionStorage', "Clean Up Agent Worktrees"),
+			title: localize2('manageAgentSessionStorage', "Open Worktree Cleanup"),
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
 			menu: [{
 				id: Menus.SidebarSessionsHeader,
 				group: 'manage',
-				order: 0,
-				when: ChatContextKeys.enabled,
-			}, {
-				id: MenuId.SessionItemContextMenu,
-				group: '9_storage',
 				order: 0,
 				when: ChatContextKeys.enabled,
 			}],
@@ -446,6 +616,8 @@ registerAction2(class ManageAgentSessionStorageAction extends Action2 {
 		const pane = await accessor.get(IEditorService).openEditor(new SessionWorktreeCleanupEditorInput(), { pinned: true });
 		if (section === 'automatic' && pane instanceof SessionWorktreeCleanupEditor) {
 			pane.focusAutomaticCleanup();
+		} else if (section === 'all' && pane instanceof SessionWorktreeCleanupEditor) {
+			pane.showAllWorktrees();
 		}
 	}
 });
@@ -480,6 +652,7 @@ registerWorkbenchContribution2(WorktreeCreatedTaskDispatcher.ID, WorktreeCreated
 registerWorkbenchContribution2(SessionsChatPetAchievementContribution.ID, SessionsChatPetAchievementContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionArchiveNudgeContribution.ID, SessionArchiveNudgeContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsChatBackgroundTint.ID, SessionsChatBackgroundTint, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(GetThemeColorsToolContribution.ID, GetThemeColorsToolContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(AgentHostSandboxNotifications.ID, AgentHostSandboxNotifications, WorkbenchPhase.AfterRestored);
 
 // register services
@@ -497,7 +670,10 @@ registerSingleton(ISessionWorktreeCleanupService, SessionWorktreeCleanupService,
 
 // register accessibility help
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
+AccessibleViewRegistry.register(new ArtifactDetailsAccessibilityHelp());
+AccessibleViewRegistry.register(new ArtifactDetailsAccessibleView());
 AccessibleViewRegistry.register(new SessionWorktreeCleanupAccessibilityHelp());
+AccessibleViewRegistry.register(new SessionComparisonAccessibleView());
 
 // register configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -524,13 +700,43 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-			description: localize('chat.agentSessions.sessionStorageCleanupSuggestion', "Controls whether the Agents Window suggests cleaning up session storage when inactive worktrees reach the count or reclaimable-storage threshold."),
+			description: localize('chat.agentSessions.sessionStorageCleanupSuggestion', "Controls whether the Agents Window suggests cleaning up session storage when inactive worktrees reach the count or reclaimable-storage threshold, or a local worktree's disk has less than 5 GB available."),
 		},
 		[LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING]: {
 			type: 'boolean',
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			deprecationMessage: localize('chat.agentSessions.consolidatedRemoteWorkspaces.deprecated', "Deprecated. Use the unified workspace picker setting instead."),
+		},
+		[COMPARE_AGENTS_ENABLED_SETTING]: {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.compareAgents.enabled', "Controls whether the Compare Models action is shown in the model picker for eligible new Agent sessions."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[HIDE_INACTIVE_COMPARISON_INPUTS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.compareAgents.hideInactiveInputs', "When enabled, hides the chat input in inactive panes when three or more parallel comparison attempts are shown in a grid. This behavior is disabled when screen-reader optimized mode is active."),
+			tags: ['experimental'],
+		},
+		[COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('sessions.chat.compareAgents.showPickerHint', "Show the experimental Send Query to Multiple Models action at the bottom of the model picker until comparison setup is first opened. Requires `#sessions.chat.compareAgents.enabled#`."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[COMPARE_AGENTS_OPEN_IN_GRID_SETTING]: {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.compareAgents.openInGrid', "Automatically opens comparison attempts in a grid when they start. When disabled, the attempts start in the background; select their comparison group to open the grid."),
+			tags: ['experimental'],
 		},
 		[AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING]: {
 			type: 'boolean',
@@ -546,15 +752,71 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: product.quality !== 'stable',
 			scope: ConfigurationScope.WINDOW,
 			description: localize('sessions.chat.experimental.newSessionComposerLayout', "Controls whether the new-session composer groups workspace, repository, and harness controls above the chat input. This setting only applies when the unified workspace picker is enabled."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
-		[NEW_SESSION_WELCOME_PHRASES_SETTING]: {
+		[WORKSPACE_OPT_OUT_SETTING]: {
 			type: 'boolean',
 			default: false,
+			scope: ConfigurationScope.WINDOW,
+			description: localize('sessions.chat.experimental.workspaceOptOut', "Controls whether hovering over or focusing the workspace picker shows a button to chat without a workspace. Requires the unified workspace picker, experimental new-session composer layout, and a compatible harness and environment. Chat remains available in the workspace list when this setting is disabled."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ENVIRONMENT_PICKER_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			description: localize('sessions.chat.experimental.environmentPicker', "Controls whether a separate Environment picker chooses where new sessions run in the desktop Agents Window. Requires the unified workspace picker and experimental new-session composer layout. When disabled, environment choices remain in the workspace and harness pickers."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.WINDOW,
+			description: localize('sessions.chat.experimental.environmentPickerManageRemotes', "Controls whether Remote Environments management and its picker visibility preferences are enabled. Adds a command, a Sessions menu entry, and a Manage entry when the Environment picker and remote agent hosts are enabled. When disabled, saved visibility preferences are ignored but retained."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING]: {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.experimental.newSessionComposerOptionsExpanded', "Controls whether session options are expanded before you first expand or collapse them. Your last choice takes precedence afterward. This setting only applies when the new-session composer layout is enabled."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			description: localize('sessions.chat.experimental.agentsPickerInAttachContextMenu', "Controls whether the Agent picker starts in Add Context for Agents Window chat inputs. After an agent is selected, the picker returns to its usual position."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.experimental.collapsedSessionOptionsShowIcons', "Controls whether the collapsed session options above the new-session input keep the repository and harness pickers as icons, so they stay accessible without their labels. When disabled, collapsing hides these controls entirely. This setting only applies when the new-session composer layout is enabled."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.experimental.connectorRecommendations', "Controls whether the new-session composer recommends connectors that can add work context to chats."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[NEW_SESSION_WELCOME_PHRASES_SETTING]: {
+			type: 'boolean',
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.experimental.welcomePhrases', "Controls whether rotating welcome phrases are shown above the new-session composer."),
 			tags: ['experimental'],
@@ -566,6 +828,39 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.experimental.welcomeName', "Specifies the name used in new-session welcome messages. Leave empty to use the first name from your signed-in GitHub profile when available; otherwise, welcome messages omit the name."),
 			tags: ['experimental'],
+		},
+		[NEW_SESSION_WELCOME_MESSAGES_SETTING]: {
+			type: 'object',
+			default: {
+				mode: 'append',
+				phrases: []
+			},
+			properties: {
+				mode: {
+					type: 'string',
+					enum: ['replace', 'append'],
+					default: 'append',
+					description: localize('sessions.chat.experimental.welcomeMessages.mode', "'replace' uses only your phrases; 'append' adds your phrases to the defaults."),
+				},
+				phrases: {
+					type: 'array',
+					items: { type: 'string' },
+					default: [],
+					markdownDescription: localize('sessions.chat.experimental.welcomeMessages.phrases', "Welcome phrases shown above the new-session composer. Use `${name}` to position the welcome name, for example `Back at it, ${name}`. When no name is known, `${name}` and its surrounding separator are removed."),
+				}
+			},
+			additionalProperties: false,
+			markdownDescription: localize('sessions.chat.experimental.welcomeMessages', "Customize the welcome phrases shown above the new-session composer. Use `\"mode\": \"replace\"` to use only your phrases, or `\"mode\": \"append\"` to add them to the defaults. Use `${name}` inside a phrase to position the welcome name."),
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+		},
+		[AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING]: {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['advanced'],
+			experiment: { mode: 'auto' },
+			markdownDescription: localize('chat.agentSessions.appearanceTools.enabled', "Enable the Get Theme Colors and Set Chat Background tools and the built-in `generate-chat-background` skill in the Agents window. Disabling this does not remove existing backgrounds or affect the manual background controls."),
 		},
 		[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING]: {
 			type: 'boolean',

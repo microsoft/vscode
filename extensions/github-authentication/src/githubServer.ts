@@ -47,6 +47,11 @@ export interface IGitHubServer {
 	 * user anything. Fails rather than prompting when it cannot be done silently.
 	 */
 	renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken & IGitHubToken>;
+	/**
+	 * Checks whether this host maps the Entra identity behind `subjectToken` onto a GitHub account,
+	 * without showing anything or leaving a usable token behind. See {@link EntraTokenExchange.probe}.
+	 */
+	probeMicrosoftLink(subjectToken: string): Promise<IGitHubUserInfo | undefined>;
 	logout(session: vscode.AuthenticationSession): Promise<void>;
 	getUserInfo(token: string): Promise<IGitHubUserInfo>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
@@ -82,11 +87,16 @@ export class GitHubServer implements IGitHubServer {
 		const tokenExchange = isSupportedTarget(this._type, _ghesUri)
 			? this.baseUri.with({ path: '/login/oauth/access_token' }).toString(true)
 			: undefined;
+		// Only these hosts let an OAuth app delete its own tokens, so only here are the tokens a probe
+		// mints revoked rather than left to expire.
+		const tokenRevocation = isSupportedTarget(this._type, _ghesUri)
+			? this.getServerUri(`/applications/${Config.gitHubClientId}/token`).toString(true)
+			: undefined;
 		// Both endpoints come from this host, so a token minted here can only ever be described by
 		// this host's `GET /user`.
 		this._entraTokenExchange = new EntraTokenExchange(
 			_logger,
-			{ tokenExchange, userInfo: this.getServerUri('/user').toString() },
+			{ tokenExchange, tokenRevocation, userInfo: this.getServerUri('/user').toString() },
 			microsoft,
 			accountLinks,
 			this._http,
@@ -112,6 +122,10 @@ export class GitHubServer implements IGitHubServer {
 	async renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken & IGitHubToken> {
 		const authorizationServer = vscode.Uri.joinPath(this.baseUri, '/login/oauth');
 		return { ...await this._entraTokenExchange.renew(renewal), authorizationServer };
+	}
+
+	probeMicrosoftLink(subjectToken: string): Promise<IGitHubUserInfo | undefined> {
+		return this._entraTokenExchange.probe(subjectToken);
 	}
 
 	private async getRedirectEndpoint(): Promise<string> {

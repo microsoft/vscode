@@ -8,7 +8,7 @@ import { combinedDisposable, Disposable, DisposableMap, DisposableStore, Mutable
 import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatEditReviewSession, IChatEditingService, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { findChatEditingSessionEntry, IChatEditReviewSession, IChatEditingService, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, IActionRunner } from '../../../../../base/common/actions.js';
@@ -340,16 +340,7 @@ class ChatEditingOverlayController {
 			}
 
 			// Directly query global editing sessions (inline chat has its own overlay)
-			for (const session of chatEditingService.editingSessionsObs.read(r)) {
-				if (!session.isGlobalEditingSession) {
-					continue;
-				}
-				const entry = session.readEntry(uri, r);
-				if (entry) {
-					return { session, entry };
-				}
-			}
-			return undefined;
+			return findChatEditingSessionEntry(chatEditingService.editingSessionsObs.read(r).filter(session => session.isGlobalEditingSession.read(r)), uri, r);
 		});
 
 		this._store.add(autorun(r => {

@@ -21,6 +21,9 @@ parameters:
   - name: display
     type: string
     default: ""
+  - name: timeoutInMinutes
+    type: number
+    default: 360
   - name: extractArtifactSteps
     type: stepList
     default: []
@@ -40,7 +43,7 @@ jobs:
   - job: ${{ parameters.jobName }}
     dependsOn: ${{ parameters.buildJobName }}
     displayName: ${{ parameters.displayName }}
-    timeoutInMinutes: 300
+    timeoutInMinutes: ${{ parameters.timeoutInMinutes }}
     variables:
       VSCODE_ARCH: ${{ parameters.arch }}
       ${{ if ne(parameters.display, '') }}:

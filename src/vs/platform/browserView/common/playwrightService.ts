@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
+import type { IBrowserViewNetwork } from './browserView.js';
 
 export const IPlaywrightService = createDecorator<IPlaywrightService>('playwrightService');
 
@@ -33,6 +35,13 @@ export interface IInvokeFunctionResult {
  * session can interact with.
  */
 export interface IPlaywrightService {
+	setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void>;
+	/**
+	 * Set the remote network of pages Playwright creates for a session, or
+	 * `undefined` for the local network. A change closes the session's
+	 * Playwright connection so new pages use the new network.
+	 */
+	setSessionNetwork(sessionId: string, network: IBrowserViewNetwork | undefined): Promise<void>;
 	readonly _serviceBrand: undefined;
 
 	/** Waits for a newly created browser view to become available and returns its initial summary. */
