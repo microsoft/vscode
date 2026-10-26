@@ -42,6 +42,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
 			localize('automationsCustomView.help.authority', "Automations run on their selected provider, not in this window. Creation and changes require an available provider that supports automations. Run now requests execution from that provider; a disconnected or unsupported provider never falls back to local execution. To use another provider, duplicate the automation. The original history stays with its provider, and an enabled original keeps scheduling until you disable it."),
+			localize('automationsCustomView.help.runCommand', "Use Chat: Run Automation... from the Command Palette to run an available automation without opening this view. Type to filter by name, provider, workspace, or prompt, use Up Arrow and Down Arrow to choose an automation, and press Enter to run it. Press Escape to cancel."),
 			...(builtInTemplatesVisible ? [
 				hasSavedAutomations
 					? localize('automationsCustomView.help.builtInTemplatesCollapsed', "The Built-in Templates section is collapsed by default because saved automations exist. Press Enter or Space on its disclosure control to expand it.")
