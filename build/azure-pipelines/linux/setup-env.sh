@@ -38,8 +38,16 @@ cat > "$HOME/.gyp/include.gypi" << 'EOF'
 EOF
 
 if [ "$npm_config_arch" == "x64" ]; then
-  # Download clang based on chromium revision used by vscode
-  curl -s https://raw.githubusercontent.com/chromium/chromium/150.0.7871.250/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
+  # Download clang based on chromium revision used by vscode. Fetch the script
+  # to a file first and fail on HTTP errors: piping `curl -s` into python ran a
+  # rate-limit error page as Python. Authenticated requests get a higher limit.
+  CLANG_UPDATE_PY="$(mktemp)"
+  curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
+    ${GITHUB_TOKEN:+-H "Authorization: Bearer $GITHUB_TOKEN"} \
+    -o "$CLANG_UPDATE_PY" \
+    https://raw.githubusercontent.com/chromium/chromium/150.0.7871.250/tools/clang/scripts/update.py
+  python "$CLANG_UPDATE_PY" --output-dir=$PWD/.build/CR_Clang --host-os=linux
+  rm -f "$CLANG_UPDATE_PY"
 
   # Download libcxx headers and objects from upstream electron releases
   DEBUG=libcxx-fetcher \
