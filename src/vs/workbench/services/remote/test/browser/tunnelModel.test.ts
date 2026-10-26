@@ -60,6 +60,22 @@ suite('PortsAttributes', () => {
 		assert.deepStrictEqual(actual, [true, false]);
 	});
 
+	test('preserves range requireLocalPort when an exact-port rule leaves it unset', () => {
+		const actual = [true, false].map(requireLocalPort => {
+			const attributes = createAttributes({
+				'3000-4000': { requireLocalPort },
+				'3500': { label: 'Exact' }
+			});
+			const result = attributes.getAttributes(3500, 'localhost');
+			return { label: result?.label, requireLocalPort: result?.requireLocalPort };
+		});
+
+		assert.deepStrictEqual(actual, [
+			{ label: 'Exact', requireLocalPort: true },
+			{ label: 'Exact', requireLocalPort: false }
+		]);
+	});
+
 	test('preserves an explicit range value over a later matching regex rule', () => {
 		const actual = [true, false].map(requireLocalPort => {
 			const attributes = createAttributes({

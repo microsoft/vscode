@@ -229,7 +229,7 @@ export class PortsAttributes extends Disposable {
 				attributes.onAutoForward = found.onAutoForward ?? attributes.onAutoForward;
 				attributes.elevateIfNeeded = (found.elevateIfNeeded !== undefined) ? found.elevateIfNeeded : attributes.elevateIfNeeded;
 				attributes.label = found.label ?? attributes.label;
-				attributes.requireLocalPort = found.requireLocalPort;
+				attributes.requireLocalPort = (found.requireLocalPort !== undefined) ? found.requireLocalPort : attributes.requireLocalPort;
 				attributes.protocol = found.protocol;
 			} else {
 				// It's a range or regex, which means that if the attribute is already set, we keep it
