@@ -164,10 +164,6 @@ export class WorkbenchToolBar extends ToolBar {
 				if (!action.hideActions) {
 					continue;
 				}
-				if (this._isAlwaysShown(action)) {
-					someAreAlwaysShown = true;
-					continue;
-				}
 
 				// collect all toggle actions
 				toggleActions.push(action.hideActions.toggle);
