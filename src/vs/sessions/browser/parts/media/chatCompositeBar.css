@@ -82,9 +82,10 @@
 
 /* Title row: title + actions */
 .chat-composite-bar-title-row {
+	--chat-composite-bar-title-row-gap: 6px;
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: var(--chat-composite-bar-title-row-gap);
 	height: 100%;
 }
 
@@ -817,8 +818,8 @@
 }
 
 .session-header-bar.window-chrome .chat-composite-bar-title-actions {
-	/* The title row gaps its children by 6px; the overflow sits at the 2px gap of the window actions. */
-	margin-left: -4px;
+	/* Replace the title row gap before the overflow with the gap between the window actions. */
+	margin-left: calc(var(--vscode-spacing-size20, 2px) - var(--chat-composite-bar-title-row-gap));
 }
 
 /* The traffic lights of macOS sit over the leading edge. */
