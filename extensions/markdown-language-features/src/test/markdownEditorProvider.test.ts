@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { MarkdownContributions } from '../markdownExtensions';
 import { MarkdownPreviewLineDiffProvider } from '../preview/lineDiff';
 import { computeMarkdownEditorEdit, getInDocumentLinkTargetRange, getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers, readMarkdownEditorEdit } from '../preview/markdownEditorProvider';
+import { mergeCodeBlockEditorPresentation } from '../preview/markdownEditorProtocol';
 import { encodeWebviewInitialState } from '../preview/webviewInitialState';
 
 suite('Markdown editor links', () => {
@@ -317,11 +318,18 @@ suite('Markdown code block editor API versioning', () => {
 
 	test('reads and validates presentation preferences', () => {
 		const source = { kind: 'exportApi', apiVersion: 2 };
-		const presentation = { resizable: true, fullWidth: false, fullView: true, minHeight: 160 };
+		const presentation = { resizable: true, fullWidth: false, fullView: true, minHeight: 160, maxAutomaticHeight: 400 };
 		assert.deepStrictEqual(readCodeBlockEditorProviders(source, undefined, presentation)[0]?.presentation, presentation);
-		for (const invalid of [{ resizable: 'yes' }, { minHeight: 0 }, { minHeight: Infinity }, { minHeight: 10_001 }]) {
+		for (const invalid of [{ resizable: 'yes' }, { minHeight: 0 }, { minHeight: Infinity }, { minHeight: 10_001 }, { maxAutomaticHeight: 0 }, { maxAutomaticHeight: 10_001 }]) {
 			assert.strictEqual(readCodeBlockEditorProviders(source, undefined, invalid).length, 0);
 		}
+	});
+
+	test('resolved presentation properties override contributed ones', () => {
+		assert.deepStrictEqual(mergeCodeBlockEditorPresentation(
+			{ resizable: true, minHeight: 120, maxAutomaticHeight: 400 },
+			{ resizable: false, maxAutomaticHeight: 300 },
+		), { resizable: false, fullWidth: undefined, fullView: undefined, minHeight: 120, maxAutomaticHeight: 300 });
 	});
 });
 
