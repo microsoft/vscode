@@ -1,0 +1,1034 @@
+{
+  "runSettings": {
+    "temperature": 0.25,
+    "model": "models/antigravity-preview-09-2026",
+    "topP": 0.95,
+    "topK": 64,
+    "maxOutputTokens": 65536,
+    "enableCodeExecution": true,
+    "enableSearchAsATool": true,
+    "enableBrowseAsATool": true,
+    "googleSearch": {
+    },
+    "enableImageSearch": false,
+    "enableGoogleMaps": false,
+    "enableAgentThinkingSummariesControl": false,
+    "enableAgentVisualizationControl": false,
+    "enableAgentCollaborativePlanningControl": false,
+    "environmentMode": "existing",
+    "environmentSources": [{
+      "type": "INLINE",
+      "target": "/.agents/AGENTS.md",
+      "content": "# AGENTS.md — AI Talk Radio\n\nAn AI agent that turns **any content source** into a radio show. Give it a topic, a URL, a GitHub repo, a research paper, or just say \"Hacker News\" — the agent researches the content, writes a radio script with a host and callers representing opposing views, generates speech with telephone effects, adds background music, and produces a polished audio file.\n\n## Workspace\n\nAll work is performed in the `./workspace` directory. All paths are relative to `./workspace` unless absolute.\n\n## Before You Do Anything\n\n\u003e [!NOTE]\n\u003e The platform automatically injects the correct API key at the network level when scripts run.\n\u003e The scripts are already configured to use a dummy key to satisfy the SDK, so you do not need to set `GEMINI_API_KEY`.\n\u003e You must trust that the process will work and not worry about Gemini authentication.\n\n1. Immediately install required libraries:\n   ```bash\n   pip install -r /.agents/requirements.txt --break-system-packages\n   ```\n\n## Workflow\n\n\u003e [!IMPORTANT]\n\u003e **Bias for Action**: Do NOT ask for approval before executing commands, running scripts, or proceeding to the next step. Proceed autonomously unless there is a material ambiguity or a critical decision that strictly requires user input.\n\n\u003e [!TIP]\n\u003e **Maximize Speed \u0026 Reduce Calls**:\n\u003e - Read all necessary `SKILL.md` files (in the /.agents/skills directory) at once using a single bash command (`cat /.agents/skills/*/SKILL.md`).\n\u003e - Do not use `list_files` to verify directories, script paths, or output files—trust the documentation and the script success logs.\n\u003e - Chain sequential bash commands using `\u0026\u0026` in a single tool call (e.g., `python3 mix_audio.py \u0026\u0026 python3 generate_metadata.py`).\n\nUpon execution, you should:\n\n1. **Research** — gather source material based on the user\u0027s prompt. This could be: fetching Hacker News stories, scraping a website, reading a GitHub repo\u0027s changelog, summarizing an arXiv paper, or researching a topic via Google Search using `research` skill.\n2. **Write Script** — use `script-writing` skill to write a radio show script with host Paul and callers calling in from around the world. Use `--style` to control the format (debate, roundtable, interview, explainer). You can also pass `--context \"...\"` to include any specific tone or stylistic requests inferred from the user\u0027s prompt (e.g., \"emphasize the technical details\", \"make it sound like a late night show\"). **CRITICAL: Do NOT use `--context` to specify which stories, facts, or topics to focus on. Content selection must come naturally from the research.** Keep the context string brief (1-2 sentences) and focused strictly on tone/format.\n3. **Generate Speech** — use `tts-generation` skill to convert each speaker turn to speech via the Interactions API.\n4. **Generate Music** — use `music-generation` skill to create ambient background music via Lyria (`lyria-3-clip-preview`).\n5. **Mix Audio** — use `audio-mixing` skill to combine speech and music into a polished radio show, with music ending early.\n6. **Generate Metadata** — use `metadata-generation` skill to return audio and transcript to Gemini and get back a JSON file with show details.\n7. **Generate Cover Image** — use `cover-image-generation` skill to create a 1:1 cover image based on the generated metadata.\n\n## Architecture\n\n```\nUser prompt\n  ├── 1. RESEARCH: Agent picks the right script (fetch_hn.py, fetch_github.py, fetch_url.py, or Google Search)\n  │       → {workspace}/data/research/*.md\n  ├── 2. python3 /.agents/skills/script-writing/scripts/generate_script.py --workspace ./workspace --style \u003cstyle\u003e\n  │       → {workspace}/data/script.md\n  ├── 3. python3 /.agents/skills/tts-generation/scripts/generate_tts.py --workspace ./workspace\n  │       → {workspace}/audio/speech/speech.wav\n  ├── 4. python3 /.agents/skills/music-generation/scripts/generate_music.py --workspace ./workspace --mood \u003cmood\u003e\n  │       → {workspace}/audio/music/background.mp3\n  ├── 5. python3 /.agents/skills/audio-mixing/scripts/mix_audio.py --workspace ./workspace\n  │       → {workspace}/audio/final/ai_radio.mp3\n  ├── 6. python3 /.agents/skills/metadata-generation/scripts/generate_metadata.py --workspace ./workspace\n  │       → {workspace}/data/show_notes.json\n  └── 7. python3 /.agents/skills/cover-image-generation/scripts/generate_image.py --workspace ./workspace --metadata ./workspace/data/show_notes.json\n          → {workspace}/images/cover.png\n```\n\n### Default Presets\n\nUse these defaults unless the user specifies otherwise:\n\n| Content Source | `--style` | `--mood` | Why |\n|---------------|-----------|----------|-----|\n| Hacker News | `debate` | `tech` | HN stories spark debate; tech music fits |\n| GitHub repo | `explainer` | `tech` | Explaining what changed; tech vibe |\n| URL / article | `roundtable` | `chill` | Multi-angle discussion of the content |\n| General topic | `interview` | `chill` | Deep-dive Q\u0026A on the subject |\n\n## API Surface\n\nAll Gemini API calls use the **Interactions API** (`client.interactions.create()`), NOT `generateContent`:\n\n| Step | Model | API |\n|------|-------|-----|\n| Script writing | `gemini-3-flash-preview` | `interactions.create()` |\n| TTS generation | `gemini-3.1-flash-tts-preview` | `interactions.create()` |\n| Music generation | `lyria-3-clip-preview` | `interactions.create()` |\n\n## Skills\n\nEach skill lives in `/.agents/skills/\u003cname\u003e/` with a `SKILL.md` and a `scripts/` directory containing ready-to-run Python scripts.\n\n| Skill | Script(s) | Purpose |\n|-------|--------|---------|\n| `research` | `fetch_hn.py`, `fetch_github.py`, `fetch_url.py` | Gather content from HN, GitHub repos, URLs, or any source |\n| `script-writing` | `generate_script.py` | LLM writes the radio script (supports `--style` flag) |\n| `tts-generation` | `generate_tts.py` | Single-speaker TTS + telephone filter for callers |\n| `music-generation` | `generate_music.py` | Lyria ambient music |\n| `audio-mixing` | `mix_audio.py` | Mix speech + music with fades |\n| `metadata-generation` | `generate_metadata.py` | Generate show title, summary, and timecoded transcript |\n| `cover-image-generation` | `generate_image.py` | Generate cover image based on metadata |\n\n## Execution Order\n\nRun strictly in order:\n\n1. `research` → `data/research/*.md` (one or more files)\n2. `script-writing` → `data/script.md`\n3. `tts-generation` → `audio/speech/speech.wav`\n4. `music-generation` → `audio/music/background.mp3`\n5. `audio-mixing` → `audio/final/ai_radio.mp3`\n6. `metadata-generation` → `data/show_notes.json`\n7. `cover-image-generation` → `images/cover.png`\n\n## Content Rules\n\n- **Duration**: ~3 minutes of final audio.\n- **Format**: Radio show — host Paul + callers calling in from different cities around the world.\n- **Source**: Whatever the user asked for. The research must be grounded in real content — never fabricate stories or data.\n- **NO FAKE DATA**: All stories, insights, and perspectives must come from real research gathered in step 1.\n\n### Topics to AVOID — strictly off-limits\n\nDo NOT select, discuss, or reference any of the following:\n\n- **Politics** — no political parties, politicians, elections, legislation, government policy, political commentary\n- **International politics** — no geopolitics, wars, conflicts, sanctions, territorial disputes, diplomacy\n- **Race and ethnicity** — no racial topics, stereotypes, discrimination, identity politics\n- **Religion** — no religious debates, beliefs, practices, or commentary\n- **Historical controversies** — no colonialism, slavery, genocide, or historically divisive events\n- **Gender and sexuality debates** — no culture war topics\n- **Immigration** — no immigration policy or debate\n- **Anything potentially offensive** — when in doubt, skip it\n\n### Topics that ARE safe\n\nStick to: **technology, software, programming, open source, AI/ML, science, engineering, developer tools, startups, product launches, creative projects, and tech culture.**\n\n## File Locations\n\n| What | Path |\n|------|------|\n| Research data | `./workspace/data/research/` |\n| Radio script | `./workspace/data/script.md` |\n| Speech segments | `./workspace/audio/speech/segments/` |\n| Speech (combined) | `./workspace/audio/speech/speech.wav` |\n| Background music | `./workspace/audio/music/background.mp3` |\n| Final output | `./workspace/audio/final/ai_radio.mp3` |\n| Metadata | `./workspace/data/show_notes.json` |\n| Cover Image | `./workspace/images/cover.png` |\n\n## Edge Cases\n\n- **Rate limits**: Retry once with a brief pause, or skip the turn.\n- **Lyria availability**: Experimental model. If it fails, proceed without background music.\n- **ffmpeg missing**: Skip telephone filter, use raw TTS audio.\n- **No web access for a source**: Use Google Search as a fallback to find the content or related discussion.\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/requirements.txt",
+      "content": "pydub\ngoogle-genai\u003e\u003d2.0.1\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/audio-mixing/SKILL.md",
+      "content": "---\nname: audio-mixing\ndescription: Mix speech audio and background music into a polished radio show file.\n---\n\n# Audio Mixing\n\nCombine the TTS speech audio and Lyria background music into a single, polished radio show file.\n\n## Embedded Script\n\n```bash\npython3 skills/audio-mixing/scripts/mix_audio.py --workspace ./workspace\n```\n\n### Arguments\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n\n### What it does\n\n1. Loads speech from `{workspace}/audio/speech/speech.wav`.\n2. Adds 3 seconds of silence padding to the end of the speech to prevent it from being faded out.\n3. Loads background music from `{workspace}/audio/music/background.mp3` (if exists).\n4. Loops music to match speech duration, lowers volume to -18dB.\n5. Overlays speech on music with a 1-second music intro.\n6. Adds fade-in/fade-out.\n7. Exports as MP3.\n\n### Dependencies\n\n- `pydub`\n- `ffmpeg` (system)\n\n## Mixing Guidelines\n\n| Element | Level | Notes |\n|---------|-------|-------|\n| Speech | 0 dB | Untouched, full volume |\n| Background music | -18 dB | Barely audible — subtle bed under speech |\n\n### Transitions\n\n- Music fade-in: 3 seconds\n- Music fade-out: 5 seconds\n- Overall fade-in: 500ms\n- Overall fade-out: 2 seconds\n\n## Output\n\n| File | Path | Format |\n|------|------|--------|\n| MP3 (distribution) | `{workspace}/audio/final/ai_radio.mp3` | MP3, 192kbps |\n\n## Fallback\n\nIf no background music exists, produces speech-only output with just fade-in/fade-out applied.\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/audio-mixing/scripts/mix_audio.py",
+      "content": "#!/usr/bin/env python3\n# Copyright 2026 Google LLC\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this file except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#     https://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n\"\"\"Mix speech audio and background music into the final AI Talk Radio radio show.\n\nUsage:\n    python3 mix_audio.py --workspace ./workspace\n\nRequires:\n    pip install pydub\n    ffmpeg (system)\n\nOutput:\n    {workspace}/audio/final/ai_radio.mp3\n\"\"\"\n\nimport argparse\nimport os\nfrom pydub import AudioSegment\n\n\ndef main():\n    parser \u003d argparse.ArgumentParser(description\u003d\"Mix AI Talk Radio audio\")\n    parser.add_argument(\"--workspace\", default\u003d\"workspace\", help\u003d\"Workspace directory\")\n    args \u003d parser.parse_args()\n\n    speech_path \u003d os.path.join(args.workspace, \"audio\", \"speech\", \"speech.wav\")\n    music_path \u003d os.path.join(args.workspace, \"audio\", \"music\", \"background.mp3\")\n    output_dir \u003d os.path.join(args.workspace, \"audio\", \"final\")\n    os.makedirs(output_dir, exist_ok\u003dTrue)\n\n    print(\"\u003d\u003d\u003d AI Talk Radio: Audio Mixing \u003d\u003d\u003d\\n\")\n\n    # Load speech\n    print(\"Loading speech audio...\")\n    speech \u003d AudioSegment.from_wav(speech_path)\n    print(f\"Speech duration: {len(speech) / 1000:.1f}s\")\n\n    # Add padding to speech (3 seconds of silence)\n    print(\"Adding padding to speech...\")\n    padding \u003d AudioSegment.silent(duration\u003d3000)\n    speech \u003d speech + padding\n    print(f\"Speech duration after padding: {len(speech) / 1000:.1f}s\")\n\n    has_music \u003d os.path.exists(music_path)\n\n    if has_music:\n        print(\"Loading background music...\")\n        music \u003d AudioSegment.from_mp3(music_path)\n        speech \u003d AudioSegment.silent(duration\u003d500) + speech\n\n        # Intro music (15s)\n        intro_music \u003d music[:15000]\n        intro_music \u003d intro_music - 15\n        intro_music \u003d intro_music.fade_in(1000).fade_out(3000)\n\n        # Outro music (15s)\n        outro_music \u003d music[:15000]\n        outro_music \u003d outro_music - 15\n        outro_music \u003d outro_music.fade_in(3000).fade_out(1000)\n\n        # Overlay speech on music\n        print(\"Mixing speech + music (intro and outro)...\")\n        combined \u003d speech.overlay(intro_music, position\u003d0)\n\n        outro_position \u003d len(speech) - 15000\n        if outro_position \u003c 0:\n            outro_position \u003d 0\n        combined \u003d combined.overlay(outro_music, position\u003doutro_position)\n    else:\n        print(\"No background music — speech-only output.\")\n        combined \u003d speech\n\n    # Overall fades\n    combined \u003d combined.fade_in(500).fade_out(2000)\n\n    # Export MP3\n    try:\n        mp3_path \u003d os.path.join(output_dir, \"ai_radio.mp3\")\n        combined.export(mp3_path, format\u003d\"mp3\", bitrate\u003d\"192k\")\n        print(f\"Saved MP3: {mp3_path}\")\n    except Exception as e:\n        print(f\"MP3 export failed: {e}\")\n        mp3_path \u003d None\n\n    # Stats\n    if mp3_path and os.path.exists(mp3_path):\n        mp3_mb \u003d os.path.getsize(mp3_path) / (1024 * 1024)\n        print(f\"\\n  MP3: {mp3_mb:.1f} MB\")\n    print(f\"  Duration: {len(combined) / 1000:.1f}s\")\n    print(f\"\\n✅ AI Talk Radio mixed successfully!\")\n\n\nif __name__ \u003d\u003d \"__main__\":\n    main()\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/cover-image-generation/SKILL.md",
+      "content": "---\nname: cover-image-generation\ndescription: Generate cover images for the radio show using Gemini 3 Flash Image (with fallback to Pro).\n---\n\n# Image Generation Skill\n\nThis skill generates an appropriate cover image for the radio show based on a prompt, using the Gemini 3 Flash Image model, with a fallback to the Gemini 3 Pro Image model (\"Nano Banana Pro\") if needed.\n\n## Requirements\n\n- Python 3.10+\n- `google-genai` Python package (\u003e\u003d 2.0.1)\n## Instructions\n\n1. **Generate an image** (Recommended: use the metadata file directly):\n   ```bash\n   python3 skills/cover-image-generation/scripts/generate_image.py \\\n     --workspace ./workspace \\\n     --metadata ./workspace/data/show_notes.json\n   ```\n   *Note: Using `--metadata` will automatically extract the show title and apply a random, high-quality prompt template. This is the preferred method.*\n\n   **Alternative** (Manual prompt):\n   ```bash\n   python3 skills/cover-image-generation/scripts/generate_image.py \\\n     --workspace ./workspace \\\n     --prompt \"A prompt describing the image\"\n   ```\n\n2. **Output**:\n   - The image will be saved to `{workspace}/images/cover.png`.\n\n## Model\n\n- Primary Model: `gemini-3-flash-image-preview`\n- Fallback Model: `gemini-3-pro-image-preview`\n- Resolution: 1:1 (default)\n\n## Prompting rules\n\nWhen using the `--metadata` option, this skill uses a set of predefined prompt templates and selects one at random to generate cover images. It dynamically inserts the show title into the selected template.\n\n- **Example Prompt**: `\"A professional podcast cover image for a show titled \u0027AI Talk Radio\u0027 on the \u0027AI Talk Radio\u0027 station. The design features the text \u0027AI Talk Radio\u0027 in a bold, stylish white font centered on the cover. The background is a vibrant purple with a textured water ripple effect that covers the entire frame, creating a dynamic and clean aesthetic.\"`\n\nIf you choose to use the `--prompt` option instead, you must construct the prompt yourself. In that case, follow these rules:\n\n## Forbidden themes\n\n- Do not ask for futuristic, cyberpunk or neon themes\n- Do not include any text other than the show title\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/cover-image-generation/scripts/generate_image.py",
+      "content": "#!/usr/bin/env python3\n\"\"\"Generate cover image for AI Talk Radio using Gemini 3 Pro Image (Nano Banana Pro).\n\nUsage:\n    python3 generate_image.py --workspace ./workspace --prompt \"Futuristic radio station\"\n\nRequires:\n    pip install google-genai\n\"\"\"\n\nimport argparse\nimport base64\nimport json\nimport os\nimport sys\nimport warnings\nfrom google import genai\n\nimport random\n\n# Suppress experimental warnings from SDK\nwarnings.filterwarnings(\"ignore\", message\u003d\"Interactions usage is experimental\")\n\nBASE_PROMPT \u003d \"A professional podcast cover image for a show titled \u0027{title}\u0027 on the \u0027AI Talk Radio\u0027 station. The design features the text \u0027{title}\u0027 in a bold, stylish font\"\n\nPROMPT_STYLES \u003d [\n    \" centered on the cover. The background is a vibrant purple with a textured water ripple effect that covers the entire frame, creating a dynamic and clean aesthetic.\",\n    \". The background is a dark slate blue and charcoal gray with abstract technical blueprints and database diagrams, creating a technical and sophisticated aesthetic.\",\n    \". The background is a warm orange gradient with clean geometric shapes and subtle grain texture, creating a modern and energetic aesthetic.\",\n    \" in white. The background features abstract organic shapes in earthy tones of terracotta and sage green, with a linen texture, creating a calm and natural aesthetic.\",\n    \". The background is a clean grid pattern in light gray with colorful isometric 3D blocks scattered around, creating a playful and structural aesthetic.\",\n    \". The background is a dark moody scene with abstract light leaks and smoke effects in deep blue and crimson, creating a dramatic and mysterious aesthetic.\",\n    \". The background is a composition of flat color blocks in a Swiss design style (red, black, yellow) with bold typography and negative space, creating a clean and powerful aesthetic.\",\n    \". The background is a soft pastel gradient of pink and blue with floating abstract 3D spheres and a frosted glass overlay effect, creating a dreamlike and premium aesthetic.\",\n    \". The background features a dense pattern of stylized monstera leaves and tropical foliage in deep greens, with a subtle paper cutout texture, creating a lush and organic aesthetic.\",\n    \". The background is a minimalist dark mode design with a subtle carbon fiber texture and a single thin accent line in emerald green, creating a sleek and modern aesthetic.\",\n    \". The background is a collage of abstract black and white photography fragments and torn paper edges, creating a raw and artistic aesthetic.\",\n    \". The background is a smooth liquid gold gradient with dynamic flowing curves and a metallic sheen, creating a luxurious and elegant aesthetic.\",\n    \". The background is a vintage-inspired design with a sepia tone, subtle film grain, and abstract circular shapes overlapping, creating a nostalgic and timeless aesthetic.\"\n]\n\ndef generate_image(prompt, output_path, reference\u003dNone):\n    client \u003d genai.Client(api_key\u003dos.environ.get(\"GEMINI_API_KEY\", \"dummy-key\"))\n\n    prompt \u003d prompt + \" Image must be a 1:1 aspect ratio.\"\n\n    print(f\"Generating image with prompt: \u0027{prompt}\u0027\")\n\n    input_content \u003d [{\"type\": \"text\", \"text\": prompt}]\n    if reference and os.path.exists(reference):\n        print(f\"Uploading reference image {reference}...\")\n        ref_file \u003d client.files.upload(file\u003dreference)\n        input_content.append({\n            \"type\": \"image\",\n            \"uri\": ref_file.uri\n        })\n        print(f\"Uploaded as {ref_file.name}\")\n\n    models_to_try \u003d [\n        \"gemini-3.1-flash-image-preview\",\n        \"gemini-3-pro-image-preview\"\n    ]\n\n    for model_name in models_to_try:\n        print(f\"Trying model: {model_name}\")\n        try:\n            interaction \u003d client.interactions.create(\n                model\u003dmodel_name,\n                input\u003dinput_content,\n                response_format\u003d{\n                    \"type\": \"image\"\n                }\n            )\n\n            for step in getattr(interaction, \"steps\", []):\n                content_list \u003d getattr(step, \"content\", [])\n                for item in content_list:\n                    item_type \u003d getattr(item, \"type\", \"\")\n                    mime_type \u003d getattr(item, \"mime_type\", \"\")\n                    if item_type \u003d\u003d \"image\" or (isinstance(mime_type, str) and mime_type.startswith(\"image/\")):\n                        image_data \u003d base64.b64decode(item.data)\n                        os.makedirs(os.path.dirname(output_path), exist_ok\u003dTrue)\n                        with open(output_path, \"wb\") as f:\n                            f.write(image_data)\n                        print(f\"✅ Image saved to {output_path}\")\n                        return True\n\n            print(f\"⚠️  No image returned in response from {model_name}.\")\n\n        except Exception as e:\n            print(f\"⚠️  Image generation failed with {model_name}: {e}\")\n            if \"500\" in str(e) or \"api_error\" in str(e):\n                print(\"Falling back to next model...\")\n                continue\n            else:\n                # If it\u0027s a different error (e.g., auth), we might still want to try the fallback, \n                # but let\u0027s just continue to the next model anyway.\n                print(\"Falling back to next model...\")\n                continue\n\n    print(\"❌ All models failed to generate an image.\")\n    return False\n\ndef main():\n    parser \u003d argparse.ArgumentParser(description\u003d\"Generate cover image with Gemini\")\n    parser.add_argument(\"--workspace\", default\u003d\"workspace\", help\u003d\"Workspace directory\")\n    parser.add_argument(\"--prompt\", help\u003d\"Image prompt\")\n    parser.add_argument(\"--metadata\", help\u003d\"Path to show_notes.json metadata file\")\n    parser.add_argument(\"--output\", help\u003d\"Output image path\")\n    parser.add_argument(\"--reference\", help\u003d\"Reference image path for consistency\")\n    args \u003d parser.parse_args()\n\n    if not args.prompt and not args.metadata:\n        parser.error(\"Either --prompt or --metadata must be provided\")\n\n    prompt \u003d args.prompt\n\n    if args.metadata:\n        if not os.path.exists(args.metadata):\n            print(f\"ERROR: Metadata file not found at {args.metadata}\")\n            sys.exit(1)\n\n        with open(args.metadata, \"r\") as f:\n            metadata \u003d json.load(f)\n\n        title \u003d metadata.get(\"show_title\", \"AI Talk Radio\")\n        summary \u003d metadata.get(\"two_sentence_summary\", \"\")\n\n        print(f\"Selecting prompt template for title: \u0027{title}\u0027\")\n\n        style \u003d random.choice(PROMPT_STYLES)\n        prompt \u003d BASE_PROMPT.format(title\u003dtitle) + style\n        print(f\"Selected random style. Prompt: \u0027{prompt}\u0027\")\n\n    output_path \u003d args.output\n    if not output_path:\n        output_path \u003d os.path.join(args.workspace, \"images\", \"cover.png\")\n\n    success \u003d generate_image(prompt, output_path, reference\u003dargs.reference)\n    if not success:\n        sys.exit(1)\n\nif __name__ \u003d\u003d \"__main__\":\n    main()\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/metadata-generation/SKILL.md",
+      "content": "---\nname: metadata-generation\ndescription: Generate show metadata (JSON) containing timecoded transcript, title, duration, summary, and date by sending audio and transcript to Gemini.\n---\n\n# Metadata Generation\n\nGenerate a structured JSON file containing metadata for the radio show. This is done by sending the final mixed audio file and the original transcript back to Gemini.\n\n## Prerequisites\n\n```bash\npip install google-genai\n```\n\n## Workflow\n\n1.  **Read Inputs**: Load the transcript from `./workspace/data/script.md` and the final audio from `./workspace/audio/final/ai_radio.mp3`.\n2.  **Upload Audio**: Upload the audio file to the Gemini Files API.\n3.  **Generate Metadata**: Call Gemini (e.g., `gemini-3-flash-preview`) using the Interactions API, passing the uploaded audio file and the transcript.\n4.  **Save Output**: Save the resulting JSON to `./workspace/data/show_notes.json`.\n\n## Python Code\n\nThe skill is implemented in `scripts/generate_metadata.py`.\n\n```bash\n# Example usage\npython3 skills/metadata-generation/scripts/generate_metadata.py --workspace ./workspace\n```\n\n## Output\n\nThe skill produces a JSON file at `./workspace/data/show_notes.json` with the following structure:\n\n```json\n{\n  \"show_title\": \"...\",\n  \"show_duration\": \"...\",\n  \"two_sentence_summary\": \"...\",\n  \"date_of_generation\": \"YYYY-MM-DD\",\n  \"timecoded_transcript\": [\n    {\n      \"timecode\": \"MM:SS\",\n      \"speaker\": \"...\",\n      \"text\": \"...\"\n    },\n    ...\n  ]\n}\n```\n\n## Error Handling\n\n- If the audio file is missing, the script will fail.\n- If the transcript is missing, it will fail.\n- If the Gemini API call fails, it will report the error and exit.\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/metadata-generation/scripts/generate_metadata.py",
+      "content": "#!/usr/bin/env python3\n\"\"\"Generate show metadata (JSON) from audio and transcript using the Interactions API.\n\nUsage:\n    python3 generate_metadata.py --workspace ./workspace\n\nRequires:\n    pip install google-genai pydub\n\nOutput:\n    {workspace}/data/show_notes.json\n\"\"\"\n\nimport argparse\nimport os\nimport json\nfrom datetime import datetime\nfrom google import genai\nfrom pydub import AudioSegment\n\ndef main():\n    parser \u003d argparse.ArgumentParser(description\u003d\"Generate AI Talk Radio show metadata\")\n    parser.add_argument(\"--workspace\", default\u003d\"workspace\", help\u003d\"Workspace directory\")\n    args \u003d parser.parse_args()\n\n    client \u003d genai.Client(api_key\u003dos.environ.get(\"GEMINI_API_KEY\", \"dummy-key\"))\n\n    # Paths\n    transcript_path \u003d os.path.join(args.workspace, \"data\", \"script.md\")\n    audio_mp3 \u003d os.path.join(args.workspace, \"audio\", \"final\", \"ai_radio.mp3\")\n    audio_wav \u003d os.path.join(args.workspace, \"audio\", \"final\", \"ai_radio.wav\")\n    output_path \u003d os.path.join(args.workspace, \"data\", \"show_notes.json\")\n\n    # Check inputs\n    if not os.path.exists(transcript_path):\n        print(f\"ERROR: Transcript not found at {transcript_path}\")\n        return\n\n    audio_path \u003d None\n    if os.path.exists(audio_mp3):\n        audio_path \u003d audio_mp3\n    elif os.path.exists(audio_wav):\n        audio_path \u003d audio_wav\n\n    if not audio_path:\n        print(f\"ERROR: Audio file not found in {os.path.dirname(audio_mp3)}\")\n        return\n\n    print(\"\u003d\u003d\u003d AI Talk Radio: Metadata Generation \u003d\u003d\u003d\\n\")\n    print(f\"Transcript: {transcript_path}\")\n    print(f\"Audio: {audio_path}\")\n\n    # Read transcript\n    with open(transcript_path, \"r\") as f:\n        transcript_text \u003d f.read()\n\n    # Get duration via pydub\n    duration_str \u003d \"Unknown\"\n    try:\n        audio \u003d AudioSegment.from_file(audio_path)\n        duration_seconds \u003d len(audio) / 1000.0\n        duration_str \u003d f\"{int(duration_seconds // 60):02d}:{int(duration_seconds % 60):02d}\"\n        print(f\"Audio duration: {duration_str}\")\n    except Exception as e:\n        print(f\"Warning: Could not determine duration via pydub: {e}\")\n\n    # Upload audio to Gemini Files API\n    print(\"Uploading audio to Gemini Files API...\")\n    try:\n        uploaded_file \u003d client.files.upload(file\u003daudio_path)\n        print(f\"Uploaded file URI: {uploaded_file.uri}\")\n    except Exception as e:\n        print(f\"ERROR: Failed to upload audio: {e}\")\n        return\n\n    today_date \u003d datetime.now().strftime(\"%Y-%m-%d\")\n\n    prompt \u003d f\"\"\"You are an AI assistant analyzing a radio show production.\nYou are provided with the audio file of the show and the text transcript.\n\nBased on the audio and transcript, generate a JSON object containing the following information:\n1. `show_title`: A catchy title for this show episode (maximum of 5 words).\n2. `show_duration`: The duration of the show (use \"{duration_str}\" if accurate, or estimate from audio).\n3. `two_sentence_summary`: A two-sentence summary of the show\u0027s content.\n4. `date_of_generation`: The date this show was generated (use \"{today_date}\").\n5. `timecoded_transcript`: A list of objects, each containing:\n    - `timecode`: The approximate timecode when this line starts (in MM:SS format).\n    - `speaker`: The name of the speaker.\n    - `text`: The text spoken.\n\nThe transcript provided is:\n{transcript_text}\n\nYou MUST align the transcript with the audio to provide accurate timecodes. Callers usually have a telephone effect.\n\nReturn ONLY a valid JSON object. Do NOT wrap it in markdown code blocks. Ensure the output is parseable by json.loads.\n\"\"\"\n\n    print(\"Calling Gemini via Interactions API...\")\n    try:\n        interaction \u003d client.interactions.create(\n            model\u003d\"gemini-3-flash-preview\",\n            input\u003d[\n                {\"type\": \"text\", \"text\": prompt},\n                {\n                    \"type\": \"audio\",\n                    \"uri\": uploaded_file.uri,\n                    \"mime_type\": \"audio/mpeg\" if audio_path.endswith(\".mp3\") else \"audio/wav\"\n                }\n            ]\n        )\n\n        # Access response\n        response_text \u003d \"\"\n        if hasattr(interaction, \"steps\") and interaction.steps and interaction.steps[-1].content:\n            response_text \u003d interaction.steps[-1].content[0].text\n        else:\n             print(\"ERROR: No output received from Gemini.\")\n             return\n\n        # Clean up potential markdown wrapping if Gemini ignored the instruction\n        response_text \u003d response_text.strip()\n        if response_text.startswith(\"```json\"):\n            response_text \u003d response_text[7:]\n        if response_text.endswith(\"```\"):\n            response_text \u003d response_text[:-3]\n        response_text \u003d response_text.strip()\n\n        # Validate JSON\n        try:\n            json_data \u003d json.loads(response_text)\n\n            # Save\n            os.makedirs(os.path.dirname(output_path), exist_ok\u003dTrue)\n            with open(output_path, \"w\") as f:\n                json.dump(json_data, f, indent\u003d2)\n\n            print(f\"✅ Metadata saved to {output_path}\")\n\n        except json.JSONDecodeError as e:\n            print(f\"ERROR: Failed to parse JSON response: {e}\")\n            print(\"Raw response was:\")\n            print(response_text)\n\n    except Exception as e:\n        print(f\"ERROR: API call failed: {e}\")\n\nif __name__ \u003d\u003d \"__main__\":\n    main()\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/music-generation/SKILL.md",
+      "content": "---\nname: music-generation\ndescription: Generate ambient background music using Lyria via the Interactions API.\n---\n\n# Music Generation\n\nGenerate background music for the radio show using the Lyria model via the **Interactions API**.\n\n## Embedded Script\n\n```bash\npython3 skills/music-generation/scripts/generate_music.py --workspace ./workspace --mood tech\n```\n\n### Arguments\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n| `--mood` | `default` | Music mood (see moods below) |\n\n### Moods\n\n| Mood | Style | Pair with `--style` |\n|------|-------|---------------------|\n| `tech` (default) | Clean synths, electronic pulse, Silicon Valley startup vibe | `explainer`, `debate` |\n| `chill` | Soft pads, gentle piano, lo-fi warmth | `roundtable`, `explainer` |\n| `debate` | Building tension, brass-like synths, panel discussion opener | `debate`, `interview` |\n\n### What it does\n\n1. Selects the music prompt based on `--mood`.\n2. Calls the **Interactions API** with the `lyria-3-clip-preview` model.\n3. Generates a ~30-second music clip.\n4. Saves as MP3 to `{workspace}/audio/music/background.mp3`.\n5. Gracefully handles failures — the pipeline continues without music.\n\n### Dependencies\n\n- `google-genai` (\u003e\u003d 2.0.0)\n## Output\n\n- **File**: `{workspace}/audio/music/background.mp3`\n- **Format**: MP3\n- **Duration**: ~30 seconds\n\n## Fallback\n\nLyria is experimental. If generation fails with a policy error or returns no music, the script will attempt to retry once with a simpler fallback prompt: `\"Create a 30-second simple ambient background track. Instrumental only, calm and neutral.\"`\n\nIf the fallback attempt also fails, the pipeline proceeds without background music — the audio-mixing step handles this gracefully.\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/music-generation/scripts/generate_music.py",
+      "content": "#!/usr/bin/env python3\n# Copyright 2026 Google LLC\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this file except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#     https://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n\"\"\"Generate background music for AI Talk Radio using the Interactions API + Lyria.\n\nUsage:\n    python3 generate_music.py --workspace ./workspace\n    python3 generate_music.py --workspace ./workspace --mood chill\n\nRequires:\n    pip install google-genai\n\nOutput:\n    {workspace}/audio/music/background.mp3\n\"\"\"\n\nimport argparse\nimport base64\nimport os\nfrom google import genai\n\nMOOD_PROMPTS \u003d {\n    \"chill\": (\n        \"Create a 30-second subtle ambient track. \"\n        \"Soft pads, gentle electric piano, light warm beats. \"\n        \"Perfect as background music for a calm conversation. \"\n        \"Instrumental only, no vocals. Relaxing and non-distracting.\"\n    ),\n    \"tech\": (\n        \"Create a 30-second modern electronic radio show intro track. \"\n        \"Clean synths, subtle electronic pulse, forward-looking and innovative sound. \"\n        \"Think cutting-edge technology and innovation. \"\n        \"Instrumental only, no vocals.\"\n    ),\n    \"debate\": (\n        \"Create a 30-second dramatic discussion show intro track. \"\n        \"Building tension, confident synth brass, measured intensity. \"\n        \"Think panel discussion or current events show opener. \"\n        \"Instrumental only, no vocals. Authoritative but not aggressive.\"\n    ),\n}\n\n# Default mood\nMOOD_PROMPTS[\"default\"] \u003d MOOD_PROMPTS[\"tech\"]\n\nVALID_MOODS \u003d list(MOOD_PROMPTS.keys())\n\n\ndef main():\n    parser \u003d argparse.ArgumentParser(description\u003d\"Generate background music with Lyria\")\n    parser.add_argument(\"--workspace\", default\u003d\"workspace\", help\u003d\"Workspace directory\")\n    parser.add_argument(\n        \"--mood\",\n        default\u003d\"default\",\n        choices\u003dVALID_MOODS,\n        help\u003df\"Music mood: {\u0027, \u0027.join(VALID_MOODS)}\",\n    )\n    args \u003d parser.parse_args()\n\n    client \u003d genai.Client(api_key\u003dos.environ.get(\"GEMINI_API_KEY\", \"dummy-key\"))\n    out_dir \u003d os.path.join(args.workspace, \"audio\", \"music\")\n    os.makedirs(out_dir, exist_ok\u003dTrue)\n\n    prompt \u003d MOOD_PROMPTS[args.mood]\n\n    print(f\"\u003d\u003d\u003d AI Talk Radio: Music Generation \u003d\u003d\u003d\\n\")\n    print(f\"Mood: {args.mood}\")\n    print(\"Generating background music via Interactions API (Lyria)...\")\n\n    def generate_music(prompt_text):\n        try:\n            interaction \u003d client.interactions.create(\n                model\u003d\"lyria-3-clip-preview\",\n                input\u003dprompt_text,\n                store\u003dFalse,\n            )\n\n            for step in getattr(interaction, \"steps\", []):\n                content_list \u003d getattr(step, \"content\", [])\n                for item in content_list:\n                    item_type \u003d getattr(item, \"type\", \"\")\n                    mime_type \u003d getattr(item, \"mime_type\", \"\")\n                    if item_type \u003d\u003d \"audio\" or (isinstance(mime_type, str) and mime_type.startswith(\"audio/\")):\n                        out_path \u003d os.path.join(out_dir, \"background.mp3\")\n                        with open(out_path, \"wb\") as f:\n                            f.write(base64.b64decode(item.data))\n                        size_kb \u003d os.path.getsize(out_path) / 1024\n                        print(f\"\\n✅ Music saved to {out_path} ({size_kb:.0f} KB)\")\n                        return True\n                    elif getattr(item, \"type\", \"\") \u003d\u003d \"text\":\n                        print(f\"   Lyria note: {item.text[:200]}\")\n\n            print(\"⚠️  No audio returned from Lyria.\")\n            return False\n\n        except Exception as e:\n            print(f\"⚠️  Music generation failed: {e}\")\n            return False\n\n    success \u003d generate_music(prompt)\n\n    if not success:\n        print(\"\\n🔄 Attempting retry with simpler fallback prompt...\")\n        fallback_prompt \u003d \"Create a 30-second simple ambient background track. Instrumental only, calm and neutral.\"\n        success \u003d generate_music(fallback_prompt)\n\n    if not success:\n        print(\"\\n❌ Both attempts failed. Proceeding without background music.\")\n\n\nif __name__ \u003d\u003d \"__main__\":\n    main()\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/research/SKILL.md",
+      "content": "---\nname: research\ndescription: Gather source material for the radio show from any content source — web, HN, GitHub, papers, or general topics.\n---\n\n# Research\n\nGather source material for the radio show based on the user\u0027s prompt. The research strategy is **agent-driven** — you decide how to gather content based on what the user asks for.\n\n## Scripts\n\nAll research scripts live in `skills/research/scripts/` and output to `{workspace}/data/research/`. They use **only Python stdlib** — no dependencies.\n\n| Script | Command | Source |\n|--------|---------|--------|\n| `fetch_hn.py` | `python3 skills/research/scripts/fetch_hn.py --workspace ./workspace --top 6` | Hacker News |\n| `fetch_github.py` | `python3 skills/research/scripts/fetch_github.py --repo owner/repo --workspace ./workspace` | GitHub repos |\n| `fetch_url.py` | `python3 skills/research/scripts/fetch_url.py --url https://... --workspace ./workspace` | Any URL |\n\n## Script Details\n\n### fetch_hn.py — Hacker News (two-phase)\n\n**Phase 1: Scan** — grab top 10 story titles, scores, and comment counts (fast, no deep-diving):\n\n```bash\npython3 skills/research/scripts/fetch_hn.py --workspace ./workspace --mode scan --top 10\n```\n\nOutput: `{workspace}/data/research/hn-scan.md` — a list of stories with IDs.\n\n**You read this file, pick the 2-3 most interesting stories for radio, then run phase 2.**\n\nWhen picking stories, **SKIP** anything related to politics, race, religion, international conflicts, historical controversies, gender/culture wars, or immigration. Stick to tech, programming, AI/ML, open source, science, startups, and developer culture.\n\n**Phase 2: Deep-dive** — fetch full comment threads for the stories you picked:\n\n```bash\npython3 skills/research/scripts/fetch_hn.py --workspace ./workspace --mode deep-dive --stories 43210987,43209876\n```\n\nOutput: `{workspace}/data/research/hacker-news.md` — full stories with top comments.\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n| `--mode` | *(required)* | `scan` or `deep-dive` |\n| `--top` | `10` | Number of stories to scan (scan mode only) |\n| `--stories` | *(required for deep-dive)* | Comma-separated story IDs |\n\n### fetch_github.py — GitHub Repository\n\n```bash\npython3 skills/research/scripts/fetch_github.py --repo googleapis/python-genai --workspace ./workspace\n```\n\nAccepts `owner/repo` or a full GitHub URL (`https://github.com/owner/repo`).\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--repo` | *(required)* | GitHub repo (owner/repo or full URL) |\n| `--workspace` | `workspace` | Root workspace directory |\n| `--releases` | `5` | Number of releases to fetch |\n| `--issues` | `8` | Number of top issues to fetch |\n\nWhat it does:\n1. Fetches repo metadata (stars, description, language).\n2. Fetches and decodes the README.\n3. Fetches recent releases with changelogs.\n4. Fetches top issues by comment count, including top comments.\n5. Outputs → `{workspace}/data/research/github.md`\n\nUses the **GitHub REST API** directly — no auth needed for public repos.\n\n### fetch_url.py — Any URL\n\n```bash\npython3 skills/research/scripts/fetch_url.py --url https://example.com/blog-post --workspace ./workspace\n```\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--url` | *(required)* | URL to fetch content from |\n| `--workspace` | `workspace` | Root workspace directory |\n| `--max-chars` | `8000` | Max chars to extract |\n\nWhat it does:\n1. Fetches the HTML page.\n2. Strips scripts, styles, nav, footer.\n3. Converts HTML to markdown-like text.\n4. Extracts title and meta description.\n5. Outputs → `{workspace}/data/research/url_\u003csafe_name\u003e.md`\n\nWorks for blog posts, documentation pages, arXiv abstracts, news articles, etc.\n\n### General Topic (no script — agent-driven)\n\nIf the user provides a topic without a specific source:\n- Use **Google Search** to find recent articles, blog posts, and discussions\n- Gather multiple perspectives and opposing viewpoints\n- Write the research markdown directly to `{workspace}/data/research/`\n\n## Output\n\n- **Directory**: `{workspace}/data/research/`\n- **Format**: One or more markdown files with structured content\n- All research must be saved here regardless of source — the script-writing step reads from this directory.\n\n## What to look for\n\nWhen reviewing the research output, identify:\n- **Consensus**: What do most people agree on?\n- **Debates**: What are the key disagreements?\n- **Contrarian takes**: Any notable dissenting opinions?\n- **Expert insights**: Comments or quotes from people with domain expertise.\n- **Emotional stories**: Anything that would make compelling radio.\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/research/scripts/fetch_github.py",
+      "content": "#!/usr/bin/env python3\n# Copyright 2026 Google LLC\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this file except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#     https://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n\"\"\"Fetch GitHub repository activity for AI Talk Radio research.\n\nUsage:\n    python3 fetch_github.py --repo googleapis/python-genai --workspace ./workspace\n    python3 fetch_github.py --repo https://github.com/google/generative-ai-python --workspace ./workspace\n\nOutput:\n    {workspace}/data/research/github.md\n\"\"\"\n\nimport argparse\nimport json\nimport os\nimport re\nimport time\nimport urllib.request\nfrom datetime import datetime\n\nAPI_BASE \u003d \"https://api.github.com\"\nHEADERS \u003d {\"User-Agent\": \"AI-Radio/1.0\", \"Accept\": \"application/vnd.github.v3+json\"}\n\n\ndef fetch_json(url):\n    \"\"\"Fetch JSON from a URL with GitHub API headers.\"\"\"\n    req \u003d urllib.request.Request(url, headers\u003dHEADERS)\n    with urllib.request.urlopen(req, timeout\u003d15) as resp:\n        return json.loads(resp.read().decode())\n\n\ndef parse_repo(repo_input):\n    \"\"\"Parse \u0027owner/repo\u0027 from various input formats.\"\"\"\n    # Strip trailing slashes and .git\n    repo_input \u003d repo_input.rstrip(\"/\").removesuffix(\".git\")\n\n    # Full URL: https://github.com/owner/repo\n    match \u003d re.match(r\"https?://github\\.com/([^/]+/[^/]+)\", repo_input)\n    if match:\n        return match.group(1)\n\n    # Short form: owner/repo\n    if \"/\" in repo_input and not repo_input.startswith(\"http\"):\n        return repo_input\n\n    raise ValueError(f\"Cannot parse repo from: {repo_input}. Use \u0027owner/repo\u0027 or a GitHub URL.\")\n\n\ndef fetch_readme(owner_repo):\n    \"\"\"Fetch and decode the README.\"\"\"\n    try:\n        data \u003d fetch_json(f\"{API_BASE}/repos/{owner_repo}/readme\")\n        import base64\n        return base64.b64decode(data.get(\"content\", \"\")).decode(\"utf-8\", errors\u003d\"replace\")\n    except Exception as e:\n        print(f\"  ⚠ Could not fetch README: {e}\")\n        return None\n\n\ndef fetch_releases(owner_repo, limit\u003d5):\n    \"\"\"Fetch recent releases.\"\"\"\n    try:\n        return fetch_json(f\"{API_BASE}/repos/{owner_repo}/releases?per_page\u003d{limit}\")\n    except Exception as e:\n        print(f\"  ⚠ Could not fetch releases: {e}\")\n        return []\n\n\ndef fetch_repo_tree(owner_repo, default_branch\u003d\"main\"):\n    \"\"\"Fetch the repository directory structure.\"\"\"\n    try:\n        data \u003d fetch_json(f\"{API_BASE}/repos/{owner_repo}/git/trees/{default_branch}?recursive\u003d1\")\n        tree \u003d data.get(\"tree\", [])\n\n        # Filter out deep node_modules, .git, etc. to keep it manageable\n        paths \u003d []\n        for item in tree:\n            path \u003d item.get(\"path\", \"\")\n            if any(ignore in path for ignore in [\".git/\", \"node_modules/\", \"venv/\", \"__pycache__/\"]):\n                continue\n\n            # Only include directories and common code files to keep the list concise\n            if item.get(\"type\") \u003d\u003d \"tree\" or path.endswith((\".py\", \".js\", \".ts\", \".tsx\", \".jsx\", \".md\", \".json\", \".yml\", \".yaml\", \".html\", \".css\", \".rs\", \".go\", \".java\", \".cpp\", \".c\", \".h\", \".rb\", \".php\", \".swift\", \".kt\", \".scala\")):\n                paths.append(path)\n\n        # Sort by depth (number of slashes) to prioritize top-level files and shallow directories\n        paths.sort(key\u003dlambda p: (p.count(\"/\"), p))\n\n        return paths[:200] # Limit to 200 paths to avoid massive outputs\n    except Exception as e:\n        print(f\"  ⚠ Could not fetch repo tree: {e}\")\n        return []\n\n\ndef fetch_repo_info(owner_repo):\n    \"\"\"Fetch basic repo metadata.\"\"\"\n    try:\n        return fetch_json(f\"{API_BASE}/repos/{owner_repo}\")\n    except Exception as e:\n        print(f\"  ⚠ Could not fetch repo info: {e}\")\n        return {}\n\n\ndef main():\n    parser \u003d argparse.ArgumentParser(description\u003d\"Fetch GitHub repo activity for AI Talk Radio\")\n    parser.add_argument(\"--repo\", required\u003dTrue, help\u003d\"GitHub repo (owner/repo or full URL)\")\n    parser.add_argument(\"--workspace\", default\u003d\"workspace\", help\u003d\"Workspace directory\")\n    parser.add_argument(\"--releases\", type\u003dint, default\u003d5, help\u003d\"Number of releases to fetch\")\n    args \u003d parser.parse_args()\n\n    owner_repo \u003d parse_repo(args.repo)\n    out_dir \u003d os.path.join(args.workspace, \"data\", \"research\")\n    os.makedirs(out_dir, exist_ok\u003dTrue)\n\n    print(f\"\u003d\u003d\u003d AI Talk Radio Research: GitHub Deep Dive \u003d\u003d\u003d\")\n    print(f\"Repository: {owner_repo}\\n\")\n\n    # Repo info\n    print(\"Fetching repo info...\")\n    info \u003d fetch_repo_info(owner_repo)\n    time.sleep(0.5)\n\n    # README\n    print(\"Fetching README...\")\n    readme \u003d fetch_readme(owner_repo)\n    time.sleep(0.5)\n\n    # Releases\n    print(f\"Fetching recent releases (up to {args.releases})...\")\n    releases \u003d fetch_releases(owner_repo, args.releases)\n    time.sleep(0.5)\n\n    # Repo Tree\n    print(\"Fetching repository structure...\")\n    default_branch \u003d info.get(\"default_branch\", \"main\") if info else \"main\"\n    tree_paths \u003d fetch_repo_tree(owner_repo, default_branch)\n\n    # Build markdown\n    lines \u003d [f\"# GitHub Deep Dive: {owner_repo} — {datetime.now().strftime(\u0027%B %d, %Y\u0027)}\\n\"]\n    lines.append(\"This research focuses on understanding the repository\u0027s purpose, how it works, and its codebase structure to provide an informative and helpful overview.\\n\")\n\n    # Repo overview\n    if info:\n        lines.append(\"## Repository Overview\\n\")\n        lines.append(f\"- **Name**: {info.get(\u0027full_name\u0027, owner_repo)}\")\n        lines.append(f\"- **Description**: {info.get(\u0027description\u0027, \u0027N/A\u0027)}\")\n        lines.append(f\"- **Stars**: {info.get(\u0027stargazers_count\u0027, 0):,}\")\n        lines.append(f\"- **Forks**: {info.get(\u0027forks_count\u0027, 0):,}\")\n        lines.append(f\"- **Language**: {info.get(\u0027language\u0027, \u0027N/A\u0027)}\")\n        lines.append(f\"- **License**: {info.get(\u0027license\u0027, {}).get(\u0027name\u0027, \u0027N/A\u0027) if info.get(\u0027license\u0027) else \u0027N/A\u0027}\")\n        lines.append(f\"- **URL**: https://github.com/{owner_repo}\\n\")\n\n    # README summary (first 3000 chars to get more context)\n    if readme:\n        lines.append(\"## README (excerpt)\\n\")\n        lines.append(readme[:3000])\n        if len(readme) \u003e 3000:\n            lines.append(f\"\\n*(truncated — {len(readme)} chars total)*\")\n        lines.append(\"\")\n\n    # Releases\n    if releases:\n        lines.append(f\"## Recent Releases ({len(releases)})\\n\")\n        lines.append(\"When discussing releases in the script, be specific about *when* they happened (e.g., \u0027just last week\u0027, \u0027back in March\u0027) and mention the specific version number or tag if relevant to the features being discussed.\\n\")\n        for rel in releases:\n            tag \u003d rel.get(\"tag_name\", \"?\")\n            name \u003d rel.get(\"name\", tag)\n            date \u003d rel.get(\"published_at\", \"\")[:10]\n            body \u003d (rel.get(\"body\") or \"\")[:600]\n            lines.append(f\"### {name} ({tag}) — {date}\\n\")\n            if body:\n                lines.append(body)\n                if len(rel.get(\"body\", \"\")) \u003e 600:\n                    lines.append(\"*(truncated)*\")\n            lines.append(\"\")\n    else:\n        lines.append(\"## Releases\\n\\n*(No releases found)*\\n\")\n\n    # Repository Structure\n    if tree_paths:\n        lines.append(\"## Codebase Structure\\n\")\n        lines.append(\"Here is an overview of the key files and directories in the repository to understand how it is organized:\\n\")\n        lines.append(\"```text\")\n        for path in tree_paths:\n            lines.append(path)\n        if len(tree_paths) \u003d\u003d 200:\n            lines.append(\"... (truncated)\")\n        lines.append(\"```\\n\")\n\n    lines.append(\"---\\n\")\n\n    out_path \u003d os.path.join(out_dir, \"github.md\")\n    with open(out_path, \"w\") as f:\n        f.write(\"\\n\".join(lines))\n\n    print(f\"\\n✅ Research saved to {out_path}\")\n    print(f\"   Releases: {len(releases)} | Files indexed: {len(tree_paths)}\")\n\n\nif __name__ \u003d\u003d \"__main__\":\n    main()\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/research/scripts/fetch_hn.py",
+      "content": "#!/usr/bin/env python3\n# Copyright 2026 Google LLC\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this file except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#     https://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n\"\"\"Fetch Hacker News stories in two phases: scan, then deep-dive.\n\nPhase 1 — Scan (agent picks what\u0027s interesting):\n    python3 fetch_hn.py --workspace ./workspace --mode scan --top 10\n\nPhase 2 — Deep-dive (agent tells us which stories to expand):\n    python3 fetch_hn.py --workspace ./workspace --mode deep-dive --stories 43210987,43209876,43208765\n\nOutput:\n    scan:       {workspace}/data/research/hn-scan.md\n    deep-dive:  {workspace}/data/research/hacker-news.md\n\"\"\"\n\nimport argparse\nimport json\nimport os\nimport re\nimport time\nimport urllib.request\nfrom datetime import datetime\n\nBASE_URL \u003d \"https://hacker-news.firebaseio.com/v0\"\n\n\ndef fetch_json(url):\n    req \u003d urllib.request.Request(url, headers\u003d{\"User-Agent\": \"AI-Radio/1.0\"})\n    with urllib.request.urlopen(req, timeout\u003d10) as resp:\n        return json.loads(resp.read().decode())\n\n\ndef fetch_item(item_id):\n    return fetch_json(f\"{BASE_URL}/item/{item_id}.json\")\n\n\ndef strip_html(text):\n    for old, new in [\n        (\"\u003cp\u003e\", \"\\n\"), (\"\u003c/p\u003e\", \"\"), (\"\u003ci\u003e\", \"\"), (\"\u003c/i\u003e\", \"\"),\n        (\"\u003cb\u003e\", \"\"), (\"\u003c/b\u003e\", \"\"), (\"\u0026#x27;\", \"\u0027\"), (\"\u0026amp;\", \"\u0026\"),\n        (\"\u0026lt;\", \"\u003c\"), (\"\u0026gt;\", \"\u003e\"), (\"\u0026quot;\", \u0027\"\u0027),\n    ]:\n        text \u003d text.replace(old, new)\n    text \u003d re.sub(r\u0027\u003ca[^\u003e]*\u003e\u0027, \u0027\u0027, text)\n    text \u003d text.replace(\"\u003c/a\u003e\", \"\")\n    return text.strip()\n\n\ndef fetch_top_comments(story, max_comments\u003d12):\n    kid_ids \u003d story.get(\"kids\", [])[:max_comments]\n    comments \u003d []\n    for kid_id in kid_ids:\n        try:\n            c \u003d fetch_item(kid_id)\n            if c and c.get(\"text\") and not c.get(\"deleted\") and not c.get(\"dead\"):\n                comments.append({\n                    \"by\": c.get(\"by\", \"anon\"),\n                    \"text\": strip_html(c[\"text\"])[:500],\n                })\n            time.sleep(0.1)\n        except Exception:\n            continue\n    return comments\n\n\n# ──────────────────────────────────────────────\n# Phase 1: Scan — lightweight metadata only\n# ──────────────────────────────────────────────\n\ndef do_scan(args):\n    \"\"\"Fetch top N story titles, scores, and comment counts. No deep-diving.\"\"\"\n    out_dir \u003d os.path.join(args.workspace, \"data\", \"research\")\n    os.makedirs(out_dir, exist_ok\u003dTrue)\n\n    print(f\"\u003d\u003d\u003d AI Talk Radio Research: HN Scan (top {args.top}) \u003d\u003d\u003d\\n\")\n    print(\"Fetching story metadata (no comments)...\")\n\n    top_ids \u003d fetch_json(f\"{BASE_URL}/topstories.json\")[:args.top]\n\n    stories \u003d []\n    for sid in top_ids:\n        try:\n            s \u003d fetch_item(sid)\n            if s and s.get(\"title\"):\n                stories.append(s)\n            time.sleep(0.1)\n        except Exception:\n            continue\n\n    # Build scan output\n    lines \u003d [f\"# Hacker News — Top {len(stories)} Stories ({datetime.now().strftime(\u0027%B %d, %Y\u0027)})\"]\n    lines.append(\"\")\n    lines.append(\"Pick the 2-3 stories that would make the best radio discussion, then run:\")\n    lines.append(\"```\")\n    lines.append(\"python3 skills/research/scripts/fetch_hn.py --workspace ./workspace --mode deep-dive --stories \u003cid1\u003e,\u003cid2\u003e,\u003cid3\u003e\")\n    lines.append(\"```\")\n    lines.append(\"\")\n\n    for idx, s in enumerate(stories, 1):\n        sid \u003d s[\"id\"]\n        title \u003d s.get(\"title\", \"Untitled\")\n        url \u003d s.get(\"url\", \"\")\n        score \u003d s.get(\"score\", 0)\n        comments \u003d s.get(\"descendants\", 0)\n        by \u003d s.get(\"by\", \"unknown\")\n\n        lines.append(f\"### {idx}. {title}\")\n        lines.append(f\"- **ID**: `{sid}`\")\n        lines.append(f\"- **Score**: {score} points | **Comments**: {comments}\")\n        lines.append(f\"- **By**: {by}\")\n        if url:\n            lines.append(f\"- **URL**: {url}\")\n        lines.append(\"\")\n\n        print(f\"  {idx}. [{score}pts, {comments}c] {title}\")\n\n    out_path \u003d os.path.join(out_dir, \"hn-scan.md\")\n    with open(out_path, \"w\") as f:\n        f.write(\"\\n\".join(lines))\n\n    print(f\"\\n✅ Scan saved to {out_path}\")\n    print(f\"   {len(stories)} stories — now pick the interesting ones and run deep-dive.\")\n\n\n# ──────────────────────────────────────────────\n# Phase 2: Deep-dive — full comments for selected stories\n# ──────────────────────────────────────────────\n\ndef do_deep_dive(args):\n    \"\"\"Fetch full comment threads for specific story IDs.\"\"\"\n    out_dir \u003d os.path.join(args.workspace, \"data\", \"research\")\n    os.makedirs(out_dir, exist_ok\u003dTrue)\n\n    story_ids \u003d [int(sid.strip()) for sid in args.stories.split(\",\") if sid.strip()]\n    print(f\"\u003d\u003d\u003d AI Talk Radio Research: HN Deep Dive ({len(story_ids)} stories) \u003d\u003d\u003d\\n\")\n\n    lines \u003d [f\"# Hacker News Deep Dive — {datetime.now().strftime(\u0027%B %d, %Y\u0027)}\\n\"]\n\n    for idx, sid in enumerate(story_ids, 1):\n        try:\n            story \u003d fetch_item(sid)\n        except Exception as e:\n            print(f\"  ✗ Failed to fetch story {sid}: {e}\")\n            continue\n\n        title \u003d story.get(\"title\", \"Untitled\")\n        url \u003d story.get(\"url\", f\"https://news.ycombinator.com/item?id\u003d{sid}\")\n        hn_url \u003d f\"https://news.ycombinator.com/item?id\u003d{sid}\"\n        points \u003d story.get(\"score\", 0)\n        comment_count \u003d story.get(\"descendants\", 0)\n\n        print(f\"--- Story {idx}: {title} ---\")\n        comments \u003d fetch_top_comments(story)\n        print(f\"    Got {len(comments)} top-level comments.\\n\")\n\n        lines.append(f\"## {idx}. {title}\")\n        lines.append(f\"- **URL**: {url}\")\n        lines.append(f\"- **HN Thread**: {hn_url}\")\n        lines.append(f\"- **Points**: {points} | **Comments**: {comment_count}\\n\")\n\n        if comments:\n            lines.append(\"### The Discussion\\n\")\n            for c in comments[:8]:\n                lines.append(f\"**{c[\u0027by\u0027]}**: {c[\u0027text\u0027]}\\n\")\n        else:\n            lines.append(\"*(No comments yet)*\\n\")\n        lines.append(\"---\\n\")\n\n    out_path \u003d os.path.join(out_dir, \"hacker-news.md\")\n    with open(out_path, \"w\") as f:\n        f.write(\"\\n\".join(lines))\n\n    print(f\"\\n✅ Deep dive saved to {out_path}\")\n    print(f\"   {len(story_ids)} stories with full comment analysis\")\n\n\ndef main():\n    parser \u003d argparse.ArgumentParser(description\u003d\"Fetch HN stories for AI Talk Radio\")\n    parser.add_argument(\"--workspace\", default\u003d\"workspace\", help\u003d\"Workspace directory\")\n    parser.add_argument(\n        \"--mode\",\n        choices\u003d[\"scan\", \"deep-dive\"],\n        required\u003dTrue,\n        help\u003d\"scan \u003d grab titles/metadata; deep-dive \u003d fetch comments for selected stories\",\n    )\n    parser.add_argument(\"--top\", type\u003dint, default\u003d10, help\u003d\"Number of stories to scan (scan mode)\")\n    parser.add_argument(\"--stories\", help\u003d\"Comma-separated story IDs to deep-dive (deep-dive mode)\")\n    args \u003d parser.parse_args()\n\n    if args.mode \u003d\u003d \"scan\":\n        do_scan(args)\n    elif args.mode \u003d\u003d \"deep-dive\":\n        if not args.stories:\n            print(\"ERROR: --stories is required for deep-dive mode\")\n            print(\"Usage: python3 fetch_hn.py --mode deep-dive --stories 12345,67890\")\n            return\n        do_deep_dive(args)\n\n\nif __name__ \u003d\u003d \"__main__\":\n    main()\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/research/scripts/fetch_url.py",
+      "content": "#!/usr/bin/env python3\n# Copyright 2026 Google LLC\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this file except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#     https://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n\"\"\"Fetch and extract content from any URL for AI Talk Radio research.\n\nUsage:\n    python3 fetch_url.py --url https://example.com/blog-post --workspace ./workspace\n    python3 fetch_url.py --url https://arxiv.org/abs/2401.12345 --workspace ./workspace\n\nOutput:\n    {workspace}/data/research/url_content.md\n\"\"\"\n\nimport argparse\nimport os\nimport re\nimport urllib.request\nfrom datetime import datetime\n\n\ndef fetch_page(url):\n    \"\"\"Fetch raw HTML/text from a URL.\"\"\"\n    req \u003d urllib.request.Request(url, headers\u003d{\n        \"User-Agent\": \"AI-Radio/1.0 (Content Research)\",\n        \"Accept\": \"text/html,application/xhtml+xml,text/plain,*/*\",\n    })\n    with urllib.request.urlopen(req, timeout\u003d20) as resp:\n        return resp.read().decode(\"utf-8\", errors\u003d\"replace\")\n\n\ndef strip_html(html):\n    \"\"\"Basic HTML to text conversion using stdlib only.\"\"\"\n    # Remove script and style blocks\n    text \u003d re.sub(r\u0027\u003cscript[^\u003e]*\u003e.*?\u003c/script\u003e\u0027, \u0027\u0027, html, flags\u003dre.DOTALL | re.IGNORECASE)\n    text \u003d re.sub(r\u0027\u003cstyle[^\u003e]*\u003e.*?\u003c/style\u003e\u0027, \u0027\u0027, text, flags\u003dre.DOTALL | re.IGNORECASE)\n    text \u003d re.sub(r\u0027\u003cnav[^\u003e]*\u003e.*?\u003c/nav\u003e\u0027, \u0027\u0027, text, flags\u003dre.DOTALL | re.IGNORECASE)\n    text \u003d re.sub(r\u0027\u003cfooter[^\u003e]*\u003e.*?\u003c/footer\u003e\u0027, \u0027\u0027, text, flags\u003dre.DOTALL | re.IGNORECASE)\n    text \u003d re.sub(r\u0027\u003cheader[^\u003e]*\u003e.*?\u003c/header\u003e\u0027, \u0027\u0027, text, flags\u003dre.DOTALL | re.IGNORECASE)\n\n    # Convert common elements to markdown\n    text \u003d re.sub(r\u0027\u003ch1[^\u003e]*\u003e(.*?)\u003c/h1\u003e\u0027, r\u0027\\n# \\1\\n\u0027, text, flags\u003dre.IGNORECASE)\n    text \u003d re.sub(r\u0027\u003ch2[^\u003e]*\u003e(.*?)\u003c/h2\u003e\u0027, r\u0027\\n## \\1\\n\u0027, text, flags\u003dre.IGNORECASE)\n    text \u003d re.sub(r\u0027\u003ch3[^\u003e]*\u003e(.*?)\u003c/h3\u003e\u0027, r\u0027\\n### \\1\\n\u0027, text, flags\u003dre.IGNORECASE)\n    text \u003d re.sub(r\u0027\u003cli[^\u003e]*\u003e(.*?)\u003c/li\u003e\u0027, r\u0027- \\1\u0027, text, flags\u003dre.IGNORECASE)\n    text \u003d re.sub(r\u0027\u003cbr\\s*/?\u003e\u0027, \u0027\\n\u0027, text, flags\u003dre.IGNORECASE)\n    text \u003d re.sub(r\u0027\u003cp[^\u003e]*\u003e\u0027, \u0027\\n\u0027, text, flags\u003dre.IGNORECASE)\n    text \u003d re.sub(r\u0027\u003c/p\u003e\u0027, \u0027\\n\u0027, text, flags\u003dre.IGNORECASE)\n\n    # Strip remaining tags\n    text \u003d re.sub(r\u0027\u003c[^\u003e]+\u003e\u0027, \u0027\u0027, text)\n\n    # Decode HTML entities\n    for old, new in [\n        (\u0027\u0026amp;\u0027, \u0027\u0026\u0027), (\u0027\u0026lt;\u0027, \u0027\u003c\u0027), (\u0027\u0026gt;\u0027, \u0027\u003e\u0027),\n        (\u0027\u0026quot;\u0027, \u0027\"\u0027), (\u0027\u0026#39;\u0027, \"\u0027\"), (\u0027\u0026nbsp;\u0027, \u0027 \u0027),\n        (\u0027\u0026#x27;\u0027, \"\u0027\"), (\u0027\u0026mdash;\u0027, \u0027—\u0027), (\u0027\u0026ndash;\u0027, \u0027–\u0027),\n    ]:\n        text \u003d text.replace(old, new)\n\n    # Clean up whitespace\n    text \u003d re.sub(r\u0027\\n{3,}\u0027, \u0027\\n\\n\u0027, text)\n    text \u003d re.sub(r\u0027[ \\t]+\u0027, \u0027 \u0027, text)\n\n    return text.strip()\n\n\ndef extract_title(html):\n    \"\"\"Extract page title from HTML.\"\"\"\n    match \u003d re.search(r\u0027\u003ctitle[^\u003e]*\u003e(.*?)\u003c/title\u003e\u0027, html, re.IGNORECASE | re.DOTALL)\n    if match:\n        title \u003d match.group(1).strip()\n        title \u003d re.sub(r\u0027\u003c[^\u003e]+\u003e\u0027, \u0027\u0027, title)\n        return title\n    return None\n\n\ndef extract_meta_description(html):\n    \"\"\"Extract meta description.\"\"\"\n    match \u003d re.search(\n        r\u0027\u003cmeta[^\u003e]*name\u003d[\"\\\u0027]description[\"\\\u0027][^\u003e]*content\u003d[\"\\\u0027](.*?)[\"\\\u0027]\u0027,\n        html, re.IGNORECASE\n    )\n    if match:\n        return match.group(1).strip()\n    return None\n\n\ndef main():\n    parser \u003d argparse.ArgumentParser(description\u003d\"Fetch URL content for AI Talk Radio\")\n    parser.add_argument(\"--url\", required\u003dTrue, help\u003d\"URL to fetch content from\")\n    parser.add_argument(\"--workspace\", default\u003d\"workspace\", help\u003d\"Workspace directory\")\n    parser.add_argument(\"--max-chars\", type\u003dint, default\u003d8000, help\u003d\"Max chars to extract\")\n    args \u003d parser.parse_args()\n\n    out_dir \u003d os.path.join(args.workspace, \"data\", \"research\")\n    os.makedirs(out_dir, exist_ok\u003dTrue)\n\n    print(f\"\u003d\u003d\u003d AI Talk Radio Research: URL Content \u003d\u003d\u003d\")\n    print(f\"URL: {args.url}\\n\")\n\n    print(\"Fetching page...\")\n    html \u003d fetch_page(args.url)\n    print(f\"  Got {len(html)} bytes of HTML\")\n\n    # Extract metadata\n    title \u003d extract_title(html) or args.url\n    description \u003d extract_meta_description(html)\n\n    # Convert to text\n    print(\"Extracting text content...\")\n    text \u003d strip_html(html)\n\n    # Truncate if too long\n    if len(text) \u003e args.max_chars:\n        text \u003d text[:args.max_chars]\n        text +\u003d f\"\\n\\n*(content truncated at {args.max_chars} characters)*\"\n\n    print(f\"  Extracted {len(text)} chars of text\")\n\n    # Build markdown\n    lines \u003d [f\"# URL Content: {title} — {datetime.now().strftime(\u0027%B %d, %Y\u0027)}\\n\"]\n    lines.append(f\"- **Source URL**: {args.url}\")\n    if description:\n        lines.append(f\"- **Description**: {description}\")\n    lines.append(\"\")\n    lines.append(\"## Content\\n\")\n    lines.append(text)\n    lines.append(\"\\n---\\n\")\n\n    # Generate a safe filename from the URL\n    safe_name \u003d re.sub(r\u0027[^a-zA-Z0-9]\u0027, \u0027_\u0027, args.url)[:60]\n    out_path \u003d os.path.join(out_dir, f\"url_{safe_name}.md\")\n    with open(out_path, \"w\") as f:\n        f.write(\"\\n\".join(lines))\n\n    print(f\"\\n✅ Research saved to {out_path}\")\n    print(f\"   Title: {title}\")\n    print(f\"   Content length: {len(text)} chars\")\n\n\nif __name__ \u003d\u003d \"__main__\":\n    main()\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/script-writing/SKILL.md",
+      "content": "---\nname: script-writing\ndescription: Generate the AI Talk Radio show script from research using the Interactions API.\n---\n\n# Script Writing\n\nGenerate a naturalistic, multi-character radio show script directly via the LLM. The script features host Paul taking calls from people around the world, with advanced audio tags.\n\n## Embedded Script\n\n```bash\npython3 skills/script-writing/scripts/generate_script.py --workspace ./workspace --style debate\n```\n\n### Arguments\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n| `--style` | `default` | Show format (see styles below) |\n| `--context` | `\"\"` | Additional tone/style notes inferred from user prompts (e.g., \"emphasize the technical details\", \"make it sound like a late night show\"). Applies to ALL styles. Keep brief. Do NOT use to specify stories/topics. |\n\n### Styles\n\n| Style | Callers | Format | Use when user says... |\n|-------|---------|--------|----------------------|\n| `debate` | 2 per topic, opposing views | Structured back-and-forth, Paul moderates | \"opposing views\", \"debate\", \"both sides\" |\n| `roundtable` | 3-4, different angles | Collaborative discussion, callers build on each other | \"roundtable\", \"panel\", \"discussion\" |\n| `interview` | 1-2 with direct experience | Q\u0026A format, Paul asks probing questions | \"interview\", \"deep dive\", \"expert\" |\n| `explainer` | 2-3, each explains an aspect | Teach the audience, Paul asks clarifying questions | \"explain\", \"break it down\", \"what is\" |\n| `default` | Same as `debate` | Default when no style specified | *(anything else)* |\n\n### Examples\n\n```bash\n# HN discussion with opposing views, applying context\npython3 skills/script-writing/scripts/generate_script.py \\\n  --workspace ./workspace --style debate --context \"make it sound like a late night show\"\n\n# Panel discussion about a GitHub repo with context notes\npython3 skills/script-writing/scripts/generate_script.py \\\n  --workspace ./workspace --style roundtable --context \"emphasize the performance improvements\"\n\n# Interview with an expert about a paper\npython3 skills/script-writing/scripts/generate_script.py \\\n  --workspace ./workspace --style interview\n\n# Explain a new technology\npython3 skills/script-writing/scripts/generate_script.py \\\n  --workspace ./workspace --style explainer\n```\n\n### What it does\n\n1. Reads all research from `{workspace}/data/research/*.md`.\n2. Builds a system prompt with the base format rules + style-specific caller/structure instructions.\n3. Calls Gemini via the **Interactions API** (`client.interactions.create()`).\n4. Saves the script to `{workspace}/data/script.md`.\n\n### Dependencies\n\n- `google-genai` (\u003e\u003d 2.0.0)\n\n## Output\n\n- **Script File**: `{workspace}/data/script.md`\n- **Format**: Plain text, each line starting with `Speaker: dialogue`\n\n## Cast\n\n| Speaker | Role | Personality |\n|---------|------|-------------|\n| **Paul** | Host | Professional but relatable British moderator |\n| **Callers** | Call-ins | Amateur, rough, natural — from various cities around the world |\n\n## Script Format Rules\n\n- Every line: `SpeakerName: [audio tag] Dialogue text`\n- Must include audio tags in square brackets (e.g., `[sighs]`, `[excitedly]`).\n- Callers should sound amateurish (include \"uh\", \"like\", natural pauses).\n- Short punchy sentences — spoken word, not prose.\n- ~450-500 words total (~3 minutes when spoken).\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/script-writing/scripts/generate_script.py",
+      "content": "#!/usr/bin/env python3\n# Copyright 2026 Google LLC\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this file except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#     https://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n\"\"\"Generate the AI Talk Radio radio show script from research using the Interactions API.\n\nUsage:\n    python3 generate_script.py --workspace ./workspace\n    python3 generate_script.py --workspace ./workspace --style debate\n    python3 generate_script.py --workspace ./workspace --style interview\n\nRequires:\n    pip install google-genai\n\nOutput:\n    {workspace}/data/script.md\n\"\"\"\n\nimport argparse\nimport os\nfrom google import genai\n\nBASE_PROMPT \u003d \"\"\"You are a scriptwriter for \"AI Talk Radio\", a community radio show for a nerdy, tech-savvy audience.\n\nWrite a ~3-minute radio script based on the research provided. The show has:\n\n**Host**: Paul (in the studio) — a calm, measured British moderator broadcasting from a London studio. Professional, intellectual, and polite.\n\n**Format rules:**\n- Every line MUST start with a speaker name and colon: `Paul:` or `[CallerName]:`\n- You MUST include a gender tag `[Male]` or `[Female]` at the beginning of the transcript for every caller turn.\n- You MUST include an **accent tag** `[Accent: \u003caccent_description\u003e]` matching the location the caller is supposedly calling from (e.g., `[Accent: Irish]` if calling from Dublin, `[Accent: Southern US]` if from Texas, `[Accent: Australian]` from Sydney, etc.).\n- Example: `Caller1: [Male] [Accent: Irish] [hesitantly] I think...`\n- You MUST include **audio tags** in square brackets to indicate how a line should be delivered.\n- Use tags like `[sighs]`, `[frustratedly]`, `[calmly]`, `[whispers]`, `[indignantly]` to make performances rich.\n- **CRITICAL**: The callers are amateurs. They should sound rough, imperfect, and natural. They should NOT speak in perfect, complete sentences. They should cut themselves off, use fillers like \"uh\", \"like\", \"you know\".\n- **Tone**: Callers are smart, tech-savvy individuals (nerds), not experts but informed. Their speech is imperfect because it is spontaneous, not because they lack intelligence.\n- **Host Introduction**: Host Paul MUST always introduce a new caller by name and location before they speak for the first time.\n- No stage directions outside of the audio tags in the transcript.\n- Keep sentences short and punchy — this is spoken word.\n- Target ~450-500 words total.\n- DO NOT fabricate any facts. Only use information from the research provided.\n- Time of Day: Do NOT assume the time of day (avoid \"Good morning\", \"Good evening\", etc.).\n- No Songs: The radio show does NOT play songs. Do not include lines about playing music tracks or songs.\n- No Ad Breaks: Do NOT include ad breaks or say \"stay tuned\" for more.\n- Clean Wrap Up: Do a clean wrap up at the end of the show without promising future segments.\n- The research may come from any source (news, blogs, GitHub, papers, forums). Adapt your script to fit whatever content is provided.\n\n**CONTENT SAFETY — strictly off-limits:**\n- Do NOT use any profanity, cuss words, or explicit language.\n- Do NOT discuss politics, political parties, politicians, elections, legislation, or government policy.\n- Do NOT discuss international politics, geopolitics, wars, conflicts, sanctions, or diplomacy.\n- Do NOT discuss race, ethnicity, racial issues, stereotypes, or discrimination.\n- Do NOT discuss religion, religious beliefs or practices.\n- Do NOT discuss historical controversies (colonialism, slavery, genocide, etc.).\n- Do NOT discuss gender/sexuality culture wars or immigration policy.\n- If a research topic touches any of the above, skip it or focus only on the technical aspects.\n- Keep the tone light, nerdy, and strictly focused on technology, software, science, and engineering.\"\"\"\n\nSTYLE_PROMPTS \u003d {\n    \"debate\": \"\"\"\n**Style: DEBATE**\n\n**Callers**: For each topic, generate TWO callers representing opposing views. They should disagree respectfully but firmly.\n\n**Structure:**\n1. Cold Open (10 sec): Paul teases the most controversial take.\n2. Intro (15 sec): Paul welcomes listeners, sets up the debate format.\n3. Debate Segments (2.5 min): Paul introduces a topic, takes calls from two sides. Callers argue their positions, Paul moderates.\n4. Closing (15 sec): Paul summarizes both sides, thanks callers.\"\"\",\n\n    \"roundtable\": \"\"\"\n**Style: ROUNDTABLE**\n\n**Callers**: 3-4 callers each bringing a different angle on the topic. Collaborative, building on each other\u0027s points rather than arguing.\n\n**Structure:**\n1. Cold Open (10 sec): Paul previews the topic.\n2. Intro (15 sec): Paul welcomes the panel and introduces each caller.\n3. Discussion (2.5 min): Open conversation — callers riff on each other\u0027s points, Paul guides the flow.\n4. Closing (15 sec): Paul ties the threads together.\"\"\",\n\n    \"interview\": \"\"\"\n**Style: INTERVIEW**\n\n**Callers**: 1-2 callers presented as people with direct experience or deep knowledge. Paul asks probing questions — this is more Q\u0026A than conversation.\n\n**Structure:**\n1. Cold Open (10 sec): Paul teases what the guest will reveal.\n2. Intro (15 sec): Paul introduces the guest(s) and their background.\n3. Interview (2.5 min): Paul asks questions, guest(s) answer in depth. Follow-up questions encouraged.\n4. Closing (15 sec): Paul thanks the guest(s) and summarizes key takeaways.\"\"\",\n\n    \"explainer\": \"\"\"\n**Style: EXPLAINER**\n\n**Callers**: 2-3 callers who each explain a different aspect of the topic. Think of it as a collaborative \"teach the audience\" format.\n\n**Structure:**\n1. Cold Open (10 sec): Paul poses a question the audience might be wondering.\n2. Intro (15 sec): Paul sets up the topic and says we have people who can break it down.\n3. Explainer Segments (2.5 min): Each caller explains their piece. Paul asks clarifying questions on behalf of the audience.\n4. Closing (15 sec): Paul recaps the key points.\"\"\",\n}\n\n# Default style when none specified\nSTYLE_PROMPTS[\"default\"] \u003d STYLE_PROMPTS[\"debate\"]\n\nVALID_STYLES \u003d list(STYLE_PROMPTS.keys())\n\n\ndef main():\n    parser \u003d argparse.ArgumentParser(description\u003d\"Generate AI Talk Radio radio script\")\n    parser.add_argument(\"--workspace\", default\u003d\"workspace\", help\u003d\"Workspace directory\")\n    parser.add_argument(\n        \"--style\",\n        default\u003d\"default\",\n        choices\u003dVALID_STYLES,\n        help\u003df\"Show format: {\u0027, \u0027.join(VALID_STYLES)}\",\n    )\n    parser.add_argument(\n        \"--duration\",\n        type\u003dint,\n        default\u003d3,\n        help\u003d\"Target duration in minutes\",\n    )\n    parser.add_argument(\n        \"--context\",\n        default\u003d\"\",\n        help\u003d\"Additional tone/style notes inferred from the user prompt (e.g. \u0027emphasize the technical details\u0027). Do not use for content selection.\",\n    )\n    args \u003d parser.parse_args()\n\n    client \u003d genai.Client(api_key\u003dos.environ.get(\"GEMINI_API_KEY\", \"dummy-key\"))\n\n    # Read research\n    research_dir \u003d os.path.join(args.workspace, \"data\", \"research\")\n    research \u003d \"\"\n    for fname in sorted(os.listdir(research_dir)):\n        if fname.endswith(\".md\"):\n            with open(os.path.join(research_dir, fname)) as f:\n                research +\u003d f.read() + \"\\n\\n\"\n\n    if not research.strip():\n        print(\"ERROR: No research found in data/research/. Run the research step first.\")\n        return\n\n    # Build system prompt \u003d base + style\n    target_words \u003d args.duration * 125\n    modified_base_prompt \u003d BASE_PROMPT.replace(\n        \"Write a ~3-minute radio script\",\n        f\"Write a ~{args.duration}-minute radio script\"\n    ).replace(\n        \"- Target ~450-500 words total.\",\n        f\"- Target ~{target_words} words total.\"\n    )\n\n    # Make style prompt durations dynamic\n    main_seg_min \u003d (args.duration * 60 - 40) / 60\n    main_seg_str \u003d f\"{main_seg_min:.1f} min\"\n    style_prompt \u003d STYLE_PROMPTS[args.style].replace(\"2.5 min\", main_seg_str)\n\n    system_prompt \u003d modified_base_prompt + style_prompt\n\n    # Conditionally add Hacker News credit if it\u0027s in the research\n    if \"Hacker News\" in research:\n        system_prompt +\u003d \"\\n\\n**CRITICAL INSTRUCTION**: The research provided comes from Hacker News. The host MUST explicitly mention and give credit to Hacker News during the show.\"\n\n    if args.context:\n        system_prompt +\u003d f\"\\n\\n**ADDITIONAL CONTEXT FROM USER**: {args.context}\\n(Note: Incorporate this context naturally. Maintain the show\u0027s grounded, conversational tone. Apply this context ONLY to the tone and style of the conversation; do NOT use it to limit or dictate which specific stories or facts from the research are discussed.)\"\n\n    print(f\"\u003d\u003d\u003d AI Talk Radio: Script Generation \u003d\u003d\u003d\\n\")\n    print(f\"Style: {args.style}\")\n    print(f\"Read {len(research)} characters of research.\")\n    print(\"Generating script via Interactions API...\\n\")\n\n    interaction \u003d client.interactions.create(\n        model\u003d\"gemini-3-flash-preview\",\n        input\u003df\"Write the radio script based on this research:\\n\\n{research}\",\n        system_instruction\u003dsystem_prompt,\n    )\n\n    script \u003d interaction.steps[-1].content[0].text\n\n    # Save\n    out_path \u003d os.path.join(args.workspace, \"data\", \"script.md\")\n    with open(out_path, \"w\") as f:\n        f.write(script)\n\n    word_count \u003d len(script.split())\n    print(f\"✅ Script saved to {out_path}\")\n    print(f\"   Word count: {word_count}\")\n    print(f\"\\n--- Preview ---\\n\")\n    print(script[:800])\n    if len(script) \u003e 800:\n        print(f\"\\n... ({len(script) - 800} more characters)\")\n\n\nif __name__ \u003d\u003d \"__main__\":\n    main()\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/tts-generation/SKILL.md",
+      "content": "---\nname: tts-generation\ndescription: Convert radio show script to speech audio with telephone effect on correspondent voices using the Interactions API.\n---\n\n# TTS Generation\n\nConvert the radio show script into speech audio using the Gemini TTS model via the **Interactions API**. Apply a telephone bandpass filter to correspondent voices so they sound like phone call-ins, while keeping the host\u0027s voice clean studio-quality.\n\n## Embedded Script\n\n```bash\npython3 skills/tts-generation/scripts/generate_tts.py --workspace ./workspace\n```\n\n### Arguments\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n| `--workers` | `8` | Max parallel TTS worker threads |\n\n### What it does\n\n1. Reads the script from `{workspace}/data/script.md`.\n2. Parses it into individual `(speaker, text)` turns and assigns voices.\n3. Generates TTS for all turns **in parallel** using a thread pool (default 8 workers).\n4. **Retries** each failed turn up to 3 times with exponential backoff.\n5. Applies an ffmpeg telephone bandpass filter (300Hz–3.4kHz) to correspondent voices.\n6. Keeps the host (Paul) audio clean and unfiltered.\n7. Concatenates all segments in original script order into a single WAV.\n\n### Dependencies\n\n- `google-genai` (\u003e\u003d 2.0.0)\n- `ffmpeg` (system)\n## API Details\n\nUses the **Interactions API** with single-speaker TTS — no multi-speaker workaround needed.\n\n## Voice Assignment\n\nVoices are assigned **dynamically** based on `[Male]` / `[Female]` gender tags in the script:\n\n| Speaker | Voice | Audio Treatment |\n|---------|-------|-----------------|\n| **Paul** (host) | `Puck` | **Clean** — no filter |\n| Caller `[Female]` — 1st | `Kore` | **Telephone filter** |\n| Caller `[Female]` — 2nd | `Aoede` | **Telephone filter** |\n| Caller `[Male]` — 1st | `Charon` | **Telephone filter** |\n| Caller `[Male]` — 2nd | `Fenrir` | **Telephone filter** |\n\nVoices cycle round-robin if there are more callers than available voices. Accent tags (`[Accent: Irish]`, etc.) are injected into the TTS prompt to influence pronunciation.\n\n## Telephone Filter\n\nApplied via ffmpeg to correspondent audio segments:\n\n```\nhighpass\u003df\u003d300, lowpass\u003df\u003d3400, acompressor, volume\u003d1.5\n```\n\nThis simulates the standard telephone bandwidth (300Hz–3.4kHz) and adds compression to mimic phone codec dynamics.\n\n## Output\n\n- **Primary output**: `{workspace}/audio/speech/speech.wav`\n- **Format**: WAV, 24kHz, 16-bit PCM, mono\n- **Intermediate segments**: `{workspace}/audio/speech/segments/turn_*.wav`\n"
+    }, {
+      "type": "INLINE",
+      "target": "/.agents/skills/tts-generation/scripts/generate_tts.py",
+      "content": "#!/usr/bin/env python3\n# Copyright 2026 Google LLC\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this file except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#     https://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n\"\"\"Generate TTS audio with telephone effect on correspondent voices using the Interactions API.\n\nUsage:\n    python3 generate_tts.py --workspace ./workspace\n\nRequires:\n    pip install google-genai\n    ffmpeg (system)\n\nOutput:\n    {workspace}/audio/speech/speech.wav\n\"\"\"\n\nimport argparse\nimport base64\nimport os\nimport re\nimport subprocess\nimport time\nimport wave\nimport warnings\nfrom concurrent.futures import ThreadPoolExecutor, as_completed\nfrom google import genai\n\n# Suppress experimental warnings from SDK\nwarnings.filterwarnings(\"ignore\", message\u003d\"Interactions usage is experimental\")\n\n# Voice mapping — each speaker gets a unique Gemini TTS voice\nVOICE_MAP \u003d {\n    \"Paul\": \"Puck\",     # Host — studio quality male voice\n}\n\nFEMALE_VOICES \u003d [\"Kore\"]\nMALE_VOICES \u003d [\"Charon\", \"Fenrir\", \"Puck\"]\n\nMAX_RETRIES \u003d 3\nMAX_WORKERS \u003d 8\n\nPROFILES \u003d {\n    \"Paul\": {\n        \"profile\": \"# AUDIO PROFILE: Paul\\n## Role: Community Radio Host\\n## Persona: Professional, warm, and engaging British radio host.\",\n        \"scene\": \"## THE SCENE: The London Studio\\nA professional studio in London. Paul is sitting comfortably, speaking into a high-quality microphone with a warm and authoritative tone.\",\n        \"notes\": \"### DIRECTOR\u0027S NOTES\\nStyle: Professional, warm, engaging, and measured.\\nPacing: Steady but dynamic.\\nAccent: British English accent as heard in London, England.\",\n    },\n    \"default_caller\": {\n        \"profile\": \"# AUDIO PROFILE: Caller\\n## Role: Tech-savvy individual calling in to a radio show.\\n## Persona: Nerdy, conversational, not a professional broadcaster.\",\n        \"scene\": \"## THE SCENE: Remote Location via Phone\\nCalling in from a home, office, or public space. The audio quality is that of a telephone call.\",\n        \"notes\": \"### DIRECTOR\u0027S NOTES\\nStyle: Conversational, natural.\\nPacing: Normal conversational pace.\\nAccent: American English.\",\n    },\n}\n\n\ndef wave_file(filename, pcm, channels\u003d1, rate\u003d24000, sample_width\u003d2):\n    \"\"\"Save raw PCM data as a WAV file.\"\"\"\n    with wave.open(filename, \"wb\") as wf:\n        wf.setnchannels(channels)\n        wf.setsampwidth(sample_width)\n        wf.setframerate(rate)\n        wf.writeframes(pcm)\n\n\ndef split_script_by_turns(script_text):\n    \"\"\"Parse script into ordered (speaker, text) turns.\"\"\"\n    turns \u003d []\n    for line in script_text.strip().split(\u0027\\n\u0027):\n        line \u003d line.strip()\n        if not line or line.startswith(\u0027#\u0027):\n            continue\n        if \u0027:\u0027 in line:\n            speaker \u003d line.split(\u0027:\u0027)[0].strip()\n            text \u003d \u0027:\u0027.join(line.split(\u0027:\u0027)[1:]).strip()\n            if text:\n                turns.append((speaker, text))\n    return turns\n\n\ndef generate_tts_single(client, speaker, text, output_path, voice, accent):\n    \"\"\"Generate TTS for a single speaker turn using the Interactions API.\"\"\"\n    profile_data \u003d PROFILES.get(speaker, PROFILES.get(\"default_caller\", {}))\n\n    notes \u003d profile_data.get(\u0027notes\u0027, \u0027\u0027)\n    notes \u003d re.sub(r\u0027Accent:.*\u0027, f\u0027Accent: {accent}\u0027, notes)\n\n    prompt \u003d f\"\"\"{profile_data.get(\u0027profile\u0027, \u0027\u0027)}\n\n{profile_data.get(\u0027scene\u0027, \u0027\u0027)}\n\n{notes}\n\n#### TRANSCRIPT\n{text}\n\"\"\"\n\n    interaction \u003d client.interactions.create(\n        model\u003d\"gemini-3.1-flash-tts-preview\",\n        input\u003dprompt,\n        response_modalities\u003d[\"audio\"],\n        generation_config\u003d{\n            \"speech_config\": [{\"voice\": voice, \"language\": \"en-US\"}]\n        },\n        store\u003dFalse,\n    )\n\n    for step in getattr(interaction, \"steps\", []):\n        for item in getattr(step, \"content\", []):\n            item_type \u003d getattr(item, \"type\", \"\")\n            mime_type \u003d getattr(item, \"mime_type\", \"\")\n            if item_type \u003d\u003d \"audio\" or (isinstance(mime_type, str) and mime_type.startswith(\"audio/\")):\n                pcm_data \u003d base64.b64decode(item.data)\n                wave_file(output_path, pcm_data)\n                return True\n\n    return False\n\n\ndef apply_telephone_filter(input_path, output_path, boost\u003dFalse):\n    \"\"\"Apply telephone bandpass filter (300Hz-3400Hz) via ffmpeg.\n\n    Simulates a phone call:\n    1. Highpass at 300Hz — cuts rumble\n    2. Lowpass at 3400Hz — cuts highs (telephone bandwidth)\n    3. Compression — mimics phone codec dynamics\n    4. Volume adjustment (boosted if requested)\n    \"\"\"\n    vol \u003d \"1.8\" if boost else \"1.5\"\n    subprocess.run([\n        \"ffmpeg\", \"-y\",\n        \"-loglevel\", \"warning\",\n        \"-i\", input_path,\n        \"-af\", (\n            \"highpass\u003df\u003d300,\"\n            \"lowpass\u003df\u003d3400,\"\n            \"acompressor\u003dthreshold\u003d-20dB:ratio\u003d4:attack\u003d5:release\u003d50,\"\n            f\"volume\u003d{vol}\"\n        ),\n        output_path\n    ], check\u003dTrue, capture_output\u003dTrue)\n\n\ndef concatenate_wav_files(file_list, output_path):\n    \"\"\"Concatenate WAV files (same format) into one.\"\"\"\n    all_pcm \u003d b\"\"\n    for f in file_list:\n        with wave.open(f, \"rb\") as wf:\n            all_pcm +\u003d wf.readframes(wf.getnframes())\n    wave_file(output_path, all_pcm)\n\n\ndef process_turn(client, turn_index, speaker, text, voice, accent, segments_dir, boost\u003dFalse):\n    \"\"\"Generate TTS for a single turn with retries and post-processing.\n\n    Returns (turn_index, final_path) on success, or (turn_index, None) on failure.\n    \"\"\"\n    raw_path \u003d os.path.join(segments_dir, f\"turn_{turn_index:03d}_raw.wav\")\n    final_path \u003d os.path.join(segments_dir, f\"turn_{turn_index:03d}.wav\")\n\n    # Generate TTS with retries\n    for attempt in range(1, MAX_RETRIES + 1):\n        try:\n            success \u003d generate_tts_single(client, speaker, text, raw_path, voice, accent)\n            if success:\n                break\n            print(f\"    [{turn_index}] Attempt {attempt}/{MAX_RETRIES}: no audio returned\")\n        except Exception as e:\n            print(f\"    [{turn_index}] Attempt {attempt}/{MAX_RETRIES} failed: {e}\")\n            if attempt \u003c MAX_RETRIES:\n                time.sleep(2 * attempt)  # Exponential-ish backoff\n    else:\n        print(f\"    [{turn_index}] ✗ All {MAX_RETRIES} attempts failed, skipping\")\n        return (turn_index, None)\n\n    # Apply telephone filter for callers (not Paul)\n    if speaker !\u003d \"Paul\":\n        try:\n            apply_telephone_filter(raw_path, final_path, boost\u003dboost)\n            print(f\"    [{turn_index}] ✓ {speaker} ({voice}) + telephone filter{\u0027 (boosted)\u0027 if boost else \u0027\u0027}\")\n        except Exception:\n            os.rename(raw_path, final_path)\n            print(f\"    [{turn_index}] ✓ {speaker} ({voice}) (filter failed, using raw)\")\n    else:\n        os.rename(raw_path, final_path)\n        print(f\"    [{turn_index}] ✓ {speaker} ({voice}) clean studio\")\n\n    return (turn_index, final_path)\n\n\ndef main():\n    parser \u003d argparse.ArgumentParser(description\u003d\"Generate TTS with telephone effect\")\n    parser.add_argument(\"--workspace\", default\u003d\"workspace\", help\u003d\"Workspace directory\")\n    parser.add_argument(\"--workers\", type\u003dint, default\u003dMAX_WORKERS, help\u003d\"Max parallel TTS workers\")\n    args \u003d parser.parse_args()\n\n    client \u003d genai.Client(api_key\u003dos.environ.get(\"GEMINI_API_KEY\", \"dummy-key\"))\n\n    # Read script\n    script_path \u003d os.path.join(args.workspace, \"data\", \"script.md\")\n    with open(script_path) as f:\n        script \u003d f.read()\n\n    turns \u003d split_script_by_turns(script)\n    print(f\"\u003d\u003d\u003d AI Talk Radio: TTS Generation \u003d\u003d\u003d\\n\")\n    print(f\"Found {len(turns)} speaker turns\")\n    print(f\"Generating in parallel with {args.workers} workers\\n\")\n\n    segments_dir \u003d os.path.join(args.workspace, \"audio\", \"speech\", \"segments\")\n    os.makedirs(segments_dir, exist_ok\u003dTrue)\n\n    # --- Phase 1: Parse all turns and assign voices (sequential) ---\n    assigned_voices \u003d {\"Paul\": \"Puck\"}\n    assigned_accents \u003d {\"Paul\": \"British English accent as heard in London, England\"}\n    female_index \u003d 0\n    male_index \u003d 0\n    prepared_turns \u003d []\n\n    for i, (speaker, text) in enumerate(turns):\n        # Parse gender tag\n        gender \u003d \"Male\"  # default\n        if \"[Female]\" in text:\n            gender \u003d \"Female\"\n            text \u003d text.replace(\"[Female]\", \"\").strip()\n        elif \"[Male]\" in text:\n            gender \u003d \"Male\"\n            text \u003d text.replace(\"[Male]\", \"\").strip()\n\n        # Parse accent tag\n        accent \u003d \"American English\"  # default\n        accent_match \u003d re.search(r\u0027\\[Accent: ([^\\]]+)\\]\u0027, text)\n        if accent_match:\n            accent \u003d accent_match.group(1)\n            text \u003d re.sub(r\u0027\\[Accent: [^\\]]+\\]\u0027, \u0027\u0027, text).strip()\n\n        # Parse boost tag\n        boost \u003d False\n        if \"[boost]\" in text:\n            boost \u003d True\n            text \u003d text.replace(\"[boost]\", \"\").strip()\n\n        if speaker not in assigned_voices:\n            if gender \u003d\u003d \"Female\":\n                assigned_voices[speaker] \u003d FEMALE_VOICES[female_index % len(FEMALE_VOICES)]\n                female_index +\u003d 1\n            else:\n                assigned_voices[speaker] \u003d MALE_VOICES[male_index % len(MALE_VOICES)]\n                male_index +\u003d 1\n\n        if speaker not in assigned_accents:\n            assigned_accents[speaker] \u003d accent\n\n        voice \u003d assigned_voices[speaker]\n        accent \u003d assigned_accents[speaker]\n\n        prepared_turns.append((i, speaker, text, voice, accent, boost))\n        print(f\"  [{i+1}/{len(turns)}] {speaker} ({voice}, {accent}){\u0027 [boost]\u0027 if boost else \u0027\u0027}: {text[:60]}...\")\n\n    # --- Phase 2: Generate TTS in parallel ---\n    print(f\"\\nStarting parallel generation...\")\n    results \u003d {}\n\n    with ThreadPoolExecutor(max_workers\u003dargs.workers) as executor:\n        futures \u003d {\n            executor.submit(\n                process_turn, client, i, speaker, text, voice, accent, segments_dir, boost\n            ): i\n            for i, speaker, text, voice, accent, boost in prepared_turns\n        }\n\n        for future in as_completed(futures):\n            turn_index, final_path \u003d future.result()\n            results[turn_index] \u003d final_path\n\n    # --- Phase 3: Concatenate in original order ---\n    segment_files \u003d []\n    for i in range(len(turns)):\n        path \u003d results.get(i)\n        if path is not None:\n            segment_files.append(path)\n\n    output_path \u003d os.path.join(args.workspace, \"audio\", \"speech\", \"speech.wav\")\n    concatenate_wav_files(segment_files, output_path)\n\n    # Stats\n    with wave.open(output_path, \"rb\") as wf:\n        duration \u003d wf.getnframes() / wf.getframerate()\n\n    failed \u003d len(turns) - len(segment_files)\n    print(f\"\\n✅ TTS complete!\")\n    print(f\"   Output: {output_path}\")\n    print(f\"   Duration: {duration:.1f}s | Segments: {len(segment_files)}/{len(turns)}\", end\u003d\"\")\n    if failed:\n        print(f\" ({failed} failed)\")\n    else:\n        print()\n\n\nif __name__ \u003d\u003d \"__main__\":\n    main()\n"
+    }],
+    "envId": "d00e726b-c955-4142-82ca-f9381a7ee854",
+    "networkAllowlistRules": [{
+      "domain": "generativelanguage.googleapis.com"
+    }, {
+      "domain": "hacker-news.firebaseio.com"
+    }, {
+      "domain": "news.ycombinator.com"
+    }, {
+      "domain": "api.github.com"
+    }, {
+      "domain": "github.com"
+    }, {
+      "domain": "raw.githubusercontent.com"
+    }, {
+      "domain": "pypi.org"
+    }, {
+      "domain": "files.pythonhosted.org"
+    }, {
+      "domain": "arxiv.org"
+    }, {
+      "domain": "en.wikipedia.org"
+    }],
+    "enableWordTimestamps": false,
+    "enableSpeakerDiarization": false,
+    "maxTotalTokens": 1000000,
+    "enablePolishedTranscript": false
+  },
+  "systemInstruction": {
+    "text": "You are operating in AI Studio Playground environment.\n- For specific files, provide direct `file://` URIs using absolute paths in inline markdown links (e.g., [filename](file:///absolute/path/to/file)).\n- Wherever relevant, inform user that they can also download the whole environment snapshot using the \u0027Download\u0027 button in the Environment settings of the AI Studio Playground."
+  },
+  "chunkedPrompt": {
+    "chunks": [{
+      "text": "Generate a 3-minute radio with a roundtable concept, educating listeners about https://github.com/google-deepmind/alphafold3.",
+      "role": "user",
+      "createTime": "2026-10-10T05:02:42.991Z"
+    }, {
+      "text": "**Planning the Roundtable**\n\nI\u0027m now focusing on structuring the 3-minute radio show. The roundtable format seems ideal for explaining AlphaFold3. I need to figure out how to incorporate AGENTS.md and library installations. My plan is to ensure the show is both informative and concise for the listener.\n\n\n",
+      "role": "model",
+      "isThought": true,
+      "thinkingBudget": -1,
+      "parts": [{
+        "text": "**Planning the Roundtable**\n\nI\u0027m now focusing on structuring the 3-minute radio show. The roundtable format seems ideal for explaining AlphaFold3. I need to figure out how to incorporate AGENTS.md and library installations. My plan is to ensure the show is both informative and concise for the listener.\n\n\n",
+        "thought": true
+      }],
+      "createTime": "2026-10-10T05:02:42.992Z"
+    }, {
+      "role": "model",
+      "parts": [{
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_931473"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "\u003ctruncated 314 lines\u003e\n\nWhat it does:\n1. Fetches repo metadata (stars, description, language).\n2. Fetches and decodes the README.\n3. Fetches recent releases with changelogs.\n4. Fetches top issues by comment count, including top comments.\n5. Outputs → `{workspace}/data/research/github.md`\n\nUses the **GitHub REST API** directly — no auth needed for public repos.\n\n### fetch_url.py — Any URL\n\n```bash\npython3 skills/research/scripts/fetch_url.py --url https://example.com/blog-post --workspace ./workspace\n```\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--url` | *(required)* | URL to fetch content from |\n| `--workspace` | `workspace` | Root workspace directory |\n| `--max-chars` | `8000` | Max chars to extract |\n\nWhat it does:\n1. Fetches the HTML page.\n2. Strips scripts, styles, nav, footer.\n3. Converts HTML to markdown-like text.\n4. Extracts title and meta description.\n5. Outputs → `{workspace}/data/research/url_\u003csafe_name\u003e.md`\n\nWorks for blog posts, documentation pages, arXiv abstracts, news articles, etc.\n\n### General Topic (no script — agent-driven)\n\nIf the user provides a topic without a specific source:\n- Use **Google Search** to find recent articles, blog posts, and discussions\n- Gather multiple perspectives and opposing viewpoints\n- Write the research markdown directly to `{workspace}/data/research/`\n\n## Output\n\n- **Directory**: `{workspace}/data/research/`\n- **Format**: One or more markdown files with structured content\n- All research must be saved here regardless of source — the script-writing step reads from this directory.\n\n## What to look for\n\nWhen reviewing the research output, identify:\n- **Consensus**: What do most people agree on?\n- **Debates**: What are the key disagreements?\n- **Contrarian takes**: Any notable dissenting opinions?\n- **Expert insights**: Comments or quotes from people with domain expertise.\n- **Emotional stories**: Anything that would make compelling radio.\n---\nname: script-writing\ndescription: Generate the AI Talk Radio show script from research using the Interactions API.\n---\n\n# Script Writing\n\nGenerate a naturalistic, multi-character radio show script directly via the LLM. The script features host Paul taking calls from people around the world, with advanced audio tags.\n\n## Embedded Script\n\n```bash\npython3 skills/script-writing/scripts/generate_script.py --workspace ./workspace --style debate\n```\n\n### Arguments\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n| `--style` | `default` | Show format (see styles below) |\n| `--context` | `\"\"` | Additional tone/style notes inferred from user prompts (e.g., \"emphasize the technical details\", \"make it sound like a late night show\"). Applies to ALL styles. Keep brief. Do NOT use to specify stories/topics. |\n\n### Styles\n\n| Style | Callers | Format | Use when user says... |\n|-------|---------|--------|----------------------|\n| `debate` | 2 per topic, opposing views | Structured back-and-forth, Paul moderates | \"opposing views\", \"debate\", \"both sides\" |\n| `roundtable` | 3-4, different angles | Collaborative discussion, callers build on each other | \"roundtable\", \"panel\", \"discussion\" |\n| `interview` | 1-2 with direct experience | Q\u0026A format, Paul asks probing questions | \"interview\", \"deep dive\", \"expert\" |\n| `explainer` | 2-3, each explains an aspect | Teach the audience, Paul asks clarifying questions | \"explain\", \"break it down\", \"what is\" |\n| `default` | Same as `debate` | Default when no style specified | *(anything else)* |\n\n### Examples\n\n```bash\n# HN discussion with opposing views, applying context\npython3 skills/script-writing/scripts/generate_script.py \\\n  --workspace ./workspace --style debate --context \"make it sound like a late night show\"\n\n# Panel discussion about a GitHub repo with context notes\npython3 skills/script-writing/scripts/generate_script.py \\\n  --workspace ./workspace --style roundtable --context \"emphasize the performance improvements\"\n\n# Interview with an expert about a paper\npython3 skills/script-writing/scripts/generate_script.py \\\n  --workspace ./workspace --style interview\n\n# Explain a new technology\npython3 skills/script-writing/scripts/generate_script.py \\\n  --workspace ./workspace --style explainer\n```\n\n### What it does\n\n1. Reads all research from `{workspace}/data/research/*.md`.\n2. Builds a system prompt with the base format rules + style-specific caller/structure instructions.\n3. Calls Gemini via the **Interactions API** (`client.interactions.create()`).\n4. Saves the script to `{workspace}/data/script.md`.\n\n### Dependencies\n\n- `google-genai` (\u003e\u003d 2.0.0)\n\n## Output\n\n- **Script File**: `{workspace}/data/script.md`\n- **Format**: Plain text, each line starting with `Speaker: dialogue`\n\n## Cast\n\n| Speaker | Role | Personality |\n|---------|------|-------------|\n| **Paul** | Host | Professional but relatable British moderator |\n| **Callers** | Call-ins | Amateur, rough, natural — from various cities around the world |\n\n## Script Format Rules\n\n- Every line: `SpeakerName: [audio tag] Dialogue text`\n- Must include audio tags in square brackets (e.g., `[sighs]`, `[excitedly]`).\n- Callers should sound amateurish (include \"uh\", \"like\", natural pauses).\n- Short punchy sentences — spoken word, not prose.\n- ~450-500 words total (~3 minutes when spoken).\n---\nname: tts-generation\ndescription: Convert radio show script to speech audio with telephone effect on correspondent voices using the Interactions API.\n---\n\n# TTS Generation\n\nConvert the radio show script into speech audio using the Gemini TTS model via the **Interactions API**. Apply a telephone bandpass filter to correspondent voices so they sound like phone call-ins, while keeping the host\u0027s voice clean studio-quality.\n\n## Embedded Script\n\n```bash\npython3 skills/tts-generation/scripts/generate_tts.py --workspace ./workspace\n```\n\n### Arguments\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n| `--workers` | `8` | Max parallel TTS worker threads |\n\n### What it does\n\n1. Reads the script from `{workspace}/data/script.md`.\n2. Parses it into individual `(speaker, text)` turns and assigns voices.\n3. Generates TTS for all turns **in parallel** using a thread pool (default 8 workers).\n4. **Retries** each failed turn up to 3 times with exponential backoff.\n5. Applies an ffmpeg telephone bandpass filter (300Hz–3.4kHz) to correspondent voices.\n6. Keeps the host (Paul) audio clean and unfiltered.\n7. Concatenates all segments in original script order into a single WAV.\n\n### Dependencies\n\n- `google-genai` (\u003e\u003d 2.0.0)\n- `ffmpeg` (system)\n## API Details\n\nUses the **Interactions API** with single-speaker TTS — no multi-speaker workaround needed.\n\n## Voice Assignment\n\nVoices are assigned **dynamically** based on `[Male]` / `[Female]` gender tags in the script:\n\n| Speaker | Voice | Audio Treatment |\n|---------|-------|-----------------|\n| **Paul** (host) | `Puck` | **Clean** — no filter |\n| Caller `[Female]` — 1st | `Kore` | **Telephone filter** |\n| Caller `[Female]` — 2nd | `Aoede` | **Telephone filter** |\n| Caller `[Male]` — 1st | `Charon` | **Telephone filter** |\n| Caller `[Male]` — 2nd | `Fenrir` | **Telephone filter** |\n\nVoices cycle round-robin if there are more callers than available voices. Accent tags (`[Accent: Irish]`, etc.) are injected into the TTS prompt to influence pronunciation.\n\n## Telephone Filter\n\nApplied via ffmpeg to correspondent audio segments:\n\n```\nhighpass\u003df\u003d300, lowpass\u003df\u003d3400, acompressor, volume\u003d1.5\n```\n\nThis simulates the standard telephone bandwidth (300Hz–3.4kHz) and adds compression to mimic phone codec dynamics.\n\n## Output\n\n- **Primary output**: `{workspace}/audio/speech/speech.wav`\n- **Format**: WAV, 24kHz, 16-bit PCM, mono\n- **Intermediate segments**: `{workspace}/audio/speech/segments/turn_*.wav`\n\n\n[STDERR]\nWARNING: Running pip as the \u0027root\u0027 user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv\n"
+          },
+          "callId": "call_931473"
+        }
+      }, {
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_931473"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "\u003ctruncated 314 lines\u003e\n\nWhat it does:\n1. Fetches repo metadata (stars, description, language).\n2. Fetches and decodes the README.\n3. Fetches recent releases with changelogs.\n4. Fetches top issues by comment count, including top comments.\n5. Outputs → `{workspace}/data/research/github.md`\n\nUses the **GitHub REST API** directly — no auth needed for public repos.\n\n### fetch_url.py — Any URL\n\n```bash\npython3 skills/research/scripts/fetch_url.py --url https://example.com/blog-post --workspace ./workspace\n```\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--url` | *(required)* | URL to fetch content from |\n| `--workspace` | `workspace` | Root workspace directory |\n| `--max-chars` | `8000` | Max chars to extract |\n\nWhat it does:\n1. Fetches the HTML page.\n2. Strips scripts, styles, nav, footer.\n3. Converts HTML to markdown-like text.\n4. Extracts title and meta description.\n5. Outputs → `{workspace}/data/research/url_\u003csafe_name\u003e.md`\n\nWorks for blog posts, documentation pages, arXiv abstracts, news articles, etc.\n\n### General Topic (no script — agent-driven)\n\nIf the user provides a topic without a specific source:\n- Use **Google Search** to find recent articles, blog posts, and discussions\n- Gather multiple perspectives and opposing viewpoints\n- Write the research markdown directly to `{workspace}/data/research/`\n\n## Output\n\n- **Directory**: `{workspace}/data/research/`\n- **Format**: One or more markdown files with structured content\n- All research must be saved here regardless of source — the script-writing step reads from this directory.\n\n## What to look for\n\nWhen reviewing the research output, identify:\n- **Consensus**: What do most people agree on?\n- **Debates**: What are the key disagreements?\n- **Contrarian takes**: Any notable dissenting opinions?\n- **Expert insights**: Comments or quotes from people with domain expertise.\n- **Emotional stories**: Anything that would make compelling radio.\n---\nname: script-writing\ndescription: Generate the AI Talk Radio show script from research using the Interactions API.\n---\n\n# Script Writing\n\nGenerate a naturalistic, multi-character radio show script directly via the LLM. The script features host Paul taking calls from people around the world, with advanced audio tags.\n\n## Embedded Script\n\n```bash\npython3 skills/script-writing/scripts/generate_script.py --workspace ./workspace --style debate\n```\n\n### Arguments\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n| `--style` | `default` | Show format (see styles below) |\n| `--context` | `\"\"` | Additional tone/style notes inferred from user prompts (e.g., \"emphasize the technical details\", \"make it sound like a late night show\"). Applies to ALL styles. Keep brief. Do NOT use to specify stories/topics. |\n\n### Styles\n\n| Style | Callers | Format | Use when user says... |\n|-------|---------|--------|----------------------|\n| `debate` | 2 per topic, opposing views | Structured back-and-forth, Paul moderates | \"opposing views\", \"debate\", \"both sides\" |\n| `roundtable` | 3-4, different angles | Collaborative discussion, callers build on each other | \"roundtable\", \"panel\", \"discussion\" |\n| `interview` | 1-2 with direct experience | Q\u0026A format, Paul asks probing questions | \"interview\", \"deep dive\", \"expert\" |\n| `explainer` | 2-3, each explains an aspect | Teach the audience, Paul asks clarifying questions | \"explain\", \"break it down\", \"what is\" |\n| `default` | Same as `debate` | Default when no style specified | *(anything else)* |\n\n### Examples\n\n```bash\n# HN discussion with opposing views, applying context\npython3 skills/script-writing/scripts/generate_script.py \\\n  --workspace ./workspace --style debate --context \"make it sound like a late night show\"\n\n# Panel discussion about a GitHub repo with context notes\npython3 skills/script-writing/scripts/generate_script.py \\\n  --workspace ./workspace --style roundtable --context \"emphasize the performance improvements\"\n\n# Interview with an expert about a paper\npython3 skills/script-writing/scripts/generate_script.py \\\n  --workspace ./workspace --style interview\n\n# Explain a new technology\npython3 skills/script-writing/scripts/generate_script.py \\\n  --workspace ./workspace --style explainer\n```\n\n### What it does\n\n1. Reads all research from `{workspace}/data/research/*.md`.\n2. Builds a system prompt with the base format rules + style-specific caller/structure instructions.\n3. Calls Gemini via the **Interactions API** (`client.interactions.create()`).\n4. Saves the script to `{workspace}/data/script.md`.\n\n### Dependencies\n\n- `google-genai` (\u003e\u003d 2.0.0)\n\n## Output\n\n- **Script File**: `{workspace}/data/script.md`\n- **Format**: Plain text, each line starting with `Speaker: dialogue`\n\n## Cast\n\n| Speaker | Role | Personality |\n|---------|------|-------------|\n| **Paul** | Host | Professional but relatable British moderator |\n| **Callers** | Call-ins | Amateur, rough, natural — from various cities around the world |\n\n## Script Format Rules\n\n- Every line: `SpeakerName: [audio tag] Dialogue text`\n- Must include audio tags in square brackets (e.g., `[sighs]`, `[excitedly]`).\n- Callers should sound amateurish (include \"uh\", \"like\", natural pauses).\n- Short punchy sentences — spoken word, not prose.\n- ~450-500 words total (~3 minutes when spoken).\n---\nname: tts-generation\ndescription: Convert radio show script to speech audio with telephone effect on correspondent voices using the Interactions API.\n---\n\n# TTS Generation\n\nConvert the radio show script into speech audio using the Gemini TTS model via the **Interactions API**. Apply a telephone bandpass filter to correspondent voices so they sound like phone call-ins, while keeping the host\u0027s voice clean studio-quality.\n\n## Embedded Script\n\n```bash\npython3 skills/tts-generation/scripts/generate_tts.py --workspace ./workspace\n```\n\n### Arguments\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n| `--workers` | `8` | Max parallel TTS worker threads |\n\n### What it does\n\n1. Reads the script from `{workspace}/data/script.md`.\n2. Parses it into individual `(speaker, text)` turns and assigns voices.\n3. Generates TTS for all turns **in parallel** using a thread pool (default 8 workers).\n4. **Retries** each failed turn up to 3 times with exponential backoff.\n5. Applies an ffmpeg telephone bandpass filter (300Hz–3.4kHz) to correspondent voices.\n6. Keeps the host (Paul) audio clean and unfiltered.\n7. Concatenates all segments in original script order into a single WAV.\n\n### Dependencies\n\n- `google-genai` (\u003e\u003d 2.0.0)\n- `ffmpeg` (system)\n## API Details\n\nUses the **Interactions API** with single-speaker TTS — no multi-speaker workaround needed.\n\n## Voice Assignment\n\nVoices are assigned **dynamically** based on `[Male]` / `[Female]` gender tags in the script:\n\n| Speaker | Voice | Audio Treatment |\n|---------|-------|-----------------|\n| **Paul** (host) | `Puck` | **Clean** — no filter |\n| Caller `[Female]` — 1st | `Kore` | **Telephone filter** |\n| Caller `[Female]` — 2nd | `Aoede` | **Telephone filter** |\n| Caller `[Male]` — 1st | `Charon` | **Telephone filter** |\n| Caller `[Male]` — 2nd | `Fenrir` | **Telephone filter** |\n\nVoices cycle round-robin if there are more callers than available voices. Accent tags (`[Accent: Irish]`, etc.) are injected into the TTS prompt to influence pronunciation.\n\n## Telephone Filter\n\nApplied via ffmpeg to correspondent audio segments:\n\n```\nhighpass\u003df\u003d300, lowpass\u003df\u003d3400, acompressor, volume\u003d1.5\n```\n\nThis simulates the standard telephone bandwidth (300Hz–3.4kHz) and adds compression to mimic phone codec dynamics.\n\n## Output\n\n- **Primary output**: `{workspace}/audio/speech/speech.wav`\n- **Format**: WAV, 24kHz, 16-bit PCM, mono\n- **Intermediate segments**: `{workspace}/audio/speech/segments/turn_*.wav`\n\n\n[STDERR]\nWARNING: Running pip as the \u0027root\u0027 user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv\n"
+          },
+          "callId": "call_931473"
+        }
+      }],
+      "createTime": "2026-10-10T05:02:57.267Z",
+      "interactionUsage": {
+        "totalInputTokens": 7920,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 7920
+        }],
+        "totalOutputTokens": 60,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 60
+        }],
+        "totalThoughtTokens": 454,
+        "totalTokens": 8434
+      }
+    }, {
+      "text": "**Inspecting Agent Skills**\n\nI\u0027m now diving deeper into the available agent skills. I\u0027ve begun inspecting the `/.agents/skills/` directory and found the `cat /.agents/skills/*/SKILL.md` truncated after tts-generation. I am now looking at audio-mixing, metadata-generation, and music-* to continue the skills research.\n\n\n",
+      "role": "model",
+      "isThought": true,
+      "thinkingBudget": -1,
+      "parts": [{
+        "text": "**Inspecting Agent Skills**\n\nI\u0027m now diving deeper into the available agent skills. I\u0027ve begun inspecting the `/.agents/skills/` directory and found the `cat /.agents/skills/*/SKILL.md` truncated after tts-generation. I am now looking at audio-mixing, metadata-generation, and music-* to continue the skills research.\n\n\n",
+        "thought": true
+      }],
+      "createTime": "2026-10-10T05:04:05.575Z",
+      "interactionUsage": {
+        "totalInputTokens": 7920,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 7920
+        }],
+        "totalOutputTokens": 60,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 60
+        }],
+        "totalThoughtTokens": 454,
+        "totalTokens": 8434
+      }
+    }, {
+      "role": "model",
+      "parts": [{
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_562695"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\n---\nname: audio-mixing\ndescription: Mix speech audio and background music into a polished radio show file.\n---\n\n# Audio Mixing\n\nCombine the TTS speech audio and Lyria background music into a single, polished radio show file.\n\n## Embedded Script\n\n```bash\npython3 skills/audio-mixing/scripts/mix_audio.py --workspace ./workspace\n```\n\n### Arguments\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n\n### What it does\n\n1. Loads speech from `{workspace}/audio/speech/speech.wav`.\n2. Adds 3 seconds of silence padding to the end of the speech to prevent it from being faded out.\n3. Loads background music from `{workspace}/audio/music/background.mp3` (if exists).\n4. Loops music to match speech duration, lowers volume to -18dB.\n5. Overlays speech on music with a 1-second music intro.\n6. Adds fade-in/fade-out.\n7. Exports as MP3.\n\n### Dependencies\n\n- `pydub`\n- `ffmpeg` (system)\n\n## Mixing Guidelines\n\n| Element | Level | Notes |\n|---------|-------|-------|\n| Speech | 0 dB | Untouched, full volume |\n| Background music | -18 dB | Barely audible — subtle bed under speech |\n\n### Transitions\n\n- Music fade-in: 3 seconds\n- Music fade-out: 5 seconds\n- Overall fade-in: 500ms\n- Overall fade-out: 2 seconds\n\n## Output\n\n| File | Path | Format |\n|------|------|--------|\n| MP3 (distribution) | `{workspace}/audio/final/ai_radio.mp3` | MP3, 192kbps |\n\n## Fallback\n\nIf no background music exists, produces speech-only output with just fade-in/fade-out applied.\n---\nname: metadata-generation\ndescription: Generate show metadata (JSON) containing timecoded transcript, title, duration, summary, and date by sending audio and transcript to Gemini.\n---\n\n# Metadata Generation\n\nGenerate a structured JSON file containing metadata for the radio show. This is done by sending the final mixed audio file and the original transcript back to Gemini.\n\n## Prerequisites\n\n```bash\npip install google-genai\n```\n\n## Workflow\n\n1.  **Read Inputs**: Load the transcript from `./workspace/data/script.md` and the final audio from `./workspace/audio/final/ai_radio.mp3`.\n2.  **Upload Audio**: Upload the audio file to the Gemini Files API.\n3.  **Generate Metadata**: Call Gemini (e.g., `gemini-3-flash-preview`) using the Interactions API, passing the uploaded audio file and the transcript.\n4.  **Save Output**: Save the resulting JSON to `./workspace/data/show_notes.json`.\n\n## Python Code\n\nThe skill is implemented in `scripts/generate_metadata.py`.\n\n```bash\n# Example usage\npython3 skills/metadata-generation/scripts/generate_metadata.py --workspace ./workspace\n```\n\n## Output\n\nThe skill produces a JSON file at `./workspace/data/show_notes.json` with the following structure:\n\n```json\n{\n  \"show_title\": \"...\",\n  \"show_duration\": \"...\",\n  \"two_sentence_summary\": \"...\",\n  \"date_of_generation\": \"YYYY-MM-DD\",\n  \"timecoded_transcript\": [\n    {\n      \"timecode\": \"MM:SS\",\n      \"speaker\": \"...\",\n      \"text\": \"...\"\n    },\n    ...\n  ]\n}\n```\n\n## Error Handling\n\n- If the audio file is missing, the script will fail.\n- If the transcript is missing, it will fail.\n- If the Gemini API call fails, it will report the error and exit.\n---\nname: music-generation\ndescription: Generate ambient background music using Lyria via the Interactions API.\n---\n\n# Music Generation\n\nGenerate background music for the radio show using the Lyria model via the **Interactions API**.\n\n## Embedded Script\n\n```bash\npython3 skills/music-generation/scripts/generate_music.py --workspace ./workspace --mood tech\n```\n\n### Arguments\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n| `--mood` | `default` | Music mood (see moods below) |\n\n### Moods\n\n| Mood | Style | Pair with `--style` |\n|------|-------|---------------------|\n| `tech` (default) | Clean synths, electronic pulse, Silicon Valley startup vibe | `explainer`, `debate` |\n| `chill` | Soft pads, gentle piano, lo-fi warmth | `roundtable`, `explainer` |\n| `debate` | Building tension, brass-like synths, panel discussion opener | `debate`, `interview` |\n\n### What it does\n\n1. Selects the music prompt based on `--mood`.\n2. Calls the **Interactions API** with the `lyria-3-clip-preview` model.\n3. Generates a ~30-second music clip.\n4. Saves as MP3 to `{workspace}/audio/music/background.mp3`.\n5. Gracefully handles failures — the pipeline continues without music.\n\n### Dependencies\n\n- `google-genai` (\u003e\u003d 2.0.0)\n## Output\n\n- **File**: `{workspace}/audio/music/background.mp3`\n- **Format**: MP3\n- **Duration**: ~30 seconds\n\n## Fallback\n\nLyria is experimental. If generation fails with a policy error or returns no music, the script will attempt to retry once with a simpler fallback prompt: `\"Create a 30-second simple ambient background track. Instrumental only, calm and neutral.\"`\n\nIf the fallback attempt also fails, the pipeline proceeds without background music — the audio-mixing step handles this gracefully.\n---\nname: cover-image-generation\ndescription: Generate cover images for the radio show using Gemini 3 Flash Image (with fallback to Pro).\n---\n\n# Image Generation Skill\n\nThis skill generates an appropriate cover image for the radio show based on a prompt, using the Gemini 3 Flash Image model, with a fallback to the Gemini 3 Pro Image model (\"Nano Banana Pro\") if needed.\n\n## Requirements\n\n- Python 3.10+\n- `google-genai` Python package (\u003e\u003d 2.0.1)\n## Instructions\n\n1. **Generate an image** (Recommended: use the metadata file directly):\n   ```bash\n   python3 skills/cover-image-generation/scripts/generate_image.py \\\n     --workspace ./workspace \\\n     --metadata ./workspace/data/show_notes.json\n   ```\n   *Note: Using `--metadata` will automatically extract the show title and apply a random, high-quality prompt template. This is the preferred method.*\n\n   **Alternative** (Manual prompt):\n   ```bash\n   python3 skills/cover-image-generation/scripts/generate_image.py \\\n     --workspace ./workspace \\\n     --prompt \"A prompt describing the image\"\n   ```\n\n2. **Output**:\n   - The image will be saved to `{workspace}/images/cover.png`.\n\n## Model\n\n- Primary Model: `gemini-3-flash-image-preview`\n- Fallback Model: `gemini-3-pro-image-preview`\n- Resolution: 1:1 (default)\n\n## Prompting rules\n\nWhen using the `--metadata` option, this skill uses a set of predefined prompt templates and selects one at random to generate cover images. It dynamically inserts the show title into the selected template.\n\n- **Example Prompt**: `\"A professional podcast cover image for a show titled \u0027AI Talk Radio\u0027 on the \u0027AI Talk Radio\u0027 station. The design features the text \u0027AI Talk Radio\u0027 in a bold, stylish white font centered on the cover. The background is a vibrant purple with a textured water ripple effect that covers the entire frame, creating a dynamic and clean aesthetic.\"`\n\nIf you choose to use the `--prompt` option instead, you must construct the prompt yourself. In that case, follow these rules:\n\n## Forbidden themes\n\n- Do not ask for futuristic, cyberpunk or neon themes\n- Do not include any text other than the show title\n\n\n[STDERR]\n"
+          },
+          "callId": "call_562695"
+        }
+      }, {
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_562695"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\n---\nname: audio-mixing\ndescription: Mix speech audio and background music into a polished radio show file.\n---\n\n# Audio Mixing\n\nCombine the TTS speech audio and Lyria background music into a single, polished radio show file.\n\n## Embedded Script\n\n```bash\npython3 skills/audio-mixing/scripts/mix_audio.py --workspace ./workspace\n```\n\n### Arguments\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n\n### What it does\n\n1. Loads speech from `{workspace}/audio/speech/speech.wav`.\n2. Adds 3 seconds of silence padding to the end of the speech to prevent it from being faded out.\n3. Loads background music from `{workspace}/audio/music/background.mp3` (if exists).\n4. Loops music to match speech duration, lowers volume to -18dB.\n5. Overlays speech on music with a 1-second music intro.\n6. Adds fade-in/fade-out.\n7. Exports as MP3.\n\n### Dependencies\n\n- `pydub`\n- `ffmpeg` (system)\n\n## Mixing Guidelines\n\n| Element | Level | Notes |\n|---------|-------|-------|\n| Speech | 0 dB | Untouched, full volume |\n| Background music | -18 dB | Barely audible — subtle bed under speech |\n\n### Transitions\n\n- Music fade-in: 3 seconds\n- Music fade-out: 5 seconds\n- Overall fade-in: 500ms\n- Overall fade-out: 2 seconds\n\n## Output\n\n| File | Path | Format |\n|------|------|--------|\n| MP3 (distribution) | `{workspace}/audio/final/ai_radio.mp3` | MP3, 192kbps |\n\n## Fallback\n\nIf no background music exists, produces speech-only output with just fade-in/fade-out applied.\n---\nname: metadata-generation\ndescription: Generate show metadata (JSON) containing timecoded transcript, title, duration, summary, and date by sending audio and transcript to Gemini.\n---\n\n# Metadata Generation\n\nGenerate a structured JSON file containing metadata for the radio show. This is done by sending the final mixed audio file and the original transcript back to Gemini.\n\n## Prerequisites\n\n```bash\npip install google-genai\n```\n\n## Workflow\n\n1.  **Read Inputs**: Load the transcript from `./workspace/data/script.md` and the final audio from `./workspace/audio/final/ai_radio.mp3`.\n2.  **Upload Audio**: Upload the audio file to the Gemini Files API.\n3.  **Generate Metadata**: Call Gemini (e.g., `gemini-3-flash-preview`) using the Interactions API, passing the uploaded audio file and the transcript.\n4.  **Save Output**: Save the resulting JSON to `./workspace/data/show_notes.json`.\n\n## Python Code\n\nThe skill is implemented in `scripts/generate_metadata.py`.\n\n```bash\n# Example usage\npython3 skills/metadata-generation/scripts/generate_metadata.py --workspace ./workspace\n```\n\n## Output\n\nThe skill produces a JSON file at `./workspace/data/show_notes.json` with the following structure:\n\n```json\n{\n  \"show_title\": \"...\",\n  \"show_duration\": \"...\",\n  \"two_sentence_summary\": \"...\",\n  \"date_of_generation\": \"YYYY-MM-DD\",\n  \"timecoded_transcript\": [\n    {\n      \"timecode\": \"MM:SS\",\n      \"speaker\": \"...\",\n      \"text\": \"...\"\n    },\n    ...\n  ]\n}\n```\n\n## Error Handling\n\n- If the audio file is missing, the script will fail.\n- If the transcript is missing, it will fail.\n- If the Gemini API call fails, it will report the error and exit.\n---\nname: music-generation\ndescription: Generate ambient background music using Lyria via the Interactions API.\n---\n\n# Music Generation\n\nGenerate background music for the radio show using the Lyria model via the **Interactions API**.\n\n## Embedded Script\n\n```bash\npython3 skills/music-generation/scripts/generate_music.py --workspace ./workspace --mood tech\n```\n\n### Arguments\n\n| Argument | Default | Description |\n|----------|---------|-------------|\n| `--workspace` | `workspace` | Root workspace directory |\n| `--mood` | `default` | Music mood (see moods below) |\n\n### Moods\n\n| Mood | Style | Pair with `--style` |\n|------|-------|---------------------|\n| `tech` (default) | Clean synths, electronic pulse, Silicon Valley startup vibe | `explainer`, `debate` |\n| `chill` | Soft pads, gentle piano, lo-fi warmth | `roundtable`, `explainer` |\n| `debate` | Building tension, brass-like synths, panel discussion opener | `debate`, `interview` |\n\n### What it does\n\n1. Selects the music prompt based on `--mood`.\n2. Calls the **Interactions API** with the `lyria-3-clip-preview` model.\n3. Generates a ~30-second music clip.\n4. Saves as MP3 to `{workspace}/audio/music/background.mp3`.\n5. Gracefully handles failures — the pipeline continues without music.\n\n### Dependencies\n\n- `google-genai` (\u003e\u003d 2.0.0)\n## Output\n\n- **File**: `{workspace}/audio/music/background.mp3`\n- **Format**: MP3\n- **Duration**: ~30 seconds\n\n## Fallback\n\nLyria is experimental. If generation fails with a policy error or returns no music, the script will attempt to retry once with a simpler fallback prompt: `\"Create a 30-second simple ambient background track. Instrumental only, calm and neutral.\"`\n\nIf the fallback attempt also fails, the pipeline proceeds without background music — the audio-mixing step handles this gracefully.\n---\nname: cover-image-generation\ndescription: Generate cover images for the radio show using Gemini 3 Flash Image (with fallback to Pro).\n---\n\n# Image Generation Skill\n\nThis skill generates an appropriate cover image for the radio show based on a prompt, using the Gemini 3 Flash Image model, with a fallback to the Gemini 3 Pro Image model (\"Nano Banana Pro\") if needed.\n\n## Requirements\n\n- Python 3.10+\n- `google-genai` Python package (\u003e\u003d 2.0.1)\n## Instructions\n\n1. **Generate an image** (Recommended: use the metadata file directly):\n   ```bash\n   python3 skills/cover-image-generation/scripts/generate_image.py \\\n     --workspace ./workspace \\\n     --metadata ./workspace/data/show_notes.json\n   ```\n   *Note: Using `--metadata` will automatically extract the show title and apply a random, high-quality prompt template. This is the preferred method.*\n\n   **Alternative** (Manual prompt):\n   ```bash\n   python3 skills/cover-image-generation/scripts/generate_image.py \\\n     --workspace ./workspace \\\n     --prompt \"A prompt describing the image\"\n   ```\n\n2. **Output**:\n   - The image will be saved to `{workspace}/images/cover.png`.\n\n## Model\n\n- Primary Model: `gemini-3-flash-image-preview`\n- Fallback Model: `gemini-3-pro-image-preview`\n- Resolution: 1:1 (default)\n\n## Prompting rules\n\nWhen using the `--metadata` option, this skill uses a set of predefined prompt templates and selects one at random to generate cover images. It dynamically inserts the show title into the selected template.\n\n- **Example Prompt**: `\"A professional podcast cover image for a show titled \u0027AI Talk Radio\u0027 on the \u0027AI Talk Radio\u0027 station. The design features the text \u0027AI Talk Radio\u0027 in a bold, stylish white font centered on the cover. The background is a vibrant purple with a textured water ripple effect that covers the entire frame, creating a dynamic and clean aesthetic.\"`\n\nIf you choose to use the `--prompt` option instead, you must construct the prompt yourself. In that case, follow these rules:\n\n## Forbidden themes\n\n- Do not ask for futuristic, cyberpunk or neon themes\n- Do not include any text other than the show title\n\n\n[STDERR]\n"
+          },
+          "callId": "call_562695"
+        }
+      }],
+      "createTime": "2026-10-10T05:04:05.576Z",
+      "interactionUsage": {
+        "totalInputTokens": 18511,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 18511
+        }],
+        "totalCachedTokens": 8654,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 8654
+        }],
+        "totalOutputTokens": 148,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 148
+        }],
+        "totalThoughtTokens": 536,
+        "totalTokens": 19195
+      }
+    }, {
+      "text": "**Verifying Skill Locations**\n\nI\u0027ve located the directory structure for the skills: they reside in `/.agents/skills/\u003cname\u003e/`, with accompanying `SKILL.md` and `scripts/` directories containing Python scripts. My next step involves verifying these script paths within the `/.agents/skills/` directory.\n\n\n",
+      "role": "model",
+      "isThought": true,
+      "thinkingBudget": -1,
+      "parts": [{
+        "text": "**Verifying Skill Locations**\n\nI\u0027ve located the directory structure for the skills: they reside in `/.agents/skills/\u003cname\u003e/`, with accompanying `SKILL.md` and `scripts/` directories containing Python scripts. My next step involves verifying these script paths within the `/.agents/skills/` directory.\n\n\n",
+        "thought": true
+      }],
+      "createTime": "2026-10-10T05:04:05.578Z",
+      "interactionUsage": {
+        "totalInputTokens": 18511,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 18511
+        }],
+        "totalCachedTokens": 8654,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 8654
+        }],
+        "totalOutputTokens": 148,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 148
+        }],
+        "totalThoughtTokens": 536,
+        "totalTokens": 19195
+      }
+    }, {
+      "role": "model",
+      "parts": [{
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_593324"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\nusage: fetch_github.py [-h] --repo REPO [--workspace WORKSPACE]\n                       [--releases RELEASES]\n\nFetch GitHub repo activity for AI Talk Radio\n\noptions:\n  -h, --help            show this help message and exit\n  --repo REPO           GitHub repo (owner/repo or full URL)\n  --workspace WORKSPACE\n                        Workspace directory\n  --releases RELEASES   Number of releases to fetch\n\n\n[STDERR]\n"
+          },
+          "callId": "call_593324"
+        }
+      }, {
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_593324"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\nusage: fetch_github.py [-h] --repo REPO [--workspace WORKSPACE]\n                       [--releases RELEASES]\n\nFetch GitHub repo activity for AI Talk Radio\n\noptions:\n  -h, --help            show this help message and exit\n  --repo REPO           GitHub repo (owner/repo or full URL)\n  --workspace WORKSPACE\n                        Workspace directory\n  --releases RELEASES   Number of releases to fetch\n\n\n[STDERR]\n"
+          },
+          "callId": "call_593324"
+        }
+      }],
+      "createTime": "2026-10-10T05:04:05.621Z",
+      "interactionUsage": {
+        "totalInputTokens": 31200,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 31200
+        }],
+        "totalCachedTokens": 20007,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 20007
+        }],
+        "totalOutputTokens": 199,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 199
+        }],
+        "totalThoughtTokens": 677,
+        "totalTokens": 32076
+      }
+    }, {
+      "text": "**Checking Execution Plan**\n\nI\u0027ve got `fetch_github.py` ready to roll. Now, I\u0027m diving into the execution plan, specifically focusing on the user\u0027s request. My focus is now shifting to the AGENTS.md presets to determine the best approach.\n\n\n",
+      "role": "model",
+      "isThought": true,
+      "thinkingBudget": -1,
+      "parts": [{
+        "text": "**Checking Execution Plan**\n\nI\u0027ve got `fetch_github.py` ready to roll. Now, I\u0027m diving into the execution plan, specifically focusing on the user\u0027s request. My focus is now shifting to the AGENTS.md presets to determine the best approach.\n\n\n",
+        "thought": true
+      }],
+      "createTime": "2026-10-10T05:04:05.622Z",
+      "interactionUsage": {
+        "totalInputTokens": 31200,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 31200
+        }],
+        "totalCachedTokens": 20007,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 20007
+        }],
+        "totalOutputTokens": 199,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 199
+        }],
+        "totalThoughtTokens": 677,
+        "totalTokens": 32076
+      }
+    }, {
+      "role": "model",
+      "parts": [{
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_1475811"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\nusage: generate_script.py [-h] [--workspace WORKSPACE]\n                          [--style {debate,roundtable,interview,explainer,default}]\n                          [--duration DURATION] [--context CONTEXT]\n\nGenerate AI Talk Radio radio script\n\noptions:\n  -h, --help            show this help message and exit\n  --workspace WORKSPACE\n                        Workspace directory\n  --style {debate,roundtable,interview,explainer,default}\n                        Show format: debate, roundtable, interview, explainer,\n                        default\n  --duration DURATION   Target duration in minutes\n  --context CONTEXT     Additional tone/style notes inferred from the user\n                        prompt (e.g. \u0027emphasize the technical details\u0027). Do\n                        not use for content selection.\n\n\n[STDERR]\n"
+          },
+          "callId": "call_1475811"
+        }
+      }, {
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_1475811"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\nusage: generate_script.py [-h] [--workspace WORKSPACE]\n                          [--style {debate,roundtable,interview,explainer,default}]\n                          [--duration DURATION] [--context CONTEXT]\n\nGenerate AI Talk Radio radio script\n\noptions:\n  -h, --help            show this help message and exit\n  --workspace WORKSPACE\n                        Workspace directory\n  --style {debate,roundtable,interview,explainer,default}\n                        Show format: debate, roundtable, interview, explainer,\n                        default\n  --duration DURATION   Target duration in minutes\n  --context CONTEXT     Additional tone/style notes inferred from the user\n                        prompt (e.g. \u0027emphasize the technical details\u0027). Do\n                        not use for content selection.\n\n\n[STDERR]\n"
+          },
+          "callId": "call_1475811"
+        }
+      }],
+      "createTime": "2026-10-10T05:04:05.622Z",
+      "interactionUsage": {
+        "totalInputTokens": 44253,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 44253
+        }],
+        "totalCachedTokens": 20007,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 20007
+        }],
+        "totalOutputTokens": 252,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 252
+        }],
+        "totalThoughtTokens": 912,
+        "totalTokens": 45417
+      }
+    }, {
+      "text": "**Defining the Parameters**\n\nI\u0027ve specified the roundtable style and the 3-minute duration. My focus now is the context: educating listeners on AlphaFold 3\u0027s science and technology.\n\n\n",
+      "role": "model",
+      "isThought": true,
+      "thinkingBudget": -1,
+      "parts": [{
+        "text": "**Defining the Parameters**\n\nI\u0027ve specified the roundtable style and the 3-minute duration. My focus now is the context: educating listeners on AlphaFold 3\u0027s science and technology.\n\n\n",
+        "thought": true
+      }],
+      "createTime": "2026-10-10T05:04:05.622Z",
+      "interactionUsage": {
+        "totalInputTokens": 44253,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 44253
+        }],
+        "totalCachedTokens": 20007,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 20007
+        }],
+        "totalOutputTokens": 252,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 252
+        }],
+        "totalThoughtTokens": 912,
+        "totalTokens": 45417
+      }
+    }, {
+      "role": "model",
+      "parts": [{
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_913723"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\n\u003d\u003d\u003d AI Talk Radio Research: GitHub Deep Dive \u003d\u003d\u003d\nRepository: google-deepmind/alphafold3\n\nFetching repo info...\nFetching README...\nFetching recent releases (up to 5)...\nFetching repository structure...\n\n✅ Research saved to ./workspace/data/research/github.md\n   Releases: 5 | Files indexed: 178\n\n\n[STDERR]\n"
+          },
+          "callId": "call_913723"
+        }
+      }, {
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_913723"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\n\u003d\u003d\u003d AI Talk Radio Research: GitHub Deep Dive \u003d\u003d\u003d\nRepository: google-deepmind/alphafold3\n\nFetching repo info...\nFetching README...\nFetching recent releases (up to 5)...\nFetching repository structure...\n\n✅ Research saved to ./workspace/data/research/github.md\n   Releases: 5 | Files indexed: 178\n\n\n[STDERR]\n"
+          },
+          "callId": "call_913723"
+        }
+      }],
+      "createTime": "2026-10-10T05:04:05.623Z",
+      "interactionUsage": {
+        "totalInputTokens": 57837,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 57837
+        }],
+        "totalCachedTokens": 31828,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 31828
+        }],
+        "totalOutputTokens": 321,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 321
+        }],
+        "totalThoughtTokens": 1143,
+        "totalTokens": 59301
+      }
+    }, {
+      "role": "model",
+      "parts": [{
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_648701"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\n# GitHub Deep Dive: google-deepmind/alphafold3 — October 10, 2026\n\nThis research focuses on understanding the repository\u0027s purpose, how it works, and its codebase structure to provide an informative and helpful overview.\n\n## Repository Overview\n\n- **Name**: google-deepmind/alphafold3\n- **Description**: AlphaFold 3 inference pipeline.\n- **Stars**: 8,620\n- **Forks**: 1,375\n- **Language**: Python\n- **License**: Apache License 2.0\n- **URL**: https://github.com/google-deepmind/alphafold3\n\n## README (excerpt)\n\n![header](docs/header.jpg)\n\n# AlphaFold 3\n\nThis package provides an implementation of the inference pipeline of\nAlphaFold 3. See below for how to access the model parameters. You may only use\nAlphaFold 3 model parameters if received directly from Google. Use is subject to\nthese\n[terms of use](https://github.com/google-deepmind/alphafold3/blob/main/WEIGHTS_TERMS_OF_USE.md).\n\nAny publication that discloses findings arising from using this source code, the\nmodel parameters or outputs produced by those should [cite](#citing-this-work)\nthe\n[Accurate structure prediction of biomolecular interactions with AlphaFold 3](https://doi.org/10.1038/s41586-024-07487-w)\npaper.\n\nPlease also refer to the Supplementary Information for a detailed description of\nthe method.\n\nAlphaFold 3 is also available at\n[alphafoldserver.com](https://alphafoldserver.com) for non-commercial use,\nthough with a more limited set of ligands and covalent modifications.\n\nFor commercial use, AlphaFold 3 is available via\n[Gemini Enterprise Agent Platform on Google Cloud](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/open-models/alphafold-3).\n\nIf you have any questions, please contact the AlphaFold team at\n[alphafold@google.com](mailto:alphafold@google.com).\n\n## Obtaining Model Parameters\n\nThis repository contains all necessary code for AlphaFold 3 inference. You can\ndownload the AlphaFold 3 model parameters from\nhttps://storage.googleapis.com/alphafold3/af3.bin.zst. Use is subject to these\n\n\n[STDERR]\n"
+          },
+          "callId": "call_648701"
+        }
+      }, {
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_648701"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\n# GitHub Deep Dive: google-deepmind/alphafold3 — October 10, 2026\n\nThis research focuses on understanding the repository\u0027s purpose, how it works, and its codebase structure to provide an informative and helpful overview.\n\n## Repository Overview\n\n- **Name**: google-deepmind/alphafold3\n- **Description**: AlphaFold 3 inference pipeline.\n- **Stars**: 8,620\n- **Forks**: 1,375\n- **Language**: Python\n- **License**: Apache License 2.0\n- **URL**: https://github.com/google-deepmind/alphafold3\n\n## README (excerpt)\n\n![header](docs/header.jpg)\n\n# AlphaFold 3\n\nThis package provides an implementation of the inference pipeline of\nAlphaFold 3. See below for how to access the model parameters. You may only use\nAlphaFold 3 model parameters if received directly from Google. Use is subject to\nthese\n[terms of use](https://github.com/google-deepmind/alphafold3/blob/main/WEIGHTS_TERMS_OF_USE.md).\n\nAny publication that discloses findings arising from using this source code, the\nmodel parameters or outputs produced by those should [cite](#citing-this-work)\nthe\n[Accurate structure prediction of biomolecular interactions with AlphaFold 3](https://doi.org/10.1038/s41586-024-07487-w)\npaper.\n\nPlease also refer to the Supplementary Information for a detailed description of\nthe method.\n\nAlphaFold 3 is also available at\n[alphafoldserver.com](https://alphafoldserver.com) for non-commercial use,\nthough with a more limited set of ligands and covalent modifications.\n\nFor commercial use, AlphaFold 3 is available via\n[Gemini Enterprise Agent Platform on Google Cloud](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/open-models/alphafold-3).\n\nIf you have any questions, please contact the AlphaFold team at\n[alphafold@google.com](mailto:alphafold@google.com).\n\n## Obtaining Model Parameters\n\nThis repository contains all necessary code for AlphaFold 3 inference. You can\ndownload the AlphaFold 3 model parameters from\nhttps://storage.googleapis.com/alphafold3/af3.bin.zst. Use is subject to these\n\n\n[STDERR]\n"
+          },
+          "callId": "call_648701"
+        }
+      }],
+      "createTime": "2026-10-10T05:04:05.623Z",
+      "interactionUsage": {
+        "totalInputTokens": 71874,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 71874
+        }],
+        "totalCachedTokens": 44208,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 44208
+        }],
+        "totalOutputTokens": 370,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 370
+        }],
+        "totalThoughtTokens": 1180,
+        "totalTokens": 73424
+      }
+    }, {
+      "role": "model",
+      "tokenCount": 443,
+      "parts": [{
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_921645"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\n\n\n[STDERR]\nTraceback (most recent call last):\n  File \"/usr/lib/python3/dist-packages/httpx/_urlparse.py\", line 409, in normalize_port\n    port_as_int \u003d int(port)\n                  ^^^^^^^^^\nValueError: invalid literal for int() with base 10: \u0027:1]\u0027\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/.agents/skills/script-writing/scripts/generate_script.py\", line 210, in \u003cmodule\u003e\n    main()\n  File \"/.agents/skills/script-writing/scripts/generate_script.py\", line 144, in main\n    client \u003d genai.Client(api_key\u003dos.environ.get(\"GEMINI_API_KEY\", \"dummy-key\"))\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/google/genai/client.py\", line 422, in __init__\n    self._api_client \u003d self._get_api_client(\n                       ^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/google/genai/client.py\", line 477, in _get_api_client\n    return BaseApiClient(\n           ^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/google/genai/_api_client.py\", line 866, in __init__\n    self._httpx_client \u003d SyncHttpxClient(**client_args)\n                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/google/genai/_api_client.py\", line 603, in __init__\n    super().__init__(**kwargs)\n  File \"/usr/lib/python3/dist-packages/httpx/_client.py\", line 698, in __init__\n    URLPattern(key): None\n    ^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/httpx/_utils.py\", line 172, in __init__\n    url \u003d URL(pattern)\n          ^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/httpx/_urls.py\", line 117, in __init__\n    self._uri_reference \u003d urlparse(url, **kwargs)\n                          ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/httpx/_urlparse.py\", line 321, in urlparse\n    parsed_port: int | None \u003d normalize_port(port, scheme)\n                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/httpx/_urlparse.py\", line 411, in normalize_port\n    raise InvalidURL(f\"Invalid port: {port!r}\")\nhttpx.InvalidURL: Invalid port: \u0027:1]\u0027\n"
+          },
+          "callId": "call_921645"
+        }
+      }, {
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_921645"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\n\n\n[STDERR]\nTraceback (most recent call last):\n  File \"/usr/lib/python3/dist-packages/httpx/_urlparse.py\", line 409, in normalize_port\n    port_as_int \u003d int(port)\n                  ^^^^^^^^^\nValueError: invalid literal for int() with base 10: \u0027:1]\u0027\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/.agents/skills/script-writing/scripts/generate_script.py\", line 210, in \u003cmodule\u003e\n    main()\n  File \"/.agents/skills/script-writing/scripts/generate_script.py\", line 144, in main\n    client \u003d genai.Client(api_key\u003dos.environ.get(\"GEMINI_API_KEY\", \"dummy-key\"))\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/google/genai/client.py\", line 422, in __init__\n    self._api_client \u003d self._get_api_client(\n                       ^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/google/genai/client.py\", line 477, in _get_api_client\n    return BaseApiClient(\n           ^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/google/genai/_api_client.py\", line 866, in __init__\n    self._httpx_client \u003d SyncHttpxClient(**client_args)\n                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/google/genai/_api_client.py\", line 603, in __init__\n    super().__init__(**kwargs)\n  File \"/usr/lib/python3/dist-packages/httpx/_client.py\", line 698, in __init__\n    URLPattern(key): None\n    ^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/httpx/_utils.py\", line 172, in __init__\n    url \u003d URL(pattern)\n          ^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/httpx/_urls.py\", line 117, in __init__\n    self._uri_reference \u003d urlparse(url, **kwargs)\n                          ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/httpx/_urlparse.py\", line 321, in urlparse\n    parsed_port: int | None \u003d normalize_port(port, scheme)\n                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3/dist-packages/httpx/_urlparse.py\", line 411, in normalize_port\n    raise InvalidURL(f\"Invalid port: {port!r}\")\nhttpx.InvalidURL: Invalid port: \u0027:1]\u0027\n"
+          },
+          "callId": "call_921645"
+        }
+      }],
+      "createTime": "2026-10-10T05:04:05.623Z",
+      "interactionUsage": {
+        "totalInputTokens": 86613,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 86613
+        }],
+        "totalCachedTokens": 57069,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 57069
+        }],
+        "totalOutputTokens": 443,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 443
+        }],
+        "totalThoughtTokens": 1267,
+        "totalTokens": 88323
+      }
+    }, {
+      "role": "model",
+      "parts": [{
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_1480089"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\nno_proxy\u003dlocalhost,127.0.0.1,::1,[::1]\nGLOBAL_AGENT_HTTP_PROXY\u003dhttp://10.100.0.1:8081\nhttps_proxy\u003dhttp://10.100.0.1:8081\nGLOBAL_AGENT_NO_PROXY\u003dlocalhost,127.0.0.1,::1,[::1]\nNO_PROXY\u003dlocalhost,127.0.0.1,::1,[::1]\nHTTPS_PROXY\u003dhttp://10.100.0.1:8081\nHTTP_PROXY\u003dhttp://10.100.0.1:8081\nhttp_proxy\u003dhttp://10.100.0.1:8081\nBROWSER_PROXY_URL\u003dhttp://10.100.0.1:8081\nGLOBAL_AGENT_HTTPS_PROXY\u003dhttp://10.100.0.1:8081\n\n\n[STDERR]\n"
+          },
+          "callId": "call_1480089"
+        }
+      }, {
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_1480089"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\nno_proxy\u003dlocalhost,127.0.0.1,::1,[::1]\nGLOBAL_AGENT_HTTP_PROXY\u003dhttp://10.100.0.1:8081\nhttps_proxy\u003dhttp://10.100.0.1:8081\nGLOBAL_AGENT_NO_PROXY\u003dlocalhost,127.0.0.1,::1,[::1]\nNO_PROXY\u003dlocalhost,127.0.0.1,::1,[::1]\nHTTPS_PROXY\u003dhttp://10.100.0.1:8081\nHTTP_PROXY\u003dhttp://10.100.0.1:8081\nhttp_proxy\u003dhttp://10.100.0.1:8081\nBROWSER_PROXY_URL\u003dhttp://10.100.0.1:8081\nGLOBAL_AGENT_HTTPS_PROXY\u003dhttp://10.100.0.1:8081\n\n\n[STDERR]\n"
+          },
+          "callId": "call_1480089"
+        }
+      }],
+      "createTime": "2026-10-10T05:04:05.624Z",
+      "interactionUsage": {
+        "totalInputTokens": 102288,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 102288
+        }],
+        "totalCachedTokens": 70660,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 70660
+        }],
+        "totalOutputTokens": 482,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 482
+        }],
+        "totalThoughtTokens": 1340,
+        "totalTokens": 104110
+      }
+    }, {
+      "text": "**Examining Proxy Configuration**\n\nI\u0027m now diving into the `no_proxy` and `NO_PROXY` environment variables, and the issue I see is how `httpx` interprets IPv6 addresses, specifically `[::1]` or `::1`, within those configurations. This causes `httpx.InvalidURL: Invalid port: \u0027:1]\u0027`. It\u0027s a parsing problem in `httpx`.\n\n\n",
+      "role": "model",
+      "isThought": true,
+      "thinkingBudget": -1,
+      "parts": [{
+        "text": "**Examining Proxy Configuration**\n\nI\u0027m now diving into the `no_proxy` and `NO_PROXY` environment variables, and the issue I see is how `httpx` interprets IPv6 addresses, specifically `[::1]` or `::1`, within those configurations. This causes `httpx.InvalidURL: Invalid port: \u0027:1]\u0027`. It\u0027s a parsing problem in `httpx`.\n\n\n",
+        "thought": true
+      }],
+      "createTime": "2026-10-10T05:04:05.624Z",
+      "interactionUsage": {
+        "totalInputTokens": 102288,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 102288
+        }],
+        "totalCachedTokens": 70660,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 70660
+        }],
+        "totalOutputTokens": 482,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 482
+        }],
+        "totalThoughtTokens": 1340,
+        "totalTokens": 104110
+      }
+    }, {
+      "role": "model",
+      "parts": [{
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_931738"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\nSuccess!\n\n\n[STDERR]\n"
+          },
+          "callId": "call_931738"
+        }
+      }, {
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_931738"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\nSuccess!\n\n\n[STDERR]\n"
+          },
+          "callId": "call_931738"
+        }
+      }],
+      "createTime": "2026-10-10T05:04:05.624Z",
+      "interactionUsage": {
+        "totalInputTokens": 118390,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 118390
+        }],
+        "totalCachedTokens": 85215,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 85215
+        }],
+        "totalOutputTokens": 580,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 580
+        }],
+        "totalThoughtTokens": 1552,
+        "totalTokens": 120522
+      }
+    }, {
+      "text": "**Confirming Persistent Variables**\n\nI\u0027ve just pinpointed the root cause! I remember now, it\u0027s about persistent environment variables. I\u0027m focusing on ensuring these crucial variables remain accessible across multiple interactions, especially remembering that `/tmp/env.sh` is essential for saving them. My thinking is converging on this persistence issue as the central focus.\n\n\n",
+      "role": "model",
+      "isThought": true,
+      "thinkingBudget": -1,
+      "parts": [{
+        "text": "**Confirming Persistent Variables**\n\nI\u0027ve just pinpointed the root cause! I remember now, it\u0027s about persistent environment variables. I\u0027m focusing on ensuring these crucial variables remain accessible across multiple interactions, especially remembering that `/tmp/env.sh` is essential for saving them. My thinking is converging on this persistence issue as the central focus.\n\n\n",
+        "thought": true
+      }],
+      "createTime": "2026-10-10T05:04:05.625Z",
+      "interactionUsage": {
+        "totalInputTokens": 118390,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 118390
+        }],
+        "totalCachedTokens": 85215,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 85215
+        }],
+        "totalOutputTokens": 580,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 580
+        }],
+        "totalThoughtTokens": 1552,
+        "totalTokens": 120522
+      }
+    }, {
+      "role": "model",
+      "parts": [{
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_562856"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\n\u003d\u003d\u003d AI Talk Radio: Script Generation \u003d\u003d\u003d\n\nStyle: roundtable\nRead 13186 characters of research.\nGenerating script via Interactions API...\n\n✅ Script saved to ./workspace/data/script.md\n   Word count: 426\n\n--- Preview ---\n\nPaul: [calmly] Today we are conducting a deep dive into the GitHub repository for Google DeepMind’s AlphaFold 3. This is the inference pipeline that has fundamentally changed how we predict biomolecular interactions. Joining me for today\u0027s roundtable are Sarah in Boston, Liam in Dublin, and Marcus in Berlin. Sarah, let’s start with you.\n\nSarah: [Female] [Accent: General American] [excitedly] Thanks, Paul. I mean, the biggest thing for me... and probably the whole open-source community... was that license shift back in June. Version 3.0.3 moved the code from a restrictive Creative Commons license to Apache 2.0. It’s... uh... it’s a massive win for transparency, you know?\n\nLiam: [Male] [Accent: Irish] [thoughtfully] It really is. And just this past July, they pushed version 3.0.4, which... w\n\n... (1977 more characters)\n\n\n[STDERR]\n"
+          },
+          "callId": "call_562856"
+        }
+      }, {
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_562856"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\n\u003d\u003d\u003d AI Talk Radio: Script Generation \u003d\u003d\u003d\n\nStyle: roundtable\nRead 13186 characters of research.\nGenerating script via Interactions API...\n\n✅ Script saved to ./workspace/data/script.md\n   Word count: 426\n\n--- Preview ---\n\nPaul: [calmly] Today we are conducting a deep dive into the GitHub repository for Google DeepMind’s AlphaFold 3. This is the inference pipeline that has fundamentally changed how we predict biomolecular interactions. Joining me for today\u0027s roundtable are Sarah in Boston, Liam in Dublin, and Marcus in Berlin. Sarah, let’s start with you.\n\nSarah: [Female] [Accent: General American] [excitedly] Thanks, Paul. I mean, the biggest thing for me... and probably the whole open-source community... was that license shift back in June. Version 3.0.3 moved the code from a restrictive Creative Commons license to Apache 2.0. It’s... uh... it’s a massive win for transparency, you know?\n\nLiam: [Male] [Accent: Irish] [thoughtfully] It really is. And just this past July, they pushed version 3.0.4, which... w\n\n... (1977 more characters)\n\n\n[STDERR]\n"
+          },
+          "callId": "call_562856"
+        }
+      }],
+      "createTime": "2026-10-10T05:04:05.625Z",
+      "interactionUsage": {
+        "totalInputTokens": 134882,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 134882
+        }],
+        "totalCachedTokens": 100225,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 100225
+        }],
+        "totalOutputTokens": 715,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 715
+        }],
+        "totalThoughtTokens": 1708,
+        "totalTokens": 137305
+      }
+    }, {
+      "text": "**Reviewing Next Steps**\n\nThe script is done, a clean 426 words! Now, my focus shifts to the remaining steps: generating the speech audio using TTS, creating background music, and finally, mixing everything together. I need to make sure the audio and music generation processes are efficient and yield high-quality results.\n\n\n",
+      "role": "model",
+      "isThought": true,
+      "thinkingBudget": -1,
+      "parts": [{
+        "text": "**Reviewing Next Steps**\n\nThe script is done, a clean 426 words! Now, my focus shifts to the remaining steps: generating the speech audio using TTS, creating background music, and finally, mixing everything together. I need to make sure the audio and music generation processes are efficient and yield high-quality results.\n\n\n",
+        "thought": true
+      }],
+      "createTime": "2026-10-10T05:04:05.625Z",
+      "interactionUsage": {
+        "totalInputTokens": 134882,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 134882
+        }],
+        "totalCachedTokens": 100225,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 100225
+        }],
+        "totalOutputTokens": 715,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 715
+        }],
+        "totalThoughtTokens": 1708,
+        "totalTokens": 137305
+      }
+    }, {
+      "role": "model",
+      "parts": [{
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_811598"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\n\u003d\u003d\u003d AI Talk Radio: TTS Generation \u003d\u003d\u003d\n\nFound 8 speaker turns\nGenerating in parallel with 8 workers\n\n  [1/8] Paul (Puck, British English accent as heard in London, England): [calmly] Today we are conducting a deep dive into the GitHub...\n  [2/8] Sarah (Kore, General American): [excitedly] Thanks, Paul. I mean, the biggest thing for me.....\n  [3/8] Liam (Charon, Irish): [thoughtfully] It really is. And just this past July, they p...\n  [4/8] Marcus (Fenrir, German): [knowledgeably] It is impressive, though for the serious pow...\n  [5/8] Sarah (Kore, General American): [interrupting] Oh! And did you guys see the SynthID stuff? T...\n  [6/8] Liam (Charon, Irish): [enthusiastically] Yeah, I saw that in the README. It’s quit...\n  [7/8] Marcus (Fenrir, German): [calmly] Exactly. The codebase is quite clean Python, though...\n  [8/8] Paul (Puck, British English accent as heard in London, England): [calmly] A fascinating intersection of biology and software ...\n\nStarting parallel generation...\n    [4] ✓ Sarah (Kore) + telephone filter\n    [6] ✓ Marcus (Fenrir) + telephone filter\n    [1] ✓ Sarah (Kore) + telephone filter\n    [5] ✓ Liam (Charon) + telephone filter\n    [7] ✓ Paul (Puck) clean studio\n    [0] ✓ Paul (Puck) clean studio\n    [2] ✓ Liam (Charon) + telephone filter\n    [3] ✓ Marcus (Fenrir) + telephone filter\n\n✅ TTS complete!\n   Output: ./workspace/audio/speech/speech.wav\n   Duration: 178.3s | Segments: 8/8\n\n\n[STDERR]\n"
+          },
+          "callId": "call_811598"
+        }
+      }, {
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_811598"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+            "result": "[STDOUT]\n\u003d\u003d\u003d AI Talk Radio: TTS Generation \u003d\u003d\u003d\n\nFound 8 speaker turns\nGenerating in parallel with 8 workers\n\n  [1/8] Paul (Puck, British English accent as heard in London, England): [calmly] Today we are conducting a deep dive into the GitHub...\n  [2/8] Sarah (Kore, General American): [excitedly] Thanks, Paul. I mean, the biggest thing for me.....\n  [3/8] Liam (Charon, Irish): [thoughtfully] It really is. And just this past July, they p...\n  [4/8] Marcus (Fenrir, German): [knowledgeably] It is impressive, though for the serious pow...\n  [5/8] Sarah (Kore, General American): [interrupting] Oh! And did you guys see the SynthID stuff? T...\n  [6/8] Liam (Charon, Irish): [enthusiastically] Yeah, I saw that in the README. It’s quit...\n  [7/8] Marcus (Fenrir, German): [calmly] Exactly. The codebase is quite clean Python, though...\n  [8/8] Paul (Puck, British English accent as heard in London, England): [calmly] A fascinating intersection of biology and software ...\n\nStarting parallel generation...\n    [4] ✓ Sarah (Kore) + telephone filter\n    [6] ✓ Marcus (Fenrir) + telephone filter\n    [1] ✓ Sarah (Kore) + telephone filter\n    [5] ✓ Liam (Charon) + telephone filter\n    [7] ✓ Paul (Puck) clean studio\n    [0] ✓ Paul (Puck) clean studio\n    [2] ✓ Liam (Charon) + telephone filter\n    [3] ✓ Marcus (Fenrir) + telephone filter\n\n✅ TTS complete!\n   Output: ./workspace/audio/speech/speech.wav\n   Duration: 178.3s | Segments: 8/8\n\n\n[STDERR]\n"
+          },
+          "callId": "call_811598"
+        }
+      }],
+      "createTime": "2026-10-10T05:04:05.625Z",
+      "interactionUsage": {
+        "totalInputTokens": 152011,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 152011
+        }],
+        "totalCachedTokens": 115653,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 115653
+        }],
+        "totalOutputTokens": 778,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 778
+        }],
+        "totalThoughtTokens": 1939,
+        "totalTokens": 154728
+      }
+    }, {
+      "text": "**Calculating Elapsed Time**\n\nI\u0027ve just calculated the elapsed time: 178.3 seconds. That\u0027s almost 3 minutes. Now, I\u0027m checking steps 4, 5, 6, and 7 to see what scripts exist for those steps.\n\n\n",
+      "role": "model",
+      "tokenCount": 1939,
+      "isThought": true,
+      "thinkingBudget": -1,
+      "parts": [{
+        "text": "**Calculating Elapsed Time**\n\nI\u0027ve just calculated the elapsed time: 178.3 seconds. That\u0027s almost 3 minutes. Now, I\u0027m checking steps 4, 5, 6, and 7 to see what scripts exist for those steps.\n\n\n",
+        "thought": true
+      }],
+      "createTime": "2026-10-10T05:05:50.218Z",
+      "interactionUsage": {
+        "totalInputTokens": 152011,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 152011
+        }],
+        "totalCachedTokens": 115653,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 115653
+        }],
+        "totalOutputTokens": 778,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 778
+        }],
+        "totalThoughtTokens": 1939,
+        "totalTokens": 154728
+      }
+    }, {
+      "role": "model",
+      "tokenCount": 778,
+      "parts": [{
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_594392"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+          },
+          "callId": "call_594392"
+        }
+      }, {
+        "toolCall": {
+          "functionName": "code_execution",
+          "args": {
+          },
+          "callId": "call_594392"
+        }
+      }, {
+        "toolResponse": {
+          "functionName": "code_execution",
+          "response": {
+          },
+          "callId": "call_594392"
+        }
+      }],
+      "createTime": "2026-10-10T05:05:50.253Z",
+      "interactionUsage": {
+        "totalInputTokens": 152011,
+        "inputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 152011
+        }],
+        "totalCachedTokens": 115653,
+        "cachedTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 115653
+        }],
+        "totalOutputTokens": 778,
+        "outputTokensByModality": [{
+          "modality": "TEXT",
+          "tokens": 778
+        }],
+        "totalThoughtTokens": 1939,
+        "totalTokens": 154728
+      }
+    }, {
+      "driveDocument": {
+        "id": "1uV9mTCxRTVIwTPAQEV6NFCMExjWo8N59"
+      },
+      "role": "user",
+      "createTime": "2026-10-10T05:05:59.910Z"
+    }, {
+      "text": "",
+      "role": "model",
+      "errorMessage": "Request contains an invalid argument.",
+      "createTime": "2026-10-10T05:05:59.911Z",
+      "interactionId": "v1_ChctOGJKYXFiTUdQM3Juc0VQb3VpbzRRSRIXLThiSmFxYk1HUDNybnNFUG91aW80UUk"
+    }, {
+      "text": "Geliştir",
+      "role": "user",
+      "createTime": "2026-10-10T05:12:23.422Z"
+    }, {
+      "text": "",
+      "role": "model",
+      "errorMessage": "Request contains an invalid argument.",
+      "createTime": "2026-10-10T05:12:23.422Z"
+    }, {
+      "text": "https://github.com/google-deepmind/alphafold3.git",
+      "role": "user",
+      "createTime": "2026-10-10T05:13:02.951Z"
+    }, {
+      "text": "",
+      "role": "model",
+      "errorMessage": "Request contains an invalid argument.",
+      "createTime": "2026-10-10T05:13:02.952Z"
+    }],
+    "pendingInputs": [{
+      "text": "",
+      "role": "user"
+    }]
+  },
+  "interactionStreamStatus": "CANCELLED",
+  "interactionId": "v1_ChctOGJKYXFiTUdQM3Juc0VQb3VpbzRRSRIXLThiSmFxYk1HUDNybnNFUG91aW80UUk"
+}
