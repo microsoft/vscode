@@ -73,6 +73,10 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
+export function getChatInputSessionLinkAccessibilityHelp(): string {
+	return localize('chat.inputSessionLinks', "Session links in the chat input can be opened without sending your message. Place the cursor in a session link and run Open Link{0} from the Command Palette, or use the editor's modifier-click gesture.", '<keybinding:editor.action.openLink>');
+}
+
 export function getCloudSandboxPreparationAccessibilityHelp(): string {
 	return localize('chat.cloudSandboxEarlyPreparation', "When {0} is enabled, typing in a new Cloud chat, with or without a repository, can prepare cloud resources in the background. Your message is not sent and no conversation is added to the session list until you press Send. Send waits for pending preparation and reuses it when possible, otherwise it can continue without early preparation. While the window is running, VS Code attempts to release unused preparation after five minutes, when you change repositories, or when you turn the setting off.", CloudSandboxEarlyPreparationSettingId);
 }
@@ -83,6 +87,9 @@ export function getModelPickerConfigurationAccessibilityHelp(): string {
 
 export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported(), sessionWorkingSetEnabled: boolean = false, sessionWorkingSetUndo: boolean = false, sessionWorkingSetReviewEnabled: boolean = true): string {
 	const content = [];
+	if (type !== 'inlineChat') {
+		content.push(getChatInputSessionLinkAccessibilityHelp());
+	}
 	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
 	if (hasSessionWorkingSet) {
 		const headingActions = !sessionWorkingSetReviewEnabled

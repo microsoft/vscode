@@ -15,6 +15,14 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents opening session links from the input without sending', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
+		assert.deepStrictEqual({
+			withoutSending: help.includes('opened without sending your message'),
+			keyboard: help.includes('<keybinding:editor.action.openLink>'),
+		}, { withoutSending: true, keyboard: true });
+	});
+
 	test('documents the shared picker and startup lock for Cloud drafts', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
 		assert.deepStrictEqual({
