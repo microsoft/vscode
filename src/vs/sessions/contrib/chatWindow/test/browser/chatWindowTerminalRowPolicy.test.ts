@@ -111,7 +111,7 @@ suite('Chat window terminal row policy', () => {
 	});
 
 	test('a split of the terminal row closes when empty, and an empty row hands its place to the split that shows a terminal', () => {
-		const { Terminal, Empty, Pending } = TerminalRowSplitState;
+		const Terminal = TerminalRowSplitState.Terminal, Empty = TerminalRowSplitState.Empty, Pending = TerminalRowSplitState.Pending;
 		assert.deepStrictEqual({
 			closeSecond: planTerminalRowSplits(false, [Empty]),
 			closeFirst: planTerminalRowSplits(true, [Terminal]),
