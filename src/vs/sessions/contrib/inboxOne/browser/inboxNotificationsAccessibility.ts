@@ -35,7 +35,7 @@ class InboxNotificationsAccessibilityHelp implements IAccessibleViewImplementati
 			localize('inboxNotifications.help.actions', "When input is needed, the card shows an inline question carousel or confirmation controls; answer or confirm directly in the card. Select the card to see a summary of the decision and context in the detail pane, or open the session for full context. CI and review notifications may include actions such as Fix CI Failures, Address Reviews, and Merge Pull Request. Some actions include a More Actions menu where you can set that action to run by default. Use Done to clear a notification."),
 			localize('inboxNotifications.help.liveUpdates', "New notifications appear automatically. While your focus is inside inline input controls, list updates pause and a banner lets you show new notifications when you are ready."),
 			localize('inboxNotifications.help.loading', "When Inbox data is refreshing, a spinner appears in the Inbox header so you know the list is updating."),
-			localize('inboxNotifications.help.done', "Done clears a notification and marks its session as read when available."),
+			localize('inboxNotifications.help.done', "Mark Notification as Done clears only the notification and marks its session as read when available. It does not archive the session. Completed notifications do not offer inline input controls; open the session to respond to a question that is still pending."),
 			localize('inboxNotifications.help.accessibleView', "Use Open Accessible View to read the full notification list as plain text."),
 		].join('\n');
 		return new AccessibleContentProvider(

@@ -28,6 +28,7 @@ import { IChatModel, IChatResponseModel } from '../../../../workbench/contrib/ch
 import { ChatMessageRole, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
+import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
 import { type IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -852,6 +853,11 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				}
 			}
 			return liveDismissedItems
+				.map(item => ({
+					...item,
+					needsInputPart: undefined,
+					actions: item.actions.filter(action => action.kind === InboxNotificationActionKind.OpenSession),
+				}))
 				.sort(sortMode === InboxNotificationsSortMode.Priority ? compareInboxNotifications : compareInboxNotificationsByRecency);
 		});
 
@@ -2040,14 +2046,14 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 	private getSessionPullRequestRefs(session: ISession, reader: IReader): readonly IGitHubPullRequestRef[] {
 		const workspace = session.workspace.read(reader);
-		if (!workspace) {
-			return [];
-		}
-
 		const pullRequestRefs: IGitHubPullRequestRef[] = [];
 		const seen = new Set<string>();
-		for (const folder of workspace.folders) {
-			for (const pullRequest of getSessionOwnedGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader))) {
+		const referenceGroups = [
+			getSessionGitHubReferences(session, reader).pullRequests.filter(ref => ref.createdByThisSession),
+			...(workspace?.folders ?? []).map(folder => getSessionOwnedGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader))),
+		];
+		for (const references of referenceGroups) {
+			for (const pullRequest of references) {
 				const key = `${pullRequest.owner}/${pullRequest.repo}#${pullRequest.number}`;
 				if (seen.has(key)) {
 					continue;
@@ -2076,7 +2082,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		actions.push({
 			id: 'mark-done',
 			label: '$(check)',
-			ariaLabel: localize('inboxNotifications.action.markDone', "Done"),
+			ariaLabel: localize('inboxNotifications.action.markDone', "Mark Notification as Done"),
 			kind: InboxNotificationActionKind.MarkDone,
 		});
 		return actions;
@@ -2086,7 +2092,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		return [{
 			id: 'mark-done',
 			label: '$(check)',
-			ariaLabel: localize('inboxNotifications.action.markDone', "Done"),
+			ariaLabel: localize('inboxNotifications.action.markDone', "Mark Notification as Done"),
 			kind: InboxNotificationActionKind.MarkDone,
 		}];
 	}

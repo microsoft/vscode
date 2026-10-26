@@ -5,7 +5,7 @@
 
 import './media/inboxNotificationsView.css';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { $, addDisposableListener, clearNode, EventType, getActiveElement, getWindow, isEditableElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, clearNode, DisposableResizeObserver, EventType, getActiveElement, getWindow, isEditableElement, isHTMLElement, trackFocus } from '../../../../base/browser/dom.js';
 import { triggerConfettiAnimation } from '../../../../base/browser/ui/animations/animations.js';
 import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -393,6 +393,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	constructor(
 		intersectionObserver: typeof IntersectionObserver = mainWindow.IntersectionObserver,
+		resizeObserverCtor: typeof ResizeObserver | undefined = undefined,
 		@IInboxNotificationsService private readonly inboxNotificationsService: IInboxNotificationsService,
 		@IChatService private readonly chatService: IChatService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
@@ -411,6 +412,13 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@IAgentsActivityService private readonly agentsActivityService: IAgentsActivityService,
 	) {
 		super();
+		const resizeObserver = this._register(new DisposableResizeObserver('InboxNotificationsView.scroll', () => {
+			this.scrollableElement.scanDomNode();
+			this.detailScrollableElement.scanDomNode();
+		}, getWindow(this.listElement), { resizeObserverCtor }));
+		this._register(resizeObserver.observe(this.listElement));
+		this._register(resizeObserver.observe(this.scrollableContentElement));
+		this._register(resizeObserver.observe(this.detailContentElement));
 		this.cardVisibilityObserver = new intersectionObserver(entries => {
 			for (const entry of entries) {
 				if (!isHTMLElement(entry.target) || this._store.isDisposed) {
@@ -766,7 +774,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.updateToolbarLoadingSpinner();
 		}
 		const newNotificationCount = this.countNewNotifications(this.renderedItems, items);
-		if (newNotificationCount > 0 && this.isInlineInputFocused()) {
+		const focusedCard = getActiveElement()?.closest<HTMLElement>('.inbox-notifications-item');
+		if (this.isInlineInputFocused() && items.some(item => item.id === focusedCard?.dataset.notificationId && item.needsInputPart)) {
 			this.deferredItems = items;
 			this.deferredNewNotificationsCount = newNotificationCount;
 			this.updateDeferredUpdatesBanner();
@@ -1729,6 +1738,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 			secondary: openSessionIsSecondary || !action.primary,
 			small: true,
 			supportIcons: action.kind === InboxNotificationActionKind.MarkDone || showsSpinnerWhileRunning,
+			title: action.kind === InboxNotificationActionKind.MarkDone
+				? localize('inboxNotifications.action.markDoneTooltip', "Mark notification as done without archiving the session")
+				: action.ariaLabel ?? action.label,
 			ariaLabel: localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.ariaLabel ?? action.label, item.title),
 		};
 		const canShowAlwaysDropdown = this.canShowAlwaysDropdown(item, action.kind);

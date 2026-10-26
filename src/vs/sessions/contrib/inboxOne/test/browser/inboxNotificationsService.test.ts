@@ -21,7 +21,7 @@ import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHub
 import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IChat, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionArtifact, SessionArtifactKind, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { cleanPreviewText, deriveRoutingPlan, InboxNotificationsService, parseContentClassification, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
 import { InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, type IInboxNotificationItem } from '../../common/inboxNotificationsService.js';
@@ -61,8 +61,10 @@ suite('InboxNotificationsService', () => {
 			readonly owner: string;
 			readonly repo: string;
 			readonly number: number;
+			readonly createdByThisSession?: boolean;
 		}[];
 		readonly chatResource?: URI;
+		readonly artifacts?: readonly ISessionArtifact[];
 	}): ISession {
 		const key = `inboxNotificationsService/${options.id}`;
 		const chatResource = options.chatResource ?? URI.parse(`test:///chat/${options.id}`);
@@ -76,7 +78,7 @@ suite('InboxNotificationsService', () => {
 				number: pullRequest.number,
 				uri: URI.parse(`https://github.com/${pullRequest.owner}/${pullRequest.repo}/pull/${pullRequest.number}`),
 				state: 'open',
-				createdByThisSession: true,
+				createdByThisSession: pullRequest.createdByThisSession ?? true,
 			})),
 		} : options.pullRequest ? {
 			owner: options.pullRequest.owner,
@@ -119,6 +121,7 @@ suite('InboxNotificationsService', () => {
 			chats: observableValue(`${key}/chats`, [chat]),
 			mainChat: observableValue(`${key}/mainChat`, chat),
 			workspace: observableValue<ISessionWorkspace | undefined>(`${key}/workspace`, workspace),
+			artifacts: observableValue(`${key}/artifacts`, options.artifacts ?? []),
 		});
 	}
 
@@ -923,6 +926,49 @@ suite('InboxNotificationsService', () => {
 		);
 	});
 
+	test('surfaces CI and review notifications for recorded PR artifacts without workspace associations', () => {
+		const gitHubService = new TestGitHubService();
+		const fixture = createFixture([createSession({
+			id: 'recorded-pr', status: SessionStatus.Completed, updatedAt: 100,
+			artifacts: [{
+				id: 'pr-artifact', kind: SessionArtifactKind.PullRequest, isArtifact: true, isGitHub: true,
+				label: 'Linked draft', link: URI.parse('https://github.com/owner/repo/pull/77'),
+			}],
+		})], undefined, gitHubService);
+		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77', { isDraft: true }));
+		gitHubService.setCIStatus('owner', 'repo', 77, 'sha77', GitHubCIOverallStatus.Failure, []);
+		gitHubService.setReviewThreads('owner', 'repo', 77, [{
+			id: 'thread', isResolved: false, path: 'src/test.ts', startLine: 1, line: 1, comments: [{
+				id: 1, body: 'Fix this', author: { login: 'copilot-pull-request-reviewer[bot]', avatarUrl: '' },
+				createdAt: '2026-09-21T16:01:00Z', updatedAt: '2026-09-21T16:01:00Z',
+				path: 'src/test.ts', line: 1, threadId: 'thread', inReplyToId: undefined,
+			}],
+		}]);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind, pullRequests: item.pullRequestStates?.map(state => state.label),
+		})), [
+			{ kind: InboxNotificationKind.ReviewComments, pullRequests: ['#77'] },
+			{ kind: InboxNotificationKind.FailingCI, pullRequests: ['#77'] },
+		]);
+	});
+
+	test('does not surface PR notifications for inherited checkout PRs or reference-only links', () => {
+		const gitHubService = new TestGitHubService();
+		const fixture = createFixture([createSession({
+			id: 'inherited-pr', status: SessionStatus.Completed, updatedAt: 100,
+			pullRequests: [{ owner: 'owner', repo: 'repo', number: 77, createdByThisSession: false }],
+			artifacts: [{
+				id: 'pr-reference', kind: SessionArtifactKind.PullRequest, isArtifact: false, isGitHub: true,
+				label: 'Reference', link: URI.parse('https://github.com/owner/repo/pull/78'),
+			}],
+		})], undefined, gitHubService);
+		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77'));
+		gitHubService.setCIStatus('owner', 'repo', 77, 'sha77', GitHubCIOverallStatus.Failure, []);
+		gitHubService.setPullRequest('owner', 'repo', 78, openPullRequest(78, 'sha78'));
+		gitHubService.setCIStatus('owner', 'repo', 78, 'sha78', GitHubCIOverallStatus.Failure, []);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.Completed]);
+	});
+
 	test('surfaces unresolved Copilot review comments only', () => {
 		const gitHubService = new TestGitHubService();
 		const fixture = createFixture([createSession({
@@ -1235,6 +1281,29 @@ suite('InboxNotificationsService', () => {
 
 		fixture.setSessions([]);
 		assert.deepStrictEqual(fixture.service.dismissedNotifications.get().map(item => item.id), [dismissedId]);
+	});
+
+	test('dismissed questions have no interactive input or stale actions, including snapshots', () => {
+		const chatResource = URI.parse('test:///chat/dismissed-question');
+		const chatService = new TestChatService();
+		const fixture = createFixture([
+			createSession({ id: 'dismissed-question', status: SessionStatus.NeedsInput, updatedAt: 100, chatResource }),
+		], undefined, undefined, chatService);
+		chatService.setPendingQuestionCarousel(chatResource, {
+			requestId: 'request', resolveId: 'question', allowSkip: true,
+			message: 'Pending question',
+			questions: [{ id: 'q', type: 'text', title: 'Question', required: true }],
+		});
+		fixture.service.dismissNotification(fixture.service.notifications.get()[0].id);
+		const snapshot = () => fixture.service.dismissedNotifications.get().map(item => ({
+			needsInputPart: item.needsInputPart, actions: item.actions.map(action => action.kind),
+		}));
+		const live = snapshot();
+		fixture.setSessions([]);
+		assert.deepStrictEqual({ live, stored: snapshot() }, {
+			live: [{ needsInputPart: undefined, actions: [InboxNotificationActionKind.OpenSession] }],
+			stored: [{ needsInputPart: undefined, actions: [InboxNotificationActionKind.OpenSession] }],
+		});
 	});
 
 	test('updates external notifications by id', () => {
