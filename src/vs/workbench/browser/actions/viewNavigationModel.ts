@@ -163,36 +163,6 @@ function getScopedEntries(
 		: entries.filter(entry => entry.containerId === anchor.containerId);
 }
 
-function getTargetIndex(
-	length: number,
-	currentIndex: number,
-	direction: ViewNavigationDirection,
-	wrap: boolean
-): number | undefined {
-	if (length === 0) {
-		return undefined;
-	}
-
-	switch (direction) {
-		case 'first':
-			return 0;
-		case 'last':
-			return length - 1;
-		case 'next':
-			if (currentIndex + 1 < length) {
-				return currentIndex + 1;
-			}
-			return wrap ? 0 : undefined;
-		case 'previous':
-			if (currentIndex > 0) {
-				return currentIndex - 1;
-			}
-			return wrap ? length - 1 : undefined;
-	}
-
-	return undefined;
-}
-
 /**
  * Choose the next keyboard focus destination without mutating the snapshot.
  *
@@ -207,49 +177,69 @@ export function resolveViewNavigationTarget(
 	snapshot: IViewNavigationSnapshot,
 	request: IViewNavigationRequest
 ): IViewNavigationTarget | undefined {
-	const entries = getNavigableViewEntries(snapshot, request.includeCollapsed ?? true);
-	if (entries.length === 0) {
-		return undefined;
-	}
-
+	// Determine the focus anchor from the full visible sequence. Collapsed
+	// panes can have their headers focused, even for expanded-only commands.
+	const entries = getNavigableViewEntries(snapshot);
 	const anchor = getAnchor(entries, snapshot, request.direction);
 	if (!anchor) {
 		return undefined;
 	}
 
+	// Scope before removing collapsed destinations. Otherwise a collapsed
+	// anchor can silently move container-scoped navigation to another pane.
 	const scoped = getScopedEntries(entries, anchor, request.scope);
-	if (scoped.length === 0) {
+	const eligible = request.includeCollapsed === false
+		? getNavigableViewEntries(snapshot, false).filter(entry =>
+			request.scope === 'workbench' || entry.containerId === anchor.containerId)
+		: scoped;
+	if (eligible.length === 0) {
 		return undefined;
 	}
 
-	const focusedIndex = snapshot.focusedViewId
-		? scoped.findIndex(entry => entry.viewId === snapshot.focusedViewId)
-		: -1;
-
-	// When the focused view was hidden or moved, treat it as unanchored.
-	// A first/last request always addresses the requested boundary.
-	let nextIndex: number | undefined;
+	let targetId: string | undefined;
 	if (request.direction === 'first') {
-		nextIndex = 0;
+		targetId = eligible[0].viewId;
 	} else if (request.direction === 'last') {
-		nextIndex = scoped.length - 1;
-	} else if (focusedIndex === -1) {
-		const preferredIndex = scoped.findIndex(entry => entry.viewId === anchor.viewId);
-		nextIndex = preferredIndex >= 0 ? preferredIndex : 0;
+		targetId = eligible[eligible.length - 1].viewId;
 	} else {
-		nextIndex = getTargetIndex(scoped.length, focusedIndex, request.direction, request.wrap ?? true);
+		const focusedIndex = snapshot.focusedViewId
+			? scoped.findIndex(entry => entry.viewId === snapshot.focusedViewId)
+			: -1;
+		const anchorIndex = scoped.findIndex(entry => entry.viewId === anchor.viewId);
+		const step = request.direction === 'next' ? 1 : -1;
+		const wrap = request.wrap ?? true;
+		const eligibleIds = new Set(eligible.map(entry => entry.viewId));
+
+		// From outside the view container, include the preferred view itself.
+		// From within it, move one position before evaluating candidates.
+		const startIndex = focusedIndex >= 0 ? focusedIndex + step : anchorIndex;
+		for (let offset = 0; offset < scoped.length; offset++) {
+			let candidate = startIndex + offset * step;
+			if (candidate < 0 || candidate >= scoped.length) {
+				if (!wrap) {
+					break;
+				}
+				candidate = (candidate + scoped.length) % scoped.length;
+			}
+
+			if (eligibleIds.has(scoped[candidate].viewId)) {
+				targetId = scoped[candidate].viewId;
+				break;
+			}
+		}
 	}
 
-	if (nextIndex === undefined) {
+	if (!targetId) {
 		return undefined;
 	}
 
-	const next = scoped[nextIndex];
+	const index = eligible.findIndex(entry => entry.viewId === targetId);
+	const target = eligible[index];
 	return {
-		viewId: next.viewId,
-		containerId: next.containerId,
-		location: next.location,
-		index: nextIndex,
-		total: scoped.length
+		viewId: target.viewId,
+		containerId: target.containerId,
+		location: target.location,
+		index,
+		total: eligible.length
 	};
 }
