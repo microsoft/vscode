@@ -76,7 +76,7 @@ import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/ag
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type ChatAction, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, getAgentHostChatId, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionGitHubState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn, readSessionScratchFolders, withSessionScratchFolders } from '../../common/state/sessionState.js';
-import { BackgroundWorkKind, ChatInteractivity, McpServerStatus, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment, TerminalClaimKind, type TerminalClaim } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, McpServerStatus, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment, TerminalClaimKind, type TerminalClaim, type SystemNotificationResponsePart } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
@@ -85,6 +85,7 @@ import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readSessionMovable } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readArtifactIntegrationNotice } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
+import { readMessageReplacedTurn } from '../../common/meta/agentMessageMeta.js';
 import { ArtifactAutomationOption, IArtifactAutomationContext } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -44292,7 +44293,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('defers enable and disable notices during a turn without interrupting it or sending bookkeeping to the agent', async () => {
+		test('defers notices during a turn and merges them into the latest state without interrupting it or sending bookkeeping to the agent', async () => {
 			const f = await createArtifactAutomation();
 			f.stateManager.dispatchServerAction(f.chat, {
 				type: ActionType.ChatTurnStarted, turnId: 'human-turn', startedAt: new Date().toISOString(), message: { text: 'Human work', origin: { kind: MessageKind.User } },
@@ -44308,7 +44309,61 @@ suite('AgentService (node dispatcher)', () => {
 				notices: f.stateManager.getChatState(f.chat)?.turns.slice(1).flatMap(turn => turn.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification ? readArtifactIntegrationNotice(part)?.kind : undefined)),
 				anchors: (await f.sessionDb.getPersistedTurns()).filter(turn => turn.kind === 'local').map(turn => turn.anchorTurnId),
 				sent: f.agent.sendMessageCalls,
-			}, { before: { turn: 'human-turn', parts: [], turns: 0 }, notices: ['enabled', 'disabled'], anchors: ['human-turn', 'human-turn'], sent: [] });
+			}, { before: { turn: 'human-turn', parts: [], turns: 0 }, notices: ['disabled'], anchors: ['human-turn'], sent: [] });
+		});
+
+		test('replaces the latest notice of an artifact with a merged notice until another turn follows', async () => {
+			const f = await createArtifactAutomation();
+			const turns = () => f.stateManager.getChatState(f.chat)!.turns;
+			const describe = (turn: Turn) => ({
+				replaced: readMessageReplacedTurn(turn.message) !== undefined,
+				notice: turn.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification ? { ...readArtifactIntegrationNotice(part), heading: part.content && typeof part.content === 'string' ? part.content.split('\n')[0] : undefined } : part.kind),
+			});
+			await f.model.configure('test.automation', 0, { repair: true });
+			await timeout(0);
+			const [first] = turns();
+			await f.model.configure('test.automation', 1, { repair: false });
+			await timeout(0);
+			const [merged] = turns();
+			f.stateManager.dispatchServerAction(f.chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'human-turn', startedAt: new Date().toISOString(), message: { text: 'Human work', origin: { kind: MessageKind.User } },
+			});
+			f.stateManager.dispatchServerAction(f.chat, { type: ActionType.ChatTurnComplete, turnId: 'human-turn', duration: 1 });
+			await f.model.configure('test.automation', 2, { repair: true });
+			await timeout(0);
+			assert.deepStrictEqual({
+				replacesFirst: readMessageReplacedTurn(merged.message) === first.id,
+				turns: turns().map(describe),
+				persisted: (await f.sessionDb.getPersistedTurns()).filter(turn => turn.kind === 'local').map(turn => ({ current: turns().some(candidate => candidate.id === turn.turnId), anchor: turn.anchorTurnId })),
+				sent: f.agent.sendMessageCalls,
+			}, {
+				replacesFirst: true,
+				turns: [
+					{ replaced: true, notice: [{ kind: 'disabled', iconId: 'git-pull-request', heading: 'Automatically Repair disabled for Example' }] },
+					{ replaced: false, notice: [] },
+					{ replaced: false, notice: [{ kind: 'enabled', iconId: 'git-pull-request', heading: 'Automatically Repair enabled for Example' }] },
+				],
+				persisted: [{ current: true, anchor: undefined }, { current: true, anchor: 'human-turn' }],
+				sent: [],
+			});
+		});
+
+		test('notices merged while a turn runs merge into an earlier notice as a whole', async () => {
+			const f = await createArtifactAutomation();
+			const internals = f.localService as unknown as { _postChatNotice: AgentService['_postChatNotice'] };
+			const notice = (content: string): SystemNotificationResponsePart & { content: string } => ({ kind: ResponsePartKind.SystemNotification, content, _meta: { 'test.notice': true } });
+			const merge = (previous: SystemNotificationResponsePart, next: SystemNotificationResponsePart & { content: string }) => previous._meta?.['test.notice'] ? notice(`${previous.content}+${next.content}`) : undefined;
+			internals._postChatNotice(f.chat, notice('X'), merge);
+			const [written] = f.stateManager.getChatState(f.chat)!.turns;
+			f.stateManager.dispatchServerAction(f.chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'human-turn', startedAt: new Date().toISOString(), message: { text: 'Human work', origin: { kind: MessageKind.User } },
+			});
+			internals._postChatNotice(f.chat, notice('A'), merge);
+			internals._postChatNotice(f.chat, notice('B'), merge);
+			// Truncating the running turn away leaves the earlier notice last when the queued notice is written.
+			f.stateManager.dispatchServerAction(f.chat, { type: ActionType.ChatTruncated, turnId: written.id });
+			await timeout(0);
+			assert.deepStrictEqual(f.stateManager.getChatState(f.chat)!.turns.map(turn => turn.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification ? part.content : part.kind)), [['X+A+B']]);
 		});
 	});
 
