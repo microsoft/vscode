@@ -6023,6 +6023,41 @@ suite('Sessions - SessionsList', () => {
 		]) {
 			const mode = `compact: ${presentation.compact}, phone: ${presentation.phone}`;
 
+			if (!presentation.phone) {
+				test(`aligns disclosure controls for every comparison participant (${mode})`, () => {
+					const { container } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, harness => {
+						harness.managementService.sessions = harness.managementService.sessions.map(session => {
+							const nested = buildTestSession({ id: session.sessionId, title: session.title.get(), chats: [{ id: 'peer', title: 'Nested chat' }] });
+							return {
+								...session,
+								chats: nested.session.chats,
+								mainChat: nested.session.mainChat,
+								capabilities: nested.session.capabilities,
+							};
+						});
+					}, false, presentation);
+					const participants = [...container.querySelectorAll<HTMLElement>('.session-item')];
+
+					assert.deepStrictEqual(participants.map(participant => {
+						const row = participant.closest<HTMLElement>('.monaco-list-row')!;
+						const twistie = row.querySelector<HTMLElement>('.monaco-tl-twistie')!;
+						const icon = participant.querySelector<HTMLElement>('.session-icon')!;
+						row.classList.add('hovered');
+						const appearance = {
+							title: participant.querySelector('.session-title')?.textContent,
+							leftOffset: twistie.getBoundingClientRect().left - icon.getBoundingClientRect().left,
+							topOffset: twistie.getBoundingClientRect().top - icon.getBoundingClientRect().top,
+							opacity: mainWindow.getComputedStyle(twistie).opacity,
+							pointerEvents: mainWindow.getComputedStyle(twistie).pointerEvents,
+						};
+						row.classList.remove('hovered');
+						return appearance;
+					}), ['Synthesis', 'Judge', 'Claude Opus 5', 'Balance'].map(title => ({
+						title, leftOffset: 0, topOffset: 0, opacity: '1', pointerEvents: 'auto',
+					})));
+				});
+			}
+
 			test(`keeps comparison connectors clear of participant status icons (${mode})`, () => {
 				const { container } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, undefined, false, presentation);
 				const participants = [...container.querySelectorAll<HTMLElement>('.session-item')];
@@ -6045,6 +6080,39 @@ suite('Sessions - SessionsList', () => {
 					hasSpinner: true,
 					decorative: 'true',
 					pointerEvents: 'none',
+				})));
+			});
+
+			test(`continues the comparison trunk through an expanded middle participant's chats (${mode})`, () => {
+				const { attempt1, container, harness, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, undefined, false, presentation);
+				const nested = buildTestSession({ id: 'nested-middle', title: 'Middle participant', chats: [{ id: 'one', title: 'First chat' }, { id: 'two', title: 'Last chat' }] });
+				const session: ISession = {
+					...attempt1.session,
+					chats: nested.session.chats,
+					mainChat: nested.session.mainChat,
+					capabilities: nested.session.capabilities,
+				};
+				harness.managementService.sessions = harness.managementService.sessions.map(candidate => candidate === attempt1.session ? session : candidate);
+				list.refresh();
+				list.layout(600, 400);
+				list.setItemCollapsed({ session: session.resource }, false);
+				list.setFocusedItem({ session: session.resource });
+				const chats = [...container.querySelectorAll<HTMLElement>('.session-comparison-chat')];
+
+				assert.deepStrictEqual(chats.map(chat => {
+					const trunk = chat.querySelector<HTMLElement>('.session-comparison-chat-connector');
+					const style = trunk && mainWindow.getComputedStyle(trunk);
+					return {
+						title: chat.querySelector('.session-chat-title')?.textContent,
+						left: style?.left,
+						top: style?.top,
+						bottom: style?.bottom,
+						border: style?.borderLeftWidth,
+						pointerEvents: style?.pointerEvents,
+						decorative: trunk?.getAttribute('aria-hidden'),
+					};
+				}), ['First chat', 'Last chat'].map(title => ({
+					title, left: '20px', top: '0px', bottom: '-2px', border: '1px', pointerEvents: 'none', decorative: 'true',
 				})));
 			});
 
@@ -6076,6 +6144,53 @@ suite('Sessions - SessionsList', () => {
 				list.setFocusedItem({ session: session.resource });
 				const focused = appearance();
 				list.setFocusedItem({ session: judge.session.resource });
+
+				const chat = container.querySelector<HTMLElement>('.session-comparison-chat')!;
+				const chatIcon = chat.querySelector<HTMLElement>('.session-chat-icon')!;
+				const elbow = mainWindow.getComputedStyle(chat, '::after');
+				const chatIconLeft = chatIcon.getBoundingClientRect().left - chat.getBoundingClientRect().left;
+				assert.deepStrictEqual({
+					outgoingGuide: mainWindow.getComputedStyle(participant, '::after').left,
+					chatTrunk: mainWindow.getComputedStyle(chat, '::before').left,
+					chatElbow: elbow.left,
+					guideBeforeIcon: parseFloat(elbow.left) + parseFloat(elbow.width) <= chatIconLeft,
+					outerTrunk: chat.querySelector('.session-comparison-chat-connector'),
+				}, {
+					outgoingGuide: presentation.phone ? '20px' : '44px',
+					chatTrunk: presentation.phone ? '20px' : '44px',
+					chatElbow: presentation.phone ? '20px' : '44px',
+					guideBeforeIcon: true,
+					outerTrunk: null,
+				});
+
+				if (!presentation.phone) {
+					const row = participant.closest<HTMLElement>('.monaco-list-row')!;
+					const twistie = row.querySelector<HTMLElement>('.session-comparison-attempt-twistie')!;
+					const icon = participant.querySelector<HTMLElement>('.session-icon')!;
+					row.classList.add('hovered');
+					assert.deepStrictEqual({
+						outgoingGuide: mainWindow.getComputedStyle(participant, '::after').left,
+						chatTrunk: mainWindow.getComputedStyle(chat, '::before').left,
+						chatElbow: mainWindow.getComputedStyle(chat, '::after').left,
+						chatIndent: mainWindow.getComputedStyle(chat).paddingLeft,
+						twistieLeft: twistie.getBoundingClientRect().left,
+						twistieTop: twistie.getBoundingClientRect().top,
+						twistieOpacity: mainWindow.getComputedStyle(twistie).opacity,
+						twistiePointerEvents: mainWindow.getComputedStyle(twistie).pointerEvents,
+						iconVisibility: mainWindow.getComputedStyle(icon).visibility,
+					}, {
+						outgoingGuide: '44px',
+						chatTrunk: '44px',
+						chatElbow: '44px',
+						chatIndent: '60px',
+						twistieLeft: icon.getBoundingClientRect().left,
+						twistieTop: icon.getBoundingClientRect().top,
+						twistieOpacity: '1',
+						twistiePointerEvents: 'auto',
+						iconVisibility: 'hidden',
+					});
+					row.classList.remove('hovered');
+				}
 
 				const incoming = { top: '0px', opacity: '1', borderBottom: '1px' };
 				const outgoing = { top: presentation.phone ? '32px' : presentation.compact ? '20px' : '28px', opacity: '0', borderBottom: '0px' };

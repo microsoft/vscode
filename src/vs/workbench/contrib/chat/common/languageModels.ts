@@ -279,6 +279,11 @@ export interface ILanguageModelChatMetadata {
 	readonly autoModelDiscountPercent?: number;
 	/** Whether the agent host presents its Auto model as Copilot Fusion. */
 	readonly autoModelFusion?: boolean;
+	/**
+	 * The tier the agent host runs Copilot Fusion at for editor and terminal inline chat, whatever
+	 * effort level is selected, so inline chat offers none. Absent when the host pins no tier there.
+	 */
+	readonly autoModelFusionInlineChatTier?: string;
 	/** Set only on the agent host's Auto model presented as Fusion. */
 	readonly autoModelTierPromotions?: readonly IAutoModelTierPromotion[];
 	/** Auto's tiers come from the provider, which may hide some, including HydraFusion ones. */
