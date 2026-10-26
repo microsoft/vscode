@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
 import sinon from 'sinon';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -20,7 +20,7 @@ import { NativeParsedArgs } from '../../../environment/common/argv.js';
 import { FocusMode } from '../../../native/common/native.js';
 import { IWindowState, WindowMode } from '../../../window/electron-main/window.js';
 import { BaseWindow } from '../../electron-main/windowImpl.js';
-import { isHiddenWindowMode } from '../../electron-main/windows.js';
+import { getAuxiliaryWindowRestoreMode, isHiddenWindowMode } from '../../electron-main/windows.js';
 
 class TestWindow extends BaseWindow {
 	readonly id = 1;
@@ -195,6 +195,23 @@ suite('BaseWindow - hidden window mode', () => {
 		window.applyState({ mode: WindowMode.Fullscreen }, false);
 
 		assert.deepStrictEqual([maximize.callCount, setFullScreen.callCount, show.callCount], [0, 0, 0]);
+	});
+
+	test('auxiliary windows restore the requested mode, not the visibility', () => {
+		assert.deepStrictEqual(
+			[undefined, WindowMode.Normal, WindowMode.Maximized, WindowMode.Fullscreen].map(getAuxiliaryWindowRestoreMode),
+			[WindowMode.Normal, WindowMode.Normal, WindowMode.Maximized, WindowMode.Maximized]
+		);
+	});
+
+	test('a normal hidden auxiliary window keeps its bounds and is neither maximized nor shown', () => {
+		const { window, maximize, show } = createWindow(true);
+		const setBounds = sinon.stub();
+		Object.assign(window.win!, { setBounds });
+		const bounds = { x: 10, y: 20, width: 800, height: 600 };
+		window.applyState({ ...bounds, mode: getAuxiliaryWindowRestoreMode(WindowMode.Normal) }, true);
+
+		assert.deepStrictEqual([setBounds.args, maximize.callCount, show.callCount], [isMacintosh || isWindows ? [[bounds]] : [], 0, 0]);
 	});
 
 	for (const hidden of [false, true]) {

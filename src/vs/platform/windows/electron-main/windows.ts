@@ -139,6 +139,14 @@ export function isHiddenWindowMode(environmentMainService: IEnvironmentMainServi
 	return environmentMainService.args['hidden-window'] === true && !!environmentMainService.extensionTestsLocationURI;
 }
 
+/**
+ * The mode an auxiliary window is restored into. Fullscreen is restored as
+ * maximized because auxiliary windows do not support restoring fullscreen.
+ */
+export function getAuxiliaryWindowRestoreMode(mode: WindowMode | undefined): WindowMode {
+	return mode === WindowMode.Maximized || mode === WindowMode.Fullscreen ? WindowMode.Maximized : WindowMode.Normal;
+}
+
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
 	const themeMainService = accessor.get(IThemeMainService);
 	const productService = accessor.get(IProductService);
