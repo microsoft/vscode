@@ -6,7 +6,13 @@
 .github/workflows/pr-node-modules.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
 .github/workflows/pr-win32-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
 .github/workflows/pr.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
+.github/workflows/pr-ripple.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
 .github/workflows/telemetry.yml @lramos15 @lszomoru @alexdima
+# The detection actions and ripple decide which pull request checks skip.
+.github/actions/detect-changes/ @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
+.github/actions/detect-agent-host-e2e-changes/ @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
+.github/actions/detect-test-disable-only/ @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
+build/ripple/ @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
 
 # VS Code API
 # Ensure the API team is aware of changes to the vscode-dts file

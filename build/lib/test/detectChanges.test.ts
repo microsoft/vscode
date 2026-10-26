@@ -170,13 +170,14 @@ suite('Detect Changes', () => {
 		const action = load(readFileSync(path.join(repositoryRoot, '.github/actions/detect-changes/action.yml'), 'utf8')) as { readonly outputs: Record<string, unknown> };
 		assert.deepStrictEqual(Object.keys(action.outputs).sort(), outputs);
 		// The changes job also passes on the outputs of the Agent Host E2E change detection, and combines both for the
-		// Linux and macOS Electron jobs, which also run Agent Host E2E.
+		// Linux and macOS Electron jobs, which also run Agent Host E2E. It also reports whether the pull request only
+		// disables tests (see detectTestDisableOnly.test.ts).
 		const agentHostOutputs = ['agent-host-e2e', 'agent-host-test-profile', 'agent-host-test-profile-reason', 'electron-tests'];
 		// And whether the pull request changes ripple, and whether ripple failed, for the Ripple job, and whether
 		// the macOS and Windows test jobs have planned files to run: unit tests (for the Browser ones, browser tests),
 		// node.js integration tests and Agent Host E2E suites.
 		const rippleOutputs = ['ripple-changed', 'ripple-failed', 'selected-unit-tests', 'selected-browser-unit-tests', 'selected-node-integration-tests', 'selected-agent-host-e2e'];
-		assert.deepStrictEqual(Object.keys(loadWorkflow().jobs.changes.outputs ?? {}).sort(), [...outputs, ...agentHostOutputs, ...rippleOutputs].sort());
+		assert.deepStrictEqual(Object.keys(loadWorkflow().jobs.changes.outputs ?? {}).sort(), [...outputs, ...agentHostOutputs, ...rippleOutputs, 'test-disable-only'].sort());
 	});
 
 	test('the Ripple check runs for the pull requests that change ripple, and the planning never fails Detect Changes', () => {
@@ -210,11 +211,12 @@ suite('Detect Changes', () => {
 				agentHostE2E: jobs[id].with?.agent_host_e2e_tests,
 			}])),
 		}, {
+			// A pull request that only disables tests skips them too (see detectTestDisableOnly.test.ts).
 			outputs: [
-				`\${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}`,
-				`\${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' && steps.ripple.outputs.selects-no-browser-tests != 'true' }}`,
-				`\${{ steps.detect.outputs.product-tests == 'true' && steps.ripple.outputs.selects-no-node-integration-tests != 'true' }}`,
-				`\${{ steps.detect-agent-host-e2e.outputs.affected == 'true' && steps.ripple.outputs.selects-no-agent-host-e2e != 'true' }}`,
+				`\${{ steps.test-disable-only.outputs.verified != 'true' && steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}`,
+				`\${{ steps.test-disable-only.outputs.verified != 'true' && steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' && steps.ripple.outputs.selects-no-browser-tests != 'true' }}`,
+				`\${{ steps.test-disable-only.outputs.verified != 'true' && steps.detect.outputs.product-tests == 'true' && steps.ripple.outputs.selects-no-node-integration-tests != 'true' }}`,
+				`\${{ steps.test-disable-only.outputs.verified != 'true' && steps.detect-agent-host-e2e.outputs.affected == 'true' && steps.ripple.outputs.selects-no-agent-host-e2e != 'true' }}`,
 			],
 			skippableUnitTests: ['macos-electron-unit-tests', 'windows-electron-unit-tests'],
 			skippableBrowserUnitTests: ['macos-browser-unit-tests', 'windows-browser-unit-tests'],

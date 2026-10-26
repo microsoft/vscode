@@ -53,6 +53,12 @@ All three runners accept `--runList=<file>`: a file listing test files (such as 
     build/ripple/target/release/ripple affected --config build/ripple/vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head "${head:-HEAD}" > .build/affected-tests.txt
     ./scripts/test.sh --runList=.build/affected-tests.txt
 
+## Disabling a flaky test
+
+To unblock CI, disable the test in a pull request that changes nothing else: insert `.skip` after `test`, `suite`, `it` or `describe`, optionally with `//` comments that link the tracking issue. The pull request checks prove that the pull request only disables tests and then skip the tests, so the required checks pass in a minute or two. [ripple's README](../../build/ripple/README.md#pull-requests-that-only-disable-tests) has the exact rules; to check your branch:
+
+    build/ripple/target/release/ripple disables --config build/ripple/vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head HEAD
+
 ## Coverage
 
 The following command will create a `coverage` folder in the `.build` folder at the root of the workspace:

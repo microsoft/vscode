@@ -21,8 +21,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # A pull request that only disables tests skips the fixture checks (see `ripple disables` in build/ripple/README.md).
+  changes:
+    name: Detect Changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # To check that the ripple binary that decides is from main.
+      actions: read
+    outputs:
+      test-disable-only: ${{ steps.test-disable-only.outputs.verified == 'true' }}
+    steps:
+      # The merge commit and its first parent, without file contents: ripple reads the files that the
+      # pull request changes. When a step fails, the fixture checks run.
+      - name: Checkout microsoft/vscode
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          filter: blob:none
+          sparse-checkout: |
+            .github/actions/detect-test-disable-only
+            build/ripple
+
+      - name: Detect test-disable-only changes
+        id: test-disable-only
+        continue-on-error: true
+        uses: ./.github/actions/detect-test-disable-only
+
   playwright:
     name: Playwright Fixture Tests
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.test-disable-only != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -86,6 +117,8 @@ jobs:
 
   screenshots:
     name: Screenshots
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.test-disable-only != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -476,12 +509,19 @@ jobs:
     name: Screenshots & Tests
     if: ${{ always() }}
     needs:
+      - changes
       - playwright
       - screenshots
     runs-on: ubuntu-latest
     steps:
       - name: Verify fixture test results
         run: |
+          if [[ '${{ needs.changes.outputs.test-disable-only }}' == 'true' &&
+                '${{ needs.playwright.result }}' == 'skipped' &&
+                '${{ needs.screenshots.result }}' == 'skipped' ]]; then
+            echo "The fixture checks were skipped because the pull request only disables tests."
+            exit 0
+          fi
           if [[ '${{ needs.playwright.result }}' != 'success' ||
                 '${{ needs.screenshots.result }}' != 'success' ]]; then
             echo "::error::Component fixture checks failed."

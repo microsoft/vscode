@@ -55,3 +55,7 @@ Always call `sinon.restore()` in `teardown` to avoid leaking mocks.
 ### Snapshot Testing
 
 Use `assertSnapshot` for Jest-like snapshot tests. Snapshots are written to a `__snapshots__` directory beside the test file on first run — verify the output is correct, then subsequent runs compare against it.
+
+### Disabling a Flaky Test
+
+To unblock CI, disable the test in a pull request that changes nothing else: insert `.skip` after `test`, `suite`, `it` or `describe` (for example `test(` → `test.skip(`). You can add `//` comment lines directly above the call, indented like it, or append a `//` comment to its line, for example to link the tracking issue. The pull request checks prove that the pull request only does this and then skip the tests, so the required checks pass in a minute or two. Anything else, such as `this.skip()`, a new condition, or a block comment, runs all checks. [ripple's README](../../build/ripple/README.md#pull-requests-that-only-disable-tests) has the exact rules, and `ripple disables` checks a branch locally.

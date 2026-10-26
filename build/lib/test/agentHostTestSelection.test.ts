@@ -219,11 +219,12 @@ suite('Agent Host PR test selection', () => {
 			checksOutDetection: true,
 			detection: { id: 'detect-agent-host-e2e', token: '${{ secrets.GITHUB_TOKEN }}' },
 			outputs: {
-				affected: '${{ steps.detect-agent-host-e2e.outputs.affected }}',
+				// A pull request that only disables tests skips them (see detectTestDisableOnly.test.ts).
+				affected: '${{ steps.test-disable-only.outputs.verified == \'true\' && \'false\' || steps.detect-agent-host-e2e.outputs.affected }}',
 				profile: '${{ steps.detect-agent-host-e2e.outputs.profile }}',
 				reason: '${{ steps.detect-agent-host-e2e.outputs.reason }}',
 				// The Linux and macOS Electron jobs run when either their integration tests or Agent Host E2E can be affected.
-				electronTests: '${{ steps.detect.outputs.product-tests == \'true\' || steps.detect-agent-host-e2e.outputs.affected == \'true\' }}',
+				electronTests: '${{ steps.test-disable-only.outputs.verified != \'true\' && (steps.detect.outputs.product-tests == \'true\' || steps.detect-agent-host-e2e.outputs.affected == \'true\') }}',
 			},
 			callers: [
 				// Linux runs Agent Host E2E whenever the changed files can affect it; macOS only when the plan

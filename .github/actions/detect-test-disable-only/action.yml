@@ -1,0 +1,49 @@
+name: Detect test-disable-only changes
+description: >-
+  Determines with ripple whether a pull request only disables tests, so that its checks can skip the
+  tests and the other checks that such a change cannot affect (see `ripple disables` in
+  build/ripple/README.md). Needs a checkout of the pull request's merge commit with its first parent
+  (fetch-depth 2), which can be sparse and blobless as long as it has build/ripple, and the
+  actions: read permission.
+
+outputs:
+  verified:
+    description: "'true' when the pull request only disables tests."
+    value: ${{ steps.disables.outputs.only-disables-tests }}
+
+runs:
+  using: composite
+  steps:
+    # Must match the cache key and path of pr-ripple.yml, which builds the binary on main. This action
+    # never builds ripple: without a binary from main, every check runs.
+    - name: Restore ripple
+      id: cache-ripple
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: build/ripple/target/release/ripple
+        key: "ripple-${{ runner.os }}-${{ hashFiles('build/ripple/Cargo.lock', 'build/ripple/Cargo.toml', 'build/ripple/rust-toolchain.toml', 'build/ripple/src/**') }}"
+
+    # A pull request's workflow runs can save caches, also with workflow changes that the pull
+    # request later reverts, and restoring looks in the pull request's own caches first. Only a
+    # binary that main built can let the checks skip.
+    - name: Check that main built ripple
+      id: trusted
+      if: steps.cache-ripple.outputs.cache-hit == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        KEY: ${{ steps.cache-ripple.outputs.cache-primary-key }}
+        REF: refs/pull/${{ github.event.pull_request.number }}/merge
+      run: |
+        own=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/caches" -f ref="$REF" -f key="$KEY" --jq .total_count)
+        if [ "$own" = 0 ]; then
+          echo "trusted=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning::The pull request saved its own ripple binary, so every check runs."
+        fi
+
+    - name: Detect test-disable-only changes
+      id: disables
+      if: steps.trusted.outputs.trusted == 'true'
+      shell: bash
+      run: build/ripple/target/release/ripple disables --config build/ripple/vscode.jsonc --base HEAD^1 --head HEAD

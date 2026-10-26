@@ -59,10 +59,44 @@ pub struct Change {
 	pub new: Option<String>,
 }
 
+/// A changed tree entry with its modes, as `git diff-tree --raw` reports it, including submodules.
+#[derive(Debug, Clone)]
+pub struct RawChange {
+	pub path: String,
+	pub old_mode: String,
+	pub new_mode: String,
+	/// `None` when the entry was added.
+	pub old: Option<String>,
+	/// `None` when the entry was deleted.
+	pub new: Option<String>,
+	/// `A`dded, `D`eleted, `M`odified or `T`ype changed.
+	pub status: char,
+}
+
 const NULL_OID: &str = "0000000000000000000000000000000000000000";
+const SUBMODULE: &str = "160000";
 
 /// Blob-level changes between two commits. Renames are reported as a delete and an add.
 pub fn diff_tree(repo: &Path, from: &str, to: &str) -> Result<Vec<Change>> {
+	Ok(blob_changes(diff_tree_raw(repo, from, to)?))
+}
+
+/// The changes of blobs among `changes`, without submodules.
+pub fn blob_changes(changes: Vec<RawChange>) -> Vec<Change> {
+	changes
+		.into_iter()
+		.filter(|c| c.old_mode != SUBMODULE && c.new_mode != SUBMODULE)
+		.map(|c| Change {
+			path: c.path,
+			old: c.old,
+			new: c.new,
+		})
+		.collect()
+}
+
+/// Every changed tree entry between two commits, with modes. Renames are reported as a delete and
+/// an add.
+pub fn diff_tree_raw(repo: &Path, from: &str, to: &str) -> Result<Vec<RawChange>> {
 	let out = git(
 		repo,
 		&[
@@ -81,17 +115,22 @@ pub fn diff_tree(repo: &Path, from: &str, to: &str) -> Result<Vec<Change>> {
 		if meta.is_empty() {
 			continue;
 		}
-		let Some(path) = fields.next() else { break };
+		let Some(path) = fields.next() else {
+			bail!("unexpected git diff-tree output: {meta}");
+		};
 		// :<old mode> <new mode> <old oid> <new oid> <status>
 		let parts: Vec<&str> = meta.trim_start_matches(':').split(' ').collect();
-		if parts.len() < 5 || parts[0] == "160000" || parts[1] == "160000" {
-			continue;
-		}
+		let [old_mode, new_mode, old, new, status] = parts[..] else {
+			bail!("unexpected git diff-tree output: {meta}");
+		};
 		let oid = |s: &str| (s != NULL_OID).then(|| s.to_owned());
-		changes.push(Change {
+		changes.push(RawChange {
 			path: path.to_owned(),
-			old: oid(parts[2]),
-			new: oid(parts[3]),
+			old_mode: old_mode.to_owned(),
+			new_mode: new_mode.to_owned(),
+			old: oid(old),
+			new: oid(new),
+			status: status.chars().next().unwrap_or('?'),
 		});
 	}
 	Ok(changes)

@@ -33,32 +33,43 @@ jobs:
   # suites, and skip either when the plan lists none. The artifact only exists when the plan
   # selects files, and without it those jobs run every test. The planning steps never fail the
   # job: the Ripple job reports a broken ripple.
+  #
+  # And whether the pull request only disables tests (see `ripple disables` in build/ripple/README.md):
+  # then nothing needs to run, and every job skips.
   changes:
     name: Detect Changes
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+      # To check that the ripple binary that decides whether the pull request only disables tests is from main.
+      actions: read
     outputs:
-      cli: ${{ steps.detect.outputs.cli }}
-      copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
-      copilot: ${{ steps.detect.outputs.copilot }}
-      unit-tests: ${{ steps.detect.outputs.unit-tests }}
-      browser-integration: ${{ steps.detect.outputs.browser-integration }}
-      product-tests: ${{ steps.detect.outputs.product-tests }}
-      agent-host-e2e: ${{ steps.detect-agent-host-e2e.outputs.affected }}
+      # 'true' when the pull request only disables tests. The outputs below are then 'false', so that
+      # the jobs skip and PR Gate reports them as passed.
+      test-disable-only: ${{ steps.test-disable-only.outputs.verified == 'true' }}
+      cli: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.cli }}
+      copilot-shim: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.copilot-shim }}
+      copilot: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.copilot }}
+      unit-tests: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.unit-tests }}
+      browser-integration: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.browser-integration }}
+      product-tests: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.product-tests }}
+      agent-host-e2e: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect-agent-host-e2e.outputs.affected }}
       agent-host-test-profile: ${{ steps.detect-agent-host-e2e.outputs.profile }}
       agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
       ripple-changed: ${{ steps.ripple.outputs.changed }}
       ripple-failed: ${{ steps.ripple.outputs.failed }}
       # Linux and macOS run Agent Host E2E in the Electron integration tests job.
-      electron-tests: ${{ steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true' }}
+      electron-tests: ${{ steps.test-disable-only.outputs.verified != 'true' && (steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true') }}
       # The macOS and Windows unit test jobs run only the unit test files that the plan selects, so
       # they also skip when the plan of a working ripple selects none (see the Check ripple step).
-      selected-unit-tests: ${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}
+      selected-unit-tests: ${{ steps.test-disable-only.outputs.verified != 'true' && steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}
       # The Browser unit test jobs also skip when none of the selected files is a browser test.
-      selected-browser-unit-tests: ${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' && steps.ripple.outputs.selects-no-browser-tests != 'true' }}
+      selected-browser-unit-tests: ${{ steps.test-disable-only.outputs.verified != 'true' && steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' && steps.ripple.outputs.selects-no-browser-tests != 'true' }}
       # The macOS and Windows Electron jobs run only the node.js integration tests and the Agent
       # Host E2E suites that the plan selects, so they skip either when it selects none of them.
-      selected-node-integration-tests: ${{ steps.detect.outputs.product-tests == 'true' && steps.ripple.outputs.selects-no-node-integration-tests != 'true' }}
-      selected-agent-host-e2e: ${{ steps.detect-agent-host-e2e.outputs.affected == 'true' && steps.ripple.outputs.selects-no-agent-host-e2e != 'true' }}
+      selected-node-integration-tests: ${{ steps.test-disable-only.outputs.verified != 'true' && steps.detect.outputs.product-tests == 'true' && steps.ripple.outputs.selects-no-node-integration-tests != 'true' }}
+      selected-agent-host-e2e: ${{ steps.test-disable-only.outputs.verified != 'true' && steps.detect-agent-host-e2e.outputs.affected == 'true' && steps.ripple.outputs.selects-no-agent-host-e2e != 'true' }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,6 +90,12 @@ jobs:
         uses: ./.github/actions/detect-agent-host-e2e-changes
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Never fails the job: without a verdict, every check runs.
+      - name: Detect test-disable-only changes
+        id: test-disable-only
+        continue-on-error: true
+        uses: ./.github/actions/detect-test-disable-only
 
       # Must match the cache key of pr-ripple.yml, which saves the binary on main.
       - name: Restore ripple
@@ -203,6 +220,9 @@ jobs:
 
   compile:
     name: Compile & Hygiene
+    needs: changes
+    # A pull request that only disables tests cannot affect compilation, hygiene or ESLint.
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.test-disable-only != 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
       # Hygiene and ESLint check only the files that changed since this commit, unless
