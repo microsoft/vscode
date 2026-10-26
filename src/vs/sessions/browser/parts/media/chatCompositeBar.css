@@ -262,6 +262,15 @@
 	gap: 4px;
 }
 
+/* The Run split button keeps its icon and its chevron on one center line, as in the title bar. */
+.chat-composite-bar-toolbar .monaco-dropdown-with-default {
+	align-items: center;
+}
+
+.chat-composite-bar-toolbar .monaco-dropdown-with-default > .dropdown-action-container > .monaco-dropdown > .dropdown-label > .action-label.codicon {
+	display: flex;
+}
+
 .monaco-workbench.session-comparison-grid-active .session-header-bar .chat-composite-bar-title-actions .action-label:is(.codicon-close, .codicon-close-small) {
 	opacity: 0;
 	pointer-events: none;
@@ -795,6 +804,15 @@
 .session-header-bar.window-chrome > .chat-composite-bar-header {
 	max-width: none;
 	margin: 0;
+}
+
+/* The toolbar of the title row that holds the overflow (…) follows the window actions. */
+.session-header-bar.window-chrome .chat-composite-bar-window-chrome {
+	margin-left: auto;
+}
+
+.session-header-bar.window-chrome .chat-composite-bar-title-actions {
+	margin-left: 0;
 }
 
 /* The traffic lights of macOS sit over the leading edge. */

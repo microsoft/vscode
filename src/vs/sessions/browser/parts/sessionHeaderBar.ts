@@ -248,6 +248,12 @@ export class SessionHeaderBar extends Disposable {
 	setWindowChrome(shown: boolean): void {
 		this._container.classList.toggle('window-chrome', shown);
 		this._container.draggable = !shown;
+		// The overflow of the session actions comes last, after the actions of the window.
+		if (shown) {
+			this._windowChromeEl.after(this._titleActionsEl);
+		} else {
+			this._windowChromeEl.before(this._titleActionsEl);
+		}
 		this._windowChromeLights.clear();
 		if (shown && isMacintosh && isNative) {
 			// The traffic lights are not shown in full screen.

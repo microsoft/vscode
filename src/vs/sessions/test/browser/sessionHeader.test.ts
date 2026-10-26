@@ -481,6 +481,24 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
+	test('puts the overflow of the session actions after the chrome of the window', () => {
+		const { header } = createHarness(disposables);
+		const order = () => Array.from(header.element.querySelector('.chat-composite-bar-title-row')!.children)
+			.filter(child => child.classList.contains('chat-composite-bar-title-actions') || child.classList.contains('chat-composite-bar-window-chrome'))
+			.map(child => child.classList.contains('chat-composite-bar-title-actions') ? 'actions' : 'chrome');
+
+		const initial = order();
+		header.setWindowChrome(true);
+		const shown = order();
+		header.setWindowChrome(false);
+
+		assert.deepStrictEqual({ initial, shown, hidden: order() }, {
+			initial: ['actions', 'chrome'],
+			shown: ['chrome', 'actions'],
+			hidden: ['actions', 'chrome'],
+		});
+	});
+
 	test('shows the title of the active chat', () => {
 		const { header, activeChat, secondChat } = createHarness(disposables);
 		const title = () => header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')?.textContent;
