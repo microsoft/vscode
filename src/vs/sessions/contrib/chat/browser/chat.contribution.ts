@@ -680,7 +680,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
