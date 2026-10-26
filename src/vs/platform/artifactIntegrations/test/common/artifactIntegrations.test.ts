@@ -15,10 +15,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { ArtifactAction, ArtifactAuthenticationRequiredError, ArtifactAutomationOption, ArtifactContributionView, ArtifactDetails, ArtifactPromptReceipt, ArtifactRecord, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, isArtifactRunSettled } from '../../common/artifactIntegration.js';
 import { applyArtifactAutomationSelection, disableArtifactAutomation, reconcileArtifactAutomationOptions } from '../../common/artifactAutomationConfiguration.js';
+import { formatArtifactAutomationNotice, isArtifactAutomationEnabledRules, isArtifactAutomationNoticeChanges, mergeArtifactAutomationNotices } from '../../common/artifactIntegrationNotices.js';
 import { ArtifactIntegrationRegistry } from '../../common/artifactIntegrationRegistry.js';
 import { ArtifactIntegrationService } from '../../common/artifactIntegrationService.js';
 import { ArtifactConfigurationConflictError, ArtifactIntegrationState, ArtifactIntegrationStore, ArtifactRetryLimitError } from '../../common/artifactIntegrationStore.js';
-import { ArtifactAutomationNotice, ArtifactPromptOutcome, ArtifactPromptRequest, ArtifactPromptState, ArtifactPromptTrackingError, ArtifactSessionState, ArtifactStorageCommitError, IArtifactIntegrationStorage, IArtifactPromptHandle, IArtifactRuntime, isArtifactPromptOutcome, selectArtifactCoordinator } from '../../common/artifactRuntime.js';
+import { ArtifactAutomationNotice, ArtifactAutomationNoticeChange, ArtifactPromptOutcome, ArtifactPromptRequest, ArtifactPromptState, ArtifactPromptTrackingError, ArtifactSessionState, ArtifactStorageCommitError, IArtifactIntegrationStorage, IArtifactPromptHandle, IArtifactRuntime, isArtifactPromptOutcome, selectArtifactCoordinator } from '../../common/artifactRuntime.js';
 
 class MemoryStorage implements IArtifactIntegrationStorage {
 	value: string | undefined;
@@ -1047,12 +1048,87 @@ suite('Artifact Integrations', () => {
 			disabledReason: notice.content.includes('Attempt limit reached'),
 			remaining: notice.content.includes('Still enabled: Merge'),
 		})), [
-			{ kind: 'enabled', heading: 'Repair enabled for Example', changedMode: false, modeExplanation: false, disabledReason: false, remaining: false },
-			{ kind: 'enabled', heading: 'Merge enabled for Example', changedMode: false, modeExplanation: false, disabledReason: false, remaining: false },
+			{ kind: 'enabled', heading: 'Autopilot updated for Example \\(2 rules\\)', changedMode: false, modeExplanation: false, disabledReason: false, remaining: false },
 			{ kind: 'changed', heading: 'Merge updated for Example', changedMode: true, modeExplanation: true, disabledReason: false, remaining: false },
 			{ kind: 'disabled', heading: 'Repair disabled for Example', changedMode: false, modeExplanation: false, disabledReason: true, remaining: true },
 		]);
 	}));
+
+	test('merged notices summarize several rules and keep only the latest change of each', () => {
+		const change = (integrationId: string, optionId: string, label: string, kind: ArtifactAutomationNoticeChange['kind'], ...details: string[]): ArtifactAutomationNoticeChange => ({ integrationId, optionId, label, kind, details });
+		const merged = mergeArtifactAutomationNotices(
+			{ changes: [change('test', 'repair', 'Repair', 'enabled', 'Repair failures.'), change('test', 'merge', 'Merge', 'enabled', 'Merge when ready.', 'Mode: When Ready')], enabledRules: [{ integrationId: 'test', labels: ['Repair', 'Merge'] }] },
+			{ changes: [change('test', 'merge', 'Merge', 'changed', 'Merge when ready.', 'Mode: Only if Unchanged'), change('test', 'review', 'Address *Reviews*', 'disabled', 'Attempt limit reached')], enabledRules: [{ integrationId: 'test', labels: ['Repair', 'Merge'] }] },
+		)!;
+		const toggled = mergeArtifactAutomationNotices(
+			{ changes: [change('test', 'repair', 'Repair', 'enabled', 'Repair failures.')], enabledRules: [{ integrationId: 'test', labels: ['Repair'] }] },
+			{ changes: [change('test', 'repair', 'Repair', 'disabled')], enabledRules: [{ integrationId: 'test', labels: [] }] },
+		)!;
+		// Each integration keeps its own enabled rules, so disabling a rule of one does not hide the other's.
+		const integrations = mergeArtifactAutomationNotices(
+			{ changes: [change('a', 'repair', 'Repair', 'enabled')], enabledRules: [{ integrationId: 'a', labels: ['Repair'] }] },
+			{ changes: [change('b', 'review', 'Review', 'disabled')], enabledRules: [{ integrationId: 'b', labels: [] }] },
+		)!;
+		const disabledAcrossIntegrations = mergeArtifactAutomationNotices(integrations, { changes: [change('a', 'repair', 'Repair', 'disabled')], enabledRules: [{ integrationId: 'a', labels: [] }] })!;
+		const stillEnabled = (notice: { changes: readonly ArtifactAutomationNoticeChange[]; enabledRules: Parameters<typeof formatArtifactAutomationNotice>[2] }) => formatArtifactAutomationNotice('Example', notice.changes, notice.enabledRules).content.split('\n\n').at(-1);
+		assert.deepStrictEqual({
+			merged: formatArtifactAutomationNotice('Example', merged.changes, merged.enabledRules),
+			toggled: formatArtifactAutomationNotice('Example', toggled.changes, toggled.enabledRules),
+			integrations: stillEnabled(integrations),
+			disabledAcrossIntegrations: stillEnabled(disabledAcrossIntegrations),
+		}, {
+			merged: {
+				kind: 'changed', content: [
+					'Autopilot updated for Example \\(3 rules\\)',
+					'',
+					'- Repair enabled\\',
+					'  Repair failures.',
+					'- Merge enabled\\',
+					'  Merge when ready.\\',
+					'  Mode: Only if Unchanged',
+					'- Address \\*Reviews\\* disabled\\',
+					'  Attempt limit reached',
+					'',
+					'No new automatic runs will start for the disabled rules. Pending runs will be cancelled; work already sent may still finish. Completed changes are not undone.',
+					'',
+					'Still enabled: Repair, Merge.',
+				].join('\n'),
+			},
+			toggled: {
+				kind: 'disabled', content: [
+					'Repair disabled for Example',
+					'No new automatic runs will start for this rule. Pending runs will be cancelled; work already sent may still finish. Completed changes are not undone.',
+					'No automation rules remain enabled for this artifact integration.',
+				].join('\n\n'),
+			},
+			integrations: 'Still enabled: Repair.',
+			disabledAcrossIntegrations: 'No automation rules remain enabled for these artifact integrations.',
+		});
+	});
+
+	test('notices stay separate when merging them would exceed the limits their readers accept', () => {
+		const notice = (offset: number) => ({
+			changes: Array.from({ length: 50 }, (_, index): ArtifactAutomationNoticeChange => ({ integrationId: 'test', optionId: `rule${offset + index}`, label: `Rule ${offset + index}`, kind: 'enabled', details: [] })),
+			enabledRules: [{ integrationId: 'test', labels: [] }],
+		});
+		const twice = mergeArtifactAutomationNotices(notice(0), notice(50));
+		assert.deepStrictEqual({
+			twice: twice?.changes.length,
+			thrice: twice && mergeArtifactAutomationNotices(twice, notice(100)),
+			repeated: twice && mergeArtifactAutomationNotices(twice, notice(50))?.changes.length,
+		}, { twice: 100, thrice: undefined, repeated: 100 });
+	});
+
+	test('notice validation rejects repeated rules and integrations', () => {
+		const change = { integrationId: 'test', optionId: 'repair', label: 'Repair', kind: 'enabled', details: [] };
+		assert.deepStrictEqual([
+			isArtifactAutomationNoticeChanges([change, { ...change, optionId: 'merge' }]),
+			isArtifactAutomationNoticeChanges([change, { ...change, kind: 'disabled' }]),
+			isArtifactAutomationNoticeChanges([change, null]),
+			isArtifactAutomationEnabledRules([{ integrationId: 'a', labels: [] }, { integrationId: 'b', labels: ['Repair'] }]),
+			isArtifactAutomationEnabledRules([{ integrationId: 'a', labels: [] }, { integrationId: 'a', labels: ['Repair'] }]),
+		], [true, false, false, true, false]);
+	});
 
 	test('restoring enabled automation does not repeat enable notices and failed writes announce nothing', () => run(async store => {
 		const firstStore = store.add(new DisposableStore());

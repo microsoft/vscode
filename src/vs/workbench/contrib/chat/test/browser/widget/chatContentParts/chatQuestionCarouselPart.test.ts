@@ -413,6 +413,179 @@ suite('ChatQuestionCarouselPart', () => {
 		});
 	});
 
+	suite('Layout', () => {
+		const nextFrame = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const settleLayout = async () => {
+			await nextFrame();
+			await nextFrame();
+			await nextFrame();
+		};
+		const maxHeight = () => Math.min(420, mainWindow.innerHeight * 0.45);
+
+		function createLayoutWidget(carousel: IChatQuestionCarousel): void {
+			const container = mainWindow.document.createElement('div');
+			container.className = 'interactive-session';
+			container.style.width = '400px';
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			createWidget(carousel, undefined, container);
+		}
+
+		for (const longContent of ['carousel message', 'question message', 'description']) {
+			test(`shares the maximum height equally with a long ${longContent}`, async () => {
+				const longText = 'Review the deployment requirements before choosing an option. '.repeat(80);
+				const carousel = createMockCarousel([{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Choose a deployment strategy',
+					message: longContent === 'question message' ? longText : undefined,
+					description: longContent === 'description' ? longText : undefined,
+					options: Array.from({ length: 20 }, (_, index) => ({
+						id: `option-${index}`,
+						label: `Deployment option ${index}`,
+						value: `option-${index}`,
+					})),
+				}, {
+					id: 'q2',
+					type: 'text',
+					title: 'Reviewer',
+				}]);
+				carousel.message = longContent === 'carousel message' ? longText : undefined;
+				createLayoutWidget(carousel);
+				await settleLayout();
+
+				const header = widget.domNode.querySelector<HTMLElement>('.chat-question-header-row')!;
+				const input = widget.domNode.querySelector<HTMLElement>('.chat-question-input-container')!;
+				const footer = widget.domNode.querySelector<HTMLElement>('.chat-question-footer-row')!;
+				const sectionMaxHeight = (maxHeight() - footer.offsetHeight) / 2;
+				const getLayout = () => ({
+					headerUsesHalf: Math.abs(header.getBoundingClientRect().height - sectionMaxHeight) <= 1,
+					inputUsesHalf: Math.abs(input.getBoundingClientRect().height - sectionMaxHeight) <= 1,
+					headerScrolls: header.scrollHeight > header.clientHeight,
+					headerKeyboardFocusable: header.tabIndex === 0,
+					inputScrolls: input.scrollHeight > input.clientHeight,
+					footerVisible: footer.getBoundingClientRect().bottom <= widget.domNode.getBoundingClientRect().bottom,
+					withinMaxHeight: widget.domNode.clientHeight <= Math.ceil(maxHeight()),
+				});
+				const initialLayout = getLayout();
+
+				widget.navigateToNextQuestion();
+				await settleLayout();
+				const shortQuestionShrinks = widget.domNode.clientHeight < maxHeight();
+				const shortHeaderNotTabStop = widget.domNode.querySelector<HTMLElement>('.chat-question-header-row')!.tabIndex === -1;
+
+				widget.navigateToPreviousQuestion();
+				await settleLayout();
+				const restoredHeader = widget.domNode.querySelector<HTMLElement>('.chat-question-header-row')!;
+				const restoredInput = widget.domNode.querySelector<HTMLElement>('.chat-question-input-container')!;
+
+				assert.deepStrictEqual({
+					initialLayout,
+					shortQuestionShrinks,
+					shortHeaderNotTabStop,
+					restoredHeaderUsesHalf: Math.abs(restoredHeader.getBoundingClientRect().height - sectionMaxHeight) <= 1,
+					restoredInputUsesHalf: Math.abs(restoredInput.getBoundingClientRect().height - sectionMaxHeight) <= 1,
+				}, {
+					initialLayout: {
+						headerUsesHalf: true,
+						inputUsesHalf: true,
+						headerScrolls: true,
+						headerKeyboardFocusable: true,
+						inputScrolls: true,
+						footerVisible: true,
+						withinMaxHeight: true,
+					},
+					shortQuestionShrinks: true,
+					shortHeaderNotTabStop: true,
+					restoredHeaderUsesHalf: true,
+					restoredInputUsesHalf: true,
+				});
+			});
+		}
+
+		for (const scenario of [
+			{ name: 'short header lends space to answers', header: 40, input: 600, inputLimit: (available: number) => available - 40 },
+			{ name: 'short answers lend space to the header', header: 600, input: 80, inputLimit: () => 80 },
+			{ name: 'both short sections stay compact', header: 40, input: 80, inputLimit: () => 80 },
+			{ name: 'answers fitting exactly in 55 percent avoid scrolling', header: 600, input: 'at-threshold', inputLimit: (available: number) => Math.floor(available * 0.55) },
+			{ name: 'answers exceeding 55 percent keep the equal split', header: 600, input: 'above-threshold', inputLimit: (available: number) => available / 2 },
+		]) {
+			test(scenario.name, async () => {
+				createLayoutWidget(createMockCarousel([{
+					id: 'q1', type: 'singleSelect', title: 'Strategy',
+					options: [{ id: 'a', label: 'Canary', value: 'a' }],
+					allowFreeformInput: false,
+				}, {
+					id: 'q2', type: 'text', title: 'Reviewer',
+				}]));
+				await settleLayout();
+
+				const header = widget.domNode.querySelector<HTMLElement>('.chat-question-header-row')!;
+				const title = widget.domNode.querySelector<HTMLElement>('.chat-question-title-row')!;
+				const input = widget.domNode.querySelector<HTMLElement>('.chat-question-input-container')!;
+				const list = widget.domNode.querySelector<HTMLElement>('.chat-question-list')!;
+				const footer = widget.domNode.querySelector<HTMLElement>('.chat-question-footer-row')!;
+				const available = maxHeight() - footer.offsetHeight;
+				const inputHeight = typeof scenario.input === 'number'
+					? scenario.input
+					: Math.floor(available * 0.55) + (scenario.input === 'above-threshold' ? 1 : 0);
+				title.style.boxSizing = 'border-box';
+				title.style.height = `${scenario.header}px`;
+				list.style.height = `${inputHeight - 24}px`;
+				await settleLayout();
+
+				const expectedInput = Math.min(inputHeight, scenario.inputLimit(available));
+				const expectedHeader = Math.min(scenario.header, available - expectedInput);
+				assert.deepStrictEqual({
+					header: Math.round(header.getBoundingClientRect().height),
+					input: Math.round(input.getBoundingClientRect().height),
+					inputScrolls: input.scrollHeight > input.clientHeight,
+					footerVisible: footer.getBoundingClientRect().bottom <= widget.domNode.getBoundingClientRect().bottom,
+				}, {
+					header: Math.round(expectedHeader),
+					input: Math.round(expectedInput),
+					inputScrolls: inputHeight > Math.round(expectedInput),
+					footerVisible: true,
+				});
+			});
+		}
+
+		test('reallocates when overflowing content shrinks without rewriting unchanged limits', async () => {
+			createLayoutWidget(createMockCarousel([{
+				id: 'q1', type: 'singleSelect', title: 'Strategy',
+				options: Array.from({ length: 20 }, (_, index) => ({ id: `${index}`, label: `Option ${index}`, value: `${index}` })),
+			}, {
+				id: 'q2', type: 'text', title: 'Reviewer',
+			}]));
+			const title = widget.domNode.querySelector<HTMLElement>('.chat-question-title-row')!;
+			const header = widget.domNode.querySelector<HTMLElement>('.chat-question-header-row')!;
+			const input = widget.domNode.querySelector<HTMLElement>('.chat-question-input-container')!;
+			const list = widget.domNode.querySelector<HTMLElement>('.chat-question-list')!;
+			const footer = widget.domNode.querySelector<HTMLElement>('.chat-question-footer-row')!;
+			title.style.height = '600px';
+			await settleLayout();
+
+			list.replaceChildren(list.firstElementChild!);
+			await settleLayout();
+			const available = maxHeight() - footer.offsetHeight;
+			const headerBorrowsSpace = Math.abs(header.getBoundingClientRect().height - (available - input.scrollHeight)) <= 1;
+
+			let limitWrites = 0;
+			const observer = new mainWindow.MutationObserver(records => {
+				limitWrites += records.filter(record => record.target === header || record.target === input || record.target === input.parentElement).length;
+			});
+			store.add(toDisposable(() => observer.disconnect()));
+			observer.observe(widget.domNode, { attributes: true, attributeFilter: ['style'], subtree: true });
+			for (let i = 0; i < 20; i++) {
+				mainWindow.dispatchEvent(new mainWindow.Event('resize'));
+			}
+			await settleLayout();
+			await settleLayout();
+
+			assert.deepStrictEqual({ headerBorrowsSpace, limitWrites }, { headerBorrowsSpace: true, limitWrites: 0 });
+		});
+	});
+
 	suite('Question Types', () => {
 		test('renders text input for text type questions', () => {
 			const carousel = createMockCarousel([
@@ -1364,6 +1537,35 @@ suite('ChatQuestionCarouselPart', () => {
 			const summaryValue = summary?.querySelector('.chat-question-summary-answer-title');
 			assert.ok(summaryValue?.textContent?.includes('saved answer'), 'Summary should show saved answer from data');
 		});
+
+		for (const restored of [false, true]) {
+			test(`does not constrain ${restored ? 'restored' : 'newly completed'} conversational summaries`, () => {
+				const container = mainWindow.document.createElement('div');
+				container.className = 'interactive-session';
+				container.style.width = '400px';
+				mainWindow.document.body.appendChild(container);
+				store.add(toDisposable(() => container.remove()));
+				const carousel = new ChatQuestionCarouselData(Array.from({ length: 20 }, (_, index) => ({
+					id: `q${index}`,
+					type: 'text',
+					title: `Question ${index}`,
+					defaultValue: 'Answer',
+				})), true, undefined, undefined, restored);
+				carousel.answerPresentation = 'conversation';
+				createWidget(carousel.toJSON(), undefined, container);
+				if (!restored) {
+					widget.skip();
+				}
+
+				assert.deepStrictEqual({
+					maxHeight: getWindow(widget.domNode).getComputedStyle(widget.domNode).maxHeight,
+					exceedsInteractiveLimit: widget.domNode.clientHeight > Math.min(420, mainWindow.innerHeight * 0.45),
+				}, {
+					maxHeight: 'none',
+					exceedsInteractiveLimit: true,
+				});
+			});
+		}
 
 		test('renders conversational summary with expandable selected options', () => {
 			const carousel = new ChatQuestionCarouselData([{

@@ -31,7 +31,7 @@ import { confirmTunnelDeletion } from '../../browser/remoteHostOptions.js';
 
 const remotes: ICustomizationRemote[] = [
 	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
-	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', canRemove: false, hidden: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', canRemove: true, canDelete: true, hidden: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 	{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connecting },
 	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, pickerUnavailableReason: 'Connect once to add this remote to the picker.' },
 	{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', canRemove: true, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
@@ -118,6 +118,9 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			if (remote && await confirmTunnelDeletion(instantiationService.get(IDialogService), remote.name)) {
 				await this.remove(id);
 			}
+		}
+		async deleteSSHHost(id: string) {
+			await this.remove(id);
 		}
 		async remove(id: string) {
 			this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
