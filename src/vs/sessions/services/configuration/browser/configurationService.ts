@@ -17,7 +17,7 @@ import { Edit, FormattingOptions } from '../../../../base/common/jsonFormatter.j
 import { deepClone, equals } from '../../../../base/common/objects.js';
 import { distinct, equals as arrayEquals } from '../../../../base/common/arrays.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
-import { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, ConfigurationTarget, isConfigurationOverrides, isConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, ConfigurationTarget, isConfigurationOverrides, isConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ConfigurationChangeEvent, ConfigurationModel } from '../../../../platform/configuration/common/configurationModels.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
@@ -73,9 +73,8 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
 	private readonly settingsResource: URI;
-	private readonly configurationEditing: ConfigurationEditing;
 	private instantiationService: IInstantiationService | undefined;
-	private writeErrorReporter: ConfigurationWriteErrorReporter | undefined;
+	private configurationEditing: ConfigurationEditing | undefined;
 
 	constructor(
 		userDataProfileService: IUserDataProfileService,
@@ -95,7 +94,6 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		this.initAgentsWindowReadOnlyKeys();
 		this.userConfiguration = this._register(new UserConfiguration(userDataProfileService.currentProfile.settingsResource, userDataProfileService.currentProfile.tasksResource, userDataProfileService.currentProfile.mcpResource, { exclude: [...this.agentsWindowReadOnlyKeys] }, fileService, uriIdentityService, logService));
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration({ needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } }, fileService, uriIdentityService, logService));
-		this.configurationEditing = new ConfigurationEditing(fileService, this);
 
 		this._configuration = new Configuration(
 			ConfigurationModel.createEmptyModel(logService),
@@ -155,7 +153,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 
 	/**
 	 * This service is created before the workbench services, so it acquires
-	 * the instantiation service later to create its write error reporter.
+	 * the instantiation service later to create its {@link ConfigurationEditing}.
 	 */
 	acquireInstantiationService(instantiationService: IInstantiationService): void {
 		this.instantiationService = instantiationService;
@@ -228,6 +226,10 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	}
 
 	private async writeConfigurationValue(key: string, value: unknown, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, options: IConfigurationUpdateOptions | undefined): Promise<void> {
+		if (!this.instantiationService) {
+			throw new Error('Cannot write configuration because the configuration service is not yet ready to accept writes.');
+		}
+
 		let path = overrides?.overrideIdentifiers?.length ? [keyFromOverrideIdentifiers(overrides.overrideIdentifiers), key] : [key];
 
 		const settingsResource = this.getSettingsResource(target, overrides?.resource ?? undefined);
@@ -237,17 +239,9 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			path = ['settings', ...path];
 		}
 
-		try {
-			await this.configurationEditing.write(settingsResource, path, value);
-		} catch (error) {
-			// Like the workbench configuration service, report the failure to the user unless the caller handles it
-			if (options?.donotNotifyError || !this.instantiationService) {
-				throw error;
-			}
-			this.writeErrorReporter ??= this.instantiationService.createInstance(ConfigurationWriteErrorReporter);
-			this.writeErrorReporter.report(error, settingsResource);
-			return;
-		}
+		// Use same instance of ConfigurationEditing to make sure all writes go through the same queue
+		this.configurationEditing ??= this.instantiationService.createInstance(ConfigurationEditing);
+		await this.configurationEditing.write(settingsResource, path, value, options);
 		await this.reloadConfiguration(target);
 	}
 
@@ -474,38 +468,47 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 }
 
 /**
- * Reports failed settings writes to the user, like the workbench's `ConfigurationEditing`.
+ * Writes settings files and, like the workbench's `ConfigurationEditing`,
+ * reports failed writes to the user unless the caller handles them.
  */
-class ConfigurationWriteErrorReporter {
-
-	constructor(
-		@INotificationService private readonly notificationService: INotificationService,
-		@IEditorService private readonly editorService: IEditorService,
-	) { }
-
-	report(error: unknown, settingsResource: URI): void {
-		if (error instanceof ConfigurationEditingError && error.code === ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION) {
-			this.notificationService.prompt(Severity.Error, error.message, [{
-				label: localize('openSettings', "Open Settings"),
-				run: () => this.editorService.openEditor({ resource: settingsResource, options: { pinned: true } })
-			}]);
-		} else {
-			this.notificationService.error(error instanceof Error ? error : String(error));
-		}
-	}
-}
-
 class ConfigurationEditing {
 
 	private readonly queue = new Queue<void>();
 
 	constructor(
-		private readonly fileService: IFileService,
-		private readonly configurationService: ConfigurationService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
-	write(settingsResource: URI, path: JSONPath, value: unknown): Promise<void> {
-		return this.queue.queue(() => this.doWriteConfiguration(settingsResource, path, value));
+	write(settingsResource: URI, path: JSONPath, value: unknown, options: IConfigurationUpdateOptions | undefined): Promise<void> {
+		// queue up writes to prevent race conditions
+		return this.queue.queue(async () => {
+			try {
+				await this.doWriteConfiguration(settingsResource, path, value);
+			} catch (error) {
+				if (options?.donotNotifyError) {
+					throw error;
+				}
+				this.onError(error, settingsResource);
+			}
+		});
+	}
+
+	private onError(error: unknown, settingsResource: URI): void {
+		if (error instanceof ConfigurationEditingError && error.code === ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION) {
+			this.onInvalidConfigurationError(error, settingsResource);
+		} else {
+			this.notificationService.error(error instanceof Error ? error : String(error));
+		}
+	}
+
+	private onInvalidConfigurationError(error: ConfigurationEditingError, settingsResource: URI): void {
+		this.notificationService.prompt(Severity.Error, error.message, [{
+			label: localize('openSettings', "Open Settings"),
+			run: () => this.editorService.openEditor({ resource: settingsResource, options: { pinned: true } })
+		}]);
 	}
 
 	private async doWriteConfiguration(settingsResource: URI, path: JSONPath, value: unknown): Promise<void> {
