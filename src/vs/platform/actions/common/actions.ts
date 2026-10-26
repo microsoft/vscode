@@ -576,6 +576,8 @@ export class SubmenuItemAction extends SubmenuAction {
 
 export interface IMenuItemHide {
 	readonly isHidden: boolean;
+	/** Whether the visibility differs from the menu item's default (e.g. a hidden-by-default item that is shown). */
+	readonly isModifiedFromDefault: boolean;
 	readonly hide: IAction;
 	readonly toggle: IAction;
 }
