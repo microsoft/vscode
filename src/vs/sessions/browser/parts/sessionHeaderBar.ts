@@ -7,7 +7,7 @@ import './media/chatCompositeBar.css';
 import { IAction } from '../../../base/common/actions.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
+import { $, clearNode, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
 import { IconLabel } from '../../../base/browser/ui/iconLabel/iconLabel.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
@@ -27,6 +27,7 @@ import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDragData,
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { isMacintosh, isNative } from '../../../base/common/platform.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -84,6 +85,8 @@ export class SessionHeaderBar extends Disposable {
 	private _titlePath = '';
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
+	private readonly _windowChromeEl: HTMLElement;
+	private readonly _windowChromeToolbars = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -132,7 +135,7 @@ export class SessionHeaderBar extends Disposable {
 	constructor(
 		resizeObserverCtor: typeof ResizeObserver | undefined,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -150,7 +153,7 @@ export class SessionHeaderBar extends Disposable {
 
 		this._iconEl = $('.chat-composite-bar-session-icon');
 		header.appendChild(this._iconEl);
-		this._statusIcon = this._register(instantiationService.createInstance(SessionStatusIcon, this._iconEl));
+		this._statusIcon = this._register(this._instantiationService.createInstance(SessionStatusIcon, this._iconEl));
 
 		const main = $('.chat-composite-bar-header-main');
 		header.appendChild(main);
@@ -179,13 +182,16 @@ export class SessionHeaderBar extends Disposable {
 
 		const toolbarContainer = $('.chat-composite-bar-toolbar');
 		titleActions.appendChild(toolbarContainer);
-		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SessionBarToolbar, {
+		this._toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SessionBarToolbar, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { args: this._menuActionArgs },
 			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
 			highlightToggledItems: true,
-			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
+			actionViewItemProvider: createSessionActionViewItemProvider(this._instantiationService, configurationService),
 		}));
+
+		this._windowChromeEl = $('.chat-composite-bar-window-chrome');
+		titleRow.appendChild(this._windowChromeEl);
 
 		const heightObserver = this._register(new DisposableResizeObserver('SessionHeaderBar.height', entries => {
 			const entry = entries.find(entry => entry.target === this._container);
@@ -231,6 +237,34 @@ export class SessionHeaderBar extends Disposable {
 				contextKeyService: this._contextKeyService,
 			});
 		}));
+	}
+
+	/**
+	 * Shows the chrome of the window the header is the top of, in place of its title bar: Run and Open in VS Code,
+	 * and the layout of a chat window. The empty space of the header then drags the window.
+	 */
+	setWindowChrome(shown: boolean): void {
+		this._container.classList.toggle('window-chrome', shown);
+		this._container.classList.toggle('has-traffic-lights', shown && isMacintosh && isNative);
+		this._container.draggable = !shown;
+		if (!shown) {
+			this._windowChromeToolbars.clear();
+			clearNode(this._windowChromeEl);
+			return;
+		}
+		if (this._windowChromeToolbars.value) {
+			return;
+		}
+		const store = this._windowChromeToolbars.value = new DisposableStore();
+		for (const [menu, name] of [[Menus.TitleBarCenterRight, 'run'], [Menus.ChatWindowTitleBar, 'actions'], [Menus.ChatWindowTitleBarLayout, 'layout']] as const) {
+			const container = this._windowChromeEl.appendChild($(`.chat-composite-bar-toolbar.window-chrome-${name}`));
+			store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, container, menu, {
+				hiddenItemStrategy: menu === Menus.ChatWindowTitleBarLayout ? HiddenItemStrategy.Ignore : HiddenItemStrategy.NoHide,
+				telemetrySource: `sessionHeader.windowChrome.${name}`,
+				toolbarOptions: { primaryGroup: () => true },
+				...(menu === Menus.ChatWindowTitleBarLayout ? { alwaysShownItems: [Menus.ChatWindowLayout.id] } : {}),
+			}));
+		}
 	}
 
 	private _registerDragSource(): void {

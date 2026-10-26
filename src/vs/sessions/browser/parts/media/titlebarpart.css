@@ -240,6 +240,11 @@
 	-webkit-app-region: drag;
 }
 
+/* Chat windows that show their chrome in the session header have no title bar. */
+.monaco-workbench .part.titlebar.chromeless {
+	display: none;
+}
+
 /* ---- Phone Layout: Minimal Titlebar ---- */
 
 /* On phone, ensure the titlebar left is visible (it holds the hamburger area)

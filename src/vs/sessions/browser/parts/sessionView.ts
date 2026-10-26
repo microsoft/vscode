@@ -114,6 +114,10 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	private readonly _headerHeight = observableValue<number>(this, 0);
 	private readonly _headerHidden = observableValue<boolean>(this, false);
+	private readonly _headerShown = observableValue<boolean>(this, false);
+
+	/** Whether the session header shows, if the host wants it. */
+	get headerShown(): IObservable<boolean> { return this._headerShown; }
 
 	constructor(
 		private readonly _hostOptions: ISessionViewHostOptions | undefined,
@@ -204,6 +208,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			const tabsReplaceHeader = (session?.isCreated.read(reader) ?? false)
 				&& !showChatAsSessionView
 				&& (groupCount > 1 || (session?.shouldShowChatTabs.read(reader) ?? false));
+			this._headerShown.set(!this._headerHidden.read(reader) && !tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1), undefined);
 			this._header.setVisible((this._hostOptions?.showHeader ?? true) && !this._headerHidden.read(reader) && !tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1));
 			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 			this.element.classList.toggle('tabs-replace-header', tabsReplaceHeader);
@@ -379,6 +384,16 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	}
 
 	/** Hides the session header for as long as its host wants, such as while a chat window shows only the chat input. */
+	/** Shows the chrome of the window in the session header, which is then its top row; see `SessionHeaderBar.setWindowChrome`. */
+	setWindowChrome(shown: boolean): void {
+		this._header.setWindowChrome(shown && !!this._hostOptions?.hasWindowChrome);
+	}
+
+	/** Whether {@link setWindowChrome} can show it: the session header is. */
+	get canShowWindowChrome(): boolean {
+		return !!this._hostOptions?.hasWindowChrome && (this._hostOptions.showHeader ?? true);
+	}
+
 	setHeaderHidden(hidden: boolean): void {
 		this._headerHidden.set(hidden, undefined);
 	}

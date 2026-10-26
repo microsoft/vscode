@@ -496,7 +496,18 @@ export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTit
 
 	private static COUNTER = 1;
 
-	get height() { return this.minimumHeight; }
+	private chromeless = false;
+
+	get height() { return this.chromeless ? 0 : this.minimumHeight; }
+
+	/** Hides the title bar and the height it takes; the window title it sets stays. The chat windows show their chrome in their headers. */
+	setChromeless(chromeless: boolean): void {
+		if (this.chromeless !== chromeless) {
+			this.chromeless = chromeless;
+			this.container.classList.toggle('chromeless', chromeless);
+			this._onDidChange.fire(undefined);
+		}
+	}
 
 	constructor(
 		readonly container: HTMLElement,

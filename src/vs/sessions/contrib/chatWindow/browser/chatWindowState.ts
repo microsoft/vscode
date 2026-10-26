@@ -100,6 +100,8 @@ export class ChatWindowState {
 	readonly layouts: readonly ChatWindowLayout[];
 
 	/** The group of the terminal row across the bottom of the window, while it shows; see {@link IChatWindow.terminalGroup}. */
+	/** Whether the session header of the chat shows the chrome of the window, as its top row; the window's title bar is hidden then. */
+	readonly headerChrome = observableValue<boolean>(this, false);
 	readonly terminalGroup = observableValue<IEditorGroup | undefined>(this, undefined);
 
 	constructor(
