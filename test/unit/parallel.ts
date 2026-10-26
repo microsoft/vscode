@@ -149,9 +149,11 @@ async function runInWorkers({ name, count, command, args }: { name: string; coun
 			const exitedNormally = code === 0 || (process.platform === 'win32' && code === 255);
 			const report = readWorkerReport(workerDir, id);
 			const failureCount = report ? report.failures.length + report.unattributedFailures.length : 0;
+			// A worker exits with 1 for failed tests, so a crash after reporting them is not mistaken for them
+			const exitedConsistently = signal === null && (failureCount === 0 ? exitedNormally : code === 1);
 			if (!report) {
 				unattributedFailures.push(`${name}: worker ${id} did not complete normally or report its results (exit code ${signal ?? code})`);
-			} else if (exitedNormally !== (failureCount === 0)) {
+			} else if (!exitedConsistently) {
 				unattributedFailures.push(`${name}: worker ${id} exited with code ${signal ?? code}, inconsistent with its ${failureCount} reported failure(s)`);
 			}
 			if (report) {
@@ -159,7 +161,7 @@ async function runInWorkers({ name, count, command, args }: { name: string; coun
 				unattributedFailures.push(...report.unattributedFailures);
 			}
 
-			const passed = report !== undefined && exitedNormally && failureCount === 0;
+			const passed = report !== undefined && exitedConsistently && failureCount === 0;
 			const filesRun = path.join(workerDir, `worker-${id}.files`);
 			await write(Buffer.concat([
 				Buffer.from(`\n=== ${name}: worker ${id} of ${count} ${passed ? 'passed' : 'FAILED'} (exit code ${signal ?? code}) after ${formatDuration(Date.now() - start)} ===\n`),
@@ -272,6 +274,8 @@ function distributeTestFiles(root: Suite, files: Map<string, ITestFile>, { worke
 		} else {
 			root.suites = [];
 			root.tests = [];
+			// mocha's own lists of `.only` tests and suites, which it runs instead of the root's tests and suites
+			Object.assign(root, { _onlyTests: [], _onlySuites: [] });
 		}
 		return;
 	}
@@ -309,19 +313,28 @@ function distributeTestFiles(root: Suite, files: Map<string, ITestFile>, { worke
 		return false;
 	};
 
+	let done = false;
+	/** Adds the suites that do not belong to a test file and run after them, e.g. checks of the runner itself */
+	const finish = () => {
+		done = true;
+		suites.push(...otherSuitesAfter);
+	};
+
 	// The runner skips the root suite if it has no tests when it starts, so claim until it has
 	let hasMore = true;
 	while (hasMore && !root.tests.length && suites.every(suite => suite.total() === 0)) {
 		hasMore = claimNext();
 	}
+	if (!hasMore) {
+		// Other workers claimed every file, but this worker still runs the checks, e.g. of errors while loading
+		finish();
+	}
 
-	let done = false;
 	root.suites = new Proxy(suites, {
 		get(target, property, receiver) {
 			// The runner reads `suites[i++]` until it gets `undefined`, so claim more files first
 			if (property === String(target.length) && !done && !claimNext()) {
-				done = true;
-				target.push(...otherSuitesAfter);
+				finish();
 			}
 			return Reflect.get(target, property, receiver);
 		}
