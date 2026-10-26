@@ -46,6 +46,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 
 	public readonly activationPromise: Promise<void>;
 	private sessionSeed: number;
+	private hasRequestedWorkspaceRecommendations = false;
 
 	private _onDidChangeRecommendations = this._register(new Emitter<void>());
 	readonly onDidChangeRecommendations = this._onDidChangeRecommendations.event;
@@ -108,6 +109,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		]);
 
 		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations, this.extensionRecommendationsManagementService.onDidChangeIgnoredRecommendations)(() => this._onDidChangeRecommendations.fire()));
+		this._register(this.workspaceRecommendations.onDidChangeRecommendations(() => this.promptWorkspaceRecommendations()));
 
 		this.promptWorkspaceRecommendations();
 	}
@@ -259,6 +261,9 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	}
 
 	private async promptWorkspaceRecommendations(): Promise<void> {
+		if (this.hasRequestedWorkspaceRecommendations) {
+			return;
+		}
 		const installed = await this.extensionsWorkbenchService.queryLocal();
 		const allowedRecommendations = [
 			...this.workspaceRecommendations.recommendations,
@@ -268,7 +273,8 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			.map(({ extension }) => extension)
 			.filter(extension => !isString(extension) || this.isExtensionAllowedToBeRecommended(extension));
 
-		if (allowedRecommendations.length) {
+		if (allowedRecommendations.length && !this.hasRequestedWorkspaceRecommendations) {
+			this.hasRequestedWorkspaceRecommendations = true;
 			await this._registerP(timeout(5000));
 			await this.extensionRecommendationNotificationService.promptWorkspaceRecommendations(allowedRecommendations);
 		}

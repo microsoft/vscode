@@ -409,6 +409,52 @@ suite('ExtensionRecommendationsService Test', () => {
 		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
 	}));
 
+	for (const existingConfig of [false, true]) {
+		test(`ExtensionRecommendationsService: Prompt when recommendations are ${existingConfig ? 'added to an empty file' : 'created'} after activation`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			await setUpFolderWorkspace('myFolder', []);
+			const fileService = instantiationService.get(IFileService);
+			const configPath = joinPath(ROOT, 'myFolder', '.vscode', 'extensions.json');
+			if (!existingConfig) {
+				await fileService.del(configPath);
+			}
+			testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
+			await testObject.activationPromise;
+			await timeout(10000);
+			await fileService.writeFile(configPath, VSBuffer.fromString(JSON.stringify({ recommendations: mockTestData.validRecommendedExtensions })));
+			await timeout(10000);
+			assert.strictEqual(prompted, true);
+		}));
+	}
+
+	test('ExtensionRecommendationsService: Saving recommendations again does not repeat the workspace prompt', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await setUpFolderWorkspace('myFolder', []);
+		testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
+		await testObject.activationPromise;
+		await timeout(10000);
+		let promptCount = 0;
+		disposableStore.add(promptedEmitter.event(() => promptCount++));
+		const fileService = instantiationService.get(IFileService);
+		const configPath = joinPath(ROOT, 'myFolder', '.vscode', 'extensions.json');
+		for (let i = 0; i < 2; i++) {
+			await fileService.writeFile(configPath, VSBuffer.fromString(JSON.stringify({ recommendations: mockTestData.validRecommendedExtensions }, null, i + 1)));
+			await timeout(10000);
+		}
+		assert.strictEqual(promptCount, 1);
+	}));
+
+	for (const preference of ['ignoreRecommendations', 'showRecommendationsOnlyOnDemand']) {
+		test(`ExtensionRecommendationsService: Late recommendations respect ${preference}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			testConfigurationService.setUserConfiguration(ConfigurationKey, { [preference]: true });
+			await setUpFolderWorkspace('myFolder', []);
+			testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
+			await testObject.activationPromise;
+			await timeout(10000);
+			await instantiationService.get(IFileService).writeFile(joinPath(ROOT, 'myFolder', '.vscode', 'extensions.json'), VSBuffer.fromString(JSON.stringify({ recommendations: mockTestData.validRecommendedExtensions })));
+			await timeout(10000);
+			assert.strictEqual(prompted, false);
+		}));
+	}
+
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations with casing mismatch if they are already installed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', mockExtensionLocal);
 		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions.map(x => x.toUpperCase()));
