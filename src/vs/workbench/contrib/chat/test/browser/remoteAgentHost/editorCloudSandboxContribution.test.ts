@@ -1045,8 +1045,8 @@ suite('Editor cloud sandbox discovery', () => {
 			created: h.calls.created,
 		}, {
 			providers: [
-				{ type: CLOUD_SANDBOX_SESSION_TYPE, hiddenFromPicker: false, canDelegate: false, inputPlaceholder: 'Chat with Copilot', participant: 'Cloud' },
-				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, inputPlaceholder: 'Chat with Copilot', participant: undefined },
+				{ type: CLOUD_SANDBOX_SESSION_TYPE, hiddenFromPicker: false, canDelegate: false, inputPlaceholder: 'Chat with Copilot Cloud', participant: 'Cloud' },
+				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, inputPlaceholder: 'Chat with Copilot Cloud', participant: undefined },
 			],
 			repositoryOptions: [],
 			created: 0,
