@@ -25,6 +25,7 @@ const url = require('url');
 const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
 const { applyReporter, importMochaReporter } = require('../reporter');
+const { getWorkerCount, removeArgument, runInWorkers, writeWorkerReport } = require('../parallel.ts');
 
 const minimist = require('minimist');
 
@@ -61,11 +62,14 @@ protocol.registerSchemesAsPrivileged([
  * coverageFormats: string | string[];
  * 'per-test-coverage': boolean;
  * 'rerun-failed-files': string;
+ * workers: string;
+ * worker: string;
+ * workerDir: string;
  * help: boolean;
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'rerun-failed-files'],
+	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'rerun-failed-files', 'workers', 'worker', 'workerDir'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -110,6 +114,7 @@ Options:
 --timeout <ms>                timeout for tests
 --crash-reporter-directory <path> crash reporter directory
 --rerun-failed-files <count>  rerun failed tests (suites for failed hooks) in a fresh window up to <count> more times; use whole files for many failures
+--workers <count>             run all test files in <count> parallel processes, at most one per CPU and per 2 GB of memory; ignored when only some files or tests run; reruns use one window
 --tfs <url>                   TFS server URL
 --help, -h                    show the help`);
 	process.exit(0);
@@ -126,6 +131,19 @@ if (bareFiles.length > 0) {
 // The renderer reads the --runList file (see loadTestModules in renderer.js)
 if (args.runList) {
 	args.runList = path.resolve(args.runList);
+}
+
+// Only a run of all test files is spread across worker processes, reruns of failed tests run in one window
+let workerCount = 1;
+try {
+	workerCount = getWorkerCount(args.workers);
+} catch (error) {
+	console.error(/** @type {Error} */ (error).message);
+	app.exit(1);
+}
+const runInParallel = workerCount > 1 && !args.run && !args.runList && !args.runGlob && !args.grep && !args.testSplit && !args.dev && !args.waitServer && !args.coverage && !args['per-test-coverage'];
+if (workerCount > 1 && !runInParallel) {
+	console.log('Running in a single window, because --workers only applies when all test files run without --grep, --dev, --waitServer or coverage');
 }
 
 let crashReporterDirectory = args['crash-reporter-directory'];
@@ -217,6 +235,28 @@ function deserializeError(err) {
  * A test that passed.
  * @typedef {{ title: string; file: string }} IPassed
  */
+
+/**
+ * What an attempt ran, in one window or in parallel worker processes.
+ * @typedef {{ didFail: boolean; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }} IAttemptResult
+ */
+
+/**
+ * Runs all test files once in `workerCount` worker processes. Each worker is a separate
+ * instance of this script that runs the test files it claims in its own window, and does not
+ * rerun its failures: this process reruns them in one window.
+ * @returns {Promise<IAttemptResult>}
+ */
+async function runFirstAttemptInWorkers() {
+	const { failures, unattributedFailures } = await runInWorkers({
+		name: 'Electron unit tests',
+		count: workerCount,
+		command: process.execPath,
+		args: [__filename, ...removeArgument(removeArgument(process.argv.slice(2), 'workers'), 'rerun-failed-files')],
+	});
+	// Only reruns check which tests passed
+	return { didFail: failures.length > 0 || unattributedFailures.length > 0, failures, passed: [], unattributedFailures };
+}
 
 /**
  * Relays the mocha events of the test run in one window to the reporters in the
@@ -578,15 +618,20 @@ app.on('ready', async () => {
 			return [applyReporter(runner, args)];
 		}
 
-		// every attempt writes its own results file, so that reruns do not overwrite earlier failures
+		// every attempt and worker writes its own results file, so that reruns do not overwrite earlier failures
 		const attemptSuffix = attempt > 1 ? `-attempt-${attempt}` : '';
+		const workerSuffix = args.worker ? `-worker${args.worker}` : '';
 		const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
+		// without a results folder, mocha-junit-reporter writes test-results.xml to the working directory
+		const mochaFile = testResultsRoot
+			? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}${workerSuffix}${attemptSuffix}-results.xml`)
+			: args.worker ? `test-results${workerSuffix}.xml` : undefined;
 		return [
 			new mocha.reporters.Spec(runner),
 			new MochaJUnitReporter(runner, {
 				reporterOptions: {
-					testsuitesTitle: `${args.tfs} ${process.platform}${attempt > 1 ? ` (attempt ${attempt})` : ''}`,
-					mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}${attemptSuffix}-results.xml`) : undefined
+					testsuitesTitle: `${args.tfs} ${process.platform}${args.worker ? ` (worker ${args.worker})` : ''}${attempt > 1 ? ` (attempt ${attempt})` : ''}`,
+					mochaFile
 				}
 			}),
 		];
@@ -635,7 +680,7 @@ app.on('ready', async () => {
 		return;
 	}
 
-	// Coverage is collected from the first window only
+	// Coverage is collected from the first window only. A worker only runs the first attempt, see runFirstAttemptInWorkers.
 	const maxReruns = args.coverage || args['per-test-coverage'] ? 0 : Math.max(0, Number(args['rerun-failed-files']) || 0);
 
 	/** @type {Map<string, IRerunRecord>} every failure that was a rerun target, by key */
@@ -649,12 +694,22 @@ app.on('ready', async () => {
 	let exitCode = 0;
 
 	for (let attempt = 1; ; attempt++) {
-		const { win, done } = runInWindow(runArgs, attempt);
-		previousWindow?.destroy();
-		previousWindow = win;
+		/** @type {IAttemptResult} */
+		let runner;
+		if (attempt === 1 && runInParallel) {
+			runner = await runFirstAttemptInWorkers();
+		} else {
+			const { win, done } = runInWindow(runArgs, attempt);
+			previousWindow?.destroy();
+			previousWindow = win;
 
-		const runner = await done;
-		runner.dispose();
+			const windowRunner = await done;
+			windowRunner.dispose();
+			if (args.worker && args.workerDir) {
+				writeWorkerReport({ workerId: args.worker, workerDir: args.workerDir }, windowRunner);
+			}
+			runner = windowRunner;
+		}
 
 		if (!plan && !runner.didFail) {
 			break;

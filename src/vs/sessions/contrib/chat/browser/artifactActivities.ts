@@ -95,6 +95,7 @@ export class ArtifactActivities extends ArtifactDetailsCard {
 			this.list.splice(0, this.list.length, data.items);
 		}
 		this.element.hidden = !data.items.length;
+		this.element.setAttribute('aria-busy', String(data.loading));
 		this.updateHeading(localize('artifactActivities', "Activities"), data.expanded);
 		this.summary.textContent = data.summary;
 		this.disclosure.element.setAttribute('aria-description', data.summary);
