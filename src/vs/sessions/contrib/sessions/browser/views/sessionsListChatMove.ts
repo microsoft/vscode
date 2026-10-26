@@ -6,7 +6,7 @@
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { DeferredPromise, disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -328,7 +328,7 @@ export interface ISessionsListPlacementServices {
  * before it (first when none), and a chat moved out of a session goes back into it, or to its own session for a
  * session moved under another one.
  */
-function prepareSessionsListMoveUndo(move: SessionsListMove, sessionsManagementService: ISessionsManagementService, placementServices: ISessionsListPlacementServices | undefined): ISessionsListMoveUndo {
+function prepareSessionsListMoveUndo(move: SessionsListMove, sessionsManagementService: ISessionsManagementService, placementServices: ISessionsListPlacementServices): ISessionsListMoveUndo {
 	const current = (session: ISession) => sessionsManagementService.getSession(session.resource) ?? session;
 	const findChat = (session: ISession, resource: URI) => session.chats.get().find(candidate => isEqual(candidate.resource, resource));
 	if (move.kind === 'chat' && isReorder(move)) {
@@ -366,19 +366,26 @@ function prepareSessionsListMoveUndo(move: SessionsListMove, sessionsManagementS
 	};
 
 	if (move.kind === 'session') {
-		const placement = placementServices && getSessionPlacement(move.session, placementServices);
-		const restoring = store.add(new MutableDisposable());
+		const placement = getSessionPlacement(move.session, placementServices);
+		let restoring: IDisposable | undefined;
+		const finishMoveBack = () => {
+			restoring?.dispose();
+			restoring = undefined;
+		};
 		return {
 			messages: getSessionsListUndoMessages(move.session.title.get(), { kind: 'ownSession' }),
 			getMoveBack: async () => {
 				const found = await findLanded();
-				if (found && placement && placementServices) {
-					restoring.value = restorePlacementOfPromotedChat(found, placement, placementServices, sessionsManagementService);
+				if (found) {
+					restoring = restorePlacementOfPromotedChat(found, placement, placementServices, sessionsManagementService);
 				}
 				return found && { kind: 'chat', session: found.session, chat: found.chat, destination: { kind: 'newSession' } };
 			},
-			finishMoveBack: () => restoring.clear(),
-			dispose: () => store.dispose(),
+			finishMoveBack,
+			dispose: () => {
+				finishMoveBack();
+				store.dispose();
+			},
 		};
 	}
 	const origin = move.session;
@@ -455,8 +462,8 @@ export interface ISessionsListMoveOptions {
 	 * is called with whether it moved.
 	 */
 	readonly watch?: (move: SessionsListMove) => (moved: boolean) => void;
-	/** Where sessions are pinned and grouped: with it, undoing a session moved under another one restores both. */
-	readonly placementServices?: ISessionsListPlacementServices;
+	/** Where sessions are pinned and grouped: undoing a session moved under another one restores both. Every caller must pass it. */
+	readonly placementServices: ISessionsListPlacementServices;
 }
 
 interface ISessionsListMoveRunner {
@@ -477,7 +484,7 @@ export async function runSessionsListMove(
 	sessionsManagementService: ISessionsManagementService,
 	notificationService: INotificationService,
 	logService: ILogService,
-	options: ISessionsListMoveOptions = {},
+	options: ISessionsListMoveOptions,
 ): Promise<boolean> {
 	const runner: ISessionsListMoveRunner = { sessionsManagementService, notificationService, logService, options };
 	// Undo is offered by the notice only.

@@ -328,6 +328,10 @@ suite('Move Chats Drag and Drop', () => {
 					watched.push(describeMove(watchedMove));
 					return result => watched.push(`moved: ${result}`);
 				},
+				placementServices: {
+					sessionsListModelService: upcastPartial<ISessionsListModelService>({ isSessionPinned: () => false }),
+					sessionGroupsService: upcastPartial<ISessionGroupsService>({ getGroupOfSession: () => undefined, removeFromGroup: () => { } }),
+				},
 			});
 			return { shown, calls, watched, logged, failures, run, undo: () => undo!() };
 		}
