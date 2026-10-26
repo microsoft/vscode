@@ -8,7 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -33,6 +33,7 @@ import { resolveSessionActionTarget } from '../../../services/sessions/browser/s
 import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { getChangesOfSession, IChangesViewService } from '../common/changesViewService.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
@@ -304,19 +305,35 @@ export class ChangesetOperationsActionControllerContribution extends Disposable 
 
 	constructor(
 		@IChangesViewService changesViewService: IChangesViewService,
+		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
 
-		this._register(autorun(reader => {
-			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
-			const resourceOperations = (changeset?.operations.read(reader) ?? [])
-				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Resource));
+		// Chat windows show the Changes of their own session, so the operations are
+		// offered for every session visible in a window, not only the main one.
+		const visibleSessionsChanges = derived(this, reader => {
+			const mainSession = sessionsService.mainWindowActiveSession.read(reader);
+			const sessions = new Set<IActiveSession>();
+			if (mainSession) {
+				sessions.add(mainSession);
+			}
+			for (const session of sessionsService.windowSessions.read(reader)) {
+				sessions.add(session);
+			}
+			return [...sessions].map(session => getChangesOfSession(changesViewService, mainSession, session));
+		});
 
-			if (resourceOperations.length === 0) {
-				return;
+		this._register(autorun(reader => {
+			const operationsById = new Map<string, ISessionChangesetOperation>();
+			for (const changes of visibleSessionsChanges.read(reader)) {
+				for (const operation of changes.changesetObs.read(reader)?.operations.read(reader) ?? []) {
+					if (operation.scopes.includes(SessionChangesetOperationScope.Resource) && !operationsById.has(operation.id)) {
+						operationsById.set(operation.id, operation);
+					}
+				}
 			}
 
-			for (const operation of resourceOperations) {
+			for (const operation of operationsById.values()) {
 				const precondition = operation.status === SessionChangesetOperationStatus.Disabled
 					|| operation.status === SessionChangesetOperationStatus.Running
 					? ContextKeyExpr.false()
@@ -352,16 +369,18 @@ export class ChangesetOperationsActionControllerContribution extends Disposable 
 							return;
 						}
 
-						const change = changesViewService.activeSessionChangesObs.read(undefined)
-							.find(change => isChangesFileResource(change, resource));
-						if (!change) {
-							return;
+						// The session whose changes contain the resource owns the operation.
+						for (const changes of visibleSessionsChanges.read(undefined)) {
+							const change = changes.changesObs.read(undefined).find(change => isChangesFileResource(change, resource));
+							const changeset = changes.changesetObs.read(undefined);
+							if (change && changeset) {
+								await changeset.invokeOperation(operation.id, {
+									kind: 'resource',
+									resource: getChangesFileUri(change),
+								});
+								return;
+							}
 						}
-
-						await changeset?.invokeOperation(operation.id, {
-							kind: 'resource',
-							resource: getChangesFileUri(change),
-						});
 					}
 				}));
 			}
