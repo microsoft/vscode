@@ -952,7 +952,7 @@ suite('InboxNotificationsService', () => {
 		]);
 	});
 
-	test('does not surface PR notifications for inherited checkout PRs or reference-only links', () => {
+	test('surfaces fixes for workspace-linked PR references but not unrelated reference-only links', () => {
 		const gitHubService = new TestGitHubService();
 		const fixture = createFixture([createSession({
 			id: 'inherited-pr', status: SessionStatus.Completed, updatedAt: 100,
@@ -966,6 +966,28 @@ suite('InboxNotificationsService', () => {
 		gitHubService.setCIStatus('owner', 'repo', 77, 'sha77', GitHubCIOverallStatus.Failure, []);
 		gitHubService.setPullRequest('owner', 'repo', 78, openPullRequest(78, 'sha78'));
 		gitHubService.setCIStatus('owner', 'repo', 78, 'sha78', GitHubCIOverallStatus.Failure, []);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => ({
+			kind: item.kind,
+			pullRequests: item.pullRequestStates?.map(state => state.label),
+			actions: item.actions.map(action => action.kind),
+		})), [{
+			kind: InboxNotificationKind.FailingCI,
+			pullRequests: ['#77'],
+			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeFixCI, InboxNotificationActionKind.MarkDone],
+		}]);
+	});
+
+	test('does not offer merge or session cleanup for workspace-linked PR references', () => {
+		const gitHubService = new TestGitHubService();
+		const fixture = createFixture([createSession({
+			id: 'referenced-pr', status: SessionStatus.Completed, updatedAt: 100,
+			pullRequests: [{ owner: 'owner', repo: 'repo', number: 77, createdByThisSession: false }],
+		})], undefined, gitHubService);
+		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77'));
+		gitHubService.setCIStatus('owner', 'repo', 77, 'sha77', GitHubCIOverallStatus.Success, []);
+		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.Completed]);
+
+		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77', { state: GitHubPullRequestState.Merged }));
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.Completed]);
 	});
 

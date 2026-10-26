@@ -33,7 +33,7 @@ import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, 
 import { type IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { getSessionOwnedGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../services/sessions/common/session.js';
 import {
 	compareInboxNotificationsByRecency,
 	compareInboxNotifications,
@@ -1725,7 +1725,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			return;
 		}
 
-		for (const pullRequestRef of this.getSessionPullRequestRefs(session, reader)) {
+		for (const pullRequestRef of this.getSessionPullRequestRefs(session, reader, true)) {
 			const pullRequestModelRef = reader.delayedStore.add(this.gitHubService.createPullRequestModelReference(
 				pullRequestRef.owner,
 				pullRequestRef.repo,
@@ -1793,8 +1793,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		const passingCandidates: IPullRequestNotificationCandidate[] = [];
 		const mergedCandidates: IPullRequestNotificationCandidate[] = [];
 		const reviewCommentCandidates: IPullRequestNotificationCandidate[] = [];
+		const ownedPullRequests = new Set(this.getSessionPullRequestRefs(session, reader).map(ref => ref.uri.toString()));
 
-		for (const pullRequestRef of this.getSessionPullRequestRefs(session, reader)) {
+		for (const pullRequestRef of this.getSessionPullRequestRefs(session, reader, true)) {
+			const isSessionOwned = ownedPullRequests.has(pullRequestRef.uri.toString());
 			const pullRequestModelRef = reader.delayedStore.add(this.gitHubService.createPullRequestModelReference(
 				pullRequestRef.owner,
 				pullRequestRef.repo,
@@ -1810,6 +1812,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				continue;
 			}
 			if (effectiveState === GitHubPullRequestState.Merged) {
+				if (!isSessionOwned) {
+					continue;
+				}
 				const icon = computePullRequestIcon(effectiveState);
 				const mergedTimestamp = parseTimestamp(pullRequest?.mergedAt) ?? parseTimestamp(pullRequest?.updatedAt) ?? sessionUpdatedAt;
 				mergedCandidates.push({
@@ -1864,7 +1869,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					timestamp: ciTimestamp,
 					identity: headSha ?? String(ciTimestamp),
 				});
-			} else if (ciStatus === GitHubCIOverallStatus.Success && !isDraft) {
+			} else if (ciStatus === GitHubCIOverallStatus.Success && !isDraft && isSessionOwned) {
 				// A draft cannot be merged, so passing CI on a draft offers no
 				// merge-ready action; skip it until the pull request is ready.
 				passingCandidates.push({
@@ -2044,13 +2049,18 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 	}
 
-	private getSessionPullRequestRefs(session: ISession, reader: IReader): readonly IGitHubPullRequestRef[] {
+	private getSessionPullRequestRefs(session: ISession, reader: IReader, includeReferences = false): readonly IGitHubPullRequestRef[] {
 		const workspace = session.workspace.read(reader);
 		const pullRequestRefs: IGitHubPullRequestRef[] = [];
 		const seen = new Set<string>();
 		const referenceGroups = [
 			getSessionGitHubReferences(session, reader).pullRequests.filter(ref => ref.createdByThisSession),
-			...(workspace?.folders ?? []).map(folder => getSessionOwnedGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader))),
+			...(workspace?.folders ?? []).map(folder => {
+				const gitHubInfo = folder.gitRepository?.gitHubInfo.read(reader);
+				// Workspace-linked references can need fixes, but must not offer
+				// merge or session-cleanup actions unless the session owns the PR.
+				return includeReferences ? getGitHubPullRequestRefs(gitHubInfo) : getSessionOwnedGitHubPullRequestRefs(gitHubInfo);
+			}),
 		];
 		for (const references of referenceGroups) {
 			for (const pullRequest of references) {
