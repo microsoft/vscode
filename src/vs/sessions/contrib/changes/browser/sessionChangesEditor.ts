@@ -281,7 +281,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			this.changesViewService.activeSessionHasGitRepositoryObs.read(reader)));
 		// A chat window shows its own session, so its header reports on the editor's session
 		// rather than the one the main window shows.
-		const inChatWindow = this._inChatWindow = ChatWindowContext.getValue(this.contextKeyService);
+		const inChatWindow = this._inChatWindow = !!ChatWindowContext.getValue(this.contextKeyService);
 		const scopedServices = new ServiceCollection([IContextKeyService, scopedContextKeyService]);
 		if (inChatWindow) {
 			this._scopedChangesViewService = this._register(this.changesViewService.createScoped(this._inputSessionResource, this.contextKeyService));

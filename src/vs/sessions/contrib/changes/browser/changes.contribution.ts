@@ -146,5 +146,5 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
-registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
+registerSingleton(IChangesViewService, new SyncDescriptor(ChangesViewService, [undefined, undefined], true));
 registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);

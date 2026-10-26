@@ -235,7 +235,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	 */
 	constructor(
 		private readonly scopedSessionResource: IObservable<URI | undefined> | undefined,
-		private readonly scopedContextKeyService: IContextKeyService | undefined,
+		scopedContextKeyService: IContextKeyService | undefined,
 		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -771,6 +771,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 			didChangeFeedbackSignal.read(reader);
 
+			if (!sessionResource) {
+				return new Map<string, number>();
+			}
 			const feedbackItems = this.agentFeedbackService.getFeedback(sessionResource);
 			const result = new Map<string, number>();
 			for (const item of feedbackItems) {

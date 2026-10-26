@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -70,6 +70,7 @@ const VIEW_HEIGHT = 520;
 class FixtureChangesViewService extends Disposable implements IChangesViewService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly activeSessionObs: IObservable<IActiveSession | undefined>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
 	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;
@@ -89,11 +90,16 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly detailsViewStateTransferObs = constObservable(undefined);
 	readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 
+	createScoped(): IChangesViewService & IDisposable {
+		return this;
+	}
+
 	constructor(session: IActiveSession, options: IChangesViewFixtureOptions) {
 		super();
 
 		const changeset = createChangeset(options.changes);
 		this.viewModeObs.set(options.viewMode, undefined);
+		this.activeSessionObs = constObservable(session);
 		this.activeSessionResourceObs = constObservable(session.resource);
 		this.activeSessionTypeObs = constObservable(session.sessionType);
 		this.activeSessionIsVirtualWorkspaceObs = constObservable(false);
