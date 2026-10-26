@@ -5977,6 +5977,41 @@ suite('Sessions - SessionsList', () => {
 		]) {
 			const mode = `compact: ${presentation.compact}, phone: ${presentation.phone}`;
 
+			if (!presentation.phone) {
+				test(`aligns disclosure controls for every comparison participant (${mode})`, () => {
+					const { container } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, harness => {
+						harness.managementService.sessions = harness.managementService.sessions.map(session => {
+							const nested = buildTestSession({ id: session.sessionId, chats: [{ id: 'peer', title: 'Nested chat' }] });
+							return {
+								...session,
+								chats: nested.session.chats,
+								mainChat: nested.session.mainChat,
+								capabilities: nested.session.capabilities,
+							};
+						});
+					}, false, presentation);
+					const participants = [...container.querySelectorAll<HTMLElement>('.session-item')];
+
+					assert.deepStrictEqual(participants.map(participant => {
+						const row = participant.closest<HTMLElement>('.monaco-list-row')!;
+						const twistie = row.querySelector<HTMLElement>('.monaco-tl-twistie')!;
+						const icon = participant.querySelector<HTMLElement>('.session-icon')!;
+						row.classList.add('hovered');
+						const appearance = {
+							title: participant.querySelector('.session-title')?.textContent,
+							leftOffset: twistie.getBoundingClientRect().left - icon.getBoundingClientRect().left,
+							topOffset: twistie.getBoundingClientRect().top - icon.getBoundingClientRect().top,
+							opacity: mainWindow.getComputedStyle(twistie).opacity,
+							pointerEvents: mainWindow.getComputedStyle(twistie).pointerEvents,
+						};
+						row.classList.remove('hovered');
+						return appearance;
+					}), ['Synthesis', 'Judge', 'Claude Opus 5', 'Balance'].map(title => ({
+						title, leftOffset: 0, topOffset: 0, opacity: '1', pointerEvents: 'auto',
+					})));
+				});
+			}
+
 			test(`keeps comparison connectors clear of participant status icons (${mode})`, () => {
 				const { container } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, undefined, false, presentation);
 				const participants = [...container.querySelectorAll<HTMLElement>('.session-item')];
@@ -6034,7 +6069,7 @@ suite('Sessions - SessionsList', () => {
 				if (!presentation.phone) {
 					const chat = container.querySelector<HTMLElement>('.session-comparison-chat')!;
 					const row = participant.closest<HTMLElement>('.monaco-list-row')!;
-					const twistie = row.querySelector<HTMLElement>('.session-comparison-twistie')!;
+					const twistie = row.querySelector<HTMLElement>('.session-comparison-attempt-twistie')!;
 					const icon = participant.querySelector<HTMLElement>('.session-icon')!;
 					row.classList.add('hovered');
 					assert.deepStrictEqual({
