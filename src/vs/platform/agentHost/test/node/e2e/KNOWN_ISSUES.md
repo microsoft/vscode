@@ -16,15 +16,50 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot sandboxed MCP servers restart at the start of the first turn
+
+A user with the sandbox enabled starts a session that has a stdio MCP server, then sends a first message. The server should start once inside the sandbox. Instead, the runtime first starts it with the settings it had before the sandbox update, then cancels it and starts it again inside the sandbox while the first turn is being prepared. Users with several MCP servers see the turn wait for every server to start twice, one after another, before the first response.
+
+- Test: `runtime MCP: first turn does not restart MCP servers` in `suites/copilotRuntimeMcpSuite.ts`.
+- Scope: Copilot provider with the sandbox enabled and `sandboxMcpServers` on, all platforms. Observed with bundled runtime `1.0.99-2`, and live with `1.0.99-1`.
+- Expected: one probe process start, and no `stopped` or `starting` state for the server after it first reports `Ready`.
+- Observed: two or three process starts. Runtime log: `mcp graph load: ensure_loaded (first load)`, then `apply_session_settings {"sandbox_changed":false}`, then `apply_session_settings {"sandbox_changed":true}`, then `serve finished {"quit_reason":"Cancelled"}`, then `sandbox_spawn sandbox launch directory`. The host sends exactly one `options.update({ sandboxConfig })` after `createSession` and no other sandbox, MCP, or agent-selection requests before the restart. The recording run passed once, so the outcome is timing-dependent.
+- Gate: only this test is skipped. It asserts the desired contract. Remove the skip after the runtime starts sandboxed MCP servers once.
+- Reproduce: temporarily replace this test's `test.skip` with `test`, then repeat:
+
+  ```bash
+  ./scripts/test-integration.sh \
+    --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "first turn does not restart MCP servers"
+  ```
+
+### Copilot strict managed-model resume is nondeterministic
+
+An SDK client can opt into mandatory model-option locks. If an administrator changes the required effort after a conversation was saved with another effort, resuming should apply the new lock and retain the conversation history. The runtime intermittently rejects that resume instead. VS Code's current integration deliberately omits the strict opt-in, and its default-only resume tests remain enabled.
+
+- Test: `strict SDK opt-in resumes under a changed effort lock without deleting history (#26739)` in `providerIntegration/copilotAutoTier.integrationTest.ts`.
+- Scope: the separate `enforceManagedModelDefaults: true` SDK mode on all platforms. Local repetitions with runtime `1.0.99-0` observed both outcomes; Linux CI also resumed successfully where the old characterization expected rejection.
+- Expected: resume `gpt-5` with managed effort `high` and preserve the earlier assistant message after saving the conversation at effort `low`.
+- Observed: either `reasoningEffort is locked to 'high'` rejects resume, or resume succeeds with effort `high` and the original history. Asserting that the defect must occur makes successful reconciliation fail CI.
+- Tracking: [github/copilot-agent-runtime#26739](https://github.com/github/copilot-agent-runtime/issues/26739).
+- Gate: only this strict-mode test is skipped. It asserts the desired success contract, not an expected rejection or acceptance of either outcome. Remove the skip after the shared runtime fixes the resume race.
+- Reproduce: temporarily replace this test's `test.skip` with `test`, then repeat the following focused command; a single passing run is not sufficient:
+
+  ```bash
+  env -u COPILOT_HOME -u COPILOT_CACHE_HOME ./scripts/test-integration.sh \
+    --run src/vs/platform/agentHost/test/node/providerIntegration/copilotAutoTier.integrationTest.ts \
+    --grep "strict SDK opt-in resumes under a changed effort lock"
+  ```
+
 ### Copilot managed identity denial retains an inherited account resource attribute
 
 An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.
 
 - Test: `managed identity denial removes inherited identity from native spans`.
-- Scope: Copilot runtime `1.0.95-0`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
+- Scope: Copilot SDK `1.0.26` / runtime `1.0.103`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
 - Expected: managed `telemetry.capture.identity=false` removes all three identity attributes from native spans and events despite local opt-in and inherited resource attributes.
-- Observed: native spans still retain `user.name=synthetic-account` with SDK `1.0.19-preview.0` / runtime `1.0.95-0`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
-- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/94f375f0098b266c43f7772797bc5f7b4ea12626/src/runtime/src/otel/sdk.rs#L2003) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
+- Observed: native spans still retain `user.name=synthetic-account`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
+- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/131fc866123af5df4451497f183cadef4ddf20f2/src/runtime/src/otel/sdk.rs#L2546) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
 - Gate: a strict expected-failure marker accepts only the identity-redaction assertion. An unexpected pass fails and requires removing the marker. Recording skips the case to preserve its complete existing fixture.
 - Reproduce:
 
@@ -78,19 +113,31 @@ The new `regression coverage:` history and fork scenarios exercise cold resume, 
 
 ### Codex Linux startup races in shared empty workspaces
 
-Starting two Codex chats in the same empty workspace can fail before the first prompt runs. With Codex 0.153.0 on Linux, initialization intermittently fails on a protected metadata directory that is missing by the time bubblewrap mounts it. This also reproduces with concurrent `thread/start` calls directly to the bundled app-server, without Agent Host.
+Starting two Codex chats in the same empty workspace can fail before the first prompt runs. With Codex 0.153.0 through at least 0.162.0 on Linux, initialization intermittently fails on a protected metadata directory that is missing by the time bubblewrap mounts it. This also reproduces with concurrent `thread/start` calls directly to the bundled app-server, without Agent Host.
 
-- Affected coverage: the shared-workspace scenarios in [serverToolsSuite.ts](./suites/serverToolsSuite.ts), including `server tool: list_sessions status filter combines active and archived sessions`.
+- Affected coverage: every suite that starts several Codex chats in one workspace: the shared-workspace scenarios in [serverToolsSuite.ts](./suites/serverToolsSuite.ts) (including `server tool: list_sessions status filter combines active and archived sessions`), the sibling chats in [sessionPersistenceSuite.ts](./suites/sessionPersistenceSuite.ts), and every provider scenario in [chatMoveSuite.ts](./suites/chatMoveSuite.ts) (two sessions sharing a folder, or a session and its peer).
 - Observed: `CodexMaterializeFailed` with `bwrap: Can't find source path <workspace>/.agents: No such file or directory` while loading workspace instructions.
-- Fixture mitigation: create `.git`, `.agents`, and `.codex` in the disposable workspace before starting any Codex chat on Linux. The directories then belong to the fixture and survive sandbox cleanup. All scenarios, assertions, replay checks, and provider permissions remain enabled and unchanged.
-- Runtime status: the bundled Codex defect remains; this only stabilizes test setup. After an SDK update, remove the setup workaround and repeatedly run the shared-workspace scenarios before considering the gap closed.
+- Mechanism: a thread creation reads AGENTS.md through the bubblewrap filesystem helper, because our permission profile lacks full-disk read access, and a helper failure fails the thread. Each helper mounts a temporary placeholder at a missing `.git`, `.agents`, or `.codex` of the workspace root and removes it on exit. Another helper set up meanwhile sees the placeholder, binds it as a readable root (`.agents` is a `read` entry of our profile), and fails once it is removed ([`bwrap.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/bwrap.rs), readable roots are bound when they exist, without the transient-target check writable roots get).
+- Fixture mitigation: `ownCodexProtectedDirectories` in [testDirectories.ts](./harness/testDirectories.ts) creates `.git`, `.agents`, and `.codex` in the disposable workspace before starting any Codex chat on Linux. The directories then belong to the fixture and survive sandbox cleanup. All scenarios, assertions, replay checks, and provider permissions remain enabled and unchanged. A suite that starts several Codex chats in one workspace must call it.
+- Runtime status: the bundled Codex defect remains; this only stabilizes test setup. After an SDK update, make `ownCodexProtectedDirectories` a no-op and repeatedly run the affected scenarios before considering the gap closed.
 - Platform scope: the [0.153.0 Linux sandbox entry point](https://github.com/openai/codex/blob/rust-v0.153.0/codex-rs/linux-sandbox/src/lib.rs) compiles bubblewrap and its temporary-mount cleanup only on Linux. [Sandbox selection](https://github.com/openai/codex/blob/rust-v0.153.0/codex-rs/sandboxing/src/manager.rs) routes native macOS to Seatbelt and native Windows to its Windows sandbox; neither uses this cleanup path. Linux execution environments, including remote Linux and WSL2, remain affected regardless of the client's OS. This does not rule out unrelated startup races on other platforms.
-- Reproduce: remove the protected-directory setup in [serverToolsSuite.ts](./suites/serverToolsSuite.ts), then repeatedly run on Linux:
+- Reproduce: make `ownCodexProtectedDirectories` in [testDirectories.ts](./harness/testDirectories.ts) a no-op, then repeatedly run on Linux:
 
   ```bash
   ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-    --grep "server tool: list_sessions.*archived"
+    --grep "server tool: list_sessions.*archived|keeps its provider conversation|keeps its chat's provider conversation"
   ```
+
+- Host mitigation: on Linux, `CodexAgent` runs `thread/start`, `thread/resume`, and `thread/fork` one at a time per workspace root ([codexThreadCreationSequencer.ts](../../../node/codex/codexThreadCreationSequencer.ts)), so chats starting together in one workspace no longer fail their first message. Sandboxed shell commands that two chats run at the same moment in one workspace can still race, and so can several Agent Host processes sharing a workspace; that remains upstream. No upstream Codex issue tracks it yet. The defect: in [`bwrap.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/bwrap.rs), readable roots are bound whenever they exist, with no check for another setup's transient mount targets (writable roots have one); it is unchanged on Codex `main`.
+
+### Codex Linux sandbox helpers orphaned mid-session
+
+An Agent Host E2E job on Linux can pass every suite and still fail the step, because the test tmpfs cannot be unmounted: `umount: <tmpfs>: target is busy`. Between 2026-10-07 and 2026-10-17 this failed 13 PR runs (about 1 in 217). The holder is a `bwrap ... --argv0 codex-linux-sandbox ... --codex-run-as-fs-helper` process whose parent is PID 1. It still has its pre-exec `bwrap` command line and its launcher's process group, and it holds files inherited from the Agent Host server.
+
+- Mechanism: Codex runs each filesystem helper as a `codex-linux-sandbox` launcher. The launcher forks `bwrap --die-with-parent` into its own process group, and when Codex drops the helper it kills only that launcher ([`fs_sandbox.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/exec-server/src/fs_sandbox.rs), [`linux_run_main.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/linux_run_main.rs)). The outer bwrap then dies with the launcher. If that happens right after bwrap clones its sandbox child, the child blocks forever on an eventfd that never reports the outer bwrap's death; it binds its own lifetime to its parent only after that wait ([`bubblewrap.c`](https://github.com/containers/bubblewrap/blob/main/bubblewrap.c)).
+- Timing: the holder's age dates its clone while its Agent Host server and app-server were still running, several seconds before that server shut down. It is orphaned mid-session, outside the app-server's process tree, so killing the app-server's tree at teardown does not reach it.
+- Upstream: [openai/codex#54877](https://github.com/openai/codex/issues/54877) and [containers/bubblewrap#633](https://github.com/containers/bubblewrap/issues/633).
+- Test mitigation: on an unmount failure, [tmpfs.sh](../../../../../../../test/integration/agentHost/tmpfs.sh) checks every holder. If all of them are orphaned Codex filesystem helpers (parent PID 1 and `--codex-run-as-fs-helper` on the command line), it describes each one, kills it, reports a GitHub Actions warning, and retries the unmount. Any other holder, or an unmount that still fails, remains fatal with the same holder diagnostics. Remove this mitigation once a fixed Codex or bubblewrap ships.
 
 ### Codex context snapshot flake
 
@@ -944,6 +991,10 @@ A user can ask Claude to delete a file from the workspace through its shell tool
   ```bat
   scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\claudeAgentHostE2E.integrationTest.ts --grep "deletes a workspace file"
   ```
+
+### Codex turn-diff shell fixture uses Bash
+
+The `shell-intercepted patches use the same turn-diff tracking` provider-integration fixture is separately POSIX-only because it sends a Bash heredoc through Codex's shell. Native patch tracking, checkpoint, steering, subagent, and restart coverage in [codexTurnDiff.integrationTest.ts](../providerIntegration/codexTurnDiff.integrationTest.ts) stays enabled on Windows.
 
 ### Codex file creation replay on Windows
 

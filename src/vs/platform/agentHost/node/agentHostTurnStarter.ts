@@ -7,11 +7,16 @@ import type { StopWatch } from '../../../base/common/stopwatch.js';
 import { ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAgent } from '../common/agent.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { createErrorResponsePart, type ErrorInfo, type Message, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
+import { URI } from '../../../base/common/uri.js';
 import { createAgentChatContext } from './agentChatContext.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
@@ -26,6 +31,7 @@ export interface IStartedTurn {
 
 /** The host state and client context needed to admit a turn before it is sent. */
 export interface ITurnStartRequest {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly session: ProtocolURI;
 	readonly chat: ProtocolURI;
 	readonly turnChannel: ProtocolURI;
@@ -35,6 +41,14 @@ export interface ITurnStartRequest {
 	readonly clientId: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	readonly turnStopWatch: StopWatch;
+	/**
+	 * Whether the submitter still holds this message if admission rejects it.
+	 * Clients keep their composer draft, so this defaults to `true`; the host
+	 * must pass `false` when it submits a message the client has already let go.
+	 */
+	readonly recoverableRejection?: boolean;
+	/** Receives a definite admission rejection without changing queued callers' result contract. */
+	readonly onRejected?: (error: ErrorInfo) => void;
 }
 
 /**
@@ -56,11 +70,14 @@ export interface ITurnStartRequest {
 export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest): IStartedTurn | undefined {
 	const chatContributions = accessor.get(IAgentHostChatContributions);
 	const stateManager = accessor.get(IAgentHostStateManager);
+	const configurationService = accessor.get(IAgentConfigurationService);
 	const providerService = accessor.get(IAgentHostProviderService);
 	const titleController = accessor.get(IAgentHostSessionTitleController);
 	const telemetryReporter = accessor.get(IAgentHostTelemetryReporter);
 	const turnTracker = accessor.get(IAgentHostTurnTracker);
+	const sessionStateStore = accessor.get(IAgentHostSessionStateStore);
 	const logService = accessor.get(ILogService);
+	const authenticationService = accessor.get(IAgentHostAuthenticationService);
 	const disposition = chatContributions.incomingRequest({
 		session: request.session,
 		chat: request.chat,
@@ -70,6 +87,7 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 		source: request.source,
 		clientId: request.clientId,
 		clientContext: request.clientContext,
+		...(request.credentials ? { credentials: request.credentials } : {}),
 	});
 	if (disposition.kind === 'handled') {
 		return undefined;
@@ -85,9 +103,10 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 			session: request.session,
 			channel: request.turnChannel,
 			turnId: request.turnId,
-			reason: { kind: 'rejected', error: disposition.error },
+			reason: { kind: 'rejected', error: disposition.error, recoverable: request.recoverableRejection !== false },
 			clientContext: request.clientContext,
 		});
+		request.onRejected?.(disposition.error);
 		return undefined;
 	}
 
@@ -110,16 +129,20 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 			session: request.session,
 			channel: request.turnChannel,
 			turnId: request.turnId,
-			reason: { kind: 'rejected', error },
+			reason: { kind: 'rejected', error, recoverable: request.recoverableRejection !== false },
 			clientContext: request.clientContext,
 		});
+		request.onRejected?.(error);
 		return undefined;
 	}
 
 	const isEphemeralSession = stateManager.isEphemeralSession(request.session);
 	const messageOriginKind = getMessageOriginTelemetryKind(request.message, isEphemeralSession);
-	telemetryReporter.userMessageSent(agent.id, request.clientId, request.clientContext, request.chat, request.session, request.turnId, state, request.source, request.message, isEphemeralSession);
-	const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, request.chat, createAgentChatContext(stateManager, request.session, request.chat, stateManager.resolveChatStorageResource(request.session, request.chat)), state, request.message.model?.id);
-	turnTracker.turnStarted(agent, request.chat, request.session, request.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, request.clientContext, request.clientId, undefined, undefined, messageOriginKind);
+	telemetryReporter.userMessageSent(agent.id, request.clientId, request.clientContext, request.chat, request.session, request.turnId, state, request.source, request.message, isEphemeralSession, stateManager.getChatParent(request.chat) !== undefined);
+	const { model, modelTelemetryKind, modelSelectionKind, autoTier, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, request.chat, createAgentChatContext(stateManager, authenticationService, request.session, request.chat, stateManager.resolveChatStorageResource(request.session, request.chat), sessionStateStore.peek(URI.parse(request.session))), configurationService.getChatConfigState({ session: request.session, chat: request.chat }), request.message.model);
+	turnTracker.turnStarted(agent, request.chat, request.session, request.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, request.clientContext, request.clientId, undefined, undefined, messageOriginKind, undefined, undefined, stateManager.getChatParent(request.chat) !== undefined ? 'task' : undefined);
+	if (autoTier !== undefined) {
+		turnTracker.updateFusionTelemetry(request.chat, request.turnId, { autoTier });
+	}
 	return { agent };
 }

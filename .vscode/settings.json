@@ -192,7 +192,8 @@
 	"emmet.excludeLanguages": [],
 	"gulp.autoDetect": "off",
 	"rust-analyzer.linkedProjects": [
-		"cli/Cargo.toml"
+		"cli/Cargo.toml",
+		"copilot_shim/Cargo.toml"
 	],
 	"conventionalCommits.scopes": [
 		"tree",
@@ -206,6 +207,7 @@
 	],
 	// --- Workbench ---
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
+	"multiDiffEditor.experimental.fileList": true,
 	"azureMcp.enabledServices": [
 		"kusto" // Needed for kusto tool in data.prompt.md
 	],

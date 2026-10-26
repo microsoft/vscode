@@ -10,7 +10,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatResponseViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
-import { resolveResponseSelection } from '../../browser/responseSelectionResolver.js';
+import { resolveResponseSelection } from '../../../../../workbench/contrib/chat/browser/responseSelectionResolver.js';
 
 function makeResponse(requestId: string): IChatResponseViewModel {
 	return upcastPartial<IChatResponseViewModel>({ requestId, setVote: () => undefined });

@@ -5,8 +5,11 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+import { InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { AgentHostToolSetEnablementService, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, getToolSetTriState, isCopilotCliSessionType, isToolEnabledInSet } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
+import { createTestProfile, createTestProfileService, SharedApplicationStorageDatabase, TestWindowStorageService } from '../../common/testSharedApplicationStorage.js';
 
 suite('AgentHostToolSetEnablementService', () => {
 
@@ -17,7 +20,7 @@ suite('AgentHostToolSetEnablementService', () => {
 	const TOOLS = ['t1', 't2', 't3'];
 
 	function createSut(storageService = store.add(new InMemoryStorageService())) {
-		return { storageService, sut: store.add(new AgentHostToolSetEnablementService(storageService)) };
+		return { storageService, sut: store.add(new AgentHostToolSetEnablementService(storageService, new TestUserDataProfileService())) };
 	}
 
 	test('isCopilotCliSessionType matches local and remote Copilot CLI harnesses', () => {
@@ -99,6 +102,38 @@ suite('AgentHostToolSetEnablementService', () => {
 		first.setToolSetEnabled(SESSION, SET, TOOLS, false);
 
 		const { sut: second } = createSut(storageService);
-		assert.strictEqual(getToolSetTriState(second.getState(SESSION), SET, TOOLS), false);
+		assert.deepStrictEqual({
+			triState: getToolSetTriState(second.getState(SESSION), SET, TOOLS),
+			profileStorage: storageService.get('chat.agentHost.toolSetEnablement', StorageScope.PROFILE),
+		}, {
+			triState: false,
+			profileStorage: undefined,
+		});
+	});
+
+	test('windows with different profiles share state through application storage', async () => {
+		const shared = new SharedApplicationStorageDatabase();
+		const editorStorage = await store.add(new TestWindowStorageService(shared)).init();
+		const agentsStorage = await store.add(new TestWindowStorageService(shared)).init();
+		const editor = store.add(new AgentHostToolSetEnablementService(editorStorage, createTestProfileService(createTestProfile('__default__profile__', { isDefault: true }))));
+		const agents = store.add(new AgentHostToolSetEnablementService(agentsStorage, createTestProfileService(createTestProfile('agents'))));
+		const seenInAgentsWindow: (boolean | 'mixed')[] = [];
+		store.add(autorun(reader => {
+			const triState = getToolSetTriState(agents.observe(SESSION).read(reader), SET, TOOLS);
+			if (seenInAgentsWindow.at(-1) !== triState) {
+				seenInAgentsWindow.push(triState);
+			}
+		}));
+
+		editor.setToolSetEnabled(SESSION, SET, TOOLS, false);
+		agents.setToolEnabled(SESSION, SET, 't1', true);
+
+		assert.deepStrictEqual({
+			seenInAgentsWindow,
+			editor: TOOLS.map(tool => isToolEnabledInSet(editor.getState(SESSION), SET, tool)),
+		}, {
+			seenInAgentsWindow: [true, false, 'mixed'],
+			editor: [true, false, false],
+		});
 	});
 });

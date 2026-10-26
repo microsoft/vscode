@@ -4,7 +4,7 @@
 
 ## Scope and authority
 
-Automations schedule or manually start agent sessions through their selected provider. Local and remote Agent Hosts execute through AHP; the opt-in Copilot Cloud provider dispatches user-owned GitHub automations through the Copilot gateway.
+Automations schedule or manually start agent sessions through their selected provider. Local and remote Agent Hosts execute through AHP; the opt-in Copilot Cloud provider dispatches user-owned and repository-owned GitHub automations through the Copilot gateway.
 
 The Agents Window manages definitions, requests manual execution, and observes authoritative state. It does not evaluate schedules, elect a window leader, claim runs in browser storage, create run sessions, send their first prompts, or recover their lifecycle. An unavailable or unsupported provider never falls back to browser execution or to another provider.
 
@@ -43,7 +43,9 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 
 The provider-neutral store exposes definition mutations and a manual run request, not run-claim or lifecycle-write APIs. The manual runner has no Sessions session-creation dependency.
 
-History completeness is exposed separately from definition readiness through optional `historyState`. A failed history read retains the last history without disabling otherwise available definition mutations. The cloud adapter periodically refreshes active history and performs bounded discovery after dispatch or stop acknowledgements through the central GitHub client; idle definitions refresh only on entry, account or client changes, or explicit refresh. External history rows remain visible without a native session and expose GitHub opening and provider-supported cancellation, not synthesized session lifecycle actions.
+History completeness is exposed separately from definition readiness through optional `historyState`. Full catalogue refresh activity, including its history read but excluding independent history polling, is exposed through optional `isRefreshing`, without making a ready cached catalogue unavailable during a background reload. Background catalogue refresh preserves checked workspace eligibility so open configuration drafts are not recreated; explicit refresh and account changes still invalidate eligibility. A failed history read retains the last history without disabling otherwise available definition mutations. The cloud adapter periodically refreshes active history and performs bounded discovery after dispatch, stop acknowledgements, or a local follow-up through the central GitHub client. The visible Automations view refreshes definitions on entry and periodically; full-refresh activity postpones its next poll until completion, its refresh timer is disposed when hidden, and window focus changes do not trigger refresh. Account or client changes and explicit refresh also reload definitions.
+
+Cloud history retains the authoritative task ID as its native session resource. Opening or locally archiving a run may resolve that exact task through the extension provider; it never matches by title or chooses a recent task. External rows remain usable through GitHub when native resolution is unavailable. Hydrated runs use provider-owned archive and read state, while Stop remains a remote cancellation request. Automation provenance excludes these sessions from the primary sidebar without changing external-session ownership. Newer local conversation progress takes precedence over stale history, and a conversation hidden behind Automations is not automatically marked read.
 
 `IAutomationService` and `ISessionsProviderAutomations` each extend `IAutomationStore`; neither extends the other. The provider contract describes one host's catalogue and observable creation eligibility, while the injected service adds provider lists and creation checks by provider ID. The common interfaces live in Workbench, and the provider specialization lives in Sessions, preserving the layer direction.
 
@@ -59,9 +61,11 @@ Sessions management marks Automation configuration drafts with `isAutomationDraf
 
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 
+Cloud ownership is separate from the execution target and creator: `user` (Only me) or `repository`, defaulting to `user` for legacy responses. Ownership is accepted only on creation, never in updates. The create API is authoritative for repository ownership support, and providers translate its known unsupported-ownership rejection into product-facing feedback. The repository Automation capability must allow management for cloud mutations; every definition returned by the server is available through the UI and agent tools.
+
 An `AutomationTarget` separates concrete provider identity (`providerId`) from its agent (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider.
 
-Cloud definitions retain UTC schedule semantics. Unsupported triggers project as a custom, non-editable schedule rather than a manual schedule. Portable local-time blueprints and AHP mutations reject cloud schedules they cannot preserve.
+Cloud definitions retain UTC schedule semantics and their raw event configuration separately from the schedule projection. Unsupported triggers project as a custom schedule rather than a manual schedule. Unrelated updates omit triggers, since the cloud API replaces a supplied trigger map as a whole. The editable-state conflict check includes raw triggers and actor-write permission. Portable local-time blueprints and AHP mutations reject cloud schedules they cannot preserve.
 
 Cloud schedule presentation uses local wall-clock values without changing canonical UTC definitions. The dialog captures the local UTC offset when opened and uses it for both load and save; provider changes do not convert the form fields again. Daily and weekly schedules remain fixed UTC recurrences on GitHub, so their displayed local time can shift across daylight-saving changes.
 
@@ -113,9 +117,15 @@ The aggregate waits for AfterRestored provider registration. A window without an
 
 Providers may expose observable enablement. Disabled providers are excluded from every aggregate and command route, not represented as unavailable hosts. Cloud enablement requires the cloud experiment setting, parent Automations enablement, and visible AI features; account changes or disabling the feature dispose pending requests and clear projected definitions and history. Disabling client access does not stop schedules already owned by GitHub.
 
-Cloud dialog configuration is supplied by the enabled provider through the shared Automation contract. Repository selection reuses the New Chat repository search, validates private repository access, and defaults to Cloud while retaining a matching local checkout. Session types follow workspace capabilities; selecting another supported provider changes execution without changing the displayed workspace. Provider-owned model/tool drafts, UTC scheduling, and immutable-target guidance follow the selected provider. The cloud provider loads its selectable tools from the Mission Control tool catalog once per account session; new definitions select every catalog tool, and saved tool IDs outside the catalog are preserved unchanged. Eligibility is advisory UI state; mutations still revalidate access at the provider boundary.
+Cloud dialog configuration is supplied by the enabled provider through the shared Automation contract. Repository selection reuses the New Chat repository search, excludes public repositories, validates general Automation management, and defaults to Cloud while retaining a matching local checkout. Session types follow workspace capabilities; selecting another supported provider changes execution without changing the displayed workspace. Provider-owned model/tool drafts, UTC scheduling, and immutable-target guidance follow the selected provider. The cloud provider loads its selectable tools from the Mission Control tool catalog once per account session; new definitions select every catalog tool, and saved tool IDs outside the catalog are preserved unchanged. Target eligibility is advisory UI state; mutations still revalidate the capability at the provider boundary.
 
-Cloud discovery is limited to user-owned definitions in known and recent private/internal GitHub.com repositories. Mutations revalidate repository eligibility and updates compare the latest editable state before dispatch; REST does not provide atomic compare-and-swap. An uncertain mutation blocks further writes until refresh reconciles the catalogue. Cloud run requests return acceptance without a correlated run or completion promise. History remains a bounded server-owned window, with external links and no synthesized native session resource.
+Repository search submits privacy checks in bounded batches. Successful privacy results are cached for the account lifetime; failed checks use a separate bounded short-lived retry delay, are cleared by explicit refresh or account changes, and never become authoritative eligibility state.
+
+Cloud event authoring is dialog-only and uses an explicitly supported subset of the account's trigger catalog. Trigger sections that cannot be faithfully represented remain read-only with Open on GitHub, while other fields remain editable. Event changes retain opaque settings; unchanged sections omit the trigger map entirely. Supported event automations do not offer eventless manual execution. Duplication of event configurations is declined in favor of GitHub, and portable export remains restricted.
+
+Agent-facing tools consume that same provider configuration. Listing refreshes enabled cloud catalogues and loads selectable tools, returning a serializable snapshot with explicit tool-catalog readiness or errors. It exposes known active runs and the provider's history readiness separately from definition readiness; a missing active run does not establish an uncertain request's outcome. Configure preserves UTC schedules and provider-owned partial-update semantics. Run distinguishes accepted, started, already-running, uncertain, and not-started outcomes; providers translate uncertain mutations into the shared `AutomationMutationUncertainError` without inviting an automatic retry.
+
+Cloud discovery includes the authenticated user's definitions and repository-owned definitions in known and recent private/internal GitHub.com repositories. Agent-facing tools consume the same returned catalogue as the human UI. Mutations revalidate repository eligibility and updates compare the latest editable state before dispatch; REST does not provide atomic compare-and-swap. An uncertain mutation blocks further writes until refresh reconciles the catalogue. Cloud run requests return acceptance without a correlated run or completion promise. History remains a bounded server-owned window, with external links and no synthesized native session resource.
 
 Creation availability is observable and comes from the negotiated AHP create capability and authoritative catalogue readiness. Forms and tools use the same capability. Definition-specific Run, Update, and Remove actions come from the host's operations; clients do not infer permission from a locally retained definition.
 
@@ -135,23 +145,25 @@ To use a different host, explicitly duplicate the definition there. The original
 
 ## Host lifecycle
 
-`AgentHostAutomationService` is authoritative as soon as durable host storage is readable. Execution is gated by host feature enablement and current provider availability, not renderer startup or migration flags. Host configuration restores saved Automation enablement and timeout before authority initialization, without restoring client-owned approval grants.
+`AgentHostAutomationService` is authoritative as soon as durable host storage is readable. Execution is gated by host feature enablement and current provider availability, not renderer startup or migration flags. Host configuration restores saved Automation enablement before authority initialization, without restoring client-owned approval grants.
 
 Providers may expose model-dependent readiness for unattended execution. While required credentials are missing, the host leaves due schedule cursors unchanged and resumes scheduling when readiness changes. Copilot's readiness covers initially missing credentials and preserves explicitly selected BYOK models when signed-out operation is supported; it does not persist credentials or bypass runtime authorization.
 
+The host likewise leaves due schedules and pending runs waiting while the machine is not fully awake, because work started during sleep or a background (macOS dark) wake stalls when the machine sleeps again. The VS Code main process reports macOS sleep and full wakes to its local host; on a full wake, missed occurrences follow the trigger's misfire policy. Run Now is never held. Hosts without a wake reporter, such as remote hosts, treat the machine as always fully awake.
+
 The host owns:
 
-- durable manual request IDs and single-active-run admission;
+- durable manual request IDs and active-run reuse for manual requests;
 - schedule cursors, due-trigger evaluation, and misfire handling;
 - session creation, Automation prompt provenance, membership, and primary-session linkage;
-- cancellation, timeout, and terminal outcomes;
+- cancellation and terminal outcomes;
 - restart recovery and paginated run history.
 
 Definitions and run mutations are persisted before corresponding AHP state is published. An unreadable or unsupported host storage format must not be replaced with an empty writable catalogue.
 
-At most one non-terminal run occupies an Automation's active-run slot. `pending` and `running` are non-terminal; `completed` and `failed` are terminal in the Sessions projection. AHP cancellation projects as failed with its cancellation reason. A run exposes its session resource only once the host links that session.
+Every due schedule occurrence creates its own run, even while earlier runs of the same Automation are non-terminal, so a stalled run cannot block later occurrences. The host imposes no run duration limit: a run ends when its linked session completes, fails, or is cancelled; when that session is deleted; or when restart recovery interrupts it. If a run's turn fails with a resumable error after the machine slept during the run, the run stays `running` and the host resumes that turn once, shortly after the next full wake; cancelling the run while it waits ends it immediately. `pending` and `running` are non-terminal; `completed` and `failed` are terminal in the Sessions projection. AHP cancellation projects as failed with its cancellation reason. A run exposes its session resource only once the host links that session.
 
-Run Now submits a manual request to this authority and observes dispatch and completion. An existing active run is reported without creating another session. Pre-dispatch cancellation prevents the request; supported in-flight cancellation is forwarded to the host. Observation failure or window closure cannot synthesize a terminal run or move execution elsewhere.
+Run Now submits a manual request to this authority and observes dispatch and completion. If the Automation already has an active run, the newest active run is reported without creating another session. Pre-dispatch cancellation prevents the request; supported in-flight cancellation is forwarded to the host. Observation failure or window closure cannot synthesize a terminal run or move execution elsewhere.
 
 Disabling scheduled execution on a definition preserves manual Run Now. Disabling the Automations feature removes new-run authority without deleting definitions or automatically terminating sessions already running. On restart or re-enablement, the host applies its existing recovery and misfire rules without requiring an Agents Window.
 

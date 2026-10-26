@@ -120,6 +120,8 @@ export interface CreateChatParams extends BaseParams {
 	 * {@link AgentCapabilities.multipleWorkingDirectories}.
 	 */
 	workingDirectories?: URI[];
+	/** Client-selected initial display title for the new chat. */
+	title?: string;
 }
 
 // ─── moveChat ────────────────────────────────────────────────────────────────

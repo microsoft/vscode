@@ -13,6 +13,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AbstractRequestService, AuthInfo, Credentials } from '../../request/common/request.js';
 import { lookupKerberosAuthorization } from '../../request/node/requestService.js';
 import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
+import { redactHeadersForLog, redactSecretsInText, redactUrlForLog } from '../common/logRedaction.js';
 import { IAgentHostProxyResolver, loadAgentHostCertificates } from './agentHostProxyResolver.js';
 
 const TRANSIENT_ERROR_CODES = new Set([
@@ -35,6 +36,26 @@ function isTransientError(error: unknown): boolean {
 	return false;
 }
 
+/** The same error with signed URLs removed from its message, stack and cause; cancellation passes through. */
+function redactError<T>(error: T): T {
+	if (!(error instanceof Error) || isCancellationError(error)) {
+		return error;
+	}
+	for (const target of [error, error.cause]) {
+		if (target instanceof Error) {
+			try {
+				target.message = redactSecretsInText(target.message);
+				if (target.stack) {
+					target.stack = redactSecretsInText(target.stack);
+				}
+			} catch {
+				// A read-only message (a platform exception): nothing more can be done in place.
+			}
+		}
+	}
+	return error;
+}
+
 /**
  * Request service implemented on the agent host's `@vscode/proxy-agent`
  * patched fetch, including renderer-backed system/PAC resolution and VS Code's
@@ -52,8 +73,19 @@ export class AgentHostRequestService extends AbstractRequestService {
 		super(logService);
 	}
 
-	override request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		return this.logAndRequest(options, () => this._request(options, token));
+	override async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		// Logged without signed URLs: the request URL, response headers such as a
+		// redirect's `Location`, and error messages. The caller gets the response itself, unchanged.
+		let context: IRequestContext | undefined;
+		await this.logAndRequest({ ...options, url: options.url === undefined ? undefined : redactUrlForLog(options.url) }, async () => {
+			try {
+				context = await this._request(options, token);
+			} catch (error) {
+				throw redactError(error);
+			}
+			return { ...context, res: { ...context.res, headers: redactHeadersForLog(context.res.headers) } };
+		});
+		return context!;
 	}
 
 	override resolveProxy(url: string): Promise<string | undefined> {
@@ -119,6 +151,8 @@ export class AgentHostRequestService extends AbstractRequestService {
 				body: options.data,
 				signal,
 				cache: options.disableCache ? 'no-store' : undefined,
+				// `followRedirects: 0` asks for the 3xx itself (as the base request service does), so the caller can check every hop.
+				redirect: options.followRedirects === 0 ? 'manual' : undefined,
 			});
 			const stream = response.body
 				? responseBodyToStream(response.body, cancellation, cancellationListener)
@@ -188,7 +222,8 @@ function responseBodyToStream(body: ReadableStream<Uint8Array>, cancellation: Ab
 	const destroy = stream.destroy.bind(stream);
 	stream.destroy = () => {
 		cancellation.abort();
-		void reader.cancel();
+		// Aborting errors the body, so `cancel()` rejects with the same AbortError: expected, not unhandled.
+		reader.cancel().catch(() => { });
 		cancellationListener.dispose();
 		destroy();
 	};

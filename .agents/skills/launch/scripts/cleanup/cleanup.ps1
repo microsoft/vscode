@@ -33,7 +33,6 @@ if (-not [string]::IsNullOrWhiteSpace($PlaywrightSession)) {
 }
 
 $userDataDir = Join-Path $RunDir 'user-data'
-$userDataArgument = "--user-data-dir=$userDataDir"
 $remainingProcesses = @()
 for ($attempt = 0; $attempt -lt 5; $attempt++) {
 	$remainingProcesses = @(
@@ -42,7 +41,7 @@ for ($attempt = 0; $attempt -lt 5; $attempt++) {
 				$commandLine = $_.CommandLine
 				$_.Name -eq 'Code - OSS.exe' -and
 				$null -ne $commandLine -and
-				(Test-CommandLineHasArgument $commandLine $userDataArgument)
+				(Test-CommandLineHasPathArgument $commandLine '--user-data-dir' $userDataDir)
 			}
 	)
 	if ($remainingProcesses.Count -eq 0) {
@@ -60,7 +59,7 @@ $remainingProcesses = @(
 			$commandLine = $_.CommandLine
 			$_.Name -eq 'Code - OSS.exe' -and
 			$null -ne $commandLine -and
-			(Test-CommandLineHasArgument $commandLine $userDataArgument)
+			(Test-CommandLineHasPathArgument $commandLine '--user-data-dir' $userDataDir)
 		}
 )
 if ($remainingProcesses.Count -gt 0) {

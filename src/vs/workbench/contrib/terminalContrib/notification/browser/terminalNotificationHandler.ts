@@ -187,7 +187,16 @@ export class TerminalNotificationHandler extends Disposable {
 	}
 
 	private _sanitizeOsc99MessageText(text: string): string {
-		return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1');
+		// Markdown link syntax is nestable, so a single pass can splice surviving fragments into a
+		// new, valid link (e.g. `[[ ](http://z)label](command:...)` becomes `[ label](command:...)`).
+		// Replace to a fixed point so no parsable link can remain in the sanitized output.
+		let sanitized = text;
+		let previous: string;
+		do {
+			previous = sanitized;
+			sanitized = sanitized.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1');
+		} while (sanitized !== previous);
+		return sanitized;
 	}
 
 	private _getOrCreateOsc99State(id: string | undefined): IOsc99NotificationState {

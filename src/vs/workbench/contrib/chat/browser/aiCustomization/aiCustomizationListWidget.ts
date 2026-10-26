@@ -670,6 +670,7 @@ export class AICustomizationListWidget extends Disposable {
 	private sectionTitleDescription!: HTMLElement;
 	private sectionTitleDescriptionText!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
+	private browseCustomizationsButton!: Button;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchContainer!: HTMLElement;
 	private searchInput!: InputBox;
@@ -758,12 +759,14 @@ export class AICustomizationListWidget extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (affectsCustomizationDiscoveryAvailability(event, this.marketplaceService) &&
 				this.currentSection === AICustomizationManagementSection.Skills) {
+				this.updateHeaderActions();
 				this.filterItems();
 			}
 		}));
 		if (this.marketplaceService.onDidChangeSources) {
 			this._register(this.marketplaceService.onDidChangeSources(() => {
 				if (this.currentSection === AICustomizationManagementSection.Skills) {
+					this.updateHeaderActions();
 					this.filterItems();
 				}
 			}));
@@ -776,6 +779,18 @@ export class AICustomizationListWidget extends Disposable {
 		this.sectionTitleHeader = DOM.append(this.element, $('.section-title-header'));
 		const titleRow = DOM.append(this.sectionTitleHeader, $('.section-title-row'));
 		this.sectionTitle = DOM.append(titleRow, $('h2.section-title'));
+		const titleActions = DOM.append(titleRow, $('.section-title-actions'));
+		const browseLabel = localize('browseSkills', "Browse");
+		this.browseCustomizationsButton = this._register(new Button(titleActions, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			title: browseLabel,
+			ariaLabel: browseLabel,
+		}));
+		this.browseCustomizationsButton.label = browseLabel;
+		this._register(this.browseCustomizationsButton.onDidClick(() => this._onDidRequestBrowse.fire()));
+		this.updateHeaderActions();
 		this.sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
 		this.sectionTitleDescriptionText = DOM.append(this.sectionTitleDescription, $('span.section-title-description-text'));
 		// Real whitespace text node between description and link so the gap collapses
@@ -1119,6 +1134,13 @@ export class AICustomizationListWidget extends Disposable {
 		this.sectionTitleDescriptionText.textContent = description;
 		this.sectionLink.textContent = learnMoreLabel;
 		this.sectionLink.href = docsUrl;
+		this.updateHeaderActions();
+	}
+
+	private updateHeaderActions(): void {
+		const visible = this.currentSection === AICustomizationManagementSection.Skills &&
+			isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService);
+		this.browseCustomizationsButton.element.style.display = visible ? '' : 'none';
 	}
 
 	/**
@@ -1132,7 +1154,7 @@ export class AICustomizationListWidget extends Disposable {
 			return;
 		}
 
-		const actions = this.buildCreateActions();
+		const actions = this.getCreateActions();
 		const [primary, ...dropdown] = actions;
 		const hasDropdown = dropdown.length > 0;
 
@@ -1162,7 +1184,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * Builds an ordered list of create actions for the current section.
 	 * The first entry is the primary button; remaining entries are dropdown items.
 	 */
-	private buildCreateActions(): ICreateAction[] {
+	getCreateActions(): ICreateAction[] {
 		const typeLabel = this.getTypeLabel();
 		const promptType = sectionToPromptType(this.currentSection);
 		const descriptor = this.harnessService.getActiveDescriptor();
@@ -1326,11 +1348,11 @@ export class AICustomizationListWidget extends Disposable {
 
 	/**
 	 * Gets the dropdown actions for the add button (consumed by ButtonWithDropdown).
-	 * Returns all actions except the primary (first) from buildCreateActions.
+	 * Returns all actions except the primary (first) from getCreateActions.
 	 */
 	private getDropdownActions(): Action[] {
 		this.dropdownActionDisposables.clear();
-		const allActions = this.buildCreateActions();
+		const allActions = this.getCreateActions();
 		// Skip the first (primary) action
 		return allActions.slice(1).map((a, i) =>
 			this.dropdownActionDisposables.add(new Action(`create_${i}`, a.label, undefined, a.enabled, () => a.run()))
@@ -1348,7 +1370,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * Executes the primary create action based on context.
 	 */
 	private executePrimaryCreateAction(): void {
-		const actions = this.buildCreateActions();
+		const actions = this.getCreateActions();
 		if (actions.length > 0 && actions[0].enabled) {
 			actions[0].run();
 		}
@@ -1650,32 +1672,13 @@ export class AICustomizationListWidget extends Disposable {
 		const actions = DOM.append(container, $('.plugin-card-section-actions'));
 		const workspaceFolder = getAICustomizationWorkspaceGroups(this.workspaceContextService).find(group => group.key === entry.groupKey)?.uri;
 		this.renderTargetedCreateActions(actions, entry.groupKey, disposables, workspaceFolder);
-		if (entry.groupKey === PromptsStorage.user &&
-			this.currentSection === AICustomizationManagementSection.Skills &&
-			isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService)) {
-			const label = localize('browseSkills', "Browse Skills");
-			const button = disposables.add(new Button(actions, {
-				...getButtonStyles({
-					buttonSecondaryBackground: undefined,
-					buttonSecondaryForeground: undefined,
-					buttonSecondaryHoverBackground: undefined,
-					buttonSecondaryBorder: undefined,
-				}),
-				secondary: true,
-				title: label,
-				ariaLabel: label,
-			}));
-			button.element.classList.add('plugin-card-ghost-button');
-			button.label = label;
-			disposables.add(button.onDidClick(() => this._onDidRequestBrowse.fire()));
-		}
 	}
 
 	private renderTargetedCreateActions(container: HTMLElement, groupKey: string, disposables: DisposableStore, workspaceFolder?: URI): void {
 		const workspaceGroup = groupKey === PromptsStorage.local || isAICustomizationWorkspaceGroupKey(groupKey);
 		const target = workspaceGroup ? 'workspace' : 'user';
 		const hasWorkspace = this.hasActiveWorkspace();
-		const actions = this.buildCreateActions().filter(action =>
+		const actions = this.getCreateActions().filter(action =>
 			action.target === target
 			|| action.target === undefined && (target === 'workspace' ? hasWorkspace : !hasWorkspace)
 		);

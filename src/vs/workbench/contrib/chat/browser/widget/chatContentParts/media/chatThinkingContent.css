@@ -16,8 +16,19 @@
 	background-clip: text;
 	-webkit-background-clip: text;
 	-webkit-text-fill-color: transparent;
-	animation: chat-thinking-shimmer 2s linear infinite;
+	animation: chat-thinking-shimmer 2s steps(60, end) infinite;
 	will-change: background-position;
+
+	&.chat-progress-animation {
+		animation-timing-function: linear;
+		animation-play-state: paused;
+	}
+
+	.monaco-reduce-motion & {
+		animation: none;
+		background: none;
+		-webkit-text-fill-color: currentColor;
+	}
 }
 
 /* Only while the footer owns progress: a background subagent can keep working after its parent
@@ -38,12 +49,12 @@
 }
 
 .interactive-session .interactive-response .value .chat-tool-call-with-icon > .chat-tool-call-icon,
-.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-tool-chain, .chat-persistent-reasoning) .chat-used-context-list.chat-thinking-collapsible > :is(.chat-thinking-tool-wrapper, .chat-thinking-item.markdown-content) > .chat-thinking-icon {
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-tool-chain, .chat-persistent-reasoning, .chat-thinking-conversation) .chat-used-context-list.chat-thinking-collapsible > :is(.chat-thinking-tool-wrapper, .chat-thinking-item.markdown-content) > .chat-thinking-icon {
 	position: absolute;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	left: calc(var(--vscode-codiconFontSize-compact) * 0.2);
+	left: var(--chat-persistent-icon-left, calc(var(--vscode-codiconFontSize-compact) * 0.2));
 	top: var(--chat-chain-icon-top, var(--chat-persistent-icon-top));
 	font-size: inherit;
 	width: var(--vscode-codiconFontSize-compact);
@@ -63,7 +74,7 @@
 /* Preserve the text-column width while anchoring artwork to the icon gutter. */
 .interactive-session .interactive-response .value .chat-tool-call-with-icon :is(.chat-image-generation-placeholder, .chat-generated-image-tool-result) {
 	position: relative;
-	left: calc(var(--vscode-codiconFontSize-compact) * 0.2);
+	left: var(--chat-persistent-icon-left, calc(var(--vscode-codiconFontSize-compact) * 0.2));
 	margin-left: calc(-1 * var(--vscode-spacing-size240));
 	margin-right: var(--vscode-spacing-size240);
 }
@@ -83,7 +94,7 @@
 	padding-left: 0;
 }
 
-.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-tool-chain, .chat-persistent-reasoning) .chat-used-context-list.chat-thinking-collapsible > :is(.chat-thinking-tool-wrapper, .chat-thinking-item.markdown-content) {
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-tool-chain, .chat-persistent-reasoning, .chat-thinking-conversation) .chat-used-context-list.chat-thinking-collapsible > :is(.chat-thinking-tool-wrapper, .chat-thinking-item.markdown-content) {
 	--chat-chain-icon-top: var(--chat-persistent-icon-top);
 	--chat-chain-icon-start: calc(var(--chat-chain-icon-top) - var(--vscode-spacing-size40) - var(--chat-chain-rail-top, 0px));
 	--chat-chain-icon-end: calc(var(--chat-chain-icon-top) + var(--vscode-codiconFontSize-compact) + var(--vscode-spacing-size40) - var(--chat-chain-rail-top, 0px));
@@ -113,13 +124,14 @@
 	}
 }
 
-.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-tool-chain .chat-used-context-list.chat-thinking-collapsible {
+/* Conversation sections space reasoning and tool rows like a tool chain's. */
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-tool-chain, .chat-thinking-conversation) .chat-used-context-list.chat-thinking-collapsible {
 	margin-left: 0;
 	padding: 0;
 	overflow: visible;
 	max-height: none;
 
-	> .chat-thinking-tool-wrapper {
+	> :is(.chat-thinking-tool-wrapper, .chat-thinking-item.markdown-content) {
 		--chat-chain-rail-top: calc(-1 * var(--chat-persistent-item-gap) / 2);
 		margin-bottom: var(--chat-persistent-item-gap);
 
@@ -139,7 +151,9 @@
 				bottom: 0;
 			}
 		}
+	}
 
+	> .chat-thinking-tool-wrapper {
 		> .chat-tool-invocation-part,
 		> .chat-codeblock-pill-container,
 		> .chat-markdown-part.rendered-markdown,
@@ -159,7 +173,18 @@
 	}
 }
 
-.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-tool-chain-collapsible:not(.chat-tool-chain-preview)) {
+/* Lay a conversation's reasoning on its tool rows' line grid: the row keeps their body size, so
+	its icon and rails match theirs, and centers its smaller text on that line. */
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-thinking-conversation .chat-used-context-list.chat-thinking-collapsible > .chat-thinking-item.markdown-content {
+	font-size: var(--vscode-chat-font-size-body-m);
+	padding-block: calc((var(--vscode-chat-font-size-body-m) - var(--vscode-chat-font-size-body-s)) * 0.75) 0;
+
+	> :not(.chat-thinking-icon) {
+		font-size: var(--vscode-chat-font-size-body-s);
+	}
+}
+
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible:not(.chat-tool-chain-preview)) {
 	&:not(.chat-used-context-collapsed) > .chat-used-context-label::after {
 		box-sizing: border-box;
 		left: var(--chat-persistent-rail-left);
@@ -170,7 +195,7 @@
 		pointer-events: none;
 	}
 
-	&.chat-tool-chain-collapsible {
+	&:is(.chat-tool-chain-collapsible, .chat-thinking-conversation) {
 		> .chat-used-context-label::after {
 			height: calc(var(--chat-persistent-nested-gap) + var(--vscode-chat-font-size-body-m) * 0.75 + var(--vscode-strokeThickness) / 2);
 		}
@@ -184,7 +209,7 @@
 		margin-left: var(--chat-persistent-nested-indent);
 		padding-inline: 0;
 
-		> .chat-thinking-item.markdown-content {
+		> .chat-thinking-item.markdown-content:not(.chat-thinking-conversation *) {
 			--chat-chain-icon-top: calc(var(--chat-persistent-icon-top) + var(--chat-persistent-nested-gap));
 			padding-block: var(--chat-persistent-nested-gap);
 		}
@@ -227,12 +252,29 @@
 	}
 }
 
+/* A conversation title with links sits beside its button; keep it in the button's text column and type size. */
+.interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-conversation > .chat-used-context-label.chat-thinking-title-beside-button {
+	> .monaco-button.monaco-icon-button {
+		padding-right: 0;
+
+		/* The emptied label still spans the title's line, so the chevron centers on it. */
+		> .monaco-button-mdlabel {
+			min-height: 1lh;
+		}
+	}
+
+	> .rendered-markdown.chat-thinking-title-detail {
+		font-size: var(--vscode-chat-font-size-body-s);
+	}
+}
+
 .interactive-session .interactive-response.chat-persistent-progress > .value {
 	--chat-persistent-item-gap: var(--vscode-spacing-size160);
 	--chat-persistent-nested-indent: var(--vscode-spacing-size160);
 	--chat-persistent-nested-gap: var(--vscode-spacing-size60);
+	--chat-persistent-icon-left: calc(var(--vscode-codiconFontSize-compact) * 0.2);
 	--chat-persistent-icon-top: calc((var(--vscode-chat-font-size-body-m) * 1.5 - var(--vscode-codiconFontSize-compact)) / 2);
-	--chat-persistent-rail-left: calc(var(--vscode-codiconFontSize-compact) * 0.7 - var(--vscode-strokeThickness) / 2);
+	--chat-persistent-rail-left: calc(var(--chat-persistent-icon-left) + var(--vscode-codiconFontSize-compact) / 2 - var(--vscode-strokeThickness) / 2);
 	--chat-persistent-hook-width: calc(var(--chat-persistent-nested-indent) - var(--vscode-codiconFontSize-compact) / 2 - var(--vscode-spacing-size40) + var(--vscode-strokeThickness) / 2);
 }
 
@@ -247,6 +289,7 @@
 	> .completed-response-disclosure,
 	> .chat-tool-chain,
 	> .chat-persistent-reasoning,
+	> .chat-thinking-conversation,
 	> .chat-tool-call-with-icon,
 	> .progress-container,
 	> .chat-markdown-part,
@@ -266,6 +309,7 @@
 	}
 
 	> .chat-persistent-reasoning,
+	> .chat-thinking-conversation,
 	> .chat-tool-chain-collapsible,
 	.chat-tool-chain .chat-thinking-tool-wrapper > .chat-used-context,
 	.chat-tool-call-with-icon :is(.chat-terminal-thinking-collapsible, .chat-confirmation-widget-collapsible) {
@@ -286,7 +330,7 @@
 		}
 	}
 
-	> :is(.chat-persistent-reasoning, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button {
+	> :is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button {
 		margin-left: calc(-1 * var(--vscode-spacing-size20));
 		gap: 0;
 	}
@@ -327,7 +371,7 @@
 	}
 }
 
-.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools) {
+.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools, .codicon-chevron-right-compact) {
 	display: inline-flex;
 	width: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
@@ -335,8 +379,27 @@
 
 /* Reserve the tool text gutter without shifting the leading icons. */
 .interactive-session .interactive-response.chat-persistent-progress > .value > .chat-working-progress > .chat-progress-icon,
-.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools) {
+.interactive-session .interactive-response .value .chat-thinking-box:is(.chat-persistent-reasoning, .chat-thinking-conversation, .chat-tool-chain-collapsible) > .chat-used-context-label .monaco-button.monaco-icon-button > :is(.codicon-thinking, .codicon-tools, .codicon-chevron-right-compact) {
 	margin-right: calc(var(--vscode-spacing-size240) - var(--vscode-codiconFontSize-compact) - 0.2em);
+}
+
+/* A conversation section's chevron turns to point down at its rows while open, like a collapsible's hover chevron. */
+.interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-conversation > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon-chevron-right-compact {
+	transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-conversation:not(.chat-used-context-collapsed) > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon-chevron-right-compact {
+	transform: rotate(90deg);
+}
+
+.monaco-reduce-motion .interactive-response .value .chat-thinking-box.chat-thinking-conversation > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon-chevron-right-compact {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-conversation > .chat-used-context-label .monaco-button.monaco-icon-button > .codicon-chevron-right-compact:not(.monaco-enable-motion *) {
+		transition: none;
+	}
 }
 
 .interactive-session .interactive-response .value .chat-thinking-box {

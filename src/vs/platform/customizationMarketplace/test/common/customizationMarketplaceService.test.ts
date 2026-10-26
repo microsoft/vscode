@@ -80,6 +80,51 @@ suite('CustomizationMarketplaceService', () => {
 		});
 	});
 
+	test('reports source progress and serves cached Browse content while refreshing', async () => {
+		const firstFast = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		const firstSlow = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		const secondFast = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		const secondSlow = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		let fastCalls = 0;
+		let slowCalls = 0;
+		const service = new CustomizationMarketplaceService([
+			{
+				id: 'fast',
+				query: () => ++fastCalls === 1 ? firstFast.p : secondFast.p,
+			},
+			{
+				id: 'slow',
+				query: () => ++slowCalls === 1 ? firstSlow.p : secondSlow.p,
+			},
+		]);
+		const progress: { items: string[]; completed: string[]; cached: string[] }[] = [];
+		const first = service.query({ sourceIds: ['fast', 'slow'], pageSize: 2 }, CancellationToken.None, update => {
+			progress.push({
+				items: update.page.items.map(item => item.identifier),
+				completed: [...update.completedSourceIds],
+				cached: [...update.cachedSourceIds],
+			});
+		});
+		firstFast.complete({ items: [{ ...entry, identifier: 'fast' }], total: 1 });
+		await timeout(0);
+		assert.deepStrictEqual(progress, [{ items: ['fast'], completed: ['fast'], cached: [] as string[] }]);
+		firstSlow.complete({ items: [{ ...entry, identifier: 'slow' }], total: 1 });
+		assert.deepStrictEqual((await first).items.map(item => item.identifier), ['fast', 'slow']);
+
+		const refreshProgress: typeof progress = [];
+		const refresh = service.query({ sourceIds: ['fast', 'slow'], pageSize: 2 }, CancellationToken.None, update => {
+			refreshProgress.push({
+				items: update.page.items.map(item => item.identifier),
+				completed: [...update.completedSourceIds],
+				cached: [...update.cachedSourceIds],
+			});
+		});
+		assert.deepStrictEqual(refreshProgress, [{ items: ['fast', 'slow'], completed: [] as string[], cached: ['fast', 'slow'] }]);
+		secondFast.complete({ items: [{ ...entry, identifier: 'fresh-fast' }], total: 1 });
+		secondSlow.complete({ items: [{ ...entry, identifier: 'fresh-slow' }], total: 1 });
+		assert.deepStrictEqual((await refresh).items.map(item => item.identifier), ['fresh-fast', 'fresh-slow']);
+	});
+
 	test('groups multiple providers behind one contributed source', async () => {
 		const calls: string[] = [];
 		const providers: ICustomizationMarketplaceProvider[] = ['custom', 'default'].map(kind => ({

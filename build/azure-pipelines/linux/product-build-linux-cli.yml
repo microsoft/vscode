@@ -29,6 +29,12 @@ jobs:
             sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
             sbomPackageName: "VS Code Linux $(VSCODE_ARCH) CLI"
             sbomPackageVersion: $(Build.SourceVersion)
+          # The Linux compile job adds the Copilot shim to the client and server builds.
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/unsigned_copilot_shim_linux_$(VSCODE_ARCH).tar.gz
+            artifactName: unsigned_copilot_shim_linux_$(VSCODE_ARCH)
+            displayName: Publish unsigned Copilot shim
+            sbomEnabled: false
     steps:
       - template: ../common/checkout.yml@self
 
@@ -147,3 +153,26 @@ jobs:
               OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/lib
               OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/include
               SYSROOT_ARCH: armhf
+
+      - template: ../copilot-shim/copilot-shim-compile.yml@self
+        parameters:
+          ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+            COPILOT_SHIM_TARGET: x86_64-unknown-linux-gnu
+          ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+            COPILOT_SHIM_TARGET: aarch64-unknown-linux-gnu
+          ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
+            COPILOT_SHIM_TARGET: armv7-unknown-linux-gnueabihf
+          COPILOT_SHIM_ARTIFACT: unsigned_copilot_shim_linux_$(VSCODE_ARCH)
+          COPILOT_SHIM_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+          COPILOT_SHIM_ENV:
+            GITHUB_TOKEN: "$(github-token-code-oss)"
+            ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+              SYSROOT_ARCH: amd64
+            ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+              SYSROOT_ARCH: arm64
+            ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
+              SYSROOT_ARCH: armhf
+            VERIFY_GLIBC: "1"
+
+      - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+        - template: ../copilot-shim/copilot-shim-quality.yml@self

@@ -470,13 +470,12 @@ export function getEditedMcpServerConfiguration(previous: IMcpServerConfiguratio
 
 /**
  * A server entry in the Copilot CLI's configuration, as {@link IMcpResourceScannerService.updateMcpServer}
- * writes it. Unlike {@link toCopilotMcpServerConfiguration}, which targets the SDK, it uses the
- * canonical `stdio` type (`local` is a legacy alias) and keeps `env` values as they are instead of
- * converting them to strings.
+ * writes it. Unlike {@link toCopilotMcpServerConfiguration}, which targets the SDK, it keeps `env`
+ * values as they are instead of converting them to strings.
  */
 function toCopilotGlobalMcpServerEntry(config: IMcpServerConfiguration): object {
 	const entry = toCopilotMcpServerConfiguration(config);
-	return config.type === McpServerType.LOCAL ? { ...entry, type: McpServerType.LOCAL, env: config.env } : entry;
+	return config.type === McpServerType.LOCAL ? { ...entry, env: config.env } : entry;
 }
 
 /**

@@ -28,6 +28,7 @@ import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
+import { animateChatProgress } from '../chatProgressAnimation.js';
 
 export interface IChatCollapsibleIOCodePart {
 	kind: 'code';
@@ -110,6 +111,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
+		this._register(animateChatProgress(titleEl.root));
 		const elements = dom.h('.chat-confirmation-widget.chat-confirmation-widget-collapsible');
 		const contentAnimation = dom.h('.chat-confirmation-widget-message-animation', [
 			dom.h('.chat-confirmation-widget-message-animation-inner@inner'),

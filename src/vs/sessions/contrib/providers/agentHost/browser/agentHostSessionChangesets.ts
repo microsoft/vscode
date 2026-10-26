@@ -552,6 +552,12 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			}
 		}
 
+		// Every user invocation (button bar, toolbars, Sync Changes, Create PR
+		// form, branch checkout) funnels through here, so this is the single
+		// place it is reported: after a confirmation was accepted and before the
+		// operation runs, so cancellations are excluded but failures are not.
+		this._options.onDidInvokeChangesetOperation?.(operationId, _meta);
+
 		this._setOperationLocallyRunning(operationId, true);
 		try {
 			return await connection.invokeChangesetOperation({
@@ -560,7 +566,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				target: target?.kind === 'resource'
 					? {
 						kind: ChangesetOperationTargetKind.Resource,
-						resource: target.resource.toString()
+						resource: connection.resourceUris.toAgentHost(target.resource).toString()
 					}
 					: undefined,
 				_meta
@@ -661,7 +667,7 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 
 class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 	readonly id: string;
-	readonly label = localize('lastTurnChanges', "Last Turn Changes");
+	readonly label = localize('lastTurnChanges', "Last Turn");
 	readonly description = localize('lastTurnChangesDescription', "Show only changes made in the last turn");
 
 	readonly isDefault = observableValue(this, false);

@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PolicyUnavailableAgentHostContentProvider } from './agentHostPolicyUnavailableSession.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { affectsAgentHostProviderPreference, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AGENT_HOST_SCHEME, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -38,6 +39,7 @@ import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COL
 import { createCustomizationMcpServerCompatibilityScope } from './agentHostMcpServerSupportScope.js';
 import { AgentHostMcpServerMigrationProvider } from './agentHostMcpServerMigrationProvider.js';
 import { AgentHostCustomizationMarketplaceInstallProvider } from './agentHostCustomizationMarketplaceInstallProvider.js';
+import { isComputerUseSetupPlatform } from './computerUseSetup.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
 import { autoAuthenticateMcpServer, authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
@@ -47,6 +49,7 @@ import { IAgentHostActiveClientService } from './agentHostActiveClientService.js
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourcesService.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
+import { readAgentModelCatalogStatus } from '../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 
@@ -78,6 +81,9 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 	}
 
 	while (true) {
+		if (getPolicyUnavailableLocalAgentHostProviders(configurationService, environmentService.isSessionsWindow).includes(provider)) {
+			return true;
+		}
 		const rootState = agentHostService.rootState.value;
 		if (rootState instanceof Error) {
 			return false;
@@ -117,6 +123,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	static readonly ID = 'workbench.contrib.agentHostContribution';
 
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
+	private readonly _historyRegistrations = this._register(new DisposableMap<AgentProvider, IDisposable>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 
@@ -126,6 +133,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _isLocalAgentHost: boolean;
+	private readonly _connectionAuthority: string;
 	private readonly _enableSmokeTestDriver: boolean;
 	private _initialized = false;
 	private readonly _enablementStore = this._register(new MutableDisposable<DisposableStore>());
@@ -154,6 +162,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._isLocalAgentHost = !environmentService.remoteAuthority;
+		this._connectionAuthority = environmentService.remoteAuthority ? agentHostAuthority(`vscode-remote://${environmentService.remoteAuthority}`) : LOCAL_AGENT_HOST_AUTHORITY;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
 		this._register(autorun(reader => {
@@ -163,7 +172,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				this._initialize();
 				this._enable();
 				const current = this._agentHostService.rootState.value;
-				if (wasInitialized && current && !(current instanceof Error)) {
+				if (wasInitialized) {
 					this._handleRootStateChange(current);
 				}
 			} else {
@@ -173,6 +182,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				this._enablementStore.clear();
 				this._agentHostService.setAuthenticationPending(false);
 				this._agentRegistrations.clearAndDisposeAll();
+				this._historyRegistrations.clearAndDisposeAll();
 				this._modelProviders.clear();
 			}
 		}));
@@ -193,18 +203,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		// Process initial root state if already available
 		const initialRootState = this._agentHostService.rootState.value;
-		if (initialRootState && !(initialRootState instanceof Error)) {
-			this._handleRootStateChange(initialRootState);
-		}
+		this._handleRootStateChange(initialRootState);
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (!affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
 				return;
 			}
 			const current = this._agentHostService.rootState.value;
-			if (current && !(current instanceof Error)) {
-				this._handleRootStateChange(current);
-			}
+			this._handleRootStateChange(current);
 		}));
 	}
 
@@ -216,7 +222,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		if (this._agentHostService.registerMcpAuthenticationHandler) {
 			// Chat session URIs have no authority; retain that identity for remembered MCP grants.
 			store.add(this._agentHostService.registerMcpAuthenticationHandler(request =>
-				this._instantiationService.invokeFunction(autoAuthenticateMcpServer, this._agentHostService, { scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth)));
+				this._instantiationService.invokeFunction(autoAuthenticateMcpServer, this._agentHostService, { scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth, request.target)));
 		}
 		store.add(this._agentHostService.onDidNotification(notification => {
 			if (notification.type !== NotificationType.AuthRequired) {
@@ -255,19 +261,33 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
 	}
 
-	private _handleRootStateChange(rootState: RootState): void {
+	private _handleRootStateChange(rootState: RootState | Error | undefined): void {
 		if (!this._agentHostEnablementService.enabled.get()) {
 			return;
 		}
-		const allowed = rootState.agents.filter(a => this._shouldRegisterAgent(a.provider));
-		const incoming = new Set(allowed.map(a => a.provider));
+		const allowed = rootState && !(rootState instanceof Error) ? rootState.agents.filter(a => this._shouldRegisterAgent(a.provider)) : undefined;
+		const incoming = allowed ? new Set(allowed.map(a => a.provider)) : undefined;
 
-		// Remove agents that are no longer present OR no longer allowed
 		for (const [provider] of this._agentRegistrations) {
-			if (!incoming.has(provider)) {
+			if (!this._shouldRegisterAgent(provider) || incoming?.has(provider) === false) {
 				this._agentRegistrations.deleteAndDispose(provider);
 				this._modelProviders.delete(provider);
 			}
+		}
+
+		const unavailable = new Set(getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._isSessionsWindow));
+		for (const [provider] of this._historyRegistrations) {
+			if (!unavailable.has(provider)) {
+				this._historyRegistrations.deleteAndDispose(provider);
+			}
+		}
+		for (const provider of unavailable) {
+			if (!this._historyRegistrations.has(provider)) {
+				this._historyRegistrations.set(provider, this._chatSessionsService.registerChatSessionContentProvider(`agent-host-${provider}`, this._instantiationService.createInstance(PolicyUnavailableAgentHostContentProvider)));
+			}
+		}
+		if (!allowed) {
+			return;
 		}
 
 		// Authenticate using protectedResources from agent info. Only auth the
@@ -332,6 +352,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 
 		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
+		const modelCatalogueStatus = observableFromEvent(this, this._agentHostService.rootState.onDidChange, () =>
+			readAgentModelCatalogStatus(this._agentHostService.rootState.value, agent.provider));
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
 		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
 
@@ -346,10 +368,20 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				() => this._resolveMarketplaceAuthenticationInteractively(this._protectedResourcesService.getProtectedResources(agent.provider) ?? []),
 			))
 			: undefined;
+		const marketplaceManagementProvider = marketplaceInstallProvider
+			&& this._agentHostService.listPluginMarketplaces
+			&& this._agentHostService.addPluginMarketplace
+			&& this._agentHostService.browsePluginMarketplace
+			&& this._agentHostService.removePluginMarketplace
+			&& this._agentHostService.refreshPluginMarketplaces
+			? marketplaceInstallProvider
+			: undefined;
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
 			label: agent.displayName,
 			icon: ThemeIcon.fromId(Codicon.server.id),
+			customAgentTarget: agent.provider === 'copilotcli' ? Target.GitHubCopilot : undefined,
+			modelCatalogueStatus,
 			// The Tools section is surfaced for the Copilot CLI agent host only.
 			hiddenSections: agent.provider === 'copilotcli' ? [AICustomizationManagementSection.Prompts] : [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
@@ -366,8 +398,15 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			mcpServerMigrationProvider: agent.provider === 'copilotcli'
 				? store.add(this._instantiationService.createInstance(AgentHostMcpServerMigrationProvider))
 				: undefined,
+			mcpConfigurationProvider: marketplaceInstallProvider && this._agentHostService.addMcpServerConfiguration
+				? marketplaceInstallProvider
+				: undefined,
+			pluginInstallProvider: marketplaceInstallProvider && this._agentHostService.installPlugin
+				? marketplaceInstallProvider
+				: undefined,
 			marketplaceInstallProvider,
 			marketplaceSearchProvider: marketplaceInstallProvider,
+			marketplaceManagementProvider,
 		}));
 
 		// Session handler
@@ -378,8 +417,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			fullName: agent.displayName,
 			description: agent.description,
 			connection: this._agentHostService,
-			connectionAuthority: LOCAL_AGENT_HOST_AUTHORITY,
+			connectionAuthority: this._connectionAuthority,
 			supportsCanvasPresentation: this._isLocalAgentHost && agent.provider === 'copilotcli',
+			supportsManagedPluginRetry: this._isLocalAgentHost && agent.provider === 'copilotcli' && !!this._agentHostService.retryManagedPlugins,
+			supportsComputerUseSetup: this._isLocalAgentHost && agent.provider === 'copilotcli' && isComputerUseSetupPlatform(),
 			onSessionMaterialized: resource => this._chatSessionsService.notifySessionMaterialized?.(resource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 			promptCacheNotification: this._promptCacheNotification,

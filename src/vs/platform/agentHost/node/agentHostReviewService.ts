@@ -12,10 +12,11 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { buildFolderChangesetOwnerUri, ChangesetKind, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
-import { EMPTY_TREE_OBJECT, IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildReviewedRefName, IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostSessionStateStore, readSessionBaseBranch } from '../common/agentHostSessionStateStore.js';
 import { isAhpChatChannel, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
@@ -50,6 +51,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
@@ -84,14 +86,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			throw new Error(`Changeset owner has no working directory: ${parsed.ownerUri}`);
 		}
 
-		const databaseOwner = this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? scope.sessionUri : scope.sourceUri;
-		const databaseRef = this._sessionDataService.openDatabase(URI.parse(databaseOwner));
-		let persistedBaseBranch: string | undefined;
-		try {
-			persistedBaseBranch = await databaseRef.object.getMetadata(META_DIFF_BASE_BRANCH);
-		} finally {
-			databaseRef.dispose();
-		}
+		const persistedBaseBranch = readSessionBaseBranch(await this._sessionStateStore.load(URI.parse(scope.sessionUri)), this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? undefined : scope.sourceUri);
 
 		const workingDirectory = URI.parse(scope.workingDirectories[0]);
 		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(scope.sourceUri)?.baseBranchName

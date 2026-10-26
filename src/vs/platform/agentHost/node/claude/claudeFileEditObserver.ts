@@ -9,7 +9,6 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { isSubagentChatUri } from '../../common/state/sessionState.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { CLAUDE_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
@@ -61,25 +60,21 @@ export class ClaudeFileEditObserver extends Disposable {
 
 	constructor(
 		sessionUri: string,
-		ownerSessionUri: string,
+		/** The session that owns the chat, read when an edit is attributed. */
+		owner: () => string,
 		dbRef: IReference<ISessionDatabase>,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		// Own the DB reference for this observer's lifetime so
-		// {@link FileEditTracker.takeCompletedEdit}'s `storeFileEdit` write
-		// has a live database. Disposed first — ahead of any owning
-		// session's WarmQuery abort — so any in-flight write completes
-		// against an open DB.
+		// Keep the connection warm; the tracker owns references for its writes.
 		this._register(dbRef);
-		this._editTracker = instantiationService.createInstance(
+		this._editTracker = this._register(instantiationService.createInstance(
 			FileEditTracker,
 			sessionUri,
-			ownerSessionUri,
-			dbRef.object,
+			owner,
 			CLAUDE_AGENT_PROVIDER_ID,
-		);
+		));
 	}
 
 	/**
@@ -120,7 +115,7 @@ export class ClaudeFileEditObserver extends Disposable {
 		message: Extract<SDKMessage, { type: 'user' }>,
 		turnId: string,
 		mapperState: ClaudeMapperState,
-		chatUri?: string,
+		chat?: { readonly uri: string; readonly isSubagent: boolean },
 	): Promise<void> {
 		const content = message.message.content;
 		if (!Array.isArray(content)) {
@@ -137,8 +132,8 @@ export class ClaudeFileEditObserver extends Disposable {
 			this._editToolPaths.delete(block.tool_use_id);
 			try {
 				await this._editTracker.completeEdit(tracked.filePath);
-				const editChatUri = chatUri !== undefined && isSubagentChatUri(chatUri) ? chatUri : tracked.chatUri ?? chatUri;
-				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, tracked.clientContext, editChatUri);
+				const editChatUri = chat?.isSubagent ? chat.uri : tracked.chatUri ?? chat?.uri;
+				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, chat?.isSubagent ?? false, tracked.clientContext, editChatUri);
 				if (fileEdit) {
 					mapperState.cacheFileEdit(block.tool_use_id, fileEdit);
 				}

@@ -5,12 +5,13 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { computePullRequestIcon, type ChatPullRequestState, type IPullRequestIconStatus } from '../../../../workbench/common/chatPullRequest.js';
+import { computePullRequestIcon, getPullRequestDisplayState, type ChatPullRequestState, type IPullRequestIconStatus } from '../../../../workbench/common/chatPullRequest.js';
 
-export { computePullRequestIcon, type IPullRequestIconStatus };
+export { computePullRequestIcon, getPullRequestDisplayState, type IPullRequestIconStatus };
 export { computeAggregateIssueIcon, computeIssueIcon } from '../../../../workbench/common/chatIssue.js';
 
 export const OPEN_PULL_REQUEST_ACTION_ID = 'workbench.agentSessions.action.openPullRequest';
+export const OPEN_PULL_REQUEST_CHANGES_ACTION_ID = 'workbench.agentSessions.action.openPullRequestChanges';
 export const OPEN_ISSUE_ACTION_ID = 'workbench.agentSessions.action.openIssue';
 
 //#region Session Context
@@ -50,6 +51,21 @@ export interface IGitHubChangedFile {
 //#endregion
 
 //#region Pull Request
+
+/**
+ * The files changed by a pull request, along with its current title and the
+ * commits bounding its diff.
+ */
+export interface IGitHubPullRequestChanges {
+	readonly title: string;
+	readonly baseRef: string;
+	/** The merge base of the pull request's base and head commits (the original side of the diff). */
+	readonly baseSha: string;
+	/** The pull request's head commit (the modified side of the diff). */
+	readonly headSha: string;
+	readonly totalFileCount: number;
+	readonly files: readonly IGitHubChangedFile[];
+}
 
 export const enum GitHubPullRequestState {
 	Open = 'open',

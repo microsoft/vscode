@@ -267,9 +267,8 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 	}
 
 	/**
-	 * Side chats are provided by the layer hosting the conversation (today the
-	 * Agents window), so the entry is offered only once a provider reports the
-	 * current conversation can branch one.
+	 * Side chats are provided by the layer hosting the conversation, so the entry
+	 * is offered only once a provider reports the current conversation can branch one.
 	 */
 	private _canAskInSideChat(): boolean {
 		const sessionResource = this.chatWidgetService.lastFocusedWidget?.viewModel?.model.sessionResource;

@@ -31,7 +31,7 @@ import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatAutomationConfiguredResultSubPart } from './chatAutomationConfiguredResultSubPart.js';
 import { ChatGeneratedImageResultSubPart, getGeneratedImageResultCount, getGeneratedImageResultSnapshot, getLastGeneratedImageToolCallId } from './chatGeneratedImageResultSubPart.js';
 import { ChatImageGenerationToolProgressPart } from './chatImageGenerationProgressPart.js';
-import { ChatSessionCreatedResultSubPart } from './chatSessionCreatedResultSubPart.js';
+import { ChatSessionTargetResultPillSubPart } from './chatSessionTargetResultPillSubPart.js';
 import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
 import { ChatSandboxPrerequisiteConfirmationSubPart } from './chatSandboxPrerequisiteConfirmationSubPart.js';
 import { ChatModifiedFilesConfirmationSubPart } from './chatModifiedFilesConfirmationSubPart.js';
@@ -46,7 +46,7 @@ import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfir
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 import { ChatOtherClientToolProgressPart } from './chatOtherClientToolProgressPart.js';
-import { createImageGenerationLabel, getToolInvocationIcon, hasToolInvocationError, isCarouselToolConfirmation, isImageGenerationToolInProgress, isImageGenerationToolInvocation } from './chatToolPartUtilities.js';
+import { createImageGenerationLabel, getImageGenerationBatch, getToolInvocationIcon, hasToolInvocationError, isCarouselToolConfirmation, isImageGenerationToolInProgress, isImageGenerationToolInvocation } from './chatToolPartUtilities.js';
 
 /**
  * Value equality for {@link IMcpAppRenderData}, used so the App's derived
@@ -66,7 +66,7 @@ function mcpAppRenderDataEquals(a: IMcpAppRenderData | undefined, b: IMcpAppRend
 		return false;
 	}
 	if (a.kind === 'agentHost' && b.kind === 'agentHost') {
-		return a.serverId === b.serverId && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
+		return a.serverId === b.serverId && a.serverName === b.serverName && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
 	}
 	if (a.kind === 'local' && b.kind === 'local') {
 		return a.serverDefinitionId === b.serverDefinitionId && a.collectionId === b.collectionId;
@@ -74,7 +74,7 @@ function mcpAppRenderDataEquals(a: IMcpAppRenderData | undefined, b: IMcpAppRend
 	return false;
 }
 
-export function shouldRenderSessionCreatedResult(toolSpecificDataKind: string | undefined, isResponseComplete: boolean): boolean {
+export function shouldRenderSessionTargetResultPill(toolSpecificDataKind: string | undefined, isResponseComplete: boolean): boolean {
 	return toolSpecificDataKind === 'sessionCreated' && isResponseComplete;
 }
 
@@ -111,7 +111,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 	private subPart: BaseChatToolInvocationSubPart | undefined;
 	private readonly mcpAppPart = this._register(new MutableDisposable<ChatMcpAppSubPart>());
-	private readonly renderedSessionCreatedResult: boolean;
+	private readonly renderedSessionTargetResultPill: boolean;
 	private renderedGeneratedImageResult: boolean;
 	private renderedLastGeneratedImageToolCallId: string | undefined;
 	private renderedGeneratedImageResults: ReturnType<typeof getGeneratedImageResultSnapshot>;
@@ -137,7 +137,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	) {
 		super();
 
-		this.renderedSessionCreatedResult = shouldRenderSessionCreatedResult(
+		this.renderedSessionTargetResultPill = shouldRenderSessionTargetResultPill(
 			toolInvocation.toolSpecificData?.kind,
 			isResponseVM(context.element) && context.element.isComplete,
 		);
@@ -145,9 +145,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			toolInvocation.toolSpecificData?.kind,
 			IChatToolInvocation.isComplete(toolInvocation),
 		);
-		this.renderedLastGeneratedImageToolCallId = toolInvocation.subAgentInvocationId ? undefined : getLastGeneratedImageToolCallId(context.content);
+		const imageBatch = getImageGenerationBatch(context.content, toolInvocation.toolCallId);
+		this.renderedLastGeneratedImageToolCallId = toolInvocation.subAgentInvocationId ? undefined : getLastGeneratedImageToolCallId(imageBatch);
 		this.renderedGeneratedImageResults = this.renderedGeneratedImageResult && this.renderedLastGeneratedImageToolCallId === toolInvocation.toolCallId
-			? getGeneratedImageResultSnapshot(context.content) : [];
+			? getGeneratedImageResultSnapshot(imageBatch) : [];
 		this.imageGenerationProgressSuppressed = this.shouldSuppressImageGenerationProgress();
 		this.domNode = dom.$('.chat-tool-invocation-part');
 		this._register(autorun(reader => {
@@ -235,6 +236,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		// when the model changes, or trying to make the model immutable and swap out one content part for a new one based on user actions in the view.
 		// Note that `node.replaceWith` is used to ensure order is preserved when an mpc app is present.
 		const partStore = this._register(new DisposableStore());
+		const imageResultPart = this._register(new MutableDisposable<ChatGeneratedImageResultSubPart>());
 		let subPartDomNode: HTMLElement = document.createElement('div');
 		this.domNode.appendChild(subPartDomNode);
 
@@ -247,23 +249,31 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this.subPart.setShowAnimation(!this.imageGenerationProgressSuppressed);
 				return;
 			}
-			partStore.clear();
-			this.subPart = undefined;
 			const error = hasToolInvocationError(toolInvocation);
 			this.domNode.classList.toggle('chat-tool-call-error', !!error);
 			this.renderedGeneratedImageResult = shouldRenderGeneratedImageResult(toolInvocation.toolSpecificData?.kind, IChatToolInvocation.isComplete(toolInvocation));
+			const imageBatch = getImageGenerationBatch(context.content, toolInvocation.toolCallId);
 			const isSingleImage = isImageGenerationToolInvocation(toolInvocation) && !error
-				&& (isGeneratingImage || (this.renderedGeneratedImageResult && getGeneratedImageResultCount(toolInvocation.subAgentInvocationId ? [toolInvocation] : context.content, toolInvocation.subAgentInvocationId) === 1));
+				&& (isGeneratingImage || (this.renderedGeneratedImageResult && getGeneratedImageResultCount(toolInvocation.subAgentInvocationId ? [toolInvocation] : imageBatch, toolInvocation.subAgentInvocationId) === 1));
 			this.domNode.classList.toggle('chat-image-generation-single', isSingleImage);
-			this.renderedLastGeneratedImageToolCallId = toolInvocation.subAgentInvocationId ? undefined : getLastGeneratedImageToolCallId(context.content);
+			this.renderedLastGeneratedImageToolCallId = toolInvocation.subAgentInvocationId ? undefined : getLastGeneratedImageToolCallId(imageBatch);
 			this.renderedGeneratedImageResults = this.renderedGeneratedImageResult && this.renderedLastGeneratedImageToolCallId === toolInvocation.toolCallId
-				? getGeneratedImageResultSnapshot(context.content) : [];
+				? getGeneratedImageResultSnapshot(imageBatch) : [];
 			if (toolInvocation.presentation === ToolInvocationPresentation.Hidden
 				|| (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation))) {
+				partStore.clear();
+				imageResultPart.clear();
+				this.subPart = undefined;
 				this._isVisible.set(false, undefined);
 				return;
 			}
 
+			// Let the reveal claim the painted loading surface before disposing its previous owner.
+			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
+			imageResultPart.value = !context.inImageGenerationBatch && this.renderedGeneratedImageResult && isToolResultInputOutputDetails(resultDetails) && !resultDetails.isError
+				? this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, toolInvocation, context, imageReveal)
+				: undefined;
+			partStore.clear();
 			const subPart = this.subPart = partStore.add(this.createToolInvocationSubPart());
 			if (subPart instanceof ChatImageGenerationToolProgressPart) {
 				partStore.add(subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -274,9 +284,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			subPartDomNode.replaceWith(this.subPart.domNode);
 			subPartDomNode = this.subPart.domNode;
 
-			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
-			if (!context.inImageGenerationBatch && this.renderedGeneratedImageResult && isToolResultInputOutputDetails(resultDetails) && !resultDetails.isError) {
-				const imageResult = partStore.add(this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, toolInvocation, context, imageReveal));
+			const imageResult = imageResultPart.value;
+			if (imageResult) {
 				this.subPart.domNode.appendChild(imageResult.domNode);
 				partStore.add(imageResult.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			}
@@ -349,7 +358,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		const content = isResponseVM(this.context.element) ? this.context.element.response.value : this.context.content;
-		for (const part of content) {
+		const imageBatch = this.toolInvocation.subAgentInvocationId ? content : getImageGenerationBatch(content, this.toolInvocation.toolCallId);
+		for (const part of imageBatch) {
 			if (part.kind !== 'toolInvocation') {
 				continue;
 			}
@@ -415,8 +425,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			}
 		}
 
-		if (this.renderedSessionCreatedResult && this.toolInvocation.toolSpecificData?.kind === 'sessionCreated') {
-			return this.instantiationService.createInstance(ChatSessionCreatedResultSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
+		if (this.renderedSessionTargetResultPill && this.toolInvocation.toolSpecificData?.kind === 'sessionCreated') {
+			return this.instantiationService.createInstance(ChatSessionTargetResultPillSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
 		}
 
 		if (this.toolInvocation.toolSpecificData?.kind === 'automationConfigured') {
@@ -564,7 +574,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return false;
 		}
 		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
-			&& this.renderedSessionCreatedResult !== shouldRenderSessionCreatedResult(other.toolSpecificData?.kind, isResponseVM(element) && element.isComplete)) {
+			&& this.renderedSessionTargetResultPill !== shouldRenderSessionTargetResultPill(other.toolSpecificData?.kind, isResponseVM(element) && element.isComplete)) {
 			return false;
 		}
 		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
@@ -574,11 +584,11 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
 			&& !other.subAgentInvocationId
 			&& this.renderedGeneratedImageResult
-			&& this.renderedLastGeneratedImageToolCallId !== (getLastGeneratedImageToolCallId(followingContent) ?? other.toolCallId)) {
+			&& this.renderedLastGeneratedImageToolCallId !== getLastGeneratedImageToolCallId(getImageGenerationBatch([other, ...followingContent], other.toolCallId))) {
 			return false;
 		}
 		if (this.renderedGeneratedImageResult && this.renderedLastGeneratedImageToolCallId === this.toolInvocation.toolCallId && isResponseVM(element)
-			&& !equals(this.renderedGeneratedImageResults, getGeneratedImageResultSnapshot(element.response.value), (a, b) => a.toolCallId === b.toolCallId && a.details === b.details)) {
+			&& !equals(this.renderedGeneratedImageResults, getGeneratedImageResultSnapshot(getImageGenerationBatch(element.response.value, this.toolInvocation.toolCallId)), (a, b) => a.toolCallId === b.toolCallId && a.details === b.details)) {
 			return false;
 		}
 		return (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && this.toolInvocation.toolCallId === other.toolCallId;

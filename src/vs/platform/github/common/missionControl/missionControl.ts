@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { MissionControlErrorMetadata } from './missionControlError.js';
+
 /** A user reference returned by Mission Control. */
 export interface User {
 	/** The unique numeric identifier of the user. */
 	readonly id?: number;
 	/** The user's login name. */
 	readonly login?: string;
-	/** The user's global relay identifier. */
+	/** The user's GraphQL node identifier. */
 	readonly node_id?: string;
 	/** The URL of the user's profile. */
 	readonly url?: string;
@@ -18,22 +20,21 @@ export interface User {
 /** The class of compute backing an environment. */
 export type EnvironmentKind = 'managed-actions' | 'managed-sandbox' | 'managed-cca' | 'user-local' | 'user-codespace';
 
-
-/** One response page with the HTTP metadata needed to continue a collection scan. */
+/** Results with continuation and server-time metadata from the last collected page. */
 export interface PaginatedResponse<T> {
-	/** The response body for this page, without fetching or hydrating other records. */
+	/** The requested page, or the collected pages when maxPages is supplied. */
 	readonly data: T;
 	/** The URL from Link rel="next", omitted when no next page is advertised. */
 	readonly nextLink?: string;
-	/** The HTTP Date header, when available, for server-clock incremental checkpoints. */
+	/** The server's HTTP Date value, when available. */
 	readonly serverDate?: string;
 }
 
-/** Telemetry-only W3C context for a provisioning or wake activation. */
+/** W3C trace context for a provisioning or wake activation. */
 export interface ActivationContext {
 	/** The activation context schema version. */
 	readonly version: 2;
-	/** The unsigned 64-bit activation sequence encoded as a decimal string. */
+	/** The positive uint64 activation sequence encoded as a decimal string without leading zeroes. */
 	readonly sequence: string;
 	/** The W3C traceparent identifying the activation trace. */
 	readonly traceparent: string;
@@ -51,6 +52,10 @@ export interface ApiErrorDetail {
 
 /** A structured error response following the REST API error conventions. */
 export interface ApiErrorResponse {
+	/** Stable service classification, independent of the HTTP status. */
+	readonly error_code?: string;
+	/** The resource whose rate limit was reached. */
+	readonly limited_resource?: string;
 	/** A summary of the request failure. */
 	readonly message: string;
 	/** The URL of the relevant API documentation. */
@@ -63,6 +68,10 @@ export interface ApiErrorResponse {
 
 /** An API failure with a stable machine-readable code. */
 export interface CodedApiErrorResponse {
+	/** Stable service classification, preferred over the legacy connect code. */
+	readonly error_code?: string;
+	/** The resource whose rate limit was reached. */
+	readonly limited_resource?: string;
 	/** The human-readable summary of the failure. */
 	readonly message: string;
 	/** The stable machine-readable error code. */
@@ -74,10 +83,10 @@ export interface CodedApiErrorResponse {
 }
 
 /** An HTTP failure retaining structured diagnostics and server-directed retry metadata. */
-export interface ApiError extends Error {
+export interface ApiError extends Error, MissionControlErrorMetadata {
 	/** The HTTP status code returned by the service. */
 	readonly statusCode: number;
-	/** Parsed error details, excluding credential-bearing response bodies. */
+	/** Structured error details, omitted for sensitive responses. */
 	readonly response?: ApiErrorResponse | CodedApiErrorResponse;
 	/** The server request identifier for diagnostics, when available. */
 	readonly requestId?: string;

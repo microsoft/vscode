@@ -30,7 +30,7 @@ class TestMarkersModel extends MarkersModel {
 
 suite('MarkersModel Test', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('marker ids are unique', function () {
 		const marker1 = anErrorWithRange(3);
@@ -48,6 +48,31 @@ suite('MarkersModel Test', () => {
 		assert.notStrictEqual(actuals[1].id, actuals[2].id);
 		assert.notStrictEqual(actuals[1].id, actuals[3].id);
 		assert.notStrictEqual(actuals[2].id, actuals[3].id);
+	});
+
+	test('reset clears cached resources before notifying listeners', () => {
+		const testObject = disposables.add(new TestMarkersModel([aMarker('first'), aMarker('second')]));
+		const cachedResources = testObject.resourceMarkers;
+		const changes: { resources: ResourceMarkers[]; removed: ResourceMarkers[]; total: number }[] = [];
+		disposables.add(testObject.onDidChange(event => changes.push({
+			resources: testObject.resourceMarkers,
+			removed: [...event.removed],
+			total: testObject.total
+		})));
+
+		testObject.reset();
+
+		assert.deepStrictEqual({
+			cachedResourceCount: cachedResources.length,
+			resources: testObject.resourceMarkers,
+			total: testObject.total,
+			changes
+		}, {
+			cachedResourceCount: 2,
+			resources: [],
+			total: 0,
+			changes: [{ resources: [], removed: cachedResources, total: 0 }]
+		});
 	});
 
 	test('duplicate markers from different owners are deduplicated', function () {

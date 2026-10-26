@@ -30,7 +30,7 @@ import { INativeEnvironmentService } from '../../environment/common/environment.
 import { IRequestService } from '../../request/common/request.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
+import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDiscoveredDevContainer, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
@@ -442,11 +442,13 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			readSource: async () => {
 				const lifetime = new DisposableStore();
 				try {
-					const client = lifetime.add(this._gitHubService.acquireAnonymousClient()).object;
-					return await client.getFile('microsoft', getDevContainerSampleFolder(sample), '.devcontainer/devcontainer.json', token, {
-						caller: 'devContainerSample',
-						priority: 'interactive',
-					});
+					const signal = CancellationToken.toAbortSignal(token, lifetime);
+					signal.throwIfAborted();
+					const client = lifetime.add(this._gitHubService.acquireAnonymousClient());
+					const repository = { owner: 'microsoft', repo: getDevContainerSampleFolder(sample) };
+					const commitSha = await client.content.resolveRef(repository, 'HEAD', signal);
+					const content = await client.content.getRawFile(repository, commitSha, '.devcontainer/devcontainer.json', signal);
+					return { commitSha, content };
 				} finally {
 					lifetime.dispose();
 				}
@@ -956,6 +958,31 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	isDockerAvailable(): Promise<boolean> {
 		this._dockerAvailable ??= this._resolveDockerExecutable().then(executable => executable !== undefined);
 		return this._dockerAvailable;
+	}
+
+	async listDevContainers(token: CancellationToken): Promise<readonly IDiscoveredDevContainer[]> {
+		if (!await this.isDockerAvailable()) {
+			return [];
+		}
+		const result = await this._runDocker(['ps', '--all', '--no-trunc', '--format',
+			'{"id":{{json .ID}},"name":{{json .Names}},"workspaceFolder":{{json (.Label "devcontainer.local_folder")}},"legacyFolder":{{json (.Label "vsch.local.folder")}},"metadata":{{json (.Label "devcontainer.metadata")}}}',
+		], token);
+		if (result.code !== 0) {
+			throw new Error(localize('devContainerAgentHost.discoveryFailed', "Could not list Dev Containers (exit {0}): {1}", result.code, result.stderr.trim()));
+		}
+		const schema = vObj({ id: vString(), name: vString(), workspaceFolder: vString(), legacyFolder: vString(), metadata: vString() });
+		const containers: IDiscoveredDevContainer[] = [];
+		for (const line of result.stdout.split(/\r?\n/).filter(line => line.trim())) {
+			const container = schema.validateOrThrow(JSON.parse(line));
+			if (container.workspaceFolder || container.legacyFolder || container.metadata) {
+				containers.push({
+					id: container.id,
+					name: container.name,
+					workspaceFolder: container.workspaceFolder || container.legacyFolder || undefined,
+				});
+			}
+		}
+		return containers;
 	}
 
 	async stopContainer(source: string | IDevContainerSampleSource): Promise<boolean> {

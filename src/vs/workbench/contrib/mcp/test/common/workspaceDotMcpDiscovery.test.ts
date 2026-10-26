@@ -167,6 +167,23 @@ suite('MCP Discovery - workspaceDotMcpDiscovery', () => {
 		})));
 	});
 
+	test('reads the OAuth client ID of migrated servers', async () => {
+		const f = fixture(JSON.stringify({
+			mcpServers: {
+				flat: { type: 'http', url: 'https://example.com/flat', oauthClientId: 'flat-client' },
+				nested: { type: 'http', url: 'https://example.com/nested', oauth: { clientId: 'nested-client' } },
+			},
+		}));
+		const changed = Event.toPromise(f.onDidChange);
+		f.discovery.start();
+		await changed;
+		const definitions = f.collections.get('workspace-dot-mcp.0')!.serverDefinitions.get();
+		assert.deepStrictEqual(definitions.map(definition => [definition.label, definition.launch.type === McpServerTransportType.HTTP ? definition.launch.oauth : null]), [
+			['flat', { clientId: 'flat-client' }],
+			['nested', { clientId: 'nested-client' }],
+		]);
+	});
+
 	test('removes malformed or deleted roots and rediscovers repaired files', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const f = fixture('{"mcpServers":{"server":{"command":"node"}}}');
 		let changed = Event.toPromise(f.onDidChange);

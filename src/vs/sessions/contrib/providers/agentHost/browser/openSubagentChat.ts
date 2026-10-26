@@ -9,7 +9,7 @@ import { autorun, IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { parseChatUri, parseSubagentSessionUri } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { getAgentHostChatId, isAhpChatChannel, parseSubagentSessionUri } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -24,9 +24,8 @@ import { IChat } from '../../../../services/sessions/common/session.js';
 export { OpenSubagentChatActionViewItem, shouldShowSubagentModel };
 
 function chatIdFromResource(resource: string): string | undefined {
-	const fromChatUri = parseChatUri(resource)?.chatId;
-	if (fromChatUri) {
-		return fromChatUri;
+	if (isAhpChatChannel(resource)) {
+		return getAgentHostChatId(resource);
 	}
 	const fromSessionUri = parseSubagentSessionUri(resource);
 	return fromSessionUri ? `subagent/${fromSessionUri.toolCallId}` : undefined;

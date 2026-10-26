@@ -27,6 +27,7 @@ export const enum SessionServerToolName {
 	SendMessage = 'send_message',
 	GetSessionContext = 'get_session_context',
 	DeleteSession = 'delete_session',
+	MoveSession = 'move_session',
 }
 
 /**
@@ -55,3 +56,11 @@ export const LEGACY_ARTIFACT_SERVER_TOOL_NAMES: ReadonlyMap<string, string> = ne
 	['remove_artifact', ArtifactServerToolName.RemoveArtifactOrReference as string],
 	['list_artifacts', ArtifactServerToolName.ListArtifactsAndReferences as string],
 ]);
+
+/** Names of the tools that read and operate the integrations of recorded artifacts. */
+export const enum ArtifactIntegrationServerToolName {
+	GetArtifactStatus = 'get_artifact_status',
+	RunArtifactAction = 'run_artifact_action',
+	SetArtifactAutomation = 'set_artifact_automation',
+	DisableArtifactAutomation = 'disable_artifact_automation',
+}

@@ -81,6 +81,8 @@ export interface IChatContentPartRenderContext {
 	readonly onWillCollapse?: (target: HTMLElement) => void;
 	/** A tool group, separate from reasoning, in the persistent progress layout. */
 	readonly isToolChain?: boolean;
+	/** Reasoning and tool calls share one collapsed section in the Conversation persistent progress layout. */
+	readonly isConversation?: boolean;
 	/**
 	 * The part is hosted by the tool confirmation carousel above the chat input rather than by a
 	 * transcript row, so it renders the confirmation that transcript copies defer to it.

@@ -13,12 +13,18 @@ With Modern UI enabled, `window.density.layout` set to `default` keeps the workb
 
 Standard HC Connected editors use the editor card's perimeter and `modernPanel.border`, without a second inset group frame. Compact layout shares its square grid-edge seams with adjacent panels. Agents-window detail editors keep their separately owned frame and use `agentsPanel.border`; tab focus and selection accents remain independent of either frame.
 
+## Suggestion menu corners
+
+Editor and workbench suggestion menus use the Outer radius on their first item's upper corners and their last item's lower corners. These styles are shared with the Agents window, where they apply independently of the main workbench's Modern UI setting. These boundaries follow logical list positions, not virtualized DOM order; a single-item menu receives all four corners. The rounded list viewport clips partially scrolled highlights without clipping the workbench widget's resize sashes. Interior corners stay at the Control tier, and a visible status bar keeps the last row at that tier rather than rounding the footer seam.
+
 ## Editor tab style
 
 `workbench.experimental.modernUIEditorTabStyle` chooses the editor tab treatment when `workbench.experimental.modernUI` is enabled:
 
 - `connected` (default): the bottom row's active tab joins the editor surface with an outside stroke and curved shoulders. Active caps touching the left frame omit their own left stroke and outside shoulder; the editor frame paints that edge once. Inactive tabs, upper wrapped rows, and a separate pinned row retain symmetric rounded pills. Active caps own their rounded top outline independently of the editor frame.
 - `pill`: separate rounded tabs, without the connected stroke or shoulders.
+
+In high-contrast themes, the Pill tab fill owns the entire outer hover or focus stroke, including behind the Close action. The outer focus stroke remains visible when focus moves to Close. The action overlay does not redraw that stroke; the Close button retains its own hover and keyboard-focus outline.
 
 Changes apply immediately, including in auxiliary editor windows. The Agents window follows the same setting for chat and side-panel tabs, independently of the broader Modern UI setting. Connected tabs are the default in both windows; select `pill` to restore the separate rounded tabs.
 
@@ -213,6 +219,8 @@ The `surface.*` colors provide shared framing defaults, not a replacement for ev
 Inside the panel, the existing `panelSection.border` separates horizontally arranged views and `panelSectionHeader.border` separates vertically stacked views. Neither controls the outer floating frame. Side bar section dividers use `sideBarSectionHeader.border`. High contrast border defaults use `contrastBorder`, but explicit theme overrides remain effective.
 
 Resize grip dots mark only boundaries between top-level parts, not modal editor frames, editor splits, or view resizers. They appear with `window.density.layout` set to `default` and are hidden in `compact` density. On hover or drag, the dots yield to the sash highlight controlled by `sash.hoverBorder`.
+
+The editor and Agents windows share `modernSash.gripForeground` for their resting grip dots, with no additional opacity reduction. This includes the Agents window's session-grid, side-pane, and bottom-panel grips.
 
 Activity bar items in non-default top or bottom positions use the `modernTab.*` colors because they share the pane tab presentation.
 

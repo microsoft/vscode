@@ -12,6 +12,7 @@ import { DisposableStore, DisposableTracker, IDisposable, IReference, MutableDis
 import { URI } from '../../../../base/common/uri.js';
 import { $, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { disableScrollbarRevealOnScroll } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
 import '../../../browser/media/style.css';
@@ -293,12 +294,13 @@ function toThemeJsonText(theme: string | object): string {
 	return typeof theme === 'string' ? theme : JSON.stringify(theme);
 }
 
-export type ComponentFixtureFileIconTheme = 'none' | 'vs-seti' | 'vs-minimal';
+export type ComponentFixtureFileIconTheme = 'none' | 'vs-seti' | 'vs-minimal' | 'vscode-modern-icons';
 type BuiltInComponentFixtureFileIconTheme = Exclude<ComponentFixtureFileIconTheme, 'none'>;
 
 const fileIconThemeResources = {
 	'vs-seti': URI.parse(new URL('./extensions/theme-seti/icons/vs-seti-icon-theme.json', document.baseURI).href),
 	'vs-minimal': URI.parse(new URL('./extensions/theme-defaults/fileicons/vs_minimal-icon-theme.json', document.baseURI).href),
+	'vscode-modern-icons': URI.parse(new URL('./extensions/theme-modern-icons/fileicons/vscode-modern-icons-icon-theme.json', document.baseURI).href),
 } satisfies Record<BuiltInComponentFixtureFileIconTheme, URI>;
 const fileIconThemeResourceUrls = new Set(Object.values(fileIconThemeResources).map(resource => resource.toString(true)));
 
@@ -371,6 +373,7 @@ const fileIconThemes = {
 	none: FileIconThemeData.noIconTheme,
 	'vs-seti': createBuiltInFileIconTheme('vs-seti', 'vscode-theme-seti'),
 	'vs-minimal': createBuiltInFileIconTheme('vs-minimal', 'theme-defaults'),
+	'vscode-modern-icons': createBuiltInFileIconTheme('vscode-modern-icons', 'vscode-modern-icons'),
 } satisfies Record<ComponentFixtureFileIconTheme, FileIconThemeData>;
 const defaultFileIconTheme = fileIconThemes['vs-seti'];
 
@@ -452,6 +455,7 @@ export async function setupTheme(
 	container.classList.add('component-fixture', 'monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
 	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vs-seti', fileIconThemeId === 'vs-seti');
 	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vs-minimal', fileIconThemeId === 'vs-minimal');
+	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vscode-modern-icons', fileIconThemeId === 'vscode-modern-icons');
 	if (fileIconThemeClassName) {
 		container.classList.add('file-icons-enabled');
 	}
@@ -1126,6 +1130,26 @@ export async function waitForFixtureCondition(condition: () => boolean, message:
 	throw new Error(message);
 }
 
+/**
+ * Resolves once `condition` holds, re-checking it after each DOM mutation under `root`.
+ * A condition that never holds fails the render at the explorer's fixture timeout.
+ */
+export function waitForFixtureDomCondition(root: Node, condition: () => boolean, store: DisposableStore): Promise<void> {
+	if (condition()) {
+		return Promise.resolve();
+	}
+	return new Promise<void>(resolve => {
+		const observer = new MutationObserver(() => {
+			if (condition()) {
+				observer.disconnect();
+				resolve();
+			}
+		});
+		store.add(toDisposable(() => observer.disconnect()));
+		observer.observe(root, { attributes: true, characterData: true, childList: true, subtree: true });
+	});
+}
+
 const logOutsideTime = false;
 if (logOutsideTime) {
 	const loggingTimeApi = createLoggingTimeApi(realTimeApi, (name, stack, handler) => {
@@ -1161,6 +1185,11 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 
 			// Replace Math.random with a seeded PRNG so fixtures render deterministically.
 			disposableStore.add(pushRandomOverwrite(42));
+
+			// Auto-hiding scrollbars would otherwise flash on layout changes and race the screenshot.
+			if (context.host.kind === 'headless') {
+				context.addDisposable(disableScrollbarRevealOnScroll());
+			}
 
 			// Do not enable virtual time in explorer ui, as multiple fixtures are rendered in parallel.
 			const virtualTimeEnabled = (options.virtualTime?.enabled ?? true) && context.host.kind !== 'explorer-ui';
@@ -1206,6 +1235,14 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			);
 			const virtualTimeApi = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
 			const teardownDrainMs = options.virtualTime?.teardownDrainMs ?? 1100;
+			// Installed while the render is pending. A render that outlives the explorer's
+			// timeout must not keep its virtual clock global, or the explorer's dispose and the
+			// next fixture would schedule work on a clock that nothing advances.
+			let renderTimeApi: IDisposable | undefined;
+			const uninstallRenderTimeApi = () => {
+				renderTimeApi?.dispose();
+				renderTimeApi = undefined;
+			};
 
 			// Single async dispose orchestrates teardown order:
 			//   1. dispose user disposables (synchronous part)
@@ -1222,6 +1259,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					// land in `p` and can be drained below. Render unpushes
 					// virtual time when it completes (so screenshot capture
 					// etc. can use real timers), so we have to push again.
+					uninstallRenderTimeApi();
 					let teardownTimeApi: IDisposable | undefined;
 					if (virtualTimeEnabled) {
 						teardownTimeApi = pushGlobalTimeApi(virtualTimeApi);
@@ -1281,7 +1319,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					onDidChangeEnableAnimations.fire(enabled);
 				});
 
-				let renderTimeApi: IDisposable | undefined;
 				if (virtualTimeEnabled) {
 					renderTimeApi = pushGlobalTimeApi(virtualTimeApi);
 
@@ -1342,7 +1379,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				} finally {
 					// Unpush virtual time so the post-render flow (screenshot
 					// capture, stability checks, …) runs with real timers.
-					renderTimeApi?.dispose();
+					uninstallRenderTimeApi();
 				}
 			}
 

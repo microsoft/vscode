@@ -17,6 +17,14 @@ src/vs/platform/agentHost/**/*Automation* @ulugbekna @benvillalobos
 src/vs/platform/agentHost/**/*automation* @ulugbekna @benvillalobos
 src/vs/platform/agentHost/common/state/protocol/channels-automation-run/** @ulugbekna @benvillalobos
 src/vs/platform/agentHost/common/state/protocol/channels-automation/** @ulugbekna @benvillalobos
+# Agent Host tool budget: the deferral allow-lists and the baselines a tool author must update (see src/vs/platform/agentHost/AGENTS.md §9)
+src/vs/platform/agentHost/node/copilot/copilotBuiltinToolAllowlist.ts @bhavyaus
+src/vs/platform/agentHost/node/copilot/toolSearchDeferral.ts @bhavyaus
+src/vs/platform/agentHost/test/node/serverToolGroups.test.ts @bhavyaus
+src/vs/platform/agentHost/test/node/toolSearchDeferral.test.ts @bhavyaus
+src/vs/platform/agentHost/test/node/e2e/providers/copilotPromptsE2E.integrationTest.ts @bhavyaus
+src/vs/platform/agentHost/test/node/providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts @bhavyaus
+src/vs/platform/agentHost/test/node/e2e/providers/__snapshots__/*.prompt.md @bhavyaus
 src/vs/platform/browserView/** @kycutler @jruales
 src/vs/platform/quickinput/** @TylerLeonhardt
 src/vs/platform/secrets/** @TylerLeonhardt
@@ -114,7 +122,6 @@ extensions/github/** @lszomoru
 extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts @kycutler @jruales
 
 # Testing
-test/mcp/** @TylerLeonhardt
 test/scenario/** @bryanchen-d
 test/sanity/** @dmitrivMS
 
@@ -134,4 +141,3 @@ src/vs/sessions/browser/workbench.ts @benibenj
 /.github/instructions/sessions.instructions.md @sandy081
 /.github/skills/sessions/SKILL.md @sandy081
 /.github/skills/chat-customizations-editor/SKILL.md @sandy081
-

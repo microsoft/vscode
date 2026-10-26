@@ -12,8 +12,6 @@ import {
 	PullRequestFragment,
 	PullRequestInlineComment,
 	PullRequestMergeability,
-	PullRequestParticipant,
-	PullRequestParticipants,
 	PullRequestRef,
 	PullRequestReview,
 	PullRequestReviewThread,
@@ -31,11 +29,9 @@ export type PullRequestFragmentResult =
 	| { readonly fragment: 'core'; readonly value: PullRequestCore; readonly complete: true }
 	| { readonly fragment: 'topLevelComments'; readonly value: readonly PullRequestComment[]; readonly complete: true }
 	| { readonly fragment: 'submittedReviews'; readonly value: readonly PullRequestReview[]; readonly complete: true }
-	| { readonly fragment: 'inlineComments'; readonly value: readonly PullRequestInlineComment[]; readonly complete: true }
 	| { readonly fragment: 'reviewThreads'; readonly value: readonly PullRequestReviewThread[]; readonly complete: boolean; readonly headSha: string }
 	| { readonly fragment: 'checks'; readonly value: PullRequestChecks; readonly complete: boolean; readonly headSha: string }
-	| { readonly fragment: 'mergeability'; readonly value: PullRequestMergeability; readonly complete: boolean; readonly headSha: string }
-	| { readonly fragment: 'participants'; readonly value: PullRequestParticipants; readonly complete: true };
+	| { readonly fragment: 'mergeability'; readonly value: PullRequestMergeability; readonly complete: boolean; readonly headSha: string };
 
 export interface IPullRequestQuery {
 	promote(signal: AbortSignal, priority: PullRequestSubscriptionOptions['priority']): void;
@@ -170,7 +166,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		signal: AbortSignal,
 	): Promise<PullRequestFragmentResult> {
 		const capabilities = needsCapabilities(fragment)
-			? await this._capabilities.getCapabilities(credential, undefined, signal)
+			? await this._capabilities.getCapabilities(credential, signal)
 			: restCapabilities;
 		const plan = this._planner.plan(fragment, options.priority, capabilities);
 		switch (fragment) {
@@ -188,13 +184,6 @@ export class PullRequestQueryService implements IPullRequestQuery {
 					fragment,
 					value: (await this._fetchRestArray(ref, credential, `pulls/${ref.number}/reviews?per_page=100`, signal, plan.priority))
 						.map(item => toReview(item, options.conversation?.includeBodies === true)),
-					complete: true,
-				};
-			case 'inlineComments':
-				return {
-					fragment,
-					value: (await this._fetchRestArray(ref, credential, `pulls/${ref.number}/comments?per_page=100`, signal, plan.priority))
-						.map(item => toInlineComment(item, options.conversation?.includeBodies === true)),
 					complete: true,
 				};
 			case 'reviewThreads':
@@ -257,12 +246,6 @@ export class PullRequestQueryService implements IPullRequestQuery {
 					headSha: mergeability.headSha,
 				};
 			}
-			case 'participants':
-				return {
-					fragment,
-					value: await this._fetchParticipants(ref, core, credential, signal, plan.priority),
-					complete: true,
-				};
 		}
 	}
 
@@ -669,36 +652,6 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		};
 	}
 
-	private async _fetchParticipants(
-		ref: PullRequestRef,
-		core: PullRequestCore | undefined,
-		credential: GitHubCredential,
-		signal: AbortSignal,
-		priority: import('./types.js').RequestPriority,
-	): Promise<PullRequestParticipants> {
-		const values = await this._fetchRestArray(ref, credential, `issues/${ref.number}/timeline?per_page=100`, signal, priority);
-		const participants = new Map<string, { actor: PullRequestParticipant; roles: Set<'author' | 'commenter' | 'reviewer'> }>();
-		if (core?.author) {
-			addParticipant(participants, core.author, 'author');
-		}
-		for (const value of values) {
-			const item = asObject(value, 'GitHub timeline event was malformed');
-			const actor = toActor(optionalObjectProperty(item, 'actor') ?? optionalObjectProperty(item, 'user'));
-			if (actor) {
-				addParticipant(participants, actor, 'commenter');
-			}
-			const reviewer = toActor(optionalObjectProperty(item, 'requested_reviewer'));
-			if (reviewer) {
-				addParticipant(participants, reviewer, 'reviewer');
-			}
-		}
-		return {
-			participants: [...participants.values()]
-				.map(({ actor, roles }) => ({ ...actor, roles: [...roles].sort() }))
-				.sort((left, right) => left.login.localeCompare(right.login)),
-		};
-	}
-
 	private _restUrl(ref: PullRequestRef, route: string): string {
 		return `${this._endpoint.getApiBaseUri()}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/${route}`;
 	}
@@ -707,7 +660,6 @@ export class PullRequestQueryService implements IPullRequestQuery {
 const restCapabilities: GitHubHostCapabilities = {
 	graphql: false,
 	mergeQueue: false,
-	internalMergeStatus: false,
 	reviewThreads: false,
 	checkContextRequiredness: false,
 };
@@ -783,21 +735,6 @@ function toReview(value: unknown, includeBody: boolean): PullRequestReview {
 		body: includeBody ? nullableStringProperty(item, 'body') : undefined,
 		commitId: stringProperty(item, 'commit_id'),
 		submittedAt: stringProperty(item, 'submitted_at'),
-	};
-}
-
-function toInlineComment(value: unknown, includeBody: boolean): PullRequestInlineComment {
-	const item = asObject(value, 'GitHub pull request inline comment was malformed');
-	return {
-		...toComment(value, includeBody),
-		reviewId: idProperty(item, 'pull_request_review_id'),
-		replyToId: idProperty(item, 'in_reply_to_id'),
-		path: stringProperty(item, 'path'),
-		line: numberProperty(item, 'line'),
-		originalLine: numberProperty(item, 'original_line'),
-		side: stringProperty(item, 'side'),
-		commitId: stringProperty(item, 'commit_id'),
-		originalCommitId: stringProperty(item, 'original_commit_id'),
 	};
 }
 
@@ -905,20 +842,6 @@ function toActor(value: object | undefined, association?: string): { readonly id
 		login,
 		...(association ? { association } : {}),
 	};
-}
-
-function addParticipant(
-	participants: Map<string, { actor: PullRequestParticipant; roles: Set<'author' | 'commenter' | 'reviewer'> }>,
-	actor: { readonly id?: string; readonly login: string },
-	role: 'author' | 'commenter' | 'reviewer',
-): void {
-	const key = actor.id ?? actor.login.toLowerCase();
-	let participant = participants.get(key);
-	if (!participant) {
-		participant = { actor: { ...actor, roles: [] }, roles: new Set() };
-		participants.set(key, participant);
-	}
-	participant.roles.add(role);
 }
 
 function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {

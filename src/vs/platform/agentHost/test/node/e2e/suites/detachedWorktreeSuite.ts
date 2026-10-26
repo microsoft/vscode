@@ -38,7 +38,7 @@ import {
 	type IAgentHostExtensionCommandMap,
 } from '../../../../common/agentHostExtensionProtocol.js';
 import { isAgentDevContainerWorktreeHandle } from '../../../../common/meta/agentDevContainerWorktreeMeta.js';
-import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ROOT_STATE_URI, SessionLifecycle, type SessionState } from '../../../../common/state/sessionState.js';
 import { initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
@@ -110,6 +110,22 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 
 	function isRegisteredWorktree(repository: string, worktreePath: string): boolean {
 		return registeredWorktrees(repository).includes(pathComparisonKey(worktreePath));
+	}
+
+	/**
+	 * Archive and delete only record a removal; the host removes the checkout
+	 * in the background once its startup settled, which needs a served
+	 * listing. Polls the exact on-disk and Git state rather than sleeping.
+	 */
+	async function waitForWorktreeRemoval(repository: string, worktreePath: string): Promise<void> {
+		await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI }, 30_000);
+		const deadline = Date.now() + 30_000;
+		while (existsSync(worktreePath) || isRegisteredWorktree(repository, worktreePath)) {
+			if (Date.now() > deadline) {
+				throw new Error(`Timed out waiting for the host to remove ${worktreePath}`);
+			}
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
 	}
 
 	function branchExists(repository: string, branchName: string): boolean {
@@ -307,6 +323,7 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 			writeFileSync(join(worktree, 'seed.txt'), 'unsaved work');
 			writeFileSync(join(worktree, 'new.txt'), 'new work');
 			await setDetachedWorktreeArchived(created.handle, true);
+			await waitForWorktreeRemoval(workspace, worktree);
 			assert.deepStrictEqual({
 				checkoutExists: existsSync(worktree),
 				saved: git(workspace, 'show', `${branch}:seed.txt`),
@@ -353,6 +370,7 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 		const worktree = URI.parse(created.resource).fsPath;
 		rmSync(worktree, { recursive: true, force: true });
 		await deleteDetachedWorktree(created.handle);
+		await waitForWorktreeRemoval(workspace, worktree);
 		assert.deepStrictEqual({
 			registered: isRegisteredWorktree(workspace, worktree),
 			original: readFileSync(join(workspace, 'seed.txt'), 'utf8'),
@@ -441,6 +459,7 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 		// branch is the only thing that makes the checkout reconstructible, so
 		// dropping an unsynced branch would turn "archive" into "discard".
 		await setDetachedWorktreeArchived(created.handle, true);
+		await waitForWorktreeRemoval(workspace, worktreePath);
 		const archived = {
 			existsOnDisk: existsSync(worktreePath),
 			registeredWithGit: isRegisteredWorktree(workspace, worktreePath),
@@ -491,6 +510,7 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 		// two clients reacting to the same removal, must not turn the second
 		// attempt into an error.
 		await deleteDetachedWorktree(created.handle);
+		await waitForWorktreeRemoval(workspace, worktreePath);
 
 		assert.deepStrictEqual({
 			existsOnDisk: existsSync(worktreePath),

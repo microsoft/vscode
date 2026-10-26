@@ -8,7 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -16,7 +16,7 @@ import { localize } from '../../../../../nls.js';
 import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, isLocalAgentHostProviderDisabledByPolicy, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
 import { workspacelessScratchDir } from '../../../../../platform/agentHost/common/workspacelessScratchDir.js';
 import { findDevContainerSample, getDevContainerSampleUrl } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { type ISessionGitState, readSessionEhcliAdoptable } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -33,13 +33,14 @@ import { ISessionsProviderAutomations, type SessionResourceResolveReason } from 
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildLocalSessionStateUri, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../../workbench/services/environment/common/copilotHomeService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { areDevContainerSamplesEnabled, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
@@ -89,6 +90,16 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		return -1;
 	}
 
+	/** Publishes a session created directly through the host, such as an imported conversation. */
+	async resolveCreatedSession(resource: URI): Promise<ISession> {
+		await this._refreshSessions();
+		const session = this.getSessionByResource(resource);
+		if (!session) {
+			throw new Error(localize('agentHost.createdSessionMissing', "The agent host hasn't listed the new conversation yet. Try again to open it."));
+		}
+		return session;
+	}
+
 	/**
 	 * Redirects a legacy extension-host Copilot CLI resource to its agent-host
 	 * twin, adopting it on the way.
@@ -121,12 +132,46 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		// first catalog pass is far slower than an interactive open.
 		const timeoutMs = reason === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_TIMEOUT_MS;
 		const adopted = await adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, this._telemetryService, reason ?? 'open', timeoutMs);
+		if (sessionKey && !this._sessionCache.has(sessionKey)) {
+			await this._refreshSessions();
+		}
+		if (adopted) {
+			const surfaced = !!(sessionKey && this._sessionCache.has(sessionKey));
+			reportLegacyMigrationOpen(this._telemetryService, reason ?? 'open', adopted, surfaced);
+			if (rawId && sessionKey && !this._sessionCache.has(sessionKey)) {
+				const now = Date.now();
+				this._ensureSessionInCache({
+					session: AgentSession.uri('copilotcli', rawId),
+					provider: 'copilotcli',
+					startTime: now,
+					modifiedTime: now,
+				});
+			}
+			return adopted;
+		}
 		// On decline or timeout, redirect only a non-adoptable (external /
 		// already-adopted) session to its surfaced twin so it opens as-is instead
 		// of the extension-host resource. An adoptable session that failed to adopt
-		// keeps the original `undefined` behavior and opens unmigrated. Mirrors the
-		// chat-editor open path.
-		return adopted ?? (adoptable ? undefined : twin);
+		// keeps the original `undefined` behavior while the extension-host provider
+		// is still registered; once retired, seed and redirect to the twin so it still resolves.
+		const isStillAdoptable = sessionKey ? readSessionEhcliAdoptable(this._getSessionMetadataByKey(sessionKey)) : adoptable;
+		const legacyProviderRegistered = this._chatSessionsService.getChatSessionContribution?.(resource.scheme) !== undefined;
+		if (isStillAdoptable && legacyProviderRegistered) {
+			return undefined;
+		}
+		if (twin && rawId && sessionKey && !this._sessionCache.has(sessionKey)) {
+			if (legacyProviderRegistered) {
+				return undefined;
+			}
+			const now = Date.now();
+			this._ensureSessionInCache({
+				session: AgentSession.uri('copilotcli', rawId),
+				provider: 'copilotcli',
+				startTime: now,
+				modifiedTime: now,
+			});
+		}
+		return twin;
 	}
 
 	constructor(
@@ -151,6 +196,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@IDevContainerAgentHostService devContainerAgentHostService: IDevContainerAgentHostService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IPathService pathService: IPathService,
+		@ICopilotHomeService copilotHomeService: ICopilotHomeService,
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
@@ -184,7 +230,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		const updateResourceLabelHomes = () => {
 			const homes = this.getResourceLabelHomes();
 			const userHome = pathService.userHome({ preferLocal: true });
-			const sessionStateRoot = buildLocalSessionStateUri(userHome);
+			const sessionStateRoot = buildLocalSessionStateUri(copilotHomeService.home);
 			for (const session of this.getKnownSessions()) {
 				const rawId = AgentSession.id(session.resource);
 				const label = this.getResourceLabelHomeLabel(session);
@@ -266,9 +312,10 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 				this._refreshSessionWorkspaces();
 			}
 			if (affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
+				this._onSessionPolicyChanged();
 				this._syncRootState(this._agentHostService.rootState.value);
-				// `getSessions()` filters by the same gate, so the set of visible
-				// sessions just changed too. Fire an empty-payload change so the
+				// Saved history and pending-session visibility may also change.
+				// Fire an empty-payload change so the
 				// open list re-queries and re-filters. The payload is deliberately
 				// empty: these sessions are hidden, not removed, and signalling
 				// them as `removed` would be misread as a remote deletion (e.g. by
@@ -284,6 +331,10 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 
 	protected override registerBackendSession(backendSession: URI, provider: string): void {
 		this._connectionsService.registerSessionResource(backendSession, undefined, provider);
+	}
+
+	protected override batchBackendRegistrations<T>(fn: () => T): T {
+		return this._connectionsService.batchSessionResolutionChanges(fn);
 	}
 
 	override getSessions(): ISession[] {
@@ -325,6 +376,14 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
 	}
 
+	protected override _shouldShowSavedSession(provider: string): boolean {
+		return this._shouldAdvertiseAgent(provider) || getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._isSessionsWindow).includes(provider);
+	}
+
+	protected override _isAgentDisabledByPolicy(provider: string): boolean {
+		return isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService);
+	}
+
 	/**
 	 * Local resource scheme: `agent-host-${provider}`. Must match the type
 	 * string registered by AgentHostContribution. Distinct from the logical
@@ -336,8 +395,9 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		return `${LOCAL_RESOURCE_SCHEME_PREFIX}${provider}`;
 	}
 
-	protected _adapterOptions() {
+	protected _adapterOptions(agentProvider: string) {
 		return {
+			readOnly: observableFromEvent(this, this._configurationService.onDidChangeConfiguration, () => this._isAgentDisabledByPolicy(agentProvider)),
 			supportsCanvasPresentation: (agentProvider: string) => agentProvider === CopilotCLISessionType.id,
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];

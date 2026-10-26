@@ -284,6 +284,21 @@ Outcomes are `success`, `error`, `unavailable`, `deferred`, `partial`, and `canc
 
 The implementation is in [`node/agentHostStartupPerformance.ts`](node/agentHostStartupPerformance.ts). Bootstrap records named milestones and publishes them only after composition has applied the host telemetry configuration. Providers report at their existing enumeration and processed-result boundaries; the orchestrator reports at its existing listing, migration and discovery registration boundaries. Startup telemetry does not use chat lifecycle contributions, since no turn or hydration hook owns these operations.
 
+## Copilot account discovery
+
+`agentHost.copilotAccountDiscovery` reports one completed `/copilot_internal/user` HTTP lookup from `CopilotApiService`, not cache reads or individual model calls. It uses the existing usage-telemetry transport and consent controls. Local endpoint overrides that skip discovery do not emit it.
+
+| Field | Meaning |
+| --- | --- |
+| `trigger` | `initial`, `cacheRefresh`, or `entitlementChange`. |
+| `outcome` | `published` when the result updated the discovery cache; `superseded` when a newer revalidation or invalidation prevented publication; `failed` for transport, HTTP, or response-processing failure. |
+| `copilotSku`, `copilotTrackingId` | SKU and analytics ID returned by this lookup, when available. These are not copied from the client's entitlement hint or a process-wide common property. |
+| `previousSku`, `cacheAgeMs` | Prior cached SKU and its age when lookup was requested. Age is derived from the cache entry's creation/expiry time, not a model request's entitlement age. Both can be absent on initial discovery. |
+| `httpStatus`, `gitHubRequestId` | HTTP status and validated `x-github-request-id` header, when a response supplied them. The request ID belongs to discovery, not model inference. |
+| `durationMs` | Time from starting HTTP discovery through completion/failure, including response-body consumption. |
+
+Superseded successful responses retain their returned metadata in this event even though they did not update the cache. Coalesced callers share a single lookup/event; failed attempts do not include response bodies, error messages, credentials, login names, or endpoint URLs. Events are not emitted after service disposal, and transport/consent gaps can leave missing observations. No discovery snapshot ID or additional fields on turn/tool/SDK response events are introduced. Account/time comparisons can reveal inconsistent responses but cannot prove which discovery snapshot or backend authorization decision served an individual model request.
+
 ## Canvas rollout and load telemetry
 
 Canvas product telemetry uses existing usage consent, independently of OTel.
@@ -292,10 +307,13 @@ Canvas product telemetry uses existing usage consent, independently of OTel.
 | --- | --- |
 | `agentHost.canvasOpened` | Live `session.canvas.recorded` events identify first opens, excluding repeated opens, updates, and recovery. History reads do not dispatch these callbacks. Count opens or distinct `agentSessionId` values; group by discovery-derived `extensionSource` (`project`, `user`, `plugin`, `session`, `unknown`). |
 | `agentCanvas.loadCompleted` | Browser creation through initial navigation. Outcomes: `loaded`, `error`, `cancelled`, `interrupted`. Input, owner, and editor lifetime changes share the `interrupted` outcome. |
-| `agentHost.canvasExtensionsReady` | Extension listing, bounded readiness wait, and canvas listing. `launchKind`: `create` or `resume`. Outcomes: `alreadySettled`, `settled`, `timeout`, `error`, `cancelled`. `extensionCount` and `failedExtensionCount` use the latest observed snapshot; missing counts are not zero. |
+| `agentHost.canvasExtensionsReady` | Extension listing, any remaining bounded readiness wait after session create/resume, and canvas listing. `launchKind`: `create` or `resume`. Outcomes: `alreadySettled`, `settled`, `timeout`, `error`, `cancelled`. `extensionCount` and `failedExtensionCount` use the latest observed snapshot; missing counts are not zero. |
+| `copilotSdk/extension_startup` | Total initial setup/discovery through native provider settlement for all Runtime extensions, not canvas-only. |
 | `integratedBrowser.open` with `source=canvas` | Backing-view creation, not a logical open. Exclude these rows from ordinary browser-tab usage. |
 
-New events use numeric `schemaVersion: 1`; `durationMs` uses a producer-local monotonic clock. Settled may include failed providers. Readiness measures host overhead, not total extension startup or model TTFT.
+Host/browser canvas events use numeric `schemaVersion: 1`; `durationMs` uses a producer-local monotonic clock. Settled may include failed providers. `agentHost.canvasExtensionsReady` measures listing overhead and the remaining readiness wait, not total Runtime extension startup or model TTFT.
+
+`copilotSdk/extension_startup` reports create and cold resume, not resident joins or reloads. Use standard (`restricted=false`) rows: `duration_ms` is monotonic total startup time, not per-request TTFT. Outcomes are `success`, `settled_with_failures`, `failed`, `cancelled`, or `superseded`. Optional authoritative snapshot counts (`discovered_count`, `running_count`, `failed_count`, `disabled_count`) are omitted when unavailable; observed empty discovery reports zeros.
 
 Load failure rate is `error / (loaded + error)`; compute latency percentiles from successful loads. Navigation completion is not first paint or application readiness. Crashes or lost delivery may leave no completion.
 

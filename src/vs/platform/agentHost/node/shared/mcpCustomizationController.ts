@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { AgentSession } from '../../common/agent.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { McpServerSource, readMcpServerDisplayName, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { McpServerSource, readMcpServerDisplayName, withMcpServerConnectorNameMeta, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { CustomizationLoadStatus, CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { DEFAULT_MCP_APP, DEFAULT_MCP_APP_CAPABILITIES } from '../../common/state/protocol/mcpAppDefaults.js';
 import { isAhpChatChannel } from '../../common/state/sessionState.js';
@@ -146,6 +146,11 @@ export interface IMcpCustomizationControllerOptions {
 	 * server's current provenance. Published so clients can offer the setting without guessing from the name.
 	 */
 	readonly controllingSetting?: (serverName: string, provenance: IMcpServerProvenance) => string | undefined;
+	/**
+	 * Returns the canonical Copilot Connector name that owns a server, when the provider knows it. Published so
+	 * clients route the server's authentication through Connector authorization rather than an MCP token.
+	 */
+	readonly connectorName?: (serverName: string) => string | undefined;
 	/**
 	 * MCP App capabilities to advertise on every ready server. Defaults
 	 * to {@link DEFAULT_MCP_APP_CAPABILITIES}.
@@ -562,12 +567,15 @@ export class McpCustomizationController extends Disposable {
 		// Provenance is derived from configuration on every build, never retained from earlier output.
 		const provenance: IMcpServerProvenance = this._options.resolveProvenance?.(serverName) ?? { source: undefined };
 		// `SessionCustomizationUpdated` replaces the whole customization, so keep opaque entries owned by others.
-		const meta = withMcpServerControllingSettingMeta(
-			withMcpServerSourcePluginMeta(
-				withMcpServerDisplayNameMeta(withMcpServerSourceMeta(existing?._meta, provenance.source), displayName),
-				provenance.sourcePlugin,
+		const meta = withMcpServerConnectorNameMeta(
+			withMcpServerControllingSettingMeta(
+				withMcpServerSourcePluginMeta(
+					withMcpServerDisplayNameMeta(withMcpServerSourceMeta(existing?._meta, provenance.source), displayName),
+					provenance.sourcePlugin,
+				),
+				this._options.controllingSetting?.(serverName, provenance),
 			),
-			this._options.controllingSetting?.(serverName, provenance),
+			this._options.connectorName?.(serverName),
 		);
 		const uri = provenance.sourceUri ?? this._mintTopLevelId(serverName);
 		const customization: McpServerCustomization = {

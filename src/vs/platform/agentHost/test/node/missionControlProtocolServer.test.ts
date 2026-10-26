@@ -12,19 +12,21 @@ import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { hasKey } from '../../../../base/common/types.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DeferredPromise, Promises } from '../../../../base/common/async.js';
 import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControl/missionControlControl.js';
-import { MissionControlProtocolServer, type IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
+import { MissionControlProtocolServer, toMissionControlSocket, type IMissionControlRelayRecovery, type IMissionControlSocket, type MissionControlPublishDiagnostic } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
 import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
-import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
+import { getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
+import { getConnectionTelemetryError } from '../../common/connectionTelemetry.js';
 import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { AhpJsonlLogger, isAhpLogFileFor } from '../../common/ahpJsonlLogger.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
@@ -41,17 +43,28 @@ const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
 
 class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
-	readonly publishes: { group: string; data: { kind: string; data: object; items?: object[]; generation?: number } }[] = [];
+	readonly publishes: { group: string; data: { kind: string; data: object; items?: object[]; generation?: number; seq?: number; total?: number } }[] = [];
+	readonly publishByteLengths: number[] = [];
+	readonly publicationByteLengths: number[] = [];
 	readonly joins: string[] = [];
 	readonly acknowledgements: number[] = [];
 	readonly publishAckIds: number[] = [];
-	readonly userEvents: { readonly event: string; readonly data: object }[] = [];
+	readonly userEvents: { readonly event: string; readonly data: Record<string, unknown> }[] = [];
 	closed = false;
+	/** Real sockets reject sends until the connection opens. */
+	connecting = false;
 	failBatchPublish = false;
+	failPublishIndex: number | undefined;
 	constructor(private readonly _ackSuccess = true, private readonly _manualPublishAcks = false) { super(); }
 
 	send(data: string): void {
+		if (this.connecting) {
+			throw new Error('Sent before connected');
+		}
 		const frame = JSON.parse(data) as { type: string; event?: string; ackId?: number; group?: string; data?: { kind: string; data: object }; sequenceId?: number };
+		if (frame.type === 'event' || frame.type === 'sendToGroup') {
+			this.publicationByteLengths.push(Buffer.byteLength(data));
+		}
 		if (frame.type === 'event' && frame.event && frame.data) {
 			this.userEvents.push({ event: frame.event, data: frame.data });
 			if (frame.ackId) {
@@ -62,10 +75,11 @@ class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
 			this.joins.push(frame.group);
 		}
 		if (frame.type === 'sendToGroup' && frame.group && frame.data) {
-			if (this.failBatchPublish && frame.data.kind === 'batch') {
-				throw new Error('Batch socket send failed');
+			if (this.failBatchPublish && frame.data.kind === 'batch' || this.failPublishIndex === this.publishes.length) {
+				throw new Error(this.failBatchPublish ? 'Batch socket send failed' : 'Chunk socket send failed');
 			}
 			this.publishes.push({ group: frame.group, data: frame.data });
+			this.publishByteLengths.push(Buffer.byteLength(data));
 			if (frame.ackId) {
 				this.publishAckIds.push(frame.ackId);
 			}
@@ -332,6 +346,427 @@ suite('Mission Control WPS', () => {
 		assert.deepStrictEqual({ closed: socket.closed, errors }, { closed: true, errors: [] });
 	});
 
+	suite('connection recovery', () => {
+		function createRecoverableServer(key: IMissionControlSigningKey, createSocket: (index: number) => FakeWpsSocket = () => new FakeWpsSocket(true, true)) {
+			const sockets: FakeWpsSocket[] = [];
+			const urls: URL[] = [];
+			const errors: string[] = [];
+			const server = store.add(new MissionControlProtocolServer(
+				{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+				'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+				url => {
+					urls.push(new URL(url));
+					const socket = createSocket(sockets.length);
+					sockets.push(socket);
+					return socket;
+				}, error => errors.push(error.message),
+			));
+			const recoveries: IMissionControlRelayRecovery[] = [];
+			store.add(server.onDidRecover(recovery => recoveries.push(recovery)));
+			const connect = async () => {
+				const ready = server.connect();
+				sockets[0].emit('message', JSON.stringify({ type: 'system', event: 'connected', connectionId: 'connection-1', reconnectionToken: 'resume-token' }));
+				await ready;
+			};
+			return { server, sockets, urls, errors, recoveries, connect };
+		}
+
+		test('resumes a lost socket without closing client lanes and resends unacknowledged publications', async () => {
+			const { key, signed } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, urls, errors, recoveries, connect } = createRecoverableServer(key, index => Object.assign(new FakeWpsSocket(true, true), { connecting: index > 0 }));
+				let closedLanes = 0;
+				const lanes: IProtocolTransport[] = [];
+				store.add(server.onConnection(connected => {
+					lanes.push(connected);
+					store.add(connected.onClose(() => closedLanes++));
+					if (lanes.length === 1) {
+						connected.send({ jsonrpc: '2.0', id: 1, result: null });
+					}
+				}));
+				await connect();
+				sockets[0].deliver(`${prefix}.control`, signed('client-a', 'resume'), 1);
+				sockets[0].deliver(`${prefix}.control`, signed('client-b', 'resume-b'), 2);
+				const unacknowledged = sockets[0].publishAckIds[0];
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(0);
+				// An idle lane publishing while the recovery socket is still connecting queues instead of failing the relay.
+				lanes[1].send({ jsonrpc: '2.0', id: 2, result: null });
+				sockets[1].connecting = false;
+				sockets[1].emit('message', JSON.stringify({ type: 'system', event: 'connected', connectionId: 'connection-1', reconnectionToken: 'resume-token-2' }));
+				sockets[1].emit('message', JSON.stringify({ type: 'ack', ackId: unacknowledged, success: false, error: { name: 'Duplicate' } }));
+				assert.deepStrictEqual({
+					closed: server.isClosed, closedLanes, errors,
+					resent: sockets[1].publishes.map(frame => (frame.data.data as { id: number }).id),
+					resumeParams: [...urls[1].searchParams.entries()],
+					recoveries: recoveries.map(({ durationMs: _, ...recovery }) => recovery),
+				}, {
+					closed: false, closedLanes: 0, errors: [],
+					resent: [1, 2],
+					resumeParams: [['awps_connection_id', 'connection-1'], ['awps_reconnection_token', 'resume-token']],
+					recoveries: [{ reason: 'socketClose', closeCode: 1006, activeClients: 2, attempts: 1, interruptedClients: 0 }],
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		for (const chunked of [false, true]) {
+			test(`retains resource admission across relay recovery, chunked=${chunked}`, async () => {
+				const { key, signed } = signingFixture();
+				const clock = sinon.useFakeTimers();
+				try {
+					const { server, sockets, errors, connect } = createRecoverableServer(key);
+					const received: number[] = [];
+					let lane: IProtocolTransport | undefined;
+					let closed = false;
+					store.add(server.onConnection(connected => {
+						lane = connected;
+						store.add(connected.onMessage(message => {
+							if (hasKey(message, { id: true })) {
+								received.push(Number(message.id));
+							}
+						}));
+						store.add(connected.onClose(() => { closed = true; }));
+					}));
+					await connect();
+					sockets[0].deliver(`${prefix}.control`, signed('client-a', 'resource-recovery'), 1);
+					for (let id = 1; id <= 66; id++) {
+						sockets[0].deliver(`${prefix}.client.client-a.to-host`, {
+							jsonrpc: '2.0', id, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: `file:///workspace/${id}` },
+						}, id + 1);
+					}
+					lane!.send({ jsonrpc: '2.0', id: 1, result: chunked ? 'x'.repeat(2 * DEFAULT_MAX_CHUNK_BYTES) : null });
+					sockets[0].emit('close', 1006);
+					await clock.tickAsync(0);
+					sockets[1].emit('open');
+					const resent = sockets[1].publishAckIds[0];
+					for (let index = 0; index < sockets[1].publishAckIds.length; index++) {
+						sockets[1].emit('message', JSON.stringify({
+							type: 'ack', ackId: sockets[1].publishAckIds[index], success: false, error: { name: 'Duplicate' },
+						}));
+					}
+					sockets[1].emit('message', JSON.stringify({ type: 'ack', ackId: resent, success: true }));
+					await clock.tickAsync(0);
+					assert.deepStrictEqual({
+						received, laneClosed: closed, hostClosed: server.isClosed, errors,
+					}, {
+						received: Array.from({ length: chunked ? 64 : 65 }, (_, index) => index + 1),
+						laneClosed: chunked, hostClosed: false, errors: [],
+					});
+				} finally {
+					clock.restore();
+				}
+			});
+		}
+
+		test('completes recovery when the resumed socket opens without another connected message', async () => {
+			const { key } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, errors, recoveries, connect } = createRecoverableServer(key);
+				await connect();
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(0);
+				sockets[1].emit('open');
+				// A later connected message only refreshes the resumption token; it does not rejoin the bootstrap groups.
+				sockets[1].emit('message', JSON.stringify({ type: 'system', event: 'connected', connectionId: 'connection-1', reconnectionToken: 'resume-token-2' }));
+				await clock.tickAsync(30_000);
+				assert.deepStrictEqual({ closed: server.isClosed, errors, recoveries: recoveries.length, rejoined: sockets[1].joins }, {
+					closed: false, errors: [], recoveries: 1, rejoined: [],
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('continues the original recovery when the service rejects a resumed socket before any frame', async () => {
+			const { key } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, recoveries, connect } = createRecoverableServer(key);
+				await connect();
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(0);
+				sockets[1].emit('open');
+				sockets[1].emit('close', 1008);
+				const { error: _, ...closeInfo } = server.closeInfo!;
+				assert.deepStrictEqual({ closed: server.isClosed, recoveries: recoveries.length, closeInfo }, {
+					closed: true, recoveries: 0,
+					closeInfo: { reason: 'socketClose', closeCode: 1006, activeClients: 0, attempts: 1 },
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('treats a failed liveness ping as a lost socket instead of throwing from the timer', async () => {
+			const { key } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, urls, connect } = createRecoverableServer(key);
+				await connect();
+				sinon.stub(sockets[0], 'send').throws(new Error('Socket is closing'));
+				await clock.tickAsync(20_000);
+				await clock.tickAsync(1);
+				sockets[1].emit('open');
+				sockets[1].emit('message', JSON.stringify({ type: 'pong' }));
+				assert.deepStrictEqual({ closed: server.isClosed, sockets: urls.length, previousClosed: sockets[0].closed }, {
+					closed: false, sockets: 2, previousClosed: true,
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('closes an outage whose resumed socket never confirms within the recovery deadline', async () => {
+			const { key } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, recoveries, connect } = createRecoverableServer(key);
+				await connect();
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(0);
+				sockets[1].emit('open');
+				const sentOnOpen = sockets[1].publicationByteLengths.length;
+				await clock.tickAsync(70_000);
+				const { error: _, ...closeInfo } = server.closeInfo!;
+				assert.deepStrictEqual({ closed: server.isClosed, recoveries: recoveries.length, sentOnOpen, closeInfo }, {
+					closed: true, recoveries: 0, sentOnOpen: 0,
+					closeInfo: { reason: 'socketClose', closeCode: 1006, activeClients: 0, attempts: 1 },
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('reports lanes interrupted by an unconfirmed resumption when a later one succeeds', async () => {
+			const { key, signed } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, recoveries, connect } = createRecoverableServer(key);
+				const lanes: IProtocolTransport[] = [];
+				store.add(server.onConnection(lane => lanes.push(lane)));
+				await connect();
+				sockets[0].deliver(`${prefix}.control`, signed('client-a', 'chunked-twice'), 1);
+				lanes[0].send({ jsonrpc: '2.0', id: 1, result: 'x'.repeat(2 * DEFAULT_MAX_CHUNK_BYTES) });
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(0);
+				sockets[1].emit('open');
+				sockets[1].emit('close', 1006);
+				await clock.tickAsync(500);
+				sockets[2].emit('open');
+				sockets[2].emit('message', JSON.stringify({ type: 'pong' }));
+				assert.deepStrictEqual({
+					closed: server.isClosed,
+					recoveries: recoveries.map(({ attempts, interruptedClients }) => ({ attempts, interruptedClients })),
+				}, { closed: false, recoveries: [{ attempts: 2, interruptedClients: 1 }] });
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('a disconnected notice does not confirm a resumption the service then closes', async () => {
+			const { key } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, recoveries, connect } = createRecoverableServer(key);
+				await connect();
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(0);
+				sockets[1].emit('open');
+				sockets[1].emit('message', JSON.stringify({ type: 'system', event: 'disconnected', message: 'rejected' }));
+				sockets[1].emit('close', 1008);
+				const { error: _, ...closeInfo } = server.closeInfo!;
+				assert.deepStrictEqual({ closed: server.isClosed, recoveries: recoveries.length, closeInfo }, {
+					closed: true, recoveries: 0,
+					closeInfo: { reason: 'socketClose', closeCode: 1006, activeClients: 0, attempts: 1 },
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('backs off when a recovered socket is lost again soon after', async () => {
+			const { key } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, urls, recoveries, connect } = createRecoverableServer(key);
+				await connect();
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(0);
+				sockets[1].emit('open');
+				sockets[1].emit('message', JSON.stringify({ type: 'pong' }));
+				sockets[1].emit('close', 1006);
+				await clock.tickAsync(1);
+				const beforeBackoff = urls.length;
+				await clock.tickAsync(500);
+				assert.deepStrictEqual({ closed: server.isClosed, recoveries: recoveries.length, beforeBackoff, afterBackoff: urls.length }, {
+					closed: false, recoveries: 1, beforeBackoff: 2, afterBackoff: 3,
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('a join acknowledged after its lane was replaced does not announce the replacement again', async () => {
+			const { key, signed } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const withheldJoins: number[] = [];
+				const { server, sockets, connect } = createRecoverableServer(key, () => {
+					const socket = new FakeWpsSocket(true, true);
+					const send = socket.send.bind(socket);
+					sinon.stub(socket, 'send').callsFake(data => {
+						const frame = JSON.parse(data) as { type: string; group?: string; ackId?: number };
+						if (frame.type === 'joinGroup' && frame.group?.includes('.client.')) {
+							withheldJoins.push(frame.ackId!);
+							return;
+						}
+						send(data);
+					});
+					return socket;
+				});
+				const announced: IProtocolTransport[] = [];
+				store.add(server.onConnection(lane => announced.push(lane)));
+				await connect();
+				sockets[0].deliver(`${prefix}.control`, signed('client-a', 'late-join'), 1);
+				// An inbound chunked transfer in flight makes recovery close every lane.
+				sockets[0].deliverEnvelope(`${prefix}.client.client-a.to-host`, { kind: 'chunk', group_id: 'partial', seq: 0, total: 2, bytes: 'e30=' }, 2, 'owner');
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(0);
+				sockets[1].emit('open');
+				sockets[1].deliverEnvelope(`${prefix}.client.client-a.to-host`, { kind: 'message', data: { jsonrpc: '2.0', method: 'ping' } }, 3, 'owner');
+				sockets[1].emit('message', JSON.stringify({ type: 'ack', ackId: withheldJoins[0], success: true }));
+				assert.deepStrictEqual({
+					announced: announced.length,
+					replacementClosed: (announced[0] as IProtocolTransport & { readonly isClosed: boolean }).isClosed,
+					resentJoins: withheldJoins.length,
+				}, { announced: 1, replacementClosed: false, resentJoins: 2 });
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('closes only the lanes whose chunked transfer spanned the loss', async () => {
+			const { key, signed } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, recoveries, connect } = createRecoverableServer(key);
+				const lanes = new Map<string, (IProtocolTransport & { readonly isClosed: boolean })[]>();
+				store.add(server.onConnection(lane => {
+					lanes.set(lane.relayClientId!, [...lanes.get(lane.relayClientId!) ?? [], lane as IProtocolTransport & { readonly isClosed: boolean }]);
+				}));
+				await connect();
+				sockets[0].deliver(`${prefix}.control`, signed('client-a', 'chunked'), 1);
+				sockets[0].deliver(`${prefix}.control`, signed('client-b', 'small'), 2);
+				lanes.get('client-a')![0].send({ jsonrpc: '2.0', id: 1, result: 'x'.repeat(2 * DEFAULT_MAX_CHUNK_BYTES) });
+				lanes.get('client-b')![0].send({ jsonrpc: '2.0', id: 1, result: null });
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(0);
+				sockets[1].emit('open');
+				for (let index = 0; index < sockets[1].publishAckIds.length; index++) {
+					sockets[1].emit('message', JSON.stringify({ type: 'ack', ackId: sockets[1].publishAckIds[index], success: true }));
+				}
+				assert.deepStrictEqual({
+					closed: server.isClosed,
+					laneClosed: [...lanes].map(([clientId, [lane]]) => [clientId, lane.isClosed]),
+					closureNotices: sockets[1].publishes.filter(frame => frame.data.kind === 'closed').map(frame => frame.group),
+					interruptedClients: recoveries.map(recovery => recovery.interruptedClients),
+				}, {
+					closed: false,
+					laneClosed: [['client-a', true], ['client-b', false]],
+					closureNotices: [`${prefix}.client.client-a.to-client`],
+					interruptedClients: [1],
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('does not resume a connection the service removed', async () => {
+			const { key } = signingFixture();
+			const { server, sockets, urls, errors, connect } = createRecoverableServer(key);
+			await connect();
+			sockets[0].emit('close', 1008);
+			const { error: _, ...closeInfo } = server.closeInfo!;
+			assert.deepStrictEqual({ closed: server.isClosed, sockets: urls.length, errors, closeInfo }, {
+				closed: true, sockets: 1, errors: ['Mission Control WPS socket closed (code 1008)'],
+				closeInfo: { reason: 'socketClose', closeCode: 1008, activeClients: 0, attempts: 0 },
+			});
+		});
+
+		test('closes with the original loss once the recovery window elapses', async () => {
+			const { key } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, errors, connect } = createRecoverableServer(key);
+				await connect();
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(120_000);
+				const { error: _, ...closeInfo } = server.closeInfo!;
+				assert.deepStrictEqual({ closed: server.isClosed, errors, closeInfo }, {
+					closed: true, errors: ['Mission Control WPS socket closed (code 1006)'],
+					closeInfo: { reason: 'socketClose', closeCode: 1006, activeClients: 0, attempts: 5 },
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('pings an idle socket and resumes when the service stops responding', async () => {
+			const { key } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, urls, connect } = createRecoverableServer(key);
+				await connect();
+				const sent: string[] = [];
+				const send = sockets[0].send.bind(sockets[0]);
+				sinon.stub(sockets[0], 'send').callsFake(data => {
+					sent.push((JSON.parse(data) as { type: string }).type);
+					send(data);
+				});
+				await clock.tickAsync(60_000);
+				// Fake timers defer a zero-delay timeout scheduled during a tick by one millisecond.
+				await clock.tickAsync(1);
+				assert.deepStrictEqual({ closed: server.isClosed, sent, sockets: urls.length, previousClosed: sockets[0].closed }, {
+					closed: false, sent: ['ping', 'ping'], sockets: 2, previousClosed: true,
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+	});
+
+	test('adapts a WHATWG WebSocket and preserves network failure metadata', () => {
+		const target = new EventTarget();
+		const socket = Object.assign(target, {
+			binaryType: 'blob',
+			networkError: Object.assign(new Error('fetch failed'), { cause: Object.assign(new Error('self-signed certificate in certificate chain'), { code: 'SELF_SIGNED_CERT_IN_CHAIN' }) }),
+			responseStatusCode: undefined,
+			send: () => { },
+			close: () => { },
+		});
+		const adapted = toMissionControlSocket(socket as unknown as InstanceType<typeof globalThis.WebSocket>);
+		const received: unknown[] = [];
+		adapted.on('open', () => received.push('open'));
+		adapted.on('message', data => received.push(data.toString()));
+		adapted.on('close', code => received.push(code));
+		adapted.on('error', error => received.push(getConnectionTelemetryError(getConnectionDiagnosticError(error))));
+		target.dispatchEvent(new globalThis.Event('open'));
+		target.dispatchEvent(new MessageEvent('message', { data: '{"type":"pong"}' }));
+		target.dispatchEvent(Object.assign(new globalThis.Event('close'), { code: 1006 }));
+		target.dispatchEvent(new globalThis.Event('error'));
+		// Closing detaches listeners so a peer that never completes the closing handshake cannot retain the relay.
+		adapted.close();
+		target.dispatchEvent(new MessageEvent('message', { data: 'late' }));
+		assert.deepStrictEqual({ binaryType: socket.binaryType, received }, {
+			binaryType: 'arraybuffer',
+			received: ['open', '{"type":"pong"}', 1006, { errorCategory: 'tls' }],
+		});
+	});
+
 	test('signing-key rotation revokes the removed key without resetting replay protection', () => {
 		const original = signingFixture();
 		const rotated = signingFixture('rotated-key');
@@ -374,6 +809,78 @@ suite('Mission Control WPS', () => {
 		assert.notStrictEqual(frames[0].generation, frames[2].generation);
 		assert.strictEqual(lanes.length, 2);
 	});
+
+	for (const method of ['initialize', 'reconnect'] as const) {
+		for (const passive of [false, true]) {
+			test(`client-requested ${method} re-handshakes without a closure and requires fresh authentication, passive=${passive}`, async () => {
+				await MissionControlSealing.ready();
+				const sealing = store.add(new MissionControlSealing());
+				const { key, signed } = signingFixture('test-key', '123');
+				const groupPrefix = 'user.123.env.environment';
+				const socket = new FakeWpsSocket();
+				const server = store.add(new MissionControlProtocolServer(
+					{ url: 'wss://wps.test/client/hubs/test', access_token: 'fake-token', groups: { control: `${groupPrefix}.control` } },
+					'123', 'environment', new MissionControlControlVerifier('environment', '123', [key]),
+					() => socket, error => { throw error; },
+					() => new MissionControlAuthentication(sealing, '123', 'https://api.github.com', async () => Response.json({ id: 123, type: 'User' }), false),
+				));
+				const lanes: IProtocolTransport[] = [];
+				const closedLanes: number[] = [];
+				store.add(server.onConnection(lane => {
+					const index = lanes.length;
+					lanes.push(lane);
+					store.add(lane.onClose(() => closedLanes.push(index)));
+					store.add(lane.onMessage(message => {
+						if (hasKey(message, { id: true })) {
+							lane.send({ jsonrpc: '2.0', id: message.id, result: {} });
+						}
+					}));
+				}));
+				const ready = server.connect();
+				socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+				await ready;
+				socket.deliver(`${groupPrefix}.control`, signed('client-a', 'rehandshake', passive), 1);
+				socket.deliverEnvelope(`${groupPrefix}.client.client-a.to-host`, {
+					kind: 'message', data: { jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'client-a' } },
+				}, 2, '123');
+				const encryptionKey = sealing.advertisedKeys.find(key => key.use === 'auth-token')!;
+				const token = await sealMissionControlCredential({ resource: 'https://api.github.com', token: 'owner-token', key: { ...encryptionKey, use: 'auth-token' } });
+				const authentication = { resource: 'https://api.github.com', token };
+				await lanes[0].relayAuthenticate!(authentication);
+				const checkAuthorization = lanes[0].relayCaptureAuthorization!();
+				const authenticatedBeforeRefresh: (boolean | undefined)[] = [];
+				for (const id of [2, 3]) {
+					socket.deliverEnvelope(`${groupPrefix}.client.client-a.to-host`, {
+						kind: 'message', data: { jsonrpc: '2.0', id, method, params: { clientId: 'client-a' } },
+					}, id + 1, '123');
+					const successor = lanes[lanes.length - 1];
+					authenticatedBeforeRefresh.push(successor.relayAuthentication?.authenticated);
+					await successor.relayAuthenticate!(authentication);
+				}
+				assert.throws(checkAuthorization, /Relay identity authentication is required/);
+				assert.throws(() => lanes[0].send({ jsonrpc: '2.0', id: 99, result: {} }), /Mission Control lane closed/);
+				const successor = lanes[lanes.length - 1];
+				const beforeHostClose = socket.publishes.map(frame => frame.data.kind);
+				const authenticatedAfterRefresh = successor.relayAuthentication?.authenticated;
+				successor.dispose();
+				successor.dispose();
+				assert.deepStrictEqual({
+					beforeHostClose,
+					afterHostClose: socket.publishes.map(frame => frame.data.kind),
+					distinctGenerations: new Set(socket.publishes.map(frame => frame.data.generation)).size,
+					closureMatchesSuccessor: socket.publishes[3].data.generation === socket.publishes[2].data.generation,
+					authenticatedBeforeRefresh, authenticatedAfterRefresh, closedLanes,
+					passive: lanes.map(lane => lane.relayPassive),
+				}, {
+					beforeHostClose: ['message', 'message', 'message'],
+					afterHostClose: ['message', 'message', 'message', 'closed'],
+					distinctGenerations: 3, closureMatchesSuccessor: true,
+					authenticatedBeforeRefresh: [false, false], authenticatedAfterRefresh: true, closedLanes: [0, 1, 2],
+					passive: [passive, passive, passive],
+				});
+			});
+		}
+	}
 
 	test('records incoming and outgoing AHP traffic and errors per client and connection generation', async () => {
 		const { key, signed } = signingFixture();
@@ -519,22 +1026,24 @@ suite('Mission Control WPS', () => {
 		socket.deliver(`${prefix}.client.client-a.to-host`, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'client-a' } }, 2);
 		socket.deliver(`${prefix}.client.client-a.to-host`, { jsonrpc: '2.0', id: 2, method: 'initialize', params: { clientId: 'client-a' } }, 3);
 		assert.strictEqual(lanes.length, 2);
-		assert.deepStrictEqual(socket.publishes.map(frame => frame.data.kind), ['closed', 'message']);
+		assert.deepStrictEqual(socket.publishes.map(frame => frame.data.kind), ['message']);
 	});
 
-	suite('negotiated host batching', () => {
+	suite('host publish queue and negotiated batching', () => {
 		const response = (id: number, result: string | null = null) => ({ jsonrpc: '2.0' as const, id, result });
 
-		async function fixture() {
+		async function fixture(mirror?: MissionControlSessionMirror) {
 			const { key, signed } = signingFixture();
 			const socket = new FakeWpsSocket(true, true);
 			const errors: string[] = [];
 			const lanes: IProtocolTransport[] = [];
 			const received: ProtocolMessage[] = [];
+			const diagnostics: MissionControlPublishDiagnostic[] = [];
 			const server = store.add(new MissionControlProtocolServer(
-				{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+				{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control`, ...(mirror ? { ingest_ack: `${prefix}.ingest-ack` } : {}) } },
 				'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
 				() => socket, error => errors.push(error.message),
+				undefined, undefined, mirror, undefined, event => diagnostics.push(event),
 			));
 			store.add(server.onConnection(lane => {
 				lanes.push(lane);
@@ -558,8 +1067,488 @@ suite('Mission Control WPS', () => {
 					ack(index);
 				}
 			};
-			return { server, socket, errors, lanes, received, deliver, open, advertise, ack, drain };
+			return { server, socket, errors, lanes, received, diagnostics, deliver, open, advertise, ack, drain };
 		}
+
+		for (const batching of [false, true]) {
+			test(`pipelines a bounded chunk window without overlapping payloads, batching=${batching}`, async () => {
+				const f = await fixture();
+				const lane = f.open();
+				if (batching) {
+					f.advertise();
+				}
+				const large = response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES));
+				lane.send(large);
+				lane.send(response(2));
+				lane.send({ jsonrpc: '2.0', method: 'ping' });
+				const initial = f.socket.publishes.map(frame => frame.data.seq);
+				f.ack(3);
+				f.ack(1);
+				const afterOutOfOrderAcks = f.socket.publishes.map(frame => frame.data.seq);
+				f.ack(3, false, 'Forbidden');
+				for (const index of [0, 5, 2]) {
+					f.ack(index);
+				}
+				const beforeFinalAck = f.socket.publishes.map(frame => frame.data.kind);
+				f.ack(4);
+				const afterFinalAck = f.socket.publishes.map(frame => frame.data.kind);
+				f.drain();
+				const reassembler = new Reassembler();
+				const reassembled = f.socket.publishes.slice(0, 6).reverse().flatMap(frame => {
+					const decoded = parseInbound({ type: 'message', from: 'group', group: frame.group, dataType: 'json', data: frame.data }, { reassembler });
+					return decoded.kind === 'payload' ? [decoded.payload] : [];
+				});
+				assert.deepStrictEqual({
+					initial, afterOutOfOrderAcks, beforeFinalAck, afterFinalAck,
+					reassembled: reassembled.map(payload => createHash('sha256').update(JSON.stringify(payload)).digest('hex')),
+					destinations: f.socket.publishes.slice(6).map(frame => frame.group),
+					errors: f.errors, closed: f.server.isClosed,
+				}, {
+					initial: [0, 1, 2, 3], afterOutOfOrderAcks: [0, 1, 2, 3, 4, 5],
+					beforeFinalAck: Array(6).fill('chunk'), afterFinalAck: [...Array(6).fill('chunk'), 'message'],
+					reassembled: [createHash('sha256').update(JSON.stringify(large)).digest('hex')],
+					destinations: [`${prefix}.client.client-a.to-client`, `${prefix}.client.client-a.broadcast`],
+					errors: [], closed: false,
+				});
+			});
+		}
+
+		test('queues every fragment of a small chunk group before receiving any acknowledgement', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			lane.send(response(1, 'x'.repeat(2 * DEFAULT_MAX_CHUNK_BYTES)));
+			lane.send(response(2));
+			const beforeAcks = f.socket.publishes.map(frame => ({ kind: frame.data.kind, sequence: frame.data.seq }));
+			f.ack(2);
+			f.ack(0);
+			const beforeLastAck = f.socket.publishes.length;
+			f.ack(1);
+			assert.deepStrictEqual({ beforeAcks, beforeLastAck, afterLastAck: f.socket.publishes.map(frame => frame.data.kind) }, {
+				beforeAcks: [0, 1, 2].map(sequence => ({ kind: 'chunk', sequence })),
+				beforeLastAck: 3, afterLastAck: ['chunk', 'chunk', 'chunk', 'message'],
+			});
+		});
+
+		for (const failure of ['ack rejection', 'socket send']) {
+			test(`stops the chunk group and queued publication after ${failure}`, async () => {
+				const f = await fixture();
+				const lane = f.open();
+				const large = response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES));
+				if (failure === 'socket send') {
+					f.socket.failPublishIndex = 2;
+					assert.throws(() => lane.send(large), /Chunk socket send failed/);
+				} else {
+					lane.send(large);
+					lane.send(response(2));
+					f.ack(1, false, 'Forbidden');
+				}
+				f.drain();
+				assert.deepStrictEqual({
+					closed: f.server.isClosed, socketClosed: f.socket.closed,
+					kinds: f.socket.publishes.map(frame => frame.data.kind), errors: f.errors,
+				}, {
+					closed: true, socketClosed: true,
+					kinds: Array(failure === 'socket send' ? 2 : 4).fill('chunk'),
+					errors: failure === 'socket send' ? [] : ['Mission Control WPS operation rejected: Forbidden'],
+				});
+			});
+		}
+
+		test('times out the oldest outstanding fragment despite newer acknowledgements', async () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = await fixture();
+				const lane = f.open();
+				lane.send(response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES)));
+				lane.send(response(2));
+				clock.tick(25_000);
+				f.ack(3);
+				f.ack(2);
+				clock.tick(4_999);
+				const beforeDeadline = f.server.isClosed;
+				clock.tick(1);
+				f.drain();
+				assert.deepStrictEqual({
+					beforeDeadline, closed: f.server.isClosed,
+					kinds: f.socket.publishes.map(frame => frame.data.kind), errors: f.errors,
+				}, {
+					beforeDeadline: false, closed: true, kinds: Array(6).fill('chunk'),
+					errors: ['Mission Control WPS acknowledgement timed out'],
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('allows a progressing chunk group to outlive one acknowledgement timeout interval', async () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = await fixture();
+				const lane = f.open();
+				lane.send(response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES)));
+				lane.send(response(2));
+				clock.tick(20_000);
+				for (let index = 0; index < 4; index++) {
+					f.ack(index);
+				}
+				clock.tick(20_000);
+				const beforeCompletion = f.server.isClosed;
+				f.drain();
+				assert.deepStrictEqual({
+					beforeCompletion, closed: f.server.isClosed,
+					kinds: f.socket.publishes.map(frame => frame.data.kind), errors: f.errors,
+				}, { beforeCompletion: false, closed: false, kinds: [...Array(6).fill('chunk'), 'message'], errors: [] });
+			} finally {
+				clock.restore();
+			}
+		});
+
+		for (const method of ['initialize', 'reconnect']) {
+			test(`keeps a chunk group ahead of its ${method} successor without a closure`, async () => {
+				const f = await fixture();
+				const old = f.open();
+				f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'message', data: { jsonrpc: '2.0', id: 100, method: 'initialize', params: { clientId: 'client-a' } } });
+				old.send(response(100));
+				f.ack(0);
+				old.send(response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES)));
+				f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'message', data: { jsonrpc: '2.0', id: 101, method, params: { clientId: 'client-a' } } });
+				f.lanes[1].send(response(101));
+				const beforeAcks = f.socket.publishes.map(frame => frame.data.kind);
+				f.drain();
+				const oldGeneration = f.socket.publishes[0].data.generation;
+				const newGeneration = f.socket.publishes.at(-1)!.data.generation;
+				assert.deepStrictEqual({
+					beforeAcks, publications: f.socket.publishes.map(frame => ({ kind: frame.data.kind, oldGeneration: frame.data.generation === oldGeneration })),
+					distinctGeneration: newGeneration !== oldGeneration, errors: f.errors,
+				}, {
+					beforeAcks: ['message', ...Array(4).fill('chunk')],
+					publications: [
+						{ kind: 'message', oldGeneration: true }, ...Array(6).fill({ kind: 'chunk', oldGeneration: true }),
+						{ kind: 'message', oldGeneration: false },
+					],
+					distinctGeneration: true, errors: [],
+				});
+			});
+		}
+
+		test('reports payload-level queue and acknowledgement timing without contents', async () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = await fixture();
+				const lane = f.open();
+				lane.send(response(0));
+				lane.send(response(1, 'private-content'.repeat(80_000)));
+				clock.tick(20);
+				f.ack(0);
+				clock.tick(30);
+				f.ack(2);
+				clock.tick(10);
+				f.ack(1);
+				const publications = f.diagnostics.filter(event => event.phase === 'relayPublish' && event.outcome === 'succeeded');
+				const diagnostic = publications.at(-1)!;
+				const bytes = f.socket.publishByteLengths.slice(1).reduce((sum, value) => sum + value, 0);
+				assert.deepStrictEqual({
+					count: publications.length, phase: diagnostic.phase, outcome: diagnostic.outcome,
+					durationMs: diagnostic.durationMs, detail: diagnostic.detail, measurements: diagnostic.measurements,
+				}, {
+					count: 2, phase: 'relayPublish', outcome: 'succeeded', durationMs: 60,
+					detail: `bytes=${bytes}; frames=2; queueWaitMs=20; meanAckLatencyMs=35; maxAckLatencyMs=40; peakInFlight=2`,
+					measurements: { bytes, frameCount: 2, chunked: true, queueWaitMs: 20, ackLatencyMs: 70, maxAckLatencyMs: 40, peakInFlight: 2 },
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('counts every in-flight chunk toward the outstanding frame limit', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			lane.send(response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES)));
+			for (let index = 0; index < 506; index++) {
+				lane.send(response(index + 2));
+			}
+			assert.throws(() => lane.send(response(508)), /ordered publish queue exceeded its limit/);
+			const failure = f.diagnostics.find(event => event.phase === 'relayPublish' && event.outcome === 'failed');
+			const queue = Object.fromEntries(failure!.detail!.split('; ').map(field => field.split('=')));
+			assert.deepStrictEqual({
+				published: f.socket.publishes.map(frame => frame.data.kind),
+				closed: f.server.isClosed, errors: f.errors,
+				queuedFrames: queue.queuedFrames, inFlightFrames: queue.inFlightFrames,
+				lanes: queue.lanes, attemptedFrames: queue.attemptedFrames,
+			}, {
+				published: Array(4).fill('chunk'), closed: false,
+				errors: ['Mission Control ordered publish queue exceeded its limit'],
+				queuedFrames: '508', inFlightFrames: '4', lanes: '1', attemptedFrames: '1',
+			});
+		});
+
+		for (const batching of [false, true]) {
+			test(`completes a 599-resource restoration burst behind a large snapshot, batching=${batching}`, async () => {
+				const f = await fixture();
+				const lane = f.open();
+				if (batching) {
+					f.advertise();
+				}
+				const failures: string[] = [];
+				const dispatched: number[] = [];
+				let closed = false;
+				store.add(lane.onClose(() => { closed = true; }));
+				store.add(lane.onMessage(message => {
+					if (!hasKey(message, { id: true, method: true })) {
+						return;
+					}
+					dispatched.push(Number(message.id));
+					queueMicrotask(() => {
+						try {
+							lane.send(response(Number(message.id), message.method === 'resourceRead' ? 'x'.repeat(1024) : null));
+						} catch (error) {
+							failures.push(error instanceof Error ? error.message : String(error));
+						}
+					});
+				}));
+				lane.send(response(0, 'x'.repeat(7_900_000)));
+				for (let id = 1; id <= 599; id++) {
+					f.deliver(`${prefix}.client.client-a.to-host`, {
+						kind: 'message',
+						data: {
+							jsonrpc: '2.0', id, method: id <= 312 ? 'resourceRead' : 'resourceResolve',
+							params: { channel: ROOT_STATE_URI, uri: `file:///workspace/${id}.yaml` },
+						},
+					});
+				}
+				await Promise.resolve();
+				assert.deepStrictEqual({ failures: failures.length, firstFailure: failures[0], closed, errors: f.errors }, { failures: 0, firstFailure: undefined, closed: false, errors: [] });
+				let acknowledged = 0;
+				do {
+					while (acknowledged < f.socket.publishAckIds.length) {
+						f.ack(acknowledged++);
+					}
+					await Promise.resolve();
+					await Promise.resolve();
+				} while (acknowledged < f.socket.publishAckIds.length);
+				const reassembler = new Reassembler();
+				const replies = f.socket.publishes.flatMap(frame => {
+					const decoded = parseInbound({ type: 'message', from: 'group', group: frame.group, dataType: 'json', data: frame.data }, { reassembler });
+					return decoded.kind === 'payload' ? [decoded.payload] : decoded.kind === 'batch' ? decoded.payloads : [];
+				});
+				assert.deepStrictEqual({
+					dispatched, replies: replies.map(payload => {
+						const response: { readonly id?: unknown } | undefined = typeof payload === 'object' && payload !== null ? payload : undefined;
+						return response?.id;
+					}),
+					failures, closed, hostClosed: f.server.isClosed, errors: f.errors,
+				}, {
+					dispatched: Array.from({ length: 599 }, (_, index) => index + 1),
+					replies: Array.from({ length: 600 }, (_, index) => index),
+					failures: [], closed: false, hostClosed: false, errors: [],
+				});
+			});
+		}
+
+		test('holds resource admission until the complete response is acknowledged, including errors', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			for (let id = 1; id <= 66; id++) {
+				f.deliver(`${prefix}.client.client-a.to-host`, {
+					kind: 'message', data: { jsonrpc: '2.0', id, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: `file:///workspace/${id}` } },
+				});
+			}
+			const admitted = () => f.received.filter(message => hasKey(message, { method: true }) && message.method === 'resourceRead').length;
+			const before = admitted();
+			lane.send(response(1, 'x'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES)));
+			f.ack(0);
+			await Promise.resolve();
+			const afterPartialAck = admitted();
+			f.drain();
+			await Promise.resolve();
+			const afterCompleteAck = admitted();
+			lane.send({ jsonrpc: '2.0', id: 2, error: { code: -32009, message: 'Access denied' } });
+			const beforeErrorAck = admitted();
+			f.ack(f.socket.publishAckIds.length - 1);
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				before, afterPartialAck, afterCompleteAck, beforeErrorAck, afterErrorAck: admitted(),
+				closed: f.server.isClosed, errors: f.errors,
+			}, { before: 64, afterPartialAck: 64, afterCompleteAck: 65, beforeErrorAck: 65, afterErrorAck: 66, closed: false, errors: [] });
+		});
+
+		test('keeps control messages, reverse responses, and another client moving while resource admission waits', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			for (let id = 1; id <= 65; id++) {
+				f.deliver(`${prefix}.client.client-a.to-host`, {
+					kind: 'message', data: { jsonrpc: '2.0', id, method: 'resourceResolve', params: { channel: ROOT_STATE_URI, uri: `file:///workspace/${id}` } },
+				});
+			}
+			f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'message', data: { jsonrpc: '2.0', id: 100, method: 'ping' } });
+			f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'message', data: { jsonrpc: '2.0', id: 101, result: null } });
+			const other = f.open('client-b');
+			f.deliver(`${prefix}.client.client-b.to-host`, {
+				kind: 'message', data: { jsonrpc: '2.0', id: 1, method: 'resourceList', params: { channel: ROOT_STATE_URI, uri: 'file:///workspace' } },
+			});
+			other.send(response(1));
+			lane.send(response(100));
+			assert.deepStrictEqual({
+				received: f.received.map(message => hasKey(message, { id: true }) ? message.id : undefined),
+				groups: f.socket.publishes.map(publish => publish.group),
+				closed: f.server.isClosed, errors: f.errors,
+			}, {
+				received: [...Array.from({ length: 64 }, (_, index) => index + 1), 100, 101, 1],
+				groups: [`${prefix}.client.client-b.to-client`, `${prefix}.client.client-a.to-client`],
+				closed: false, errors: [],
+			});
+		});
+
+		for (const budget of ['count', 'bytes']) {
+			test(`bounds queued resource-request ${budget} and closes only the overloaded client`, async () => {
+				const f = await fixture();
+				const lane = f.open();
+				let ended = false;
+				store.add(lane.onClose(() => { ended = true; }));
+				const deliver = (id: number, padding = '') => f.deliver(`${prefix}.client.client-a.to-host`, {
+					kind: 'message',
+					data: { jsonrpc: '2.0', id, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: 'file:///workspace', padding } },
+				});
+				for (let id = 0; id < 64; id++) {
+					deliver(id);
+				}
+				const queued = budget === 'count' ? 1024 : 15;
+				const padding = budget === 'bytes' ? 'x'.repeat(1024 * 1024) : '';
+				for (let index = 0; index < queued; index++) {
+					deliver(index + 64, padding);
+				}
+				const before = { ended, errors: [...f.errors], admitted: f.received.length };
+				deliver(queued + 64, padding);
+				const other = f.open('client-b');
+				other.send(response(1));
+				assert.deepStrictEqual({
+					before, ended, errors: f.errors, admitted: f.received.length, hostClosed: f.server.isClosed,
+					lastDestination: f.socket.publishes.at(-1)?.group,
+				}, {
+					before: { ended: false, errors: [], admitted: 64 },
+					ended: true, errors: ['Mission Control resource request backlog exceeded its limit'],
+					admitted: 64, hostClosed: false, lastDestination: `${prefix}.client.client-b.to-client`,
+				});
+			});
+		}
+
+		for (const end of ['dispose', 'replacement', 'ack rejection']) {
+			test(`does not dispatch queued resource work after ${end}`, async () => {
+				const f = await fixture();
+				const lane = f.open();
+				f.deliver(`${prefix}.client.client-a.to-host`, {
+					kind: 'message', data: { jsonrpc: '2.0', id: 100, method: 'initialize', params: { clientId: 'client-a' } },
+				});
+				lane.send(response(100));
+				f.drain();
+				for (let id = 1; id <= 65; id++) {
+					f.deliver(`${prefix}.client.client-a.to-host`, {
+						kind: 'message', data: { jsonrpc: '2.0', id, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: `file:///workspace/${id}` } },
+					});
+				}
+				lane.send(response(1));
+				if (end === 'dispose') {
+					lane.dispose();
+				} else if (end === 'replacement') {
+					f.deliver(`${prefix}.client.client-a.to-host`, {
+						kind: 'message', data: { jsonrpc: '2.0', id: 101, method: 'reconnect', params: { clientId: 'client-a' } },
+					});
+				} else {
+					f.ack(f.socket.publishAckIds.length - 1, false, 'Forbidden');
+				}
+				f.drain();
+				await Promise.resolve();
+				const oldReads = f.received.filter(message => hasKey(message, { method: true }) && message.method === 'resourceRead').length;
+				if (end === 'replacement') {
+					f.deliver(`${prefix}.client.client-a.to-host`, {
+						kind: 'message', data: { jsonrpc: '2.0', id: 1, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: 'file:///workspace/replacement' } },
+					});
+				}
+				assert.deepStrictEqual({
+					oldReads,
+					totalReads: f.received.filter(message => hasKey(message, { method: true }) && message.method === 'resourceRead').length,
+					hostClosed: f.server.isClosed,
+				}, { oldReads: 64, totalReads: end === 'replacement' ? 65 : 64, hostClosed: end === 'ack rejection' });
+			});
+		}
+
+		test('rejects duplicate outstanding resource IDs but permits reuse after sending a response', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			const deliver = () => f.deliver(`${prefix}.client.client-a.to-host`, {
+				kind: 'message', data: { jsonrpc: '2.0', id: 1, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: 'file:///workspace' } },
+			});
+			deliver();
+			lane.send(response(1));
+			deliver();
+			const reusedBeforeAck = f.received.length;
+			lane.send(response(1));
+			f.drain();
+			await Promise.resolve();
+			deliver();
+			const reused = f.received.length;
+			deliver();
+			assert.deepStrictEqual({ reusedBeforeAck, reused, received: f.received.length, errors: f.errors }, {
+				reusedBeforeAck: 2, reused: 3, received: 3, errors: ['Mission Control resource request ID is already pending'],
+			});
+		});
+
+		for (const id of [65, 'queued-resource']) {
+			test(`rejects duplicate queued resource IDs: ${id}`, async () => {
+				const f = await fixture();
+				f.open();
+				const deliver = (id: number | string) => f.deliver(`${prefix}.client.client-a.to-host`, {
+					kind: 'message', data: { jsonrpc: '2.0', id, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: 'file:///workspace' } },
+				});
+				for (let id = 1; id <= 64; id++) {
+					deliver(id);
+				}
+				deliver(id);
+				const admitted = f.received.length;
+				deliver(id);
+				assert.deepStrictEqual({ admitted, received: f.received.length, errors: f.errors }, {
+					admitted: 64, received: 64, errors: ['Mission Control resource request ID is already pending'],
+				});
+			});
+		}
+
+		test('releases a queued resource ID after its admitted response is sent', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			const deliver = (id: number) => f.deliver(`${prefix}.client.client-a.to-host`, {
+				kind: 'message', data: { jsonrpc: '2.0', id, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: 'file:///workspace' } },
+			});
+			for (let id = 1; id <= 65; id++) {
+				deliver(id);
+			}
+			lane.send(response(1));
+			f.drain();
+			await Promise.resolve();
+			lane.send(response(65));
+			deliver(65);
+			f.drain();
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				received: f.received.map(message => hasKey(message, { id: true }) ? message.id : undefined), errors: f.errors,
+			}, { received: [...Array.from({ length: 65 }, (_, index) => index + 1), 65], errors: [] });
+		});
+
+		test('retains mirror backpressure credit until the in-flight event is acknowledged', async () => {
+			const f = await fixture();
+			const event = {
+				type: 'event' as const, event: 'sessionLifecycle' as const, dataType: 'json' as const,
+				data: { environment_id: 'environment', session_id: 'session', kind: 'completed' as const, at: '2030-01-01T00:00:00Z' },
+			};
+			const accepted = Array.from({ length: 128 }, () => f.server.publishMirrorEvent(event));
+			const full = f.server.publishMirrorEvent(event);
+			f.ack(0);
+			const released = f.server.publishMirrorEvent(event);
+			f.drain();
+			assert.deepStrictEqual({
+				accepted: accepted.every(result => result === undefined), full, released,
+				published: f.socket.userEvents.length, closed: f.server.isClosed, errors: f.errors,
+			}, { accepted: true, full: false, released: undefined, published: 129, closed: false, errors: [] });
+		});
 
 		test('sends immediately and packs only already-queued raw messages under one acknowledgement', async () => {
 			const f = await fixture();
@@ -585,6 +1574,18 @@ suite('Mission Control WPS', () => {
 					{ group: `${prefix}.client.client-a.to-client`, data: { kind: 'message', data: response(3), generation } },
 				],
 			});
+
+		});
+
+		test('reports service connection lifecycle independently of client lanes', async () => {
+			const f = await fixture();
+			const beforeDisposal = f.diagnostics.filter(event => event.phase === 'relayConnection').map(event => event.connected);
+			f.server.dispose();
+			assert.deepStrictEqual({
+				beforeDisposal,
+				afterDisposal: f.diagnostics.filter(event => event.phase === 'relayConnection').map(event => event.connected),
+				clientLanes: f.lanes.length,
+			}, { beforeDisposal: [true], afterDisposal: [true, false], clientLanes: 0 });
 		});
 
 		test('preserves pre-handshake support and snapshots queued payloads', async () => {
@@ -611,11 +1612,11 @@ suite('Mission Control WPS', () => {
 			const lane = f.open();
 			f.advertise();
 			lane.send(response(0));
-			for (let id = 1; id <= 512; id++) {
+			for (let id = 1; id < 512; id++) {
 				lane.send(response(id));
 			}
 			f.ack(0);
-			for (let id = 513; id < 769; id++) {
+			for (let id = 512; id < 768; id++) {
 				lane.send(response(id));
 			}
 			const event = {
@@ -629,7 +1630,7 @@ suite('Mission Control WPS', () => {
 			assert.deepStrictEqual({
 				full, freed, sizes: f.socket.publishes.map(frame => frame.data.items?.length ?? 1),
 				mirrors: f.socket.userEvents.length, closed: f.server.isClosed, errors: f.errors,
-			}, { full: false, freed: undefined, sizes: [1, 256, 256, 256], mirrors: 1, closed: false, errors: [] });
+			}, { full: false, freed: undefined, sizes: [1, 256, 256, 255], mirrors: 1, closed: false, errors: [] });
 		});
 
 		for (const accepts of [undefined, [], ['future']]) {
@@ -650,7 +1651,7 @@ suite('Mission Control WPS', () => {
 			});
 		}
 
-		test('isolates capabilities by client and preserves destination and mirror barriers', async () => {
+		test('isolates capabilities and preserves each client order without unrelated mirror barriers', async () => {
 			const f = await fixture();
 			const a = f.open();
 			const b = f.open('client-b');
@@ -671,20 +1672,17 @@ suite('Mission Control WPS', () => {
 			a.send(response(7));
 			f.drain();
 			assert.deepStrictEqual({
-				published: f.socket.publishes.map(frame => ({ group: frame.group, kind: frame.data.kind, payload: frame.data.items ?? frame.data.data })),
-				ackIds: f.socket.publishAckIds,
+				clientA: f.socket.publishes.filter(frame => frame.group.includes('.client-a.')).map(frame => ({ group: frame.group, kind: frame.data.kind, payload: frame.data.items ?? frame.data.data })),
+				clientB: f.socket.publishes.filter(frame => frame.group.includes('.client-b.')).map(frame => ({ kind: frame.data.kind, payload: frame.data.data })),
 				mirrors: f.socket.userEvents.map(event => event.event),
 			}, {
-				published: [
+				clientA: [
 					{ group: `${prefix}.client.client-a.to-client`, kind: 'message', payload: response(0) },
 					{ group: `${prefix}.client.client-a.to-client`, kind: 'batch', payload: [response(1), response(2)] },
-					{ group: `${prefix}.client.client-b.to-client`, kind: 'message', payload: response(3) },
-					{ group: `${prefix}.client.client-b.to-client`, kind: 'message', payload: response(4) },
 					{ group: `${prefix}.client.client-a.broadcast`, kind: 'batch', payload: [{ jsonrpc: '2.0', method: 'ping' }, { jsonrpc: '2.0', method: 'ping' }] },
-					{ group: `${prefix}.client.client-a.to-client`, kind: 'message', payload: response(5) },
-					{ group: `${prefix}.client.client-a.to-client`, kind: 'batch', payload: [response(6), response(7)] },
+					{ group: `${prefix}.client.client-a.to-client`, kind: 'batch', payload: [response(5), response(6), response(7)] },
 				],
-				ackIds: [4, 5, 7, 8, 9, 11, 12, 13],
+				clientB: [{ kind: 'message', payload: response(3) }, { kind: 'message', payload: response(4) }],
 				mirrors: ['sessionLifecycle'],
 			});
 		});
@@ -729,7 +1727,7 @@ suite('Mission Control WPS', () => {
 		});
 
 		for (const method of ['initialize', 'reconnect']) {
-			test(`resets negotiation on ${method} lane replacement and orders predecessor closure before successor messages`, async () => {
+			test(`resets negotiation on ${method} lane replacement without a predecessor closure`, async () => {
 				const f = await fixture();
 				const old = f.open();
 				f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'message', data: { jsonrpc: '2.0', id: 100, method: 'initialize', params: { clientId: 'client-a' } } });
@@ -744,7 +1742,7 @@ suite('Mission Control WPS', () => {
 				successor.send(response(4));
 				f.drain();
 				const oldGeneration = f.socket.publishes[0].data.generation;
-				const newGeneration = f.socket.publishes[4].data.generation;
+				const newGeneration = f.socket.publishes[3].data.generation;
 				const beforeAdvertisement = f.socket.publishes.map(frame => ({ kind: frame.data.kind, generation: frame.data.generation }));
 				f.advertise();
 				successor.send(response(5));
@@ -753,11 +1751,11 @@ suite('Mission Control WPS', () => {
 				f.drain();
 				assert.notStrictEqual(oldGeneration, newGeneration);
 				assert.deepStrictEqual({
-					beforeAdvertisement, reNegotiated: f.socket.publishes.slice(7).map(frame => frame.data), errors: f.errors,
+					beforeAdvertisement, reNegotiated: f.socket.publishes.slice(6).map(frame => frame.data), errors: f.errors,
 				}, {
 					beforeAdvertisement: [
 						{ kind: 'message', generation: oldGeneration }, { kind: 'message', generation: oldGeneration },
-						{ kind: 'message', generation: oldGeneration }, { kind: 'closed', generation: oldGeneration },
+						{ kind: 'message', generation: oldGeneration },
 						{ kind: 'message', generation: newGeneration }, { kind: 'message', generation: newGeneration }, { kind: 'message', generation: newGeneration },
 					],
 					reNegotiated: [
@@ -951,14 +1949,266 @@ suite('Mission Control WPS', () => {
 				f.advertise();
 				lane.send(response(0));
 				const payload = budget === 'bytes' ? 'x'.repeat(800 * 1024) : null;
-				const count = budget === 'bytes' ? 82 : 513;
+				const count = budget === 'bytes' ? 82 : 512;
 				for (let id = 1; id < count; id++) {
 					lane.send(response(id, payload));
 				}
 				assert.throws(() => lane.send(response(count, payload)), /ordered publish queue exceeded its limit/);
-				assert.deepStrictEqual({ closed: f.server.isClosed, kinds: f.socket.publishes.map(frame => frame.data.kind) }, { closed: budget === 'frames', kinds: ['message'] });
+				assert.deepStrictEqual({ closed: f.server.isClosed, kinds: f.socket.publishes.map(frame => frame.data.kind) }, { closed: false, kinds: ['message'] });
 			});
 		}
+
+		const mirrorFrame = (seq: number, session = 'opaque-session:/one', ns: 'ahp' | 'sdk' = 'ahp') => ({
+			type: 'event' as const, event: 'sessionEvents' as const, dataType: 'json' as const,
+			data: ns === 'ahp'
+				? { environment_id: 'environment', session_id: session, ns, seq, at: '2030-01-01T00:00:00Z', payload: { kind: 'message' as const, data: response(seq) } }
+				: { environment_id: 'environment', session_id: session, ns, seq, at: '2030-01-01T00:00:00Z', payload: { type: 'session.idle', data: {} } },
+		});
+
+		test('keeps independent clients and mirror streams in flight while one client is stalled', async () => {
+			const f = await fixture();
+			const a = f.open();
+			const b = f.open('client-b');
+			f.advertise();
+			f.advertise('client-b');
+			a.send(response(0));
+			b.send(response(10));
+			f.server.publishMirrorEvent(mirrorFrame(0));
+			f.server.publishMirrorEvent(mirrorFrame(0, 'opaque-session:/one', 'sdk'));
+			f.server.publishMirrorEvent(mirrorFrame(0, 'opaque-session:/two'));
+			a.send(response(1));
+			b.send(response(11));
+			a.send(response(2));
+			b.send(response(12));
+			const before = { clients: f.socket.publishes.length, mirrors: f.socket.userEvents.length };
+			f.ack(1);
+			assert.deepStrictEqual({
+				before,
+				last: f.socket.publishes.at(-1)?.data.items,
+				blockedClientFrames: f.socket.publishes.filter(frame => frame.group.includes('.client-a.')).length,
+			}, { before: { clients: 2, mirrors: 3 }, last: [response(11), response(12)], blockedClientFrames: 1 });
+			f.drain();
+		});
+
+		test('closes an overloaded client without closing the host or losing another client queue', async () => {
+			const f = await fixture();
+			const a = f.open();
+			const b = f.open('client-b');
+			a.send(response(0));
+			b.send(response(1000));
+			for (let id = 1; id < 511; id++) {
+				a.send(response(id));
+			}
+			assert.throws(() => a.send(response(511)), /ordered publish queue exceeded/);
+			b.send(response(1001));
+			f.ack(1);
+			const before = f.server.isClosed;
+			f.drain();
+			assert.deepStrictEqual({
+				before, after: f.server.isClosed,
+				clientB: f.socket.publishes.filter(frame => frame.group.includes('.client-b.')).map(frame => frame.data.data),
+				clientA: f.socket.publishes.filter(frame => frame.group.includes('.client-a.')).map(frame => frame.data.kind),
+				errors: f.errors,
+			}, {
+				before: false, after: false,
+				clientB: [response(1000), response(1001)], clientA: ['message', 'closed'],
+				errors: ['Mission Control ordered publish queue exceeded its limit'],
+			});
+		});
+
+		test('preserves lifecycle barriers across both mirror namespaces but not unrelated sessions or clients', async () => {
+			const f = await fixture();
+			f.server.publishMirrorEvent(mirrorFrame(0));
+			f.server.publishMirrorEvent(mirrorFrame(0, 'opaque-session:/one', 'sdk'));
+			f.server.publishMirrorEvent({
+				type: 'event', event: 'sessionLifecycle', dataType: 'json',
+				data: { environment_id: 'environment', session_id: 'opaque-session:/one', kind: 'completed', at: '2030-01-01T00:00:00Z' },
+			});
+			f.server.publishMirrorEvent(mirrorFrame(1));
+			f.server.publishMirrorEvent(mirrorFrame(1, 'opaque-session:/one', 'sdk'));
+			f.server.publishMirrorEvent(mirrorFrame(0, 'opaque-session:/two'));
+			f.open().send(response(100));
+			const before = f.socket.userEvents.length;
+			f.ack(0);
+			const afterAhp = f.socket.userEvents.length;
+			f.ack(1);
+			const afterSdk = f.socket.userEvents.map(event => event.event);
+			const lifecycleAck = f.socket.publishAckIds.length - 1;
+			f.ack(lifecycleAck);
+			assert.deepStrictEqual({
+				before, afterAhp, afterSdk,
+				final: f.socket.userEvents.map(event => event.event), clients: f.socket.publishes.length,
+			}, {
+				before: 3, afterAhp: 3,
+				afterSdk: ['sessionEvents', 'sessionEvents', 'sessionEvents', 'sessionLifecycle'],
+				final: ['sessionEvents', 'sessionEvents', 'sessionEvents', 'sessionLifecycle', 'sessionEvents', 'sessionEvents'],
+				clients: 1,
+			});
+			f.drain();
+		});
+
+		test('uses only the negotiated existing mirror batch format and preserves queued frame identities', async () => {
+			const f = await fixture();
+			f.server.setSessionEventsFormats(['future', 'batch-v1']);
+			const frames = [mirrorFrame(0), mirrorFrame(1), mirrorFrame(2)];
+			for (const frame of frames) {
+				f.server.publishMirrorEvent(frame);
+			}
+			f.ack(0);
+			assert.deepStrictEqual(f.socket.userEvents.map(event => event.data), [
+				frames[0].data, { kind: 'batch', items: [frames[1].data, frames[2].data] },
+			]);
+			f.drain();
+		});
+
+		test('keeps aggregate publish concurrency and bytes bounded across independent queues', async () => {
+			const f = await fixture();
+			for (let seq = 0; seq < 100; seq++) {
+				f.server.publishMirrorEvent(mirrorFrame(0, `opaque:/session-${seq}`));
+			}
+			const g = await fixture();
+			const payload = 'x'.repeat(800 * 1024);
+			for (let client = 0; client < 10; client++) {
+				g.open(`client-${client}`).send(response(client, payload));
+			}
+			assert.deepStrictEqual({
+				pendingCommands: f.socket.publishAckIds.length,
+				pendingLargeCommands: g.socket.publishAckIds.length,
+				withinBytes: g.socket.publicationByteLengths.reduce((sum, bytes) => sum + bytes, 0) <= 4 * 1024 * 1024,
+			}, { pendingCommands: 64, pendingLargeCommands: 5, withinBytes: true });
+			f.drain();
+			g.drain();
+		});
+
+		test('releases packed mirror queue credit only when the batch service acknowledgement arrives', async () => {
+			const f = await fixture();
+			f.server.setSessionEventsFormats(['batch-v1']);
+			for (let seq = 0; seq < 128; seq++) {
+				assert.strictEqual(f.server.publishMirrorEvent(mirrorFrame(seq)), undefined);
+			}
+			const full = f.server.publishMirrorEvent(mirrorFrame(128));
+			f.ack(0);
+			const oneReleased = f.server.publishMirrorEvent(mirrorFrame(128));
+			const stillFull = f.server.publishMirrorEvent(mirrorFrame(129));
+			f.ack(1);
+			const batchReleased = f.server.publishMirrorEvent(mirrorFrame(129));
+			f.drain();
+			assert.deepStrictEqual({
+				full, oneReleased, stillFull, batchReleased,
+				batchSizes: f.socket.userEvents.map(event => Array.isArray(event.data.items) ? event.data.items.length : 1),
+			}, { full: false, oneReleased: undefined, stillFull: false, batchReleased: undefined, batchSizes: [1, 127, 1, 1] });
+		});
+
+		test('retains every packed AHP frame until its durable ingest watermark, not the batch service ACK', async () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const mirror = store.add(new MissionControlSessionMirror('environment', {}, new NullLogService()));
+				const session = 'custom-session:/durable';
+				mirror.registerSession(session);
+				const f = await fixture(mirror);
+				f.server.setSessionEventsFormats(['batch-v1']);
+				store.add(mirror.attach(event => f.server.publishMirrorEvent(event)));
+				for (let seq = 0; seq < 3; seq++) {
+					mirror.enqueue({
+						channel: session, serverSeq: seq + 100, origin: undefined,
+						action: { type: ActionType.SessionTitleChanged, title: `Title ${seq}` },
+					}, session);
+				}
+				await clock.tickAsync(5);
+				f.ack(0);
+				f.ack(1);
+				const beforeIngest = mirror.getSessionStatus(session);
+				mirror.ingestAck({ watermarks: { [session]: { ahp: 2 } } });
+				assert.deepStrictEqual({
+					batch: f.socket.userEvents[1].data,
+					retainedAfterServiceAck: beforeIngest.retainedFrames,
+					retainedAfterDurableAck: mirror.getSessionStatus(session).retainedFrames,
+				}, {
+					batch: {
+						kind: 'batch', items: [1, 2].map(seq => ({
+							environment_id: 'environment', session_id: session, ns: 'ahp', seq, at: new Date(clock.now - 5).toISOString(),
+							payload: {
+								kind: 'message', data: {
+									channel: session, serverSeq: seq + 100, action: { type: ActionType.SessionTitleChanged, title: `Title ${seq}` },
+								}
+							},
+						}))
+					},
+					retainedAfterServiceAck: 3, retainedAfterDurableAck: 0,
+				});
+				f.server.dispose();
+				mirror.dispose();
+			} finally {
+				clock.restore();
+			}
+		});
+
+		for (const formats of [undefined, [], ['future'], ['BATCH-V1']]) {
+			test(`keeps single mirror frames for ${JSON.stringify(formats)} formats`, async () => {
+				const f = await fixture();
+				f.server.setSessionEventsFormats(formats);
+				const frames = [mirrorFrame(0), mirrorFrame(1), mirrorFrame(2)];
+				for (const frame of frames) {
+					f.server.publishMirrorEvent(frame);
+				}
+				f.drain();
+				assert.deepStrictEqual(f.socket.userEvents.map(event => event.data), frames.map(frame => frame.data));
+			});
+		}
+
+		test('rechecks mirror capability at publish time without disrupting a client lane', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			f.server.setSessionEventsFormats(['batch-v1']);
+			f.server.publishMirrorEvent(mirrorFrame(0));
+			f.server.publishMirrorEvent(mirrorFrame(1));
+			f.server.publishMirrorEvent(mirrorFrame(2));
+			f.server.setSessionEventsFormats(undefined);
+			lane.send(response(100));
+			f.ack(0);
+			f.server.setSessionEventsFormats(['batch-v1']);
+			f.server.publishMirrorEvent(mirrorFrame(3));
+			f.ack(2);
+			assert.deepStrictEqual({
+				events: f.socket.userEvents.map(event => event.data),
+				clients: f.socket.publishes.map(frame => frame.data.kind),
+				closed: f.server.isClosed,
+			}, {
+				events: [mirrorFrame(0).data, mirrorFrame(1).data, { kind: 'batch', items: [mirrorFrame(2).data, mirrorFrame(3).data] }],
+				clients: ['message'], closed: false,
+			});
+			f.drain();
+		});
+
+		test('keeps an AHP sequence gap as separate publications and caps mirror batch bytes', async () => {
+			const f = await fixture();
+			f.server.setSessionEventsFormats(['batch-v1']);
+			const frames = [mirrorFrame(0), mirrorFrame(1), mirrorFrame(3), mirrorFrame(4)];
+			for (const frame of frames) {
+				f.server.publishMirrorEvent(frame);
+			}
+			f.drain();
+			const g = await fixture();
+			g.server.setSessionEventsFormats(['batch-v1']);
+			const large = (seq: number) => ({
+				type: 'event' as const, event: 'sessionEvents' as const, dataType: 'json' as const,
+				data: {
+					environment_id: 'environment', session_id: 'opaque-session:/one', ns: 'ahp' as const, seq, at: '2030-01-01T00:00:00Z',
+					payload: { kind: 'message' as const, data: response(seq, '\u00e9'.repeat(240_000)) },
+				},
+			});
+			g.server.publishMirrorEvent(mirrorFrame(0));
+			g.server.publishMirrorEvent(large(1));
+			g.server.publishMirrorEvent(large(2));
+			g.drain();
+			assert.deepStrictEqual({
+				events: f.socket.userEvents.map(event => event.data),
+				largeFrames: g.socket.userEvents.map(event => hasKey(event.data, { kind: true })),
+			}, {
+				events: [frames[0].data, frames[1].data, { kind: 'batch', items: [frames[2].data, frames[3].data] }],
+				largeFrames: [false, false, false],
+			});
+		});
 	});
 
 	test('mirrors authoritative actions as user events and accepts only signed retained backfill', async () => {
@@ -1103,7 +2353,8 @@ suite('Mission Control WPS', () => {
 		try {
 			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path] }), {
 				name: 'CloudSandboxRequestError',
-				message: `Mission Control request failed (503) (requestId=${requestId}): Registration unavailable; token=[redacted]`,
+				message: `Mission Control request failed (503) (requestId=${requestId})`,
+				requestId, statusCode: 503,
 			});
 		} finally {
 			service.dispose();
@@ -1111,7 +2362,7 @@ suite('Mission Control WPS', () => {
 		}
 	});
 
-	test('relay authentication metadata preserves the identity authority across handshake generations', async () => {
+	test('relay authentication metadata preserves the identity authority and canonical owner across handshake generations', async () => {
 		await MissionControlSealing.ready();
 		const sealing = store.add(new MissionControlSealing());
 		const resource = 'https://api.enterprise.example';
@@ -1140,9 +2391,9 @@ suite('Mission Control WPS', () => {
 		const authorized = lane.relayAuthentication;
 		authentication.beginHandshake();
 		assert.deepStrictEqual({ before, authorized, after: lane.relayAuthentication }, {
-			before: { resource, authenticated: false },
-			authorized: { resource, authenticated: true },
-			after: { resource, authenticated: false },
+			before: { resource, owner: '123', authenticated: false },
+			authorized: { resource, owner: '123', authenticated: true },
+			after: { resource, owner: '123', authenticated: false },
 		});
 	});
 
@@ -1266,8 +2517,13 @@ suite('Mission Control WPS', () => {
 			const persisted = (JSON.parse(await readFile(join(path, 'agent-host-mission-control-id'), 'utf8')) as { id: string }).id;
 			const rebind = await service.configure({ ...options, accountId: 'other' }).then(() => 'accepted', () => 'rejected');
 			await service.configure(undefined);
-			assert.deepStrictEqual(diagnostics.filter(event => event.outcome === 'info').map(event => ({ phase: event.phase, durationMs: event.durationMs })), [
+			assert.deepStrictEqual(diagnostics.filter(event => event.phase === 'relayDisconnected').map(event => ({ phase: event.phase, durationMs: event.durationMs })), [
 				{ phase: 'relayDisconnected', durationMs: 60_000 },
+			]);
+			assert.deepStrictEqual(diagnostics.filter(event => event.phase === 'heartbeatResponse').map(event => event.detail), [
+				'environmentId=environment; advertisedStatus=online; httpStatus=200; relayConnected=true; nextHeartbeatInMs=60000; retryAfterMs=0; requestId=none',
+				'environmentId=environment; advertisedStatus=online; httpStatus=200; relayConnected=true; nextHeartbeatInMs=60000; retryAfterMs=0; requestId=none',
+				'environmentId=environment; advertisedStatus=offline; httpStatus=200; relayConnected=false; nextHeartbeatInMs=60000; retryAfterMs=0; requestId=none',
 			]);
 			assert.deepStrictEqual(diagnostics.filter(event => event.phase === 'relay').map(event => event.outcome), ['started', 'succeeded', 'started', 'succeeded']);
 			assert.deepStrictEqual({
@@ -1312,25 +2568,34 @@ suite('Mission Control WPS', () => {
 				service: MissionControlEnvironment;
 				clock: sinon.SinonFakeTimers;
 				heartbeats: { time: number; status: string }[];
+				diagnostics: IConnectionDiagnosticEvent[];
 				errors: string[];
 				sockets: FakeWpsSocket[];
 				options: IMissionControlOptions;
 				changeIdentityAuthority: (base: string) => void;
 				tokens: number[];
 				directory: string;
-				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[];
+				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; useLocalCredentials?: boolean; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[];
 				readonly projectUpdates: number;
 				signedSpawn: (clientId: string, nonce: string) => object;
 				requests: { path: string; credential: string | null; body?: Record<string, unknown> }[];
 				delayHeartbeat: () => { started: Promise<void>; complete: (response?: Response) => Promise<void> };
 				delayIdentity: () => { started: Promise<void>; complete: (response: Response) => Promise<void> };
 				changePolicy: (policy: Record<string, unknown> | undefined) => Promise<void>;
+				refreshPolicy: () => void;
+				/** Resolves once `count` errors were reported, without advancing the fake clock. */
+				waitForErrors: (count: number) => Promise<void>;
+				setSessionEventsFormats: (formats: readonly string[] | undefined) => void;
 			}) => Promise<void>,
 			bootstrapLifetime?: number,
 			openWorkspace = false,
 			overrides: {
 				ignoreRemoteControlPolicy?: boolean;
 				getRemoteControlPolicy?: () => Promise<Record<string, unknown> | undefined>;
+				sessionEventsFormats?: readonly string[];
+				manualPublishAcks?: boolean;
+				tokenReplies?: readonly { status: number; retryAfter?: string; body: object }[];
+				failSigningKeyRefresh?: boolean;
 			} = {},
 		): Promise<void> {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-retry-after-'));
@@ -1339,22 +2604,25 @@ suite('Mission Control WPS', () => {
 			try {
 				const { key, signed } = signingFixture('test-key', '123');
 				const heartbeats: { time: number; status: string }[] = [];
+				const diagnostics: IConnectionDiagnosticEvent[] = [];
 				const errors: string[] = [];
 				const sockets: FakeWpsSocket[] = [];
 				const tokens: number[] = [];
 				const requests: { path: string; credential: string | null; body?: Record<string, unknown> }[] = [];
-				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
+				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; useLocalCredentials?: boolean; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
 				let projectUpdates = 0;
+				let signingKeyRequests = 0;
 				let delayedHeartbeat: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let delayedIdentity: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let policy: Record<string, unknown> | undefined;
 				let policyReported: DeferredPromise<void> | undefined;
 				const policyChanged = store.add(new Emitter<void>());
+				const errorReported = store.add(new Emitter<void>());
 				let identityApiBase = 'https://api.github.com';
 				const identityAuthorityChanged = store.add(new Emitter<void>());
 				const environment = {
 					id: 'environment', kind: 'user-local', user_id: '123', owner_id: '123', owner_type: 'user',
-					webpubsub: { url: 'wss://wps.test/client/hubs/test', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: 'user.123.env.environment.control' }, ...(bootstrapLifetime === undefined ? {} : { expires_at: new Date(clock.now + bootstrapLifetime).toISOString() }) },
+					webpubsub: { url: 'wss://wps.test/client/hubs/test', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: 'user.123.env.environment.control' }, session_events_formats: overrides.sessionEventsFormats, ...(bootstrapLifetime === undefined ? {} : { expires_at: new Date(clock.now + bootstrapLifetime).toISOString() }) },
 				};
 				service = store.add(new MissionControlEnvironment({
 					userDataPath: path,
@@ -1372,9 +2640,17 @@ suite('Mission Control WPS', () => {
 							await delayed.started.complete();
 							return delayed.response.p;
 						}
+						if (url.pathname.endsWith('/jwks.json') && overrides.failSigningKeyRefresh && signingKeyRequests++ > 0) {
+							return Response.json({ error_code: 'service_unavailable' }, { status: 503, headers: { 'Retry-After': '2' } });
+						}
 						if (url.pathname.endsWith('/token')) {
+							const reply = overrides.tokenReplies?.[tokens.length];
 							tokens.push(clock.now - Date.UTC(2026, 9, 2));
-							return Response.json({ ...environment.webpubsub, wps_endpoint: environment.webpubsub.url, expires_at: new Date(clock.now + 120_000).toISOString() });
+							if (reply) {
+								return Response.json(reply.body, { status: reply.status, headers: reply.retryAfter ? { 'Retry-After': reply.retryAfter } : {} });
+							}
+							environment.webpubsub.expires_at = new Date(clock.now + 120_000).toISOString();
+							return Response.json({ ...environment.webpubsub, session_events_formats: undefined, wps_endpoint: environment.webpubsub.url, expires_at: new Date(clock.now + 120_000).toISOString() });
 						}
 						if (url.pathname.endsWith('/heartbeat')) {
 							const reply = replies[heartbeats.length];
@@ -1390,14 +2666,18 @@ suite('Mission Control WPS', () => {
 						}
 						return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
 					},
-					attach: (server, initialRoots, getRoots, getProjects, defaultDirectory) => {
-						attachments.push({ initialRoots, getRoots, getProjects, defaultDirectory, rootMeta: server.rootMeta, server });
+					attach: (server, initialRoots, getRoots, getProjects, defaultDirectory, useLocalCredentials) => {
+						attachments.push({ initialRoots, getRoots, getProjects, defaultDirectory, useLocalCredentials, rootMeta: server.rootMeta, server });
 						return { dispose() { } };
 					},
 					updateProjects: async () => { projectUpdates++; },
-					onError: error => errors.push(error instanceof Error ? error.message : String(error)),
+					onError: error => {
+						errors.push(error instanceof Error ? error.message : String(error));
+						errorReported.fire();
+					},
+					onDiagnostic: event => diagnostics.push(event),
 					socketFactory: () => {
-						const socket = new FakeWpsSocket();
+						const socket = new FakeWpsSocket(true, overrides.manualPublishAcks);
 						sockets.push(socket);
 						queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
 						return socket;
@@ -1411,7 +2691,8 @@ suite('Mission Control WPS', () => {
 				const options: IMissionControlOptions = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: openWorkspace ? [path] : [], ...(overrides.ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}) };
 				await service.configure(options);
 				await run({
-					service, clock, heartbeats, errors, sockets, options, tokens, directory: path, attachments, requests, signedSpawn: signed,
+					service, clock, heartbeats, diagnostics, errors, sockets, options, tokens, directory: path, attachments, requests, signedSpawn: signed,
+					setSessionEventsFormats: formats => { environment.webpubsub.session_events_formats = formats; },
 					get projectUpdates() { return projectUpdates; },
 					delayHeartbeat: () => {
 						const started = new DeferredPromise<void>();
@@ -1436,6 +2717,12 @@ suite('Mission Control WPS', () => {
 						identityApiBase = base;
 						identityAuthorityChanged.fire();
 					},
+					refreshPolicy: () => policyChanged.fire(),
+					waitForErrors: async count => {
+						while (errors.length < count) {
+							await Event.toPromise(errorReported.event);
+						}
+					},
 				});
 			} finally {
 				service?.dispose();
@@ -1444,7 +2731,185 @@ suite('Mission Control WPS', () => {
 			}
 		}
 
-		test('delegates only when opted in, fences prior lanes on mode/token changes, and withdraws immediately', async () => {
+		test('a coded 403 rate limit preserves the relay and resumes after Retry-After', async () => {
+			await withEnvironment([{}, { status: 403, retryAfter: '90', body: JSON.stringify({ error_code: 'rate_limit_exceeded', limited_resource: 'api' }) }],
+				async ({ clock, sockets, heartbeats, errors }) => {
+					await clock.tickAsync(149_999);
+					const before = { requests: heartbeats.length, closed: sockets[0].closed };
+					await clock.tickAsync(1);
+					assert.deepStrictEqual({ before, heartbeats, closed: sockets[0].closed, errors }, {
+						before: { requests: 2, closed: false },
+						heartbeats: [{ time: 0, status: 'online' }, { time: 60_000, status: 'online' }, { time: 150_000, status: 'online' }],
+						closed: false, errors: ['Mission Control request failed (403) code=rate_limit_exceeded'],
+					});
+				});
+		});
+
+		test('failed heartbeats use server pacing and retain their retry budget through policy refreshes', async () => {
+			const failure = { status: 429, retryAfter: '2', body: JSON.stringify({ error_code: 'rate_limit_exceeded' }) };
+			await withEnvironment([{}, ...Array.from({ length: 8 }, () => failure)], async ({ clock, heartbeats, sockets, errors, refreshPolicy }) => {
+				await clock.tickAsync(61_000);
+				refreshPolicy();
+				await clock.tickAsync(299_000);
+				assert.deepStrictEqual({ heartbeats, errors, closed: sockets[0].closed }, {
+					heartbeats: [0, 60_000, 62_000, 64_000, 68_000].map(time => ({ time, status: 'online' })),
+					errors: Array(4).fill('Mission Control request failed (429) code=rate_limit_exceeded'),
+					closed: false,
+				});
+			});
+		});
+
+		test('a same-valued policy refresh cannot reset failed signing-key recovery without remote work', async () => {
+			await withEnvironment([], async ({ clock, heartbeats, requests, errors, refreshPolicy, waitForErrors }) => {
+				// A failed refresh settles through real async work; let it be reported before moving the fake clock past it.
+				await clock.tickAsync(300_000);
+				await waitForErrors(1);
+				await clock.tickAsync(1_000);
+				refreshPolicy();
+				await clock.tickAsync(59_000);
+				await waitForErrors(2);
+				await clock.tickAsync(240_000);
+				assert.deepStrictEqual({
+					signingKeyRequests: requests.filter(request => request.path.endsWith('/jwks.json')).length,
+					heartbeats,
+					errors,
+				}, {
+					signingKeyRequests: 3,
+					heartbeats: [0, 60_000, 120_000, 180_000, 240_000, 300_000, 360_000].map(time => ({ time, status: 'online' })),
+					errors: [
+						'Mission Control request failed (503) code=service_unavailable',
+						'Mission Control request failed (503) code=service_unavailable',
+						'Mission Control request retry budget exhausted; reconfigure the environment to reconnect.',
+					],
+				});
+			}, undefined, false, { failSigningKeyRefresh: true });
+		});
+
+		test('heartbeat failures and disconnected-relay recovery share one retry budget', async () => {
+			const failure = { status: 503, retryAfter: '2', body: JSON.stringify({ error_code: 'service_unavailable' }) };
+			await withEnvironment([{}, failure], async ({ clock, heartbeats, tokens, sockets, errors }) => {
+				await clock.tickAsync(60_000);
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(300_000);
+				assert.deepStrictEqual({ heartbeats, tokens, closed: sockets[0].closed, errors }, {
+					heartbeats: [0, 60_000].map(time => ({ time, status: 'online' })),
+					tokens: [62_000, 64_000, 68_000], closed: true,
+					errors: [
+						'Mission Control request failed (503) code=service_unavailable',
+						'Mission Control WPS socket closed (code 1006)',
+						...Array(3).fill('Mission Control request failed (503) code=service_unavailable'),
+					],
+				});
+			}, undefined, false, {
+				tokenReplies: Array.from({ length: 8 }, () => ({ status: 503, retryAfter: '2', body: { error_code: 'service_unavailable' } })),
+			});
+		});
+
+		for (const [status, code] of [[401, 'unauthenticated'], [403, 'forbidden'], [501, 'not_implemented']] as const) {
+			test(`${code} stops check-ins until an explicit credential reconfiguration`, async () => {
+				await withEnvironment([{}, { status, body: JSON.stringify({ error_code: code }) }], async ({ service, clock, sockets, heartbeats, errors, options }) => {
+					await clock.tickAsync(300_000);
+					const before = { requests: heartbeats.length, closed: sockets[0].closed };
+					await service.configure({ ...options, credential: 'replacement-token' });
+					assert.deepStrictEqual({ before, requests: heartbeats.length, sockets: sockets.length, lastClosed: sockets.at(-1)?.closed, errors }, {
+						before: { requests: 2, closed: true }, requests: 3, sockets: 2, lastClosed: false,
+						errors: [`Mission Control request failed (${status}) code=${code}`],
+					});
+				});
+			});
+		}
+
+		for (const [status, code] of [[429, 'rate_limit_exceeded'], [503, 'service_unavailable']] as const) {
+			test(`token ${code} honors Retry-After without interrupting a live relay`, async () => {
+				await withEnvironment([], async ({ clock, tokens, sockets, errors }) => {
+					await clock.tickAsync(134_999);
+					const beforeDeadline = tokens.length;
+					await clock.tickAsync(1);
+					assert.deepStrictEqual({ beforeDeadline, tokens, closed: sockets[0].closed, errors }, {
+						beforeDeadline: 1, tokens: [90_000, 135_000], closed: false,
+						errors: [`Mission Control request failed (${status}) code=${code}`],
+					});
+				}, 120_000, false, { tokenReplies: [{ status, retryAfter: '45', body: { error_code: code } }] });
+			});
+		}
+
+		test('token internal_error stops after two retries rather than polling indefinitely', async () => {
+			await withEnvironment([], async ({ clock, tokens, errors, sockets }) => {
+				await clock.tickAsync(600_000);
+				assert.deepStrictEqual({ attempts: tokens.length, errors, closed: sockets[0].closed }, {
+					attempts: 3, errors: Array(3).fill('Mission Control request failed (500) code=internal_error'), closed: false,
+				});
+			}, 120_000, false, {
+				tokenReplies: Array.from({ length: 5 }, () => ({ status: 500, body: { error_code: 'internal_error' } })),
+			});
+		});
+
+		test('token rate limits beyond the elapsed budget stop without an early retry', async () => {
+			await withEnvironment([], async ({ clock, tokens, sockets, errors }) => {
+				await clock.tickAsync(600_000);
+				assert.deepStrictEqual({ tokens, closed: sockets[0].closed, errors }, {
+					tokens: [90_000], closed: false, errors: ['Mission Control request failed (429) code=rate_limit_exceeded'],
+				});
+			}, 120_000, false, {
+				tokenReplies: [{ status: 429, retryAfter: '300', body: { error_code: 'rate_limit_exceeded' } }],
+			});
+		});
+
+		test('credential reconfiguration cannot bypass a token Retry-After', async () => {
+			await withEnvironment([], async ({ service, options, clock, tokens, sockets, errors }) => {
+				await clock.tickAsync(100_000);
+				await service.configure({ ...options, credential: 'replacement-token' });
+				await clock.tickAsync(34_999);
+				const beforeDeadline = { tokens: [...tokens], sockets: sockets.length };
+				await clock.tickAsync(1);
+				assert.deepStrictEqual({ beforeDeadline, tokens, sockets: sockets.length, errors }, {
+					beforeDeadline: { tokens: [90_000], sockets: 1 }, tokens: [90_000, 135_000], sockets: 2,
+					errors: ['Mission Control request failed (429) code=rate_limit_exceeded'],
+				});
+			}, 120_000, false, {
+				tokenReplies: [{ status: 429, retryAfter: '45', body: { error_code: 'rate_limit_exceeded' } }],
+			});
+		});
+
+		test('replaces mirror format declarations on heartbeat without replacing live relay lanes', async () => {
+			await withEnvironment([], async ({ clock, sockets, attachments, errors, setSessionEventsFormats }) => {
+				const server = attachments[0].server;
+				const formats = sinon.spy(server, 'setSessionEventsFormats');
+				setSessionEventsFormats(['future', 'batch-v1']);
+				await clock.tickAsync(60_000);
+				setSessionEventsFormats(undefined);
+				await clock.tickAsync(60_000);
+				assert.deepStrictEqual({
+					updates: formats.args.map(args => args[0]),
+					sockets: sockets.length, sameServer: attachments[0].server === server, closed: server.isClosed, errors,
+				}, { updates: [['future', 'batch-v1'], undefined], sockets: 1, sameServer: true, closed: false, errors: [] });
+			});
+		});
+
+		test('preserves register-negotiated mirror formats across token-only refresh and relay replacement', async () => {
+			await withEnvironment([{ retryAfter: '300' }], async ({ clock, sockets, attachments, errors }) => {
+				await clock.tickAsync(90_000);
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(2000);
+				const socket = sockets.at(-1)!;
+				const server = attachments.at(-1)!.server;
+				const event = (seq: number) => ({
+					type: 'event' as const, event: 'sessionEvents' as const, dataType: 'json' as const,
+					data: { environment_id: 'environment', session_id: 'opaque:/session', ns: 'ahp' as const, seq, at: '2026-10-02T00:00:00Z', payload: { kind: 'message' as const, data: { value: seq } } },
+				});
+				server.publishMirrorEvent(event(0));
+				server.publishMirrorEvent(event(1));
+				server.publishMirrorEvent(event(2));
+				socket.emit('message', JSON.stringify({ type: 'ack', ackId: socket.publishAckIds[0], success: true }));
+				assert.deepStrictEqual({
+					sockets: sockets.length, errors,
+					events: socket.userEvents.map(frame => frame.data),
+				}, { sockets: 2, errors: ['Mission Control WPS socket closed (code 1006)'], events: [event(0).data, { kind: 'batch', items: [event(1).data, event(2).data] }] });
+				socket.emit('message', JSON.stringify({ type: 'ack', ackId: socket.publishAckIds[1], success: true }));
+			}, 120_000, false, { sessionEventsFormats: ['batch-v1'], manualPublishAcks: true });
+		});
+
+		test('preserves client credentials, fences prior lanes on registration credential changes, and withdraws immediately', async () => {
 			await withEnvironment([], async ({ service, options, sockets, attachments, signedSpawn, delayIdentity }) => {
 				const openLane = (clientId: string) => {
 					const server = attachments[attachments.length - 1].server;
@@ -1469,29 +2934,23 @@ suite('Mission Control WPS', () => {
 				const resource = 'https://api.github.com';
 				const remoteToken = await sealRemote(resource, 'auth-token', 'mobile-token');
 				const defaultLane = openLane('default-client');
-				assert.deepStrictEqual(await defaultLane.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'mobile-token' });
-				await service.configure({ ...options, useLocalCredentials: true });
-				await assert.rejects(defaultLane.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
-				const delegated = openLane('delegated-client');
-				assert.deepStrictEqual(await delegated.relayAuthenticate!({ resource, token: remoteToken, expiresIn: 1, scopes: ['mobile'] }), {
-					resource, token: 'fake-token',
+				assert.deepStrictEqual(await defaultLane.relayAuthenticate!({ resource, token: remoteToken, expiresIn: 1, scopes: ['mobile'] }), {
+					resource, token: 'mobile-token', scopes: ['mobile'],
 				});
 				const delayed = delayIdentity();
-				const pending = delegated.relayAuthenticate!({ resource, token: remoteToken });
+				const pending = defaultLane.relayAuthenticate!({ resource, token: remoteToken });
 				const rejected = assert.rejects(pending, /expired handshake|closed/);
 				await delayed.started;
-				await service.configure({ ...options, useLocalCredentials: true, credential: 'refreshed-token' });
+				await service.configure({ ...options, credential: 'refreshed-token' });
 				await delayed.complete(Response.json({ id: 123, type: 'User' }));
 				await rejected;
-				await assert.rejects(delegated.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
+				await assert.rejects(defaultLane.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
 				const refreshed = openLane('refreshed-client');
-				assert.deepStrictEqual(await refreshed.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'refreshed-token' });
+				assert.deepStrictEqual(await refreshed.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'mobile-token' });
 				await service.configure({ ...options, credential: 'refreshed-token' });
-				await assert.rejects(refreshed.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
-				const disabled = openLane('disabled-client');
-				assert.deepStrictEqual(await disabled.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'mobile-token' });
+				assert.deepStrictEqual(await refreshed.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'mobile-token' });
 				await service.configure(undefined, options.accountId);
-				await assert.rejects(disabled.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
+				await assert.rejects(refreshed.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
 			});
 		});
 
@@ -1518,23 +2977,25 @@ suite('Mission Control WPS', () => {
 			});
 		});
 
-		test('keeps actionable HTTP server messages local and redacts credentials without logging other response fields', async () => {
+		test('reports safe error codes without logging server messages or other response fields', async () => {
 			await withEnvironment([{}, {
 				status: 503,
-				body: JSON.stringify({ message: 'Relay unavailable; token=private-token', access_token: 'private-token', privateBody: 'private response body' }),
+				body: JSON.stringify({ error_code: 'backend_error', message: 'Relay unavailable; token=private-token', access_token: 'private-token', privateBody: 'private response body' }),
 			}], async ({ clock, errors }) => {
 				await clock.tickAsync(60_000);
-				assert.deepStrictEqual(errors, ['Mission Control request failed (503): Relay unavailable; token=[redacted]']);
+				assert.deepStrictEqual(errors, ['Mission Control request failed (503) code=backend_error']);
 			});
 		});
 
 		for (const header of ['ABCD:1234:5678:90AB:CDEF', 'invalid-request-id', 'ghp_secret', 'A'.repeat(129)]) {
 			test(`validates GitHub request correlation on failed heartbeats: ${header}`, async () => {
-				await withEnvironment([{}, { status: 503, body: '{}', headers: { 'x-github-request-id': header } }], async ({ clock, errors }) => {
+				await withEnvironment([{}, { status: 503, body: '{}', headers: { 'x-github-request-id': header } }], async ({ clock, errors, diagnostics }) => {
 					await clock.tickAsync(60_000);
-					assert.deepStrictEqual(errors, [
-						`Mission Control request failed (503)${header === 'ABCD:1234:5678:90AB:CDEF' ? ` (requestId=${header})` : ''}`,
-					]);
+					assert.deepStrictEqual({ errors, response: diagnostics.filter(event => event.phase === 'heartbeatResponse').at(-1)?.detail }, {
+						errors: [
+							`Mission Control request failed (503)${header === 'ABCD:1234:5678:90AB:CDEF' ? ` (requestId=${header})` : ''}`,
+						], response: `environmentId=environment; advertisedStatus=online; httpStatus=503; relayConnected=true; nextHeartbeatInMs=0; retryAfterMs=0; requestId=${header === 'ABCD:1234:5678:90AB:CDEF' ? header : 'none'}`
+					});
 				});
 			});
 		}
@@ -1610,6 +3071,26 @@ suite('Mission Control WPS', () => {
 			});
 		});
 
+		test('exposes the same environment name used for registration, including an explicit override', async () => {
+			await withEnvironment([], async ({ service, options, requests }) => {
+				const defaultName = service.environmentName;
+				await service.configure(undefined);
+				const disabledName = service.environmentName;
+				await service.configure({ ...options, name: 'Custom environment name' });
+				assert.deepStrictEqual({
+					defaultName,
+					disabledName,
+					configuredName: service.environmentName,
+					registeredName: requests.filter(request => request.path.endsWith('/register')).at(-1)?.body?.name,
+				}, {
+					defaultName: 'Test Machine (VS Code OSS)',
+					disabledName: 'Test Machine (VS Code OSS)',
+					configuredName: 'Custom environment name',
+					registeredName: 'Custom environment name',
+				});
+			});
+		});
+
 		for (const scenario of [
 			{ name: 'delta-seconds on the initial online heartbeat', value: '120', delay: 120_000 },
 			{ name: 'HTTP-date', value: new Date(Date.UTC(2026, 9, 2) + 120_000).toUTCString(), delay: 120_000 },
@@ -1641,8 +3122,8 @@ suite('Mission Control WPS', () => {
 		}
 
 		for (const response of [
-			{ name: '429', status: 429, error: 'Mission Control request failed (429): not-json' },
-			{ name: '503', status: 503, error: 'Mission Control request failed (503): not-json' },
+			{ name: '429', status: 429, error: 'Mission Control request failed (429)' },
+			{ name: '503', status: 503, error: 'Mission Control request failed (503)' },
 			{ name: 'invalid JSON on a successful response', status: 200, error: 'Mission Control returned invalid JSON' },
 		]) {
 			test(`honors the header before handling ${response.name}`, async () => {
@@ -1653,7 +3134,7 @@ suite('Mission Control WPS', () => {
 					await clock.tickAsync(1);
 					assert.deepStrictEqual({ beforeDeadline, heartbeats, errors }, {
 						beforeDeadline: 2,
-						heartbeats: [{ time: 0, status: 'online' }, { time: 60_000, status: 'online' }, { time: 300_000, status: 'online' }],
+						heartbeats: [{ time: 0, status: 'online' }, { time: 60_000, status: 'online' }, ...(response.status === 200 ? [{ time: 300_000, status: 'online' }] : [])],
 						errors: [response.error],
 					});
 				});
@@ -1921,6 +3402,23 @@ suite('Mission Control WPS', () => {
 			});
 		});
 
+		test('reconnects relay lanes when local credential delegation changes and preserves the default', async () => {
+			await withEnvironment([], async ({ service, options, sockets, attachments, errors }) => {
+				await service.configure({ ...options, useLocalCredentials: true });
+				await service.configure({ ...options, useLocalCredentials: true });
+				await service.configure({ ...options, useLocalCredentials: false });
+				assert.deepStrictEqual({
+					delegation: attachments.map(attachment => attachment.useLocalCredentials),
+					closed: sockets.map(socket => socket.closed),
+					errors,
+				}, {
+					delegation: [false, true, false],
+					closed: [true, true, false],
+					errors: [],
+				});
+			});
+		});
+
 		test('omits device policy only while opted in and fences existing lanes on override changes', async () => {
 			await withEnvironment([], async ({ service, options, changePolicy, requests, sockets, errors }) => {
 				const policy = { mode: 'disabled' };
@@ -2081,7 +3579,7 @@ suite('Mission Control WPS', () => {
 				for (let index = 0; index < 10; index++) {
 					services.push(createIdentityService(path, computeIds));
 				}
-				await Promise.all(services.map(service => service.configure(options)));
+				await Promises.settled(services.map(service => service.configure(options)));
 				for (const service of services) {
 					service.dispose();
 				}

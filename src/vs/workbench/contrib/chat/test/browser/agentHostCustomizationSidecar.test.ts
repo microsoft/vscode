@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -35,17 +34,11 @@ suite('AgentHostCustomizationRecorder', () => {
 		{ type: CustomizationType.Hook, id: 'hk1', uri: 'file:///ws/.github/hooks/lint.json', name: 'lint-on-save', enabled: true },
 	] as unknown as Customization[];
 
-	/** Polls the sidecar until the snapshot appears (the recorder writes async). */
-	async function waitForSnapshot(fileService: FileService, rawId: string): Promise<Customization[] | undefined> {
-		const uri = buildAgentHostCustomizationsUri(baseDir, rawId);
-		for (let i = 0; i < 100; i++) {
-			const snapshot = await readAgentHostCustomizationsSnapshot(fileService, uri);
-			if (snapshot !== undefined) {
-				return snapshot;
-			}
-			await timeout(0);
+	class TestRecorder extends AgentHostCustomizationRecorder {
+		/** Settles once every sidecar write or delete queued so far for the session has completed. */
+		flush(rawId: string): Promise<void> {
+			return this.queued(rawId, async () => { });
 		}
-		return undefined;
 	}
 
 	/** Builds a recorder wired to fresh emitters and an in-memory file service. */
@@ -53,7 +46,7 @@ suite('AgentHostCustomizationRecorder', () => {
 		const fileService = makeFileService();
 		const actions = disposables.add(new Emitter<ActionEnvelope>());
 		const notifications = disposables.add(new Emitter<INotification>());
-		disposables.add(new AgentHostCustomizationRecorder(
+		const recorder = disposables.add(new TestRecorder(
 			baseDir,
 			isEnabled,
 			fileService,
@@ -61,7 +54,12 @@ suite('AgentHostCustomizationRecorder', () => {
 			{ onDidAction: actions.event, onDidNotification: notifications.event, listSessions: async () => [], getActiveSubscriptions: () => [], getSubscriptionUnmanaged: () => undefined },
 			new NullRemoteAgentHostService(),
 		));
-		return { fileService, actions, notifications };
+		/** Reads a session's sidecar once the recorder has finished the file operations queued for it (it writes async). */
+		const snapshot = async (rawId: string) => {
+			await recorder.flush(rawId);
+			return readAgentHostCustomizationsSnapshot(fileService, buildAgentHostCustomizationsUri(baseDir, rawId));
+		};
+		return { fileService, recorder, actions, notifications, snapshot };
 	}
 
 	test('round-trips a snapshot; missing and malformed files read as undefined', async () => {
@@ -81,7 +79,7 @@ suite('AgentHostCustomizationRecorder', () => {
 	});
 
 	test('writes the snapshot for a Copilot CLI session channel and ignores other channels/actions', async () => {
-		const { fileService, actions } = makeRecorder();
+		const { actions, snapshot } = makeRecorder();
 
 		// Ignored: a non-customization action, and a customization action on a
 		// non-Copilot-CLI channel — neither should produce a sidecar file.
@@ -92,24 +90,23 @@ suite('AgentHostCustomizationRecorder', () => {
 		// `copilotcli:/<rawId>` channel is persisted under that raw id.
 		actions.fire({ channel: 'copilotcli:/good', action: { type: ActionType.SessionCustomizationsChanged, customizations: skills }, serverSeq: 3, origin: undefined } as unknown as ActionEnvelope);
 
-		assert.deepStrictEqual(await waitForSnapshot(fileService, 'good'), skills);
+		assert.deepStrictEqual(await snapshot('good'), skills);
 		// The ignored actions left no sidecar behind.
-		assert.strictEqual(await readAgentHostCustomizationsSnapshot(fileService, buildAgentHostCustomizationsUri(baseDir, 'wrongtype')), undefined);
-		assert.strictEqual(await readAgentHostCustomizationsSnapshot(fileService, buildAgentHostCustomizationsUri(baseDir, '')), undefined);
+		assert.strictEqual(await snapshot('wrongtype'), undefined);
+		assert.strictEqual(await snapshot(''), undefined);
 	});
 
 	test('does not capture while disabled', async () => {
 		let enabled = false;
-		const { fileService, actions } = makeRecorder(() => enabled);
+		const { actions, snapshot } = makeRecorder(() => enabled);
 
 		actions.fire({ channel: 'copilotcli:/gated', action: { type: ActionType.SessionCustomizationsChanged, customizations: skills }, serverSeq: 1, origin: undefined } as unknown as ActionEnvelope);
-		await timeout(2);
-		assert.strictEqual(await readAgentHostCustomizationsSnapshot(fileService, buildAgentHostCustomizationsUri(baseDir, 'gated')), undefined);
+		assert.strictEqual(await snapshot('gated'), undefined);
 
 		// Once enabled, a subsequent action is captured.
 		enabled = true;
 		actions.fire({ channel: 'copilotcli:/gated', action: { type: ActionType.SessionCustomizationsChanged, customizations: skills }, serverSeq: 2, origin: undefined } as unknown as ActionEnvelope);
-		assert.deepStrictEqual(await waitForSnapshot(fileService, 'gated'), skills);
+		assert.deepStrictEqual(await snapshot('gated'), skills);
 	});
 
 	test('deletes the sidecar when its session is removed, even after capture is disabled', async () => {
@@ -117,27 +114,25 @@ suite('AgentHostCustomizationRecorder', () => {
 		// directory; without this the client-side copies would outlive every
 		// deleted session and grow without bound.
 		let enabled = true;
-		const { fileService, actions, notifications } = makeRecorder(() => enabled);
+		const { fileService, recorder, actions, notifications, snapshot } = makeRecorder(() => enabled);
 
 		actions.fire({ channel: 'copilotcli:/doomed', action: { type: ActionType.SessionCustomizationsChanged, customizations: skills }, serverSeq: 1, origin: undefined } as unknown as ActionEnvelope);
-		assert.deepStrictEqual(await waitForSnapshot(fileService, 'doomed'), skills);
+		assert.deepStrictEqual(await snapshot('doomed'), skills);
 
 		// Turning capture off must not strand the file already written.
 		enabled = false;
 		notifications.fire({ type: NotificationType.SessionRemoved, channel: 'ahp-root://', session: 'copilotcli:/doomed' } as unknown as INotification);
 
 		const uri = buildAgentHostCustomizationsUri(baseDir, 'doomed');
-		for (let i = 0; i < 100 && await fileService.exists(uri); i++) {
-			await timeout(0);
-		}
+		await recorder.flush('doomed');
 		assert.strictEqual(await fileService.exists(uri), false);
 	});
 
 	test('ignores unrelated notifications and sessions with no sidecar', async () => {
-		const { fileService, actions, notifications } = makeRecorder();
+		const { recorder, actions, notifications, snapshot } = makeRecorder();
 
 		actions.fire({ channel: 'copilotcli:/keep', action: { type: ActionType.SessionCustomizationsChanged, customizations: skills }, serverSeq: 1, origin: undefined } as unknown as ActionEnvelope);
-		assert.deepStrictEqual(await waitForSnapshot(fileService, 'keep'), skills);
+		assert.deepStrictEqual(await snapshot('keep'), skills);
 
 		// A different session's removal, a non-CLI session, and a removal for a
 		// session that never had a sidecar must all leave `keep` untouched and
@@ -145,8 +140,8 @@ suite('AgentHostCustomizationRecorder', () => {
 		notifications.fire({ type: NotificationType.SessionRemoved, channel: 'ahp-root://', session: 'copilotcli:/never-recorded' } as unknown as INotification);
 		notifications.fire({ type: NotificationType.SessionRemoved, channel: 'ahp-root://', session: 'claude:/other' } as unknown as INotification);
 		notifications.fire({ type: NotificationType.SessionAdded, channel: 'ahp-root://', session: 'copilotcli:/keep' } as unknown as INotification);
-		await timeout(2);
+		await recorder.flush('never-recorded');
 
-		assert.deepStrictEqual(await readAgentHostCustomizationsSnapshot(fileService, buildAgentHostCustomizationsUri(baseDir, 'keep')), skills);
+		assert.deepStrictEqual(await snapshot('keep'), skills);
 	});
 });

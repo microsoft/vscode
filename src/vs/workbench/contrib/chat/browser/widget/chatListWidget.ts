@@ -28,7 +28,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable, asCssVariableWithDefault, editorWidgetBackground, editorWidgetBorder, iconForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -39,6 +41,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isReques
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
+import { resolveResponseSelection } from '../responseSelectionResolver.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
@@ -48,6 +51,7 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
 const CHAT_STICKY_SCROLL_TOP_PADDING = 8;
 const CHAT_COLLAPSE_ANCHOR_PADDING = 16;
+const chatScrollToLatestIcon = registerIcon('chat-scroll-to-bottom', Codicon.arrowDown, localize('chat.scrollToBottomIcon', "Icon for scrolling to the latest chat content."));
 
 export interface IChatListWidgetStyles {
 	listForeground?: string;
@@ -407,6 +411,10 @@ export class ChatListWidget extends Disposable {
 		return this._container;
 	}
 
+	get scrollDownButtonDomNode(): HTMLElement {
+		return this._scrollDownButton.element;
+	}
+
 	get stickyScrollDomNode(): HTMLElement | undefined {
 		return this._tree.stickyScrollDomNode;
 	}
@@ -654,22 +662,25 @@ export class ChatListWidget extends Disposable {
 		}
 
 		// Create scroll-down button
-		const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
-		const scrollToBottomBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
+		const scrollToBottomLabel = localize('chat.scrollToLatest', "Scroll to Latest");
+		const scrollToBottomBackground = asCssVariable(editorWidgetBackground);
 		this._scrollDownButton = this._register(new Button(this._container, {
+			...defaultButtonStyles,
 			title: scrollToBottomLabel,
 			ariaLabel: scrollToBottomLabel,
 			buttonBackground: scrollToBottomBackground,
-			buttonForeground: asCssVariable(buttonSecondaryForeground),
+			buttonForeground: asCssVariable(iconForeground),
 			buttonHoverBackground: scrollToBottomBackground,
-			buttonSecondaryBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryHoverBackground: undefined,
-			buttonSeparator: undefined,
+			buttonBorder: asCssVariableWithDefault(editorWidgetBorder, 'transparent'),
 			supportIcons: true,
 		}));
 		this._scrollDownButton.element.classList.add('chat-scroll-down');
-		this._scrollDownButton.label = `$(${Codicon.chevronDown.id})`;
+		this._scrollDownButton.label = `$(${chatScrollToLatestIcon.id})`;
+		for (const child of this._scrollDownButton.element.children) {
+			if (child.classList.contains('codicon')) {
+				child.setAttribute('aria-hidden', 'true');
+			}
+		}
 		this._scrollDownButton.element.style.display = 'none'; // Hidden by default
 
 		this._register(this._scrollDownButton.onDidClick(() => {
@@ -869,6 +880,8 @@ export class ChatListWidget extends Disposable {
 		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
 		const linkTarget = targetContext.linkTarget;
 		const hasAvailableEditors = linkTarget ? shouldShowChatLinkOpenWith(URI.parse(linkTarget), this.fileService, this.editorResolverService) : false;
+		const selection = resolveResponseSelection({ domNode: this._container, getElementFromNode: node => this.getElementFromNode(node) });
+		const responseSelection = selection?.response === selected ? selection : undefined;
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
@@ -877,11 +890,13 @@ export class ChatListWidget extends Disposable {
 			[ChatContextKeys.contextMenuIsBackground.key, targetContext.isBackground],
 			[ChatContextKeys.contextMenuHasLink.key, !!linkTarget],
 			[ChatContextKeys.contextMenuHasAvailableEditors.key, hasAvailableEditors],
+			[ChatContextKeys.contextMenuHasResponseSelection.key, !!responseSelection],
 		]);
 		const actionContext: IChatContextMenuActionContext = {
 			$chatContextMenu: true,
 			item: selected,
 			linkTarget,
+			responseSelection,
 		};
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,
@@ -920,6 +935,7 @@ export class ChatListWidget extends Disposable {
 		}
 
 		const items = this._viewModel.getItems();
+		const consecutiveRequestIds = new Set(items.flatMap((item, index) => isRequestVM(item) && isRequestVM(items[index - 1]) ? [item.id] : []));
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
 
@@ -954,6 +970,7 @@ export class ChatListWidget extends Disposable {
 							`_${isBlocked ? 'blocked' : ''}` +
 							// Re-render requests when editing starts/stops (for hover button visibility, click handlers)
 							(isRequestVM(element) ? `_${editing ? '1' : '0'}` : '') +
+							`_${consecutiveRequestIds.has(element.id) ? 'consecutive' : ''}` +
 							// Re-render the old and new tail rows when the list grows or shrinks.
 							`_${isLastItem ? 'last' : ''}` +
 							// Re-render all if invoked by setting change
@@ -1035,7 +1052,7 @@ export class ChatListWidget extends Disposable {
 		return items;
 	}
 
-	private createRequestTreeItems(items: ChatTreeItem[]): ITreeElement<ChatTreeItem>[] {
+	private createRequestTreeItems(items: readonly ChatTreeItem[]): ITreeElement<ChatTreeItem>[] {
 		const treeItems: ITreeElement<ChatTreeItem>[] = [];
 		for (let i = 0; i < items.length; i++) {
 			const item = items[i];

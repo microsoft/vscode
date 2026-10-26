@@ -7,13 +7,13 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { ChatEditingSessionState, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../contrib/chat/common/editing/chatEditingService.js';
+import { ChatEditingSessionState, emptySessionEntryDiff, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestDisablement } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../contrib/chat/common/languageModels.js';
@@ -56,12 +56,19 @@ function createMockEditingSession(files: { uri: string; added: number; removed: 
 	});
 
 	return new class extends mock<IChatEditingSession>() {
-		override readonly isGlobalEditingSession = false;
+		override readonly isGlobalEditingSession = constObservable(false);
 		override readonly chatSessionResource = URI.parse('chat-session:test-session');
 		override readonly onDidDispose = Event.None;
 		override readonly state = observableValue('state', ChatEditingSessionState.Idle);
 		override readonly entries = observableValue('entries', entries);
 		override readonly requestDisablement = observableValue<IChatRequestDisablement[]>('requestDisablement', []);
+		override getDiffsForFilesInSession() {
+			return constObservable(files.map(file => ({
+				...emptySessionEntryDiff(URI.parse(file.uri), URI.parse(file.uri)),
+				added: file.added,
+				removed: file.removed,
+			})));
+		}
 	}();
 }
 
@@ -271,6 +278,69 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	}),
 	WithFileChanges: defineComponentFixture({
 		render: context => renderChatInput(context, { editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/fibon.ts', added: 21, removed: 1 }]) })
+	}),
+	WithSessionWorkingSet: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, {
+			sessionWorkingSet: true,
+			editingSession: createMockEditingSession([
+				{ uri: 'file:///workspace/src/fibonacci.ts', added: 21, removed: 1 },
+				{ uri: 'file:///workspace/src/fibonacci.test.ts', added: 123, removed: 12 },
+				{ uri: 'file:///workspace/README.md', added: 4, removed: 0 },
+			]),
+		})
+	}),
+	WithSessionWorkingSetNarrow: defineComponentFixture({
+		render: context => renderChatInput(context, {
+			width: 320,
+			sessionWorkingSet: true,
+			editingSession: createMockEditingSession([
+				{ uri: 'file:///workspace/src/components/long-component-name.ts', added: 1234, removed: 321 },
+				{ uri: 'file:///workspace/src/components/long-component-name.test.ts', added: 35, removed: 2 },
+			]),
+		})
+	}),
+	WithNotificationAndSessionWorkingSet: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, {
+			notification: sampleNotification,
+			sessionWorkingSet: true,
+			editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/math.ts', added: 8, removed: 0 }]),
+		}),
+	}),
+	FocusedWithNotificationAndSessionWorkingSet: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, {
+			notification: sampleNotification,
+			sessionWorkingSet: true,
+			focusInput: true,
+			editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/math.ts', added: 8, removed: 0 }]),
+		}),
+	}),
+	FocusedWithSessionWorkingSet: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, {
+			sessionWorkingSet: true,
+			focusInput: true,
+			editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/math.ts', added: 8, removed: 0 }]),
+		}),
+	}),
+	WithSessionWorkingSetReviewDisabled: defineComponentFixture({
+		render: context => renderChatInput(context, {
+			sessionWorkingSet: true,
+			sessionWorkingSetReviewEnabled: false,
+			editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/math.ts', added: 8, removed: 0 }]),
+		}),
+	}),
+	WithSessionWorkingSetOverflow: defineComponentFixture({
+		render: context => renderChatInput(context, {
+			sessionWorkingSet: true,
+			editingSession: createMockEditingSession(Array.from({ length: 9 }, (_, index) => ({
+				uri: `file:///workspace/src/file${index + 1}.ts`,
+				added: index + 1,
+				removed: index,
+			}))),
+		})
 	}),
 	WithTodos: defineComponentFixture({
 		render: context => renderChatInput(context, { todos: sampleTodos })

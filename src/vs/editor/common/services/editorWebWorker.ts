@@ -14,7 +14,7 @@ import { IMirrorTextModel, IModelChangedEvent } from '../model/mirrorTextModel.j
 import { IColorInformation, IInplaceReplaceSupportResult, ILink, TextEdit } from '../languages.js';
 import { computeLinks } from '../languages/linkComputer.js';
 import { BasicInplaceReplace } from '../languages/supports/inplaceReplaceSupport.js';
-import { DiffAlgorithmName, IDiffComputationResult, ILineChange, IUnicodeHighlightsResult } from './editorWorker.js';
+import { DiffAlgorithmName, IDiffComputationResult, ILineChange, IStringEditFromDiff, IUnicodeHighlightsResult } from './editorWorker.js';
 import { createMonacoBaseAPI } from './editorBaseApi.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from './unicodeTextModelHighlighter.js';
@@ -204,8 +204,9 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 		return diffComputer.computeDiff().changes;
 	}
 
-	public async $computeStringDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<ISerializedStringEdit> {
-		return (await computeStringDiff(original, modified, options, algorithm)).toJson();
+	public async $computeStringDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<{ edit: ISerializedStringEdit; isCoarse: boolean }> {
+		const result = await computeStringDiffWithMetadata(original, modified, options, algorithm);
+		return { edit: result.edit.toJson(), isCoarse: result.isCoarse };
 	}
 
 	// ---- END diff --------------------------------------------------------------------------
@@ -549,6 +550,11 @@ function resolveLinesDiffComputer(algorithm: DiffAlgorithmName): ILinesDiffCompu
  * @internal
 */
 export async function computeStringDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit> {
+	return (await computeStringDiffWithMetadata(original, modified, options, algorithm)).edit;
+}
+
+/** @internal */
+export async function computeStringDiffWithMetadata(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff> {
 	const diffAlgorithm = await resolveLinesDiffComputer(algorithm);
 
 	ensureDependenciesAreSet();
@@ -563,5 +569,5 @@ export async function computeStringDiff(original: string, modified: string, opti
 	const textEdit = DetailedLineRangeMapping.toTextEdit(result.changes, modifiedText);
 	const strEdit = originalText.getTransformer().getStringEdit(textEdit);
 
-	return strEdit;
+	return { edit: strEdit, isCoarse: result.hitTimeout };
 }

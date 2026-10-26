@@ -19,6 +19,11 @@ export interface IAgentSandboxUserConfiguredPaths {
 	deniedPaths?: string[];
 }
 
+/** Environment variable names and their credential injection destinations. */
+export interface IAgentSandboxMaskedCredentials {
+	envVars?: Record<string, { injectHosts: string[] }>;
+}
+
 /** Converts path separators for the sandbox's execution OS without resolving paths or patterns. */
 export function normalizeSandboxFileSystemPath(path: string, os: OperatingSystem): string {
 	return os === OperatingSystem.Windows ? path.replace(/\//g, '\\') : path;
@@ -41,6 +46,7 @@ export const enum AgentSandboxSettingId {
 	AgentSandboxLspServers = 'chat.agent.sandbox.lspServers',
 	AgentSandboxAuthenticateGit = 'chat.agent.sandbox.credentials.authenticategit',
 	AgentSandboxAuthenticateGh = 'chat.agent.sandbox.credentials.authenticategh',
+	AgentSandboxMaskedEnvironmentVariables = 'chat.agent.sandbox.maskedEnvironmentVariables',
 	AgentSandboxAllowDevToolAccess = 'chat.agent.sandbox.fileSystem.allowDevToolAccess',
 	AgentSandboxUserConfiguredPaths = 'chat.agent.sandbox.fileSystem.userConfiguredPaths',
 	AgentSandboxRetryWithAllowNetworkRequests = 'chat.agent.sandbox.retryWithAllowNetworkRequests',

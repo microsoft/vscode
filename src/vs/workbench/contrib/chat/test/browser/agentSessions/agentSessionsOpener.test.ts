@@ -254,6 +254,7 @@ suite('AgentSessionsOpener', () => {
 			}));
 			const chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
 			instantiationService.stub(IChatSessionsService, chatSessionsService);
+			disposables.add(chatSessionsService.registerChatSessionContribution({ type: 'copilotcli', name: 'copilotcli', displayName: 'copilotcli', description: '' }));
 			const provider = 'agent-host-copilotcli';
 			disposables.add(chatSessionsService.registerChatSessionContribution({ type: provider, name: provider, displayName: provider, description: '' }));
 			let refreshCount = 0;
@@ -306,4 +307,41 @@ suite('AgentSessionsOpener', () => {
 			});
 		}));
 	}
+
+	test('opens the fallback agent-host twin when the legacy provider is absent and the twin is not in the model after refresh', async () => {
+		const legacy = URI.parse('copilotcli:/sess-unlisted');
+		const twin = URI.parse('agent-host-copilotcli:/sess-unlisted');
+		const staleCachedLegacy = upcastPartial<IAgentSession>({ resource: legacy, providerType: 'copilotcli' });
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }));
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ ambientConnection: undefined }));
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+			getChatSessionContribution: () => undefined,
+		}));
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+			getSession: resource => resource.toString() === legacy.toString() ? staleCachedLegacy : undefined,
+			model: upcastPartial<IAgentSessionsService['model']>({ resolve: async () => { } }),
+		}));
+
+		let openedSession: IAgentSession | undefined;
+		const registration = sessionOpenerRegistry.registerParticipant({
+			handleOpenSession: async (_accessor, candidate) => {
+				openedSession = candidate;
+				return true;
+			},
+		});
+		try {
+			await instantiationService.invokeFunction(openSessionByResource, legacy);
+		} finally {
+			registration.dispose();
+		}
+
+		assert.deepStrictEqual(
+			{ resource: openedSession?.resource.toString(), providerType: openedSession?.providerType },
+			{ resource: twin.toString(), providerType: 'agent-host-copilotcli' },
+		);
+	});
 });

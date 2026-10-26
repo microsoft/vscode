@@ -21,7 +21,6 @@ const pluginMarketplaceSourceInfo: ICustomizationMarketplaceSourceInfo = {
 		ChatConfiguration.PluginsEnabled,
 		ChatConfiguration.PluginMarketplaces,
 		ChatConfiguration.ExtraMarketplaces,
-		ChatConfiguration.StrictMarketplaces,
 	],
 };
 const allMarketplaceTypes = new Set([MarketplaceType.Claude, MarketplaceType.Copilot, MarketplaceType.OpenPlugin]);

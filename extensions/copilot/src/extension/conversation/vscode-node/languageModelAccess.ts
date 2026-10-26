@@ -45,11 +45,12 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
+import { parseRetryAfter } from '../../../shared-fetch-utils/common/middleware/rateLimitBackoffMiddleware';
 import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, resolveModelWarnings, buildReasoningEffortSchemaProperty, buildAutoModeTierSchemaProperty } from '../common/languageModelAccess';
 
 /**
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
- * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
+ * Models that support reasoning_effort get an "Effort Level" dropdown in the model picker UI.
  */
 function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; description: string; isDefault: boolean }[] | undefined {
 	const pricing = endpoint.tokenPricing;
@@ -779,7 +780,8 @@ export class CopilotLanguageModelWrapper extends Disposable {
 
 		const internalModelOptions = (_options as { modelOptions?: ExtensionLanguageModelRequestOptions }).modelOptions;
 		const options: OptionalChatRequestParams = LanguageModelOptions.Default.convert(_options.modelOptions ?? {});
-		const telemetryProperties = { messageSource: `api.${extensionId}` };
+		const requestPurpose = extensionId === undefined ? internalModelOptions?._requestPurpose : undefined;
+		const telemetryProperties = { messageSource: requestPurpose ? `api.core/${requestPurpose}` : `api.${extensionId}` };
 
 		options.tools = _options.tools?.map((tool): OpenAiFunctionTool => {
 			return {
@@ -810,7 +812,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		const parentTraceContext = internalModelOptions?._otelTraceContext ?? undefined;
 
 		const makeRequest = () => endpoint.makeChatRequest2({
-			debugName: 'copilotLanguageModelWrapper',
+			debugName: requestPurpose ? `copilotLanguageModelWrapper/${requestPurpose}` : 'copilotLanguageModelWrapper',
 			messages,
 			finishedCb: callback,
 			location: ChatLocation.Other,
@@ -861,9 +863,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 				err.name = 'ChatQuotaExceeded';
 				throw err;
 			} else if (result.type === ChatFetchResponseType.RateLimited) {
-				const err = new Error(result.reason);
-				err.name = 'ChatRateLimited';
-				throw err;
+				throw vscode.LanguageModelError.RateLimited(result.reason, parseRetryAfter(result.retryAfter));
 			}
 
 			throw new Error(result.reason);

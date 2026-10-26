@@ -210,13 +210,16 @@ export class CanvasService extends Disposable implements ICanvasService {
 			? this.contextService.contexts.get().find(context => isCanvasOwner(context.owner, reference))
 			: undefined;
 		const canvas = context?.canvases.get()?.find(canvas => isEqual(canvas.resource, reference.canvas));
-		if (canvas?.source === undefined) {
+		if (!canvas) {
 			return;
 		}
 		const key = getCanvasReferenceKey(reference);
+		this.deleteDismissed(key);
+		if (canvas.source === undefined) {
+			return;
+		}
 		const input = this.getOrCreateInput(reference, canvas);
 		input.setCanvas(canvas);
-		this.deleteDismissed(key);
 		await this.openInput(key, input);
 	}
 
@@ -268,7 +271,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 		this.disposePresentationModel(presentation);
 		const generation = ++presentation.modelGeneration;
-		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas').then(model => {
+		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas', { type: 'agent', sessionId: reference.chat.toString() }).then(model => {
 			const retained = this.presentations.get(key) === presentation
 				&& presentation.modelGeneration === generation
 				&& isEqual(presentation.canvas?.source, source);

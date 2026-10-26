@@ -17,7 +17,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
@@ -66,6 +66,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 			|| undefined;
 	}
 
+	async getHEAD(workingDirectory: URI): Promise<IBranch | IDetachedHead | undefined> {
+		const headRef = await this._runGit(workingDirectory, ['symbolic-ref', 'HEAD']);
+		if (headRef) {
+			// Branch
+			const branch = await this.getBranch(workingDirectory, headRef.trim());
+			return branch?.kind === GitRefType.Head ? branch : undefined;
+		}
+
+		// Detached HEAD
+		const result = await this._runGit(workingDirectory, ['rev-parse', 'HEAD']);
+		return result ? { kind: GitRefType.DetachedHead, name: result.trim() } : undefined;
+	}
+
 	async getCurrentBranchName(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined> {
 		return (await this._runGit(workingDirectory, ['branch', '--show-current'], options))?.trim() || undefined;
 	}
@@ -89,6 +102,38 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return hasLocalBranch ? { name: branch, startPoint: branch } : undefined;
 		}
 		return undefined;
+	}
+
+	async getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined> {
+		if (!remote) {
+			const remotes = await this.getFetchRemotes(workingDirectory) ?? [];
+			if (remotes.length === 0) {
+				return undefined;
+			}
+
+			// Prefer `origin` if present, otherwise pick the first remote name.
+			remote = remotes.find(remoteEntry => remoteEntry.name === 'origin')?.name ?? remotes[0].name;
+		}
+
+		const defaultBranchRef = await this._runGit(workingDirectory, ['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`]);
+		if (!defaultBranchRef) {
+			return undefined;
+		}
+
+		const remotePrefix = `refs/remotes/${remote}/`;
+		const defaultBranchRefName = defaultBranchRef.trim();
+		if (!defaultBranchRefName.startsWith(remotePrefix)) {
+			return undefined;
+		}
+
+		const defaultBranchName = defaultBranchRefName.substring(remotePrefix.length);
+		const localBranch = await this.getBranch(workingDirectory, defaultBranchName);
+		if (localBranch?.kind === GitRefType.Head) {
+			return localBranch;
+		}
+
+		const remoteBranch = await this.getBranch(workingDirectory, defaultBranchRefName);
+		return remoteBranch?.kind === GitRefType.RemoteHead ? remoteBranch : undefined;
 	}
 
 	async getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]> {
@@ -189,6 +234,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 			}
 
+			if (await this._isMissingDirectory(workingDirectory.fsPath)) {
+				this._logService.trace(`[agentHostGitService] Skipping repository root lookup for missing directory ${workingDirectory.fsPath}`);
+				return undefined;
+			}
+
 			try {
 				const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel'], { throwOnError: true, env: { LC_ALL: 'C' } }))?.trim();
 				if (repositoryRootPath) {
@@ -207,7 +257,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 						roots.delete(workingDirectoryKey);
 						this._repositoryRoots.set(roots, undefined);
 					}
-					this._logService.warn(`[agentHostGitService] Failed to resolve repository root for ${workingDirectory.fsPath}`, error);
+					if (isSpawnEnoentError(error) && await this._isMissingDirectory(workingDirectory.fsPath)) {
+						this._logService.trace(`[agentHostGitService] Directory ${workingDirectory.fsPath} disappeared during repository root lookup`);
+					} else {
+						this._logService.warn(`[agentHostGitService] Failed to resolve repository root for ${workingDirectory.fsPath}`, error);
+					}
 				}
 			}
 
@@ -243,7 +297,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			args.push('-b', options.newBranchName);
 		}
 
-		args.push(options.path.fsPath, options.commitish);
+		// `--` ends the options: neither the path nor the commit-ish can be read as one.
+		args.push('--', options.path.fsPath, options.commitish);
 
 		// `git worktree add` forces progress reporting on its internal checkout
 		// even when stderr is a pipe, so `Updating files: N% (x/y)` can be
@@ -341,7 +396,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// deleted out-of-band but git still has it registered ("missing but
 		// already registered worktree"). This is our own managed per-session
 		// worktree/branch, so overriding git's safeguards here is safe.
-		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', '--', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
 	/**
@@ -372,6 +427,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * returning, so a silent `prune` no-op cannot mask a leaked entry.
 	 */
 	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
+		if (options?.force && await this._pathExists(worktree.fsPath) && await this.isWorktreeRegistered(repositoryRoot, worktree)) {
+			if (!await this._pathExists(path.join(worktree.fsPath, '.git'))) {
+				throw new Error(`Cannot preserve registered worktree '${worktree.fsPath}': its .git file is missing`);
+			}
+			// Preserve non-ignored work in the shared object store without changing the checkout's index or branch.
+			const tree = await this.captureWorkingTreeAsTree(worktree);
+			if (!tree) {
+				throw new Error(`Cannot preserve worktree '${worktree.fsPath}' before removal`);
+			}
+			if (tree !== await this.revParse(worktree, 'HEAD^{tree}')) {
+				const parent = await this.revParse(worktree, 'HEAD');
+				const commit = await this.commitTree(worktree, tree, parent, `Preserving worktree before removal: ${worktree.fsPath}`);
+				if (!commit) {
+					throw new Error(`Cannot create preservation commit for '${worktree.fsPath}'`);
+				}
+				const ref = `refs/vscode-preserved-worktrees/${generateUuid()}`;
+				await this.updateRef(repositoryRoot, ref, commit);
+				this._logService.warn(`[agentHostGitService] Preserved worktree '${worktree.fsPath}' at '${ref}'. Recover with: git branch recovered-worktree ${ref}`);
+			}
+		}
 		const removeArgs = ['worktree', 'remove'];
 		if (options?.force) {
 			removeArgs.push('--force');
@@ -385,26 +460,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 			let gitCommandSucceeded = false;
 			try {
-				if (await this._pathExists(worktree.fsPath)) {
+				if (await this._pathExists(worktree.fsPath) && !(options?.force && !await this._pathExists(path.join(worktree.fsPath, '.git')))) {
 					await this._runGit(repositoryRoot, removeArgs, { timeout: 60_000, throwOnError: true });
 				} else {
-					// Working tree already gone (a prior attempt removed it): prune clears the stale admin entry.
+					// The checkout or its .git file is gone: prune, then verify Git released the exact path before removing residue.
 					await this._runGit(repositoryRoot, ['worktree', 'prune'], { timeout: 60_000, throwOnError: true });
 				}
 				gitCommandSucceeded = true;
 			} catch (error) {
 				lastError = error;
 				if (!isRetryableWorktreeRemovalError(error)) {
-					if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
-						await this._removeResidualWorktreeDirectory(worktree, options?.force === true);
+					if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
+						await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
 						return;
 					}
 					throw error;
 				}
 			}
 			// A zero exit is not proof of success (see the doc above), so confirm de-registration.
-			if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
-				await this._removeResidualWorktreeDirectory(worktree, options?.force === true);
+			if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
+				await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
 				return;
 			}
 			if (gitCommandSucceeded) {
@@ -417,19 +492,39 @@ export class AgentHostGitService implements IAgentHostGitService {
 		throw lastError;
 	}
 
-	private async _removeResidualWorktreeDirectory(worktree: URI, force: boolean): Promise<void> {
+	private async _removeResidualWorktreeDirectory(repositoryRoot: URI, worktree: URI, force: boolean): Promise<void> {
 		if (!await this._pathExists(worktree.fsPath)) {
 			return;
 		}
 		if (!force) {
 			throw new Error(`Worktree '${worktree.fsPath}' is de-registered, but its directory remains and cannot be removed without force`);
 		}
+		const stat = await fsPromises.lstat(worktree.fsPath);
+		const root = await this._canonicalizeWorktreePath(repositoryRoot);
+		const target = await this._canonicalizeWorktreePath(worktree);
+		if (!stat.isDirectory() || stat.isSymbolicLink() || extUriBiasedIgnorePathCase.isEqualOrParent(root, target)) {
+			throw new Error(`Refusing to remove unsafe worktree residue '${worktree.fsPath}'`);
+		}
+
 		await fsPromises.rm(worktree.fsPath, {
 			recursive: true,
 			force: true,
 			maxRetries: WORKTREE_REMOVAL_MAX_ATTEMPTS,
 			retryDelay: WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS,
 		});
+	}
+
+	/**
+	 * Whether `fsPath` is definitely not a directory: it does not exist, a parent is not a directory, or it is a file.
+	 * Other `stat` failures (e.g. `EACCES`) are not treated as missing, so git still runs and reports them.
+	 */
+	private async _isMissingDirectory(fsPath: string): Promise<boolean> {
+		try {
+			return !(await fsPromises.stat(fsPath)).isDirectory();
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException)?.code;
+			return code === 'ENOENT' || code === 'ENOTDIR';
+		}
 	}
 
 	private async _pathExists(fsPath: string): Promise<boolean> {
@@ -449,7 +544,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * Fails closed (returns `true`) if the registry cannot be read, so an unrelated
 	 * `git worktree list` failure is never mistaken for a completed removal.
 	 */
-	private async _isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean> {
+	async isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean> {
 		let registered: URI[];
 		try {
 			registered = this._parseWorktreeRoots(await this._runGit(repositoryRoot, ['worktree', 'list', '--porcelain'], { throwOnError: true }));
@@ -1024,13 +1119,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
-	async commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string): Promise<string | undefined> {
+	async commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string, options?: { readonly useInternalIdentity?: boolean }): Promise<string | undefined> {
 		const args = ['commit-tree', treeOid];
 		if (parentOid) {
 			args.push('-p', parentOid);
 		}
 		args.push('-m', message);
-		const out = await this._runGit(repositoryRoot, args, { throwOnError: true });
+		const env = options?.useInternalIdentity ? {
+			GIT_AUTHOR_NAME: 'VS Code',
+			GIT_AUTHOR_EMAIL: 'vscode@localhost',
+			GIT_COMMITTER_NAME: 'VS Code',
+			GIT_COMMITTER_EMAIL: 'vscode@localhost',
+		} : undefined;
+		const out = await this._runGit(repositoryRoot, args, { throwOnError: true, ...(env ? { env } : {}) });
 		return out?.trim() || undefined;
 	}
 
@@ -1323,7 +1424,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 		return new Promise((resolve, reject) => {
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
-			const timeoutMs = options?.timeout ?? 5000;
+			const timeoutMs = options?.timeout ?? 30_000;
 			// Use our own timer rather than execFile's `timeout` option so
 			// we can definitively flag the timeout case in the error
 			// message — execFile only surfaces signal/killed, which can
@@ -1374,7 +1475,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 					child.kill();
 					return;
 				}
-				void killTree(child.pid, true).catch(() => child.kill('SIGKILL'));
+				void killTree(child.pid, true, message => this._logService.debug(`[agentHostGitService] ${message}`)).catch(() => child.kill('SIGKILL'));
 			}, timeoutMs);
 			child.on('exit', () => clearTimeout(timer));
 		});
@@ -1385,6 +1486,11 @@ class GitCommandError extends Error {
 	constructor(message: string, readonly stderr: string, cause: cp.ExecFileException) {
 		super(message, { cause });
 	}
+}
+
+/** Whether spawning git failed with `ENOENT`, raised both for a missing git executable and for a missing working directory. */
+function isSpawnEnoentError(error: unknown): boolean {
+	return error instanceof GitCommandError && (error.cause as NodeJS.ErrnoException | undefined)?.code === 'ENOENT';
 }
 
 function isCheckoutBlockedByLocalChanges(stderr: string): boolean {

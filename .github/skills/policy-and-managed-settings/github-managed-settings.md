@@ -1,12 +1,14 @@
 # GitHub Copilot Managed Settings
 
-This file documents the **managed-settings** modality: how an enterprise admin's Copilot configuration (delivered to VS Code via native MDM or the GitHub server) flows into VS Code's policy stack and locks a setting. It is a companion to `SKILL.md` — read that first for the general policy lifecycle (`policy:` field, export, artifacts).
+This file documents **workbench policy projection**: how supported enterprise-managed settings feed VS Code's policy stack. It is a companion to `SKILL.md` — read that first to select the policy destination.
 
-Managed settings layer **on top of** the existing policy framework. They do **not** introduce a new `IPolicyService`; they feed `IPolicyData.managedSettings`, which the existing `policy.value(policyData)` callback already consumes via `AccountPolicyService`.
+This is not the execution contract for runtime-owned Agent Host controls. Follow [SDK/runtime managed settings](./sdk-runtime-policy.md) for those controls, including model startup defaults; do not assume every managed value locks a user-facing setting.
+
+Workbench-projected managed settings layer **on top of** the existing policy framework. They do **not** introduce a new `IPolicyService`; they feed `IPolicyData.managedSettings`, which the existing `policy.value(policyData)` callback already consumes via `AccountPolicyService`.
 
 ## The big idea: one canonical bag, three delivery channels (in VS Code)
 
-Every enterprise-managed Copilot setting resolves through a single normalized bag:
+The workbench managed-settings service exposes a single normalized bag:
 
 ```ts
 // src/vs/base/common/policy.ts
@@ -65,7 +67,9 @@ The schema is **nested**, whereas the VS Code bag is **flattened** to dot-paths 
 > **Current schema ↔ runtime divergence** (treat `managed-settings-schema.json` as the API source of truth, and keep the VS Code `managedSettings` declarations aligned with what the server actually projects into the bag):
 > - `extraKnownMarketplaces`: the schema permits source kinds `github` / `git` / `directory`, but the VS Code normalizer only accepts `github` and `git` — `directory` (and any other kind) is dropped with a warning (`managedSettings.ts` `normalizeExtraKnownMarketplaces`; `IExtraKnownMarketplaceEntry` in `base/common/managedSettings.ts` only types `github`/`git`).
 >
-> Note every **structured** key — `enabledPlugins`, `extraKnownMarketplaces`, `strictKnownMarketplaces` — is declared on its policy as **`{ type: 'string' }`**: the object/array value is carried as a JSON string in the bag and parsed back on read (see [Structured settings](#structured-objectarray-settings)). The *setting's* own `type` is the real shape — e.g. `chat.plugins.strictMarketplaces` is `['array', 'null']`, modeling the schema's array allowlist; only the bag-carrying type is `'string'`. That `'string'` is **required, not cosmetic**: `type` is a required field whose only allowed values are `'string' | 'number' | 'boolean'`, so omitting it or declaring `'object'` / `'array'` is a *compile* error; declaring `'number'` / `'boolean'` compiles but then fails projection validation at *runtime* (the JSON-string bag value flunks `typeof value === type`), so the key is dropped and silently never applies.
+> Structured keys such as `enabledPlugins` and `extraKnownMarketplaces` declare **`{ type: 'string' }`** on their configuration policy: the object/array is carried as a JSON string in the bag and parsed back on read (see [Structured settings](#structured-objectarray-settings)). The setting's own `type` is its real shape; only the bag-carrying type is `'string'`. This is required: managed definitions accept only `'string' | 'number' | 'boolean'`, and a mismatched type causes projection to drop the value.
+
+`strictKnownMarketplaces` is managed-settings-only, with no VS Code configuration setting or policy projection. Its string definition lives in `MANAGED_SETTINGS_CONTROL_DEFINITIONS` so native MDM continues watching it without a configuration registration. `IPluginMarketplaceService` reads the resolved managed value and supplies enforcement and change notifications to discovery, installation, and the marketplace picker. Absence permits all sources; `[]` blocks all marketplaces; a nonempty allowlist restricts both user-added and enterprise-added marketplaces. Existing `chat.plugins.strictMarketplaces` user values are ignored, with no migration or fallback. Strict rules do not retroactively disable already-installed plugins.
 
 Note the schema's `x-composition` describes the **server/runtime** layering across enterprise/org/user. Inside VS Code the bag has already been collapsed to a single projected `ManagedSettingsData` before a `policy.value()` callback ever sees it.
 
@@ -146,14 +150,14 @@ managedSettings: { [COPILOT_ENABLED_PLUGINS_KEY]: { type: 'string' } },
 
 ### Governance presence disables the third-party harnesses
 
-`IPolicyData.managedSettingsActive` is `true` when **any** channel supplies **any** managed setting — i.e. the user is governed at all, independent of which keys were set. It is set in `AccountPolicyService.getPolicyData` from `pickManagedSettings(...).activeSources`, and unlike `IPolicyData.managedSettings` it is **not** projected onto the keys VS Code declares, so it also reflects runtime-owned keys VS Code never reads.
+`IPolicyData.managedSettingsActive` is `true` when a channel contributes managed-settings governance. `AccountPolicyService.getPolicyData` derives it from effective managed settings and raw settings that normalization cannot represent, independently of which keys VS Code declares. Presence governs for existing settings. The `vscode.temporaryAllowLocalHarness` control is excluded from this flag at every value; its explicit false value separately disables Local, Claude, and Codex without affecting unrelated presence-gated features. Channel resolution retains its value for precedence and diagnostics, but neither its normalized value nor its raw container contributes general governance. Empty server responses or responses containing only this control explicitly clear a previously cached raw-governance flag.
 
-The `Claude3PIntegration` and `Codex3PIntegration` policies both use `thirdPartyAgentEnabledValue`, which forces its setting to `false` when the account disables chat preview features **or** when `managedSettingsActive` is `true`. Rationale: managed settings are composed and enforced by the Copilot runtime and never reach the Claude or Codex harnesses, so leaving those harnesses available would hand a governed user an ungoverned path around every control the enterprise set. This mirrors the runtime-owned `sandbox.enabled` floor retiring the local harness (`IAgentHostEnablementService.managedSandboxEnforced`).
+The `Claude3PIntegration` and `Codex3PIntegration` policies both use `thirdPartyAgentEnabledValue`, which forces its setting to `false` when the account disables chat preview features, when `managedSettingsActive` is `true`, or when effective `vscode.temporaryAllowLocalHarness` is boolean `false`. Rationale: managed settings are composed and enforced by the Copilot runtime and never reach the Claude or Codex harnesses, so leaving those harnesses available would hand a governed user an ungoverned path around every control the enterprise set. This mirrors the runtime-owned `sandbox.enabled` floor retiring the local harness (`IAgentHostEnablementService.managedSandboxEnforced`).
 
 Invariants:
 
-- The rule keys off **presence**, not a value, so the policies deliberately declare **no** `managedSettings` keys — they must not be added to the native MDM watcher schema.
-- `AccountPolicyService.resolvePolicyValue` probes for this presence dependence (re-evaluating the callback with `managedSettingsActive: false`) so **Developer: Policy Diagnostics** attributes the value to the governing channel rather than to the account.
+- Both policies declare `vscode.temporaryAllowLocalHarness` as a boolean managed key and use the shared callback. True, absence, or malformed values do not independently disable either provider; other managed settings and preview-feature restrictions still apply.
+- `AccountPolicyService.resolvePolicyValue` probes declared keys and presence dependence so **Developer: Policy Diagnostics** attributes the value to the governing channel rather than to the account. Presence attribution also clears declared values so an independently sufficient harness denial does not mask general governance.
 - The `value` callback stays pure and deterministic — attribution evaluates it more than once.
 
 ### Normalization: the structured-key descriptor table

@@ -95,8 +95,23 @@ suite('customizationMigration', () => {
 				[CustomizationMigrationCategoryId.UserData, [PromptsType.agent, PromptsType.instructions]],
 				[CustomizationMigrationCategoryId.ConfiguredLocations, [PromptsType.agent, PromptsType.instructions, PromptsType.skill]],
 				[CustomizationMigrationCategoryId.McpServers, []],
+				[CustomizationMigrationCategoryId.PluginMarketplaces, []],
 			],
 		});
+	});
+
+	test('provides consistent progress titles for every migration category', () => {
+		assert.deepStrictEqual(CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => ({
+			id: category.id,
+			single: category.getProgressTitle(1),
+			multiple: category.getProgressTitle(4),
+		})), [
+			{ id: CustomizationMigrationCategoryId.PromptFiles, single: 'Converting 1 prompt file to a skill...', multiple: 'Converting 4 prompt files to skills...' },
+			{ id: CustomizationMigrationCategoryId.UserData, single: 'Migrating 1 user data customization...', multiple: 'Migrating 4 user data customizations...' },
+			{ id: CustomizationMigrationCategoryId.ConfiguredLocations, single: 'Migrating 1 customization from a configured location...', multiple: 'Migrating 4 customizations from configured locations...' },
+			{ id: CustomizationMigrationCategoryId.McpServers, single: 'Migrating 1 MCP server...', multiple: 'Migrating 4 MCP servers...' },
+			{ id: CustomizationMigrationCategoryId.PluginMarketplaces, single: 'Migrating 1 plugin marketplace...', multiple: 'Migrating 4 plugin marketplaces...' },
+		]);
 	});
 
 	test('presents MCP source-to-target migration without file-only behavior', () => {
@@ -164,11 +179,9 @@ suite('customizationMigration', () => {
 	});
 
 	test('builds an agent prompt from discovered sources and harness-reported targets', () => {
-		const recoveryBundleFolder = URI.file('/recovery/vscode-customization-migration');
 		const prompt = createCustomizationMigrationAgentPrompt(
 			{ id: 'agent-host-copilotcli', label: 'Copilot' },
 			'migration-flow-id',
-			recoveryBundleFolder,
 			[
 				{
 					category: CustomizationMigrationType.PromptFiles,
@@ -204,16 +217,14 @@ suite('customizationMigration', () => {
 			'',
 			'Selected harness: Copilot (agent-host-copilotcli)',
 			'Migration telemetry flow: migration-flow-id',
-			'Recovery bundle folder: file:///recovery/vscode-customization-migration',
-			`Recovery bundle filesystem path: ${recoveryBundleFolder.path}`,
 			'',
 			'Customizations that need migration:',
-			'- promptFiles: prompt (local): file:///workspace/.github/prompts/review.prompt.md',
+			'- promptFiles: prompt (workspace): file:///workspace/.github/prompts/review.prompt.md',
 			'- mcpServers: MCP server "Server" (user): file:///profile/mcp.json -> file:///home/.copilot/mcp-config.json',
-			'- configuredLocations: instructions (local): file:///workspace/custom/review.instructions.md',
+			'- configuredLocations: instructions (workspace): file:///workspace/custom/review.instructions.md',
 			'',
 			'Valid target folders reported by the selected harness:',
-			'- skill (local, Workspace skills): file:///workspace/.github/skills',
+			'- skill (workspace, Workspace skills): file:///workspace/.github/skills',
 			'- skill (user, User skills): file:///home/.copilot/skills',
 		].join('\n'));
 	});
@@ -282,15 +293,15 @@ suite('customizationMigration', () => {
 		});
 	});
 
-	test('describes MCP property removals', () => {
+	test('describes MCP property removals, OAuth sign-in and trust', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
-			storage: PromptsStorage.user,
+			storage: PromptsStorage.local,
 			id: 'changed',
 			name: 'Changed',
-			sourceUri: URI.file('/profile/mcp.json'),
-			targetUri: URI.file('/home/.copilot/mcp-config.json'),
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 			removedProperties: { gallery: true },
 		};
@@ -301,6 +312,10 @@ suite('customizationMigration', () => {
 			galleryDisabledWithVersion: category.getCandidateWarnings?.({ ...server, removedProperties: { gallery: false, version: '1.0.0' } }, 'Copilot'),
 			versionOnly: category.getCandidateWarnings?.({ ...server, removedProperties: { version: '1.0.0' } }, 'Copilot'),
 			inputsAndGallery: category.getCandidateWarnings?.({ ...server, environmentVariables: [{ id: 'log-level', name: 'LOG_LEVEL', declaration: { type: 'promptString' } }] }, 'Copilot'),
+			settings: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, settingVariables: [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }] }, 'Copilot'),
+			inputsAndSettings: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, environmentVariables: [{ id: 'log-level', name: 'LOG_LEVEL', declaration: { type: 'promptString' } }], settingVariables: [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }] }, 'Copilot'),
+			oauthClient: category.getCandidateWarnings?.({ ...server, removedProperties: undefined, oauth: { clientId: 'client' } }, 'Copilot'),
+			userOAuthClient: category.getCandidateWarnings?.({ ...server, storage: PromptsStorage.user, sourceUri: URI.file('/profile/mcp.json'), targetUri: URI.file('/home/.copilot/mcp-config.json'), oauth: { clientId: 'client' } }, 'Copilot'),
 		}, {
 			galleryEnabled: ['Migrating will stop auto-updates from the MCP registry.'],
 			galleryEnabledWithVersion: ['Migrating will stop auto-updates from the MCP registry.'],
@@ -308,6 +323,14 @@ suite('customizationMigration', () => {
 			galleryDisabledWithVersion: [],
 			versionOnly: [],
 			inputsAndGallery: ['Inputs will become environment variables. Configure them in the MCP server details after migrating.', 'Migrating will stop auto-updates from the MCP registry.'],
+			settings: ['Configs will become environment variables. Later changes won\'t apply.'],
+			inputsAndSettings: ['Inputs will become environment variables. Configure them in the MCP server details after migrating.', 'Configs will become environment variables. Later changes won\'t apply.'],
+			oauthClient: ['You may need to sign in again after migration.'],
+			userOAuthClient: [
+				'You may need to sign in again after migration.',
+				'VS Code will ask you to trust this server again after migration.',
+				'Migrating will stop auto-updates from the MCP registry.',
+			],
 		});
 	});
 

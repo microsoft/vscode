@@ -11,7 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -40,7 +40,7 @@ import { IMcpRegistry } from '../../../../mcp/common/mcpRegistryTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, IMcpSamplingService, IWorkbenchMcpServer, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
 import { McpCommandIds } from '../../../../mcp/common/mcpCommandIds.js';
@@ -58,6 +58,7 @@ import {
 	getActiveSessionServerOptionsActions,
 	getAgentHostMcpServerEnablementActions,
 	getMcpCompatibilityPresentation,
+	getMcpRowMessagePresentation,
 	getMcpEntryGroup,
 	getMarketplaceMcpManagementAction,
 	getMcpRowKey,
@@ -71,8 +72,6 @@ import {
 	getToggledMcpEnablementState,
 	McpListWidget,
 	McpServerItemRenderer,
-	registerMcpInlineButtonAction,
-	registerMcpSignInButtonAction,
 	type IMcpInstalledEntry,
 	type IMcpStatusRenderInput,
 	updateMcpCompatibilityMessage,
@@ -83,6 +82,7 @@ import {
 	shouldShowLegacyMcpGallery,
 	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
+import { registerMcpInlineButtonAction, registerMcpSignInButtonAction, renderMcpServerSignInButton } from '../../../browser/aiCustomization/mcpServerSignInButton.js';
 import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
@@ -1104,12 +1104,22 @@ suite('mcpListWidget', () => {
 		]);
 	});
 
-	test('renders harness compatibility separately from runtime status', () => {
-		const message = document.createElement('span');
-		const store = disposables.add(new DisposableStore());
+	test('renders harness compatibility and supported migrations separately from runtime status', () => {
 		let migrationRequests = 0;
-		updateMcpCompatibilityMessage(message, 'partiallySupported', store, () => migrationRequests++);
-		message.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.click();
+		const render = (kind: CustomizationMcpServerCompatibilityKind | undefined, migratable = false) => {
+			const message = document.createElement('span');
+			const store = disposables.add(new DisposableStore());
+			updateMcpCompatibilityMessage(message, kind, store, () => migrationRequests++, migratable);
+			message.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.click();
+			return {
+				messageClass: message.className,
+				messageText: message.textContent,
+				messageIcon: message.querySelector('.mcp-server-compatibility-icon')?.className,
+				messageIconAriaHidden: message.querySelector('.mcp-server-compatibility-icon')?.getAttribute('aria-hidden'),
+				messageDisplay: message.style.display,
+				linkHref: message.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.getAttribute('href'),
+			};
+		};
 
 		assert.deepStrictEqual({
 			presentations: [
@@ -1118,12 +1128,12 @@ suite('mcpListWidget', () => {
 				getMcpCompatibilityPresentation('unsupported'),
 				getMcpCompatibilityPresentation('unknown'),
 			],
-			messageClass: message.className,
-			messageText: message.textContent,
-			messageIcon: message.querySelector('.mcp-server-compatibility-icon')?.className,
-			messageIconAriaHidden: message.querySelector('.mcp-server-compatibility-icon')?.getAttribute('aria-hidden'),
-			messageDisplay: message.style.display,
-			linkHref: message.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.getAttribute('href'),
+			rowPresentations: [
+				getMcpRowMessagePresentation('supported', false),
+				getMcpRowMessagePresentation('supported', true),
+			],
+			partial: render('partiallySupported'),
+			migration: render('supported', true),
 			migrationRequests,
 		}, {
 			presentations: [
@@ -1132,13 +1142,27 @@ suite('mcpListWidget', () => {
 				{ label: 'Unsupported', className: 'unsupported' },
 				{ label: 'Support unknown', className: 'support-unknown' },
 			],
-			messageClass: 'mcp-server-compatibility-message partially-supported',
-			messageText: 'Partially supported. See Migrations for details.',
-			messageIcon: 'mcp-server-compatibility-icon codicon codicon-warning',
-			messageIconAriaHidden: 'true',
-			messageDisplay: '',
-			linkHref: '#',
-			migrationRequests: 1,
+			rowPresentations: [
+				undefined,
+				{ label: 'Migration available', className: 'migration-available' },
+			],
+			partial: {
+				messageClass: 'mcp-server-compatibility-message partially-supported',
+				messageText: 'Partially supported. See Migrations for details.',
+				messageIcon: 'mcp-server-compatibility-icon codicon codicon-warning',
+				messageIconAriaHidden: 'true',
+				messageDisplay: '',
+				linkHref: '#',
+			},
+			migration: {
+				messageClass: 'mcp-server-compatibility-message migration-available',
+				messageText: 'Migration available',
+				messageIcon: 'mcp-server-compatibility-icon codicon codicon-warning',
+				messageIconAriaHidden: 'true',
+				messageDisplay: '',
+				linkHref: '#',
+			},
+			migrationRequests: 2,
 		});
 	});
 
@@ -1339,6 +1363,101 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	suite('MCP enablement routing for a server with a local twin', () => {
+		const sessionResource = URI.parse('vscode-agent-session:///session-1');
+		const localServerId = 'copilot.null.github';
+
+		function exercise(mcpService: IMcpService, agentHostService: IAgentHostCustomizationService, activeSessionServer: AgentHostMcpServer | undefined) {
+			const shownEnabled = isPrimaryMcpServerEnabled(mcpService, localServerId, activeSessionServer);
+			setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, localServerId, activeSessionServer, false);
+			const menu = trackActions(disposables, getBuiltinMcpServerEnablementActions(mcpService, localServerId, false, agentHostService, createAgentPluginService(), sessionResource, activeSessionServer));
+			menu.forEach(runAction);
+			const serverItemMenu = getServerItemContextMenuActions(
+				[trackActions(disposables, [
+					new Action(DisableMcpServerGloballyAction.ID, 'Disable (Globally)'),
+					new Action(DisableMcpServerForWorkspaceAction.ID, 'Disable (Workspace)'),
+				])],
+				activeSessionServer,
+				undefined,
+				[],
+			);
+			return {
+				shownEnabled,
+				menu: menu.map(action => action.label),
+				serverItemLocalMenu: serverItemMenu.filter(action => !(action instanceof Separator)).map(action => action.label),
+			};
+		}
+
+		test('routes a host-discovered Copilot-home server to the agent host', () => {
+			// The buggy flow left a window-local disable on the twin that the host never saw.
+			const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.DisabledProfile);
+			const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+			const server = createAgentHostServer({
+				id: 'github',
+				name: 'github',
+				source: 'user',
+				isPluginProvided: false,
+				isClientBundled: false,
+			});
+
+			assert.deepStrictEqual({ ...exercise(mcpService, agentHostService, server), localCalls, agentHostCalls }, {
+				shownEnabled: true,
+				menu: ['Disable (Globally)', 'Disable (Workspace)', 'Disable (Session)'],
+				serverItemLocalMenu: [],
+				localCalls: [],
+				agentHostCalls: [
+					[sessionResource, 'github', undefined, CustomizationEnablementKind.Global, false],
+					[sessionResource, 'github', undefined, CustomizationEnablementKind.Global, false],
+					[sessionResource, 'github', undefined, CustomizationEnablementKind.Workspace, false],
+					[sessionResource, 'github', undefined, CustomizationEnablementKind.Session, false],
+				],
+			});
+		});
+
+		test('keeps the client-owned global decision for a client-forwarded server', () => {
+			const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+			const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+			const server = createAgentHostServer({
+				id: 'github',
+				name: 'github',
+				isPluginProvided: true,
+				isClientBundled: true,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			});
+
+			assert.deepStrictEqual({ ...exercise(mcpService, agentHostService, server), localCalls, agentHostCalls }, {
+				shownEnabled: true,
+				menu: ['Disable (Globally)', 'Disable (Workspace)', 'Disable (Session)'],
+				serverItemLocalMenu: ['Disable (Globally)'],
+				localCalls: [
+					[localServerId, ContributionEnablementState.DisabledProfile],
+					[localServerId, ContributionEnablementState.DisabledProfile],
+				],
+				agentHostCalls: [
+					[sessionResource, 'github', server.enablement, CustomizationEnablementKind.Workspace, false],
+					[sessionResource, 'github', server.enablement, CustomizationEnablementKind.Session, false],
+				],
+			});
+		});
+
+		test('uses local enablement without an active agent-host session', () => {
+			const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+			const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+
+			assert.deepStrictEqual({ ...exercise(mcpService, agentHostService, undefined), localCalls, agentHostCalls }, {
+				shownEnabled: true,
+				menu: ['Disable (Globally)', 'Disable (Workspace)'],
+				serverItemLocalMenu: ['Disable (Globally)', 'Disable (Workspace)'],
+				localCalls: [
+					[localServerId, ContributionEnablementState.DisabledProfile],
+					[localServerId, ContributionEnablementState.DisabledProfile],
+					[localServerId, ContributionEnablementState.DisabledWorkspace],
+				],
+				agentHostCalls: [],
+			});
+		});
+	});
+
 	test('distinguishes membership changes from state-only changes', () => {
 		const getMembershipSignature = (sourceUri: URI | undefined, source?: AgentHostMcpServer['source'], displayName?: string) => {
 			const widget = Object.create(McpListWidget.prototype);
@@ -1479,7 +1598,7 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual(calls, [[sessionResource, 'plugin-1', pluginEnablement, CustomizationEnablementKind.Session, true]]);
 		});
 
-		test('enables a client-published plugin globally through the client', () => {
+		test('enables a client-published plugin globally through the client', async () => {
 			const { service, calls: hostCalls } = createAgentHostCustomizations();
 			const clientCalls: unknown[][] = [];
 			const pluginUri = URI.file('/plugins/plugin-1');
@@ -1497,8 +1616,15 @@ suite('mcpListWidget', () => {
 				},
 			});
 
-			const [action] = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, createAgentPluginService(clientCalls), sessionResource, server));
-			runAction(action);
+			const pluginService = createAgentPluginService(clientCalls);
+			const [action] = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, {
+				...pluginService,
+				plugins: constObservable([new class extends mock<IAgentPlugin>() {
+					override readonly uri = pluginUri;
+				}()]),
+			}, sessionResource, server));
+			assert.ok(action);
+			await action.run();
 
 			assert.deepStrictEqual({ clientCalls, hostCalls }, {
 				clientCalls: [[pluginUri.toString(), ContributionEnablementState.EnabledProfile]],
@@ -1534,6 +1660,8 @@ suite('mcpListWidget', () => {
 		test('replaces the VS Code workspace action with agent-host workspace and session actions', () => {
 			const { service, calls } = createAgentHostCustomizations();
 			const server = createAgentHostServer({
+				isPluginProvided: true,
+				isClientBundled: true,
 				enabled: false,
 				enablement: [
 					{ kind: CustomizationEnablementKind.Session, enabled: false },
@@ -1570,6 +1698,27 @@ suite('mcpListWidget', () => {
 			]);
 		});
 
+		test('adds agent-host enablement actions once when several groups hold local enablement actions', () => {
+			const { service } = createAgentHostCustomizations();
+			const server = createAgentHostServer({ isPluginProvided: true, isClientBundled: true });
+			const agentHostActions = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, createAgentPluginService(), sessionResource, server, ['workspace', 'session']));
+			const actions = getServerItemContextMenuActions(
+				[
+					trackActions(disposables, [new Action(DisableMcpServerGloballyAction.ID, 'Disable (Globally)')]),
+					trackActions(disposables, [new Action(DisableMcpServerForWorkspaceAction.ID, 'Disable (Workspace)')]),
+				],
+				server,
+				undefined,
+				agentHostActions,
+			);
+
+			assert.deepStrictEqual(actions.filter(action => !(action instanceof Separator)).map(action => action.label), [
+				'Disable (Globally)',
+				'Disable (Workspace)',
+				'Disable (Session)',
+			]);
+		});
+
 		test('keeps the VS Code-owned enablement set without an active agent-host session', () => {
 			const localActions = trackActions(disposables, [
 				new Action(EnableMcpServerGloballyAction.ID, 'Enable'),
@@ -1599,6 +1748,8 @@ suite('mcpListWidget', () => {
 				const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
 				const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
 				const server = createAgentHostServer({
+					isPluginProvided: true,
+					isClientBundled: true,
 					enabled: false,
 					enablement: [
 						{ kind: CustomizationEnablementKind.Global, enabled: false },
@@ -1831,7 +1982,7 @@ suite('mcpListWidget', () => {
 		// replaced between mousedown and mouseup never receives the click.
 		type Entry = Parameters<McpServerItemRenderer['renderElement']>[0];
 
-		function createRenderer(server: AgentHostMcpServer, isSessionsWindow = true, useRealManagementActions = false, authenticate = () => Promise.resolve(true), compatibilityKind: Parameters<typeof getMcpCompatibilityPresentation>[0] = undefined) {
+		function createRenderer(server: AgentHostMcpServer, isSessionsWindow = true, useRealManagementActions = false, authenticate = () => Promise.resolve(true), compatibilityKind: Parameters<typeof getMcpCompatibilityPresentation>[0] = undefined, migratable = false) {
 			const store = new DisposableStore();
 			const onDidChangeCustomizations = store.add(new Emitter<void>());
 			const sessionResource = URI.parse('vscode-agent-session:///session-1');
@@ -1849,6 +2000,7 @@ suite('mcpListWidget', () => {
 			const runtimeServers = observableValue<readonly IMcpServer[]>('runtimeServers', []);
 			let localEnablementCalls: [string, ContributionEnablementState][] = [];
 			let menuActions: IAction[] = [];
+			let migrationAvailable = migratable;
 			const hoverContents = new Map<HTMLElement, IManagedHoverContent>();
 			const themeChanges = store.add(new Emitter<ReturnType<IThemeService['getColorTheme']>>());
 			let themeType = ColorScheme.DARK;
@@ -1930,6 +2082,7 @@ suite('mcpListWidget', () => {
 			const renderer = store.add(new McpServerItemRenderer(
 				renderManagementActions,
 				() => compatibilityKind,
+				() => migrationAvailable,
 				plugin => openedPlugins.push(plugin.label),
 				() => migrationRequests++,
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
@@ -1953,6 +2106,7 @@ suite('mcpListWidget', () => {
 				getUpdatedServerDetail(id: string): ReturnType<typeof createInstalledMcpServerDetailInput> | undefined;
 				installedEntries: { entry: Entry }[];
 				getMcpEntryAriaLabel(entry: Entry): IObservable<string>;
+				isMcpServerMigratable(entry: Entry, reader?: IReader): boolean;
 				getMcpServerActions(entry: Entry, store: DisposableStore): IAction[];
 				renderMcpListActions(getEntry: () => Entry | undefined, actions: HTMLElement, store: DisposableStore, updateTabbability: () => void): void;
 			};
@@ -1969,6 +2123,8 @@ suite('mcpListWidget', () => {
 				labelService,
 				agentHostCustomizationsChanged: observableSignalFromEvent('customizationsChanged', onDidChangeCustomizations.event),
 				mcpServerCompatibility: observableValue<ReadonlyMap<string, CustomizationMcpServerCompatibilityKind>>(widget, new Map(compatibilityKind ? [['native', compatibilityKind]] : [])),
+				getMcpServerCompatibilityKind: () => compatibilityKind,
+				isMcpServerMigratable: () => migratable,
 				_closeCustomizationEditor: async () => { outputActions.push('close-editor'); },
 				showMcpServerActions: (entry: Entry) => { menuActions = widget.getMcpServerActions(entry, store); },
 			});
@@ -2070,6 +2226,7 @@ suite('mcpListWidget', () => {
 				}),
 				notifyUnchanged: () => onDidChangeCustomizations.fire(),
 				setServers: (next: AgentHostMcpServer[]) => { servers = next; },
+				setMigratable: (value: boolean) => { migrationAvailable = value; },
 				setTheme: (type: ColorScheme) => {
 					themeType = type;
 					themeChanges.fire({ type: themeType } as ReturnType<IThemeService['getColorTheme']>);
@@ -2477,7 +2634,7 @@ suite('mcpListWidget', () => {
 			return { server, workbenchServer, connectionState, enablement, outputCalls, startCalls };
 		}
 
-		test('local built-in rows preserve stopped and starting lifecycle states', async () => {
+		test('local built-in rows can start from stopped and error states', async () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
 			const native = nativeServer();
@@ -2485,7 +2642,11 @@ suite('mcpListWidget', () => {
 			const entry: Entry = { type: 'builtin-item', id: 'native', label: 'Native', description: 'Ordinary description', localServer: native.server };
 
 			ctx.render(entry);
-			const startButton = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start');
+			let startButton = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start');
+			startButton?.click();
+			await Promise.resolve();
+			native.connectionState.set({ state: McpConnectionState.Kind.Error, message: 'Failed to start' }, undefined);
+			startButton = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start');
 			startButton?.click();
 			await Promise.resolve();
 			native.connectionState.set({ state: McpConnectionState.Kind.Starting }, undefined);
@@ -2496,7 +2657,7 @@ suite('mcpListWidget', () => {
 				startingSpinner: ctx.templateData.actions.querySelector('.mcp-server-status.codicon-loading') !== null,
 			}, {
 				startButton: 'Start',
-				startCalls: ['native'],
+				startCalls: ['native', 'native'],
 				startingSpinner: true,
 			});
 		});
@@ -2529,6 +2690,7 @@ suite('mcpListWidget', () => {
 					hostCalls: ctx.shownLogs,
 					hostSessions: ctx.shownLogSessions,
 					outputActions: ctx.outputActions,
+					inlineStartButton: ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start')?.textContent,
 					inlineOutputButton: showOutputButton?.textContent,
 					errorIcon: statusIcon?.classList.contains('error'),
 				}, {
@@ -2537,6 +2699,7 @@ suite('mcpListWidget', () => {
 					hostCalls: hostOwned ? ['server-1'] : [],
 					hostSessions: hostOwned ? ['vscode-agent-session:/session-2'] : [],
 					outputActions: ['close-editor', 'show-output'],
+					inlineStartButton: 'Start',
 					inlineOutputButton: undefined,
 					errorIcon: true,
 				});
@@ -2601,7 +2764,7 @@ suite('mcpListWidget', () => {
 					logSessions: ctx.shownLogSessions,
 				}, {
 					checkedAfterSnapshot: 'false', currentToggle: true, currentMore: true, focused: true,
-					scopeLabels: kind === 'matched' ? ['Disable (Session)'] : ['Enable', 'Disable (Session)'],
+					scopeLabels: ['Enable', 'Disable (Session)'],
 					starts: ['latest'],
 					hostEnablement: [[ctx.activeSessionResource.get(), server.id, enablement, CustomizationEnablementKind.Global, true]],
 					localEnablement: [], logs: [server.id], logSessions: [ctx.activeSessionResource.get().toString()],
@@ -2798,6 +2961,105 @@ suite('mcpListWidget', () => {
 			});
 		});
 
+		test('supported migration candidates show an actionable row message', () => {
+			const ctx = createRenderer(createAgentHostServer(), true, false, undefined, 'supported', true);
+			disposables.add(ctx.store);
+			ctx.render();
+			ctx.templateData.compatibilityMessage.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.click();
+
+			assert.deepStrictEqual({
+				message: ctx.templateData.compatibilityMessage.textContent,
+				messageClass: ctx.templateData.compatibilityMessage.className,
+				descriptionDisplay: ctx.templateData.description.style.display,
+				ariaLabel: ctx.read().ariaLabel,
+				migrationRequests: ctx.migrationRequests(),
+			}, {
+				message: 'Migration available',
+				messageClass: 'mcp-server-compatibility-message migration-available',
+				descriptionDisplay: 'none',
+				ariaLabel: 'Server One, Migration available, Running',
+				migrationRequests: 1,
+			});
+		});
+
+		test('runtime errors show the ordinary description instead of the hidden migration message', () => {
+			const server = erroring();
+			const native = nativeServer();
+			const entry: Entry = {
+				type: 'builtin-item',
+				id: 'native',
+				label: 'Native',
+				description: 'Ordinary description',
+				localServer: native.server,
+				activeSessionServer: server,
+			};
+			const ctx = createRenderer(server, true, false, undefined, 'supported', true);
+			disposables.add(ctx.store);
+			ctx.render(entry);
+
+			assert.deepStrictEqual({
+				description: ctx.templateData.description.textContent,
+				descriptionDisplay: ctx.templateData.description.style.display,
+				migrationDisplay: ctx.templateData.compatibilityMessage.style.display,
+			}, {
+				description: 'Ordinary description',
+				descriptionDisplay: '',
+				migrationDisplay: 'none',
+			});
+		});
+
+		test('equivalent migration refreshes preserve the focused link', () => {
+			const ctx = createRenderer(createAgentHostServer(), true, false, undefined, 'supported', true);
+			disposables.add(ctx.store);
+			document.body.appendChild(ctx.templateData.container);
+			disposables.add({ dispose: () => ctx.templateData.container.remove() });
+			ctx.render();
+			ctx.setFocusedIndex(0);
+			const link = ctx.templateData.compatibilityLink!;
+			link.focus();
+
+			ctx.setMigratable(true);
+			ctx.notifyUnchanged();
+
+			assert.deepStrictEqual({
+				sameLink: ctx.templateData.compatibilityLink === link,
+				focused: document.activeElement === link,
+				tabIndex: link.tabIndex,
+			}, {
+				sameLink: true,
+				focused: true,
+				tabIndex: 0,
+			});
+		});
+
+		test('allows Enter to activate migration links without opening the list row', () => {
+			const ctx = createRenderer(createAgentHostServer(), true, false, undefined, 'supported', true);
+			disposables.add(ctx.store);
+			ctx.render();
+			ctx.setFocusedIndex(0);
+			const link = ctx.templateData.compatibilityLink!;
+			let bubbled = false;
+			ctx.templateData.container.addEventListener('keydown', event => {
+				bubbled = true;
+				event.preventDefault();
+			});
+			const event = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+			link.dispatchEvent(event);
+			if (!event.defaultPrevented) {
+				link.click();
+			}
+
+			assert.deepStrictEqual({
+				bubbled,
+				defaultPrevented: event.defaultPrevented,
+				migrationRequests: ctx.migrationRequests(),
+			}, {
+				bubbled: false,
+				defaultPrevented: false,
+				migrationRequests: 1,
+			});
+		});
+
 		test('message-only changes preserve management action identity, keyboard focus and clicks', () => {
 			const ctx = createRenderer(erroring());
 			disposables.add(ctx.store);
@@ -2853,10 +3115,14 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual({
 				ariaLabel: parent.querySelector('.customization-card-primary-action')?.getAttribute('aria-label'),
 				description: parent.querySelector('.plugin-list-item-description')?.textContent,
+				start: parent.querySelector('.mcp-server-start')?.textContent,
+				startDisplay: parent.querySelector<HTMLElement>('.mcp-server-start')?.style.display,
 				showOutput: parent.querySelector('.mcp-server-show-output')?.textContent,
 			}, {
 				ariaLabel: 'Server One, Error, failed to start',
 				description: 'No description provided.',
+				start: 'Start',
+				startDisplay: '',
 				showOutput: 'Show Output',
 			});
 		});
@@ -2885,12 +3151,12 @@ suite('mcpListWidget', () => {
 			});
 		});
 
-		test('starting, stopped and authentication states use their inline actions', () => {
+		test('starting, stopped, error and authentication states use their inline actions', () => {
 			const ctx = createRenderer(erroring());
 			disposables.add(ctx.store);
 			ctx.render();
 			const results = [];
-			for (const status of [McpServerStatus.Starting, McpServerStatus.Stopped, McpServerStatus.AuthRequired]) {
+			for (const status of [McpServerStatus.Starting, McpServerStatus.Stopped, McpServerStatus.Error, McpServerStatus.AuthRequired]) {
 				ctx.setServers([createAgentHostServer({ ...erroring(), status })]);
 				ctx.notifyUnchanged();
 				results.push({
@@ -2902,11 +3168,12 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual(results, [
 				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Starting', signIn: false, start: false },
 				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Stopped', signIn: false, start: true },
+				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Error, failed to start', signIn: false, start: true },
 				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Authentication required', signIn: true, start: false },
 			]);
 		});
 
-		test('start button starts a stopped active-session server', async () => {
+		test('start button starts stopped and errored active-session servers', async () => {
 			let starts = 0;
 			const server = createAgentHostServer({
 				status: McpServerStatus.Stopped,
@@ -2919,8 +3186,15 @@ suite('mcpListWidget', () => {
 
 			ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start')?.click();
 			await Promise.resolve();
+			ctx.setServers([createAgentHostServer({
+				...erroring(),
+				start: async () => { starts++; },
+			})]);
+			ctx.notifyUnchanged();
+			ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-start')?.click();
+			await Promise.resolve();
 
-			assert.strictEqual(starts, 1);
+			assert.strictEqual(starts, 2);
 		});
 
 		test('recycling an error row for a healthy row restores its description and hover', () => {
@@ -3337,6 +3611,62 @@ suite('mcpListWidget', () => {
 	});
 
 	suite('inline actions', () => {
+		test('rendered sign-in action authenticates the server id and shows progress', async () => {
+			const sessionResource = URI.parse('custom-agent-session:/session');
+			const server = createAgentHostServer({ id: 'opaque-plugin-child-id', status: McpServerStatus.AuthRequired });
+			const calls: [URI, string][] = [];
+			let resolveAuthentication!: (result: boolean) => void;
+			const authentication = new Promise<boolean>(resolve => resolveAuthentication = resolve);
+			const service = {
+				authenticateMcpServer: (resource: URI, id: string) => {
+					calls.push([resource, id]);
+					return authentication;
+				},
+			} as IAgentHostCustomizationService;
+			const row = document.createElement('div');
+			const button = renderMcpServerSignInButton(row, disposables, server.name, () => service.authenticateMcpServer(sessionResource, server.id));
+			assert.strictEqual(button.element.textContent, 'Sign In');
+
+			button.element.click();
+			button.element.click();
+			assert.deepStrictEqual({
+				calls,
+				text: button.element.textContent,
+				busy: button.element.getAttribute('aria-busy'),
+				enabled: button.enabled,
+			}, {
+				calls: [[sessionResource, server.id]],
+				text: 'Signing In...',
+				busy: 'true',
+				enabled: false,
+			});
+
+			resolveAuthentication(true);
+			await authentication;
+			assert.deepStrictEqual({ text: button.element.textContent, busy: button.element.getAttribute('aria-busy'), enabled: button.enabled }, {
+				text: 'Sign In', busy: null, enabled: true,
+			});
+		});
+
+		test('rendered sign-in action reflects authentication already in progress', () => {
+			const row = document.createElement('div');
+			let calls = 0;
+			const button = renderMcpServerSignInButton(row, disposables, 'Server One', async () => { calls++; }, true);
+			button.element.click();
+
+			assert.deepStrictEqual({
+				calls,
+				text: button.element.textContent,
+				busy: button.element.getAttribute('aria-busy'),
+				enabled: button.enabled,
+			}, {
+				calls: 0,
+				text: 'Signing In...',
+				busy: 'true',
+				enabled: false,
+			});
+		});
+
 		test('sign-in progress resets after rejection and ignores completions after disposal', async () => {
 			const row = document.createElement('div');
 			const button = disposables.add(new Button(row, { ...unthemedButtonStyles, supportIcons: true }));

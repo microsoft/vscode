@@ -12,11 +12,172 @@ import { FileService } from '../../../files/common/fileService.js';
 import { IFileWriteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AhpJsonlLogger, AhpJsonlLogRetention, getAhpLogByteLength, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
+import { AhpJsonlLogger, AhpJsonlLogRetention, getAhpLogByteLength, isAhpJsonlLoggingEnabled, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
 
 suite('AhpJsonlLogger', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('redacts direct and fragmented channel payloads without changing messages', () => {
+		for (const method of ['tcp/data', 'channel/frame']) {
+			const message = { jsonrpc: '2.0', method, params: { channel: 'ahp-tcp:/test', data: 'private bytes', final: true } };
+			const logged = JSON.parse(stringifyAhpLogEntry(message));
+			assert.deepStrictEqual(logged, { ...message, params: { ...message.params, data: '<redacted channel payload>' } });
+			assert.strictEqual(message.params.data, 'private bytes');
+		}
+	});
+
+	test('does not record inspection of its own logs or log-only file-watch changes', async () => {
+		const files = store.add(new FileService(new NullLogService()));
+		store.add(files.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger({
+			logsHome: URI.file('/inspection-logs'), logId: 'host', connectionId: 'client', transport: 'mission-control',
+		}, files, new NullLogService()));
+		let inspectedPayloads = 0;
+		for (const [index, method] of ['resourceRead', 'resourceResolve', 'resourceList', 'resourceRequest', 'createResourceWatch'].entries()) {
+			logger.log({ jsonrpc: '2.0', id: index, method, params: { uri: logger.resource.toString() } }, 'c2s');
+			logger.log({ jsonrpc: '2.0', id: index, get result() { inspectedPayloads++; return 'log contents'; } }, 's2c');
+		}
+		logger.log({ method: 'action', params: { action: { type: 'resourceWatch/changed', changes: { items: [{ uri: logger.resource.toString() }] } } } }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 99, method: 'resourceRead', params: { uri: 'file:///workspace/code.ts' } }, 'c2s');
+		logger.log({ jsonrpc: '2.0', id: 99, result: 'source code' }, 's2c');
+		await logger.flush();
+		assert.deepStrictEqual({
+			inspectedPayloads,
+			ids: (await files.readFile(logger.resource)).value.toString().trim().split('\n').map(line => JSON.parse(line).id),
+		}, { inspectedPayloads: 0, ids: [99, 99] });
+	});
+
+	test('applies live capture changes before serialization without resetting the shared budget', async () => {
+		const files = store.add(new FileService(new NullLogService()));
+		const provider = store.add(new RecordingInMemoryFileSystemProvider());
+		store.add(files.registerProvider('file', provider));
+		let enabled = false;
+		let serializations = 0;
+		const logger = store.add(new AhpJsonlLogger({
+			logsHome: URI.file('/live-budget'), logId: 'host', connectionId: 'client', transport: 'mission-control',
+			maxTotalSizeBytes: 500, isEnabled: () => enabled,
+		}, files, new NullLogService()));
+		const message = { get result() { serializations++; return 'captured'; } };
+		logger.log(message, 's2c');
+		await logger.flush();
+		const disabledWrites = provider.writeCount;
+		enabled = true;
+		logger.log(message, 's2c');
+		await logger.flush();
+		enabled = false;
+		logger.log(message, 's2c');
+		enabled = true;
+		for (let id = 0; id < 20; id++) {
+			logger.log({ id, result: 'x'.repeat(100) }, 's2c');
+		}
+		await logger.flush();
+		enabled = false;
+		enabled = true;
+		logger.log(message, 's2c');
+		await logger.flush();
+		assert.deepStrictEqual({
+			disabledWrites, serializations,
+			wroteSomeData: provider.writtenBytes > 0,
+			withinBudget: provider.writtenBytes <= 500,
+		}, { disabledWrites: 0, serializations: 1, wroteSomeData: true, withinBudget: true });
+	});
+
+	test('enables default capture only in Insiders and respects explicit host overrides', () => {
+		assert.deepStrictEqual([
+			isAhpJsonlLoggingEnabled('stable'),
+			isAhpJsonlLoggingEnabled('insider'),
+			isAhpJsonlLoggingEnabled('exploration'),
+			isAhpJsonlLoggingEnabled(undefined),
+			isAhpJsonlLoggingEnabled('stable', 'true'),
+			isAhpJsonlLoggingEnabled('insider', 'false'),
+		], [false, true, false, false, true, false]);
+	});
+
+	test('shares the cumulative byte budget across concurrent connections, reconnects and rotation', async () => {
+		const warnings: string[] = [];
+		const log = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}();
+		const files = store.add(new FileService(log));
+		const provider = store.add(new RecordingInMemoryFileSystemProvider());
+		store.add(files.registerProvider('file', provider));
+		const logsHome = URI.file('/shared-budget');
+		const maxTotalSizeBytes = 2000;
+		const loggers: AhpJsonlLogger[] = [];
+		for (let generation = 0; generation < 20; generation++) {
+			const logger = store.add(new AhpJsonlLogger({
+				logsHome, logId: `host-${generation}`, connectionId: `connection-${generation}`, transport: 'websocket',
+				maxTotalSizeBytes, maxFileSizeBytes: 1, maxFiles: 2,
+			}, files, log));
+			for (let id = 0; id < 3; id++) {
+				logger.log({ id, result: '你好' }, id % 2 ? 'c2s' : 's2c');
+			}
+			loggers.push(logger);
+			if (generation < 2) {
+				await logger.flush();
+				logger.dispose();
+			}
+		}
+		await Promise.all(loggers.map(logger => logger.flush()));
+		const writeCount = provider.writeCount;
+		const writtenBytes = provider.writtenBytes;
+		let serializations = 0;
+		const reconnected = store.add(new AhpJsonlLogger({
+			logsHome, logId: 'reconnected', connectionId: 'new', transport: 'local',
+		}, files, log));
+		reconnected.log({ get result() { serializations++; return 'must not serialize'; } }, 's2c');
+		await reconnected.flush();
+		assert.deepStrictEqual({
+			wroteSomeData: writtenBytes > 0,
+			withinBudget: writtenBytes <= maxTotalSizeBytes,
+			warnings: warnings.length,
+			serializations,
+			furtherWrites: provider.writeCount - writeCount,
+		}, { wroteSomeData: true, withinBudget: true, warnings: 1, serializations: 0, furtherWrites: 0 });
+	});
+
+	test('allows the exact byte budget but does not exceed it with dropped-entry markers', async () => {
+		const log = new NullLogService();
+		const files = store.add(new FileService(log));
+		const provider = store.add(new RecordingInMemoryFileSystemProvider());
+		store.add(files.registerProvider('file', provider));
+		const message = { id: 1, result: '你好' };
+		const maxTotalSizeBytes = VSBuffer.fromString(`${JSON.stringify({
+			...message,
+			_ahpLog: { ts: new Date().toISOString(), dir: 's2c', connectionId: 'client', transport: 'local' },
+		})}\n`).byteLength;
+		const logger = store.add(new AhpJsonlLogger({
+			logsHome: URI.file('/exact-budget'), logId: 'host', connectionId: 'client', transport: 'local',
+			maxTotalSizeBytes, maxPendingBytes: 1,
+		}, files, log));
+		logger.log(message, 's2c');
+		logger.log({ id: 2 }, 's2c');
+		await logger.flush();
+		logger.log({ id: 3 }, 'c2s');
+		await logger.flush();
+		assert.deepStrictEqual({
+			writtenBytes: provider.writtenBytes,
+			writeCount: provider.writeCount,
+			ids: (await files.readFile(logger.resource)).value.toString().trim().split('\n').map(line => JSON.parse(line).id),
+		}, { writtenBytes: maxTotalSizeBytes, writeCount: 1, ids: [1] });
+	});
+
+	test('rejects an entry larger than the remaining budget without creating a log file', async () => {
+		const files = store.add(new FileService(new NullLogService()));
+		const provider = store.add(new RecordingInMemoryFileSystemProvider());
+		store.add(files.registerProvider('file', provider));
+		const logger = store.add(new AhpJsonlLogger({
+			logsHome: URI.file('/oversized-budget'), logId: 'host', connectionId: 'client', transport: 'local',
+			maxTotalSizeBytes: 1,
+		}, files, new NullLogService()));
+		logger.log({ id: 1 }, 's2c');
+		await logger.flush();
+		assert.deepStrictEqual({
+			writtenBytes: provider.writtenBytes,
+			fileExists: await files.exists(logger.resource),
+		}, { writtenBytes: 0, fileExists: false });
+	});
 
 	test('writes canonical JSON-RPC JSONL with metadata at the root', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
@@ -291,6 +452,31 @@ suite('AhpJsonlLogger', () => {
 		});
 	});
 
+	test('bounds pending log data and records dropped entries', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'bounded', connectionId: 'bounded', transport: 'websocket', maxPendingBytes: 1 },
+			fileService,
+			new NullLogService(),
+		));
+
+		logger.log({ jsonrpc: '2.0', id: 1, result: 'written' }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 2, result: 'dropped' }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 3, result: 'dropped' }, 's2c');
+		await logger.flush();
+
+		const entries = (await fileService.readFile(logger.resource)).value.toString().split('\n').filter(Boolean).map(line => JSON.parse(line));
+		assert.deepStrictEqual(entries.map(entry => ({
+			id: entry.id,
+			droppedEntries: entry._ahpLog.droppedEntries,
+		})), [
+			{ id: 1, droppedEntries: undefined },
+			{ id: undefined, droppedEntries: 2 },
+		]);
+	});
+
 	test('redacts canvas URLs in actions and snapshots without mutating live state', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
@@ -450,8 +636,10 @@ suite('AhpJsonlLogger', () => {
 
 class RecordingInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	writeCount = 0;
+	writtenBytes = 0;
 	override async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		this.writeCount++;
+		this.writtenBytes += content.byteLength;
 		return super.writeFile(resource, content, opts);
 	}
 }

@@ -25,6 +25,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { ObservableMemento, observableMemento } from '../../../../../platform/observable/common/observableMemento.js';
+import { COPILOT_STRICT_MARKETPLACES_KEY, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { asJson, IRequestService } from '../../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
@@ -219,7 +220,7 @@ export interface IPluginMarketplaceService {
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean;
 	/**
 	 * Returns whether the strict-marketplace enterprise policy
-	 * (`chat.plugins.strictMarketplaces`) is active — i.e. an allowlist is
+	 * (`strictKnownMarketplaces`) is active — i.e. an allowlist is
 	 * configured. When active, blocked marketplaces cannot be trusted by the user.
 	 */
 	isStrictMarketplacePolicyActive(): boolean;
@@ -388,6 +389,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IMeteredConnectionService private readonly _meteredConnectionService: IMeteredConnectionService,
 		@IAgentPluginEnablementService pluginEnablementService: IAgentPluginEnablementService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 
@@ -448,6 +450,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return keys;
 		});
 
+		const strictMarketplaces = observableFromEvent(this, this._managedSettingsService.onDidChangeManagedSettings,
+			() => this._managedSettingsService.getManagedSettingValue(COPILOT_STRICT_MARKETPLACES_KEY));
 		this.onDidChangeMarketplaces = Event.any(
 			Event.filter(
 				_configurationService.onDidChangeConfiguration,
@@ -457,21 +461,20 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			) as Event<unknown> as Event<void>,
 			Event.fromObservableLight(this._workspacePluginSettingsService.extraMarketplaces),
 			Event.map(this._workspaceTrustService.onDidChangeTrust, () => { }),
+			Event.fromObservableLight(strictMarketplaces),
 		);
 		this._register(this.onDidChangeMarketplaces(() => this._invalidateQueries()));
-		this._register(Event.filter(
-			_configurationService.onDidChangeConfiguration,
-			event => event.affectsConfiguration(ChatConfiguration.StrictMarketplaces),
-		)(() => this._invalidateQueries()));
 
 		this._register(runWhenGlobalIdle(() => {
 			this._updateChecksInitialized = true;
 			this._scheduleUpdateCheck();
-			this._register(Event.filter(
-				_configurationService.onDidChangeConfiguration,
-				e => e.affectsConfiguration(AutoUpdateConfigurationKey)
-					|| e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces)
-					|| e.affectsConfiguration(ChatConfiguration.StrictMarketplaces),
+			this._register(Event.any(
+				Event.filter(
+					_configurationService.onDidChangeConfiguration,
+					e => e.affectsConfiguration(AutoUpdateConfigurationKey)
+						|| e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces),
+				),
+				Event.fromObservableLight(strictMarketplaces),
 			)(() => {
 				this._marketplacesWithUpdates.set(new Set(), undefined);
 				this._scheduleUpdateCheck(0);
@@ -831,12 +834,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean {
-		// In strict mode (`chat.plugins.strictMarketplaces`, typically delivered via the
-		// `ChatStrictMarketplaces` enterprise policy), trust is governed entirely by the
-		// allowlist: a marketplace is trusted only if it matches one of the configured
-		// source entries. The user-trusted store is bypassed — that's the whole point of
-		// "strict": the enterprise fully controls the allowed marketplaces.
-		const allowlist = getStrictKnownMarketplaces(this._configurationService.getValue(ChatConfiguration.StrictMarketplaces));
+		const allowlist = this._getStrictMarketplaces();
 		if (allowlist !== undefined) {
 			return isMarketplaceReferenceAllowed(allowlist, ref);
 		}
@@ -844,7 +842,20 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	isStrictMarketplacePolicyActive(): boolean {
-		return getStrictKnownMarketplaces(this._configurationService.getValue(ChatConfiguration.StrictMarketplaces)) !== undefined;
+		return this._getStrictMarketplaces() !== undefined;
+	}
+
+	private _getStrictMarketplaces() {
+		const value = this._managedSettingsService.getManagedSettingValue(COPILOT_STRICT_MARKETPLACES_KEY);
+		if (typeof value !== 'string') {
+			return undefined;
+		}
+		try {
+			return getStrictKnownMarketplaces(JSON.parse(value));
+		} catch (error) {
+			this._logService.warn('Invalid managed strictKnownMarketplaces JSON', error);
+			return undefined;
+		}
 	}
 
 	isMarketplaceAutoUpdateEnabled(ref: IMarketplaceReference): boolean {

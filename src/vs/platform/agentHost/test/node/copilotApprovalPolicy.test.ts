@@ -6,8 +6,7 @@
 import assert from 'assert';
 import type { PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, getCopilotApprovalConfig, getCopilotApprovalPolicy, resolveCopilotManagedSettings } from '../../node/copilot/copilotApprovalPolicy.js';
-import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
+import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, getCopilotApprovalConfig, getCopilotApprovalPolicy } from '../../node/copilot/copilotApprovalPolicy.js';
 import { getAvailableSessionApprovalValues, getSessionApprovalProperty } from '../../common/sessionConfigProperties.js';
 
 type Resolved = SessionEventPayload<'session.managed_settings_resolved'>['data'];
@@ -98,15 +97,6 @@ suite('Copilot approval policy', () => {
 
 	test('runtime fail-closed state remains restrictive despite explicit new settings', () => {
 		assert.deepStrictEqual(getCopilotApprovalPolicy({ ...baseline, failClosed: true, settings: { permissions: { disableBypassPermissionsMode: 'enable' } } }, true).available, ['default']);
-	});
-
-	test('sessionless resolution includes account and working directory for policy helpers', async () => {
-		const rpc = createUnmanagedCopilotSettings();
-		const requests: Parameters<typeof rpc.resolve>[0][] = [];
-		const resolve = rpc.resolve;
-		rpc.resolve = async params => { requests.push(params); return resolve(params); };
-		await resolveCopilotManagedSettings(rpc, 'test-token', 1000, '/test/workspace');
-		assert.deepStrictEqual(requests, [{ clientName: 'vscode-agent-host', gitHubToken: 'test-token', workingDirectory: '/test/workspace' }]);
 	});
 
 	test('launch snapshots do not apply until selection and runtime observations remain immediate', () => {

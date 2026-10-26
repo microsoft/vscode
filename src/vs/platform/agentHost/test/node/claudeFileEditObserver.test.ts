@@ -6,6 +6,7 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -21,13 +22,14 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
-import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
 import { ClaudeFileEditObserver } from '../../node/claude/claudeFileEditObserver.js';
 import { ClaudeMapperState } from '../../node/claude/claudeMapSessionEvents.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { IEditArcReporterLaunchParams, IEditArcReporterService } from '../../node/shared/editArcReporter.js';
-import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 
 interface IObserverHarness {
 	readonly observer: ClaudeFileEditObserver;
@@ -35,6 +37,7 @@ interface IObserverHarness {
 	readonly fileService: FileService;
 	readonly mapperState: ClaudeMapperState;
 	readonly arcReports: IEditArcReporterLaunchParams[];
+	readonly fileEditCoordinator: AgentHostFileEditCoordinator;
 }
 
 function createObserver(disposables: Pick<import('../../../../base/common/lifecycle.js').DisposableStore, 'add'>): IObserverHarness {
@@ -45,10 +48,13 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 	const db = new TestSessionDatabase();
 	const dbRef: IReference<ISessionDatabase> = { object: db, dispose: () => { } };
 	const arcReports: IEditArcReporterLaunchParams[] = [];
+	const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
 
 	const services = new ServiceCollection(
 		[ILogService, new NullLogService()],
 		[IFileService, fileService],
+		[IAgentHostFileEditCoordinator, fileEditCoordinator],
+		[ISessionDataService, createSessionDataService(db)],
 		[IDiffComputeService, createZeroDiffComputeService()],
 		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
@@ -63,10 +69,10 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 	const observer = disposables.add(instantiationService.createInstance(
 		ClaudeFileEditObserver,
 		'claude:/sess-1',
-		'claude:/sess-1',
+		() => 'claude:/sess-1',
 		dbRef,
 	));
-	return { observer, db, fileService, mapperState: new ClaudeMapperState(), arcReports };
+	return { observer, db, fileService, mapperState: new ClaudeMapperState(), arcReports, fileEditCoordinator };
 }
 
 function assistantMessage(content: unknown): Extract<SDKMessage, { type: 'assistant' }> {
@@ -80,6 +86,34 @@ function userMessage(content: unknown): Extract<SDKMessage, { type: 'user' }> {
 suite('ClaudeFileEditObserver', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shares editing state through snapshot persistence without advertising a pre-write barrier', async () => {
+		const { observer, fileService, mapperState, db, fileEditCoordinator } = createObserver(disposables);
+		const resource = URI.file('/work/coordinated.txt');
+		await fileService.writeFile(resource, VSBuffer.fromString('before'));
+		const gate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		db.storeFileEdit = async edit => {
+			gate.started.complete();
+			await gate.release.p;
+			db.addEdit(edit);
+		};
+		observer.observeAssistant(assistantMessage([
+			{ type: 'tool_use', id: 'edit', name: 'Write', input: { file_path: resource.fsPath, content: 'after' } },
+		]));
+		const afterStart = fileEditCoordinator.isEditing(resource);
+		await fileService.writeFile(resource, VSBuffer.fromString('after'));
+		const completion = observer.observeUser(userMessage([
+			{ type: 'tool_result', tool_use_id: 'edit', content: 'ok' },
+		]), 'turn-1', mapperState);
+		await gate.started.p;
+		const whilePersisting = fileEditCoordinator.isEditing(resource);
+		gate.release.complete();
+		await completion;
+
+		assert.deepStrictEqual({ afterStart, whilePersisting, afterCompletion: fileEditCoordinator.isEditing(resource), coordinated: fileEditCoordinator.isCoordinatedProvider('claude'), cachedType: mapperState.takeFileEdit('edit')?.type }, {
+			afterStart: true, whilePersisting: true, afterCompletion: false, coordinated: false, cachedType: ToolResultContentType.FileEdit,
+		});
+	});
 
 	test('observe assistant→user round-trip caches a file edit on the mapper state', async () => {
 		const { observer, fileService, mapperState, arcReports } = createObserver(disposables);
@@ -114,6 +148,21 @@ suite('ClaudeFileEditObserver', () => {
 			arcMode: 'plan',
 			clientContext,
 		});
+	});
+
+	test('reports whether the edit was made by a subagent chat', async () => {
+		const { observer, fileService, mapperState, arcReports } = createObserver(disposables);
+		await fileService.writeFile(URI.file('/work/s.txt'), VSBuffer.fromString('before'));
+		for (const [toolUseId, isSubagent] of [['tu-root', false], ['tu-sub', true]] as const) {
+			observer.observeAssistant(assistantMessage([
+				{ type: 'tool_use', id: toolUseId, name: 'Write', input: { file_path: '/work/s.txt', content: 'after' } },
+			]));
+			await fileService.writeFile(URI.file('/work/s.txt'), VSBuffer.fromString('after-' + toolUseId));
+			await observer.observeUser(userMessage([
+				{ type: 'tool_result', tool_use_id: toolUseId, content: 'ok' },
+			]), 'turn-1', mapperState, { uri: 'ahp-chat:/00000000-0000-4000-8000-000000000001', isSubagent });
+		}
+		assert.deepStrictEqual(arcReports.map(r => r.isSubagent), [false, true]);
 	});
 
 	test('observeAssistant ignores non-edit tools and tools with no path', () => {

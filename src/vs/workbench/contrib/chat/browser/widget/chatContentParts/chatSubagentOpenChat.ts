@@ -18,10 +18,9 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
-import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { parseChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -43,6 +42,7 @@ import { getModelConfigDisplayValues, getModelConfigProperty, getModelConfigValu
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { getCompactCodicon } from '../../chatIcons.js';
+import { ChatActivityLabelTransition } from './chatActivityLabelTransition.js';
 
 export interface IOpenSubagentChatContext {
 	readonly chatResource: string;
@@ -143,7 +143,7 @@ export function getSubagentEditorResource(context: IOpenSubagentChatContext): UR
 		const query = new URLSearchParams(parentSessionResource.query);
 		query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, context.chatResource);
 		// Preserve legacy editor identities without requiring hosts to use the local chat URI format.
-		return parentSessionResource.with({ fragment: parseChatUri(context.chatResource)?.chatId ?? context.chatResource, query: query.toString() });
+		return parentSessionResource.with({ fragment: getAgentHostChatId(context.chatResource), query: query.toString() });
 	} catch {
 		return undefined;
 	}
@@ -259,7 +259,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	private _confirmationCount = 0;
 	private readonly _spinner = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _durationTimer = this._register(new WindowIntervalTimer());
-	private readonly _toolTransition = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _toolTransition: ChatActivityLabelTransition;
 	private readonly _activeToolRendered = this._register(new MutableDisposable());
 	private readonly _activeToolDisposables = this._register(new DisposableStore());
 	private readonly _pillHover = this._register(new MutableDisposable());
@@ -290,7 +290,6 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	private _targetToolSubagent: ISubagentActivity | undefined;
 	private _targetActivityIsTool: boolean = false;
 	private _displayedActivityIsTool: boolean = false;
-	private _toolTransitionPhase: 'idle' | 'out' | 'in' = 'idle';
 
 	constructor(
 		context: unknown,
@@ -300,7 +299,6 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@INotificationService notificationService: INotificationService,
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
@@ -313,10 +311,14 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		if (this._action instanceof Action) {
 			this._register(this._action);
 		}
-		this._register(this.accessibilityService.onDidChangeReducedMotion(() => {
-			if (this.accessibilityService.isMotionReduced()) {
-				this._finishToolTransition();
-			}
+		this._toolTransition = this._register(this.instantiationService.createInstance(ChatActivityLabelTransition, {
+			getElement: () => this._activeToolLabelElement,
+			shouldAnimate: () => shouldAnimateSubagentToolTransition(this._displayedToolCallId, this._displayedActivityIsTool, this._targetToolCallId, this._targetActivityIsTool),
+			showTarget: () => {
+				if (this._targetToolLabel) {
+					this._setDisplayedTool(this._targetToolLabel, this._targetToolIcon, this._targetToolCallId, this._targetActivityIsTool, this._targetToolSubagent);
+				}
+			},
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.SubagentsShowCreditUsage)) {
@@ -668,9 +670,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		}
 		this._activeToolElement.classList.toggle('hidden', !label);
 		if (!label) {
-			this._toolTransition.clear();
-			this._toolTransitionPhase = 'idle';
-			this._clearToolTransitionClasses();
+			this._toolTransition.stop();
 			this._activeToolRendered.clear();
 			this._activeToolDisposables.clear();
 			this._activeToolLabelElement.textContent = '';
@@ -683,55 +683,11 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 			this._renderActiveToolIcon(undefined);
 			return;
 		}
-		if (!this._displayedToolLabel || this.accessibilityService.isMotionReduced()) {
-			this._finishToolTransition();
+		if (!this._displayedToolLabel) {
+			this._toolTransition.finish();
 			return;
 		}
-		if (this._toolTransitionPhase === 'idle' && !shouldAnimateSubagentToolTransition(this._displayedToolCallId, this._displayedActivityIsTool, toolCallId, isTool)) {
-			this._setDisplayedTool(label, icon, toolCallId, isTool, subagent);
-			return;
-		}
-		this._runToolTransition();
-	}
-
-	private _runToolTransition(): void {
-		if (!this._activeToolLabelElement || this._toolTransitionPhase !== 'idle') {
-			return;
-		}
-		if (!shouldAnimateSubagentToolTransition(this._displayedToolCallId, this._displayedActivityIsTool, this._targetToolCallId, this._targetActivityIsTool)) {
-			this._setDisplayedTool(this._targetToolLabel ?? '', this._targetToolIcon, this._targetToolCallId, this._targetActivityIsTool, this._targetToolSubagent);
-			return;
-		}
-		this._toolTransitionPhase = 'out';
-		if (!this._restartToolTransition('chat-subagent-tool-fade-out')) {
-			this._completeToolTransition();
-		}
-	}
-
-	private _completeToolTransition(): void {
-		this._toolTransition.clear();
-		if (this._toolTransitionPhase === 'out') {
-			this._toolTransitionPhase = 'in';
-			this._setDisplayedTool(this._targetToolLabel ?? '', this._targetToolIcon, this._targetToolCallId, this._targetActivityIsTool, this._targetToolSubagent);
-			if (!this._restartToolTransition('chat-subagent-tool-fade-in')) {
-				this._completeToolTransition();
-			}
-			return;
-		}
-		if (this._toolTransitionPhase === 'in') {
-			this._clearToolTransitionClasses();
-			this._toolTransitionPhase = 'idle';
-			this._runToolTransition();
-		}
-	}
-
-	private _finishToolTransition(): void {
-		this._toolTransition.clear();
-		this._toolTransitionPhase = 'idle';
-		this._clearToolTransitionClasses();
-		if (this._targetToolLabel) {
-			this._setDisplayedTool(this._targetToolLabel, this._targetToolIcon, this._targetToolCallId, this._targetActivityIsTool, this._targetToolSubagent);
-		}
+		this._toolTransition.update();
 	}
 
 	private _setDisplayedTool(label: string, icon: ThemeIcon | undefined, toolCallId: string | undefined, isTool: boolean, subagent: ISubagentActivity | undefined): void {
@@ -796,35 +752,6 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		if (icon) {
 			this._activeToolIconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 		}
-	}
-
-	private _clearToolTransitionClasses(): void {
-		this._activeToolLabelElement?.classList.remove('chat-subagent-tool-fade-in', 'chat-subagent-tool-fade-out');
-	}
-
-	private _restartToolTransition(className: string): boolean {
-		if (!this._activeToolLabelElement) {
-			return false;
-		}
-		this._toolTransition.clear();
-		this._clearToolTransitionClasses();
-		const transition = new DisposableStore();
-		const complete = (event: AnimationEvent) => {
-			if (event.target === this._activeToolLabelElement) {
-				this._completeToolTransition();
-			}
-		};
-		transition.add(addDisposableListener(this._activeToolLabelElement, EventType.ANIMATION_END, complete));
-		transition.add(addDisposableListener(this._activeToolLabelElement, 'animationcancel', complete));
-		this._toolTransition.value = transition;
-		void this._activeToolLabelElement.offsetWidth;
-		this._activeToolLabelElement.classList.add(className);
-		if (this._activeToolLabelElement.getAnimations().length === 0) {
-			this._toolTransition.clear();
-			this._clearToolTransitionClasses();
-			return false;
-		}
-		return true;
 	}
 
 	private _setResolvedTitle(title: string | undefined): void {

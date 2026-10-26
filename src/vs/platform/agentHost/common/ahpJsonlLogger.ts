@@ -7,8 +7,10 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { Sequencer } from '../../../base/common/async.js';
 import { StringSHA1 } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { LRUCache, ResourceMap } from '../../../base/common/map.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { isEqual, joinPath } from '../../../base/common/resources.js';
+import { IProductConfiguration } from '../../../base/common/product.js';
+import { isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
@@ -22,6 +24,7 @@ interface IAhpLogMeta {
 	readonly connectionId: string;
 	readonly transport: string;
 	readonly byteLength?: number;
+	readonly droppedEntries?: number;
 	/** Set when oversized string values in the entry were elided (see {@link stringifyAhpLogEntryTruncated}). */
 	truncated?: boolean;
 }
@@ -35,6 +38,17 @@ export interface IAhpJsonlLoggerOptions {
 	readonly maxFileSizeBytes?: number;
 	readonly maxFiles?: number;
 	readonly retention?: AhpJsonlLogRetention;
+	readonly maxPendingBytes?: number;
+	/** Cumulative budget shared by this process's loggers for logsHome, fixed by its first logger. */
+	readonly maxTotalSizeBytes?: number;
+	/** Checked before serializing each message so host capture can follow live configuration. */
+	readonly isEnabled?: () => boolean;
+}
+
+export const AgentHostAhpJsonlLoggingEnvVar = 'VSCODE_AGENT_HOST_AHP_JSONL_LOGGING';
+
+export function isAhpJsonlLoggingEnabled(quality: IProductConfiguration['quality'], override?: string): boolean {
+	return override === undefined ? quality === 'insider' : override === 'true';
 }
 
 const AHP_LOG_DIR = 'ahp';
@@ -42,6 +56,8 @@ const AHP_LOG_FILE_PREFIX = 'ahp';
 const AHP_LOG_FILE_EXTENSION = '.jsonl';
 const DEFAULT_MAX_FILE_SIZE_BYTES = 75 * 1024 * 1024;
 const DEFAULT_MAX_FILES = 5;
+const DEFAULT_MAX_PENDING_BYTES = 4 * 1024 * 1024;
+const DEFAULT_MAX_TOTAL_SIZE_BYTES = 500 * 1024 * 1024;
 // Cap the size of any single coalesced writeFile to avoid producing huge
 // concatenated VSBuffers (which would just create the GC pressure we're
 // trying to avoid). 1 MiB strikes a balance between amortizing IPC overhead
@@ -104,15 +120,22 @@ export class AhpJsonlLogRetention {
 
 export class AhpJsonlLogger extends Disposable {
 
+	// Process-lifetime accounting must outlive disposed connections and their rotated files.
+	private static readonly _budgets = new ResourceMap<{ remainingBytes: number; exhausted: boolean }>();
+	private readonly _budget: { remainingBytes: number; exhausted: boolean };
+	private readonly _logReadRequests = new LRUCache<string | number, boolean>(1024);
 	private readonly _directory: URI;
 	private readonly _baseName: string;
 	private readonly _maxFileSizeBytes: number;
 	private readonly _maxFiles: number;
+	private readonly _maxPendingBytes: number;
 	private _currentFile: URI;
 	private _currentSize = 0;
 	private _segment = 0;
 	private _queue = Promise.resolve();
 	private _pending: VSBuffer[] = [];
+	private _pendingBytes = 0;
+	private readonly _droppedEntries: Record<AhpLogDirection, number> = { c2s: 0, s2c: 0 };
 	private _drainScheduled = false;
 	private _folderCreated: Promise<IFileStatWithMetadata> | undefined;
 
@@ -122,12 +145,19 @@ export class AhpJsonlLogger extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		let budget = AhpJsonlLogger._budgets.get(this._options.logsHome);
+		if (!budget) {
+			budget = { remainingBytes: this._options.maxTotalSizeBytes ?? DEFAULT_MAX_TOTAL_SIZE_BYTES, exhausted: false };
+			AhpJsonlLogger._budgets.set(this._options.logsHome, budget);
+		}
+		this._budget = budget;
 		this._directory = joinPath(this._options.logsHome, AHP_LOG_DIR);
 		// Truncate connectionId to avoid filesystem filename length limits (e.g. 255 on ext4/APFS)
 		const safeConnectionId = sanitizeFilePart(this._options.connectionId).slice(0, 64);
 		this._baseName = `${getAhpLogFilePrefix(this._options.logId)}${toFileTimestamp(new Date())}-${safeConnectionId}${AHP_LOG_FILE_EXTENSION}`;
 		this._maxFileSizeBytes = this._options.maxFileSizeBytes ?? DEFAULT_MAX_FILE_SIZE_BYTES;
 		this._maxFiles = this._options.maxFiles ?? DEFAULT_MAX_FILES;
+		this._maxPendingBytes = this._options.maxPendingBytes ?? DEFAULT_MAX_PENDING_BYTES;
 		this._currentFile = joinPath(this._directory, this._baseName);
 	}
 
@@ -136,6 +166,13 @@ export class AhpJsonlLogger extends Disposable {
 	}
 
 	log(message: object, dir: AhpLogDirection, byteLength?: number): void {
+		if (this._budget.exhausted || this._options.isEnabled?.() === false || this._isLogInspection(message, dir)) {
+			return;
+		}
+		if (this._pendingBytes >= this._maxPendingBytes) {
+			this._droppedEntries[dir]++;
+			return;
+		}
 		const meta: IAhpLogMeta = {
 			ts: new Date().toISOString(),
 			dir,
@@ -156,15 +193,70 @@ export class AhpJsonlLogger extends Disposable {
 			body = stringifyAhpLogEntryTruncated(entry, MAX_LOGGED_STRING_LENGTH);
 		}
 		const line = `${body}\n`;
-		this._pending.push(VSBuffer.fromString(line));
+		this._enqueue(VSBuffer.fromString(line));
+	}
+
+	/** Avoids recording log contents or generating new log writes in response to watching those logs. */
+	private _isLogInspection(message: object, dir: AhpLogDirection): boolean {
+		if (!isRecord(message)) {
+			return false;
+		}
+		const id = message.id;
+		if (dir === 's2c' && message.method === undefined && (typeof id === 'number' || typeof id === 'string') && this._logReadRequests.delete(id)) {
+			return true;
+		}
+		const params = message.params;
+		if (!isRecord(params)) {
+			return false;
+		}
+		if (dir === 'c2s' && (message.method === 'resourceRead' || message.method === 'resourceResolve' || message.method === 'resourceList' || message.method === 'resourceRequest' || message.method === 'createResourceWatch')
+			&& this._isLogResource(params.uri)) {
+			if (typeof id === 'number' || typeof id === 'string') {
+				this._logReadRequests.set(id, true);
+			}
+			return true;
+		}
+		const action = params.action;
+		return message.method === 'action' && isRecord(action) && action.type === 'resourceWatch/changed'
+			&& isRecord(action.changes) && Array.isArray(action.changes.items) && action.changes.items.length > 0
+			&& action.changes.items.every(change => isRecord(change) && this._isLogResource(change.uri));
+	}
+
+	private _isLogResource(value: unknown): boolean {
+		if (URI.isUri(value)) {
+			return isEqualOrParent(value, this._directory);
+		}
+		if (typeof value !== 'string') {
+			return false;
+		}
+		try {
+			return isEqualOrParent(URI.parse(value, true), this._directory);
+		} catch {
+			return false;
+		}
+	}
+
+	private _enqueue(buffer: VSBuffer): void {
+		if (this._budget.exhausted) {
+			return;
+		}
+		if (buffer.byteLength > this._budget.remainingBytes) {
+			this._budget.exhausted = true;
+			this._logService.warn('[AHPLog] Transport logging stopped: shared process byte budget exhausted', this._options.logsHome.toString());
+			return;
+		}
+		this._budget.remainingBytes -= buffer.byteLength;
+		this._pending.push(buffer);
+		this._pendingBytes += buffer.byteLength;
 		this._scheduleDrain();
 	}
 
 	async flush(): Promise<void> {
-		// Pending entries always have a drain scheduled (see _scheduleDrain), so
-		// awaiting the queue is sufficient to flush everything submitted before
-		// this call.
-		await this._queue;
+		let queue: Promise<void>;
+		do {
+			queue = this._queue;
+			await queue;
+		} while (queue !== this._queue);
 	}
 
 	private _scheduleDrain(): void {
@@ -188,7 +280,16 @@ export class AhpJsonlLogger extends Disposable {
 		}
 		const buffers = this._pending;
 		this._pending = [];
+		const buffersSize = buffers.reduce((total, buffer) => total + buffer.byteLength, 0);
+		try {
+			await this._writeBuffers(buffers);
+		} finally {
+			this._pendingBytes -= buffersSize;
+			this._enqueueDroppedEntries();
+		}
+	}
 
+	private async _writeBuffers(buffers: readonly VSBuffer[]): Promise<void> {
 		// Create folder once and memoize to avoid repeated filesystem calls
 		if (!this._folderCreated) {
 			this._folderCreated = this._fileService.createFolder(this._directory);
@@ -228,6 +329,29 @@ export class AhpJsonlLogger extends Disposable {
 			chunkSize += buffer.byteLength;
 		}
 		await flushChunk();
+	}
+
+	private _enqueueDroppedEntries(): void {
+		if (this._budget.exhausted) {
+			return;
+		}
+		for (const dir of ['c2s', 's2c'] as const) {
+			const droppedEntries = this._droppedEntries[dir];
+			if (droppedEntries === 0 || this._pendingBytes >= this._maxPendingBytes) {
+				continue;
+			}
+			this._droppedEntries[dir] = 0;
+			const entry = {
+				_ahpLog: {
+					ts: new Date().toISOString(),
+					dir,
+					connectionId: this._options.connectionId,
+					transport: this._options.transport,
+					droppedEntries,
+				} satisfies IAhpLogMeta,
+			};
+			this._enqueue(VSBuffer.fromString(`${stringifyAhpLogEntry(entry)}\n`));
+		}
 	}
 
 	private async _rotate(): Promise<void> {
@@ -301,6 +425,9 @@ function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number):
  */
 function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 	if (isRecord(value)) {
+		if ((value.method === 'channel/frame' || value.method === 'tcp/data') && isRecord(value.params)) {
+			return { ...value, params: { ...value.params, data: '<redacted channel payload>' } };
+		}
 		if (value.method === 'authenticate' && isRecord(value.params) && value.params.token !== undefined
 			&& value.params.token !== '<redacted>' && value.params.token !== '[REDACTED]') {
 			return { ...value, params: { ...value.params, token: '<redacted>' } };

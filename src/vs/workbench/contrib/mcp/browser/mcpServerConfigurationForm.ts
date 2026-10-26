@@ -354,8 +354,8 @@ export class McpServerConfigurationForm extends Disposable {
 		const envField = this.appendField(this.stdioSection, localize('mcpForm.env', "Environment Variables"), true);
 		this.envHint = this.appendHint(envField, '');
 		this.envList = this._register(new KeyValueList(envField, {
-			namePlaceholder: 'API_KEY',
-			valuePlaceholder: localize('mcpForm.env.valuePlaceholder', "your-api-key"),
+			namePlaceholder: localize('mcpForm.env.namePlaceholder', "Key"),
+			valuePlaceholder: localize('mcpForm.env.valuePlaceholder', "Value"),
 			nameAriaLabel: index => localize('mcpForm.env.nameAria', "Environment variable {0} name", index),
 			valueAriaLabel: (name, index) => name
 				? localize('mcpForm.env.valueAria', "Value of environment variable {0}", name)

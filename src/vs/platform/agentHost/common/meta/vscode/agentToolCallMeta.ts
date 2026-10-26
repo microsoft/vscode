@@ -7,6 +7,7 @@ import type { Mutable } from '../../../../../base/common/types.js';
 import { hasAgentMetadata } from '../metadata.js';
 import { imageGenerationToolMetaKey, readImageGenerationToolMetadata, type IImageGenerationToolMetadata } from './agentImageGenerationMeta.js';
 import { ISandboxNetworkRestrictions, isSandboxNetworkRestrictions } from '../../../../sandbox/common/sandboxSettingsResolutionHelper.js';
+import { isSandboxPathGrant, type ISandboxPathGrant } from '../../sandboxPathGrant.js';
 
 export const copilotCliToolInputContract = 'copilot-cli-v1';
 
@@ -30,6 +31,7 @@ export interface IToolCallMeta {
 	/** Trusted Copilot host snapshot for integrated-browser client tools. Absent for other tools and harnesses. */
 	readonly 'vscode.copilotSandboxNetworkRestrictions'?: ISandboxNetworkRestrictions;
 	readonly 'agentHost.sandboxBypass'?: boolean;
+	readonly 'vscode.sandboxPathGrant'?: ISandboxPathGrant;
 	/**
 	 * VS Code rendering hint. `terminal` routes the call to the command/output
 	 * renderer, `subagent` to the subagent UI, `search` to the search renderer,
@@ -77,6 +79,7 @@ const toolCallMetaKeys = [
 	'vscode.toolCallDurationMs',
 	'vscode.toolInputContract',
 	'vscode.copilotSandboxNetworkRestrictions',
+	'vscode.sandboxPathGrant',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
 	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'autoApproveRuleResolvable', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
 ] as const;
@@ -194,6 +197,7 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 		result['vscode.copilotSandboxNetworkRestrictions'] = networkRestrictions;
 	}
 	if (typeof meta['agentHost.sandboxBypass'] === 'boolean') { result['agentHost.sandboxBypass'] = meta['agentHost.sandboxBypass']; }
+	if (isSandboxPathGrant(meta['vscode.sandboxPathGrant'])) { result['vscode.sandboxPathGrant'] = meta['vscode.sandboxPathGrant']; }
 	if (isToolKind(meta.toolKind)) { result.toolKind = meta.toolKind; }
 	if (typeof meta.language === 'string') { result.language = meta.language; }
 	if (typeof meta.subagentDescription === 'string') { result.subagentDescription = meta.subagentDescription; }

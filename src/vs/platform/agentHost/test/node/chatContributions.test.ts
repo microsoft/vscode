@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -27,17 +29,21 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IOutgoingTurnContributionResult, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
-import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { createEditorInlineChatInstruction, type IChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
-import { withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
+import { readSessionSandboxState, withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AH_CHAT_CONFIG_VALUES_DB_KEY } from '../../node/agentHostChatRowStore.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { gitHubPullRequestArtifactWorkspaceSettingsKey } from '../../common/githubPullRequestArtifact.js';
 import { ChatOriginKind, MessageAttachmentKind } from '../../common/state/protocol/state.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, withSessionExternal, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
-import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
@@ -45,6 +51,9 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
+import { AgentHostArtifactIntegrationDirectory, IAgentHostArtifactIntegrationDirectory } from '../../node/artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
+import { ArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
@@ -53,30 +62,36 @@ import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHos
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
-import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
+import type { IWorktreeRemovalRequest } from '../../node/agentHostWorktreeRemovalDatabase.js';
 import { ChatArchiveContribution } from '../../node/chatContributions/chatArchive/chatArchiveContribution.js';
 import { ChatReadContribution } from '../../node/chatContributions/chatRead/chatReadContribution.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
 import { MarkUnreadContribution } from '../../node/chatContributions/markUnread/markUnreadContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostScheduledChatMoves } from '../../node/chatContributions/scheduledChatMoves/scheduledChatMovesService.js';
+import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { SessionWorkspaceConversionContribution } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { SessionTitleContribution } from '../../node/chatContributions/sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from '../../node/chatContributions/sideChat/sideChatContribution.js';
 import { TurnDelegationContribution } from '../../node/chatContributions/turnDelegation/turnDelegationContribution.js';
 import { injectSideChatContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
+import { createArtifactIntegrationsInstruction } from '../../node/shared/artifactIntegrationServerTools.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, seedSessionAdditionalWorktrees, createTestChatRows } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import '../../node/localCommands/localChatCommands.contribution.js';
-import { createLiveChatOwnership, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createLiveChatOwnership, createTestChatOwnershipService, noOlderBuildCopyParticipant } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 let calls: string[] = [];
@@ -128,6 +143,9 @@ class RecordingTitleController implements IAgentHostSessionTitleController {
 	markTitleRenamed(channel: string, chatChannel?: string): void {
 		this.renamedTitles.push({ channel, chatChannel });
 	}
+	isTitleRenamed(): boolean {
+		return false;
+	}
 	async prepareInstructionForAgent(): Promise<string | undefined> {
 		return this._sessionTitleInstruction;
 	}
@@ -158,8 +176,27 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	}
 }
 
-class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
+class RecordingWorktreeCleanupService implements IAgentHostWorktreeCleanupService {
+	declare readonly _serviceBrand: undefined;
 	readonly archiveCalls: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
+
+	async requestSessionWorktreeRemoval(): Promise<void> { }
+	async sessionWorktreeCleanup() { return { state: 'unknown' } as const; }
+	async restoreSessionWorktree(): Promise<void> { }
+	async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
+		this.archiveCalls.push({ handle, archived, strictCleanup });
+	}
+	async claimDetachedWorktree(): Promise<void> { }
+	async reconcileDetachedWorktrees(): Promise<void> { }
+	async deleteDetachedWorktree(): Promise<void> { }
+	async prepareSessionDeletion(): Promise<readonly IWorktreeRemovalRequest[]> { return []; }
+	trackScratchAllocation(): IDisposable { return Disposable.None; }
+	schedule(): void { }
+	start(): void { }
+	async runPass(): Promise<void> { }
+}
+
+class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	readonly metadata = new Map<string, IWorktreeMetadata>();
 
 	constructor(private readonly _observed: string[] | undefined) {
@@ -176,9 +213,6 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 		return this.metadata.get(sessionUri.toString());
 	}
 
-	override async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
-		this.archiveCalls.push({ handle, archived, strictCleanup });
-	}
 }
 
 /** Reads a string field from a recorded telemetry payload without asserting its shape. */
@@ -446,7 +480,7 @@ class AsyncOutgoingTurnContribution extends TestContribution {
 		if (turn.turnId !== 'send-async') {
 			return undefined;
 		}
-		await Promise.resolve();
+		await timeout(25);
 		calls.push('async');
 		return { instructions: ['async'] };
 	}
@@ -620,7 +654,7 @@ class AsyncHydrationContribution extends TestContribution {
 	static readonly id = 'asyncHydration';
 
 	async onHydrateTurns(_context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		await Promise.resolve();
+		await timeout(25);
 		calls.push('async');
 		return [...turns, hydrationTurn('async')];
 	}
@@ -677,7 +711,7 @@ class AsyncChatHydrationContribution extends TestContribution {
 	readonly order = 10;
 
 	async onHydrateChat(_context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
-		await Promise.resolve();
+		await timeout(25);
 		return { ...restored, title: 'async' };
 	}
 }
@@ -734,7 +768,7 @@ function createConfigurationService(enableSendInstructions: boolean, enableWorks
 	const agentConfigService = { _serviceBrand: undefined } as IAgentConfigurationService;
 	agentConfigService.getEffectiveWorkingDirectories = () => undefined;
 	agentConfigService.getRootValue = <D extends SchemaDefinition, K extends keyof D & string>(_schema: ISchema<D>, key: K): SchemaValue<D[K]> | undefined => {
-		return (enableSendInstructions && (key === AgentHostMarkdownPlanRichLinksEnabledConfigKey || key === AgentHostArtifactToolsConfigKey)) || (enableWorkspaceSnapshot && key === AgentHostWorkspaceSnapshotEnabledConfigKey)
+		return (enableSendInstructions && (key === AgentHostMarkdownPlanRichLinksEnabledConfigKey || key === AgentHostArtifactToolsConfigKey || key === AgentHostArtifactIntegrationsConfigKey)) || (enableWorkspaceSnapshot && key === AgentHostWorkspaceSnapshotEnabledConfigKey)
 			? true as SchemaValue<D[K]>
 			: undefined;
 	};
@@ -784,7 +818,7 @@ function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisp
 		},
 		...(inheritedTurnId !== undefined ? { inheritedTurnId } : {}),
 	});
-	const localTurns = new AgentHostLocalTurns(createSessionDataService(new TestSessionDatabase()), logService);
+	const localTurns = new AgentHostLocalTurns(createTestChatRows(createSessionDataService(new TestSessionDatabase()), disposables), logService);
 	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
@@ -822,6 +856,7 @@ function createSessionTitleContributions(disposables: ReturnType<typeof ensureNo
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[ISessionDataService, sessionDataService],
+		[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService)],
 		[IAgentHostSessionTitleController, titleController],
 		[IAgentHostPeerChatPersistenceService, chatPersistence ?? {
 			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
@@ -846,6 +881,7 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[ISessionDataService, sessionDataService],
+		[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService)],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 	);
@@ -900,12 +936,18 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		return originalGetPersistedTurns();
 	};
 	const agentConfigService = createConfigurationService(enableSendInstructions, !!copilotWorkspace);
+	// The session-level applied sandbox state, as the real service reports it while the default chat uses the session's selection.
+	agentConfigService.getSessionSandboxEnabled = session => readSessionSandboxState(stateManager.getSessionState(session))?.enabled;
+	// The session's config, as the real service reports it for a chat without values of its own.
+	agentConfigService.getChatConfigState = target => stateManager.getSessionState(target.session)?.config;
 	const sessionDataService = createSessionDataService(usageDatabase);
 	const worktree = new RecordingWorktreeIsolation(observed);
-	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionDataService, worktree);
+	const worktreeCleanup = new RecordingWorktreeCleanupService();
 	const sessionRegistry = disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))));
 	const gitStateService = new RecordingGitStateService(observed);
 	const gitService = createNoopGitService();
+	const sessionStateStore = createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService);
+	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeCleanup);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostCheckpointService, checkpointService],
@@ -917,8 +959,10 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentSessionRegistry, sessionRegistry],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
+		[IAgentHostSessionStateStore, sessionStateStore],
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 		[IAgentHostWorktreeIsolation, worktree],
+		[IAgentHostWorktreeCleanupService, worktreeCleanup],
 		[IAdditionalWorktreeLifecycleService, additionalWorktreeLifecycle],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
@@ -928,6 +972,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 			setArchived: async () => { },
 		}],
 	);
+	services.set(IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
 		supportsChatIsolation: () => false,
@@ -937,21 +982,29 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		requestSessionWorkspaceUpdate: () => true,
 		isPending: () => false,
 		isConversionTurn: () => false,
+		onDidChangePending: Event.None,
 		cancel: () => { },
 		updateSessionWorkspace: async () => { observed?.push('sessionWorkspaceConversion'); },
 	});
+	services.set(IAgentHostScheduledChatMoves, { _serviceBrand: undefined, schedule: () => { }, turnEnded: () => { observed?.push('scheduledChatMoves'); } } satisfies IAgentHostScheduledChatMoves);
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
 	const queueAgent = new MockAgent();
 	const providerService = createTestAgentHostProviderService(() => queueAgent);
 	services.set(IAgentHostProviderService, providerService);
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
-	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership)));
-	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
+	const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
+	services.set(IAgentHostAuthenticationService, authenticationService);
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
+	const chatRows = sessionStateStore.chatRows;
+	const localTurns = new AgentHostLocalTurns(chatRows, logService);
 	services.set(IAgentHostLocalTurns, localTurns);
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, service);
+	services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
+	const artifactIntegrationDirectory = disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry())));
+	services.set(IAgentHostArtifactIntegrationDirectory, artifactIntegrationDirectory);
 	const telemetryReporter = new AgentHostTelemetryReporter(new RecordingTelemetryService());
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	services.set(IAgentHostTurnTracker, disposables.add(instantiationService.createInstance(AgentHostTurnTracker)));
@@ -964,7 +1017,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns };
+	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore, artifactIntegrationDirectory };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -1001,15 +1054,19 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	});
 	const sessionDataService = createSessionDataService(new TestSessionDatabase());
 	const services = new ServiceCollection(
+		[IAgentHostAuthenticationService, disposables.add(new AgentHostAuthenticationService(logService))],
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
+		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
 		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[ISessionDataService, sessionDataService],
+		[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionDataService)],
 		[IAgentHostPeerChatPersistenceService, { _serviceBrand: undefined, ...createLegacyChatMetadataPersistence(sessionDataService) }],
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
 	let conversionPending = false;
+	services.set(IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
 		supportsChatIsolation: () => false,
@@ -1019,21 +1076,28 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		requestSessionWorkspaceUpdate: () => true,
 		isPending: () => conversionPending,
 		isConversionTurn: () => false,
+		onDidChangePending: Event.None,
 		cancel: () => {
 			conversionPending = false;
 		},
 		updateSessionWorkspace: async () => { },
 	});
+	services.set(IAgentHostScheduledChatMoves, { _serviceBrand: undefined, schedule: () => { }, turnEnded: () => { } } satisfies IAgentHostScheduledChatMoves);
 	const mockAgent = new MockAgent();
 	let agent: MockAgent | undefined = mockAgent;
 	const pendingMessages: (PendingMessage | undefined)[] = [];
 	const pendingMessageSenders: (string | undefined)[] = [];
+	let steeringReady = true;
 	mockAgent.setPendingMessages = (_chat, steeringMessage, _queuedMessages, steeringSender) => {
+		if (steeringMessage && !steeringReady) {
+			return false;
+		}
 		pendingMessages.push(steeringMessage);
 		pendingMessageSenders.push(steeringSender?.clientId);
+		return true;
 	};
 	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
-	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
+	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, service);
@@ -1048,14 +1112,18 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
 	const admitted: { channel: string; message: Message; clientId: string | undefined; hostLaunchKind: AgentHostLaunchKind }[] = [];
+	const admittedCredentials: (IAgentHostCredentialSource | undefined)[] = [];
 	disposables.add(service.registerHost({
 		hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-		sendTurnMessage: options => admitted.push({ channel: options.turnChannel, message: options.message, clientId: options.senderClientId, hostLaunchKind: options.clientContext.hostLaunchKind }),
+		sendTurnMessage: options => {
+			admitted.push({ channel: options.turnChannel, message: options.message, clientId: options.senderClientId, hostLaunchKind: options.clientContext.hostLaunchKind });
+			admittedCredentials.push(options.credentials);
+		},
 	}));
 	disposables.add(service.registerContribution(LocalCommandContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(SessionWorkspaceConversionContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(QueueDrainContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
-	return { service, stateManager, session, chat, pendingMessages, pendingMessageSenders, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending };
+	return { service, stateManager, session, chat, agent: mockAgent, pendingMessages, pendingMessageSenders, admitted, admittedCredentials, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending, setSteeringReady: (ready: boolean) => steeringReady = ready };
 }
 
 function appliedClientAction(channel: string, session: string, action: IAppliedClientAction['action'], clientId = 'client'): IAppliedClientAction {
@@ -1151,6 +1219,7 @@ suite('AgentHostChatContributions', () => {
 		const peerChat = buildChatUri(session, 'peer');
 		const failingChat = buildChatUri(session, 'failing-peer');
 		const persisted: { session: string; chat: string; archived: boolean }[] = [];
+		const workspace: { session: string; chat: string; attached: boolean }[] = [];
 		const errors: string[] = [];
 		const logService = new class extends NullLogService {
 			override error(message: string | Error, ...args: unknown[]): void {
@@ -1187,6 +1256,10 @@ suite('AgentHostChatContributions', () => {
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
+			[IAgentHostArchivedChatWorkspaceService, {
+				_serviceBrand: undefined,
+				setChatWorkspaceAttached: async (session: URI, chat: URI, attached: boolean) => { workspace.push({ session: session.toString(), chat: chat.toString(), attached }); },
+			} satisfies IAgentHostArchivedChatWorkspaceService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1197,10 +1270,11 @@ suite('AgentHostChatContributions', () => {
 		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'rejected'));
 		contributions.didDispatchAction(dispatchedAction(buildDefaultChatUri(session), session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
 		contributions.didDispatchAction(dispatchedAction(failingChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
-		await Promise.resolve();
+		await timeout(25);
 
 		assert.deepStrictEqual({
 			persisted,
+			workspace,
 			errors,
 			peerRead: !!((stateManager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsRead),
 			failingRead: !!((stateManager.getChatState(failingChat)?.status ?? 0) & SessionStatus.IsRead),
@@ -1208,6 +1282,11 @@ suite('AgentHostChatContributions', () => {
 			persisted: [
 				{ session, chat: peerChat, archived: true },
 				{ session, chat: peerChat, archived: false },
+			],
+			workspace: [
+				{ session, chat: peerChat, attached: false },
+				{ session, chat: peerChat, attached: true },
+				{ session, chat: failingChat, attached: false },
 			],
 			errors: [`Error: write failed [ChatArchiveContribution] Failed to persist archived state for ${failingChat}`],
 			peerRead: true,
@@ -1234,6 +1313,7 @@ suite('AgentHostChatContributions', () => {
 				setRead: async () => { },
 				setArchived: async (_session: URI, chat: URI, archived: boolean) => { persisted.push({ chat: chat.toString(), archived }); },
 			} satisfies IAgentHostPeerChatPersistenceService],
+			[IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1241,7 +1321,7 @@ suite('AgentHostChatContributions', () => {
 
 		contributions.didDispatchAction(dispatchedAction(recordedDefault, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
 		contributions.didDispatchAction(dispatchedAction(shapedPeer, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
-		await Promise.resolve();
+		await timeout(25);
 
 		assert.deepStrictEqual(persisted, [{ chat: shapedPeer, archived: true }]);
 	});
@@ -1281,7 +1361,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.turnEnd({ session, channel: firstPeer, turnId: 'first', reason: { kind: 'success' } });
 		contributions.turnEnd({ session, channel: secondPeer, turnId: 'second', reason: { kind: 'success' } });
 		contributions.turnEnd({ session, channel: buildDefaultChatUri(session), turnId: 'default', reason: { kind: 'success' } });
-		contributions.turnEnd({ session, channel: firstPeer, turnId: undefined, reason: { kind: 'rejected', error: { errorType: 'requestFailed', message: 'rejected' } } });
+		contributions.turnEnd({ session, channel: firstPeer, turnId: undefined, reason: { kind: 'rejected', error: { errorType: 'requestFailed', message: 'rejected' }, recoverable: true } });
 
 		assert.deepStrictEqual({
 			chatReadChanges,
@@ -1373,6 +1453,7 @@ suite('AgentHostChatContributions', () => {
 			[ILogService, logService],
 			[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
 			[ISessionDataService, createSessionDataService(database)],
+			[IAgentHostSessionStateStore, createTestSessionStateStore(new AgentHostDatabase(':memory:'), createSessionDataService(database))],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1383,7 +1464,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsReadChanged, isRead: true }, 'rejected'));
 		contributions.didDispatchAction(dispatchedAction(buildDefaultChatUri(session), session, { type: ActionType.ChatIsReadChanged, isRead: true }));
 		contributions.didDispatchAction(dispatchedAction(failingChat, session, { type: ActionType.ChatIsReadChanged, isRead: true }));
-		await Promise.resolve();
+		await timeout(25);
 
 		assert.deepStrictEqual({ persisted, defaultChatMetadata: database.setMetadataCalls, errors }, {
 			persisted: [
@@ -1480,7 +1561,7 @@ suite('AgentHostChatContributions', () => {
 		assert.strictEqual(context.memento(queuedSender, 'agent-host-chat://queue', 'message-1').get(), undefined);
 	});
 
-	test('queue drain skips active, steering, and empty chats', () => {
+	test('queue drain skips active and empty chats, and runs leftover steering before queued work', () => {
 		const active = createQueueDrainContributions(disposables);
 		active.stateManager.dispatchServerAction(active.chat, queuedMessage('active', 'active'));
 		active.stateManager.dispatchServerAction(active.chat, {
@@ -1504,7 +1585,8 @@ suite('AgentHostChatContributions', () => {
 		const empty = createQueueDrainContributions(disposables);
 		empty.service.turnEnd({ session: empty.session, channel: empty.chat, turnId: 'empty-turn', reason: { kind: 'localCommand' } });
 
-		assert.deepStrictEqual([active.admitted, steering.admitted, empty.admitted], [[], [], []]);
+		// The steering message was never handed to the agent, so nothing else would ever send it.
+		assert.deepStrictEqual([active, steering, empty].map(queue => queue.admitted.map(admission => admission.message.text)), [[], ['steering'], []]);
 	});
 
 	test('queue drain waits while session workspace conversion is pending', () => {
@@ -1614,13 +1696,42 @@ suite('AgentHostChatContributions', () => {
 			pendingMessages: queue.pendingMessages.map(message => message?.message.text),
 			admitted: queue.admitted.map(admission => [admission.message.text, admission.clientId]),
 		}, {
-			pendingMessages: [undefined, undefined, undefined, undefined],
+			pendingMessages: [],
 			admitted: [['second', 'second-client']],
 		});
 	});
 
-	test('queue drain keeps steering sender ownership synchronized with replacement and removal', () => {
+	test('queue drain retains the queuing connection source and resolves its latest token only when work is runnable', async () => {
 		const queue = createQueueDrainContributions(disposables);
+		const resource = 'https://api.github.com';
+		const source = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
+		await source.authenticate({ resource, token: 'queued-original' }, [resource]);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'running', origin: { kind: MessageKind.User } },
+		});
+		const action = queuedMessage('scoped', 'scoped queued work');
+		queue.stateManager.dispatchServerAction(queue.chat, action);
+		queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action, 'scoped-client'), credentials: source });
+		await source.authenticate({ resource, token: 'queued-rotated' }, [resource]);
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId: 'active-turn', duration: 1 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'success' } });
+		assert.deepStrictEqual({
+			sameConnection: queue.admittedCredentials[0] === source,
+			credential: queue.admittedCredentials[0]?.getCredential({ resource })?.token,
+			actor: queue.admitted[0]?.clientId,
+		}, { sameConnection: true, credential: 'queued-rotated', actor: 'scoped-client' });
+	});
+
+	test('queue drain keeps per-message senders across removal and ignores duplicate handoff', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'active',
+			startedAt: '2026-10-14T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
 		const first: IAppliedClientAction['action'] = {
 			type: ActionType.ChatPendingMessageSet,
 			kind: PendingMessageKind.Steering,
@@ -1660,8 +1771,394 @@ suite('AgentHostChatContributions', () => {
 			messages: queue.pendingMessages.map(message => message?.id),
 			senders: queue.pendingMessageSenders,
 		}, {
-			messages: ['first', 'second', 'second', 'second', undefined, 'second'],
-			senders: ['first-client', 'second-client', 'second-client', 'second-client', undefined, undefined],
+			messages: ['first', 'second', 'second'],
+			senders: ['first-client', 'second-client', undefined],
+		});
+	});
+
+	test('queue drain delivers independent steering once with per-message senders', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-08T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
+		for (const id of ['a', 'b']) {
+			const action: IAppliedClientAction['action'] = {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering, id, message: { text: id, origin: { kind: MessageKind.User } },
+			};
+			queue.stateManager.dispatchServerAction(queue.chat, action);
+			queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action, `client-${id}`));
+			queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action, `client-${id}`));
+		}
+		const remove: IDispatchedAction['action'] = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'a' };
+		queue.stateManager.dispatchServerAction(queue.chat, remove);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, remove));
+		assert.deepStrictEqual({
+			delivered: queue.pendingMessages.map(message => message?.id),
+			senders: queue.pendingMessageSenders,
+			pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.id),
+		}, { delivered: ['a', 'b'], senders: ['client-a', 'client-b'], pending: ['b'] });
+	});
+
+	test('queue drain withdraws steering the user removes mid-turn, but not steering the agent consumed', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const withdrawn: string[] = [];
+		queue.agent.withdrawSteeringMessage = (_chat, id) => { withdrawn.push(id); };
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-17T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
+		for (const id of ['removed-by-user', 'consumed-by-agent']) {
+			const steer: IAppliedClientAction['action'] = {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering, id, message: { text: id, origin: { kind: MessageKind.User } },
+			};
+			queue.stateManager.dispatchServerAction(queue.chat, steer);
+			queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, steer));
+		}
+		const userRemoval: IAppliedClientAction['action'] = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'removed-by-user' };
+		queue.stateManager.dispatchServerAction(queue.chat, userRemoval);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, userRemoval));
+		const agentCleanup: IDispatchedAction['action'] = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'consumed-by-agent' };
+		queue.stateManager.dispatchServerAction(queue.chat, agentCleanup);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, agentCleanup));
+
+		assert.deepStrictEqual({
+			handedToAgent: queue.pendingMessages.map(message => message?.id),
+			withdrawn,
+		}, {
+			handedToAgent: ['removed-by-user', 'consumed-by-agent'],
+			withdrawn: ['removed-by-user'],
+		});
+	});
+
+	test('queue drain holds independent steering until a turn starts', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const steer: IDispatchedAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering, id: 'a', message: { text: 'A', origin: { kind: MessageKind.User } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steer);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steer));
+		const before = [...queue.pendingMessages];
+		const start: IDispatchedAction['action'] = {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-08T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, start);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, start));
+		assert.deepStrictEqual({ before, after: queue.pendingMessages.map(message => message?.id) }, { before: [], after: ['a'] });
+	});
+
+	test('queue drain retries deferred steering when provider progress arrives', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.setSteeringReady(false);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-08T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
+		const steer: IDispatchedAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering, id: 'a', message: { text: 'A', origin: { kind: MessageKind.User } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steer);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steer));
+		const before = [...queue.pendingMessages];
+		queue.setSteeringReady(true);
+		const progress: IDispatchedAction['action'] = {
+			type: ActionType.ChatResponsePart, turnId: 'active-turn',
+			part: { kind: ResponsePartKind.Markdown, id: 'part', content: 'Working' },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, progress);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, progress));
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, progress));
+		assert.deepStrictEqual({ before, after: queue.pendingMessages.map(message => message?.id) }, { before: [], after: ['a'] });
+	});
+
+	test('queue drain clears deferred independent steering when its turn is cancelled', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.setSteeringReady(false);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-08T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
+		const steer: IDispatchedAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering, id: 'a', message: { text: 'A', origin: { kind: MessageKind.User } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steer);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steer));
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnCancelled, turnId: 'active-turn', duration: 0 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'cancelled' } });
+		assert.deepStrictEqual({
+			delivered: queue.pendingMessages,
+			pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages,
+		}, { delivered: [], pending: undefined });
+	});
+
+	test('queue drain clears accepted steering cancelled before SDK consumption and can run queued work later', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const start: IDispatchedAction['action'] = {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-14T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, start);
+		const steer: IDispatchedAction['action'] = {
+			type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering,
+			id: 'accepted', message: { text: 'A', origin: { kind: MessageKind.User } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steer);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steer));
+		queue.stateManager.dispatchServerAction(queue.chat, queuedMessage('queued', 'Later'));
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnCancelled, turnId: 'active-turn', duration: 0 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'cancelled' } });
+		const afterCancellation = queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.id);
+		const admittedOnCancel = queue.admitted.length;
+		queue.stateManager.dispatchServerAction(queue.chat, { ...start, turnId: 'next-turn' });
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, { ...start, turnId: 'next-turn' }));
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId: 'next-turn', duration: 0 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'next-turn', reason: { kind: 'success' } });
+		assert.deepStrictEqual({
+			delivered: queue.pendingMessages.map(message => message?.id),
+			afterCancellation, admittedOnCancel,
+			admitted: queue.admitted.map(turn => turn.message.text),
+		}, { delivered: ['accepted'], afterCancellation: ['queued'], admittedOnCancel: 0, admitted: ['Later'] });
+	});
+
+	function startTurn(queue: ReturnType<typeof createQueueDrainContributions>, turnId: string): void {
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId,
+			startedAt: '2026-10-17T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
+	}
+
+	function completeTurn(queue: ReturnType<typeof createQueueDrainContributions>, turnId = queue.stateManager.getActiveTurnId(queue.chat)!): void {
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId, reason: { kind: 'success' } });
+	}
+
+	function sendSteering(queue: ReturnType<typeof createQueueDrainContributions>, id: string, text: string): void {
+		const steer: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering, id, message: { text, origin: { kind: MessageKind.User } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steer);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, steer));
+	}
+
+	test('queue drain runs steering sent as the turn ends as the next turn instead of leaving it stuck', () => {
+		const queue = createQueueDrainContributions(disposables);
+		startTurn(queue, 'active-turn');
+		// The agent already finished its work, so it can no longer take steering for this turn.
+		queue.setSteeringReady(false);
+		sendSteering(queue, 'late', 'Also update the docs');
+		completeTurn(queue, 'active-turn');
+
+		assert.deepStrictEqual({
+			nextTurn: queue.admitted.map(admission => ({ text: admission.message.text, sender: admission.clientId })),
+			stillPending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.message.text),
+		}, {
+			nextTurn: [{ text: 'Also update the docs', sender: 'client' }],
+			stillPending: undefined,
+		});
+	});
+
+	test('queue drain runs steering the agent hands back unsent as the next turn instead of dropping it', async () => {
+		const queue = createQueueDrainContributions(disposables);
+		const handBack = new DeferredPromise<boolean>();
+		const handedToAgent: string[] = [];
+		queue.agent.sendSteeringMessage = (_chat, message) => {
+			handedToAgent.push(message.id);
+			return handBack.p;
+		};
+		startTurn(queue, 'active-turn');
+		sendSteering(queue, 'late', 'Also update the docs');
+		// The turn ends while the agent is still preparing the steering message.
+		completeTurn(queue, 'active-turn');
+		const admittedWhileAgentHeldIt = queue.admitted.map(admission => admission.message.text);
+		handBack.complete(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			handedToAgent,
+			admittedWhileAgentHeldIt,
+			nextTurn: queue.admitted.map(admission => admission.message.text),
+			stillPending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.message.text),
+		}, {
+			handedToAgent: ['late'],
+			admittedWhileAgentHeldIt: [],
+			nextTurn: ['Also update the docs'],
+			stillPending: undefined,
+		});
+	});
+
+	test('queue drain steers the running turn with steering the agent hands back after an earlier turn ended', async () => {
+		const queue = createQueueDrainContributions(disposables);
+		const handBack = new DeferredPromise<boolean>();
+		const handedToAgent: string[] = [];
+		queue.agent.sendSteeringMessage = (_chat, message) => {
+			handedToAgent.push(message.id);
+			return handedToAgent.length === 1 ? handBack.p : true;
+		};
+		startTurn(queue, 'first-turn');
+		sendSteering(queue, 'late', 'Also update the docs');
+		// A new turn is already running by the time the agent hands the message back.
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 1 });
+		startTurn(queue, 'second-turn');
+		handBack.complete(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({ handedToAgent, admitted: queue.admitted }, { handedToAgent: ['late', 'late'], admitted: [] });
+	});
+
+	/** Starts a turn with a queued message and two steering messages the agent holds until the test settles them. */
+	function holdTwoSteeringMessages(queue: ReturnType<typeof createQueueDrainContributions>): Map<string, DeferredPromise<boolean>> {
+		const handoffs = new Map<string, DeferredPromise<boolean>>();
+		queue.agent.sendSteeringMessage = (_chat, message) => {
+			const handoff = new DeferredPromise<boolean>();
+			handoffs.set(message.id, handoff);
+			return handoff.p;
+		};
+		startTurn(queue, 'active-turn');
+		const queued = queuedMessage('queued', 'Later');
+		queue.stateManager.dispatchServerAction(queue.chat, queued);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, queued));
+		sendSteering(queue, 'late', 'Also update the docs');
+		sendSteering(queue, 'failing', 'And the changelog');
+		return handoffs;
+	}
+
+	function consumeSteering(queue: ReturnType<typeof createQueueDrainContributions>, id: string): void {
+		const consumed: IDispatchedAction['action'] = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id };
+		queue.stateManager.dispatchServerAction(queue.chat, consumed);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, consumed));
+	}
+
+	test('queue drain runs handed-back steering as the next turn once another held steering message fails to send', async () => {
+		const queue = createQueueDrainContributions(disposables);
+		const handoffs = holdTwoSteeringMessages(queue);
+		completeTurn(queue, 'active-turn');
+		// The agent hands the first message back unsent while it still holds the second.
+		handoffs.get('late')!.complete(false);
+		await timeout(0);
+		const admittedWhileAgentHeldOne = queue.admitted.map(admission => admission.message.text);
+		// Sending the second message fails, so the agent clears it and reports it as handled.
+		consumeSteering(queue, 'failing');
+		handoffs.get('failing')!.complete(true);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			handedToAgent: [...handoffs.keys()],
+			admittedWhileAgentHeldOne,
+			nextTurn: queue.admitted.map(admission => admission.message.text),
+			stillPending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.message.text),
+		}, {
+			handedToAgent: ['late', 'failing'],
+			admittedWhileAgentHeldOne: [],
+			nextTurn: ['Also update the docs'],
+			stillPending: ['Later'],
+		});
+	});
+
+	test('queue drain does not start queued work when steering the agent held settles after the turn was cancelled', async () => {
+		const queue = createQueueDrainContributions(disposables);
+		const handoffs = holdTwoSteeringMessages(queue);
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnCancelled, turnId: 'active-turn', duration: 0 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'cancelled' } });
+		// The agent drops both messages because the turn was cancelled.
+		for (const [id, handoff] of handoffs) {
+			consumeSteering(queue, id);
+			handoff.complete(true);
+		}
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			admitted: queue.admitted.map(admission => admission.message.text),
+			stillPending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.message.text),
+		}, {
+			admitted: [],
+			stillPending: ['Later'],
+		});
+	});
+
+	test('queue drain runs late steering before queued messages, then the queued messages in order', () => {
+		const queue = createQueueDrainContributions(disposables);
+		startTurn(queue, 'active-turn');
+		for (const [id, text] of [['queued-1', 'First queued'], ['queued-2', 'Second queued']]) {
+			const queued = queuedMessage(id, text);
+			queue.stateManager.dispatchServerAction(queue.chat, queued);
+			queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, queued));
+		}
+		queue.setSteeringReady(false);
+		sendSteering(queue, 'late', 'Also update the docs');
+		completeTurn(queue, 'active-turn');
+		completeTurn(queue);
+		completeTurn(queue);
+
+		assert.deepStrictEqual(queue.admitted.map(admission => admission.message.text), ['Also update the docs', 'First queued', 'Second queued']);
+	});
+
+	test('queue drain runs the first of several late steering messages as the next turn and steers it with the rest', () => {
+		const queue = createQueueDrainContributions(disposables);
+		startTurn(queue, 'active-turn');
+		queue.setSteeringReady(false);
+		sendSteering(queue, 'late-1', 'First late');
+		sendSteering(queue, 'late-2', 'Second late');
+		completeTurn(queue, 'active-turn');
+		// Once the agent is running the new turn, it can take the remaining steering message.
+		queue.setSteeringReady(true);
+		const progress: IDispatchedAction['action'] = {
+			type: ActionType.ChatResponsePart, turnId: queue.stateManager.getActiveTurnId(queue.chat)!,
+			part: { kind: ResponsePartKind.Markdown, id: 'part', content: 'Working' },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, progress);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, progress));
+
+		assert.deepStrictEqual({
+			nextTurn: queue.admitted.map(admission => admission.message.text),
+			steeredIntoIt: queue.pendingMessages.map(message => message?.message.text),
+		}, {
+			nextTurn: ['First late'],
+			steeredIntoIt: ['Second late'],
+		});
+	});
+
+	test('queue drain keeps queued work waiting while the agent still holds steering after its turn ends', () => {
+		const queue = createQueueDrainContributions(disposables);
+		startTurn(queue, 'active-turn');
+		const queued = queuedMessage('queued', 'Later');
+		queue.stateManager.dispatchServerAction(queue.chat, queued);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, queued));
+		sendSteering(queue, 'held', 'Also update the docs');
+		completeTurn(queue, 'active-turn');
+		const admittedWhileAgentHeldIt = queue.admitted.map(admission => admission.message.text);
+		// The agent delivers the steering message as its own turn.
+		const steeringTurn: IDispatchedAction['action'] = {
+			type: ActionType.ChatTurnStarted, turnId: 'steering-turn',
+			startedAt: '2026-10-17T00:00:00.000Z',
+			message: { text: 'Also update the docs', origin: { kind: MessageKind.User } },
+			queuedMessageId: 'held',
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steeringTurn);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steeringTurn));
+		completeTurn(queue, 'steering-turn');
+
+		assert.deepStrictEqual({
+			handedToAgent: queue.pendingMessages.map(message => message?.id),
+			admittedWhileAgentHeldIt,
+			admitted: queue.admitted.map(admission => admission.message.text),
+		}, {
+			handedToAgent: ['held'],
+			admittedWhileAgentHeldIt: [],
+			admitted: ['Later'],
 		});
 	});
 
@@ -1731,7 +2228,7 @@ suite('AgentHostChatContributions', () => {
 		}, {
 			admitted: [],
 			queued: ['stay paused'],
-			pendingMessages: [undefined, 'steering', undefined],
+			pendingMessages: ['steering'],
 		});
 	});
 
@@ -1848,8 +2345,8 @@ suite('AgentHostChatContributions', () => {
 		const action = queuedMessage('rename', '/rename Suggested title');
 		queue.stateManager.dispatchServerAction(queue.chat, action);
 		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action));
-		await Promise.resolve();
-		await Promise.resolve();
+		await timeout(25);
+		await timeout(25);
 
 		assert.deepStrictEqual({
 			admitted: queue.admitted,
@@ -1898,7 +2395,7 @@ suite('AgentHostChatContributions', () => {
 		const contributions = createBuiltInContributions(disposables, observed);
 		contributions.service.turnEnd(turnEnd('built-in-order'));
 
-		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
+		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'scheduledChatMoves', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
 	});
 
 	for (const source of ['direct', 'queued'] as const) {
@@ -1936,6 +2433,19 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(observed, ['gitRepositoryRoots', 'checkpointAndChangeset']);
 	});
 
+	test('cancelled turns refresh tracked changesets without capturing a completed Git checkpoint', () => {
+		const observed: string[] = [];
+		const contributions = createBuiltInContributions(disposables, observed);
+		const calls: Array<{ channel: string; turnId: string | undefined }> = [];
+		contributions.changesets.onTurnComplete = (channel, turnId) => { calls.push({ channel, turnId }); };
+		const turn = turnEnd('cancelled', { kind: 'cancelled' });
+		contributions.service.turnEnd(turn);
+		assert.deepStrictEqual({ calls, checkpoint: observed.includes('checkpointAndChangeset') }, {
+			calls: [{ channel: turn.channel, turnId: turn.turnId }, { channel: turn.session, turnId: turn.turnId }],
+			checkpoint: false,
+		});
+	});
+
 	test('refreshes repository roots for completed and cancelled turns, not rejected or resumable requests', () => {
 		const contributions = createBuiltInContributions(disposables);
 		const refreshed: string[] = [];
@@ -1951,7 +2461,7 @@ suite('AgentHostChatContributions', () => {
 			{ kind: 'cancelled' },
 			{ kind: 'error', error, resumable: false },
 			{ kind: 'error', error, resumable: true },
-			{ kind: 'rejected', error },
+			{ kind: 'rejected', error, recoverable: true },
 			{ kind: 'localCommand' },
 		] satisfies ITurnEnd['reason'][]) {
 			contributions.service.turnEnd({ ...turnEnd('root-refresh', reason), channel: `agent-host-session://${reason.kind}-${reason.kind === 'error' ? reason.resumable : false}` });
@@ -2018,7 +2528,7 @@ suite('AgentHostChatContributions', () => {
 	] satisfies ITurnEnd['reason'][]) {
 		for (const rejected of [false, true]) {
 			for (const owner of ['session', 'defaultChat', 'peerChat'] as const) {
-				test(`${owner} ${reason.kind} schedules tracked changes before checkpoint capture ${rejected ? 'rejects' : 'resolves'} and auto refresh after`, async () => {
+				test(`${owner} ${reason.kind} schedules tracked changes without waiting for checkpoint capture that ${rejected ? 'rejects' : 'resolves'}`, async () => {
 					const contributions = createBuiltInContributions(disposables);
 					const checkpoint = new DeferredPromise<void>();
 					const captures: { session: string; chat: string; turnId: string }[] = [];
@@ -2058,7 +2568,7 @@ suite('AgentHostChatContributions', () => {
 						captures: [{ session: turn.session, chat: channel, turnId: turn.turnId }],
 						whilePending: { recomputes: expected, refreshes: [] },
 						recomputes: expected,
-						refreshes: [[turn.session, 'auto']],
+						refreshes: [],
 						warnings: rejected ? [`[AgentSideEffects] Turn checkpoint capture failed for ${turn.session}/${turn.turnId}: checkpoint failed`] : [],
 					});
 				});
@@ -2151,6 +2661,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.turnEnd(turnEnd('rejected', {
 			kind: 'rejected',
 			error: { errorType: 'noAgent', message: 'No agent found for session' },
+			recoverable: true,
 		}));
 		const rejectedReadChanges = [...readChanges];
 		contributions.service.turnEnd(turnEnd('error', {
@@ -2174,6 +2685,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.turnEnd(turnEnd('rejected', {
 			kind: 'rejected',
 			error: { errorType: 'noAgent', message: 'No agent found for session' },
+			recoverable: true,
 		}));
 
 		assert.deepStrictEqual({
@@ -2182,12 +2694,14 @@ suite('AgentHostChatContributions', () => {
 			githubReferences: observed.includes('githubReferences'),
 			sessionTitle: observed.includes('sessionTitle'),
 			markUnread: observed.includes('markUnread'),
+			scheduledChatMoves: observed.includes('scheduledChatMoves'),
 		}, {
 			checkpointAndChangeset: false,
 			queueDrain: false,
 			githubReferences: false,
 			sessionTitle: false,
 			markUnread: false,
+			scheduledChatMoves: false,
 		});
 	});
 
@@ -2238,7 +2752,7 @@ suite('AgentHostChatContributions', () => {
 		const agent = disposables.add(new MockAgent());
 		const child = buildSubagentChatUri(titles.session, 'child');
 		for (const chat of [titles.defaultChat, child]) {
-			titles.turnTracker.turnStarted(agent, chat, titles.session, 'turn', undefined, undefined, 'default', undefined, undefined);
+			titles.turnTracker.turnStarted(agent, chat, titles.session, 'turn', undefined, undefined, 'default', undefined, undefined, undefined, undefined, undefined, chat === child ? 'child' : undefined);
 			if (chat === titles.defaultChat) {
 				titles.turnTracker.turnCompleted(chat, 'turn', 'cancelled');
 			}
@@ -2408,13 +2922,99 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(observed, ['adopted', 'following']);
 	});
 
+	test('adds artifact guidance only to the first turn of a chat', async () => {
+		const contributions = createBuiltInContributions(disposables, undefined, true);
+		const integrations = [{ id: 'test.example', label: 'Example', description: 'Example resources', automationOptions: [] }];
+		disposables.add(contributions.artifactIntegrationDirectory.register('window', {
+			access: { acquireArtifact: async () => { throw new Error('Unused'); } },
+			integrations: constObservable(integrations),
+		}));
+		const instruction = createArtifactIntegrationsInstruction(integrations);
+		const defaultChat = buildDefaultChatUri(contributions.session);
+		const peerChat = buildChatUri(contributions.session, 'peer-artifacts');
+		const restoredChat = buildChatUri(contributions.session, 'restored-artifacts');
+		const emptyRestoredChat = buildChatUri(contributions.session, 'empty-restored-artifacts');
+		for (const [chat, title] of [[peerChat, 'Peer'], [restoredChat, 'Restored'], [emptyRestoredChat, 'Empty']] as const) {
+			contributions.stateManager.addChat(contributions.session, chat, chat, {
+				title,
+				origin: { kind: ChatOriginKind.User },
+			});
+		}
+		await contributions.service.hydrateTurns({ session: contributions.session, chat: restoredChat, isDefaultChat: false, storageResource: restoredChat }, [hydrationTurn('restored-turn')]);
+		await contributions.service.hydrateTurns({ session: contributions.session, chat: emptyRestoredChat, isDefaultChat: false, storageResource: emptyRestoredChat }, []);
+		const getArtifactInstructions = async (chat: string, turnId: string) => {
+			const result = await contributions.service.outgoingTurn({
+				session: contributions.session,
+				chat,
+				message: { text: turnId, origin: { kind: MessageKind.User } },
+				turnId,
+			});
+			return result.instructions?.filter(value => value === instruction) ?? [];
+		};
+		const expected = [instruction];
+
+		assert.deepStrictEqual({
+			firstDefault: await getArtifactInstructions(defaultChat, 'default-1'),
+			secondDefault: await getArtifactInstructions(defaultChat, 'default-2'),
+			firstPeer: await getArtifactInstructions(peerChat, 'peer-1'),
+			secondPeer: await getArtifactInstructions(peerChat, 'peer-2'),
+			restored: await getArtifactInstructions(restoredChat, 'restored-2'),
+			firstEmptyRestored: await getArtifactInstructions(emptyRestoredChat, 'empty-1'),
+			secondEmptyRestored: await getArtifactInstructions(emptyRestoredChat, 'empty-2'),
+		}, {
+			firstDefault: expected,
+			secondDefault: [],
+			firstPeer: expected,
+			secondPeer: [],
+			restored: [],
+			firstEmptyRestored: expected,
+			secondEmptyRestored: [],
+		});
+	});
+
+	test('first-turn artifact guidance lists the kinds that host and client integrations support', async () => {
+		const contributions = createBuiltInContributions(disposables, undefined, true);
+		const integrations = [{ id: 'extension.exp', label: 'ExP', description: 'ExP experiment links', automationOptions: [{ id: 'autoAnalyze', label: 'Automatically Analyze in 7 Days' }] }];
+		disposables.add(contributions.artifactIntegrationDirectory.register('window', {
+			access: { acquireArtifact: async () => { throw new Error('Unused'); } },
+			integrations: constObservable(integrations),
+		}));
+		const chat = buildDefaultChatUri(contributions.session);
+		const instructions = async (turnId: string) => (await contributions.service.outgoingTurn({
+			session: contributions.session,
+			chat,
+			message: { text: turnId, origin: { kind: MessageKind.User } },
+			turnId,
+		})).instructions?.filter(instruction => instruction.startsWith('Integrations add')) ?? [];
+
+		assert.deepStrictEqual({ first: await instructions('first'), second: await instructions('second') }, {
+			first: [createArtifactIntegrationsInstruction(integrations)],
+			second: [],
+		});
+	});
+
+	test('does not mention unavailable artifact tools', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const instructions = [];
+		for (const turnId of ['first', 'second']) {
+			const result = await contributions.service.outgoingTurn({
+				session: contributions.session,
+				chat: buildDefaultChatUri(contributions.session),
+				message: { text: turnId, origin: { kind: MessageKind.User } },
+				turnId,
+			});
+			instructions.push(result.instructions);
+		}
+		assert.deepStrictEqual(instructions, [undefined, undefined]);
+	});
+
 	test('title refinement receives terminal outcomes and preserves default-chat identity', () => {
 		const titles = createSessionTitleContributions(disposables);
 		const turn = { session: titles.session, channel: titles.defaultChat, turnId: 'turn-1' };
 		titles.service.turnEnd({ ...turn, reason: { kind: 'cancelled' } });
 		titles.service.turnEnd({ ...turn, reason: { kind: 'localCommand' } });
 		titles.service.turnEnd({ ...turn, reason: { kind: 'error', error: { errorType: 'test', message: 'Failed' }, resumable: false } });
-		titles.service.turnEnd({ ...turn, reason: { kind: 'rejected', error: { errorType: 'test', message: 'Rejected' } } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'rejected', error: { errorType: 'test', message: 'Rejected' }, recoverable: true } });
 		titles.service.turnEnd({ ...turn, reason: { kind: 'success' } });
 		assert.deepStrictEqual(titles.titleController.refinedTitles, [false, false, false, true].map(successful => ({
 			channel: titles.session, chatChannel: titles.defaultChat, successful,
@@ -2633,6 +3233,55 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	for (const [name, addChat] of [
+		['a tool-origin chat', (titles: ReturnType<typeof createSessionTitleContributions>, chat: string) => titles.stateManager.addChat(titles.session, chat, creationTimeChatStorageResource(titles.session, chat, titles.defaultChat), { title: 'Subagent', origin: { kind: ChatOriginKind.Tool, chat: titles.defaultChat, toolCallId: 'tool-call' } })],
+		['a hidden chat', (titles: ReturnType<typeof createSessionTitleContributions>, chat: string) => titles.stateManager.addChat(titles.session, chat, creationTimeChatStorageResource(titles.session, chat, titles.defaultChat), { title: 'Hidden', interactivity: ChatInteractivity.Hidden })],
+	] as const) {
+		test(`carries a session rename to the default chat when the only other chat is ${name}`, async () => {
+			const titles = createSessionTitleContributions(disposables);
+			titles.stateManager.removeChat(titles.session, titles.peerChat);
+			titles.stateManager.updateChatTitle(titles.session, titles.defaultChat, 'List folder files');
+			addChat(titles, buildChatUri(titles.session, 'other'));
+			const action = { type: ActionType.SessionTitleChanged, title: 'S4' } as const;
+			titles.stateManager.dispatchServerAction(titles.session, action);
+			titles.service.didApplyClientAction(appliedClientAction(titles.session, titles.session, action));
+
+			assert.deepStrictEqual({
+				sessionTitle: titles.stateManager.getSessionState(titles.session)?.title,
+				chatTitle: titles.stateManager.getChatState(titles.defaultChat)?.title,
+				catalogTitle: titles.stateManager.getSessionState(titles.session)?.chats.find(chat => chat.resource === titles.defaultChat)?.title,
+				persistedChatTitle: await titles.database.getMetadata(customChatTitleMetadataKey(titles.defaultChat)),
+				persistedChatSource: await titles.database.getMetadata(customChatTitleSourceMetadataKey(titles.defaultChat)),
+			}, {
+				sessionTitle: 'S4',
+				chatTitle: 'S4',
+				catalogTitle: 'S4',
+				persistedChatTitle: 'S4',
+				persistedChatSource: AGENT_HOST_TITLE_SOURCE_USER,
+			});
+		});
+	}
+
+	test('keeps the default chat title on a session rename when the session has a peer chat', async () => {
+		const titles = createSessionTitleContributions(disposables);
+		titles.stateManager.updateChatTitle(titles.session, titles.defaultChat, 'List folder files');
+		const action = { type: ActionType.SessionTitleChanged, title: 'S4' } as const;
+		titles.stateManager.dispatchServerAction(titles.session, action);
+		titles.service.didApplyClientAction(appliedClientAction(titles.session, titles.session, action));
+
+		assert.deepStrictEqual({
+			sessionTitle: titles.stateManager.getSessionState(titles.session)?.title,
+			defaultChatTitle: titles.stateManager.getChatState(titles.defaultChat)?.title,
+			peerChatTitle: titles.stateManager.getChatState(titles.peerChat)?.title,
+			persistedChatTitle: await titles.database.getMetadata(customChatTitleMetadataKey(titles.defaultChat)),
+		}, {
+			sessionTitle: 'S4',
+			defaultChatTitle: 'List folder files',
+			peerChatTitle: 'Peer',
+			persistedChatTitle: undefined,
+		});
+	});
+
 	test('persists a session channel title', async () => {
 		const titles = createSessionTitleContributions(disposables);
 		const action = { type: ActionType.SessionTitleChanged, title: 'Renamed session' } as const;
@@ -2687,7 +3336,7 @@ suite('AgentHostChatContributions', () => {
 				workingDirectories: [worktreeDirectory.toString()],
 			});
 		}
-		await writeSessionAdditionalWorktrees(contributions.sessionDataService, URI.parse(contributions.session), [{
+		await seedSessionAdditionalWorktrees(contributions.sessionDataService, URI.parse(contributions.session), [{
 			handle,
 			workingDirectory: worktreeDirectory.toString(),
 			repositoryRoot: URI.file('/workspace/repository').toString(),
@@ -2825,7 +3474,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsReadChanged, isRead: false }, 'rejected'));
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'rejected'));
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: { mode: 'interactive' } }, 'rejected'));
-		await Promise.resolve();
+		await contributions.sessionStateStore.whenIdle(undefined);
 
 		assert.deepStrictEqual({
 			isRead: await contributions.database.getMetadata(AH_META_IS_READ_DB_KEY),
@@ -2848,7 +3497,7 @@ suite('AgentHostChatContributions', () => {
 			schema: { type: 'object', properties: {} }, values,
 		});
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: values }));
-		await Promise.resolve();
+		await contributions.sessionStateStore.whenIdle(undefined);
 		assert.deepStrictEqual({
 			persisted: await contributions.database.getMetadata('configValues'),
 			live: contributions.stateManager.getSessionState(contributions.session)?.config?.values,
@@ -2867,7 +3516,7 @@ suite('AgentHostChatContributions', () => {
 			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
 				type: ActionType.SessionConfigChanged, config: { mode: 'plan' },
 			}));
-			await Promise.resolve();
+			await contributions.sessionStateStore.whenIdle(undefined);
 			const beforeConfirmation = JSON.parse((await contributions.database.getMetadata('configValues'))!);
 
 			const meta = withSessionSandboxState(undefined, { enabled: pending === 'on' });
@@ -2875,7 +3524,7 @@ suite('AgentHostChatContributions', () => {
 			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
 				type: ActionType.SessionMetaChanged, _meta: meta,
 			}));
-			await Promise.resolve();
+			await contributions.sessionStateStore.whenIdle(undefined);
 
 			assert.deepStrictEqual({
 				beforeConfirmation,
@@ -2905,14 +3554,14 @@ suite('AgentHostChatContributions', () => {
 			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
 				type: ActionType.SessionMetaChanged, _meta: meta,
 			}));
-			await Promise.resolve();
+			await contributions.sessionStateStore.whenIdle(undefined);
 			snapshots.push((await contributions.database.getMetadata('configValues'))!);
 		};
 		await publish(true);
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
 			type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'off' },
 		}));
-		await Promise.resolve();
+		await contributions.sessionStateStore.whenIdle(undefined);
 		snapshots.push((await contributions.database.getMetadata('configValues'))!);
 		await publish(true, true);
 		await publish(false);
@@ -2924,21 +3573,37 @@ suite('AgentHostChatContributions', () => {
 		]);
 	});
 
+	test('persists artifact-scoped workspace settings through the existing session metadata path', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const config = {
+			[gitHubPullRequestArtifactWorkspaceSettingsKey('pr')]: { chat: buildDefaultChatUri(contributions.session), workingDirectory: 'file:///repo', ignoredChecks: ['Optional *'] },
+			[gitHubPullRequestArtifactWorkspaceSettingsKey('another-pr')]: null,
+		};
+		contributions.stateManager.setSessionConfig(contributions.session, { schema: { type: 'object', properties: {} }, values: config });
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config }));
+		await contributions.sessionStateStore.whenIdle(undefined);
+		assert.deepStrictEqual(JSON.parse((await contributions.database.getMetadata('configValues'))!), config);
+	});
+
 	test('clears automatic archive time when a session is unarchived', async () => {
 		const contributions = createBuiltInContributions(disposables);
 		await contributions.database.setMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY, String(Date.now()));
 
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: false }));
-		await Promise.resolve();
+		// The write is queued on the session state store when the action is dispatched: wait for it, not for time.
+		await contributions.sessionStateStore.whenIdle(undefined);
 
-		assert.strictEqual(await contributions.database.getMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY), '');
+		assert.deepStrictEqual({
+			central: (await contributions.sessionStateStore.readWithoutImport(URI.parse(contributions.session), [AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY])).get(AH_META_AUTO_ARCHIVED_AT_DB_KEY) ?? '',
+			mirror: await contributions.database.getMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY),
+		}, { central: '', mirror: '' });
 	});
 
 	test('synchronizes additional worktrees for manual, automatic, and unarchive actions', async () => {
 		const contributions = createBuiltInContributions(disposables);
 		const session = URI.parse(contributions.session);
 		const handle = generateUuid();
-		await writeSessionAdditionalWorktrees(createSessionDataService(contributions.database), session, [{
+		await writeSessionAdditionalWorktrees(contributions.sessionStateStore, session, [{
 			handle,
 			workingDirectory: URI.file('/worktree').toString(),
 			repositoryRoot: URI.file('/repository').toString(),
@@ -2952,7 +3617,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: false }));
 		await timeout(0);
 
-		assert.deepStrictEqual(contributions.worktree.archiveCalls, [
+		assert.deepStrictEqual(contributions.worktreeCleanup.archiveCalls, [
 			{ handle, archived: true, strictCleanup: false },
 			{ handle, archived: true, strictCleanup: true },
 			{ handle, archived: false, strictCleanup: false },
@@ -2962,7 +3627,7 @@ suite('AgentHostChatContributions', () => {
 	test('skips rejected and chat-scoped additional worktree archive actions', async () => {
 		const contributions = createBuiltInContributions(disposables);
 		const session = URI.parse(contributions.session);
-		await writeSessionAdditionalWorktrees(createSessionDataService(contributions.database), session, [{
+		await writeSessionAdditionalWorktrees(contributions.sessionStateStore, session, [{
 			handle: generateUuid(),
 			workingDirectory: URI.file('/worktree').toString(),
 			repositoryRoot: URI.file('/repository').toString(),
@@ -2972,7 +3637,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.didDispatchAction(dispatchedAction(buildDefaultChatUri(contributions.session), contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true }));
 		await timeout(0);
 
-		assert.deepStrictEqual(contributions.worktree.archiveCalls, []);
+		assert.deepStrictEqual(contributions.worktreeCleanup.archiveCalls, []);
 	});
 
 	test('persists turn usage from envelopes but skips subagent chats', async () => {
@@ -2980,9 +3645,10 @@ suite('AgentHostChatContributions', () => {
 		const usage = { inputTokens: 10, outputTokens: 5 };
 		const chat = buildDefaultChatUri(contributions.session);
 		const subagentChat = buildSubagentChatUri(contributions.session, 'tool-call');
+		contributions.stateManager.addChat(contributions.session, subagentChat, creationTimeChatStorageResource(contributions.session, subagentChat, chat), { origin: { kind: ChatOriginKind.Tool, chat, toolCallId: 'tool-call' } });
 		contributions.service.didDispatchAction(dispatchedAction(chat, contributions.session, { type: ActionType.ChatUsage, turnId: 'parent-turn', usage }));
 		contributions.service.didDispatchAction(dispatchedAction(subagentChat, contributions.session, { type: ActionType.ChatUsage, turnId: 'subagent-turn', usage }));
-		await Promise.resolve();
+		await contributions.sessionStateStore.whenIdle(undefined);
 
 		assert.deepStrictEqual([...(await contributions.database.getTurnUsages()).entries()], [
 			['parent-turn', JSON.stringify(usage)],
@@ -3582,6 +4248,7 @@ suite('AgentHostChatContributions', () => {
 			reason: { kind: 'error', error: { errorType: 'requestFailed', message: 'failed' }, resumable: false },
 		});
 		await timeout(0);
+		await contributions.chatRows.getPersistedTurns(URI.parse(contributions.session), URI.parse(chat));
 
 		const [record] = (await contributions.database.getPersistedTurns()).filter(candidate => candidate.kind === 'failed');
 		assert.ok(record);
@@ -3695,11 +4362,14 @@ suite('AgentHostChatContributions', () => {
 		const draft = { text: 'Restored draft', origin: { kind: MessageKind.User } };
 		await contributions.database.setMetadata(titleKey, 'Restored title');
 		await contributions.database.setChatDraft(URI.parse(chat), draft);
+		await contributions.database.setMetadata(AH_CHAT_CONFIG_VALUES_DB_KEY, JSON.stringify({ chat, values: { autoApprove: 'autoApprove' } }));
 		const getMetadata = contributions.database.getMetadata.bind(contributions.database);
 		const getChatDraft = contributions.database.getChatDraft.bind(contributions.database);
 		contributions.database.getMetadata = async key => {
 			if (key === titleKey) {
 				calls.push('sessionTitle');
+			} else if (key === AH_CHAT_CONFIG_VALUES_DB_KEY) {
+				calls.push('chatConfig');
 			}
 			return getMetadata(key);
 		};
@@ -3711,10 +4381,11 @@ suite('AgentHostChatContributions', () => {
 		const restored = await contributions.service.hydrateChat({ session: contributions.session, chat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)) }, {});
 
 		assert.deepStrictEqual({ calls, restored }, {
-			calls: ['sessionTitle', 'chatDraft'],
+			calls: ['sessionTitle', 'chatDraft', 'chatConfig'],
 			restored: {
 				title: 'Restored title',
 				draft,
+				config: { values: { autoApprove: 'autoApprove' } },
 			},
 		});
 	});
@@ -3734,9 +4405,14 @@ suite('AgentHostChatContributions', () => {
 		const contributions = createBuiltInContributions(disposables);
 		const chat = buildChatUri(contributions.session, 'peer');
 		let metadataReads = 0;
+		// Loading the session state (first row access) legitimately reads metadata; warm it up first.
+		await contributions.chatRows.getDraft(URI.parse(contributions.session), URI.parse(chat));
 		const getMetadata = contributions.database.getMetadata.bind(contributions.database);
 		contributions.database.getMetadata = async key => {
-			metadataReads++;
+			// The chat's own config is not title metadata; reading it is part of every chat's restore.
+			if (key !== AH_CHAT_CONFIG_VALUES_DB_KEY) {
+				metadataReads++;
+			}
 			return getMetadata(key);
 		};
 
@@ -3755,7 +4431,7 @@ suite('AgentHostChatContributions', () => {
 
 	test('hydrates authoritative normalized titles and clears from a full catalog instead of accepting stale cached titles', async () => {
 		const database = disposables.add(new AgentHostDatabase(':memory:'));
-		const persistence = new AgentHostPeerChatStore(database, createSessionDataService(new TestSessionDatabase()), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const persistence = new AgentHostPeerChatStore(database, createSessionDataService(new TestSessionDatabase()), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(database, createSessionDataService(new TestSessionDatabase())), noOlderBuildCopyParticipant);
 		const contributions = createSessionTitleContributions(disposables, persistence);
 		await database.registerRuntimeSession(contributions.session, { provider: 'test', startTime: 1, source: 'explicit' }, { checkTombstone: true });
 		const peers = Array.from({ length: 100 }, (_, index) => ({

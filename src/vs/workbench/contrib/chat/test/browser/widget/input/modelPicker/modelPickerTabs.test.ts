@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
+import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IModelConfigurationAccess, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { getModelBadge } from '../../../../../browser/widget/input/modelPicker/modelPickerBadges.js';
@@ -12,7 +15,7 @@ import { latestOfEachLine, parseModelLine } from '../../../../../browser/widget/
 import { buildSpeedVariants, collapseSpeedVariants } from '../../../../../browser/widget/input/modelPicker/modelPickerVariants.js';
 import { buildModelPickerDestinations, buildModelPickerSections, hasPromotedModels, IModelPickerProviderPlaceholder } from '../../../../../browser/widget/input/modelPicker/modelPickerTabs.js';
 import { getProviderGroupKey } from '../../../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, LanguageModelProviderIcon } from '../../../../../common/languageModels.js';
 
 interface IFixtureModelOptions {
 	readonly vendor?: string;
@@ -134,6 +137,36 @@ suite('Model picker destinations', () => {
 				// The relayed model carries the host's vendor, so that is the identity it
 				// is keyed by; only the group supplies the name the user reads.
 				{ id: providerId('agent-host-copilotcli', 'Ollama'), label: 'Ollama', models: ['Llama 3'] },
+			],
+		);
+	});
+
+	test('a provider that declares an icon shows it, and the rest are recognised by name', () => {
+		const image = { light: URI.file('/openrouter-light.svg'), dark: URI.file('/openrouter-dark.svg') };
+		const serviceWithIcons = {
+			getVendors: () => [
+				{ vendor: 'copilot', displayName: 'GitHub Copilot', isDefault: true },
+				{ vendor: 'openrouter', displayName: 'OpenRouter', isDefault: false, icon: image },
+				{ vendor: 'ollama', displayName: 'Ollama', isDefault: false, icon: Codicon.vm },
+				{ vendor: 'openai', displayName: 'OpenAI', isDefault: false },
+			],
+			getLanguageModelGroups: () => [],
+		} as unknown as ILanguageModelsService;
+		const routed = createModel('nova-micro', 'Nova Micro', { vendor: 'openrouter', isBYOK: true });
+		// An agent host relays the provider under its own vendor, naming it only by its group.
+		const relayed = createModel('nova-pro', 'Nova Pro', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'openrouter' });
+		const signingIn: IModelPickerProviderPlaceholder = { vendor: 'ollama', label: 'Ollama', message: 'Start Ollama to use its models.' };
+		const describeIcon = (icon: LanguageModelProviderIcon) => ThemeIcon.isThemeIcon(icon) ? icon.id : { light: icon.light.path, dark: icon.dark.path };
+
+		assert.deepStrictEqual(
+			buildModelPickerDestinations([gpt, routed, relayed, mistral], serviceWithIcons, [signingIn])
+				.map(destination => ({ label: destination.label, icon: describeIcon(destination.icon) })),
+			[
+				{ label: 'GitHub Copilot', icon: 'chat-model-provider-copilot' },
+				{ label: 'Ollama', icon: 'vm' },
+				{ label: 'OpenAI', icon: 'chat-model-provider-openai' },
+				{ label: 'OpenRouter', icon: { light: '/openrouter-light.svg', dark: '/openrouter-dark.svg' } },
+				{ label: 'OpenRouter', icon: { light: '/openrouter-light.svg', dark: '/openrouter-dark.svg' } },
 			],
 		);
 	});
@@ -748,7 +781,7 @@ suite('Model picker destinations', () => {
 				oneChanged: getModelConfigSummary(model, createConfigurationAccess({ contextSize: 1000000 })),
 				noSchema: getModelConfigSummary(gpt, createConfigurationAccess()),
 			},
-			{ defaults: 'Medium · 264K', explicitDefaults: 'Medium · 264K', bothChanged: 'Extra high · 1M', oneChanged: 'Medium · 1M', noSchema: '132K' },
+			{ defaults: 'Medium · 264K', explicitDefaults: 'Medium · 264K', bothChanged: 'Extra high · 1M', oneChanged: 'Medium · 1M', noSchema: 'Max 132K' },
 		);
 	});
 
@@ -770,8 +803,30 @@ suite('Model picker destinations', () => {
 			providerDefault: schema.properties?.reasoningEffort.default,
 		}, {
 			summary: 'Extra high · 264K',
-			description: 'Thinking Effort: Extra high, Context: 264K',
+			description: 'Effort Level: Extra high, Context: 264K',
 			providerDefault: 'medium',
+		});
+
+	});
+
+	test('read-only option descriptions identify the managed value for screen readers', () => {
+		const model = createConfigurableModel();
+		const schema = model.metadata.configurationSchema!;
+		const access: IModelConfigurationAccess = {
+			...createConfigurationAccess(),
+			getModelConfigurationSchema: () => ({
+				properties: {
+					...schema.properties,
+					reasoningEffort: { ...schema.properties!.reasoningEffort, default: 'xhigh', readOnly: true },
+				},
+			}),
+		};
+		assert.deepStrictEqual({
+			summary: getModelConfigSummary(model, access),
+			description: getModelConfigDescription(model, access),
+		}, {
+			summary: 'Extra high · 264K',
+			description: 'Effort Level: Extra high, managed by the agent host, Context: 264K',
 		});
 	});
 
@@ -796,7 +851,7 @@ suite('Model picker destinations', () => {
 			auto: getModelConfigSummary(createModel('auto', 'Auto'), createConfigurationAccess()),
 			hydra: getModelConfigSummary(createModel('hydrafusion', 'HydraFusion', { modelGroupId: 'copilotcli' }), createConfigurationAccess()),
 			missing: getModelConfigSummary(undefined, createConfigurationAccess()),
-		}, { unresolved: undefined, stale: undefined, auto: undefined, hydra: undefined, missing: undefined });
+		}, { unresolved: 'Model default', stale: undefined, auto: undefined, hydra: undefined, missing: undefined });
 	});
 
 	test('effort-only and context-only models summarize the available settings', () => {
@@ -809,6 +864,6 @@ suite('Model picker destinations', () => {
 		assert.deepStrictEqual({
 			effort: summarize(['reasoningEffort']),
 			context: summarize(['contextSize']),
-		}, { effort: 'Medium · 132K', context: '264K' });
+		}, { effort: 'Medium · Max 132K', context: '264K' });
 	});
 });

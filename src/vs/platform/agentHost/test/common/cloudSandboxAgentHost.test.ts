@@ -63,7 +63,7 @@ suite('isRetryableCloudSandboxError', () => {
 		const statuses = [200, 400, 401, 403, 404, 408, 409, 410, 422, 429, 500, 502, 503];
 		const retryable = statuses.filter(status => isRetryableCloudSandboxError(new CloudSandboxRequestError(status, `HTTP ${status}`)));
 
-		assert.deepStrictEqual(retryable, [200, 408, 429, 500, 502, 503]);
+		assert.deepStrictEqual(retryable, [408, 429, 500, 502, 503]);
 	});
 
 	test('errors without a status are retryable, including a not-yet-available sign-in', () => {

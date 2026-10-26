@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -13,8 +14,9 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../platform/c
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import '../../browser/agentSessionsConfiguration.js';
+import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const registeredAgentSessionsSettings = [
@@ -26,6 +28,7 @@ const unifiedWorkspacePickerSetting = configurationProperties[ChatConfiguration.
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
 const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
+const legacyImageGenerationMigration = migrations.find(migration => migration.key === CopilotImageGenerationEnabledSettingId);
 const legacyProgressAnimationMigration = migrations.find(migration => migration.key === ChatConfiguration.PersistentProgress);
 const legacyProgressVerbosityMigration = migrations.find(migration => migration.key === ChatConfiguration.PersistentProgressVerbosity);
 const persistentProgressSetting = chatProgressConfigurationProperties[ChatConfiguration.PersistentProgress];
@@ -103,14 +106,12 @@ suite('Chat configuration', () => {
 
 	test('strict marketplace policy disables the GitHub Feed', () => {
 		assert.deepStrictEqual([
-			{ strictMarketplaces: undefined, harnessProvidesMarketplaceSearch: true },
-			{ strictMarketplaces: null, harnessProvidesMarketplaceSearch: true },
-			{ strictMarketplaces: [], harnessProvidesMarketplaceSearch: true },
-			{ strictMarketplaces: [{ source: 'github', repo: 'owner/catalog' }], harnessProvidesMarketplaceSearch: true },
-			{ strictMarketplaces: undefined, harnessProvidesMarketplaceSearch: false },
-		].map(({ strictMarketplaces, harnessProvidesMarketplaceSearch }) => isAgentFinderPublicFeedAvailable(new TestConfigurationService({
-			[ChatConfiguration.StrictMarketplaces]: strictMarketplaces,
-		}), harnessProvidesMarketplaceSearch)), [true, true, false, false, false]);
+			{ strictPolicyActive: false, harnessProvidesMarketplaceSearch: true },
+			{ strictPolicyActive: true, harnessProvidesMarketplaceSearch: true },
+			{ strictPolicyActive: false, harnessProvidesMarketplaceSearch: false },
+		].map(({ strictPolicyActive, harnessProvidesMarketplaceSearch }) => isAgentFinderPublicFeedAvailable(new class extends mock<IPluginMarketplaceService>() {
+			override isStrictMarketplacePolicyActive() { return strictPolicyActive; }
+		}(), harnessProvidesMarketplaceSearch)), [true, false, false]);
 	});
 
 	test('Marketplace experiment eligibility excludes every explicit configuration layer', () => {
@@ -200,9 +201,9 @@ suite('Chat configuration', () => {
 		}, {
 			type: 'string',
 			default: 'compact',
-			values: ['verbose', 'compact'],
-			labels: ['Verbose', 'Compact'],
-			descriptions: 2,
+			values: ['verbose', 'compact', 'conversation'],
+			labels: ['Verbose', 'Compact', 'Conversation'],
+			descriptions: 3,
 			tags: ['experimental'],
 		});
 	});
@@ -213,8 +214,8 @@ suite('Chat configuration', () => {
 
 	test('does not migrate explicit progress verbosity or absent settings', async () => {
 		assert.deepStrictEqual(await Promise.all(
-			['verbose', 'compact', undefined, 'unsupported'].map(value => legacyProgressVerbosityMigration?.migrateFn(value, () => undefined)),
-		), [[], [], [], []]);
+			['verbose', 'compact', 'conversation', undefined, 'unsupported'].map(value => legacyProgressVerbosityMigration?.migrateFn(value, () => undefined)),
+		), [[], [], [], [], []]);
 	});
 
 	test('migrates the auto archive setting to auto mark as done', async () => {
@@ -276,6 +277,20 @@ suite('Chat configuration', () => {
 			activeAgentOff: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'utility' }]],
 			activeAgentOffWithDeferredOn: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
 			activeAgentOnWithStrategySet: [[activeAgentSetting, { value: undefined }]],
+		});
+	});
+
+	test('migrates the legacy image generation setting to a model without overwriting it', async () => {
+		assert.deepStrictEqual({
+			includeApplication: legacyImageGenerationMigration?.includeApplication,
+			enabled: await legacyImageGenerationMigration?.migrateFn(true, () => undefined),
+			disabled: await legacyImageGenerationMigration?.migrateFn(false, () => undefined),
+			enabledWithModelSet: await legacyImageGenerationMigration?.migrateFn(true, setting => setting === CopilotImageGenerationModelSettingId ? 'off' : undefined),
+		}, {
+			includeApplication: true,
+			enabled: [[CopilotImageGenerationEnabledSettingId, { value: undefined }], [CopilotImageGenerationModelSettingId, { value: 'gpt-image-2.5-flare' }]],
+			disabled: [[CopilotImageGenerationEnabledSettingId, { value: undefined }], [CopilotImageGenerationModelSettingId, { value: 'off' }]],
+			enabledWithModelSet: [[CopilotImageGenerationEnabledSettingId, { value: undefined }]],
 		});
 	});
 });

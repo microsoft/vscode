@@ -7,7 +7,8 @@ import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { createSandbox, spy } from 'sinon';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { AutoOpenBarrier, timeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -31,6 +32,7 @@ import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
 import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
+import { TerminalIconPicker } from '../../browser/terminalIconPicker.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
@@ -219,6 +221,28 @@ suite('Workbench - TerminalInstance', () => {
 			container.dispatchEvent(new DragEvent('drop', { dataTransfer }));
 		}
 
+		test('icon reset restores the default without changing the terminal color', async () => {
+			const instance = await createTerminalInstance(undefined, undefined, { color: 'terminal.ansiRed' });
+			const defaultIcon = instance.icon;
+			await instance.changeIcon(Codicon.rocket);
+			const reset = await instance.changeIcon(null);
+			deepStrictEqual({ reset, icon: instance.icon, color: instance.shellLaunchConfig.color }, {
+				reset: null,
+				icon: defaultIcon,
+				color: 'terminal.ansiRed',
+			});
+		});
+
+		test('cancelling the shared icon picker preserves the terminal icon', async () => {
+			const sandbox = createSandbox();
+			store.add(toDisposable(() => sandbox.restore()));
+			sandbox.stub(TerminalIconPicker.prototype, 'pickIcons').resolves(undefined);
+			const instance = await createTerminalInstance();
+			await instance.changeIcon(Codicon.rocket);
+			const result = await instance.changeIcon();
+			deepStrictEqual({ result, icon: instance.icon }, { result: undefined, icon: Codicon.rocket });
+		});
+
 		async function createTerminalWithLongLine(): Promise<TerminalInstance> {
 			const instance = await createTerminalInstance();
 			const container = document.createElement('div');
@@ -330,6 +354,27 @@ suite('Workbench - TerminalInstance', () => {
 			await (instance as unknown as Record<string, () => Promise<void>>)['_createProcess']();
 
 			strictEqual(workspaceTrustRequestService.requestCount, 1);
+			instance.dispose();
+		});
+
+		test('reuseTerminal requests workspace trust and does not relaunch when trust is denied', async () => {
+			const terminalInstanceService = store.add(new TestTerminalInstanceService());
+			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService();
+			const instance = await createTerminalInstance(terminalInstanceService, undefined, {
+				executable: '/usr/bin/zsh',
+				cwd: URI.file('/home/test'),
+				isTransient: true
+			}, workspaceTrustRequestService);
+
+			await instance.reuseTerminal({ executable: '/usr/bin/zsh' }, true);
+
+			deepStrictEqual({
+				trustRequestCount: workspaceTrustRequestService.requestCount,
+				createProcessCount: terminalInstanceService.createProcessCount
+			}, {
+				trustRequestCount: 1,
+				createProcessCount: 0
+			});
 			instance.dispose();
 		});
 
@@ -495,6 +540,54 @@ suite('Workbench - TerminalInstance', () => {
 
 			deepStrictEqual(disposalOrder, ['onWillDispose', 'xterm', 'onDisposed']);
 		});
+
+		for (const waitForXterm of [false, true]) {
+			test(`disposal releases startup barriers ${waitForXterm ? 'after' : 'before'} xterm is ready`, async () => {
+				const terminalInstanceService = store.add(new TestTerminalInstanceService());
+				const instantiationService = createTerminalInstantiationService(terminalInstanceService);
+				const sandbox = createSandbox();
+				const clock = sandbox.useFakeTimers();
+				const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
+				try {
+					if (waitForXterm) {
+						await instance.xtermReadyPromise;
+					}
+					const focusSpy = sandbox.spy(instance, 'focus');
+					const resolveProfileSpy = sandbox.spy(instantiationService.get(ITerminalProfileResolverService), 'getDefaultProfile');
+					let focusSettled = false;
+					const focusPromise = instance.focusWhenReady().then(() => focusSettled = true);
+					instance.dispose();
+					await instance.xtermReadyPromise;
+					await clock.tickAsync(0);
+					const pendingTimers = clock.countTimers();
+					const openBarrierSpy = sandbox.spy(AutoOpenBarrier.prototype, 'open');
+					clock.restore();
+					sandbox.useFakeTimers();
+					// Advance the old queue while a subsequent test's clock is installed.
+					await clock.tickAsync(1000);
+
+					deepStrictEqual({
+						pendingTimers,
+						lateBarrierOpens: openBarrierSpy.callCount,
+						focusSettled,
+						focusCalls: focusSpy.callCount,
+						resolveProfileCalls: resolveProfileSpy.callCount,
+						createProcessCount: terminalInstanceService.createProcessCount,
+					}, {
+						pendingTimers: 0,
+						lateBarrierOpens: 0,
+						focusSettled: true,
+						focusCalls: 0,
+						resolveProfileCalls: 0,
+						createProcessCount: 0,
+					});
+					await focusPromise;
+				} finally {
+					instance.dispose();
+					sandbox.restore();
+				}
+			});
+		}
 
 		test('should dispose contribution-owned xterm addons before xterm disposal', async () => {
 			const instance = await createTerminalInstance();

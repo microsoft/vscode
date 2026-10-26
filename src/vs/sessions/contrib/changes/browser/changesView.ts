@@ -56,6 +56,7 @@ import { ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
+import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatPetAchievementIds } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
@@ -80,7 +81,7 @@ import { Color } from '../../../../base/common/color.js';
 import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
-import { renderSessionsEmptyState } from '../../../browser/parts/sessionsEmptyState.js';
+import { ChangesEmptyState } from './changesEmptyState.js';
 import { ChecksViewModel } from './checksViewModel.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
@@ -621,6 +622,7 @@ export class ChangesActionsBar extends Disposable {
 		super();
 
 		container.classList.add('changes-actions-bar');
+		this._register(markOnboardingTarget(container, 'sessions.changes.actions'));
 
 		const hasGitOperationInProgressGlobalObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
 			contextKeyService.getContextKeyValue('sessions.hasGitOperationInProgress') === true);
@@ -685,6 +687,7 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 
 interface IChangesPickerLabel {
 	readonly label: string;
+	readonly tooltip?: string;
 	readonly isNonDefault: boolean;
 }
 
@@ -698,7 +701,11 @@ function createChangesPickerLabelObservable(owner: object, changesViewService: I
 			return undefined;
 		}
 		const defaultChangeset = findDefaultChangeset(changesViewService.activeSessionChangesetsObs.read(reader) ?? [], reader);
-		return { label: changeset.label, isNonDefault: changeset.id !== defaultChangeset?.id };
+		return {
+			label: changeset.label,
+			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changeset.description : undefined,
+			isNonDefault: changeset.id !== defaultChangeset?.id,
+		};
 	});
 }
 
@@ -743,6 +750,7 @@ export class ChangesViewPane extends ViewPane {
 
 	private bodyContainer: HTMLElement | undefined;
 	private welcomeContainer: HTMLElement | undefined;
+	private emptyState: ChangesEmptyState | undefined;
 	private filesHeaderNode: HTMLElement | undefined;
 	private fileHeaderToolbarContainer: HTMLElement | undefined;
 	private contentContainer: HTMLElement | undefined;
@@ -911,11 +919,7 @@ export class ChangesViewPane extends ViewPane {
 		this.welcomeContainer = dom.append(this.contentContainer, $('.changes-welcome'));
 		this.welcomeContainer.style.display = 'none';
 
-		renderSessionsEmptyState(
-			this.welcomeContainer,
-			localize('changesView.emptyTitle', "Changes"),
-			localize('changesView.noChanges', "No changed files"),
-		);
+		this.emptyState = this._register(this.scopedInstantiationService.createInstance(ChangesEmptyState, this.welcomeContainer));
 
 		// CI Status widget — bottom pane
 		this.ciStatusWidget = this._register(this.scopedInstantiationService.createInstance(CIStatusWidget, this.splitViewContainer));
@@ -1357,7 +1361,7 @@ export class ChangesViewPane extends ViewPane {
 
 	private getTreePaneMaximumSize(): number {
 		if (this.listContainer?.style.display === 'none') {
-			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
+			return Number.POSITIVE_INFINITY;
 		}
 
 		return Math.max(this.getTreePaneDesiredSize(), this.getTreePaneReservedRowsSize());
@@ -1391,6 +1395,7 @@ export class ChangesViewPane extends ViewPane {
 		this.splitViewContainer.style.height = `${availableHeight}px`;
 		this.splitView.layout(availableHeight);
 		this.rebalanceSectionPanes?.();
+		this.emptyState?.layout();
 	}
 
 	/**
@@ -2339,21 +2344,25 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	}
 
 	protected override getTooltip(): string {
-		const label = this._labelObs.get()?.label;
-		const title = super.getTooltip() || this.action.label;
-		if (!label) {
-			return title;
+		const label = this._labelObs.get();
+		const tooltip = label?.tooltip || label?.label;
+		if (!tooltip) {
+			return super.getTooltip() || this.action.label;
 		}
 
 		const summary = this._summaryObs?.get();
 		return summary
-			? localize('changesView.picker.tooltipWithSummary', "{0}: {1}, {2}", title, label, getChangesSummaryLabel(summary))
-			: localize('changesView.picker.tooltip', "{0}: {1}", title, label);
+			? localize('changesView.picker.tooltipWithSummary', "{0}, {1}", tooltip, getChangesSummaryLabel(summary))
+			: tooltip;
 	}
 
 	protected override setAriaLabelAttributes(element: HTMLElement): void {
 		super.setAriaLabelAttributes(element);
-		element.ariaLabel = this.getTooltip();
+		const label = this._labelObs.get();
+		const tooltip = this.getTooltip();
+		element.ariaLabel = label?.tooltip
+			? localize('changesView.picker.ariaLabelWithDescription', "{0}: {1}", label.label, tooltip)
+			: tooltip;
 	}
 
 	private _getChangesetCategory(changeset: ISessionChangeset): string {

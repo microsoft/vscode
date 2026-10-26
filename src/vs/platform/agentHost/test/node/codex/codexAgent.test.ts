@@ -5,15 +5,18 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type AuthenticateParams, type IAgentChatContext, type IAgentDiscoveredChat, type IAgentChatOwnerRef, fixedChatOwnerRef } from '../../../common/agent.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildDefaultChatUri, ResponsePartKind, MessageAttachmentKind, MessageKind, type MessageAttachment, type PendingMessage } from '../../../common/state/sessionState.js';
+import { AuthenticateTargetKind } from '../../../common/state/sessionProtocol.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
@@ -43,7 +46,7 @@ interface ICodexConversationResolverHarness {
 interface ICodexMcpControllerSession {
 	readonly sessionId: string;
 	readonly sessionUri: URI;
-	readonly configurationResource: URI;
+	readonly owner: IAgentChatOwnerRef;
 	chatChannel: URI | undefined;
 	readonly clientCustomizations: CodexClientCustomizationStore;
 	mcpController: McpCustomizationController | undefined;
@@ -58,7 +61,7 @@ interface ICodexMcpControllerHarness {
 		resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution;
 	};
 	readonly _emitMcpCustomizationAction: (...args: readonly unknown[]) => void;
-	readonly _preferredMcpPublisher: (configurationResource: URI) => ICodexMcpControllerSession | undefined;
+	readonly _preferredMcpPublisher: (ownerSession: URI) => ICodexMcpControllerSession | undefined;
 	readonly _switchMcpPublisher: (session: ICodexMcpControllerSession) => void;
 }
 
@@ -76,6 +79,10 @@ interface ICodexGitHubMcpHarness {
 		readonly workingDirectory: URI;
 		readonly agentMergeTurn?: boolean;
 	}): Record<string, ICodexMcpServerConfigJson>;
+}
+
+interface ICodexMcpAuthenticationHarness extends ICodexGitHubMcpHarness {
+	handleAuthenticationToken(params: AuthenticateParams): Promise<boolean>;
 }
 
 interface ICodexGitHubEndpointChangeHarness {
@@ -153,35 +160,41 @@ function emptyHarness(): ICodexConversationResolverHarness {
 suite('CodexAgent', () => {
 
 	suite('steering input correlation', () => {
-		function createHarness() {
+		function createHarness(turnReady = true) {
 			const sessionUri = AgentSession.uri(CODEX_AGENT_PROVIDER_ID, 'steering-session');
 			const session = {
 				threadId: 'thread',
-				currentAppTurnId: 'turn',
+				currentAppTurnId: turnReady ? 'turn' : undefined,
 				pendingSteeringFlips: new Map<string, { readonly pendingMessage: PendingMessage; readonly inputText: string }>(),
 			};
 			const inputs: UserInput[][] = [];
+			const clientIds: string[] = [];
+			const methods = CodexAgent.prototype as unknown as {
+				setPendingMessages(this: object, chat: URI, steering: PendingMessage, queued: readonly PendingMessage[]): boolean;
+				_sendSteering(this: object, chat: URI, steering: PendingMessage, handBack: boolean): boolean | Promise<boolean>;
+				_takeMatchingPendingSteering(steeringSession: typeof session, text: string, clientId?: string | null): PendingMessage | undefined;
+			};
 			const harness = {
 				_sessions: new Map([[AgentSession.id(sessionUri), session]]),
 				_resolveConversationSession: () => sessionUri,
+				_sendSteering: methods._sendSteering,
 				_connection: {
 					kind: 'ready',
 					client: {
-						request: (_method: string, params: { input: UserInput[] }) => {
+						request: (_method: string, params: { input: UserInput[]; clientUserMessageId: string }) => {
 							inputs.push(params.input);
+							clientIds.push(params.clientUserMessageId);
 							return Promise.resolve({});
 						},
 					},
 				},
 			};
-			const methods = CodexAgent.prototype as unknown as {
-				setPendingMessages(this: typeof harness, chat: URI, steering: PendingMessage, queued: readonly PendingMessage[]): void;
-				_takeMatchingPendingSteering(steeringSession: typeof session, text: string): PendingMessage | undefined;
-			};
 			return {
 				send: (pending: PendingMessage) => methods.setPendingMessages.call(harness, URI.parse(buildDefaultChatUri(sessionUri.toString())), pending, []),
-				take: (text: string) => methods._takeMatchingPendingSteering(session, text),
+				take: (text: string, clientId?: string | null) => methods._takeMatchingPendingSteering(session, text, clientId),
 				inputs,
+				clientIds,
+				ready: () => { session.currentAppTurnId = 'turn'; },
 				pendingIds: () => [...session.pendingSteeringFlips.keys()],
 			};
 		}
@@ -202,6 +215,36 @@ suite('CodexAgent', () => {
 			assert.strictEqual(h.inputs.length, 1, 'pending state synchronization must not send the same steer twice');
 			assert.strictEqual(h.take(extractUserInputText(h.inputs[0])), pending);
 			assert.strictEqual(h.take(pending.message.text), undefined);
+		});
+
+		test('defers steering until the app-server turn is ready without consuming the input', () => {
+			const h = createHarness(false);
+			const pending = message('early');
+			const before = h.send(pending);
+			h.ready();
+			const after = h.send(pending);
+			assert.deepStrictEqual({ before, after, clientIds: h.clientIds, pendingIds: h.pendingIds() }, {
+				before: false, after: true, clientIds: ['early'], pendingIds: ['early'],
+			});
+		});
+
+		test('correlates identical steering messages and duplicate echoes by submission ID', () => {
+			const h = createHarness();
+			const first = message('first');
+			const second = message('second');
+			h.send(first);
+			h.send(second);
+			assert.deepStrictEqual({
+				sentIds: h.clientIds,
+				second: h.take(second.message.text, 'second')?.id,
+				duplicate: h.take(second.message.text, 'second'),
+				unrelated: h.take(first.message.text, 'unknown'),
+				remaining: h.pendingIds(),
+				first: h.take(first.message.text, 'first')?.id,
+			}, {
+				sentIds: ['first', 'second'], second: 'second', duplicate: undefined,
+				unrelated: undefined, remaining: ['first'], first: 'first',
+			});
 		});
 
 		test('matches expanded browser context while preserving the original UI message', () => {
@@ -351,12 +394,76 @@ suite('CodexAgent', () => {
 		});
 	});
 
+	test('targeted MCP tokens and revocation affect only one server in one owning session', async () => {
+		const resource = 'https://mcp.slack.com';
+		const serverUrl = 'https://mcp.slack.com/mcp';
+		const sessions = ['first', 'second'].map(sessionId => ({
+			sessionId, owner: fixedChatOwnerRef(URI.parse(`ahp-session:/${sessionId}`)),
+			workingDirectory: URI.file('/work'), disposed: false, threadId: `thread-${sessionId}`, firstTurnSent: true,
+		}));
+		const reloaded: string[] = [];
+		const globalTokens = new Map([[serverUrl, 'legacy-token']]);
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_sessions: new Map(sessions.map(session => [session.sessionId, session])),
+			_configurationService: {
+				getRootValue: () => ({
+					'slack-a': { type: 'http', url: serverUrl }, 'slack-b': { type: 'http', url: serverUrl },
+				})
+			},
+			_sessionMcpDiscoveries: new Map(), _enabledClientPlugins: () => [], _isMcpServerEnabledForSdk: () => true,
+			_githubMcpServerEnabled: false, _mcpAuthTokens: globalTokens, _mcpAuthTokensBySession: new ResourceMap(),
+			_mcpAuthServerUrlsByResource: new Map([[resource + '/', new Set([serverUrl])]]),
+			_sessionForMcpControl: (target: URI) => sessions.find(session => isEqual(session.owner.get(), target)),
+			_resolveMcpServerName: (_session: object, id: string) => id === 'id-a' ? 'slack-a' : id === 'id-b' ? 'slack-b' : undefined,
+			_httpMcpServerUrls: () => new Map([['slack-a', serverUrl], ['slack-b', serverUrl]]),
+			_markSessionForReload: (session: { sessionId: string }) => { reloaded.push(session.sessionId); },
+			_logService: new NullLogService(),
+		}) as ICodexMcpAuthenticationHarness;
+		const authenticate = (session: string, customizationId: string, token: string) => harness.handleAuthenticationToken({
+			resource, token, target: { kind: AuthenticateTargetKind.McpServer, session, customizationId },
+		});
+		const headers = () => sessions.map(session => Object.fromEntries(Object.entries(harness._buildSessionMcpServers(session))
+			.map(([name, server]) => [name, server.http_headers?.Authorization])));
+		const first = await authenticate('ahp-session:/first', 'id-a', 'token-a');
+		const afterFirst = headers();
+		const sibling = await authenticate('ahp-session:/first', 'id-b', 'token-b');
+		const second = await authenticate('ahp-session:/second', 'id-a', 'other-account');
+		const afterBothSessions = headers();
+		const revoked = await authenticate('ahp-session:/first', 'id-a', '');
+		const unknown = await authenticate('ahp-session:/missing', 'id-a', 'unknown');
+		const unknownCustomization = await authenticate('ahp-session:/first', 'missing', 'unknown');
+		const afterRevocation = headers();
+		const legacy = await harness.handleAuthenticationToken({ resource, token: 'legacy-rotated' });
+		assert.deepStrictEqual({ first, sibling, second, revoked, unknown, unknownCustomization, legacy, afterFirst, afterBothSessions, afterRevocation, afterLegacy: headers(), reloaded, globalTokens: [...globalTokens] }, {
+			first: true, sibling: true, second: true, revoked: true, unknown: false, unknownCustomization: false, legacy: true,
+			afterFirst: [
+				{ 'slack-a': 'Bearer token-a', 'slack-b': 'Bearer legacy-token' },
+				{ 'slack-a': 'Bearer legacy-token', 'slack-b': 'Bearer legacy-token' },
+			],
+			afterBothSessions: [
+				{ 'slack-a': 'Bearer token-a', 'slack-b': 'Bearer token-b' },
+				{ 'slack-a': 'Bearer other-account', 'slack-b': 'Bearer legacy-token' },
+			],
+			afterRevocation: [
+				{ 'slack-a': undefined, 'slack-b': 'Bearer token-b' },
+				{ 'slack-a': 'Bearer other-account', 'slack-b': 'Bearer legacy-token' },
+			],
+			afterLegacy: [
+				{ 'slack-a': 'Bearer legacy-rotated', 'slack-b': 'Bearer legacy-rotated' },
+				{ 'slack-a': 'Bearer legacy-rotated', 'slack-b': 'Bearer legacy-rotated' },
+			],
+			reloaded: ['first', 'first', 'second', 'first', 'first', 'second'], globalTokens: [[serverUrl, 'legacy-rotated']],
+		});
+	});
+
 	test('GitHub MCP injection respects unowned server enablement', () => {
 		const createHarness = (enabled: boolean, customizationEnabled: boolean, token: string | undefined): ICodexGitHubMcpHarness => Object.assign(Object.create(CodexAgent.prototype), {
 			_configurationService: { getRootValue: () => undefined },
 			_sessionMcpDiscoveries: new Map(),
 			_enabledClientPlugins: () => [],
 			_mcpAuthTokens: new Map(),
+			_mcpAuthTokensBySession: new ResourceMap(),
+			_launchOwner: () => URI.parse('ahp-session:/test'),
 			_githubMcpServerEnabled: enabled,
 			_githubToken: token,
 			_gitHubMcpServerConfiguration: token ? createGitHubMcpServerConfiguration('https://api.githubcopilot.com') : undefined,
@@ -391,6 +498,8 @@ suite('CodexAgent', () => {
 			_sessionMcpDiscoveries: new Map(),
 			_enabledClientPlugins: () => [],
 			_mcpAuthTokens: new Map(),
+			_mcpAuthTokensBySession: new ResourceMap(),
+			_launchOwner: () => URI.parse('ahp-session:/test'),
 			_githubMcpServerEnabled: true,
 			_githubToken: 'token',
 			_gitHubMcpServerConfiguration: createGitHubMcpServerConfiguration('https://api.githubcopilot.com'),
@@ -412,6 +521,8 @@ suite('CodexAgent', () => {
 			_sessionMcpDiscoveries: new Map(),
 			_enabledClientPlugins: () => [],
 			_mcpAuthTokens: new Map(),
+			_mcpAuthTokensBySession: new ResourceMap(),
+			_launchOwner: () => URI.parse('ahp-session:/test'),
 			_githubMcpServerEnabled: true,
 			_githubToken: 'token',
 			_gitHubMcpServerConfiguration: createGitHubMcpServerConfiguration('https://api.githubcopilot.com'),
@@ -502,7 +613,7 @@ suite('CodexAgent', () => {
 
 		const result = resolveConversationSession(emptyHarness(), URI.parse('untitled:conversation'), {
 			resource: URI.parse('untitled:conversation'),
-			configurationResource: session,
+			sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session),
 		});
 
 		assert.strictEqual(result, undefined);
@@ -533,7 +644,7 @@ suite('CodexAgent', () => {
 			// supplied in host context. That scope does not identify a peer's
 			// independent backing thread.
 			unboundDefaultChat: resolveConversationSession(emptyHarness(), defaultChat)?.toString(),
-			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { configurationResource: session, resource: defaultChat })?.toString(),
+			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: defaultChat })?.toString(),
 			foreignUri: resolveConversationSession(emptyHarness(), URI.parse('untitled:unknown'))?.toString(),
 		}, {
 			unboundSessionUri: undefined,
@@ -550,7 +661,7 @@ suite('CodexAgent', () => {
 		const session: ICodexMcpControllerSession = {
 			sessionId: 'session-1',
 			sessionUri: AgentSession.uri('codex', 'session-1'),
-			configurationResource: AgentSession.uri('codex', 'session-1'),
+			owner: fixedChatOwnerRef(AgentSession.uri('codex', 'session-1')),
 			chatChannel: undefined,
 			clientCustomizations: customizations,
 			mcpController: undefined,

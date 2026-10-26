@@ -10,6 +10,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -21,6 +22,7 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IChatPillSection } from '../../../../browser/chatPills.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../browser/chatArtifactPillSource.js';
@@ -67,6 +69,7 @@ suite('ChatArtifactPillSource', () => {
 		const copied: string[] = [];
 		instantiationService.stub(IClipboardService, { writeText: async text => { copied.push(text); } });
 		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
+		instantiationService.stub(ISharedWebContentExtractorService, new NullSharedWebContentExtractorService());
 		configureServices?.(instantiationService);
 		const currentSession = observableValue<URI | undefined>('session', sessionResource);
 		const source = store.add(instantiationService.createInstance(ChatArtifactPillSource, currentSession));
@@ -131,7 +134,7 @@ suite('ChatArtifactPillSource', () => {
 	});
 
 	for (const cancelled of [false, true]) {
-		test(`pill save action keeps the suggested image name and original URI (cancelled=${cancelled})`, async () => {
+		(isWeb ? test.skip : test)(`pill download action keeps the suggested image name and original URI (cancelled=${cancelled})`, async () => {
 			const target = URI.file('/saved/result.jpg');
 			const reads: string[] = [];
 			const writes: string[] = [];
@@ -150,8 +153,10 @@ suite('ChatArtifactPillSource', () => {
 			harness.artifactsService.getArtifacts(sessionResource).setAgentArtifacts([{
 				label: 'Generated image', fileName: 'generated-image-a1b2c3d4e5f6.jpg', uri: imageUri.toString(), type: 'screenshot',
 			}]);
-			await harness.sections()[0].entries[0].toolbarActions![0].run();
-			assert.deepStrictEqual({ suggested, reads, writes, errors: harness.errors }, {
+			const action = harness.sections()[0].entries[0].toolbarActions![0];
+			await action.run();
+			assert.deepStrictEqual({ label: action.label, suggested, reads, writes, errors: harness.errors }, {
+				label: 'Download Image',
 				suggested: '/saved/generated-image-a1b2c3d4e5f6.jpg',
 				reads: cancelled ? [] : [imageUri.toString()],
 				writes: cancelled ? [] : [target.toString()],

@@ -141,6 +141,10 @@ class TestSessionsProvidersService extends Disposable implements ISessionsProvid
 		return toDisposable(() => this.providers.delete(provider.id));
 	}
 
+	registerSessionBackend(): IDisposable {
+		throw new Error('Unexpected internal session backend');
+	}
+
 	getProviders(): ISessionsProvider[] {
 		return Array.from(this.providers.values());
 	}
@@ -222,6 +226,35 @@ class TestDevContainerAgentHostService extends DevContainerAgentHostService {
 
 suite('Dev Container Agent Host Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('registers and removes an offline location without starting or deleting a container', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const providers = store.add(new TestSessionsProvidersService());
+		const service = store.add(new TestDevContainerAgentHostService(
+			store.add(new TestInstantiationService()), store.add(new TestRemoteAgentHostService()), providers, storage,
+		));
+		const workspaceUri = URI.file('/project');
+		service.addWorkspace(workspaceUri, 'Project');
+		const added = { workspaces: service.getWorkspaces().map(workspace => ({ name: workspace.name, uri: workspace.workspaceUri.toString() })), providers: providers.getProviders().length };
+		service.dispose();
+		const restored = store.add(new TestDevContainerAgentHostService(
+			store.add(new TestInstantiationService()), store.add(new TestRemoteAgentHostService()), providers, storage,
+		));
+		const restoredWorkspaces = restored.getWorkspaces().map(workspace => ({ name: workspace.name, uri: workspace.workspaceUri.toString() }));
+		const availabilityChanges: { workspaces: number; providers: number }[] = [];
+		store.add(restored.onDidChangeAvailability(() => availabilityChanges.push({
+			workspaces: restored.getWorkspaces().length, providers: providers.getProviders().length,
+		})));
+		await restored.removeWorkspace(workspaceUri);
+		assert.deepStrictEqual({
+			added, restoredWorkspaces, removed: restored.getWorkspaces(), providers: providers.getProviders().length, availabilityChanges,
+		}, {
+			added: { workspaces: [{ uri: workspaceUri.toString(), name: 'Project' }], providers: 1 },
+			restoredWorkspaces: [{ uri: workspaceUri.toString(), name: 'Project' }],
+			removed: [], providers: 0,
+			availabilityChanges: [{ workspaces: 0, providers: 0 }],
+		});
+	});
 
 	test('publishes inspected sandbox support even when the first connection fails', async () => {
 		const instantiationService = store.add(new TestInstantiationService());

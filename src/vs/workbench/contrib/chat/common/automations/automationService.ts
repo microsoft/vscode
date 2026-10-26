@@ -9,13 +9,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { stableStringify } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import type { AutomationTriggerDefinition } from '../../../../../platform/github/common/missionControl/automations.js';
 import { ChatPermissionLevel } from '../constants.js';
-import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
+import { IAutomationCloudTrigger, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
 
-/** Provider-owned cloud configuration consumed only by the Automation dialog. */
+/** Provider-owned cloud configuration consumed by the Automation dialog and tools. */
 export interface IAutomationProviderConfiguration {
 	readonly sessionTypes: readonly string[];
 	readonly description: string;
@@ -25,6 +26,8 @@ export interface IAutomationProviderConfiguration {
 	readonly tools: IObservable<AutomationToolCatalog>;
 	/** Starts loading the tool catalog if it is not loaded or loading, retrying after a failure. */
 	loadTools(): void;
+	readonly triggers?: IObservable<AutomationTriggerCatalog>;
+	loadTriggers?(): void;
 	pickWorkspace(token: CancellationToken): Promise<URI | undefined>;
 	getWorkspaceTarget(workspace: URI | undefined): IObservable<IAutomationWorkspaceTarget>;
 }
@@ -47,12 +50,19 @@ export type AutomationToolCatalog =
 	| { readonly kind: 'ready'; readonly groups: readonly IAutomationToolGroup[] }
 	| { readonly kind: 'error'; readonly message: string };
 
+export type AutomationTriggerCatalog =
+	| { readonly kind: 'loading' }
+	| { readonly kind: 'ready'; readonly definitions: readonly AutomationTriggerDefinition[] }
+	| { readonly kind: 'error'; readonly message: string };
+
 /** A checked canonical workspace, or an explanation while checking or unavailable. */
 export interface IAutomationWorkspaceTarget {
 	readonly workspace?: URI;
+	readonly repositoryLabel?: string;
 	readonly disabledReason?: string;
 	readonly pending?: boolean;
-	readonly isPublicRepository?: boolean;
+	readonly isRepository?: boolean;
+	readonly isPrivateRepository?: boolean;
 }
 
 /** Catalogue completeness; only `ready` makes an empty snapshot authoritative. */
@@ -79,6 +89,12 @@ export type AutomationMutationGuard = () => void;
 
 /** The selected Automation authority cannot currently accept the operation. */
 export class AutomationUnavailableError extends Error { }
+
+/** Repository ownership is unavailable for the selected Automation target. */
+export class AutomationRepositoryOwnershipUnavailableError extends Error { }
+
+/** The provider may have accepted a mutation; reconcile its outcome before retrying. */
+export class AutomationMutationUncertainError extends Error { }
 
 /** Rejects ownership changes because AHP has no history-preserving cross-host transfer operation. */
 export function assertAutomationTargetAuthority(current: IAutomationDescriptor, target: AutomationTarget | undefined): void {
@@ -108,9 +124,11 @@ export function assertAutomationSessionTemplateAuthority(current: IAutomationDes
  * `nextRunAt`.
  */
 export interface ICreateAutomationOptions {
+	readonly ownership?: 'user' | 'repository';
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target: AutomationTarget;
 	readonly sessionTemplate?: IAutomationSessionTemplate;
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
@@ -149,6 +167,7 @@ export interface IUpdateAutomationOptions {
 	readonly name?: string;
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target?: AutomationTarget;
 	readonly sessionTemplate?: IAutomationSessionTemplate | null;
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
@@ -210,6 +229,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
 		enabled: automation.enabled,
+		cloudTrigger: automation.cloudTrigger,
 	});
 }
 
@@ -229,12 +249,19 @@ export type IAutomationRunRequestResult =
 		cancel?(): void;
 	};
 
+export interface IAutomationRefreshOptions {
+	/** Reload catalogue data without invalidating workspace eligibility used by open drafts. */
+	readonly background?: boolean;
+}
+
 /**
  * Provider-neutral catalogue and command contract shared by individual providers and the aggregate service.
  * Reads projected state and requests host mutations; it does not grant browser persistence or execution authority.
  */
 export interface IAutomationStore {
-	refresh?(): Promise<void>;
+	refresh?(options?: IAutomationRefreshOptions): Promise<void>;
+	/** Full catalogue refresh activity, including its history read but excluding independent history polling. */
+	readonly isRefreshing?: IObservable<boolean>;
 	/** History refresh completeness, independent of definition mutation readiness. */
 	readonly historyState?: IObservable<AutomationCatalogueState>;
 	/** Completeness of the Automation catalogue, independent of individual providers' operation availability. */
@@ -307,4 +334,6 @@ export interface IAutomationProviderDescriptor {
 	readonly unavailableReasonCode?: AutomationUnavailableReasonCode;
 	/** A provider-specific explanation, absent when none applies. */
 	readonly unavailableReason?: string;
+	/** A complete provider-supplied sentence shown instead of the generic per-provider unavailability message. */
+	readonly unavailableMessage?: string;
 }

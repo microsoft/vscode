@@ -27,6 +27,7 @@ import { AgentHostOutputChannel } from '../../browser/agentHostOutputChannel.js'
 import { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { terminalReducer } from '../../../../../platform/agentHost/common/state/protocol/reducers.js';
+import { AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH } from '../../../../../platform/agentHost/common/terminalConstants.js';
 import type { IRemoteWatchHandle } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 // ---- Mock IAgentConnection --------------------------------------------------
@@ -95,6 +96,8 @@ class MockAgentConnection implements IAgentConnection {
 	async readDebugLogsChunk(_resource: URI, _position: number): Promise<IAgentHostDebugLogsChunk> { throw new Error('Not implemented'); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return URI.parse('copilot:///test'); }
+	async moveSession(_session: URI, _destination: URI, _after: URI | undefined): Promise<URI> { throw new Error('not supported'); }
+	async moveChat(): Promise<URI> { throw new Error('not supported'); }
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
@@ -104,6 +107,7 @@ class MockAgentConnection implements IAgentConnection {
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async createChat(_session: URI, _chat: URI): Promise<void> { }
+	async setChatWorkspace(_chat: URI): Promise<void> { throw new Error('not implemented'); }
 	async disposeChat(_chat: URI): Promise<void> { }
 	async shutdown(): Promise<void> { }
 	async resourceList(_uri: URI): Promise<ResourceListResult> { return { entries: [] }; }
@@ -131,13 +135,14 @@ class MockAgentConnection implements IAgentConnection {
 			get verifiedValue() { return connection._terminalState; },
 			onDidChange: onDidChange.event, onWillApplyAction: onWillApplyAction.event, onDidApplyAction: onDidApplyAction.event,
 		};
-		// Wire onDidAction to the subscription's events
+		// Wire onDidAction to the subscription's events, in the order a real subscription fires them
 		const listener = this._onDidAction.event(envelope => {
 			if (envelope.channel === _resource.toString()) {
 				onWillApplyAction.fire(envelope);
-				this._terminalState = terminalReducer(this._terminalState, envelope.action as TerminalAction);
-				onDidApplyAction.fire(envelope);
+				// Like a real subscription, report actions the reducer doesn't know to a log rather than the console
+				this._terminalState = terminalReducer(this._terminalState, envelope.action as TerminalAction, () => { });
 				onDidChange.fire(this._terminalState);
+				onDidApplyAction.fire(envelope);
 			}
 		});
 		return {
@@ -253,6 +258,102 @@ suite('AgentHostPty', () => {
 		conn.fireAction(terminalUri, { type: ActionType.TerminalExited, exitCode: 3 });
 		assert.strictEqual(source.output, 'fresh\r\n');
 		assert.strictEqual(source.exitCode, 3);
+	});
+
+	test('output channel appends streamed data, including a CRLF split across chunks', () => {
+		const conn = disposables.add(new MockAgentConnection({ isPty: false, content: [{ type: 'unclassified', value: 'first\r' }] }));
+		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+		const { generation } = source.outputPosition;
+
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: '\nsecond\r' });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: '\n' });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'third\n' });
+
+		assert.deepStrictEqual({ output: source.output, position: source.outputPosition }, {
+			output: 'first\r\nsecond\r\nthird\r\n',
+			position: { generation, start: 0 },
+		});
+	});
+
+	test('output channel keeps only the newest output once the stream outgrows the host limit', () => {
+		const conn = disposables.add(new MockAgentConnection({ isPty: false }));
+		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+		const { generation } = source.outputPosition;
+		// Each line is 1,000 characters as the host counts them, and 1,001 once its line ending is normalized.
+		const line = (index: number) => `${String(index).padStart(4, '0')}${'x'.repeat(995)}\n`;
+
+		for (let index = 0; index < 120; index++) {
+			conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: line(index) });
+		}
+
+		assert.deepStrictEqual({
+			retained: source.output.length,
+			position: source.outputPosition,
+			oldest: source.output.slice(0, 1001),
+			newest: source.output.slice(-1001),
+		}, {
+			// The 101st line took the host past its limit, so it kept the newest 80 lines and has added 19 since.
+			retained: 99 * 1001,
+			position: { generation, start: 21 * 1001 },
+			oldest: `0021${'x'.repeat(995)}\r\n`,
+			newest: `0119${'x'.repeat(995)}\r\n`,
+		});
+	});
+
+	test('output channel keeps everything the host keeps when normalizing line endings lengthens it', () => {
+		const conn = disposables.add(new MockAgentConnection({ isPty: false }));
+		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+
+		// 100 lines of 999 characters and a line feed are exactly what the host keeps, and 100,100 characters once normalized.
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: `${'y'.repeat(999)}\n`.repeat(100) });
+
+		assert.deepStrictEqual({ retained: source.output.length, start: source.outputPosition.start }, { retained: 100_100, start: 0 });
+	});
+
+	test('output channel keeps a CRLF together when the retention limit falls inside it', () => {
+		const conn = disposables.add(new MockAgentConnection({ isPty: false }));
+		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+		const retained = () => ({ start: source.outputPosition.start, length: source.output.length, head: source.output.slice(0, 2) });
+
+		// The CRLF arrives split across two chunks, and dropping the oldest 20,001 characters would cut between its halves.
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: `${'a'.repeat(20_000)}\r` });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: `\n${'b'.repeat(AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH - 1)}` });
+		const afterSplitCut = retained();
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'c'.repeat(20_002) });
+
+		assert.deepStrictEqual([afterSplitCut, retained()], [
+			{ start: 20_002, length: 79_999, head: 'bb' },
+			{ start: 40_003, length: 80_000, head: 'bb' },
+		]);
+	});
+
+	test('output channel starts a new generation when its output is cleared', () => {
+		const conn = disposables.add(new MockAgentConnection({ isPty: false }));
+		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'old\n' });
+		const oldGeneration = source.outputPosition.generation;
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCleared });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'fresh\n' });
+
+		assert.deepStrictEqual({ output: source.output, start: source.outputPosition.start, newGeneration: source.outputPosition.generation !== oldGeneration }, {
+			output: 'fresh\r\n',
+			start: 0,
+			newGeneration: true,
+		});
+	});
+
+	test('output channel keeps its output when an action it does not know leaves the content unchanged', () => {
+		const conn = disposables.add(new MockAgentConnection({ isPty: false }));
+		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'kept\n' });
+		const before = { output: source.output, position: source.outputPosition };
+
+		// The reducer leaves state as it was for a terminal action from a newer host
+		const actionFromNewerHost = { type: 'terminal/fromNewerHost' };
+		conn.fireAction(terminalUri, actionFromNewerHost as unknown as StateAction);
+
+		assert.deepStrictEqual({ output: source.output, position: source.outputPosition }, before);
 	});
 
 	test('input() dispatches terminal/input action', async () => {

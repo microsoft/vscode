@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { useFakeTimers } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -16,26 +18,34 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
-import { AutomationDetail, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
+import { AutomationDetail, AutomationRepositoryConfiguration, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { PaginatedResponse } from '../../../../../../platform/github/common/missionControl/missionControl.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ITasksClient, ListTasksResponse, Task, TaskListOptions } from '../../../../../../platform/github/common/missionControl/tasks.js';
-import { GitHubCredential, IGitHubCredentials } from '../../../../../../platform/github/common/githubCredentialService.js';
-import { GitHubRepository, GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
-import { IGitHubQuery } from '../../../../../../platform/github/common/githubQueryServiceImpl.js';
-import { GitHubService, IGitHubClient } from '../../../../../../platform/github/common/githubService.js';
-import { IGitHubEndpointProvider } from '../../../../../../platform/github/common/githubTypes.js';
+import { GitHubService } from '../../../../../../platform/github/common/githubService.js';
+import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
+import { GitHubChannelClient } from '../../../../../../platform/github/common/remote/ipcClient.js';
+import { IGitHubCredentialBroker } from '../../../../../../platform/github/common/remote/ipc.js';
+import { registerGitHubChannel } from '../../../../../../platform/github/common/remote/ipcServer.js';
+import { TestConnection } from '../../../../../../platform/github/test/common/testConnection.js';
+import { ClientConnectionEvent, IPCServer } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { AutomationMutationUncertainError, AutomationRepositoryOwnershipUnavailableError } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
 import { GitHubCloudAutomationStore } from '../../browser/githubCloudAutomationStore.js';
 import { RepositoryRef } from '../../../../../../platform/github/common/client/types.js';
+import { ApiRequestOptions } from '../../../../../../platform/github/common/client/request.js';
+import { RequestPriority } from '../../../../../../platform/github/common/types.js';
+import { PaginationLimitError } from '../../../../../../platform/github/common/client/pagination.js';
+import { IRepositoriesClient, Repository } from '../../../../../../platform/github/common/core/repositories.js';
 
 const account: IDefaultAccount = { accountName: 'octocat', sessionId: 'auth-1', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } };
-const repository = { owner: 'microsoft', name: 'vscode-internalbacklog' };
+const repository = { owner: 'microsoft', repo: 'vscode-internalbacklog' };
+const storedRepository = { owner: repository.owner, name: repository.repo };
 const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/microsoft/vscode-internalbacklog/HEAD' });
 const storageKey = 'cloudAutomations.repositories.octocat';
 const definition: AutomationDetail = {
@@ -44,17 +54,21 @@ const definition: AutomationDetail = {
 	created_at: '2026-09-22T00:00:00Z', updated_at: '2026-09-22T00:00:00Z',
 };
 const createValue = { name: definition.name, prompt: definition.prompt, description: '' };
+const reconciliationMessage = 'The automation request may have been accepted. Refresh automations before submitting again.';
 
 class TestApi extends mock<IAutomationsClient>() {
+	readonly priorities: { method: string; priority: RequestPriority | undefined }[] = [];
 	readonly calls: { method: string; account: string; repository: typeof repository; token: AbortSignal }[] = [];
-	readonly visibility = new Map<string, boolean | Error | Promise<boolean>>();
+	readonly automationEnabled = new Map<string, boolean>();
+	readonly manageability = new Map<string, boolean | Error | Promise<boolean>>();
+	readonly privateRepositories = new Map<string, boolean | Error | Promise<boolean>>();
+	readonly metadataCalls: { readonly repository: RepositoryRef; readonly token: AbortSignal }[] = [];
+	readonly metadataStarted = new DeferredPromise<void>();
 	readonly definitions = new Map<string, readonly AutomationDetail[] | Error | Promise<readonly AutomationDetail[]>>();
 	readonly detailCalls: { id: string; signal: AbortSignal }[] = [];
-	readonly pages: number[] = [];
 	detailResult: ((id: string, signal: AbortSignal) => Promise<AutomationDetail>) | undefined;
 	accountName = account.accountName;
-	complete = true;
-	readonly visibilityStarted = new DeferredPromise<void>();
+	readonly manageabilityStarted = new DeferredPromise<void>();
 	readonly listStarted = new DeferredPromise<void>();
 	readonly mutations: string[] = [];
 	mutationResult: AutomationDetail | Promise<AutomationDetail> | Error = definition;
@@ -88,7 +102,9 @@ class TestApi extends mock<IAutomationsClient>() {
 	}
 
 	override async listRuns(_id: string, _signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
-		assert.deepStrictEqual(options, { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false });
+		const { priority, ...requestOptions } = options ?? {};
+		this.priorities.push({ method: 'history', priority });
+		assert.deepStrictEqual(requestOptions, { query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } });
 		const error = this.historyErrors.get(_id);
 		if (error) {
 			throw error;
@@ -96,7 +112,8 @@ class TestApi extends mock<IAutomationsClient>() {
 		return { data: { tasks: this.tasks } };
 	}
 
-	async getTask(): Promise<Task> {
+	async getTask(options?: ApiRequestOptions): Promise<Task> {
+		this.priorities.push({ method: 'task', priority: options?.priority });
 		this.maxActiveDetails = Math.max(this.maxActiveDetails, ++this.activeDetails);
 		await this.detailStarted.complete();
 		try {
@@ -106,36 +123,43 @@ class TestApi extends mock<IAutomationsClient>() {
 		}
 	}
 
-	async isPrivateRepository(ref: GitHubRepositoryRef, token: AbortSignal): Promise<boolean> {
-		assert.strictEqual(ref.host, 'api.github.com');
-		this.calls.push({ method: 'visibility', account: ref.accountId, repository: { owner: ref.owner, name: ref.repo }, token });
-		const result = this.visibility.get(ref.repo) ?? true;
-		await this.visibilityStarted.complete();
+	override async getConfiguration(ref: RepositoryRef, token: AbortSignal, options?: ApiRequestOptions): Promise<AutomationRepositoryConfiguration> {
+		this.priorities.push({ method: 'capability', priority: options?.priority });
+		this.calls.push({ method: 'capability', account: this.accountName, repository: ref, token });
+		const result = this.manageability.get(ref.repo) ?? true;
+		await this.manageabilityStarted.complete();
 		if (result instanceof Error) {
 			throw result;
 		}
-		return result;
+		return {
+			automations_enabled: this.automationEnabled.get(ref.repo) ?? true,
+			can_manage_automations: await result,
+			allow_read_access_triggers: false,
+			require_trigger_scoped_writes: false,
+		};
 	}
 
 	override async list(ref: RepositoryRef, token: AbortSignal, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
-		assert.deepStrictEqual(options, { ownership: 'user', page: options?.page, per_page: 100 });
-		this.pages.push(options!.page!);
+		const { priority, ...requestOptions } = options ?? {};
+		this.priorities.push({ method: 'list', priority });
+		assert.deepStrictEqual(requestOptions, { query: { page: 1, per_page: 100 }, maxPages: 10 });
 		this.calls.push({ method: 'list', account: this.accountName, repository: ref, token });
-		const result = this.definitions.get(ref.name) ?? [definition];
+		const result = this.definitions.get(ref.repo) ?? [definition];
 		await this.listStarted.complete();
 		if (result instanceof Error) {
 			throw result;
 		}
 		const automations = await result;
-		return { data: { automations, total_count: automations.length }, nextLink: this.complete ? undefined : 'https://untrusted.example/next' };
+		return { data: { automations, total_count: automations.length } };
 	}
 
-	override async get(ref: RepositoryRef, id: string, signal: AbortSignal): Promise<AutomationDetail> {
+	override async get(ref: RepositoryRef, id: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail> {
+		this.priorities.push({ method: 'get', priority: options?.priority });
 		this.detailCalls.push({ id, signal });
 		if (this.detailResult) {
 			return this.detailResult(id, signal);
 		}
-		const values = await (this.definitions.get(ref.name) ?? [definition]);
+		const values = await (this.definitions.get(ref.repo) ?? [definition]);
 		assert.ok(!(values instanceof Error));
 		const result = values.find(value => value.id === id);
 		assert.ok(result);
@@ -173,41 +197,39 @@ suite('GitHubCloudAutomationStore', () => {
 		const acquisitionStarted = new DeferredPromise<void>();
 		const service = new class extends mock<IWorkbenchGitHubService>() {
 			override readonly onDidChangeDefaultClient = clientChanged.event;
-			override async acquireDefaultAccountClient() {
+			override async acquireDefaultAccountApiClient() {
 				await acquisitionStarted.complete();
 				await acquisition;
 				const selected = accounts.currentDefaultAccount!;
 				api.accountName = selected.accountName;
-				const client = new class extends mock<IGitHubClient>() {
+				const client = new class extends mock<IGitHubAccountClient>() {
 					override readonly onDidInvalidate = clientInvalidated.event;
+					override readonly onDidChangeCredentials = Event.fromDOMEventEmitter<void>(credentialLifetime.signal, 'abort');
 					override readonly authorization = { providerId: 'github', sessionId: selected.sessionId, scopes: ['repo'] };
-					override readonly endpoint = new class extends mock<IGitHubEndpointProvider>() {
-						override getApiBaseUri() { return 'https://api.github.com'; }
-						override getGraphQlUri() { return 'https://api.github.com/graphql'; }
-					}();
 					override readonly automations = api;
-					override readonly query = new class extends mock<IGitHubQuery>() {
-						override async getRepository(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<GitHubRepository> {
-							const isPrivate = await api.isPrivateRepository(ref, signal);
-							return new class extends mock<GitHubRepository>() { override readonly private = isPrivate; }();
-						}
-					}();
+					override readonly repositories = upcastDeepPartial<IRepositoriesClient>({
+						get: async (repository: RepositoryRef, token: AbortSignal) => {
+							api.metadataCalls.push({ repository, token });
+							await api.metadataStarted.complete();
+							const result = api.privateRepositories.get(repository.repo) ?? true;
+							if (result instanceof Error) {
+								throw result;
+							}
+							const isPrivate = await result;
+							return upcastDeepPartial<Repository>({
+								private: isPrivate,
+							});
+						},
+					});
 					override readonly tasks = new class extends mock<ITasksClient>() {
-						override get(): Promise<Task> { return api.getTask(); }
+						override get(_id: string, _signal: AbortSignal, options?: ApiRequestOptions): Promise<Task> { return api.getTask(options); }
 						override async abort(): Promise<void> { api.mutations.push('stop'); }
 					}();
-					override readonly credentials = new class extends mock<IGitHubCredentials>() {
-						override readonly onDidInvalidate = Event.None;
-						override async getCredential(): Promise<GitHubCredential> {
-							return {
-								account: { host: 'api.github.com', accountId: selected.accountName },
-								token: 'test-token', generation: 1, signal: credentialLifetime.signal,
-							};
-						}
-					}();
+					override dispose(): void { release.dispose(); }
 				}();
+				const release = toDisposable(() => leases.released++);
 				leases.acquired++;
-				return Object.assign(toDisposable(() => leases.released++), { object: client });
+				return client;
 			}
 		}();
 		const store = disposables.add(new GitHubCloudAutomationStore(resolveRepositoryUri, service, accounts, storage, new NullLogService(), recents));
@@ -229,6 +251,26 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	}));
 
+	for (const background of [false, true]) {
+		test(`catalogue and history preserve the requested priority (background=${background})`, async () => {
+			const { store, api, recents } = setup();
+			recents.workspaces = [recentWorkspace(workspace)];
+			api.definitions.set(repository.repo, [definition]);
+			api.tasks = [{ id: 'task-1', automation_id: definition.id, state: 'in_progress', created_at: definition.created_at, remote_steerable: false }];
+			api.taskDetail = api.tasks[0];
+			const options = background ? { background: true } : undefined;
+			await store.refresh(options);
+			await store.refreshHistory(options);
+			assert.deepStrictEqual(api.priorities, ['capability', 'list', 'get', 'history', 'task'].map(method => ({
+				method, priority: background ? 'background' : undefined,
+			})));
+
+			api.priorities.length = 0;
+			await store.create(workspace, createValue);
+			assert.deepStrictEqual(api.priorities, [{ method: 'capability', priority: undefined }]);
+		});
+	}
+
 	test('checks only the requested folder and resolves a canonical repository without discovery', async () => {
 		const { store, api } = setup(() => workspace);
 		const target = store.getWorkspaceTarget(URI.file('/repo'));
@@ -237,26 +279,212 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({
 			target: target.get(), calls: api.calls.map(call => call.method), entries: store.entries.get(),
 			cached: target === store.getWorkspaceTarget(URI.file('/repo')),
-		}, { target: { workspace }, calls: ['visibility'], entries: [], cached: true });
+		}, { target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog' }, calls: ['capability'], entries: [], cached: true });
 	});
 
-	for (const visibility of [false, new Error('Offline')]) {
-		test(`fails closed for ${visibility === false ? 'public' : 'unverifiable'} repositories`, async () => {
-			const { store, api } = setup();
-			api.visibility.set(repository.name, visibility);
-			const target = store.getWorkspaceTarget(workspace);
+	test('public repositories are identified without checking automation manageability', async () => {
+		const { store, api } = setup(() => workspace);
+		api.privateRepositories.set(repository.repo, false);
+		const target = store.getWorkspaceTarget(URI.file('/repo'));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			target: target.get(),
+			calls: api.calls.map(call => call.method),
+		}, {
+			target: {
+				disabledReason: 'Cloud automations cannot be managed for this repository.',
+				isRepository: true,
+				isPrivateRepository: false,
+				repositoryLabel: 'microsoft/vscode-internalbacklog',
+			},
+			calls: [],
+		});
+	});
+
+	test('public repositories are excluded from repository search without checking automation manageability', async () => {
+		const { store, api } = setup();
+		api.privateRepositories.set(repository.repo, false);
+
+		assert.deepStrictEqual({
+			selectable: await store.isRepositorySelectable(repository, CancellationToken.None),
+			calls: api.calls.map(call => call.method),
+		}, {
+			selectable: false,
+			calls: [],
+		});
+	});
+
+	test('repository ownership creation errors use product copy', async () => {
+		const { store, api } = setup();
+		api.mutationResult = new Error('ownership "repository" is not currently available for this repository');
+
+		await assert.rejects(store.create(workspace, { ...createValue, ownership: 'repository' }), error =>
+			error instanceof AutomationRepositoryOwnershipUnavailableError
+			&& error.message === 'Repository owned automations are only supported for private repositories.');
+	});
+
+	test('cancelled repository selection does not publish privacy into the cache', async () => {
+		const { store, api } = setup();
+		const pending = new DeferredPromise<boolean>();
+		api.privateRepositories.set(repository.repo, pending.p);
+		const source = disposables.add(new CancellationTokenSource());
+		const selection = assert.rejects(store.isRepositorySelectable(repository, source.token), isCancellationError);
+		await api.metadataStarted.p;
+		source.cancel();
+		await pending.complete(false);
+		await selection;
+		api.privateRepositories.set(repository.repo, true);
+
+		assert.deepStrictEqual({
+			selectable: await store.isRepositorySelectable(repository, CancellationToken.None),
+			metadataCalls: api.metadataCalls.length,
+		}, {
+			selectable: true,
+			metadataCalls: 2,
+		});
+	});
+
+	for (const eligibilityFirst of [true, false]) {
+		test(`public repository selection remains disabled when ${eligibilityFirst ? 'eligibility precedes refresh' : 'refresh precedes eligibility'}`, async () => {
+			const { store, api, recents } = setup();
+			api.privateRepositories.set(repository.repo, false);
+			api.definitions.set(repository.repo, [definition]);
+			recents.workspaces = [recentWorkspace(workspace)];
+			const target = eligibilityFirst ? store.getWorkspaceTarget(workspace) : undefined;
+			if (target) {
+				await timeout(0);
+			}
+			await store.refresh();
+			const resolvedTarget = store.getWorkspaceTarget(workspace);
 			await timeout(0);
-			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, public: target.get().isPublicRepository, workspace: target.get().workspace, calls: api.calls.map(call => call.method) }, {
-				blocked: true, public: visibility === false ? true : undefined, workspace: undefined, calls: ['visibility'],
+
+			assert.deepStrictEqual({
+				target: resolvedTarget.get(),
+				canManageExisting: store.canManageRepository(repository),
+				selectableFromSearch: await store.isRepositorySelectable(repository, CancellationToken.None),
+			}, {
+				target: {
+					disabledReason: 'Cloud automations cannot be managed for this repository.',
+					isRepository: true,
+					isPrivateRepository: false,
+					repositoryLabel: 'microsoft/vscode-internalbacklog',
+				},
+				canManageExisting: true,
+				selectableFromSearch: false,
 			});
 		});
 	}
+
+	test('background manageability refresh updates private repository selection eligibility', async () => {
+		const { store, api } = setup();
+		const target = store.getWorkspaceTarget(workspace);
+		await timeout(0);
+
+		api.manageability.set(repository.repo, false);
+		await store.refresh({ background: true });
+		const unavailable = target.get();
+
+		api.manageability.set(repository.repo, true);
+		await store.refresh({ background: true });
+		assert.deepStrictEqual({
+			unavailable: { blocked: !!unavailable.disabledReason, repository: unavailable.isRepository, workspace: unavailable.workspace },
+			available: target.get().workspace?.toString(),
+			calls: api.calls.map(call => call.method),
+		}, {
+			unavailable: { blocked: true, repository: true, workspace: undefined },
+			available: workspace.toString(),
+			calls: ['capability', 'capability', 'capability', 'list'],
+		});
+	});
+
+	for (const manageability of [false, new Error('Offline')]) {
+		test(`private repository selection blocks ${manageability === false ? 'disabled' : 'unresolved'} automation management`, async () => {
+			const { store, api } = setup();
+			api.manageability.set(repository.repo, manageability);
+			const target = store.getWorkspaceTarget(workspace);
+			await timeout(0);
+			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, repository: target.get().isRepository, workspace: target.get().workspace?.toString(), calls: api.calls.map(call => call.method) }, {
+				blocked: true, repository: true, workspace: undefined, calls: ['capability'],
+			});
+		});
+	}
+
+	test('does not classify repository resolution failures as repositories', async () => {
+		const { store } = setup(() => { throw new Error('Resolution failed'); });
+		const target = store.getWorkspaceTarget(URI.file('/not-a-repository'));
+		await timeout(0);
+		assert.deepStrictEqual({
+			blocked: !!target.get().disabledReason,
+			repository: target.get().isRepository,
+			workspace: target.get().workspace,
+		}, {
+			blocked: true,
+			repository: false,
+			workspace: undefined,
+		});
+	});
+
+	test('temporarily suppresses repeated failed capability checks and retries after expiry', async () => {
+		const clock = useFakeTimers();
+		const { store, api } = setup();
+		try {
+			api.manageability.set(repository.repo, new Error('Offline'));
+			const first = await store.isRepositoryManageable(repository, CancellationToken.None);
+			const second = await store.isRepositoryManageable(repository, CancellationToken.None);
+			const callsBeforeExpiry = api.calls.length;
+			await clock.tickAsync(30_000);
+			const third = await store.isRepositoryManageable(repository, CancellationToken.None);
+			assert.deepStrictEqual({ first, second, third, callsBeforeExpiry, calls: api.calls.length }, {
+				first: false, second: false, third: false, callsBeforeExpiry: 1, calls: 2,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('successful capability checks clear transient failure suppression', async () => {
+		const { store, api } = setup();
+		api.manageability.set(repository.repo, new Error('Offline'));
+		await store.isRepositoryManageable(repository, CancellationToken.None);
+		await store.refresh();
+		api.manageability.set(repository.repo, true);
+		assert.strictEqual(await store.isRepositoryManageable(repository, CancellationToken.None), true);
+		assert.strictEqual(api.calls.filter(call => call.method === 'capability').length, 2);
+	});
+
+	test('cancelled capability checks do not enter transient failure suppression', async () => {
+		const { store, api } = setup();
+		const pending = new DeferredPromise<boolean>();
+		api.manageability.set(repository.repo, pending.p);
+		const source = disposables.add(new CancellationTokenSource());
+		const first = assert.rejects(store.isRepositoryManageable(repository, source.token), isCancellationError);
+		await api.manageabilityStarted.p;
+		source.cancel();
+		await pending.complete(true);
+		await first;
+		api.manageability.set(repository.repo, new Error('Offline'));
+		assert.strictEqual(await store.isRepositoryManageable(repository, CancellationToken.None), false);
+		assert.strictEqual(api.calls.filter(call => call.method === 'capability').length, 2);
+	});
+
+	test('bounds transient capability failure suppression', async () => {
+		const { store, api } = setup();
+		for (let index = 0; index <= 100; index++) {
+			const ref = { owner: 'owner', repo: `repo-${index}` };
+			api.manageability.set(ref.repo, new Error('Offline'));
+			await store.isRepositoryManageable(ref, CancellationToken.None);
+		}
+		const first = { owner: 'owner', repo: 'repo-0' };
+		await store.isRepositoryManageable(first, CancellationToken.None);
+		assert.strictEqual(api.calls.filter(call => call.method === 'capability').length, 102);
+	});
 
 	for (const invalidate of ['account', 'dispose'] as const) {
 		test(`invalidates observed eligibility on ${invalidate} and ignores late responses`, async () => {
 			const { store, api, changeAccount } = setup();
 			const pending = new DeferredPromise<boolean>();
-			api.visibility.set(repository.name, pending.p);
+			api.privateRepositories.set(repository.repo, pending.p);
 			const target = store.getWorkspaceTarget(workspace);
 			await timeout(0);
 			if (invalidate === 'account') {
@@ -266,7 +494,7 @@ suite('GitHubCloudAutomationStore', () => {
 			}
 			await pending.complete(true);
 			await timeout(0);
-			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, workspace: target.get().workspace, cancelled: api.calls[0].token.aborted }, {
+			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, workspace: target.get().workspace, cancelled: api.metadataCalls[0].token.aborted }, {
 				blocked: true, workspace: undefined, cancelled: true,
 			});
 		});
@@ -276,14 +504,14 @@ suite('GitHubCloudAutomationStore', () => {
 		const { store, api } = setup();
 		const pending = new DeferredPromise<boolean>();
 		for (let i = 0; i < 12; i++) {
-			api.visibility.set(`repo-${i}`, pending.p);
+			api.privateRepositories.set(`repo-${i}`, pending.p);
 			store.getWorkspaceTarget(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/owner/repo-${i}/HEAD` }));
 		}
 		await timeout(0);
-		assert.strictEqual(api.calls.length, 5);
+		assert.strictEqual(api.metadataCalls.length, 5);
 		await pending.complete(true);
 		await timeout(0);
-		assert.deepStrictEqual(api.calls.map(call => call.method), Array(12).fill('visibility'));
+		assert.strictEqual(api.metadataCalls.length, 12);
 	});
 
 	test('coordinates create, preflight update, acknowledgement-only run and deletion', async () => {
@@ -303,19 +531,52 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	});
 
-	test('pre-dispatch guards and public visibility prevent mutations', async () => {
+	test('pre-dispatch guards and repository manageability prevent mutations', async () => {
 		const { store, api } = setup();
 		await assert.rejects(store.create(workspace, createValue, () => { throw new Error('Disabled'); }), /Disabled/);
-		api.visibility.set(repository.name, false);
-		await assert.rejects(store.create(workspace, createValue), /private GitHub repository/);
+		api.manageability.set(repository.repo, false);
+		await assert.rejects(store.create(workspace, createValue), /cannot be managed/);
 		assert.deepStrictEqual(api.mutations, []);
+	});
+
+	test('a run cancelled while queued rejects with a cancellation error without dispatching', async () => {
+		const { store, api, recents } = setup();
+		recents.workspaces = [recentWorkspace(workspace)];
+		const pending = new DeferredPromise<readonly AutomationDetail[]>();
+		api.definitions.set(repository.repo, pending.p);
+		const refresh = store.refresh();
+		await api.listStarted.p;
+		const source = disposables.add(new CancellationTokenSource());
+		const rejected = assert.rejects(store.run({ repository, definition }, source.token), isCancellationError);
+		source.cancel();
+		await pending.complete([definition]);
+		await Promise.all([refresh, rejected]);
+
+		assert.deepStrictEqual({ mutations: api.mutations, uncertain: store.mutationUncertain.get() }, { mutations: [], uncertain: false });
+	});
+
+	test('a run cancelled during client acquisition rejects with a cancellation error and can be retried', async () => {
+		const { store, api, delayAcquisition, acquisitionStarted, leases } = setup();
+		const pending = new DeferredPromise<void>();
+		delayAcquisition(pending.p);
+		const source = disposables.add(new CancellationTokenSource());
+		const rejected = assert.rejects(store.run({ repository, definition }, source.token), isCancellationError);
+		await acquisitionStarted.p;
+		source.cancel();
+		await pending.complete();
+		await rejected;
+		await store.run({ repository, definition });
+
+		assert.deepStrictEqual({ mutations: api.mutations, uncertain: store.mutationUncertain.get(), leases }, {
+			mutations: ['run'], uncertain: false, leases: { acquired: 2, released: 1 },
+		});
 	});
 
 	test('uncertain mutations block retries until an explicit successful refresh', async () => {
 		const { store, api } = setup();
-		api.mutationResult = new MutationUncertainError('unknown');
-		await assert.rejects(store.create(workspace, createValue), MutationUncertainError);
-		await assert.rejects(store.create(workspace, createValue), MutationUncertainError);
+		const cause = api.mutationResult = new MutationUncertainError('unknown');
+		await assert.rejects(store.create(workspace, createValue), error => error instanceof AutomationMutationUncertainError && error.cause === cause && error.message === reconciliationMessage);
+		await assert.rejects(store.create(workspace, createValue), AutomationMutationUncertainError);
 		await store.refresh();
 		api.mutationResult = definition;
 		await store.create(workspace, createValue);
@@ -326,7 +587,7 @@ suite('GitHubCloudAutomationStore', () => {
 		const { store, api, recents, changeAccount } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
 		const pending = new DeferredPromise<readonly AutomationDetail[]>();
-		api.definitions.set(repository.name, pending.p);
+		api.definitions.set(repository.repo, pending.p);
 		const refresh = store.refresh();
 		await api.listStarted.p;
 		const created = store.create(workspace, createValue);
@@ -338,17 +599,24 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({ mutations: api.mutations, entries: store.entries.get() }, { mutations: [], entries: [] });
 	});
 
-	test('indeterminate HTTP failures block mutations until catalogue reconciliation', async () => {
+	test('indeterminate HTTP failures replace unknown transport text with reconciliation guidance and retain the cause', async () => {
 		const { store, api } = setup();
-		api.mutationResult = new ApiRequestError(503, 'unknown', undefined, undefined, undefined, 'indeterminate');
-		await assert.rejects(store.create(workspace, createValue), ApiRequestError);
-		await assert.rejects(store.create(workspace, createValue), MutationUncertainError);
+		const cause = api.mutationResult = new ApiRequestError(503, 'unknown', { message: 'unknown', documentation_url: 'https://docs.github.com' }, undefined, undefined, 'indeterminate');
+		await assert.rejects(store.create(workspace, createValue), error => error instanceof AutomationMutationUncertainError && error.cause === cause && error.message === reconciliationMessage);
+		await assert.rejects(store.create(workspace, createValue), AutomationMutationUncertainError);
 		await store.refresh();
 		api.mutationResult = definition;
 		await store.create(workspace, createValue);
 		assert.deepStrictEqual({ mutations: api.mutations, uncertain: store.mutationUncertain.get() }, {
 			mutations: ['create', 'create'], uncertain: false,
 		});
+	});
+
+	test('definite API failures retain their original error and do not block future mutations', async () => {
+		const { store, api } = setup();
+		const cause = api.mutationResult = new ApiRequestError(403, 'unknown');
+		await assert.rejects(store.create(workspace, createValue), error => error === cause);
+		assert.strictEqual(store.mutationUncertain.get(), false);
 	});
 
 	test('discards late mutation responses after account rotation', async () => {
@@ -367,7 +635,7 @@ suite('GitHubCloudAutomationStore', () => {
 	test('missing definitions do not block remaining history or definition readiness', async () => {
 		const { store, api, recents } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
-		api.definitions.set(repository.name, [definition, { ...definition, id: 'deleted' }]);
+		api.definitions.set(repository.repo, [definition, { ...definition, id: 'deleted' }]);
 		await store.refresh();
 		api.historyErrors.set('deleted', new ApiRequestError(404, 'notFound'));
 		api.tasks = [{ id: 'run', state: 'completed', created_at: definition.created_at, remote_steerable: true }];
@@ -381,7 +649,7 @@ suite('GitHubCloudAutomationStore', () => {
 	test('history refresh bounds detail concurrency and cancels queued work on disposal', async () => {
 		const { store, api, recents } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
-		api.definitions.set(repository.name, Array.from({ length: 10 }, (_, i) => ({ ...definition, id: `definition-${i}` })));
+		api.definitions.set(repository.repo, Array.from({ length: 10 }, (_, i) => ({ ...definition, id: `definition-${i}` })));
 		await store.refresh();
 		const task: Task = { id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true };
 		api.tasks = [task];
@@ -409,18 +677,17 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual(api.mutations, ['create', 'run', 'stop']);
 	});
 
-	test('credential invalidation during mutation eligibility prevents dispatch', async () => {
+	test('credential renewal does not invalidate an otherwise successful operation', async () => {
 		const { store, api, credentialLifetime, leases } = setup();
 		const pending = new DeferredPromise<boolean>();
-		api.visibility.set(repository.name, pending.p);
+		api.manageability.set(repository.repo, pending.p);
 		const create = store.create(workspace, createValue);
-		await api.visibilityStarted.p;
-		const rejected = assert.rejects(create, isCancellationError);
+		await api.manageabilityStarted.p;
 		credentialLifetime.abort();
 		await pending.complete(true);
-		await rejected;
+		await create;
 		assert.deepStrictEqual({ mutations: api.mutations, entries: store.entries.get(), leases }, {
-			mutations: [], entries: [], leases: { acquired: 1, released: 0 },
+			mutations: ['create'], entries: [{ repository, definition }], leases: { acquired: 1, released: 0 },
 		});
 	});
 
@@ -459,20 +726,22 @@ suite('GitHubCloudAutomationStore', () => {
 			calls: api.calls.map(({ method, account, repository }) => ({ method, account, repository })),
 			entries: store.entries.get(), stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
 		}, {
-			calls: [{ method: 'visibility', account: 'octocat', repository }, { method: 'list', account: 'octocat', repository }],
-			entries: [{ repository, definition }], stored: [repository],
+			calls: [{ method: 'capability', account: 'octocat', repository }, { method: 'list', account: 'octocat', repository }],
+			entries: [{ repository, definition }], stored: [storedRepository],
 		});
 	});
 
-	test('registration persists only repository references and leaves fetching to explicit refresh', async () => {
+	test('creation persists repository references for subsequent explicit refreshes', async () => {
 		const { store, api, storage } = setup();
-		await store.registerRepository(workspace);
+		await store.create(workspace, createValue);
 		assert.deepStrictEqual({
 			methods: api.calls.map(call => call.method), entries: store.entries.get(),
 			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
-		}, { methods: ['visibility'], entries: [], stored: [repository] });
+		}, { methods: ['capability'], entries: [{ repository, definition }], stored: [storedRepository] });
+		const updated = { ...definition, name: 'Updated on GitHub' };
+		api.definitions.set(repository.repo, [updated]);
 		await store.refresh();
-		assert.deepStrictEqual(store.entries.get(), [{ repository, definition }]);
+		assert.deepStrictEqual(store.entries.get(), [{ repository, definition: updated }]);
 	});
 
 	test('retains one default client lease across refreshes and releases it on disposal', async () => {
@@ -485,16 +754,22 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual(leases, { acquired: 1, released: 1 });
 	});
 
-	test('an incomplete shared-service list preserves the previous complete catalogue', async () => {
+	test('a page limit error preserves the complete catalogue without hydrating partial results', async () => {
 		const { store, api, recents, leases } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
 		await store.refresh();
-		api.complete = false;
-		api.definitions.set(repository.name, [{ ...definition, name: 'Partial' }]);
+		api.definitions.set(repository.repo, new PaginationLimitError(10));
 		await assert.rejects(store.refresh(), /Some GitHub repositories/);
-		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get(), leases, pages: api.pages }, {
+		assert.deepStrictEqual({
+			entries: store.entries.get(),
+			state: store.catalogueState.get(),
+			leases,
+			listCalls: api.calls.filter(call => call.method === 'list').length,
+			detailIds: api.detailCalls.map(call => call.id),
+		}, {
 			entries: [{ repository, definition }], state: 'error', leases: { acquired: 1, released: 0 },
-			pages: [1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+			listCalls: 2,
+			detailIds: [definition.id],
 		});
 	});
 
@@ -502,7 +777,7 @@ suite('GitHubCloudAutomationStore', () => {
 		const { store, api, recents } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
 		const definitions = Array.from({ length: 12 }, (_, index) => ({ ...definition, id: `automation-${index}` }));
-		api.definitions.set(repository.name, definitions);
+		api.definitions.set(repository.repo, definitions);
 		const firstBatch = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
 		let pending = 0;
@@ -529,7 +804,7 @@ suite('GitHubCloudAutomationStore', () => {
 	test('a failed detail cancels sibling reads without starting the next batch', async () => {
 		const { store, api, recents } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
-		api.definitions.set(repository.name, Array.from({ length: 6 }, (_, index) => ({ ...definition, id: `automation-${index}` })));
+		api.definitions.set(repository.repo, Array.from({ length: 6 }, (_, index) => ({ ...definition, id: `automation-${index}` })));
 		api.detailResult = async id => {
 			if (id === 'automation-0') {
 				throw new Error('Detail unavailable');
@@ -579,23 +854,24 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({ calls: api.calls, leases }, { calls: [], leases: { acquired: 1, released: 1 } });
 	});
 
-	test('credential invalidation prevents a late domain response from publishing', async () => {
-		const { store, api, recents, credentialLifetime, leases } = setup();
+	test('client invalidation prevents a late domain response from publishing', async () => {
+		const { store, api, recents, clientInvalidated, leases } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
 		const pending = new DeferredPromise<readonly AutomationDetail[]>();
-		api.definitions.set(repository.name, pending.p);
+		api.definitions.set(repository.repo, pending.p);
 		const refresh = store.refresh();
 		await api.listStarted.p;
 		const rejected = assert.rejects(refresh, isCancellationError);
-		credentialLifetime.abort();
+		clientInvalidated.fire();
 		await pending.complete([definition]);
 		await rejected;
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get(), leases }, {
-			entries: [], state: 'error', leases: { acquired: 1, released: 0 },
+			entries: [], state: 'loading', leases: { acquired: 1, released: 1 },
 		});
 	});
 
-	test('reads through the real shared domain using the selected grant and user ownership', async () => {
+	test('collects pages through the real shared domain using the selected grant and both ownership kinds', async () => {
+		const secondDefinition = { ...definition, id: 'automation-2' };
 		const requests: { url: string; integration: string | null }[] = [];
 		const engine = disposables.add(new GitHubService({
 			credentialProvider: {
@@ -609,27 +885,52 @@ suite('GitHubCloudAutomationStore', () => {
 				const url = new URL(String(input));
 				requests.push({ url: url.href, integration: new Headers(init?.headers).get('Copilot-Integration-Id') });
 				let data: object;
+				const headers = new Headers();
 				if (url.pathname === '/user') {
 					data = { id: 101 };
-				} else if (url.pathname === '/repos/microsoft/vscode-internalbacklog') {
-					data = { private: true, owner: { login: 'microsoft' }, name: repository.name, full_name: `microsoft/${repository.name}`, default_branch: 'main', html_url: 'https://github.com/microsoft/vscode-internalbacklog' };
+				} else if (url.pathname === '/agents/repos/microsoft/vscode-internalbacklog/automations/configuration') {
+					data = {
+						automations_enabled: true,
+						can_manage_automations: true,
+						allow_read_access_triggers: false,
+						require_trigger_scoped_writes: false,
+					};
 				} else if (url.pathname.endsWith('/automation-1')) {
 					data = definition;
+				} else if (url.pathname.endsWith('/automation-2')) {
+					data = secondDefinition;
+				} else if (url.searchParams.get('page') === '2') {
+					assert.strictEqual(url.href, 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?page=2&per_page=100');
+					data = { automations: [secondDefinition], total_count: 2 };
 				} else {
-					assert.strictEqual(url.href, 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?ownership=user&page=1&per_page=100');
-					data = { automations: [definition], total_count: 1 };
+					assert.strictEqual(url.href, 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?page=1&per_page=100');
+					data = { automations: [definition], total_count: 2 };
+					headers.set('Link', '<https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?page=2&per_page=100>; rel="next"');
 				}
-				return new Response(JSON.stringify(data), { status: 200 });
+				return new Response(JSON.stringify(data), { status: 200, headers });
 			},
 		}, new NullLogService(), NullTelemetryService));
-		const service = new class extends mock<IWorkbenchGitHubService>() {
-			override readonly onDidChangeDefaultClient = Event.None;
-			override async acquireDefaultAccountClient() {
-				return engine.acquireClient({
-					authorization: { providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] },
+		const connected = disposables.add(new Emitter<ClientConnectionEvent>());
+		const server = disposables.add(new IPCServer<string>(connected.event));
+		disposables.add(registerGitHubChannel(server, engine));
+		const connection = disposables.add(new TestConnection(connected, 'automation-window'));
+		connection.registerCredentials(new class extends mock<IGitHubCredentialBroker>() {
+			override readonly onDidChange = Event.None;
+			override readonly onDidChangeToken = Event.None;
+			override async resolveClient() {
+				return {
+					authorization: { providerId: 'github', sessionId: account.sessionId, accountId: 'account', scopes: ['repo'] },
 					apiBaseUri: 'https://api.github.com', graphQlUri: 'https://api.github.com/graphql',
 					missionControl: { endpoint: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: COPILOT_INTEGRATION_ID } },
-				});
+				};
+			}
+			override getToken() { return 'test-token'; }
+		}());
+		const remote = new GitHubChannelClient(connection.channel, new NullLogService());
+		const service = new class extends mock<IWorkbenchGitHubService>() {
+			override readonly onDidChangeDefaultClient = Event.None;
+			override acquireDefaultAccountApiClient(signal: AbortSignal) {
+				return remote.acquireClient({ providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] }, signal);
 			}
 		}();
 		const storage = disposables.add(new InMemoryStorageService());
@@ -644,12 +945,14 @@ suite('GitHubCloudAutomationStore', () => {
 		));
 		await store.refresh();
 		assert.deepStrictEqual({ entries: store.entries.get(), requests }, {
-			entries: [{ repository, definition }],
+			entries: [{ repository, definition }, { repository, definition: secondDefinition }],
 			requests: [
 				{ url: 'https://api.github.com/user', integration: null },
-				{ url: 'https://api.github.com/repos/microsoft/vscode-internalbacklog', integration: null },
-				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?ownership=user&page=1&per_page=100', integration: COPILOT_INTEGRATION_ID },
+				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/configuration', integration: COPILOT_INTEGRATION_ID },
+				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?page=1&per_page=100', integration: COPILOT_INTEGRATION_ID },
+				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?page=2&per_page=100', integration: COPILOT_INTEGRATION_ID },
 				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/automation-1', integration: COPILOT_INTEGRATION_ID },
+				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/automation-2', integration: COPILOT_INTEGRATION_ID },
 			],
 		});
 	});
@@ -681,8 +984,7 @@ suite('GitHubCloudAutomationStore', () => {
 	test('client invalidation during local resolution cannot move creation into the new lifetime', async () => {
 		const resolved = new DeferredPromise<URI>();
 		const { store, api, clientInvalidated } = setup(() => resolved.p);
-		await store.registerRepository(workspace);
-		api.calls.length = 0;
+		await store.refresh();
 		const create = assert.rejects(store.create(URI.file('C:\\cold-repository'), createValue), isCancellationError);
 		clientInvalidated.fire();
 		await resolved.complete(workspace);
@@ -705,21 +1007,21 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({ mutations: api.mutations, entries: store.entries.get() }, { mutations: ['create'], entries: [] });
 	});
 
-	test('skips public repositories and rechecks known repository visibility on refresh', async () => {
+	test('skips unmanageable repositories and rechecks known repository capability on refresh', async () => {
 		const { store, api, recents } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
 		await store.refresh();
-		api.visibility.set(repository.name, false);
+		api.manageability.set(repository.repo, false);
 		await store.refresh();
-		await assert.rejects(store.registerRepository(workspace), /private GitHub repository/);
+		await assert.rejects(store.create(workspace, createValue), /cannot be managed/);
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get(), methods: api.calls.map(call => call.method) }, {
-			entries: [], state: 'ready', methods: ['visibility', 'list', 'visibility', 'visibility'],
+			entries: [], state: 'ready', methods: ['capability', 'list', 'capability', 'capability'],
 		});
 	});
 
-	test('rejects unsupported registration without requests or stored references', async () => {
+	test('rejects unsupported creation without requests or stored references', async () => {
 		const { store, api, storage } = setup();
-		await assert.rejects(store.registerRepository(workspace.with({ authority: 'enterprise.example' })), /GitHub.com repository/);
+		await assert.rejects(store.create(workspace.with({ authority: 'enterprise.example' }), createValue), /GitHub.com repository/);
 		assert.deepStrictEqual({ calls: api.calls, stored: storage.get(storageKey, StorageScope.PROFILE) }, { calls: [], stored: undefined });
 	});
 
@@ -727,7 +1029,7 @@ suite('GitHubCloudAutomationStore', () => {
 		const { store, api, recents } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
 		const pending = new DeferredPromise<readonly AutomationDetail[]>();
-		api.definitions.set(repository.name, pending.p);
+		api.definitions.set(repository.repo, pending.p);
 		const states: string[] = [];
 		disposables.add(autorun(reader => states.push(store.catalogueState.read(reader))));
 		const first = store.refresh();
@@ -737,7 +1039,7 @@ suite('GitHubCloudAutomationStore', () => {
 		await pending.complete([definition]);
 		await Promise.all([first, second]);
 		assert.deepStrictEqual({ states, methods: api.calls.map(call => call.method) }, {
-			states: ['loading', 'ready'], methods: ['visibility', 'list'],
+			states: ['loading', 'ready'], methods: ['capability', 'list'],
 		});
 	});
 
@@ -746,27 +1048,27 @@ suite('GitHubCloudAutomationStore', () => {
 		recents.workspaces = [recentWorkspace(workspace)];
 		await store.refresh();
 		const updated = { ...definition, name: 'Updated on GitHub' };
-		api.definitions.set(repository.name, [updated]);
+		api.definitions.set(repository.repo, [updated]);
 		await store.refresh();
 		assert.deepStrictEqual(store.entries.get(), [{ repository, definition: updated }]);
-		api.definitions.set(repository.name, []);
+		api.definitions.set(repository.repo, []);
 		await store.refresh();
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get() }, { entries: [], state: 'ready' });
 	});
 
 	test('partial failure retains the failed repository cache and publishes healthy updates', async () => {
 		const { store, api, recents } = setup();
-		const other = { owner: 'microsoft', name: 'other' };
+		const other = { owner: 'microsoft', repo: 'other' };
 		recents.workspaces = [recentWorkspace(workspace), recentWorkspace(workspace.with({ path: '/microsoft/other/HEAD' }))];
 		await store.refresh();
-		api.definitions.set(repository.name, [{ ...definition, name: 'Updated' }]);
-		api.definitions.set(other.name, new Error('Network failed'));
+		api.definitions.set(repository.repo, [{ ...definition, name: 'Updated' }]);
+		api.definitions.set(other.repo, new Error('Network failed'));
 		await assert.rejects(store.refresh(), /Some GitHub repositories/);
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get() }, {
 			entries: [{ repository, definition: { ...definition, name: 'Updated' } }, { repository: other, definition }],
 			state: 'error',
 		});
-		api.definitions.set(other.name, []);
+		api.definitions.set(other.repo, []);
 		await store.refresh();
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get() }, {
 			entries: [{ repository, definition: { ...definition, name: 'Updated' } }], state: 'ready',
@@ -775,9 +1077,9 @@ suite('GitHubCloudAutomationStore', () => {
 
 	test('failed recent repository discovery does not discard a known catalogue', async () => {
 		const { store, api, recents } = setup();
-		await store.registerRepository(workspace);
+		await store.create(workspace, createValue);
 		recents.workspaces = [recentWorkspace(workspace.with({ path: '/microsoft/inaccessible/HEAD' }))];
-		api.visibility.set('inaccessible', new Error('Access denied'));
+		api.manageability.set('inaccessible', new Error('Access denied'));
 		await assert.rejects(store.refresh(), /Some GitHub repositories/);
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get() }, {
 			entries: [{ repository, definition }], state: 'error',
@@ -804,7 +1106,7 @@ suite('GitHubCloudAutomationStore', () => {
 
 	test('account-scoped references survive switching accounts but definitions do not', async () => {
 		const { store, api, changeAccount } = setup();
-		await store.registerRepository(workspace);
+		await store.create(workspace, createValue);
 		await store.refresh();
 		changeAccount({ ...account, accountName: 'other', sessionId: 'auth-2' });
 		assert.deepStrictEqual(store.entries.get(), []);
@@ -817,12 +1119,25 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual(store.entries.get(), [{ repository, definition }]);
 	});
 
+	test('restores stored owner/name references without changing their persisted shape', async () => {
+		const { store, storage } = setup();
+		storage.store(storageKey, JSON.stringify([storedRepository]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		await store.refresh();
+		assert.deepStrictEqual({
+			entries: store.entries.get(),
+			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
+		}, {
+			entries: [{ repository, definition }],
+			stored: [storedRepository],
+		});
+	});
+
 	for (const reset of ['account', 'same account', 'sign out', 'dispose'] as const) {
 		test(`cancels and discards in-flight definitions on ${reset}`, async () => {
 			const { store, api, recents, changeAccount, storage } = setup();
 			recents.workspaces = [recentWorkspace(workspace), recentWorkspace(workspace.with({ path: '/microsoft/queued/HEAD' }))];
 			const pending = new DeferredPromise<readonly AutomationDetail[]>();
-			api.definitions.set(repository.name, pending.p);
+			api.definitions.set(repository.repo, pending.p);
 			const refresh = store.refresh();
 			await api.listStarted.p;
 			const rejected = assert.rejects(refresh, isCancellationError);
@@ -847,13 +1162,13 @@ suite('GitHubCloudAutomationStore', () => {
 		const { store, api, recents, changeAccount } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
 		const old = new DeferredPromise<readonly AutomationDetail[]>();
-		api.definitions.set(repository.name, old.p);
+		api.definitions.set(repository.repo, old.p);
 		const first = store.refresh();
 		await api.listStarted.p;
 		const rejected = assert.rejects(first, isCancellationError);
 		changeAccount({ ...account, sessionId: 'auth-2' });
 		const current = new DeferredPromise<readonly AutomationDetail[]>();
-		api.definitions.set(repository.name, current.p);
+		api.definitions.set(repository.repo, current.p);
 		const second = store.refresh();
 		await old.complete([definition]);
 		await rejected;
@@ -862,50 +1177,52 @@ suite('GitHubCloudAutomationStore', () => {
 		await current.complete([{ ...definition, name: 'New session' }]);
 		await Promise.all([second, coalesced]);
 		assert.deepStrictEqual({ entries: store.entries.get(), methods: api.calls.map(call => call.method) }, {
-			entries: [{ repository, definition: { ...definition, name: 'New session' } }], methods: ['visibility', 'list', 'visibility', 'list'],
+			entries: [{ repository, definition: { ...definition, name: 'New session' } }], methods: ['capability', 'list', 'capability', 'list'],
 		});
 	});
 
-	test('late eligibility checks cannot register repositories after an account reset', async () => {
+	test('late creation preflight cannot persist repositories or dispatch after an account reset', async () => {
 		const { store, api, changeAccount, storage } = setup();
 		const pending = new DeferredPromise<boolean>();
-		api.visibility.set(repository.name, pending.p);
-		const registration = store.registerRepository(workspace);
-		await api.visibilityStarted.p;
-		const rejected = assert.rejects(registration, isCancellationError);
+		api.manageability.set(repository.repo, pending.p);
+		const create = store.create(workspace, createValue);
+		await api.manageabilityStarted.p;
+		const rejected = assert.rejects(create, isCancellationError);
 		changeAccount(account);
 		await pending.complete(true);
 		await rejected;
-		assert.strictEqual(storage.get(storageKey, StorageScope.PROFILE), undefined);
+		assert.deepStrictEqual({
+			stored: storage.get(storageKey, StorageScope.PROFILE), mutations: api.mutations, entries: store.entries.get(),
+		}, { stored: undefined, mutations: [], entries: [] });
 	});
 
-	test('registration during refresh is retained for the next refresh', async () => {
+	test('creation queued during refresh is retained for the next refresh', async () => {
 		const { store, api, recents, storage } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
 		const pending = new DeferredPromise<readonly AutomationDetail[]>();
-		api.definitions.set(repository.name, pending.p);
+		api.definitions.set(repository.repo, pending.p);
 		const refresh = store.refresh();
 		await api.listStarted.p;
-		await store.registerRepository(workspace.with({ path: '/microsoft/other/HEAD' }));
+		const create = store.create(workspace.with({ path: '/microsoft/other/HEAD' }), createValue);
 		await pending.complete([definition]);
-		await refresh;
+		await Promise.all([refresh, create]);
 		recents.workspaces = [];
 		await store.refresh();
 		assert.deepStrictEqual({
 			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
-			repositories: store.entries.get().map(entry => entry.repository.name).sort(),
+			repositories: store.entries.get().map(entry => entry.repository.repo).sort(),
 		}, {
-			stored: [{ owner: 'microsoft', name: 'other' }, repository],
-			repositories: ['other', repository.name].sort(),
+			stored: [storedRepository, { owner: 'microsoft', name: 'other' }],
+			repositories: ['other', repository.repo].sort(),
 		});
 	});
 
 	for (const value of [null, { ...account, enterprise: true }]) {
-		test(`rejects reads and registration when ${value ? 'signed into enterprise' : 'signed out'}`, async () => {
+		test(`rejects reads and creation when ${value ? 'signed into enterprise' : 'signed out'}`, async () => {
 			const { store, api, changeAccount } = setup();
 			changeAccount(value);
 			await assert.rejects(store.refresh(), /Sign in to GitHub.com/);
-			await assert.rejects(store.registerRepository(workspace), /Sign in to GitHub.com/);
+			await assert.rejects(store.create(workspace, createValue), /Sign in to GitHub.com/);
 			assert.deepStrictEqual({ calls: api.calls, state: store.catalogueState.get() }, { calls: [], state: 'unavailable' });
 		});
 	}

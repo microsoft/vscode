@@ -23,7 +23,7 @@ export const enum AgentSystemNotificationKind {
 	AgentMergeDisabled = 'agentMergeDisabled',
 	/** The pull request Agent Merge was monitoring was merged. */
 	AgentMergePullRequestMerged = 'agentMergePullRequestMerged',
-	/** The model ended a response round without text or tool calls; clients settle any open thinking section and render nothing. */
+	/** A model response round ended; clients settle any open thinking section and render nothing. */
 	ResponseRoundEnded = 'responseRoundEnded',
 	/** More tools were enabled than a bring-your-own-key model accepts, so some were not sent to it. */
 	ByokToolLimitExceeded = 'byokToolLimitExceeded',
@@ -42,7 +42,6 @@ export const enum AgentSystemNotificationSeverity {
 
 export type AgentFusionProgressStatus = 'selected' | 'completed' | 'failed' | 'cancelled' | 'degraded';
 const fusionStatuses: ReadonlySet<string> = new Set(['selected', 'completed', 'failed', 'cancelled', 'degraded']);
-const VSCODE_FUSION_DESCRIPTION_META_KEY = 'vscode.chat.fusionDescription';
 const VSCODE_FUSION_MODEL_META_KEY = 'vscode.chat.fusionModel';
 
 const knownKinds: ReadonlySet<string> = new Set<string>([
@@ -71,7 +70,6 @@ export interface IAgentSystemNotificationMeta {
 	readonly workspaceKind?: AgentSystemNotificationWorkspaceKind;
 	readonly workspaceName?: string;
 	readonly fusionStatus?: AgentFusionProgressStatus;
-	readonly fusionDescription?: string;
 	/** The HydraFusion model that ran the workflow, e.g. HydraFusion Max, for turns that don't name it themselves. */
 	readonly fusionModel?: string;
 }
@@ -91,7 +89,6 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 	const kind = meta.kind;
 	const workspaceKind = meta.workspaceKind;
 	const fusionStatus = meta.fusionStatus;
-	const fusionDescription = meta[VSCODE_FUSION_DESCRIPTION_META_KEY];
 	const fusionModel = meta[VSCODE_FUSION_MODEL_META_KEY];
 	return {
 		kind: typeof kind === 'string' && knownKinds.has(kind) ? kind as AgentSystemNotificationKind : undefined,
@@ -99,17 +96,15 @@ export function readAgentSystemNotificationMeta(source: IHasSystemNotificationMe
 		workspaceKind: workspaceKind === AgentSystemNotificationWorkspaceKind.Folder || workspaceKind === AgentSystemNotificationWorkspaceKind.Worktree ? workspaceKind : undefined,
 		workspaceName: typeof meta.workspaceName === 'string' ? meta.workspaceName : undefined,
 		fusionStatus: typeof fusionStatus === 'string' && fusionStatuses.has(fusionStatus) ? fusionStatus as AgentFusionProgressStatus : undefined,
-		...(typeof fusionDescription === 'string' ? { fusionDescription } : {}),
 		...(typeof fusionModel === 'string' && fusionModel ? { fusionModel } : {}),
 	};
 }
 
 /** Serializes Agent Host system-notification metadata for the open protocol bag. */
 export function toAgentSystemNotificationMeta(meta: IAgentSystemNotificationMeta): Record<string, unknown> {
-	const { fusionDescription, fusionModel, ...rest } = meta;
+	const { fusionModel, ...rest } = meta;
 	return {
 		...rest,
-		...(fusionDescription !== undefined ? { [VSCODE_FUSION_DESCRIPTION_META_KEY]: fusionDescription } : {}),
 		...(fusionModel !== undefined ? { [VSCODE_FUSION_MODEL_META_KEY]: fusionModel } : {}),
 	};
 }

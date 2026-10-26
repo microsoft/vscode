@@ -6,6 +6,7 @@
 import * as DOM from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IActionProvider } from '../../../base/browser/ui/dropdown/dropdown.js';
 import { DropdownMenuActionViewItem } from '../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IAction, IActionRunner } from '../../../base/common/actions.js';
 import { Event } from '../../../base/common/event.js';
@@ -46,7 +47,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	constructor(
 		primaryAction: MenuItemAction,
 		dropdownAction: IAction,
-		dropdownMenuActions: readonly IAction[],
+		dropdownMenuActions: readonly IAction[] | IActionProvider,
 		className: string,
 		private readonly _options: IDropdownWithPrimaryActionViewItemOptions | undefined,
 		@IContextMenuService private readonly _contextMenuProvider: IContextMenuService,

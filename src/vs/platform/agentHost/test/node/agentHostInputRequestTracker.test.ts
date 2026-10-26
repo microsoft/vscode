@@ -241,7 +241,7 @@ suite('AgentHostInputRequestTracker', () => {
 
 	test('emits subagent identifiers and what the subagent chat represents', () => {
 		const phaseChat = buildSubagentChatUri(rootSession, 'fusion:fusion-1:phase-1');
-		const { telemetry, tracker } = createTracker(undefined, undefined, session => session === phaseChat ? 'fusionPhase' : undefined);
+		const { telemetry, tracker } = createTracker(undefined, undefined, session => session === phaseChat ? 'fusionPhase' : session === subagentChat ? 'task' : undefined);
 		const request: ChatInputRequest = withChatInputRequestPurpose({ id: 'request-1', questions: [] }, ChatInputRequestPurpose.AskUser);
 
 		for (const chat of [subagentChat, phaseChat]) {

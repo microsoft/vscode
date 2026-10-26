@@ -10,6 +10,8 @@ interface IAgentHostSandboxToggleState {
 	readonly provider: string | undefined;
 	readonly sessionEnabled: boolean | undefined;
 	readonly confirmedEnabled?: boolean;
+	readonly applyFailed?: boolean;
+	readonly rejectedSelection?: boolean;
 	readonly globalEnabled: boolean;
 	readonly managedEnabled: boolean;
 	readonly allowsBypass: boolean;
@@ -17,17 +19,41 @@ interface IAgentHostSandboxToggleState {
 	readonly devContainerSandboxSupported?: boolean;
 }
 
-/** Managed enablement permits turning On after an authorized session opt-out, but never a direct Off. */
+const toggleSelections = new WeakMap<IActionListItemInlineToggle, { checked: boolean; changedByUser: boolean }>();
+
+/** Retains an open picker's rejected choice while the runtime synchronizes the rollback. */
+export function preserveAgentHostSandboxToggleSelection(previous: IActionListItemInlineToggle | undefined, current: IActionListItemInlineToggle | undefined, preserveSelection: boolean): void {
+	const previousSelection = previous && toggleSelections.get(previous);
+	const currentSelection = current && toggleSelections.get(current);
+	if (preserveSelection && previousSelection?.changedByUser && currentSelection && current && !current.disabled && previous?.label === current.label) {
+		currentSelection.checked = previousSelection.checked;
+		currentSelection.changedByUser = true;
+	}
+}
+
+/** Managed sandboxing permits session changes only when bypass is allowed. */
+export function isAgentHostSandboxDisablingBlocked(state: Pick<IAgentHostSandboxToggleState, 'managedEnabled' | 'allowsBypass' | 'confirmedEnabled' | 'sessionEnabled'>): boolean {
+	return state.managedEnabled && !state.allowsBypass;
+}
+
+/** Reflect the requested selection immediately while runtime enforcement remains authoritative. */
 export function getAgentHostSandboxToggleState(state: IAgentHostSandboxToggleState): { checked: boolean; disabled: boolean } | undefined {
 	if (state.provider !== 'copilotcli') {
 		return undefined;
 	}
-	const authorizedDisable = state.allowsBypass && state.confirmedEnabled === false;
-	const checked = state.managedEnabled && !authorizedDisable ? true : (state.sessionEnabled ?? (state.managedEnabled || state.globalEnabled));
+	const checked = isAgentHostSandboxDisablingBlocked(state) || (state.sessionEnabled ?? (state.managedEnabled || state.globalEnabled));
 	return {
 		checked,
-		disabled: (state.managedEnabled && checked) || (state.devContainerSandboxSupported === false && !checked),
+		disabled: isAgentHostSandboxDisablingBlocked(state) || (state.devContainerSandboxSupported === false && !checked),
 	};
+}
+
+/** Returns the collapsed-control state, using runtime confirmation after an application failure. */
+export function getAgentHostSandboxCollapsedState(state: IAgentHostSandboxToggleState): boolean | undefined {
+	return getAgentHostSandboxToggleState({
+		...state,
+		sessionEnabled: state.applyFailed ? state.confirmedEnabled ?? state.sessionEnabled : state.sessionEnabled,
+	})?.checked;
 }
 
 export function equalsAgentHostSandboxTogglePresentation(previous: IActionListItemInlineToggle | undefined, current: IActionListItemInlineToggle | undefined): boolean {
@@ -45,8 +71,8 @@ export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxT
 		return undefined;
 	}
 	const { checked, disabled } = toggleState;
-	let displayedChecked = checked;
-	return {
+	const selection = { checked, changedByUser: false };
+	const toggle: IActionListItemInlineToggle = {
 		label: state.devContainer
 			? localize('agentHostSandboxToggle.devContainerLabel', "Sandboxing in Dev Container")
 			: localize('agentHostSandboxToggle.label', "Sandboxing for terminal"),
@@ -60,17 +86,20 @@ export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxT
 				: state.managedEnabled
 					? disabled
 						? localize('agentHostSandboxToggle.requiredTitle', "Sandboxing is required by your organization")
-						: localize('agentHostSandboxToggle.reenableManagedTitle', "Sandboxing was disabled for this session through an approved bypass. You can enable it again.")
+						: localize('agentHostSandboxToggle.managedBypassTitle', "Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.")
 					: localize('agentHostSandboxToggle.title', "Run this session's terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored."),
-		get checked() { return displayedChecked; },
-		get disabled() { return disabled || (state.managedEnabled && displayedChecked) || (state.devContainerSandboxSupported === false && !displayedChecked); },
+		get checked() { return selection.checked; },
+		get disabled() { return disabled || (state.devContainerSandboxSupported === false && !selection.checked); },
 		onChange: enabled => {
 			const latest = readState();
 			const currentState = getAgentHostSandboxToggleState(latest);
-			if (currentState && !currentState.disabled && !(latest.managedEnabled && displayedChecked) && !(latest.devContainerSandboxSupported === false && enabled) && displayedChecked !== enabled) {
-				displayedChecked = enabled;
+			if (currentState && !currentState.disabled && !(latest.devContainerSandboxSupported === false && enabled) && selection.checked !== enabled) {
+				selection.checked = enabled;
+				selection.changedByUser = true;
 				onChange(enabled);
 			}
 		},
 	};
+	toggleSelections.set(toggle, selection);
+	return toggle;
 }

@@ -15,13 +15,14 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
+import { GitHubClientOptions } from '../../../../../platform/github/common/githubTypes.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TELEMETRY_SETTING_ID, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationGetSessionsOptions, IAuthenticationService } from '../../../authentication/common/authentication.js';
 import { WorkbenchGitHubService } from '../../browser/githubService.js';
+import { getGitHubClientInternals } from '../../../../../platform/github/test/common/githubClientTestUtils.js';
 
 suite('Workbench GitHub service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,6 +32,14 @@ suite('Workbench GitHub service', () => {
 
 	function session(id = 'session', accountId = 'account', scopes: readonly string[] = ['repo']): AuthenticationSession {
 		return { id, accessToken: `token-${id}`, account: { id: accountId, label: accountId }, scopes };
+	}
+
+	function clientOptions(sessionId: string): GitHubClientOptions {
+		return {
+			authorization: { providerId: 'github', sessionId, scopes: ['repo'] },
+			apiBaseUri: 'https://api.github.com',
+			graphQlUri: 'https://api.github.com/graphql',
+		};
 	}
 
 	function setup(sessions: AuthenticationSession[] = [session()], telemetryService: ITelemetryService = NullTelemetryService, getSessions?: () => Promise<readonly AuthenticationSession[]>) {
@@ -67,15 +76,17 @@ suite('Workbench GitHub service', () => {
 		return { service, sessions, state, changed, defaultChanged, calls, configuration };
 	}
 
-	for (const selection of ['default', 'explicit'] as const) {
+	for (const selection of ['legacy', 'portable', 'explicit'] as const) {
 		test(`${selection} selection cancels while the authentication provider is pending`, async () => {
 			const lookup = new DeferredPromise<readonly AuthenticationSession[]>();
 			const { service } = setup(undefined, undefined, () => lookup.p);
 			const controller = new AbortController();
 			const reason = new Error('cancelled');
-			const pending = selection === 'default'
+			const pending = selection === 'legacy'
 				? service.acquireDefaultAccountClient(controller.signal)
-				: service.acquireSessionClient('github', 'session', controller.signal);
+				: selection === 'portable'
+					? service.acquireDefaultAccountApiClient(controller.signal)
+					: service.acquireAccountApiClient(clientOptions('session').authorization, controller.signal);
 			let settled = false;
 			const rejected = assert.rejects(pending, error => error === reason).then(() => { settled = true; });
 			controller.abort(reason);
@@ -90,9 +101,11 @@ suite('Workbench GitHub service', () => {
 			await runWithFakedTimers({}, async () => {
 				const lookup = new DeferredPromise<readonly AuthenticationSession[]>();
 				const { service } = setup(undefined, undefined, () => lookup.p);
-				const pending = selection === 'default'
+				const pending = selection === 'legacy'
 					? service.acquireDefaultAccountClient(signal())
-					: service.acquireSessionClient('github', 'session', signal());
+					: selection === 'portable'
+						? service.acquireDefaultAccountApiClient(signal())
+						: service.acquireAccountApiClient(clientOptions('session').authorization, signal());
 				let settled = false;
 				const rejected = assert.rejects(pending, { kind: 'timeout' }).then(() => { settled = true; });
 				await timeout(5 * 60_000);
@@ -104,6 +117,21 @@ suite('Workbench GitHub service', () => {
 		});
 	}
 
+	test('the browser binding acquires anonymous API clients locally without account selection', async () => {
+		const { service, state, calls } = setup([]);
+		state.account = null;
+		const acquire = sinon.spy(service, 'acquireAnonymousClient');
+		const client = store.add(await service.acquireAnonymousApiClient(signal()));
+		const controller = new AbortController();
+		const reason = new Error('Cancelled acquisition');
+		controller.abort(reason);
+		await assert.rejects(service.acquireAnonymousApiClient(controller.signal), error => error === reason);
+		assert.deepStrictEqual({
+			wrapped: Object.hasOwn(client, 'object'), acquired: acquire.callCount,
+			local: acquire.firstCall.returnValue === client, authenticationCalls: calls,
+		}, { wrapped: false, acquired: 1, local: true, authenticationCalls: [] });
+	});
+
 	test('retains the selected default client between consumers', async () => {
 		const { service } = setup();
 		const first = store.add(await service.acquireDefaultAccountClient(signal()));
@@ -112,28 +140,59 @@ suite('Workbench GitHub service', () => {
 		assert.strictEqual(next.object === first.object, true);
 	});
 
-	test('configures Mission Control on the acquired github.com account client', async () => {
-		const { service } = setup();
-		const acquire = sinon.spy(service, 'acquireClient');
-		const reference = store.add(await service.acquireDefaultAccountClient(signal()));
+	test('the browser binding acquires disposable portable clients locally and reports grant invalidation', async () => {
+		const { service, sessions, changed } = setup();
+		const client = store.add(await service.acquireDefaultAccountApiClient(signal()));
+		let invalidations = 0;
+		store.add(client.onDidInvalidate(() => invalidations++));
+		sessions[0] = { ...sessions[0], scopes: ['repo', 'gist'] };
+		changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], changed: [sessions[0]], removed: [] } });
 		assert.deepStrictEqual({
-			configuration: acquire.firstCall.args[0].missionControl,
-			domains: [reference.object.automations, reference.object.tasks, reference.object.environments, reference.object.missionControlModels].map(domain => typeof domain.list),
+			wrapped: Object.hasOwn(client, 'object'), authorization: client.authorization,
+			domains: [typeof client.automations.list, typeof client.tasks.abort, typeof client.repositories.get], invalidations,
 		}, {
-			configuration: {
-				endpoint: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: COPILOT_INTEGRATION_ID },
-				copilotEndpoint: { apiBaseUri: 'https://api.githubcopilot.com', integrationId: COPILOT_INTEGRATION_ID },
-			},
-			domains: ['function', 'function', 'function', 'function'],
+			wrapped: false, authorization: { providerId: 'github', sessionId: 'session', accountId: 'account', scopes: ['repo'] },
+			domains: ['function', 'function', 'function'], invalidations: 1,
 		});
 	});
 
-	test('does not infer Mission Control endpoints from an Enterprise authorization server', async () => {
-		const { service } = setup([{ ...session(), authorizationServer: URI.parse('https://enterprise.example.test') }]);
-		const acquire = sinon.spy(service, 'acquireClient');
-		const reference = store.add(await service.acquireSessionClient('github-enterprise', 'session', signal()));
-		await assert.rejects(reference.object.automations.list({ owner: 'owner', name: 'repo' }, signal()), /No approved Mission Control API endpoint/);
-		assert.strictEqual(acquire.firstCall.args[0].missionControl, undefined);
+	test('explicit acquisition preserves a non-default, non-repository grant without selecting an account', async () => {
+		const explicit = session('explicit', 'other-account', ['read:user']);
+		const { service, state, calls, changed } = setup([session(), explicit]);
+		state.account = null;
+		const authorization = { providerId: 'github', sessionId: explicit.id, accountId: explicit.account.id, scopes: explicit.scopes };
+		const client = store.add(await service.acquireAccountApiClient(authorization, signal()));
+		let invalidated = 0;
+		store.add(client.onDidInvalidate(() => invalidated++));
+		changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], changed: [], removed: [explicit] } });
+		assert.deepStrictEqual({ authorization: client.authorization, calls, invalidated, defaultAccount: state.account }, {
+			authorization: { ...authorization, authorizationServer: undefined },
+			calls: [{ providerId: 'github', options: { silent: true } }],
+			invalidated: 1,
+			defaultAccount: null,
+		});
+	});
+
+	test('explicit acquisition rejects mismatching grants instead of using another session', async () => {
+		const { service } = setup([session('selected'), session('other', 'different')]);
+		for (const authorization of [
+			{ providerId: 'github', sessionId: 'selected', accountId: 'different', scopes: ['repo'] },
+			{ providerId: 'github', sessionId: 'selected', scopes: ['read:user'] },
+			{ providerId: 'github', sessionId: 'selected', scopes: ['repo'], authorizationServer: 'https://api.example.test' },
+			{ providerId: 'other-provider', sessionId: 'selected', scopes: ['repo'] },
+		]) {
+			await assert.rejects(service.acquireAccountApiClient(authorization, signal()), { kind: 'authentication' });
+		}
+	});
+
+	test('explicit enterprise acquisition derives endpoints from the captured session issuer', async () => {
+		const issuer = URI.parse('https://tenant.ghe.com');
+		const explicit = { ...session('enterprise', 'enterprise-account'), authorizationServer: issuer };
+		const { service, state } = setup([explicit]);
+		state.account = null;
+		const authorization = { providerId: 'github-enterprise', sessionId: explicit.id, accountId: explicit.account.id, scopes: explicit.scopes, authorizationServer: issuer.toString() };
+		const client = store.add(await service.acquireAccountApiClient(authorization, signal()));
+		assert.deepStrictEqual(client.authorization, authorization);
 	});
 
 	for (const stop of ['cancel', 'dispose'] as const) {
@@ -181,7 +240,7 @@ suite('Workbench GitHub service', () => {
 			session('repository', 'account', ['repo']),
 		]);
 		const client = store.add(await service.acquireDefaultAccountClient(signal())).object;
-		assert.deepStrictEqual({ authorization: client.authorization, endpoint: client.endpoint.getApiBaseUri(), calls }, {
+		assert.deepStrictEqual({ authorization: client.authorization, endpoint: getGitHubClientInternals(client).endpoint.getApiBaseUri(), calls }, {
 			authorization: { providerId: 'github', sessionId: 'repository', scopes: ['repo'] },
 			endpoint: 'https://api.github.com', calls: [{ providerId: 'github', options: { silent: true } }],
 		});
@@ -200,23 +259,32 @@ suite('Workbench GitHub service', () => {
 		await assert.rejects(service.acquireDefaultAccountClient(signal()), { kind: 'authentication' });
 	});
 
-	test('explicit session clients coexist without using the default account', async () => {
-		const { service, state } = setup([session('first'), session('second', 'other')]);
+	test('acquires a client when the default account is first restored during startup', async () => {
+		const { service, state, defaultChanged } = setup();
+		const account = state.account;
+		const restored = new DeferredPromise<IDefaultAccount | null>();
 		state.account = null;
-		const first = store.add(await service.acquireSessionClient('github', 'first', signal())).object;
-		const second = store.add(await service.acquireSessionClient('github', 'second', signal())).object;
-		assert.deepStrictEqual({ sessions: [first.authorization.sessionId, second.authorization.sessionId], isolated: first !== second }, {
-			sessions: ['first', 'second'], isolated: true,
+		defaultChanged.fire(null);
+		state.pendingDefaultAccount = restored.p;
+
+		const pending = service.acquireDefaultAccountApiClient(signal());
+		state.account = account;
+		defaultChanged.fire(account);
+		await restored.complete(account);
+		const client = store.add(await pending);
+
+		assert.deepStrictEqual(client.authorization, {
+			providerId: 'github', sessionId: 'session', accountId: 'account', scopes: ['repo'],
 		});
 	});
 
 	for (const change of ['scopes', 'issuer', 'removed'] as const) {
-		test(`retries a pending session lookup after ${change} change instead of acquiring its stale grant`, async () => {
+		test(`rejects a stale default selection after ${change} changes and permits a fresh lookup`, async () => {
 			const staleSession = session();
 			const currentSession = {
 				...staleSession,
 				...(change === 'scopes' ? { scopes: ['repo', 'gist'] }
-					: change === 'issuer' ? { authorizationServer: URI.parse('https://enterprise.example.test/login/oauth') } : {}),
+					: change === 'issuer' ? { authorizationServer: URI.parse('https://github.com/login/oauth') } : {}),
 			};
 			const currentSessions = change === 'removed' ? [] : [currentSession];
 			const lookup = new DeferredPromise<readonly AuthenticationSession[]>();
@@ -228,22 +296,24 @@ suite('Workbench GitHub service', () => {
 				}
 				return Promise.resolve(currentSessions);
 			});
-			const pending = service.acquireSessionClient('github', 'session', signal());
-			const result = change === 'removed' ? assert.rejects(pending, { kind: 'authentication' }) : pending;
+			const rejected = assert.rejects(service.acquireDefaultAccountApiClient(signal()), { kind: 'authentication' });
 			changed.fire({
 				providerId: 'github', label: 'GitHub',
 				event: { added: [], changed: change === 'removed' ? [] : [currentSession], removed: change === 'removed' ? [staleSession] : [] },
 			});
 			await lookup.complete([staleSession]);
-			const reference = await result;
-			if (reference) {
-				store.add(reference);
-				assert.deepStrictEqual(reference.object.authorization, {
-					providerId: 'github', sessionId: 'session', scopes: [...currentSession.scopes].sort(),
+			await rejected;
+			if (change === 'removed') {
+				await assert.rejects(service.acquireDefaultAccountApiClient(signal()), { kind: 'authentication' });
+			} else {
+				const client = store.add(await service.acquireDefaultAccountApiClient(signal()));
+				assert.deepStrictEqual(client.authorization, {
+					providerId: 'github', sessionId: 'session', accountId: 'account', scopes: [...currentSession.scopes].sort(),
 					...(currentSession.authorizationServer ? { authorizationServer: currentSession.authorizationServer.toString() } : {}),
 				});
 			}
 			assert.deepStrictEqual(calls, [
+				{ providerId: 'github', options: { silent: true } },
 				{ providerId: 'github', options: { silent: true } },
 				{ providerId: 'github', options: { silent: true } },
 			]);
@@ -264,7 +334,7 @@ suite('Workbench GitHub service', () => {
 		});
 		const first = store.add(await service.acquireDefaultAccountClient(signal())).object;
 		let invalidations = 0;
-		store.add(first.onDidInvalidate(() => invalidations++));
+		store.add(getGitHubClientInternals(first).onDidInvalidate(() => invalidations++));
 		const pending = service.acquireDefaultAccountClient(signal());
 		changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], changed: [renewed], removed: [] } });
 		await lookup.complete([original]);
@@ -277,11 +347,11 @@ suite('Workbench GitHub service', () => {
 	test('does not retry a pending session lookup for another provider change', async () => {
 		const lookup = new DeferredPromise<readonly AuthenticationSession[]>();
 		const { service, changed, calls } = setup(undefined, undefined, () => lookup.p);
-		const pending = service.acquireSessionClient('github', 'session', signal());
+		const pending = service.acquireDefaultAccountApiClient(signal());
 		changed.fire({ providerId: 'github-enterprise', label: 'Enterprise', event: { added: [], changed: [session()], removed: [] } });
 		await lookup.complete([session()]);
-		const reference = store.add(await pending);
-		assert.deepStrictEqual({ lookups: calls.length, providerId: reference.object.authorization.providerId }, {
+		const client = store.add(await pending);
+		assert.deepStrictEqual({ lookups: calls.length, providerId: client.authorization.providerId }, {
 			lookups: 1, providerId: 'github',
 		});
 	});
@@ -298,8 +368,8 @@ suite('Workbench GitHub service', () => {
 		});
 		const controller = new AbortController();
 		const reason = new Error('cancelled');
-		const pending = service.acquireSessionClient('github', 'session', controller.signal).then(
-			reference => { store.add(reference); return undefined; },
+		const pending = service.acquireDefaultAccountApiClient(controller.signal).then(
+			client => { store.add(client); return undefined; },
 			error => error,
 		);
 		changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], changed: [session('session', 'account', ['repo', 'gist'])], removed: [] } });
@@ -311,22 +381,26 @@ suite('Workbench GitHub service', () => {
 		assert.deepStrictEqual({ calls: call, cancelled: result === reason }, { calls: 2, cancelled: true });
 	});
 
-	for (const selection of ['default', 'explicit'] as const) {
+	for (const selection of ['legacy', 'portable'] as const) {
 		test(`${selection} client survives same-session token renewal`, async () => {
 			const { service, sessions, changed } = setup([session('session', 'account', ['repo', 'user:email'])]);
-			const acquire = () => selection === 'default'
-				? service.acquireDefaultAccountClient(signal())
-				: service.acquireSessionClient('github', 'session', signal());
-			const first = store.add(await acquire()).object;
+			const acquire = async () => selection === 'legacy'
+				? getGitHubClientInternals(store.add(await service.acquireDefaultAccountClient(signal())).object)
+				: store.add(await service.acquireDefaultAccountApiClient(signal()));
+			const first = await acquire();
 			let invalidations = 0;
 			let selectionsChanged = 0;
 			store.add(first.onDidInvalidate(() => invalidations++));
 			store.add(service.onDidChangeDefaultClient(() => selectionsChanged++));
 			sessions[0] = { ...sessions[0], accessToken: 'renewed-token', scopes: ['user:email', 'repo'] };
 			changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [sessions[0]] } });
-			const next = store.add(await acquire()).object;
-			assert.deepStrictEqual({ sameClient: next === first, invalidations, selectionsChanged }, {
-				sameClient: true, invalidations: 0, selectionsChanged: 0,
+			const next = await acquire();
+			assert.deepStrictEqual({
+				sameLegacyClient: selection === 'legacy' ? next === first : undefined,
+				authorization: next.authorization, invalidations, selectionsChanged,
+			}, {
+				sameLegacyClient: selection === 'legacy' ? true : undefined,
+				authorization: first.authorization, invalidations: 0, selectionsChanged: 0,
 			});
 		});
 	}
@@ -365,11 +439,11 @@ suite('Workbench GitHub service', () => {
 		test(`${grant} changes retire only the affected workbench client`, async () => {
 			const { service, sessions, changed } = setup([session(), session('peer', 'other-account')]);
 			const first = store.add(await service.acquireDefaultAccountClient(signal())).object;
-			const peer = store.add(await service.acquireSessionClient('github', 'peer', signal())).object;
+			const peer = store.add(service.acquireClient(clientOptions('peer'))).object;
 			const invalidations: string[] = [];
 			let selectionsChanged = 0;
-			store.add(first.onDidInvalidate(() => invalidations.push('first')));
-			store.add(peer.onDidInvalidate(() => invalidations.push('peer')));
+			store.add(getGitHubClientInternals(first).onDidInvalidate(() => invalidations.push('first')));
+			store.add(getGitHubClientInternals(peer).onDidInvalidate(() => invalidations.push('peer')));
 			store.add(service.onDidChangeDefaultClient(() => selectionsChanged++));
 			sessions[0] = {
 				...sessions[0],
@@ -379,7 +453,7 @@ suite('Workbench GitHub service', () => {
 			};
 			changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [sessions[0]] } });
 			await assert.rejects(first.credentials.getCredential(signal()), /disposed/);
-			const retained = store.add(await service.acquireSessionClient('github', 'peer', signal())).object;
+			const retained = store.add(service.acquireClient(clientOptions('peer'))).object;
 			const replacement = store.add(await service.acquireDefaultAccountClient(signal())).object;
 			assert.deepStrictEqual({ invalidations, selectionsChanged, retainedPeer: retained === peer, replaced: replacement !== first }, {
 				invalidations: ['first'], selectionsChanged: 1, retainedPeer: true, replaced: true,
@@ -389,26 +463,29 @@ suite('Workbench GitHub service', () => {
 
 	test('session changes invalidate only the affected authorization context', async () => {
 		const { service, sessions, changed } = setup([session('first'), session('second', 'other')]);
-		const first = store.add(await service.acquireSessionClient('github', 'first', signal())).object;
-		const second = store.add(await service.acquireSessionClient('github', 'second', signal())).object;
+		const first = store.add(service.acquireClient(clientOptions('first'))).object;
+		const second = store.add(service.acquireClient(clientOptions('second'))).object;
 		const invalidated: string[] = [];
-		store.add(first.onDidInvalidate(() => invalidated.push('first')));
-		store.add(second.onDidInvalidate(() => invalidated.push('second')));
+		store.add(getGitHubClientInternals(first).onDidInvalidate(() => invalidated.push('first')));
+		store.add(getGitHubClientInternals(second).onDidInvalidate(() => invalidated.push('second')));
 		changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], changed: [], removed: [sessions[0]] } });
 		await assert.rejects(first.credentials.getCredential(signal()), /disposed/);
-		const retained = store.add(await service.acquireSessionClient('github', 'second', signal())).object;
+		const retained = store.add(service.acquireClient(clientOptions('second'))).object;
 		assert.deepStrictEqual({ invalidated, retained: retained === second }, { invalidated: ['first'], retained: true });
 	});
 
-	test('changing the default account does not revoke explicit clients for the old account', async () => {
+	test('switching default accounts does not revoke captured clients for the old account', async () => {
 		const { service, state, defaultChanged } = setup([session(), session('second', 'other')]);
+		const originalAccount = state.account;
 		const first = store.add(await service.acquireDefaultAccountClient(signal())).object;
 		let invalidated = false;
-		store.add(first.onDidInvalidate(() => { invalidated = true; }));
+		store.add(getGitHubClientInternals(first).onDidInvalidate(() => { invalidated = true; }));
 		state.account = { authenticationProvider: provider, accountName: 'other', sessionId: 'second', enterprise: false };
 		defaultChanged.fire(state.account);
 		const second = store.add(await service.acquireDefaultAccountClient(signal())).object;
-		const retained = store.add(await service.acquireSessionClient('github', 'session', signal())).object;
+		state.account = originalAccount;
+		defaultChanged.fire(state.account);
+		const retained = store.add(await service.acquireDefaultAccountClient(signal())).object;
 		assert.deepStrictEqual({ invalidated, retained: retained === first, changed: first !== second }, { invalidated: false, retained: true, changed: true });
 	});
 
@@ -420,16 +497,9 @@ suite('Workbench GitHub service', () => {
 		const first = store.add(await service.acquireDefaultAccountClient(signal())).object;
 		state.enterpriseUrl = 'https://ghe.example.test';
 		const second = store.add(await service.acquireDefaultAccountClient(signal())).object;
-		assert.deepStrictEqual([first.endpoint.getApiBaseUri(), first.endpoint.getGraphQlUri(), second.endpoint.getApiBaseUri(), second.endpoint.getGraphQlUri()], [
+		assert.deepStrictEqual([getGitHubClientInternals(first).endpoint.getApiBaseUri(), getGitHubClientInternals(first).endpoint.getGraphQlUri(), getGitHubClientInternals(second).endpoint.getApiBaseUri(), getGitHubClientInternals(second).endpoint.getGraphQlUri()], [
 			'https://api.tenant.ghe.com', 'https://api.tenant.ghe.com/graphql', 'https://ghe.example.test/api/v3', 'https://ghe.example.test/api/graphql',
 		]);
-	});
-
-	test('explicit enterprise clients use their session issuer rather than the default endpoint', async () => {
-		const enterprise = { ...session('enterprise'), authorizationServer: URI.parse('https://ghe.example.test/login/oauth') };
-		const { service } = setup([enterprise]);
-		const client = store.add(await service.acquireSessionClient('github-enterprise', 'enterprise', signal())).object;
-		assert.strictEqual(client.endpoint.getApiBaseUri(), 'https://ghe.example.test/api/v3');
 	});
 
 	test('drops pending GitHub telemetry when configuration opts out and back in while idle', async () => {
@@ -442,7 +512,7 @@ suite('Workbench GitHub service', () => {
 		const controller = new AbortController();
 		const reason = new Error('cancelled');
 		controller.abort(reason);
-		await assert.rejects(client.transport.rest({ host: 'api.github.com', accountId: '1' }, 'token', {
+		await assert.rejects(getGitHubClientInternals(client).transport.rest({ host: 'api.github.com', accountId: '1' }, 'token', {
 			method: 'GET', url: 'https://api.github.com/user',
 		}, controller.signal), error => error === reason);
 		for (const level of ['off', 'all']) {

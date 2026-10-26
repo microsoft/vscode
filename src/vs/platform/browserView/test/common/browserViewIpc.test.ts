@@ -97,11 +97,12 @@ suite('BrowserView event IPC', () => {
 		}, []]);
 		source.emit([{ type: 'changed', windowId: 1, id: 'page', event: 'onDidChangeTitle', data: { title: 'Example' } }, []]);
 		source.emit([{ type: 'changed', windowId: 1, id: 'page', event: 'onDidChangeLoadingState', data: { loading: false } }, []]);
+		source.emit([{ type: 'changed', windowId: 1, id: 'page', event: 'onDidRequestOpenExternal', data: 'https://example.com/external' }, []]);
 		source.emit([{ type: 'changed', windowId: 1, id: 'page', event: 'onDidClose', data: undefined }, []]);
 		renderer.flush();
 
 		assert.deepStrictEqual({ received, reverseMessages: main.pending.length }, {
-			received: ['snapshot', 'created', 'onDidNavigate', 'onDidChangeTitle', 'onDidChangeLoadingState', 'onDidClose'],
+			received: ['snapshot', 'created', 'onDidNavigate', 'onDidChangeTitle', 'onDidChangeLoadingState', 'onDidRequestOpenExternal', 'onDidClose'],
 			reverseMessages: 0
 		});
 	});

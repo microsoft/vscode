@@ -19,7 +19,8 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService, type ResolverResult } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import type { IChatUserInteractionTiming } from '../../../../platform/otel/common/chatUserInteraction.js';
-import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
+import type { AgentChatMoveDestination } from '../../../../platform/agentHost/common/agentHostChatMove.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
@@ -215,6 +216,22 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.initializeResult ?? constObservable(undefined);
 	}
 
+	get supportsConversationImport(): boolean {
+		return this._protocolClient?.supportsConversationImport ?? false;
+	}
+
+	get sandboxCertificateInstallationSupported(): IObservable<boolean> {
+		return this._protocolClient?.sandboxCertificateInstallationSupported ?? constObservable(false);
+	}
+
+	get sandboxCertificateRotationSupported(): IObservable<boolean> {
+		return this._protocolClient?.sandboxCertificateRotationSupported ?? constObservable(false);
+	}
+
+	get sandboxCertificateRemovalSupported(): IObservable<boolean> {
+		return this._protocolClient?.sandboxCertificateRemovalSupported ?? constObservable(false);
+	}
+
 	get rootState(): IAgentSubscription<RootState> {
 		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
@@ -274,6 +291,18 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().diagnosticsFetch(url);
 	}
 
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._requireClient().installSandboxCertificate(chat, scopeId);
+	}
+
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._requireClient().rotateSandboxCertificate(chat, scopeId);
+	}
+
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._requireClient().removeSandboxCertificate(chat, scopeId);
+	}
+
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		return this._requireClient().getSessionStateFile(session, chat);
 	}
@@ -302,6 +331,14 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		return this._requireClient().createSession(config);
+	}
+
+	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
+		return this._requireClient().moveSession(session, destination, after);
+	}
+
+	moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
+		return this._requireClient().moveChat(chat, destination);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -342,6 +379,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	refreshSubscription(resource: URI): Promise<void> {
 		return this._requireClient().refreshSubscription(resource);
+	}
+
+	setChatWorkspace(chat: URI, workspace: IAgentCreateChatWorkspace): Promise<void> {
+		return this._requireClient().setChatWorkspace(chat, workspace);
 	}
 
 	disposeChat(chat: URI): Promise<void> {
