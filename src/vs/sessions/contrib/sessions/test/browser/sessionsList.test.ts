@@ -30,7 +30,7 @@ import { TestAccessibilityService } from '../../../../../platform/accessibility/
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
-import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -70,7 +70,7 @@ import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -5659,7 +5659,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli' });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli' });
@@ -5742,6 +5742,7 @@ suite('Sessions - SessionsList', () => {
 				sectionMemberships: sectionParent ? new Map([[sectionId, sectionParent.id]]) : undefined,
 				memberships, comparisons: [comparison], pinnedSessionIds,
 			});
+			configure?.(harness);
 			const contextMenus: (readonly IAction[])[] = [];
 			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
 				override showContextMenu(delegate: IContextMenuDelegate): void {
@@ -5762,6 +5763,52 @@ suite('Sessions - SessionsList', () => {
 			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, false);
 			list.layout(400, 400);
 			return { attempt1, attempt2, judge, synthesis, container, harness, list, contextMenus };
+		}
+
+		for (const outcome of ['success', 'cancelled', 'disabled', 'reduced motion', 'failure'] as const) {
+			test(`group Mark All as Done confetti: ${outcome}`, async () => {
+				const { container, harness, list, attempt1, attempt2, judge, synthesis } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, harness => {
+					const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+					void configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+					harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+						override isMotionReduced(): boolean { return outcome === 'reduced motion'; }
+					}());
+					harness.instantiationService.stub(IContextKeyService, harness.store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService))));
+					harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
+					harness.store.add(harness.instantiationService.createInstance(SessionsArchiveActionsContribution));
+				});
+				const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+				await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, outcome !== 'disabled');
+				const executed = new DeferredPromise<void>();
+				sinon.stub(harness.commandService, 'executeCommand').callsFake(async commandId => {
+					assert.strictEqual(commandId, ARCHIVE_SESSION_GROUP_COMMAND_ID);
+					if (outcome === 'failure') {
+						await executed.complete();
+						throw new Error('Archive failed');
+					}
+					if (outcome !== 'cancelled') {
+						for (const participant of [attempt1, attempt2, judge, synthesis]) {
+							participant.isArchived.set(true, undefined);
+						}
+						list.dispose();
+					}
+					await executed.complete();
+					return undefined;
+				});
+				await timeout(100);
+				const button = container.querySelector<HTMLElement>('.session-comparison-group .action-label[aria-label="Mark All as Done"]');
+				assert.ok(button, container.querySelector('.session-comparison-group')?.outerHTML);
+				button.click();
+				await executed.p;
+				await timeout(0);
+				const overlay = document.querySelector('.animation-overlay');
+				disposables.add(toDisposable(() => overlay?.remove()));
+
+				assert.deepStrictEqual({ animated: !!overlay, buttonConnected: button.isConnected }, {
+					animated: outcome === 'success',
+					buttonConnected: outcome === 'cancelled' || outcome === 'failure',
+				});
+			});
 		}
 
 		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Environment]) {
