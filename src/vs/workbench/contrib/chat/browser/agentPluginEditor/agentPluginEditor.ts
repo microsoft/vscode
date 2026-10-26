@@ -148,6 +148,11 @@ export class AgentPluginEditor extends EditorPane {
 			},
 			focusOnlyEnabledItems: true
 		}));
+		this._register(actionBar.onDidRun(e => {
+			if (e.error) {
+				this.notificationService.error(e.error);
+			}
+		}));
 		actionBar.setFocusable(true);
 
 		const statusContainer = append(actionsAndStatusContainer, $('.status'));

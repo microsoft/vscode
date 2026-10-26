@@ -191,6 +191,26 @@ suite('AgentPlugin enablement', () => {
 		assert.strictEqual(service.readEnabled(plugin.uri.toString()), ContributionEnablementState.DisabledProfile);
 	});
 
+	test('runtime profile toggles inherit later discovery changes without masking them', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const service = store.add(new AgentPluginEnablementService(storage, new TestUserDataProfileService()));
+		const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+		const key = plugin.uri.toString();
+		service.setDefaultEnabled(key, false);
+		plugin.setEnabled = async () => { };
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile);
+		service.setDefaultEnabled(key, false);
+		const disabled = service.readEnabled(key);
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.DisabledProfile);
+		service.setDefaultEnabled(key, true);
+		const restored = store.add(new AgentPluginEnablementService(storage, new TestUserDataProfileService()));
+		assert.deepStrictEqual({ disabled, enabled: service.readEnabled(key), restored: restored.readEnabled(key) }, {
+			disabled: ContributionEnablementState.DisabledProfile,
+			enabled: ContributionEnablementState.EnabledProfile,
+			restored: ContributionEnablementState.EnabledProfile,
+		});
+	});
+
 	test('does not invoke the runtime for policy-managed plugins', async () => {
 		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
 		let calls = 0;
@@ -198,6 +218,19 @@ suite('AgentPlugin enablement', () => {
 		plugin.setEnabled = async () => { calls++; };
 		await assert.rejects(setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile), /managed by your organization/);
 		assert.strictEqual(calls, 0);
+	});
+
+	test('keeps profile toggles local when no runtime enablement bridge is available', async () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		const plugin = makePlugin(URI.file('/plugins/local'), 'local');
+		const key = plugin.uri.toString();
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.DisabledProfile);
+		const disabled = service.readEnabled(key);
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile);
+		assert.deepStrictEqual({ disabled, enabled: service.readEnabled(key) }, {
+			disabled: ContributionEnablementState.DisabledProfile,
+			enabled: ContributionEnablementState.EnabledProfile,
+		});
 	});
 
 	function makeMarketplacePlugin(): IMarketplacePlugin {

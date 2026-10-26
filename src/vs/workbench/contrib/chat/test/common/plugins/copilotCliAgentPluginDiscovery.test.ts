@@ -293,7 +293,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		}]);
 	});
 
-	test('does not expose uninstall without Agent Host management support', async () => {
+	test('does not expose runtime mutations without Agent Host management support', async () => {
 		const pluginUri = joinPath(marketplaceRoot, 'spark');
 		await writePlugin(pluginUri, 'spark');
 		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri: pluginUri }]);
@@ -303,9 +303,11 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		assert.deepStrictEqual(sources.map(source => ({
 			uri: source.uri.toString(),
 			remove: source.remove,
+			setEnabled: source.setEnabled,
 		})), [{
 			uri: pluginUri.toString(),
 			remove: undefined,
+			setEnabled: undefined,
 		}]);
 	});
 

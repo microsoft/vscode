@@ -1142,19 +1142,41 @@ export class CopilotAgentSession extends Disposable {
 		return removeCopilotPluginMarketplace(this._wrapper.session.rpc.plugins, reason => this.reloadPlugins(reason), name, force);
 	}
 
-	/** Reloads installed plugins into the live SDK session, which can restart its MCP servers. */
+	private _pendingPluginReload: CopilotPluginReloadReason | undefined;
+
+	get hasPendingPluginReload(): boolean {
+		return this._pendingPluginReload !== undefined;
+	}
+
+	/** Applies committed plugin changes once the chat has no active turn or subagents. */
 	async reloadPlugins(reason: CopilotPluginReloadReason): Promise<void> {
+		this._pendingPluginReload = reason;
+		await this.flushPendingPluginReload();
+	}
+
+	/** Called under the provider's per-chat queue; reload failure does not undo the persisted mutation. */
+	async flushPendingPluginReload(): Promise<void> {
+		if (!this._pendingPluginReload || this.isDisposed || this.hasActiveTurn || this.hasActiveSubagents) {
+			return;
+		}
+		const reason = this._pendingPluginReload;
+		this._pendingPluginReload = undefined;
 		this._logService.info(`[Copilot:${this.sessionId}] Reloading plugins: reason=${reason}`);
 		this._recordRuntimeMutation('customizationsChanged');
-		// The SDK declares void, but runtimes can return partial reload failures.
-		const result: unknown = await this._wrapper.session.rpc.plugins.reload();
-		if (isPluginReloadResult(result) && result.errors !== undefined) {
-			if (!Array.isArray(result.errors) || !result.errors.every(isString)) {
-				throw new Error(localize('copilot.pluginReloadInvalid', "The runtime returned an invalid plugin reload result."));
+		try {
+			// The SDK declares void, but runtimes can return partial reload failures.
+			const result: unknown = await this._wrapper.session.rpc.plugins.reload();
+			if (isPluginReloadResult(result) && result.errors !== undefined) {
+				if (!Array.isArray(result.errors) || !result.errors.every(isString)) {
+					throw new Error(localize('copilot.pluginReloadInvalid', "The runtime returned an invalid plugin reload result."));
+				}
+				if (result.errors.length) {
+					throw new Error(localize('copilot.pluginReloadFailed', "Plugin reload failed: {0}", result.errors.join('; ')));
+				}
 			}
-			if (result.errors.length) {
-				throw new Error(localize('copilot.pluginReloadFailed', "Plugin reload failed: {0}", result.errors.join('; ')));
-			}
+		} catch (error) {
+			this._pendingPluginReload ??= reason;
+			this._logService.warn(`[Copilot:${this.sessionId}] Plugin change was saved, but the live reload failed; it will be retried before the next turn`, error);
 		}
 	}
 

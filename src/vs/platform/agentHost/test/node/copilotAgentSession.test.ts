@@ -239,6 +239,7 @@ class MockCopilotSession {
 	readonly pluginEnableCalls: Array<{ names: string[] }> = [];
 	readonly pluginUninstallCalls: Array<{ name: string; directSourceId?: string }> = [];
 	pluginReloadErrors: string[] = [];
+	pluginReloadCalls = 0;
 	/** Runs after `rpc.plugins.enable` records a call; it may throw to fail the call. */
 	onPluginEnable?: () => void;
 	pluginInstallGate: Promise<void> | undefined;
@@ -730,7 +731,10 @@ class MockCopilotSession {
 				this.onPluginEnable?.();
 			},
 			disable: async () => { throw new Error('Not implemented'); },
-			reload: async () => ({ plugins: [], errors: this.pluginReloadErrors }),
+			reload: async () => {
+				this.pluginReloadCalls++;
+				return { plugins: [], errors: this.pluginReloadErrors };
+			},
 			marketplaces: {
 				add: async (params: { source: string }) => {
 					this.pluginMarketplaceAddCalls.push(params);
@@ -8654,10 +8658,49 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('reports plugin extension reload failures returned by the SDK', async () => {
-		const { session, mockSession } = await createAgentSession(disposables);
+	test('warns about post-commit plugin reload failures and retries without repeating the mutation', async () => {
+		const logService = new CapturingLogService();
+		const { session, mockSession } = await createAgentSession(disposables, { logService });
 		mockSession.pluginReloadErrors = ['extension reload failed: provider unavailable'];
-		await assert.rejects(session.reloadPlugins('enablement'), /Plugin reload failed: extension reload failed: provider unavailable/);
+		await session.installPlugin('canvas');
+		const pendingAfterFailure = session.hasPendingPluginReload;
+		mockSession.pluginReloadErrors = [];
+		await session.flushPendingPluginReload();
+		assert.deepStrictEqual({
+			pendingAfterFailure,
+			pendingAfterRetry: session.hasPendingPluginReload,
+			installs: mockSession.pluginInstallCalls,
+			reloads: mockSession.pluginReloadCalls,
+			warnings: logService.warnings.map(entry => entry.args.map(error => error instanceof Error ? error.message : error)),
+		}, {
+			pendingAfterFailure: true,
+			pendingAfterRetry: false,
+			installs: [{ source: 'canvas' }],
+			reloads: 2,
+			warnings: [['Plugin reload failed: extension reload failed: provider unavailable']],
+		});
+	});
+
+	test('coalesces plugin reloads while a turn or background subagent is active', async () => {
+		const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
+		const identity = { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explorer', agentDescription: 'Explore' };
+		session.resetTurnState('busy-turn');
+		mockSession.fire('subagent.started', identity, { agentId: 'child' });
+		await session.reloadPlugins('enablement');
+		await session.reloadPlugins('uninstall');
+		const duringTurn = mockSession.pluginReloadCalls;
+		session.discardActiveTurn();
+		await session.flushPendingPluginReload();
+		const duringSubagent = mockSession.pluginReloadCalls;
+		mockSession.fire('subagent.completed', identity, { agentId: 'child' });
+		await waitForSignal(signal => signal.kind === 'subagent_completed');
+		await session.flushPendingPluginReload();
+		assert.deepStrictEqual({ duringTurn, duringSubagent, idle: mockSession.pluginReloadCalls, pending: session.hasPendingPluginReload }, {
+			duringTurn: 0,
+			duringSubagent: 0,
+			idle: 1,
+			pending: false,
+		});
 	});
 
 	test('leaves post-uninstall reloads to the agent coordinator', async () => {

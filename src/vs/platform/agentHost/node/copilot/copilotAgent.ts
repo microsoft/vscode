@@ -2093,6 +2093,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _onChatTurnEnded(): void {
 		for (const session of this._allLiveSessions()) {
 			void this._scheduleConnectorRefresh(session);
+			if (session.hasPendingPluginReload) {
+				void this._queueChat(session.sessionId, session.sessionId, 'reloadPlugins', () => session.flushPendingPluginReload())
+					.catch(error => this._logService.warn(`[Copilot:${session.sessionId}] Failed to schedule pending plugin reload`, error));
+			}
 		}
 		if (this._sessionTelemetryRevoked) {
 			queueMicrotask(() => {
@@ -2882,8 +2886,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 				directSourceId: request.directSourceId,
 			}));
 		}
-		await Promises.settled(this._allLiveSessions().map(candidate =>
-			this._queueChat(candidate.sessionId, candidate.sessionId, 'reloadPluginUninstall', () => candidate.reloadPlugins('uninstall'))));
+		await this._reloadLivePlugins('uninstall');
+	}
+
+	private async _reloadLivePlugins(reason: Parameters<CopilotAgentSession['reloadPlugins']>[0]): Promise<void> {
+		await Promises.settled(this._allLiveSessions().map(session =>
+			this._queueChat(session.sessionId, session.sessionId, 'reloadPlugins', () => session.reloadPlugins(reason))
+				.catch(error => this._logService.warn(`[Copilot:${session.sessionId}] Plugin change was saved, but the live reload failed`, error))));
 	}
 
 	async listPluginInstallations() {
@@ -3062,14 +3071,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new Error(localize('copilot.pluginEnablementNotApplied', "The runtime did not change enablement for plugin '{0}'.", plugin));
 			}
 		});
-		await Promise.all(this._allLiveSessions().map(session =>
-			this._queueChat(session.sessionId, session.sessionId, 'reloadPluginEnablement', () => session.reloadPlugins('enablement'))));
+		await this._reloadLivePlugins('enablement');
 	}
 
 	async installPlugin(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
 		const liveSession = this._findPluginOperationSession(session, chat);
 		if (liveSession) {
-			await liveSession.installPlugin(request.source);
+			await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'installPlugin', () => liveSession.installPlugin(request.source));
 			return;
 		}
 		await this._retryAfterClosedConnection('installPlugin', client => client.rpc.plugins.install({ source: request.source }));
@@ -3126,7 +3134,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async removePluginMarketplace(session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult> {
 		const liveSession = this._findPluginOperationSession(session, chat);
 		const result = liveSession
-			? await liveSession.removePluginMarketplace(name, force)
+			? await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'removePluginMarketplace', () => liveSession.removePluginMarketplace(name, force))
 			: await this._retryAfterClosedConnection('removePluginMarketplace', client => client.rpc.plugins.marketplaces.remove({ name, force }));
 		return {
 			removed: result.removed,
@@ -7223,6 +7231,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			if (entry.hasPendingConnectorRefresh) {
 				await entry.refreshConnectors(options.token);
+			}
+			if (entry.hasPendingPluginReload) {
+				await entry.flushPendingPluginReload();
 			}
 			await this._applyPendingModelSelection(context, entry, options.token ?? CancellationToken.None);
 			return entry;

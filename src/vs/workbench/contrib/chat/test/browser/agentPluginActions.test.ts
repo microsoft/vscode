@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -13,11 +15,18 @@ import { PluginFormat } from '../../../../../platform/agentPlugins/common/plugin
 import { CustomizationEnablementKind, CustomizationType, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { createPolicyManagedEnablementAction, createUninstallPluginAction, getAgentHostPluginEnablementActions, getPluginPolicyEnablement, isPluginPolicyBlocked, removePluginWithMarketplaceOwnership } from '../../browser/agentPluginActions.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { IWebviewService } from '../../../webview/browser/webview.js';
+import { createDisablePluginDropDown, createPolicyManagedEnablementAction, createUninstallPluginAction, getAgentHostPluginEnablementActions, getPluginPolicyEnablement, isPluginPolicyBlocked, removePluginWithMarketplaceOwnership } from '../../browser/agentPluginActions.js';
+import { AgentPluginEditor } from '../../browser/agentPluginEditor/agentPluginEditor.js';
 import { IAgentHostCustomizationService } from '../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { ContributionEnablementState } from '../../common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
+import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
 suite('AgentPluginActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -48,6 +57,35 @@ suite('AgentPluginActions', () => {
 			},
 		} as unknown as IAgentPluginService;
 	}
+
+	test('plugin editor reports rejected enablement button actions', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const error = new Error('runtime refused');
+		const reported = new DeferredPromise<unknown>();
+		instantiationService.stub(INotificationService, { error: value => { reported.complete(value); } });
+		instantiationService.stub(IAgentPluginService, {});
+		instantiationService.stub(IPluginInstallService, {});
+		instantiationService.stub(IPluginMarketplaceService, {});
+		instantiationService.stub(IWebviewService, {});
+		const editor = store.add(instantiationService.createInstance(AgentPluginEditor, new class extends mock<IEditorGroup>() { }()));
+		const parent = mainWindow.document.createElement('div');
+		editor.create(parent);
+		const plugin = createPlugin();
+		plugin.setEnabled = async () => { throw error; };
+		const action = store.add(createDisablePluginDropDown(plugin, {
+			readEnabled: () => ContributionEnablementState.EnabledProfile,
+			readProfileEnabled: () => true,
+			setEnabled: () => assert.fail('Failed runtime mutation must not be published'),
+			remove: () => { },
+		}, new TestContextService()));
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise the editor-owned action bar without exposing it as public API.
+		const actionBar = editor['template']!.actionBar;
+		actionBar.push(action, { icon: true, label: true });
+		const button = parent.querySelector<HTMLElement>('.action-label');
+		assert.ok(button);
+		button.click();
+		assert.strictEqual(await reported.p, error);
+	});
 
 	test('creates uninstall action for a removable local plugin', async () => {
 		let removeCount = 0;

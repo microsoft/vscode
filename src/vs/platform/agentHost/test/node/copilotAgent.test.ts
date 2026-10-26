@@ -2164,7 +2164,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('waits for peer reloads when the selected chat reload fails after plugin removal', async () => {
+	test('commits removal and waits for peer reloads when the selected chat reload fails', async () => {
 		const client = new TestCopilotClient([]);
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		const session = AgentSession.uri('copilotcli', 'plugin-removal-failure');
@@ -2187,7 +2187,7 @@ suite('CopilotAgent', () => {
 		try {
 			let completed = false;
 			const removal = agent.uninstallPlugin({ name: 'canvas', marketplace: '', directSourceId: 'source' }, session, selected);
-			const result = assert.rejects(removal, /selected reload failed/).then(() => { completed = true; });
+			const result = removal.then(() => { completed = true; });
 			await peerReloadStarted.p;
 			await timeout(0);
 			const completedBeforePeerReload = completed;
@@ -2199,6 +2199,75 @@ suite('CopilotAgent', () => {
 			});
 		} finally {
 			await finishPeerReload.complete();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('commits enablement and waits for every chat even when a reload fails', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [{ name: 'canvas', marketplace: '', directSourceId: 'source-id', enabled: false }];
+		const logService = new NullLogService();
+		const warnings = spy(logService, 'warn');
+		const agent = createTestAgent(disposables, { copilotClient: client, logService });
+		const session = AgentSession.uri('copilotcli', 'enablement-reload-failure');
+		const started = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		const calls: string[] = [];
+		setPeerChatStub(agent, URI.parse(buildChatUri(session, 'failed')), {
+			reloadPlugins: async () => { throw new Error('reload failed'); },
+		});
+		setPeerChatStub(agent, URI.parse(buildChatUri(session, 'healthy')), {
+			reloadPlugins: async () => {
+				started.complete();
+				await finish.p;
+				calls.push('reloaded');
+			},
+		});
+		try {
+			const operation = agent.setPluginEnabled('source-id', true).then(() => calls.push('completed'));
+			await started.p;
+			const callsBeforeReload = [...calls];
+			finish.complete();
+			await operation;
+			assert.deepStrictEqual({ callsBeforeReload, calls, enabled: client.pluginInstallations[0].enabled, warned: warnings.calledOnce }, {
+				callsBeforeReload: [],
+				calls: ['reloaded', 'completed'],
+				enabled: true,
+				warned: true,
+			});
+		} finally {
+			finish.complete();
+			warnings.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('reloads committed plugin changes after a busy chat finishes its turn', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [{ name: 'canvas', marketplace: '', directSourceId: 'source-id', enabled: true }];
+		const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()) });
+		const { session } = createAgentSessionThroughAgent(agent, instantiationService);
+		setLiveChatStub(agent, session.sessionId, session);
+		const reloaded = new DeferredPromise<void>();
+		const flush = stub(session, 'flushPendingPluginReload').callsFake(async () => {
+			if (!session.hasActiveTurn) {
+				reloaded.complete();
+			}
+		});
+		try {
+			await session.initializeSession();
+			session.resetTurnState('busy-turn');
+			await agent.setPluginEnabled('source-id', false);
+			const reloadedWhileBusy = reloaded.isSettled;
+			session.discardActiveTurn();
+			await reloaded.p;
+			assert.deepStrictEqual({ reloadedWhileBusy, enabled: client.pluginInstallations[0].enabled, flushCalls: flush.callCount }, {
+				reloadedWhileBusy: false,
+				enabled: false,
+				flushCalls: 2,
+			});
+		} finally {
+			flush.restore();
 			await disposeAgent(agent);
 		}
 	});

@@ -306,7 +306,7 @@ export class EnablementDropDownAction extends Action {
 		super(id, undefined, 'extension-action label action-dropdown');
 		this.subActions = subActions;
 		for (const a of subActions) {
-			a.onDidChange(() => this._updateDropdown());
+			this._register(a.onDidChange(() => this._updateDropdown()));
 		}
 		this._updateDropdown();
 	}

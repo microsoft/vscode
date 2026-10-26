@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { IObservable, transaction } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -109,13 +109,17 @@ export async function setAgentPluginEnablement(plugin: IAgentPlugin, model: IEna
 			if (model.canSetEnabled?.(key, state) === false) {
 				throw rejected();
 			}
-			model.setEnabled(key, state);
+			transaction(tx => {
+				model.setDefaultEnabled?.(key, enabled, tx);
+				model.setEnabled(key, state, tx);
+			});
 			if (model.readProfileEnabled(key) !== enabled || isContributionEnabled(model.readEnabled(key)) !== enabled) {
 				throw rejected();
 			}
 		} catch (error) {
 			try {
 				await plugin.setEnabled(previousEnabled);
+				model.setDefaultEnabled?.(key, previousEnabled);
 			} catch (rollbackError) {
 				throw new AggregateError([error, rollbackError], localize('pluginEnablementRollbackFailed', "Plugin '{0}' enablement was rejected and its runtime state could not be restored.", plugin.label));
 			}
