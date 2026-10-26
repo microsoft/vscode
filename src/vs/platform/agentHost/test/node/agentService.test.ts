@@ -7438,7 +7438,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('with the real schema, a chat\'s own approvals and mode are validated, persisted and read through its chain, and an older client\'s session edit stays under them', async () => {
+		test('with the real schema, a chat\'s own approvals and mode are validated, persisted and read through its chain, and an older client\'s session edit changes only the default chat', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new class extends MockAgent {
 				override async createChat(): Promise<void> { }
@@ -7481,8 +7481,8 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				results: ['applied', 'Session configuration \'isolation\' cannot be set for a chat.', 'applied', 'applied'],
 				session: ['plan', 'assisted'],
-				// The default chat's own mode shadows the older client's session edit; its approvals follow the session.
-				defaultChat: ['autopilot', 'assisted'],
+				// A session edit is the default chat's too: it replaces the default chat's own mode.
+				defaultChat: ['plan', 'assisted'],
 				peer: ['plan', 'autoApprove'],
 				subagent: ['plan', 'autoApprove'],
 				persisted: { [SessionConfigKey.Mode]: 'plan', [SessionConfigKey.AutoApprove]: 'autoApprove' },
@@ -35424,6 +35424,41 @@ suite('AgentService (node dispatcher)', () => {
 				await timeout(0);
 				return { db, service, agent, source, target, peer, folder };
 			}
+
+			/** The `chat/moved` actions dispatched while `run` runs. */
+			async function chatMovedDuring(service: AgentService, run: () => Promise<unknown>): Promise<unknown[]> {
+				const announced: unknown[] = [];
+				const listener = getStateManager(service).onDidEmitEnvelope(envelope => {
+					if (envelope.action.type === ActionType.ChatMoved) {
+						announced.push({ channel: envelope.channel, action: envelope.action });
+					}
+				});
+				try {
+					await run();
+				} finally {
+					listener.dispose();
+				}
+				return announced;
+			}
+
+			test('a chat moved to another session, or promoted to a new one, announces chat/moved; a reorder does not', async () => {
+				const { service, source, target, peer } = await setupMove();
+				const other = URI.parse(buildChatUri(target, 'other'));
+				await service.createChat(target, other);
+				await timeout(0);
+
+				const moved = await chatMovedDuring(service, () => service.moveChat(source, peer, { kind: 'session', session: target, after: undefined }));
+				const reordered = await chatMovedDuring(service, () => service.moveChat(target, peer, { kind: 'session', session: target, after: other }));
+				completeTurn(service, peer);
+				let promotedSession: URI | undefined;
+				const promoted = await chatMovedDuring(service, async () => { promotedSession = await service.moveChat(target, peer, { kind: 'newSession' }); });
+
+				assert.deepStrictEqual({ moved, reordered, promoted }, {
+					moved: [{ channel: peer.toString(), action: { type: ActionType.ChatMoved, session: target.toString() } }],
+					reordered: [],
+					promoted: [{ channel: peer.toString(), action: { type: ActionType.ChatMoved, session: promotedSession!.toString() } }],
+				});
+			});
 
 			test('a moved chat snapshots new attachments in its own storage and keeps reading those of the session it came from', async () => {
 				const { service, agent, source, target, peer } = await setupMove();

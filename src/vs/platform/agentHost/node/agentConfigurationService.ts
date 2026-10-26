@@ -438,6 +438,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				}
 				this._onDidRootConfigChange.fire();
 			} else if (envelope.action.type === ActionType.SessionConfigChanged) {
+				const clearedDefaultChatKeys = this._clearDefaultChatOwnValues(envelope.channel, envelope.action.replace ? [...new Set([...Object.keys(envelope.action.config), ...(this._reducedChanges.get(envelope.channel) ?? [])])] : Object.keys(envelope.action.config));
 				const sandboxConfigChanged = Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled);
 				if (sandboxConfigChanged && !this._sandboxRollbackActions.has(envelope.action)) {
 					// A new selection for the chats that take the session's.
@@ -462,7 +463,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 					config: envelope.action.config,
 					origin: envelope.origin,
 				}, changedKeys);
-				this._syncDefaultChatConfig(envelope.channel);
+				this._syncDefaultChatConfig(envelope.channel, clearedDefaultChatKeys);
 			} else if (envelope.action.type === ActionType.ChatConfigChanged) {
 				const session = this._stateManager.getChatOwner(envelope.channel);
 				if (chatConfigCompletionActions.has(envelope.action)) {
@@ -791,6 +792,40 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		this._stateManager.dispatchServerAction(chat, action);
 	}
 
+	/**
+	 * A session config write changes the session's default chat too: the default chat's own values of the written
+	 * properties it may set are dropped, so it takes the session's again (session-level pickers are its pickers). Peers,
+	 * forks and side chats keep theirs. Host-reported (read-only) properties are not the default chat's choice and stay.
+	 * Returns whether any own value was dropped.
+	 */
+	private _clearDefaultChatOwnValues(session: ProtocolURI, keys: readonly string[]): boolean {
+		const chat = this._stateManager.getDefaultChat(session);
+		const schema = this._stateManager.getSessionState(session)?.config?.schema;
+		const values = chat === undefined ? undefined : this._stateManager.getChatConfig(chat)?.values;
+		if (chat === undefined || !schema || !values || this._ownChatSchema(chat) || this._chatConfigSeeds.has(chat)) {
+			return false;
+		}
+		const own = this._ownChatValues(chat) ?? {};
+		const cleared = keys.filter(key => isChatConfigProperty(schema, key) && schema.properties[key]?.readOnly !== true && Object.hasOwn(own, key));
+		if (cleared.length === 0) {
+			return false;
+		}
+		let inherited = this._inheritedChatKeys.get(chat);
+		if (!inherited) {
+			inherited = new Set();
+			this._inheritedChatKeys.set(chat, inherited);
+		}
+		for (const key of cleared) {
+			inherited.add(key);
+		}
+		// The own values are cached by the published ones, which have not changed yet.
+		this._ownValues.delete(values);
+		if (cleared.includes(SessionConfigKey.SandboxEnabled)) {
+			this._chatSandboxUserSelections.delete(chat);
+		}
+		return true;
+	}
+
 	getChatPersistedConfigValues(chat: ProtocolURI): Readonly<Record<string, unknown>> | undefined {
 		return this._chatConfigSeeds.has(chat) ? this._stateManager.getChatConfig(chat)?.values : this._ownChatValues(chat);
 	}
@@ -809,7 +844,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	 * Publishes a session's default chat's complete values: the session's values of the properties a chat may set that
 	 * the default chat has not set itself, with its own over them (see {@link _inheritedChatKeys}).
 	 */
-	private _syncDefaultChatConfig(session: ProtocolURI): void {
+	private _syncDefaultChatConfig(session: ProtocolURI, force = false): void {
 		const chat = this._stateManager.getDefaultChat(session);
 		if (chat === undefined || !this._stateManager.getSessionState(session)?.config || this._stateManager.getChatOwner(chat) === undefined || this._ownChatSchema(chat)) {
 			return;
@@ -819,7 +854,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const next = { ...inheritedValues, ...own };
 		const current = this._stateManager.getChatConfig(chat)?.values;
 		this._inheritedChatKeys.set(chat, new Set(Object.keys(inheritedValues)));
-		if (current && equals(current, next)) {
+		// Forced when the chat's own values changed but its published ones did not, so that they are persisted.
+		if (!force && current && equals(current, next)) {
 			return;
 		}
 		const action = { type: ActionType.ChatConfigChanged as const, config: next, replace: true };

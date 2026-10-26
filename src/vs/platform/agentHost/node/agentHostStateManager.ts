@@ -1902,6 +1902,7 @@ export class AgentHostStateManager extends Disposable {
 		const order = this._sessionStates.get(target)!.state.chats.map(summary => summary.resource).filter(chat => !moved.has(chat));
 		order.splice(after === undefined ? 0 : order.indexOf(after) + 1, 0, ...chats);
 		this.dispatchServerAction(target, { type: ActionType.SessionChatsReordered, chats: order });
+		this._announceChatsMoved(chats, target);
 		for (const chat of chats) {
 			// Added before it is removed, so the active-session count never drops to zero while the turn runs.
 			if (this._sessionsWithActiveTurn.get(source)?.has(chat)) {
@@ -1972,6 +1973,7 @@ export class AgentHostStateManager extends Disposable {
 		const order = this._sessionStates.get(target)!.state.chats.map(summary => summary.resource).filter(chat => !moved.has(chat));
 		order.splice(after === undefined ? 0 : order.indexOf(after) + 1, 0, ...chats);
 		this.dispatchServerAction(target, { type: ActionType.SessionChatsReordered, chats: order });
+		this._announceChatsMoved(chats, target);
 		for (const chat of chats) {
 			// Added before the source ends, so the active-session count never drops to zero while the turn runs.
 			if (this._sessionsWithActiveTurn.get(source)?.has(chat)) {
@@ -2030,6 +2032,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 		this._applySessionAggregate(target, summaries);
 		this._emitSessionAdded(this._toSummary(target, this._sessionStates.get(target)!));
+		this._announceChatsMoved(chats, target);
 		this._applySessionAggregate(source, this._sessionStates.get(source)!.state.chats);
 	}
 
@@ -2039,6 +2042,29 @@ export class AgentHostStateManager extends Disposable {
 		const { provider: _previous, ...summary } = entry.state ? chatSummaryFromState(entry.state) : entry.summary;
 		const provider = ownChatProvider(targetProvider, entry.provider);
 		return provider !== undefined ? { ...summary, provider } : summary;
+	}
+
+	/**
+	 * Tells each moved chat's subscribers its new owner (`chat/moved`, from protocol 1.1.0): its provider when it differs
+	 * from its new session's, and its own config schema, if any. A chat whose state is not materialized has no subscribers;
+	 * its snapshot is taken under its new owner.
+	 */
+	private _announceChatsMoved(chats: readonly URI[], target: URI): void {
+		const targetProvider = this._sessionStates.get(target)?.state.provider;
+		for (const chat of chats) {
+			const entry = this._chatEntries.get(chat);
+			if (!entry?.state) {
+				continue;
+			}
+			const provider = ownChatProvider(targetProvider, entry.provider);
+			const schema = entry.ownConfigSchema;
+			this.dispatchServerAction(chat, {
+				type: ActionType.ChatMoved,
+				session: target,
+				...(provider !== undefined ? { provider } : {}),
+				...(schema !== undefined ? { schema } : {}),
+			});
+		}
 	}
 
 	private _inTransfer(chats: readonly URI[], transfer: () => void): void {
@@ -2862,6 +2888,10 @@ export class AgentHostStateManager extends Disposable {
 			if (chat && chatEntry && sessionKey !== undefined) {
 				const newChat = chatReducer(chat, chatAction, this._log);
 				chatEntry.state = newChat;
+				if (chatAction.type === ActionType.ChatMoved) {
+					// Its values are unchanged; only the schema it publishes follows its new owner.
+					chatEntry.config = newChat.config;
+				}
 				if (chatAction.type === ActionType.ChatConfigChanged) {
 					const previous = chatEntry.config;
 					chatEntry.config = newChat.config;

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -361,6 +361,48 @@ suite('AgentService - chats with their own agent', () => {
 		});
 	});
 
+	suite('a turn\'s model', () => {
+		const modelInfo = (provider: string, id: string) => ({ provider, id, name: id, maxContextWindow: 1000, supportsVision: false });
+
+		/** Starts a turn and resolves once `agent` was sent its message. */
+		function sendTurn(service: AgentService, agent: MockAgent, chat: URI, model: string): Promise<unknown> {
+			const sent = Event.toPromise(agent.onDidSendMessage);
+			service.dispatchAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: `turn-${model}`, startedAt: new Date().toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: model } } }, 'test-client', 1);
+			return sent;
+		}
+
+		test('a chat on another agent keeps its model for a model only its session\'s agent offers, and takes one its agent offers', async () => {
+			const { service, copilot, second } = createService(true);
+			copilot.setModels([modelInfo('copilot', 'copilot-model')]);
+			second.setModels([modelInfo('second', 'second-model')]);
+			const { chat } = await createSessionWithSecondChat(service);
+
+			await sendTurn(service, second, chat, 'copilot-model');
+			const ignored = { changed: second.changeModelCalls.map(call => call.model.id), sent: second.sendMessageCalls.length };
+			second.sendMessageCalls.length = 0;
+			getTestAgentStateManager(service).dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'turn-copilot-model', duration: 1 });
+			await sendTurn(service, second, chat, 'second-model');
+
+			assert.deepStrictEqual({ ignored, applied: second.changeModelCalls.map(call => call.model.id), copilot: copilot.changeModelCalls.length }, {
+				ignored: { changed: [], sent: 1 },
+				applied: ['second-model'],
+				copilot: 0,
+			});
+		});
+
+		test('a chat on its session\'s agent takes any model, as before', async () => {
+			const { service, copilot } = createService(true);
+			copilot.setModels([modelInfo('copilot', 'copilot-model')]);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			await service.createChat(session, chat);
+
+			await sendTurn(service, copilot, chat, 'unknown-model');
+
+			assert.deepStrictEqual(copilot.changeModelCalls.map(call => call.model.id), ['unknown-model']);
+		});
+	});
+
 	test('disposing a session disposes its chats in their own agents', async () => {
 		const { service, copilot, second } = createService(true);
 		const { session, chat } = await createSessionWithSecondChat(service);
@@ -557,31 +599,50 @@ suite('AgentService - chats with their own agent', () => {
 	});
 
 	test('a chat with its own agent keeps it when moved to a session of another agent; a chat that would gain or lose its own agent is refused', async () => {
-		const { service } = createService(true);
+		const { service, second } = createService(true);
 		getTestAgentServiceComposition(service).configurationService.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 		const { session: source, chat } = await createSessionWithSecondChat(service);
 		const copilotTarget = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 		const secondTarget = await service.createSession({ legacyChatUris: true, provider: 'second', workingDirectories: [URI.file('/repo')] });
 		const native = URI.parse(buildChatUri(source, 'native'));
 		await service.createChat(source, native);
-		await timeout(0);
+		const subagent = URI.parse(buildChatUri(source, 'subagent'));
+		second.spawnEmitter.fire({ session: source, chat: subagent, parent: { chat, toolCallId: 'tool-1' }, title: 'Worker' });
+		await timeout(10);
 
 		const refusedNative = await service.moveChat(source, native, { kind: 'session', session: secondTarget, after: undefined }).then(() => 'moved', (error: { reason?: string }) => error.reason);
 		const refusedToOwnAgent = await service.moveChat(source, chat, { kind: 'session', session: secondTarget, after: undefined }).then(() => 'moved', (error: { reason?: string }) => error.reason);
+		const announced: unknown[] = [];
+		const listener = getTestAgentStateManager(service).onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChatMoved) {
+				announced.push({ channel: envelope.channel, action: envelope.action });
+			}
+		});
 		await service.moveChat(source, chat, { kind: 'session', session: copilotTarget, after: undefined });
+		listener.dispose();
+		const ownSchema = getTestAgentStateManager(service).getChatOwnConfigSchema(chat.toString());
 
 		assert.deepStrictEqual({
 			refusedNative,
 			refusedToOwnAgent,
 			movedProvider: chatSummary(service, copilotTarget, chat)?.provider,
 			chatAgent: getTestAgentHostProviderService(service).getProviderForChat(copilotTarget, chat)?.id,
-			configSchema: getTestAgentStateManager(service).getChatOwnConfigSchema(chat.toString()) !== undefined,
+			configSchema: ownSchema !== undefined,
+			announced,
+			chatState: { provider: getTestAgentStateManager(service).getChatState(chat.toString())?.provider, schema: getTestAgentStateManager(service).getChatState(chat.toString())?.config?.schema === ownSchema },
 		}, {
 			refusedNative: 'differentProvider',
 			refusedToOwnAgent: 'differentProvider',
 			movedProvider: 'second',
 			chatAgent: 'second',
 			configSchema: true,
+			// Its subscribers learn its new owner, and that it keeps its own agent and schema there.
+			// Its subagent moves with it; it has no config schema of its own.
+			announced: [
+				{ channel: chat.toString(), action: { type: ActionType.ChatMoved, session: copilotTarget.toString(), provider: 'second', schema: ownSchema } },
+				{ channel: subagent.toString(), action: { type: ActionType.ChatMoved, session: copilotTarget.toString(), provider: 'second' } },
+			],
+			chatState: { provider: 'second', schema: true },
 		});
 	});
 });

@@ -292,6 +292,27 @@ suite('AgentConfigurationService', () => {
 			assert.deepStrictEqual(events, ['default level,limit', 'peer limit', 'peer level,limit']);
 		});
 
+		test('a session write replaces the default chat\'s own value of a property it may set, persisted cleared; a peer keeps its own', async () => {
+			setUpSession({ level: 'low', limit: 1 });
+			await Promise.resolve();
+			service.updateChatConfig({ session, chat: defaultChat }, { level: 'high' });
+			const before = { effective: effective(defaultChat), persisted: service.getChatPersistedConfigValues(defaultChat) };
+			manager.dispatchClientAction(session, { type: ActionType.SessionConfigChanged, config: { level: 'low' } }, { clientId: 'client', clientSeq: 1 });
+			assert.deepStrictEqual({
+				before,
+				effective: effective(defaultChat),
+				published: manager.getChatConfig(defaultChat)?.values,
+				persisted: service.getChatPersistedConfigValues(defaultChat),
+				peer: [effective(peer), service.getChatOwnConfigValues({ session, chat: peer })],
+			}, {
+				before: { effective: 'high', persisted: { level: 'high' } },
+				effective: 'low',
+				published: { level: 'low' },
+				persisted: {},
+				peer: ['high', { level: 'high' }],
+			});
+		});
+
 		test('a seed gives a chat being created its values until it is registered', () => {
 			setUpSession({ level: 'low' });
 			const fork = buildChatUri(session, 'fork');
