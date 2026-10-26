@@ -446,7 +446,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			// Not a move, such as to another group or window, nor an editor that is replaced.
 			windowDisposables.add(editorGroup.onDidCloseEditor(e => {
 				if (shouldCloseEditorArea({ areaIsEmpty: editorGroup.isEmpty, isMove: e.context === EditorCloseContext.MOVE, windowIsChanging: this._replacing.has(window) || windowDisposables.isDisposed })) {
-					window.setLayout(ChatWindowLayout.ChatOnly);
+					window.setLayout(SessionLayoutMode.ChatOnly);
 				}
 			}));
 			// Its empty editor area offers the same Add Tab actions as the main window's. The terminal row, which holds terminals only, does not.
