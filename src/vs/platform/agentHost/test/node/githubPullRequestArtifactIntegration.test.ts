@@ -354,7 +354,7 @@ suite('GitHub pull request artifact integration', () => {
 		const snapshot = {
 			...base,
 			checks: { ...base.checks, value: { ...base.checks.value!, checks: [] } },
-			mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeable: 'CONFLICTING' } },
+			mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeable: 'CONFLICTING' as const } },
 		};
 		const f = await fixture(store, snapshot);
 		const details = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'main'));
