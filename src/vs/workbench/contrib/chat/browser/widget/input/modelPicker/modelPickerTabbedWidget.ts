@@ -1147,6 +1147,11 @@ export class TabbedModelPicker extends Disposable {
 
 	/** HydraFusion's rows: one standing for its tiers when it has them, else one per model. */
 	private _hydraFusionRowModels(context: ITabbedModelPickerContext): readonly ILanguageModelChatMetadataAndIdentifier[] {
+		// HydraFusion is one of Fusion's effort levels, so a Fusion that offers none here, as in inline chat, offers no HydraFusion either.
+		const auto = this._autoModel(context);
+		if (auto?.metadata.autoModelFusion && !getModelConfigProperty(auto, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)) {
+			return [];
+		}
 		const tiers = this._hydraFusionTiers(context);
 		return tiers.length ? [this._hydraFusionRowModel(tiers, context)] : this._hydraFusionModels(context);
 	}

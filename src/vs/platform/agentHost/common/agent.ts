@@ -944,6 +944,11 @@ export interface IAgentCreateChatOptions {
 	 */
 	readonly hasScopedEditSurface?: boolean;
 	/**
+	 * Whether the owning chat surface is an inline chat (editor or terminal), where
+	 * latency matters more than routing depth, so Copilot Fusion runs at its fast tier.
+	 */
+	readonly isInlineChatSurface?: boolean;
+	/**
 	 * Authoritative initial title supplied to host creation. When present, it
 	 * takes precedence over a generated fork placeholder; explicit provenance
 	 * determines whether automatic title replacement is allowed.

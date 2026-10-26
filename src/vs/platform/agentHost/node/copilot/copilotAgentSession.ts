@@ -3897,6 +3897,11 @@ export class CopilotAgentSession extends Disposable {
 		return this._launchPlan.workspaceless === true;
 	}
 
+	/** Whether this chat's surface is an inline chat, editor or terminal. */
+	get isInlineChatSurface(): boolean {
+		return this._launchPlan.isInlineChatSurface === true;
+	}
+
 	get customizationDirectory(): URI | undefined {
 		return this._customizationDirectory;
 	}

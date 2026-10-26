@@ -30138,6 +30138,35 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('createSession marks editor and terminal inline chat surfaces for the provider', async () => {
+			class OptionsAgent extends MockAgent {
+				readonly createChatOptions: (IAgentCreateChatOptions | undefined)[] = [];
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => {
+						this.createChatOptions.push(options);
+						return base.createChat(chat, context, options);
+					},
+				}));
+			}
+			const agent = disposables.add(new OptionsAgent('copilot'));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, agent);
+
+			for (const _meta of [
+				withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId: 'typescript' }),
+				withChatSurfaceMeta(undefined, { surface: 'terminal', shellType: 'zsh', osName: 'macOS' }),
+				undefined,
+			]) {
+				await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')], _meta });
+			}
+
+			assert.deepStrictEqual(agent.createChatOptions.map(options => ({ hasScopedEditSurface: options?.hasScopedEditSurface, isInlineChatSurface: options?.isInlineChatSurface })), [
+				{ hasScopedEditSurface: true, isInlineChatSurface: true },
+				{ hasScopedEditSurface: undefined, isInlineChatSurface: true },
+				{ hasScopedEditSurface: undefined, isInlineChatSurface: undefined },
+			]);
+		});
+
 		test('ephemeral session teardown clears its discovery tombstone', async () => {
 			const perSession = createPerSessionDataService();
 			const agent = disposables.add(new MockAgent('copilot'));

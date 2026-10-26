@@ -335,6 +335,8 @@ interface IProvisionalSession {
 	readonly isEphemeral: boolean;
 	/** Whether the owning chat surface is scoped to editing a single file. */
 	readonly hasScopedEditSurface: boolean;
+	/** Whether the owning chat surface is an inline chat, editor or terminal. */
+	readonly isInlineChatSurface: boolean;
 	/**
 	 * Folder the user picked at create time. Used as both the
 	 * pre-worktree working directory and the customization directory
@@ -5838,6 +5840,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				chat,
 				isEphemeral: options.isEphemeral === true,
 				hasScopedEditSurface: options.hasScopedEditSurface === true,
+				isInlineChatSurface: options.isInlineChatSurface === true,
 				workingDirectory,
 				workingDirectories: options.workingDirectories,
 				model: options.model,
@@ -6611,6 +6614,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				sessionId: sdkSessionId,
 				isEphemeral: provisional.isEphemeral,
 				hasScopedEditSurface: provisional.hasScopedEditSurface,
+				isInlineChatSurface: provisional.isInlineChatSurface,
 				workingDirectory,
 				additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
 				resolvedAgentName: resolvedAgent?.name,
@@ -8162,6 +8166,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					chat,
 					isEphemeral: false,
 					hasScopedEditSurface: false,
+					isInlineChatSurface: false,
 					workingDirectory: metadata.workingDirectory,
 					workingDirectories: metadata.workingDirectories,
 					model: backing.model ?? metadata.model,
@@ -8625,7 +8630,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const omittedContextDefault = model.config?.[ContextSizeConfigKey] !== undefined && requestedModel.config?.[ContextSizeConfigKey] === undefined;
 		// Clear stale SDK preferences when a selection or an override is removed.
 		const autoTier = isAutoModel(model.id)
-			? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, context.ownerSessionId) ?? (hasCopilotManagedAutoPreference(policy) ? undefined : null)
+			? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, context.ownerSessionId, entry.isInlineChatSurface) ?? (hasCopilotManagedAutoPreference(policy) ? undefined : null)
 			: undefined;
 		await entry.setModel(model.id, resolveCopilotReasoningEffort(requestedModel, this._configurationService, this._logService, context.ownerSessionId), omittedContextDefault ? undefined : getCopilotContextTier(requestedModel, longContextWindow, freeLongContext), autoTier, model);
 		this._pendingModelSelections.delete(context.chatKey);

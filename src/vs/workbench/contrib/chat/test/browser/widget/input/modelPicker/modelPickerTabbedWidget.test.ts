@@ -42,7 +42,7 @@ import { StateType } from '../../../../../../../../platform/update/common/update
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
-import type { IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { withoutFusionEffortLevel, type IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
 import { IModelPickerComparison, IModelPickerComparisonState, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
 import { createLocalModelPickerPresentation, IModelPickerLocalModels } from '../../../../../browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
@@ -1701,6 +1701,28 @@ suite('TabbedModelPicker', () => {
 		const result = createPicker({ models: [...models, providerFusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: models[0].identifier });
 		openDetails(result.popup, copilotFusionName);
 		assert.deepStrictEqual(autoTiers(result.popup), ['Standard', 'High']);
+	});
+
+	test('where Fusion offers no effort level, as in inline chat, it shows no level, offers none, and offers no HydraFusion', () => {
+		const fusion = createFusionModel();
+		const available = [...models, fusion, createHydraFusionModel(), createHydraFusionMaxModel()];
+		const values = new Map<string, IStringDictionary<unknown>>([[fusion.identifier, { tier: 'hydrafusion' }]]);
+		const access = withoutFusionEffortLevel({
+			getModelConfiguration: id => values.get(id),
+			getModelConfigurationActions: () => [],
+			setModelConfiguration: async (id, next) => { values.set(id, { ...values.get(id), ...next }); },
+		}, id => available.find(model => model.identifier === id)?.metadata);
+		const result = createPicker({ models: available, access, selectedModelId: models[0].identifier });
+		const fusionRow = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === copilotFusionName)!;
+		const row = { readout: fusionRow.querySelector('.action-label')?.textContent, ariaLabel: fusionRow.getAttribute('aria-label') };
+		const rows = listRows(result.popup);
+		openDetails(result.popup, copilotFusionName);
+		assert.deepStrictEqual({ rows, row, tiers: autoTiers(result.popup), saved: values.get(fusion.identifier) }, {
+			rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'],
+			row: { readout: 'Details', ariaLabel: 'Copilot Fusion, 10% discount, Picks or combines the best models for your task' },
+			tiers: [],
+			saved: { tier: 'hydrafusion' },
+		});
 	});
 
 	test('a chat on a HydraFusion model is shown on the provider tier of the same name, which moves it to Fusion', async () => {
