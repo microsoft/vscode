@@ -153,6 +153,22 @@ suite('ModelCard', () => {
 		return Array.from(card.element.querySelectorAll('[role="radio"][aria-checked="true"]'), option => option.textContent ?? '');
 	}
 
+	test('an unspecified effort remains unchecked until the user chooses it', async () => {
+		let accepted = new DeferredPromise<void>();
+		const model = createModel({ configurationSchema: { properties: { reasoningEffort: { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'] } } } });
+		const fixture = createCard({}, { model, onDidAccept: () => accepted.complete() });
+		const before = { selected: selectedOptions(fixture.card), value: fixture.card.element.querySelector('.chat-model-card-section-value')?.textContent };
+		element(fixture.card.element, '[role="radio"]').click();
+		await accepted.p;
+		const after = selectedOptions(fixture.card);
+		accepted = new DeferredPromise<void>();
+		element(fixture.card.element, '[aria-label="Reset to Default"]').click();
+		await accepted.p;
+		assert.deepStrictEqual({ before, after, reset: selectedOptions(fixture.card), writes: fixture.writes }, {
+			before: { selected: [], value: 'Model default' }, after: ['Low'], reset: [], writes: [{ reasoningEffort: 'low' }, { reasoningEffort: undefined }],
+		});
+	});
+
 	/** The option labels of the first segmented control, split where a row break sits. */
 	function segmentRows(card: ModelCard): string[][] {
 		const rows: string[][] = [[]];

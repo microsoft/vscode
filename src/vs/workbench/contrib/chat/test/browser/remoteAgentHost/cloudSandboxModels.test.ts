@@ -72,6 +72,20 @@ suite('CloudSandboxModels', () => {
 		}, { loaded: ['host-model', 'claude-sonnet-4.6'], duringRefresh: ['host-model'], afterDispose: ['host-model'], prices: [5, undefined, undefined] });
 	});
 
+	test('keeps draft context fallback out of the connected catalogue', async () => {
+		const host = store.add(new AgentHostLanguageModelProvider('sandbox', 'sandbox'));
+		host.updateModels([{ id: 'host-model', name: 'Host Model', provider: 'copilot' }]);
+		const fixture = setup(async () => ({ models: [{ id: 'host-model', name: 'Host Model', provider: 'copilot' }] }));
+		const connected = fixture.createCatalog('connected', host);
+		const ready = Promise.all([fixture.catalog, connected].map(catalog => Event.toPromise(Event.filter(catalog.onDidChange, () => catalog.ready))));
+		fixture.catalog.load();
+		await ready;
+		assert.deepStrictEqual({
+			draft: fixture.catalog.models[0].metadata.configurationSchema?.properties?.contextTier.enum,
+			connected: connected.models[0].metadata.configurationSchema?.properties?.contextTier,
+		}, { draft: ['default', 'long_context'], connected: undefined });
+	});
+
 	test('coalesces reads and caches the catalog until the account changes', async () => {
 		let calls = 0;
 		const { catalog, createCatalog, accounts } = setup(async () => ({

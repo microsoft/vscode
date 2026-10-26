@@ -34,6 +34,7 @@ import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSa
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { ModelCard } from '../../../browser/widget/input/modelPicker/modelPickerCard.js';
 import { createModelAction } from '../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
+import { getModelConfigSummary } from '../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { EnvironmentsClient } from '../../../../../../platform/github/common/missionControl/environmentsClient.js';
@@ -1489,6 +1490,57 @@ suite('CloudSandboxApiService connection credentials', () => {
 			autoMultiplier: undefined,
 			titles: ['Effort Level', 'Max context', 'Pricing details'],
 			prices: [{ label: 'Input', value: '200' }, { label: 'Output', value: '1000' }, { label: 'Cache Read', value: '10' }],
+		});
+	});
+
+	test('requests versioned cloud limits and switches the context tier and displayed prices together', async () => {
+		let apiVersion: string | string[] | undefined;
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: (_url, _token, options) => {
+				apiVersion = options.headers?.['X-GitHub-Api-Version'];
+				return jsonResponse({
+					data: [{
+						id: 'context-model', name: 'Context Model',
+						billing: {
+							token_prices: {
+								batch_size: 1_000_000,
+								default: { context_max: 272_000, input_price: 200, output_price: 1000, cache_price: 10, cache_write_price: 250 },
+								long_context: { context_max: 922_000, input_price: 400, output_price: 1500, cache_price: 20, cache_write_price: 500 },
+							}
+						},
+						capabilities: { limits: { max_context_window_tokens: 1_050_000 }, supports: { reasoning_effort: ['low', 'medium', 'high'] } },
+					}]
+				});
+			},
+		});
+		const catalog = await service.listModels(CancellationToken.None);
+		const provider = store.add(new AgentHostLanguageModelProvider('cloud-sandbox', 'cloud-models'));
+		provider.updateAdditionalModels(catalog.models);
+		const [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const values: Record<string, unknown> = {};
+		const accepted = new DeferredPromise<void>();
+		const configurationAccess = {
+			getModelConfiguration: () => values,
+			setModelConfiguration: async (_id: string, next: Record<string, unknown>) => { Object.assign(values, next); },
+			getModelConfigurationActions: () => [],
+		};
+		const card = store.add(new ModelCard({ model, isUBB: true, openerService: NullOpenerService, configurationAccess, onDidAccept: () => accepted.complete() }));
+		const snapshot = () => ({
+			selected: Array.from(card.element.querySelectorAll('[aria-checked="true"]'), element => element.textContent),
+			prices: Array.from(card.element.querySelectorAll('.chat-model-card-pricing-value'), element => element.textContent),
+			summary: getModelConfigSummary(model, configurationAccess),
+		});
+		const before = snapshot();
+		const longContext = card.element.querySelector<HTMLElement>('[aria-label="Context Size"] [role="radio"]:last-child');
+		assert.ok(longContext);
+		longContext.click();
+		await accepted.p;
+		assert.deepStrictEqual({ apiVersion, before, after: snapshot(), values }, {
+			apiVersion: '2026-06-01',
+			before: { selected: ['272K'], prices: ['200', '1000', '10', '250'], summary: 'Model default · 272K' },
+			after: { selected: ['1M'], prices: ['400', '1500', '20', '500'], summary: 'Model default · 1M' },
+			values: { contextTier: 'long_context' },
 		});
 	});
 

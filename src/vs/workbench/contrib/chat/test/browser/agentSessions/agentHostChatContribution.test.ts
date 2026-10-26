@@ -2463,8 +2463,8 @@ suite('AgentHostChatContribution', () => {
 				});
 			});
 		}
-		for (const config of [{ thinkingLevel: 'low', contextSize: 272_000, tier: 'efficiency' }, { reasoningEffort: 'low', contextTier: 'long_context', autoTier: 'fast' }]) {
-			test(`model config uses its advertised keys on Message.model: ${Object.keys(config).join(', ')}`, async () => {
+		for (const config of [{ thinkingLevel: 'low', contextSize: 272_000, tier: 'efficiency' }, { reasoningEffort: 'low', contextTier: 'long_context', autoTier: 'fast' }, { contextTier: 'default' }, { contextTier: 'long_context' }]) {
+			test(`model config uses its advertised keys on Message.model: ${JSON.stringify(config)}`, async () => {
 				const models = new Map([['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ id: 'auto', name: 'Auto' })]]);
 				const { startRequest } = await openWireSession({ languageModels: models });
 				const { sent, finish } = await startRequest({ userSelectedModelId: 'agent-host-copilot:auto', modelConfiguration: config });

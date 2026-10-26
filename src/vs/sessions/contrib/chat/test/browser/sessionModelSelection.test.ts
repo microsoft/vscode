@@ -16,6 +16,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getSelectedModelStorageKey, storeSelectedModel } from '../../../../../workbench/contrib/chat/common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { isAutomationModelConfiguration } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { buildModelPickerDestinations } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { isInConversationModelChoice, resolveModelIdentifier } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
@@ -405,6 +406,34 @@ suite('SessionModelSelection', () => {
 			}
 		}
 
+		test('allows undefined only in transient model configuration edits', () => {
+			const values = [{ thinkingLevel: undefined }, { thinkingLevel: null }, { thinkingLevel: { value: 'low' } }, { thinkingLevel: NaN }, { thinkingLevel: Infinity }, [], new Date(0)];
+			assert.deepStrictEqual(values.map(value => ({
+				stored: isAutomationModelConfiguration(value), edit: isAutomationModelConfiguration(value, true),
+			})), [
+				{ stored: false, edit: true }, { stored: true, edit: true },
+				{ stored: false, edit: false }, { stored: false, edit: false }, { stored: false, edit: false },
+				{ stored: false, edit: false }, { stored: false, edit: false },
+			]);
+		});
+
+		test('resetting unspecified effort clears the preference before capture and first send', async () => {
+			const service = new ConfigurationService();
+			service.metadata = {
+				...first.metadata,
+				configurationSchema: { properties: { thinkingLevel: { type: 'string', enum: ['low', 'high'] } } },
+			};
+			const configuration = disposables.add(new AutomationModelConfiguration(service));
+			await configuration.setModelConfiguration(first.identifier, { thinkingLevel: 'low' });
+			await configuration.setModelConfiguration(first.identifier, { thinkingLevel: undefined });
+			const captured = configuration.captureModelConfiguration(first.identifier);
+			const reopened = disposables.add(new AutomationModelConfiguration(service, { modelId: first.identifier, modelConfiguration: captured }));
+			assert.deepStrictEqual({
+				captured, sent: configuration.getModelConfigurationForRequest(first.identifier),
+				reopened: reopened.getModelConfigurationForRequest(first.identifier), writes: service.writes,
+			}, { captured: {}, sent: {}, reopened: {}, writes: [{ thinkingLevel: 'low' }, { thinkingLevel: undefined }] });
+		});
+
 		test('host defaults remain implicit until an explicit selection, including the default itself', async () => {
 			const service = new ConfigurationService();
 			service.configuration = {};
@@ -521,6 +550,7 @@ suite('SessionModelSelection', () => {
 			};
 			const locked = configuration.getModelConfiguration(first.identifier);
 			await assert.rejects(configuration.setModelConfiguration(first.identifier, { thinkingLevel: 'low' }), /managed by the agent host/);
+			await assert.rejects(configuration.setModelConfiguration(first.identifier, { thinkingLevel: undefined }), /managed by the agent host/);
 			const captured = configuration.captureModelConfiguration(first.identifier);
 			service.metadata = original;
 			assert.deepStrictEqual({ locked, captured, removed: configuration.getModelConfiguration(first.identifier), writes: service.writes }, {
