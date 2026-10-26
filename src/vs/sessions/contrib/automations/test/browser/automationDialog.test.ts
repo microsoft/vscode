@@ -2221,14 +2221,12 @@ suite('Automation dialog creation', () => {
 		};
 		const expected = {
 			rowVisible: true,
-			content: ['cloud icon', 'Run in the Cloud', 'switch', 'Preview', 'loading spinner'],
 			iconHidden: 'true',
 			accessibleLabel: 'Run in the Cloud',
-			describedBy: 'Preview',
 		};
 		assert.deepStrictEqual({ create: await cloudRow({}), edit: await cloudRow({ existing }) }, {
-			create: { ...expected, disabled: false },
-			edit: { ...expected, disabled: true },
+			create: { ...expected, content: ['cloud icon', 'Run in the Cloud', 'switch', 'Preview', 'loading spinner'], describedBy: 'Preview', disabled: false },
+			edit: { ...expected, content: ['cloud icon', 'Run in the Cloud', 'switch', 'loading spinner'], describedBy: undefined, disabled: true },
 		});
 	});
 

@@ -1127,8 +1127,10 @@ export function renderForm(
 		}
 	}));
 	DOM.append(cloudRow, cloudSwitch.domNode);
-	DOM.append(cloudRow, $('span.automation-cloud-preview', { id: 'automation-cloud-preview' }, localize('automation.form.cloudPreview', "Preview")));
-	cloudSwitch.domNode.setAttribute('aria-describedby', 'automation-cloud-preview');
+	if (!isEdit) {
+		DOM.append(cloudRow, $('span.automation-cloud-preview', { id: 'automation-cloud-preview' }, localize('automation.form.cloudPreview', "Preview")));
+		cloudSwitch.domNode.setAttribute('aria-describedby', 'automation-cloud-preview');
+	}
 	const loadingHoverLifecycleOptions = { groupId: generateUuid() };
 	const cloudLoading = DOM.append(cloudRow, $('.automation-loading-spinner', {
 		role: 'status',
