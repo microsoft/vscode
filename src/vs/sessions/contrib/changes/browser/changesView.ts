@@ -71,7 +71,6 @@ import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEdit
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ISessionChangesService } from './sessionChangesService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { CIStatusWidget } from './checksWidget.js';
 import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
@@ -812,7 +811,6 @@ export class ChangesViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -1079,7 +1077,7 @@ export class ChangesViewPane extends ViewPane {
 		}
 
 		const activeSessionStatusObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.changesViewService.activeSessionObs.read(reader);
 			return activeSession?.status.read(reader);
 		});
 
@@ -1289,7 +1287,7 @@ export class ChangesViewPane extends ViewPane {
 	private _bindContextKeys(topLevelStats: IObservable<{ files: number } | undefined>): void {
 		// Request in progress (can be updated independently since it only affects action enablement, and not visibility)
 		this.renderDisposables.add(bindContextKey(ChatContextKeys.requestInProgress, this.scopedContextKeyService, reader => {
-			const activeSessionStatus = this.sessionsService.activeSession.read(reader)?.status.read(reader);
+			const activeSessionStatus = this.changesViewService.activeSessionObs.read(reader)?.status.read(reader);
 			return activeSessionStatus !== SessionStatus.Completed && activeSessionStatus !== SessionStatus.Error;
 		}));
 
@@ -1465,7 +1463,7 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private getActiveChangesetWorkspace(reader: IReader | undefined): ISessionWorkspace | undefined {
-		const activeSession = this.sessionsService.activeSession.read(reader);
+		const activeSession = this.changesViewService.activeSessionObs.read(reader);
 		if (this.changesViewService.activeSessionChangesetObs.read(reader)?.id === SESSION_CHANGES_CHANGESET_ID) {
 			return activeSession?.workspace.read(reader);
 		}
@@ -1738,7 +1736,7 @@ export class ChangesViewPane extends ViewPane {
 		}
 
 		const isAgentHostSessionObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.changesViewService.activeSessionObs.read(reader);
 			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
 		});
 
