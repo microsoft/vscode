@@ -77,7 +77,8 @@ export interface IDocumentDiff {
 	readonly moves: readonly MovedText[];
 
 	/**
-	 * Whether applying the changes to the original reproduces the modified text, if it was checked.
+	 * Whether applying the changes to the original reproduces the modified text.
+	 * Only set if verification was requested, which happens for a sample of diffs.
 	 */
 	readonly validity?: LinesDiffValidity;
 }

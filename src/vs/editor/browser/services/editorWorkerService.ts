@@ -107,9 +107,9 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		return worker.$computeUnicodeHighlights(uri.toString(), options, range);
 	}
 
-	public async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> {
+	public async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName, verify?: boolean): Promise<IDocumentDiff | null> {
 		const worker = await this._workerWithResources([original, modified], /* forceLargeModels */true);
-		const result = await worker.$computeDiff(original.toString(), modified.toString(), options, algorithm);
+		const result = await worker.$computeDiff(original.toString(), modified.toString(), options, algorithm, verify);
 		if (!result) {
 			return null;
 		}

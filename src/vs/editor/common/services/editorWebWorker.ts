@@ -122,7 +122,7 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public async $computeDiff(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDiffComputationResult | null> {
+	public async $computeDiff(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName, verify: boolean = false): Promise<IDiffComputationResult | null> {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
@@ -130,17 +130,17 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 		}
 
 		const diffAlgorithm = await resolveLinesDiffComputer(algorithm);
-		const result = EditorWorker.computeDiff(original, modified, options, diffAlgorithm);
+		const result = EditorWorker.computeDiff(original, modified, options, diffAlgorithm, verify);
 		return result;
 	}
 
-	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, diffAlgorithm: ILinesDiffComputer): IDiffComputationResult {
+	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, diffAlgorithm: ILinesDiffComputer, verify: boolean): IDiffComputationResult {
 
 		const originalLines = originalTextModel.getLinesContent();
 		const modifiedLines = modifiedTextModel.getLinesContent();
 
 		const result = diffAlgorithm.computeDiff(originalLines, modifiedLines, options);
-		const validity = verifyLinesDiff(result, originalLines, modifiedLines, options.ignoreTrimWhitespace);
+		const validity = verify ? verifyLinesDiff(result, originalLines, modifiedLines, options.ignoreTrimWhitespace) : undefined;
 
 		const identical = (result.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));
 
