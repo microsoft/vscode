@@ -89,10 +89,10 @@ suite('aiCustomizationManagementEditor', () => {
 		input.setTargetLabels(undefined);
 		labels.push([input.getName(), input.getDescription()]);
 		assert.deepStrictEqual(labels, [
-			['Agent Customizations', undefined],
-			['Agent Customizations', '(Copilot)'],
-			['Agent Customizations', '(Copilot · vscode)'],
-			['Agent Customizations', undefined],
+			['Customizations', undefined],
+			['Customizations', '(Copilot)'],
+			['Customizations', '(Copilot · vscode)'],
+			['Customizations', undefined],
 		]);
 	});
 
