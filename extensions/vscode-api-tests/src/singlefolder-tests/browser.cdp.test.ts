@@ -137,8 +137,10 @@ const CAPTURED_DOMAINS = ['Browser', 'Target'];
 			if (typeof obj === 'object') {
 				const out: any = {};
 				for (const [key, value] of Object.entries(obj)) {
-					if (key === 'targetId' || key === 'openerId') {
+					if (key === 'targetId' || key === 'openerId' || key === 'parentId') {
 						out[key] = replaceId('target', value as string);
+					} else if (key === 'parentFrameId') {
+						out[key] = replaceId('frame', value as string);
 					} else if (key === 'sessionId') {
 						out[key] = replaceId('session', value as string);
 					} else if (key === 'browserContextId') {
@@ -284,14 +286,14 @@ const CAPTURED_DOMAINS = ['Browser', 'Target'];
 			{ direction: 'resp', method: 'Target.attachToTarget', result: { sessionId: '<session-1>' } },
 			{ direction: 'send', method: 'Target.setAutoAttach', params: { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }, sessionId: '<session-1>' },
 			{ direction: 'resp', method: 'Target.setAutoAttach', result: {} },
-			{ direction: 'recv', method: 'Target.targetCreated', params: { targetInfo: { attached: false, browserContextId: '<context-0>', canAccessOpener: false, targetId: '<target-2>', title: '<omitted>/worker.js', type: 'worker', url: '<omitted>/worker.js', vscodeBrowserViewId: '<browser-view-0>' } }, sessionId: '<session-0>' },
-			{ direction: 'recv', method: 'Target.targetInfoChanged', params: { targetInfo: { attached: false, browserContextId: '<context-0>', canAccessOpener: false, targetId: '<target-2>', title: '<omitted>/worker.js', type: 'worker', url: '<omitted>/worker.js', vscodeBrowserViewId: '<browser-view-0>' } }, sessionId: '<session-0>' },
-			{ direction: 'recv', method: 'Target.attachedToTarget', params: { sessionId: '<session-2>', targetInfo: { attached: true, browserContextId: '<context-0>', canAccessOpener: false, targetId: '<target-2>', title: '<omitted>/worker.js', type: 'worker', url: '<omitted>/worker.js', vscodeBrowserViewId: '<browser-view-0>' }, waitingForDebugger: true }, sessionId: '<session-1>' },
+			{ direction: 'recv', method: 'Target.targetCreated', params: { targetInfo: { attached: false, browserContextId: '<context-0>', canAccessOpener: false, parentFrameId: '<frame-0>', parentId: '<target-1>', targetId: '<target-2>', title: '<omitted>/worker.js', type: 'worker', url: '<omitted>/worker.js', vscodeBrowserViewId: '<browser-view-0>' } }, sessionId: '<session-0>' },
+			{ direction: 'recv', method: 'Target.targetInfoChanged', params: { targetInfo: { attached: false, browserContextId: '<context-0>', canAccessOpener: false, parentFrameId: '<frame-0>', parentId: '<target-1>', targetId: '<target-2>', title: '<omitted>/worker.js', type: 'worker', url: '<omitted>/worker.js', vscodeBrowserViewId: '<browser-view-0>' } }, sessionId: '<session-0>' },
+			{ direction: 'recv', method: 'Target.attachedToTarget', params: { sessionId: '<session-2>', targetInfo: { attached: true, browserContextId: '<context-0>', canAccessOpener: false, parentFrameId: '<frame-0>', parentId: '<target-1>', targetId: '<target-2>', title: '<omitted>/worker.js', type: 'worker', url: '<omitted>/worker.js', vscodeBrowserViewId: '<browser-view-0>' }, waitingForDebugger: true }, sessionId: '<session-1>' },
 			{ direction: 'send', method: 'Target.closeTarget', params: { targetId: '<target-1>' }, sessionId: '<session-0>' },
 			{ direction: 'recv', method: 'Target.targetInfoChanged', params: { targetInfo: { attached: false, browserContextId: '<context-0>', canAccessOpener: false, targetId: '<target-1>', title: '<blank>', type: 'page', url: '<blank>', vscodeBrowserViewId: '<browser-view-0>' } }, sessionId: '<session-0>' },
 			{ direction: 'recv', method: 'Target.detachedFromTarget', params: { sessionId: '<session-1>', targetId: '<target-1>' }, sessionId: '<session-0>' },
 			{ direction: 'recv', method: 'Target.targetDestroyed', params: { targetId: '<target-1>' }, sessionId: '<session-0>' },
-			{ direction: 'recv', method: 'Target.targetInfoChanged', params: { targetInfo: { attached: false, browserContextId: '<context-0>', canAccessOpener: false, targetId: '<target-2>', title: '<omitted>/worker.js', type: 'worker', url: '<omitted>/worker.js', vscodeBrowserViewId: '<browser-view-0>' } }, sessionId: '<session-0>' },
+			{ direction: 'recv', method: 'Target.targetInfoChanged', params: { targetInfo: { attached: false, browserContextId: '<context-0>', canAccessOpener: false, parentFrameId: '<frame-0>', parentId: '<target-1>', targetId: '<target-2>', title: '<omitted>/worker.js', type: 'worker', url: '<omitted>/worker.js', vscodeBrowserViewId: '<browser-view-0>' } }, sessionId: '<session-0>' },
 			{ direction: 'recv', method: 'Target.detachedFromTarget', params: { sessionId: '<session-2>', targetId: '<target-2>' }, sessionId: '<session-1>' },
 			{ direction: 'resp', method: 'Target.closeTarget', result: { success: true } },
 		];

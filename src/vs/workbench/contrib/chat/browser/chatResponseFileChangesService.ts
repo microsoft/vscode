@@ -16,6 +16,9 @@ export interface IChatResponseFileEdit extends IEditSessionEntryDiff {
 	readonly isOutsideWorkspace: boolean;
 }
 
+/** An authoritative result saying valid edits produced no net file changes. */
+export const AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES: readonly IEditSessionEntryDiff[] = [];
+
 /**
  * Supplies the per-response (per-request) file-change diffs rendered by the
  * "Changed N files" summary under a completed chat response.
@@ -31,7 +34,9 @@ export interface IChatResponseFileChangesProvider {
 	 * Returns an observable of the file-change diffs produced by `requestId`
 	 * within `sessionResource`, or `undefined` when this provider cannot
 	 * supply changes for that request (in which case the caller falls back to
-	 * the chat editing session).
+	 * the chat editing session). Return
+	 * {@link AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES} when valid edits
+	 * cancel to no net change and consumers must clear previously cached diffs.
 	 */
 	getChangesForRequest(sessionResource: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> | undefined;
 

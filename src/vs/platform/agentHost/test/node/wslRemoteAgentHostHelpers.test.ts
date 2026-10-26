@@ -114,7 +114,7 @@ suite('WSL Remote Agent Host Helpers', () => {
 				telemetryLevel: TelemetryConfiguration.OFF,
 			});
 
-			assert.ok(script.endsWith(`exec ~/.vscode-server/code-${commit} --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0`));
+			assert.ok(script.endsWith(`exec ~/.vscode-server/code-${commit} --cli-data-dir ~/.vscode-server/cli --telemetry-level off agent host --port 0 --idle-timeout 300`));
 		});
 
 		test('exports telemetry disablement for a custom command', () => {

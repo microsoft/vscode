@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { toAction } from '../../../../../../../base/common/actions.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { isResourceDiffEditorInput, isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IChatResponseFileChangesService } from '../../../../browser/chatResponseFileChangesService.js';
@@ -153,5 +156,183 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 				['4ch', '3ch'],
 			],
 		});
+	});
+
+	test('reveals icon row actions after the change counts and updates them when their state changes', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const container = document.createElement('div');
+		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', [
+			{ ...emptySessionEntryDiff(URI.file('/file.md'), URI.file('/file.md')), added: 5, removed: 2 },
+		]);
+		const undoOffered = observableValue('undoOffered', false);
+		const [editorService, configurationService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IEditorService),
+			accessor.get(IConfigurationService),
+		] as const);
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService, {
+			rowActionIcons: true,
+			getRowActions: (_diff, reader) => [
+				toAction({ id: 'keep', label: 'Keep', run: () => undefined }),
+				...(undoOffered.read(reader) ? [toAction({ id: 'undo', label: 'Undo', run: () => undefined })] : []),
+			],
+		}));
+		const readRow = () => {
+			const row = container.querySelector('.monaco-list-row')!;
+			return {
+				withLinkActions: row.classList.contains('chat-summary-list-row-with-actions'),
+				labelOrder: Array.from(row.querySelector('.monaco-icon-label')!.children).map(element => element.classList.item(0)),
+				actions: Array.from(row.querySelectorAll('.action-label')).map(action => action.getAttribute('aria-label')),
+			};
+		};
+		const states = [readRow()];
+		undoOffered.set(true, undefined);
+		states.push(readRow());
+
+		const labelOrder = ['monaco-icon-label-container', 'insertions-and-deletions', 'chat-summary-list-icon-actions'];
+		assert.deepStrictEqual(states, [
+			{ withLinkActions: false, labelOrder, actions: ['Keep'] },
+			{ withLinkActions: false, labelOrder, actions: ['Keep', 'Undo'] },
+		]);
+	});
+
+	const file = (path: string): IEditSessionEntryDiff => ({ ...emptySessionEntryDiff(URI.file(path), URI.file(path)), added: 1 });
+
+	function renderWithRowActions(initialDiffs: readonly IEditSessionEntryDiff[]) {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', initialDiffs);
+		const [editorService, configurationService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IEditorService),
+			accessor.get(IConfigurationService),
+		] as const);
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService, {
+			rowActionIcons: true,
+			getRowActions: () => [
+				toAction({ id: 'keep', label: 'Keep', run: () => undefined }),
+				toAction({ id: 'undo', label: 'Undo', run: () => undefined }),
+			],
+		}));
+		const list = container.querySelector<HTMLElement>('.monaco-list')!;
+		const fileName = (element: Element | null | undefined) => element?.closest('.monaco-list-row')?.querySelector('.label-name')?.textContent;
+		const rowOf = (name: string) => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => fileName(row) === name)!;
+		return {
+			diffs,
+			focusAction: (name: string, label: string) => rowOf(name).querySelector<HTMLElement>(`.action-label[aria-label="${label}"]`)!.focus(),
+			readFocus: () => {
+				const active = dom.getActiveElement();
+				return active === list
+					? { list: true, file: fileName(list.querySelector('.monaco-list-row.focused')) }
+					: { action: active?.getAttribute('aria-label'), file: fileName(active) };
+			},
+		};
+	}
+
+	test('keeps keyboard focus on a row action while the rows are rebuilt, and on the list once its file leaves', () => {
+		const { diffs, focusAction, readFocus } = renderWithRowActions([file('/a.ts'), file('/b.ts')]);
+		focusAction('b.ts', 'Undo');
+		const states = [readFocus()];
+		diffs.set([file('/a.ts'), file('/b.ts')], undefined);
+		states.push(readFocus());
+		diffs.set([file('/c.ts'), file('/a.ts'), file('/b.ts')], undefined);
+		states.push(readFocus());
+		diffs.set([file('/c.ts'), file('/a.ts')], undefined);
+		states.push(readFocus());
+		diffs.set([], undefined);
+		states.push(readFocus());
+
+		assert.deepStrictEqual(states, [
+			{ action: 'Undo', file: 'b.ts' },
+			{ action: 'Undo', file: 'b.ts' },
+			{ action: 'Undo', file: 'b.ts' },
+			{ list: true, file: 'a.ts' },
+			{ list: true, file: undefined },
+		]);
+	});
+
+	test('keeps keyboard focus on a row action when an insertion moves its file out of view', () => {
+		// Six files fill the list's view.
+		const files = ['1', '2', '3', '4', '5', '6'].map(name => file(`/${name}.ts`));
+		const { diffs, focusAction, readFocus } = renderWithRowActions(files);
+		focusAction('6.ts', 'Keep');
+		const states = [readFocus()];
+		diffs.set([file('/a.ts'), file('/b.ts'), ...files], undefined);
+		states.push(readFocus());
+
+		assert.deepStrictEqual(states, [
+			{ action: 'Keep', file: '6.ts' },
+			{ action: 'Keep', file: '6.ts' },
+		]);
+	});
+
+	test('opens row diffs using snapshots and missing create or delete sides', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const opened: unknown[] = [];
+		const editorService = new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				opened.push(args[0]);
+				return undefined;
+			}
+		}();
+		const configurationService = new class extends mock<IConfigurationService>() {
+			override getValue<T>(): T {
+				return true as T;
+			}
+		}();
+		const container = document.createElement('div');
+		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', [{
+			...emptySessionEntryDiff(URI.file('/edited-before.ts'), URI.file('/edited.ts')),
+			modifiedSnapshotURI: URI.file('/edited-snapshot.ts'),
+		}, {
+			...emptySessionEntryDiff(URI.file('/created.ts'), URI.file('/created.ts')),
+			modifiedSnapshotURI: URI.file('/created-snapshot.ts'),
+			isCreated: true,
+		}, {
+			...emptySessionEntryDiff(URI.file('/deleted-before.ts'), URI.file('/deleted.ts')),
+			isDeleted: true,
+		}]);
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService));
+
+		for (const row of container.querySelectorAll<HTMLElement>('.monaco-list-row')) {
+			row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		}
+
+		assert.deepStrictEqual(opened.map(input => {
+			if (isResourceDiffEditorInput(input)) {
+				return {
+					kind: 'diff',
+					original: input.original.resource?.toString(),
+					modified: input.modified.resource?.toString(),
+				};
+			}
+			assert.ok(isResourceMultiDiffEditorInput(input));
+			return {
+				kind: 'multiDiff',
+				resources: input.resources?.map(resource => ({
+					original: resource.original.resource?.toString(),
+					modified: resource.modified.resource?.toString(),
+					goToFile: resource.goToFileResource?.toString(),
+				})),
+			};
+		}), [{
+			kind: 'diff',
+			original: 'file:///edited-before.ts',
+			modified: 'file:///edited-snapshot.ts',
+		}, {
+			kind: 'multiDiff',
+			resources: [{
+				original: undefined,
+				modified: 'file:///created-snapshot.ts',
+				goToFile: 'file:///created.ts',
+			}],
+		}, {
+			kind: 'multiDiff',
+			resources: [{
+				original: 'file:///deleted-before.ts',
+				modified: undefined,
+				goToFile: 'file:///deleted.ts',
+			}],
+		}]);
 	});
 });

@@ -76,7 +76,8 @@ export class GCBasedDisposableTracker implements IDisposableTracker {
 
 export interface DisposableInfo {
 	value: IDisposable;
-	source: string | null;
+	/** Capture the allocation site eagerly, but format its stack only when reporting a leak. */
+	source: Error | null;
 	parent: IDisposable | null;
 	isSingleton: boolean;
 	idx: number;
@@ -96,11 +97,10 @@ export class DisposableTracker implements IDisposableTracker {
 		return val;
 	}
 
-	trackDisposable(d: IDisposable): void {
+	trackDisposable(d: IDisposable, source?: Error): void {
 		const data = this.getDisposableData(d);
 		if (!data.source) {
-			data.source =
-				new Error().stack!;
+			data.source = source ?? new Error();
 		}
 	}
 
@@ -174,7 +174,7 @@ export class DisposableTracker implements IDisposableTracker {
 				}
 			}
 
-			const lines = leaking.source!.split('\n').map(p => p.trim().replace('at ', '')).filter(l => l !== '');
+			const lines = leaking.source!.stack!.split('\n').map(p => p.trim().replace('at ', '')).filter(l => l !== '');
 			removePrefix(lines, ['Error', /^trackDisposable \(.*\)$/, /^DisposableTracker.trackDisposable \(.*\)$/]);
 			return lines.reverse();
 		}

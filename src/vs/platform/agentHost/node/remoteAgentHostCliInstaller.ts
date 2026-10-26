@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../base/common/errors.js';
 import { ILogService } from '../../log/common/log.js';
+import { buildInstallRemoteCliFromCacheCommand } from './remoteAgentHostCliCache.js';
 import {
 	buildCLIDownloadUrl,
 	buildCleanupOldCLIsCommand,
@@ -22,6 +24,14 @@ export interface IRemoteAgentHostCliInstallOptions {
 	readonly reportInstalling: () => void;
 	readonly logService: ILogService;
 	readonly logPrefix?: string;
+	readonly cliCacheDir?: string;
+	readonly reportCacheStatus?: (message: string) => void;
+}
+
+/** The resolved CLI path and whether this invocation installed it. */
+export interface IRemoteAgentHostCliInstallResult {
+	readonly cliBin: string;
+	readonly installed: boolean;
 }
 
 /**
@@ -32,7 +42,7 @@ export async function ensureRemoteAgentHostCliInstalled(
 	exec: ISshExec,
 	platform: { readonly os: string; readonly arch: string },
 	options: IRemoteAgentHostCliInstallOptions,
-): Promise<string> {
+): Promise<IRemoteAgentHostCliInstallResult> {
 	return options.commit
 		? ensurePinnedCliInstalled(exec, platform, options, options.commit)
 		: ensureLooseCliInstalled(exec, platform, options);
@@ -43,7 +53,7 @@ async function ensurePinnedCliInstalled(
 	platform: { readonly os: string; readonly arch: string },
 	options: IRemoteAgentHostCliInstallOptions,
 	commit: string,
-): Promise<string> {
+): Promise<IRemoteAgentHostCliInstallResult> {
 	const cliBin = getRemoteCLIBin(options.serverDataFolderName, options.quality, commit);
 	const installRoot = getRemoteCLIInstallRoot(options.serverDataFolderName);
 	const logPrefix = options.logPrefix ?? '[RemoteAgentHostCliInstaller]';
@@ -56,7 +66,7 @@ async function ensurePinnedCliInstalled(
 		} else {
 			options.logService.warn(`${logPrefix} Skipping CLI retention cleanup: touch exited ${touchCode}`);
 		}
-		return cliBin;
+		return { cliBin, installed: false };
 	}
 
 	options.reportInstalling();
@@ -71,21 +81,43 @@ async function ensurePinnedCliInstalled(
 	].join(' && ');
 
 	try {
-		await exec(installCommand);
+		let installedFromCache = false;
+		if (options.cliCacheDir) {
+			try {
+				await exec(buildInstallRemoteCliFromCacheCommand(options.cliCacheDir, options.serverDataFolderName, options.quality, commit, url));
+				installedFromCache = true;
+				const message = `Installed private CLI copy from shared cache at ${options.cliCacheDir}`;
+				options.logService.info(`${logPrefix} ${message}`);
+				options.reportCacheStatus?.(message);
+			} catch (error) {
+				if (isCancellationError(error)) {
+					throw error;
+				}
+				const message = `Shared CLI cache unavailable; downloading a private copy: ${error instanceof Error ? error.message : String(error)}`;
+				options.logService.warn(`${logPrefix} ${message}`);
+				options.reportCacheStatus?.(message);
+			}
+		}
+		if (!installedFromCache) {
+			await exec(installCommand);
+		}
 		const { code: versionCode } = await exec(`${cliBin} --version`, { ignoreExitCode: true });
 		if (versionCode !== 0) {
 			throw new Error(`CLI at ${cliBin} failed --version check after install (exit code ${versionCode})`);
 		}
 		options.logService.info(`${logPrefix} Installed remote CLI at ${cliBin}`);
 		await exec(buildCleanupOldCLIsCommand(options.serverDataFolderName, options.quality), { ignoreExitCode: true });
-		return cliBin;
+		return { cliBin, installed: true };
 	} catch (error) {
+		if (isCancellationError(error)) {
+			throw error;
+		}
 		const message = error instanceof Error ? error.message : String(error);
 		options.logService.warn(`${logPrefix} Could not install matching CLI for commit ${commit}: ${message}. Looking for a fallback CLI...`);
 		const fallback = await findFallbackCli(exec, options);
 		if (fallback) {
 			options.logService.warn(`${logPrefix} Using fallback CLI at ${fallback} (does not match desktop commit ${commit}).`);
-			return fallback;
+			return { cliBin: fallback, installed: false };
 		}
 		throw error;
 	}
@@ -95,7 +127,7 @@ async function ensureLooseCliInstalled(
 	exec: ISshExec,
 	platform: { readonly os: string; readonly arch: string },
 	options: IRemoteAgentHostCliInstallOptions,
-): Promise<string> {
+): Promise<IRemoteAgentHostCliInstallResult> {
 	const cliBin = getRemoteCLIBin(options.serverDataFolderName, options.quality);
 	const installRoot = getRemoteCLIInstallRoot(options.serverDataFolderName);
 	const logPrefix = options.logPrefix ?? '[RemoteAgentHostCliInstaller]';
@@ -110,7 +142,7 @@ async function ensureLooseCliInstalled(
 			options.logService.warn(`${logPrefix} Could not refresh the dev-build remote CLI at ${cliBin}; reusing the existing executable: update exited ${updateExitCode}`);
 		}
 		options.logService.info(`${logPrefix} Reusing remote CLI at ${cliBin} (dev build, latest-version refresh attempted)`);
-		return cliBin;
+		return { cliBin, installed: false };
 	}
 
 	options.reportInstalling();
@@ -121,7 +153,7 @@ async function ensureLooseCliInstalled(
 		`chmod +x ${cliBin}`,
 	].join(' && '));
 	options.logService.info(`${logPrefix} Installed remote CLI at ${cliBin}`);
-	return cliBin;
+	return { cliBin, installed: true };
 }
 
 async function findFallbackCli(exec: ISshExec, options: IRemoteAgentHostCliInstallOptions): Promise<string | undefined> {

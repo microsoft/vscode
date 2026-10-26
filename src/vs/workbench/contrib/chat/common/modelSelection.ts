@@ -3,8 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isLanguageModelVendorAbsenceConclusive } from './languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isLanguageModelVendorAbsenceConclusive } from './languageModels.js';
 import { isAgentHostTarget } from './chatSessionsService.js';
+import { localize } from '../../../../nls.js';
+
+export function getDefaultModelPolicyDescription(policyValue: unknown, configuredValue: unknown): string {
+	return typeof configuredValue === 'string' && configuredValue.trim() && configuredValue.trim().toLowerCase() !== String(policyValue).trim().toLowerCase()
+		? localize('chat.defaultModel.policyOverrideDescription', "Your organization sets \"{0}\" as the default for new conversations. Your saved preference \"{1}\" is preserved but does not apply while this policy is in effect. You can choose another model for each conversation.", String(policyValue), configuredValue)
+		: localize('chat.defaultModel.policyValueDescription', "Your organization sets \"{0}\" as the default for new conversations. You can choose another model for each conversation.", String(policyValue));
+}
 
 export type ModelIdentifierResolution =
 	| { readonly kind: 'notRequested' }
@@ -74,6 +81,21 @@ export function getRegisteredLanguageModels(languageModelsService: Pick<ILanguag
 			return metadata ? { identifier, metadata } : undefined;
 		})
 		.filter(model => model !== undefined);
+}
+
+/** Filters a target's model catalog using both host-specific and underlying BYOK visibility. */
+export function getVisibleLanguageModelsForTarget(
+	models: readonly ILanguageModelChatMetadataAndIdentifier[],
+	targetChatSessionType: string,
+	languageModelsService: Pick<ILanguageModelsService, 'isModelHidden'>,
+): ILanguageModelChatMetadataAndIdentifier[] {
+	return models.filter(model => {
+		if (model.metadata.targetChatSessionType !== targetChatSessionType || languageModelsService.isModelHidden(model.identifier)) {
+			return false;
+		}
+		const manageModelsIdentifier = ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(model.metadata);
+		return manageModelsIdentifier === undefined || !languageModelsService.isModelHidden(manageModelsIdentifier);
+	});
 }
 
 /**

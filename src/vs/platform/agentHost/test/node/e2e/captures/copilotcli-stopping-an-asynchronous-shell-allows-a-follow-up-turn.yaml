@@ -1,0 +1,123 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your shell tool to run exactly `node -e "setInterval(() => {}, 1000)"` with mode "async" and shellId "e2e-stopped-shell". Then immediately call your stop-shell tool with shellId "e2e-stopped-shell". Do not leave the process running. Reply exactly "STOPPED".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node -e "setInterval(() => {}, 1000)"
+            description: Run node interval script
+            mode: async
+            shellId: e2e-stopped-shell
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your shell tool to run exactly `node -e "setInterval(() => {}, 1000)"` with mode "async" and shellId "e2e-stopped-shell". Then immediately call your stop-shell tool with shellId "e2e-stopped-shell". Do not leave the process running. Reply exactly "STOPPED".
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: node -e "setInterval(() => {}, 1000)"
+                description: Run node interval script
+                mode: async
+                shellId: e2e-stopped-shell
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<command started in background with shellId: e2e-stopped-shell>'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: ${stop_shell}
+          input:
+            shellId: e2e-stopped-shell
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your shell tool to run exactly `node -e "setInterval(() => {}, 1000)"` with mode "async" and shellId "e2e-stopped-shell". Then immediately call your stop-shell tool with shellId "e2e-stopped-shell". Do not leave the process running. Reply exactly "STOPPED".
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: node -e "setInterval(() => {}, 1000)"
+                description: Run node interval script
+                mode: async
+                shellId: e2e-stopped-shell
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<command started in background with shellId: e2e-stopped-shell>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: stop_bash
+              input:
+                shellId: e2e-stopped-shell
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: '<command with id: e2e-stopped-shell stopped>'
+    response:
+      content: STOPPED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your shell tool to run exactly `node -e "setInterval(() => {}, 1000)"` with mode "async" and shellId "e2e-stopped-shell". Then immediately call your stop-shell tool with shellId "e2e-stopped-shell". Do not leave the process running. Reply exactly "STOPPED".
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: node -e "setInterval(() => {}, 1000)"
+                description: Run node interval script
+                mode: async
+                shellId: e2e-stopped-shell
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<command started in background with shellId: e2e-stopped-shell>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: stop_bash
+              input:
+                shellId: e2e-stopped-shell
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: '<command with id: e2e-stopped-shell stopped>'
+        - role: assistant
+          content: STOPPED
+        - role: user
+          content: Reply exactly "FOLLOWUP_DONE".
+    response:
+      content: FOLLOWUP_DONE
+      stopReason: end_turn

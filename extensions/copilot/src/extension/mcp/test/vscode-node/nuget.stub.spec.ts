@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { ITestingServicesAccessor, TestingServiceCollection } from '../../../../platform/test/node/services';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { IInstallableMcpServer, mapServerJsonToMcpServer, McpServerType, NuGetMcpSetup, RegistryType } from '../../vscode-node/nuget';
+import { IGalleryMcpServerConfiguration, IInstallableMcpServer, mapServerJsonToMcpServer, McpMappingUtility, McpServerType, NuGetMcpSetup, RegistryType, TransportType } from '../../vscode-node/nuget';
 import { FixtureCommandExecutor, FixtureFetcherService } from './util';
 
 describe('get nuget MCP server info using fake CLI', { timeout: 30_000 }, () => {
@@ -197,5 +197,65 @@ describe('mapServerJsonToMcpServer', () => {
 		const actual = mapServerJsonToMcpServer(manifest, RegistryType.NUGET);
 
 		expect(actual).toEqual(expected);
+	});
+
+	it('rejects unsupported 2025-07-09 package registry types', () => {
+		const manifest = {
+			'$schema': 'https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json',
+			name: 'test',
+			description: 'test',
+			version: '1.0.0',
+			packages: [{ registry_type: 'unsupported', name: 'SomeId', version: '0.1.0' }]
+		};
+
+		expect(mapServerJsonToMcpServer(manifest, RegistryType.NUGET)).toBeUndefined();
+	});
+
+	it('rejects unsupported 2025-09-29 package registry types', () => {
+		const manifest = {
+			'$schema': 'https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json',
+			name: 'test',
+			description: 'test',
+			version: '1.0.0',
+			packages: [{ registryType: 'unsupported', identifier: 'SomeId', version: '0.1.0' }]
+		};
+
+		expect(mapServerJsonToMcpServer(manifest, RegistryType.NUGET)).toBeUndefined();
+	});
+
+	it('filters unsupported packages when a supported package remains', () => {
+		const manifest = {
+			'$schema': 'https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json',
+			name: 'test',
+			description: 'test',
+			version: '1.0.0',
+			packages: [
+				{ registryType: 'mcpb', identifier: 'UnsupportedId', version: '0.1.0' },
+				{ registryType: 'nuget', identifier: 'SomeId', version: '0.1.0' }
+			]
+		};
+
+		expect(mapServerJsonToMcpServer(manifest, RegistryType.NUGET)).toEqual({
+			config: {
+				type: McpServerType.LOCAL,
+				command: 'dnx',
+				args: ['SomeId@0.1.0', '--yes']
+			}
+		});
+	});
+
+	it('fails closed when mapping an unsupported package registry type', () => {
+		const registryType = 'unsupported' as RegistryType;
+		const manifest: IGalleryMcpServerConfiguration = {
+			packages: [{
+				registryType,
+				identifier: 'SomeId',
+				version: '0.1.0',
+				transport: { type: TransportType.STDIO }
+			}]
+		};
+
+		expect(() => new McpMappingUtility().getMcpServerConfigurationFromManifest(manifest, registryType))
+			.toThrow('Unsupported MCP server package registry type: unsupported');
 	});
 });

@@ -29,6 +29,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IEditorPaneService } from '../../common/editorPaneService.js';
+import { createEditorTypeActions, getAvailableEditorTypes } from '../../../../browser/parts/editor/editorTypePicker.js';
+import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
 
 suite('EditorService', () => {
 
@@ -1713,6 +1715,50 @@ suite('EditorService', () => {
 		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.RESTORE }, rootGroup);
 		assert.strictEqual(part.activeGroup, sideGroup);
 	});
+
+	for (const direction of ['right', 'down'] as const) {
+		test(`editor type alternatives reuse the group ${direction} of the source editor`, async () => {
+			const configurationService = new TestConfigurationService({ workbench: { editor: { openSideBySideDirection: direction } } });
+			const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+			const [part, service, accessor] = await createEditorService(instantiationService);
+			const resource = URI.parse('test://resource/side.editor-type-test');
+			const source = createTestFileEditorInput(resource, TEST_EDITOR_INPUT_ID);
+			source.setDirty();
+			await service.openEditor(source, { pinned: true });
+			const sourceGroup = part.activeGroup;
+			const adjacent = part.addGroup(sourceGroup, direction === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
+			await service.openEditor(createTestFileEditorInput(URI.parse('test://resource/unrelated'), TEST_EDITOR_INPUT_ID), { pinned: true }, adjacent);
+			disposables.add(accessor.editorResolverService.registerEditor(
+				'*.editor-type-test',
+				{ id: 'test.alternativeEditor', label: 'Alternative', priority: RegisteredEditorPriority.option },
+				{},
+				{ createEditorInput: input => ({ editor: createTestFileEditorInput(input.resource, 'test.alternativeEditor') }) }
+			));
+			const available = getAvailableEditorTypes(source, accessor.editorResolverService)!;
+			const actions = createEditorTypeActions(available, sourceGroup, accessor.editorResolverService, NullCommandService, service);
+			const alternative = actions.find(action => action.id === 'test.alternativeEditor')!.alt!;
+			for (let i = 0; i < 2; i++) {
+				await alternative.run();
+			}
+			assert.deepStrictEqual({
+				groupCount: part.count,
+				activeGroup: part.activeGroup.id,
+				source: sourceGroup.activeEditor,
+				sourceDirty: source.isDirty(),
+				sourceDisposed: source.isDisposed(),
+				targetResource: adjacent.activeEditor?.resource,
+				targetType: adjacent.activeEditor?.editorId
+			}, {
+				groupCount: 2,
+				activeGroup: adjacent.id,
+				source,
+				sourceDirty: true,
+				sourceDisposed: false,
+				targetResource: resource,
+				targetType: 'test.alternativeEditor'
+			});
+		});
+	}
 
 	test('inactive editor group does not activate when closing editor (#117686)', async () => {
 		const [part, service] = await createEditorService();

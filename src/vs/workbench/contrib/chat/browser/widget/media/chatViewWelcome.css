@@ -46,6 +46,46 @@
 	display: none;
 }
 
+.pane-body > .chat-view-welcome.chat-update-required {
+	justify-content: normal;
+}
+
+.chat-update-required-content {
+	display: flex;
+	flex-direction: column;
+	justify-content: safe center;
+}
+
+.chat-update-required-content .chat-welcome-view > :is(.chat-welcome-view-title, .chat-welcome-view-message, .chat-welcome-view-disclaimer, .chat-welcome-view-tips) {
+	box-sizing: border-box;
+	overflow-wrap: anywhere;
+}
+
+.chat-update-required-content .chat-welcome-view > .chat-welcome-view-title {
+	max-width: 100%;
+}
+
+.chat-update-required-content .chat-welcome-view > .chat-welcome-view-message {
+	max-width: min(100%, 320px);
+}
+
+.chat-update-required-content .chat-welcome-view > .chat-welcome-view-disclaimer {
+	max-width: min(100%, 280px);
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.chat-update-required-content .chat-welcome-view > .chat-welcome-view-tips {
+	max-width: min(100%, 280px);
+	margin: var(--vscode-spacing-size80) 0 0;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-update-required-content .chat-welcome-view > .monaco-button {
+	margin-top: var(--vscode-spacing-size120);
+}
+
 div.chat-welcome-view {
 	display: flex;
 	flex-direction: column;

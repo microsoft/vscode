@@ -350,7 +350,6 @@ The integration respects these VS Code settings (all under `github.copilot.chat.
 | `isolationOption.enabled` | `true` | Show worktree isolation option in session UI |
 | `autoCommit.enabled` | `true` | Auto-commit worktree changes at end of each turn |
 | `sessionController.enabled` | `false` | Use session controller API (V2) |
-| `thinkingEffort.enabled` | `true` | Show thinking effort control per model |
 | `sessionControllerForSessionsApp.enabled` | `false` | Use session controller for Sessions window |
 | `terminalLinks.enabled` | `true` | Enable terminal link detection |
 

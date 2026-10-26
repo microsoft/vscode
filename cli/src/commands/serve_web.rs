@@ -35,7 +35,7 @@ use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
-use crate::util::command::new_script_command;
+use crate::util::command::{kill_tree, new_script_command};
 use crate::util::errors::AnyError;
 use crate::util::http::{self, ReqwestSimpleHttp};
 use crate::util::io::SilentCopyProgress;
@@ -938,7 +938,22 @@ impl ConnectionManager {
 				}
 				_ = &mut kill_timer => {
 					info!(args.log, "[{} process]: idle timeout reached, ending", commit_prefix);
-					let _ = child.kill().await;
+					// The entrypoint is a shell/cmd shim, so kill the full tree
+					// to avoid orphaning the Node server it launches.
+					if let Some(pid) = child.id() {
+						let _ = kill_tree(pid).await;
+					}
+					const REAP_TIMEOUT: Duration = Duration::from_secs(5);
+					if tokio::time::timeout(REAP_TIMEOUT, child.wait()).await.is_err() {
+						warning!(
+							args.log,
+							"[{} process]: server did not exit within {}s after kill_tree; escalating to force kill",
+							commit_prefix,
+							REAP_TIMEOUT.as_secs()
+						);
+						let _ = child.kill().await;
+						let _ = child.wait().await;
+					}
 					break;
 				}
 				e = child.wait() => {

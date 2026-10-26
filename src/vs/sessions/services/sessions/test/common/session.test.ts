@@ -11,7 +11,70 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+import { getSessionFolderGitHubRepository, getSessionOwnedGitHubPullRequestRefs, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+
+suite('getSessionFolderGitHubRepository', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function repositoryOf(root: string, gitHubInfo?: { readonly owner: string; readonly repo: string }) {
+		const uri = URI.parse(root);
+		const folder: ISessionFolder = {
+			root: uri,
+			workingDirectory: uri,
+			name: 'folder',
+			description: undefined,
+			gitRepository: gitHubInfo && { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(gitHubInfo) },
+		};
+		return getSessionFolderGitHubRepository(folder);
+	}
+
+	test('reads a cloud folder, then Git metadata, then a github.com repository URL', () => {
+		const fork = { owner: 'someone', repo: 'fork' };
+		assert.deepStrictEqual({
+			remoteFile: repositoryOf('github-remote-file://github/microsoft/vscode/HEAD', fork),
+			gitHubInfo: repositoryOf('file:///src/vscode', fork),
+			gitHubInfoOverUrl: repositoryOf('https://github.com/microsoft/vscode', fork),
+			url: repositoryOf('https://github.com/microsoft/vscode'),
+			gitUrl: repositoryOf('https://github.com/Microsoft/VSCode.git'),
+			pullRequestUrl: repositoryOf('https://github.com/microsoft/vscode/pull/1'),
+			otherHost: repositoryOf('https://ghe.example.com/microsoft/vscode'),
+			localFolder: repositoryOf('file:///src/scratch'),
+			noFolder: getSessionFolderGitHubRepository(undefined),
+		}, {
+			remoteFile: { owner: 'microsoft', repo: 'vscode' },
+			gitHubInfo: fork,
+			gitHubInfoOverUrl: fork,
+			url: { owner: 'microsoft', repo: 'vscode' },
+			gitUrl: { owner: 'Microsoft', repo: 'VSCode' },
+			pullRequestUrl: undefined,
+			otherHost: undefined,
+			localFolder: undefined,
+			noFolder: undefined,
+		});
+	});
+});
+
+suite('getSessionOwnedGitHubPullRequestRefs', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('filters multi-PR provenance without falling back to an inherited primary PR', () => {
+		const primary = { owner: 'owner', repo: 'repo', number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1') };
+		const owned = { ...primary, number: 2, createdByThisSession: true };
+		const info: IGitHubInfo = { owner: 'owner', repo: 'repo', pullRequest: primary };
+		assert.deepStrictEqual([
+			getSessionOwnedGitHubPullRequestRefs(undefined),
+			getSessionOwnedGitHubPullRequestRefs({ ...info, pullRequests: [primary, owned, { ...primary, createdByThisSession: false }] }),
+			getSessionOwnedGitHubPullRequestRefs({ ...info, pullRequests: [] }),
+		], [[], [owned], []]);
+	});
+
+	test('accepts legacy primary PRs and preserves presentation and state', () => {
+		const primary = { number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1'), title: 'PR', icon: Codicon.gitPullRequest, state: 'open' as const, liveState: 'merged' as const };
+		assert.deepStrictEqual(getSessionOwnedGitHubPullRequestRefs({ owner: 'owner', repo: 'repo', pullRequest: primary }), [
+			{ owner: 'owner', repo: 'repo', ...primary },
+		]);
+	});
+});
 
 suite('isActiveSessionStatus', () => {
 
@@ -50,7 +113,7 @@ suite('getSessionStatusMessage', () => {
 		}, {
 			activity,
 			working: 'Working...',
-			needsInput: 'Input needed',
+			needsInput: 'Attention needed',
 			failed: 'Failed',
 			completed: undefined,
 		});
@@ -145,15 +208,17 @@ suite('sessionTurnFileChangesEqual', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('includes workspace classification in equality', () => {
+	test('includes workspace classification and rename origin in equality', () => {
 		const uri = URI.file('/a.txt');
 		const inside: ISessionTurnFileChange = { uri, modifiedUri: uri, insertions: 1, deletions: 0, isOutsideWorkspace: false };
 		const outside: ISessionTurnFileChange = { ...inside, isOutsideWorkspace: true };
+		const renamed: ISessionTurnFileChange = { ...inside, renamedFromUri: URI.file('/old-a.txt') };
 
 		assert.deepStrictEqual([
 			sessionTurnFileChangesEqual([inside], [{ ...inside }]),
 			sessionTurnFileChangesEqual([inside], [outside]),
-		], [true, false]);
+			sessionTurnFileChangesEqual([inside], [renamed]),
+		], [true, false, false]);
 	});
 });
 
@@ -196,6 +261,23 @@ suite('sessionWorkspaceEqual', () => {
 		const gitHubInfoA: IGitHubInfo = { owner: 'owner', repo: 'repo' };
 		const gitHubInfoB: IGitHubInfo = { owner: 'owner', repo: 'repo' };
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main', constObservable(gitHubInfoA)), workspace('main', constObservable(gitHubInfoB))), true);
+	});
+
+	test('compares recorded issue titles in GitHub info', () => {
+		const uri = URI.parse('https://github.com/owner/repo/issues/42');
+		const base: IGitHubInfo = {
+			owner: 'owner',
+			repo: 'repo',
+			issues: [{ owner: 'owner', repo: 'repo', number: 42, uri, title: 'Recorded title' }],
+		};
+
+		assert.deepStrictEqual({
+			equivalent: sessionWorkspaceEqual(workspace('main', constObservable(base)), workspace('main', constObservable({ ...base, issues: [{ ...base.issues![0] }] }))),
+			changedTitle: sessionWorkspaceEqual(workspace('main', constObservable(base)), workspace('main', constObservable({ ...base, issues: [{ ...base.issues![0], title: 'Updated title' }] }))),
+		}, {
+			equivalent: true,
+			changedTitle: false,
+		});
 	});
 
 	test('returns false when folder repository metadata changes', () => {

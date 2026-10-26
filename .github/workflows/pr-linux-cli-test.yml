@@ -1,24 +1,38 @@
 on:
   workflow_call:
     inputs:
-      job_name:
-        type: string
-        required: true
       rustup_toolchain:
         type: string
         required: true
+      cli_affected:
+        description: Whether the pull request can affect the CLI crate, whose job is skipped when false
+        type: boolean
+        default: true
+      copilot_shim_affected:
+        description: Whether the pull request can affect the Copilot shim crate, whose job is skipped when false
+        type: boolean
+        default: true
 
+env:
+  RUSTUP_TOOLCHAIN: ${{ inputs.rustup_toolchain }}
+
+# Each job reports as "Linux / <job name>", for example "Linux / CLI", whether it runs or not: the
+# names are fixed, as GitHub does not evaluate the expressions in the name of a skipped job. The jobs
+# run the steps of the first one (steps: &steps) on the crate in their CRATE_DIRECTORY, and their env
+# selects how (a flag is on when it is 'true'):
+# - CHECK_FORMATTING: check the formatting of the crate
+# - CARGO_LOCKED: pass --locked to cargo
+# - CARGO_ALL_TARGETS: lint all the targets of the crate
 jobs:
-  linux-cli-test:
-    name: ${{ inputs.job_name }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=linux-cli-test-${{ inputs.job_name }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+  cli:
+    name: CLI
+    if: ${{ inputs.cli_affected }}
+    runs-on: ubuntu-24.04
     env:
-      RUSTUP_TOOLCHAIN: ${{ inputs.rustup_toolchain }}
-    steps:
+      CRATE_DIRECTORY: cli
+    steps: &steps
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          lfs: true
 
       - name: Install Rust
         run: |
@@ -33,16 +47,51 @@ jobs:
           rustup update $RUSTUP_TOOLCHAIN
           rustup component add clippy
 
+      - name: Install Rust formatting component
+        if: ${{ env.CHECK_FORMATTING == 'true' }}
+        run: rustup component add rustfmt
+
       - name: Check Rust versions
         run: |
           set -e
           rustc --version
           cargo --version
 
+      - name: Check formatting
+        if: ${{ env.CHECK_FORMATTING == 'true' }}
+        run: cargo fmt --check
+        working-directory: ${{ env.CRATE_DIRECTORY }}
+
       - name: Clippy lint
-        run: cargo clippy -- -D warnings
-        working-directory: cli
+        run: |
+          set -e
+          args=()
+          if [[ "$CARGO_ALL_TARGETS" == "true" ]]; then
+            args+=(--all-targets)
+          fi
+          if [[ "$CARGO_LOCKED" == "true" ]]; then
+            args+=(--locked)
+          fi
+          cargo clippy "${args[@]}" -- -D warnings
+        working-directory: ${{ env.CRATE_DIRECTORY }}
 
       - name: 🧪 Run unit tests
-        run: cargo test
-        working-directory: cli
+        run: |
+          set -e
+          args=()
+          if [[ "$CARGO_LOCKED" == "true" ]]; then
+            args+=(--locked)
+          fi
+          cargo test "${args[@]}"
+        working-directory: ${{ env.CRATE_DIRECTORY }}
+
+  copilot-shim:
+    name: Copilot Shim
+    if: ${{ inputs.copilot_shim_affected }}
+    runs-on: ubuntu-24.04
+    env:
+      CRATE_DIRECTORY: copilot_shim
+      CHECK_FORMATTING: 'true'
+      CARGO_LOCKED: 'true'
+      CARGO_ALL_TARGETS: 'true'
+    steps: *steps

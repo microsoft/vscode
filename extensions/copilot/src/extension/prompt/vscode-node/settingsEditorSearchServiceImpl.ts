@@ -32,7 +32,7 @@ export class SettingsEditorSearchServiceImpl implements ISettingsEditorSearchSer
 		// Start searching for embedding results.
 		let embeddingResult: Embeddings;
 		try {
-			embeddingResult = await this.embeddingsComputer.computeEmbeddings(EmbeddingType.text3small_512, [query], {}, new TelemetryCorrelationId('SettingsEditorSearchServiceImpl::provideSettingsSearchResults'), token);
+			embeddingResult = await this.embeddingsComputer.computeEmbeddings(EmbeddingType.metis_1024_I16_Binary, [query], { inputType: 'query' }, new TelemetryCorrelationId('SettingsEditorSearchServiceImpl::provideSettingsSearchResults'), token);
 		} catch {
 			this.reportEmptyEmbeddingsResult(query, progress);
 			if (!options.embeddingsOnly) {

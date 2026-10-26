@@ -14,23 +14,21 @@ import { TSESTree } from '@typescript-eslint/utils';
  * `x._meta?.['foo']`) or casting it to an interface (`x._meta as Foo`) bypasses
  * any validation and lets well-known keys drift between producers and consumers.
  *
- * Instead, read well-known keys through a validating reader declared in a common
- * module (e.g. `readToolCallMeta(toolCall)`), which takes the parent object,
- * reads its `_meta` internally, checks each field, and drops wrong-typed values.
- * Referencing `_meta` itself as a value (the leaf reference, e.g.
- * `const meta = source._meta`) is allowed — only further member access or casts
- * off `_meta` are flagged.
+ * Instead, read well-known keys through a validating reader declared under
+ * `common/meta` (e.g. `readToolCallMeta(toolCall)`), which takes the parent
+ * object, checks each recognized field, and drops wrong-typed values.
+ * Referencing `_meta` itself as a value is allowed; only further member access
+ * or casts directly off `_meta` are flagged.
  *
  * This rule is purely syntactic (no type information): it keys off the `_meta`
- * identifier, so the reader modules that perform the one sanctioned first hop
- * into a namespaced slot, and the rare access to a non-protocol `_meta` (e.g. a
- * vendored SDK's own typed `_meta`), use a scoped `eslint-disable` line.
+ * identifier. Capturing a non-protocol `_meta` (for example, a vendored SDK's
+ * own typed metadata) in a local also keeps that distinction explicit.
  */
 export default new class NoUntypedMetaAccess implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
-			noMetaFieldAccess: 'Do not read fields off `_meta` directly. Read well-known keys through a validating reader that takes the parent object (e.g. `readToolCallMeta(toolCall)`) declared in a common module.',
+			noMetaFieldAccess: 'Do not read fields off `_meta` directly. Use a validating reader declared under `common/meta` (e.g. `readToolCallMeta(toolCall)`).',
 			noMetaCast: 'Do not cast `_meta` to an interface. Read well-known keys through a validating reader that takes the parent object (e.g. `readToolCallMeta(toolCall)`) declared in a common module.',
 		},
 		schema: false,

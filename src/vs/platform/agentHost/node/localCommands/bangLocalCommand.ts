@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, ToolCallConfirmationReason, ToolResultContentType, type ToolResultContent, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { ToolCallConfirmationReason, ToolResultContentType, type ToolResultContent, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { parseBangCommand } from '../agentHostBangCommand.js';
 import { DEFAULT_SHELL_COMMAND_TIMEOUT_MS, executeShellCommand, shellTypeForExecutable, type IShellCommandResult } from '../shared/shellCommandExecution.js';
 import { ILocalChatCommand, ILocalChatCommandContext, ILocalChatCommandHandling, ILocalChatCommandRequest, LocalChatCommandRegistry } from './localChatCommand.js';
@@ -51,7 +51,7 @@ export class BangLocalCommand extends Disposable implements ILocalChatCommand {
 
 	private async _run(turnChannel: ProtocolURI, turnId: string, command: string): Promise<void> {
 		const ctx = this._context;
-		const sessionChannel = isAhpChatChannel(turnChannel) ? parseRequiredSessionUriFromChatUri(turnChannel) : turnChannel;
+		const sessionChannel = ctx.getOwner(turnChannel);
 		const toolCallId = generateUuid();
 		const terminalUri = `agenthost-terminal://bang/${generateUuid()}`;
 		const displayName = localize('agentHostBang.terminal', "Terminal");

@@ -18,6 +18,8 @@ export interface LaunchOptions {
 	// Allows you to override the Playwright instance
 	playwright?: typeof playwright;
 	codePath?: string;
+	/** Isolated source-app metadata and bootstrap overlay; ignored for packaged builds. */
+	readonly sourceAppRoot?: string;
 	readonly workspacePath?: string;
 	userDataDir?: string;
 	readonly extensionsPath?: string;

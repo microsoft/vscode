@@ -1,0 +1,59 @@
+name: CodeQL
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/**/*'
+  pull_request:
+    branches:
+      - main
+      - 'release/**/*'
+  schedule:
+    - cron: '17 19 * * 6'
+
+permissions: {}
+
+# Full overlay-base analysis on main/release takes ~45 minutes and lands far more often
+# than that, so allow one running + one pending run per branch; GitHub replaces the pending
+# run with the newest commit. Don't cancel in-progress branch runs, or the overlay-base
+# cache that PR runs depend on may never be refreshed. Superseded PR runs are cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # Other detected languages occur only in test fixtures or build tooling.
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: rust
+            build-mode: none
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          dependency-caching: true
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          category: /language:${{ matrix.language }}

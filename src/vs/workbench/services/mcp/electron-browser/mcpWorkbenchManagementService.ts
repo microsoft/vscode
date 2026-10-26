@@ -16,6 +16,7 @@ import { WorkbenchMcpManagementService as BaseWorkbenchMcpManagementService, IWo
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IMcpWorkspaceInstallTargetService } from '../common/mcpWorkspaceInstallTargetService.js';
 
 export class WorkbenchMcpManagementService extends BaseWorkbenchMcpManagementService {
 
@@ -30,9 +31,10 @@ export class WorkbenchMcpManagementService extends BaseWorkbenchMcpManagementSer
 		@IRemoteUserDataProfilesService remoteUserDataProfilesService: IRemoteUserDataProfilesService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
+		@IMcpWorkspaceInstallTargetService workspaceInstallTargetService: IMcpWorkspaceInstallTargetService,
 	) {
 		const mcpManagementService = new McpManagementChannelClient(sharedProcessService.getChannel('mcpManagement'), allowedMcpServersService, logService);
-		super(mcpManagementService, allowedMcpServersService, logService, userDataProfileService, uriIdentityService, workspaceContextService, remoteAgentService, userDataProfilesService, remoteUserDataProfilesService, instantiationService);
+		super(mcpManagementService, allowedMcpServersService, logService, userDataProfileService, uriIdentityService, workspaceContextService, remoteAgentService, userDataProfilesService, remoteUserDataProfilesService, instantiationService, workspaceInstallTargetService);
 		this._register(mcpManagementService);
 	}
 }

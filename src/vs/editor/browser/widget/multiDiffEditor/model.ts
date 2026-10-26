@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, IValueWithChangeEvent } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
 import { RefCounted } from '../diffEditor/utils.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { ITextModel } from '../../../common/model.js';
@@ -14,16 +15,26 @@ export interface IMultiDiffEditorModel {
 	readonly contextKeys?: Record<string, ContextKeyValue>;
 }
 
+/**
+ * A resource participating on one side of a document diff.
+ */
+export class DiffItemSource {
+	constructor(
+		public readonly uri: URI,
+		public readonly textModel: ITextModel | undefined,
+	) { }
+}
+
 export interface IDocumentDiffItem {
 	/**
 	 * undefined if the file was created.
 	 */
-	readonly original: ITextModel | undefined;
+	readonly original: DiffItemSource | undefined;
 
 	/**
 	 * undefined if the file was deleted.
 	 */
-	readonly modified: ITextModel | undefined;
+	readonly modified: DiffItemSource | undefined;
 	readonly options?: IDiffEditorOptions;
 	readonly onOptionsDidChange?: Event<void>;
 	readonly contextKeys?: Record<string, ContextKeyValue>;

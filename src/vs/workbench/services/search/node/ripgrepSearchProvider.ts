@@ -46,6 +46,10 @@ export class RipgrepSearchProvider implements TextSearchProvider2 {
 				// todo: get this to actually check
 				limitHit: e.some(complete => !!complete && complete.limitHit)
 			};
+			const messages = e.flatMap(complete => complete?.message ?? []);
+			if (messages.length) {
+				complete.message = messages;
+			}
 			return complete;
 		}));
 

@@ -48,7 +48,7 @@ import { IPosition } from '../../../../../editor/common/core/position.js';
 import { IMarker, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ChatSetupController } from './chatSetupController.js';
 import { ChatGlobalPerfMark, markChatGlobal } from '../../common/chatPerf.js';
-import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult, maybeEnableAuthExtension, refreshTokens } from './chatSetup.js';
+import { ChatSetupAnonymous, ChatSetupSource, ChatSetupStep, IChatSetupResult, maybeEnableAuthExtension, refreshTokens } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -704,6 +704,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let result: IChatSetupResult | undefined = undefined;
 		try {
 			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
+				telemetrySource: ChatSetupSource.Chat,
 				disableChatViewReveal: true, 																				// we are already in a chat context
 				forceAnonymous: this.chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithoutDialog : undefined	// only enable anonymous selectively
 			});
@@ -881,6 +882,7 @@ export class AINewSymbolNamesProvider {
 	async provideNewSymbolNames(model: ITextModel, range: IRange, triggerKind: NewSymbolNameTriggerKind, token: CancellationToken): Promise<NewSymbolName[] | undefined> {
 		await this.instantiationService.invokeFunction(accessor => {
 			return ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
+				telemetrySource: ChatSetupSource.InlineRename,
 				forceAnonymous: this.chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithDialog : undefined
 			});
 		});

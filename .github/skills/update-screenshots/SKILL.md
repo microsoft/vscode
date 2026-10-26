@@ -5,23 +5,18 @@ description: Update the committed blocks-ci screenshot hashes after the "Screens
 
 # Update Component Screenshots from CI
 
-Screenshot **images** are not stored in the repository — they live in an external service
-(`hediet-screenshots.azurewebsites.net`), keyed by commit SHA. But a subset of fixtures is
-pinned by **hash** in [`test/componentFixtures/blocks-ci-screenshots.md`](../../../test/componentFixtures/blocks-ci-screenshots.md),
-and that file **is** committed. When those hashes change, CI fails and you must update the file.
+Screenshot **images** are not stored in the repository — they live in an external service (`hediet-screenshots.azurewebsites.net`), keyed by commit SHA. But a subset of fixtures is pinned by **hash** in [`test/componentFixtures/blocks-ci-screenshots.md`](../../../test/componentFixtures/blocks-ci-screenshots.md), and that file **is** committed. When those hashes change, CI fails and you must update the file.
 
 ## Two different outcomes, only one of which blocks
 
-The `Screenshots & Tests` job in [`.github/workflows/component-fixtures.yml`](../../workflows/component-fixtures.yml)
-produces two independent results:
+The `Screenshots & Tests` job in [`.github/workflows/component-fixtures.yml`](../../workflows/component-fixtures.yml) produces two independent results:
 
 | Result | Blocking? | Action |
 | --- | --- | --- |
 | Screenshot **diff report** (PR comment with before/after images) | No — informational | Review the visuals. Nothing to commit. |
 | **blocks-ci hash mismatch** | **Yes — fails the check** | Update `blocks-ci-screenshots.md` and commit. |
 
-A fixture opts into the blocking gate with `labels: { kind: 'screenshot', blocksCi: true }`.
-Only those fixtures appear in `blocks-ci-screenshots.md`.
+A fixture opts into the blocking gate with `labels: { kind: 'screenshot', blocksCi: true }`. Only those fixtures appear in `blocks-ci-screenshots.md`.
 
 The failure looks like this:
 
@@ -31,15 +26,11 @@ The failure looks like this:
 
 ## Step 1: Get the expected hashes from CI
 
-> **Never regenerate the hashes locally.** They are hashes of the rendered PNG bytes, produced
-> on `ubuntu-latest`. Rendering on macOS or Windows yields different bytes and therefore
-> different hashes, so locally generated values will fail CI. Always copy the values from the
-> CI job.
+> **Never regenerate the hashes locally.** They are hashes of the rendered PNG bytes, produced on `ubuntu-latest`. Rendering on macOS or Windows yields different bytes and therefore different hashes, so locally generated values will fail CI. Always copy the values from the CI job.
 
 Three surfaces carry the same content — use whichever is handy:
 
-- The **PR comment** titled "blocks-ci screenshots changed" (non-fork PRs only) — contains the
-  full updated file plus a patch.
+- The **PR comment** titled "blocks-ci screenshots changed" (non-fork PRs only) — contains the full updated file plus a patch.
 - The **job summary**, which gets the identical body and is the only surface fork PRs receive.
 - The **job log**, whose final step prints a unified diff:
 
@@ -56,17 +47,14 @@ gh pr checks <PR> --json name,link,bucket --jq '.[] | select(.name == "Screensho
 
 ## Step 2: Verify the change is intentional before accepting it
 
-This gate exists to catch **unintended** layout regressions, so accepting new hashes without
-looking at the images defeats its purpose. The images are publicly fetchable by hash, so pull
-both the old (committed) and new (from CI) versions and compare:
+This gate exists to catch **unintended** layout regressions, so accepting new hashes without looking at the images defeats its purpose. The images are publicly fetchable by hash, so pull both the old (committed) and new (from CI) versions and compare:
 
 ```bash
 curl -sL -o old.png "https://hediet-screenshots.azurewebsites.net/images/<OLD_HASH>"
 curl -sL -o new.png "https://hediet-screenshots.azurewebsites.net/images/<NEW_HASH>"
 ```
 
-Then view them, and localize the change rather than eyeballing full screenshots — the delta is
-often only a pixel or two:
+Then view them, and localize the change rather than eyeballing full screenshots — the delta is often only a pixel or two:
 
 ```bash
 python3 -c "
@@ -76,31 +64,24 @@ print('diff bbox:', ImageChops.difference(a, b).getbbox())
 "
 ```
 
-Confirm the delta matches what the PR intends. If the fixture is unrelated to the change, or
-the shift is larger than expected, treat it as a regression and fix the code instead of the
-hashes.
+Confirm the delta matches what the PR intends. If the fixture is unrelated to the change, or the shift is larger than expected, treat it as a regression and fix the code instead of the hashes.
 
 ## Step 3: Apply and commit
 
-Edit only the changed lines in `test/componentFixtures/blocks-ci-screenshots.md`, replacing the
-old hash in the image URL with the new one:
+Edit only the changed lines in `test/componentFixtures/blocks-ci-screenshots.md`, replacing the old hash in the image URL with the new one:
 
 ```md
 #### editor/inlineChatZoneWidget/InlineChatZoneWidget/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/<NEW_HASH>)
 ```
 
-The file is generated by [`build/lib/screenshotBlocksCi.ts`](../../../build/lib/screenshotBlocksCi.ts)
-and compared **byte-for-byte**, so keep the `<!-- auto-generated by CI — do not edit manually -->`
-header, the `#### <fixtureId>` / image-link pairing, the blank line between entries, and the
-`fixtureId` sort order intact. Verify your edit is the exact inverse of the diff CI reported:
+The file is generated by [`build/lib/screenshotBlocksCi.ts`](../../../build/lib/screenshotBlocksCi.ts) and compared **byte-for-byte**, so keep the `<!-- auto-generated by CI — do not edit manually -->` header, the `#### <fixtureId>` / image-link pairing, the blank line between entries, and the `fixtureId` sort order intact. Verify your edit is the exact inverse of the diff CI reported:
 
 ```bash
 git diff test/componentFixtures/blocks-ci-screenshots.md
 ```
 
-Then commit and push. The check re-runs and should pass; hashes on `main` become the new
-baseline after merge.
+Then commit and push. The check re-runs and should pass; hashes on `main` become the new baseline after merge.
 
 ## Investigating further
 
@@ -114,7 +95,4 @@ gh run download <RUN_ID> --name screenshots --dir .tmp/screenshots
 
 ## Related failures from the same job
 
-The check also fails if a fixture **failed to render** (`Fail if fixtures had errors`) or if the
-Playwright fixture tests failed. Those are genuine bugs — updating hashes will not help. Look
-for `::error::<fixtureId>:` in the log, and download the `playwright-test-results` artifact for
-test failures.
+The check also fails if a fixture **failed to render** (`Fail if fixtures had errors`) or if the Playwright fixture tests failed. Those are genuine bugs — updating hashes will not help. Look for `::error::<fixtureId>:` in the log, and download the `playwright-test-results` artifact for test failures.

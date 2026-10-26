@@ -8,7 +8,6 @@ import { JSONPath } from '../../../../base/common/json.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
-import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -74,17 +73,19 @@ export function createJsonPatch(previous: JsonValue, next: JsonValue, path: JSON
 	if (isJsonObject(previous) && isJsonObject(next)) {
 		const operations: JsonPatchOperation[] = [];
 		for (const key of Object.keys(previous)) {
-			if (!hasKey(next, { [key]: true })) {
+			if (previous[key] !== undefined && next[key] === undefined) {
 				operations.push({ op: 'remove', path: toJsonPointer([...path, key]) });
 			}
 		}
 		for (const [key, value] of Object.entries(next)) {
-			if (!hasKey(previous, { [key]: true })) {
-				if (value !== undefined) {
-					operations.push({ op: 'add', path: toJsonPointer([...path, key]), value });
-				}
-			} else if (value !== undefined && previous[key] !== undefined) {
-				appendJsonPatchOperations(operations, createJsonPatch(previous[key], value, [...path, key]));
+			if (value === undefined) {
+				continue;
+			}
+			const previousValue = previous[key];
+			if (previousValue === undefined) {
+				operations.push({ op: 'add', path: toJsonPointer([...path, key]), value });
+			} else {
+				appendJsonPatchOperations(operations, createJsonPatch(previousValue, value, [...path, key]));
 			}
 		}
 		return operations;

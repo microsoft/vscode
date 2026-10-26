@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -23,23 +22,20 @@ export class MockChatService implements IChatService {
 	editingSessions = [];
 	transferredSessionResource = undefined;
 	readonly onDidSubmitRequest = Event.None;
+	readonly onDidAcceptRequest = Event.None;
 
 	private readonly _onDidCreateModel = new Emitter<IChatModel>();
 	readonly onDidCreateModel = this._onDidCreateModel.event;
-
-	registerCustomizationMigrationHintProvider(_provider: (sessionResource: URI) => Promise<string | undefined>): IDisposable {
-		return Disposable.None;
-	}
 
 	private readonly sessions = new ResourceMap<IChatModel>();
 	private liveSessionItems: IChatDetail[] = [];
 	private historySessionItems: IChatDetail[] = [];
 
-	private readonly _onDidDisposeSession = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
+	private readonly _onDidDisposeSession = new Emitter<{ sessionResources: URI[]; reason: 'cleared' | 'disposed' }>();
 	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
-	fireDidDisposeSession(sessionResources: URI[]): void {
-		this._onDidDisposeSession.fire({ sessionResources, reason: 'cleared' });
+	fireDidDisposeSession(sessionResources: URI[], reason: 'cleared' | 'disposed' = 'cleared'): void {
+		this._onDidDisposeSession.fire({ sessionResources, reason });
 	}
 
 	setSaveModelsEnabled(enabled: boolean): void {

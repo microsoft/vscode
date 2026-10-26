@@ -50,6 +50,7 @@ Always call `sinon.restore()` in `teardown` to avoid leaking mocks.
 - Don't add tests to the wrong suite — find the relevant `suite` block
 - Follow existing patterns (`describe`/`test` or `suite`/`test`) consistently within a file
 - Don't stub globals (e.g., `(mainWindow as any).X = ...`) — make dependencies injectable instead
+- Before restarting or disposing a fixture, await background work whose completion the test asserts; an awaited mutation may only schedule discovery or publication. Prefer a passive completion signal when reading the result could itself initiate the work being tested.
 
 ### Snapshot Testing
 

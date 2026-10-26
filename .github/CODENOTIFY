@@ -13,6 +13,18 @@ src/vs/base/browser/ui/tree/** @benibenj
 
 # Platform
 src/vs/platform/agentHost/node/claude/** @TylerLeonhardt
+src/vs/platform/agentHost/**/*Automation* @ulugbekna @benvillalobos
+src/vs/platform/agentHost/**/*automation* @ulugbekna @benvillalobos
+src/vs/platform/agentHost/common/state/protocol/channels-automation-run/** @ulugbekna @benvillalobos
+src/vs/platform/agentHost/common/state/protocol/channels-automation/** @ulugbekna @benvillalobos
+# Agent Host tool budget: the deferral allow-lists and the baselines a tool author must update (see src/vs/platform/agentHost/AGENTS.md §9)
+src/vs/platform/agentHost/node/copilot/copilotBuiltinToolAllowlist.ts @bhavyaus
+src/vs/platform/agentHost/node/copilot/toolSearchDeferral.ts @bhavyaus
+src/vs/platform/agentHost/test/node/serverToolGroups.test.ts @bhavyaus
+src/vs/platform/agentHost/test/node/toolSearchDeferral.test.ts @bhavyaus
+src/vs/platform/agentHost/test/node/e2e/providers/copilotPromptsE2E.integrationTest.ts @bhavyaus
+src/vs/platform/agentHost/test/node/providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts @bhavyaus
+src/vs/platform/agentHost/test/node/e2e/providers/__snapshots__/*.prompt.md @bhavyaus
 src/vs/platform/browserView/** @kycutler @jruales
 src/vs/platform/quickinput/** @TylerLeonhardt
 src/vs/platform/secrets/** @TylerLeonhardt
@@ -38,8 +50,12 @@ src/vs/workbench/services/views/** @sandy081 @benibenj
 # Workbench Contributions
 src/vs/workbench/contrib/authentication/** @TylerLeonhardt
 src/vs/workbench/contrib/browserView/** @kycutler @jruales
+src/vs/workbench/contrib/chat/**/*Automation* @ulugbekna @benvillalobos
+src/vs/workbench/contrib/chat/**/*automation* @ulugbekna @benvillalobos
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
+src/vs/workbench/contrib/chat/common/automations/** @ulugbekna @benvillalobos
 src/vs/workbench/contrib/chat/electron-browser/builtInTools/fetchPageTool.ts @TylerLeonhardt
+src/vs/workbench/contrib/chat/test/common/automations/** @ulugbekna @benvillalobos
 src/vs/workbench/contrib/localization/** @TylerLeonhardt
 src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
 src/vs/workbench/contrib/scm/** @lszomoru
@@ -50,6 +66,7 @@ src/vs/workbench/contrib/preferences/** @rzhao271
 
 # Sessions Contributions
 src/vs/sessions/contrib/browserView/** @kycutler @jruales
+src/vs/sessions/contrib/canvases/** @ulugbekna
 
 # Build
 build/azure-pipelines/** @lszomoru
@@ -72,8 +89,31 @@ src/vs/workbench/api/common/extHostQuickOpen.ts @TylerLeonhardt
 src/vs/workbench/api/browser/mainThreadSecretState.ts @TylerLeonhardt
 
 # Extensions
+extensions/copilot/assets/prompts/skills/create-canvas/** @ulugbekna
 extensions/copilot/src/extension/chatSessions/claude/** @TylerLeonhardt
 extensions/copilot/src/extension/chatSessions/vscode-node/claudeChatSession* @TylerLeonhardt
+extensions/copilot/src/extension/completions-core/** @ulugbekna
+extensions/copilot/src/extension/completions/** @ulugbekna
+extensions/copilot/src/extension/inlineEdits/** @ulugbekna
+extensions/copilot/src/extension/typescriptContext/**/nes.spec.ts @ulugbekna
+extensions/copilot/src/extension/typescriptContext/**/nesRename* @ulugbekna
+extensions/copilot/src/extension/xtab/** @ulugbekna
+extensions/copilot/src/lib/vscode-node/test/getInlineCompletions.* @ulugbekna
+extensions/copilot/src/lib/vscode-node/test/nesProvider.* @ulugbekna
+extensions/copilot/src/platform/inlineEdits/** @ulugbekna
+extensions/copilot/src/platform/nesFetch/** @ulugbekna
+extensions/copilot/test/base/cachingCompletionsFetchService.ts @ulugbekna
+extensions/copilot/test/base/completionsCache.ts @ulugbekna
+extensions/copilot/test/inline/inlineEditCode.stest.ts @ulugbekna
+extensions/copilot/test/simulation/fixtures/inlineEdits/** @ulugbekna
+extensions/copilot/test/simulation/inlineEdit/** @ulugbekna
+extensions/copilot/test/simulation/nesCoffeTests.ts @ulugbekna
+extensions/copilot/test/simulation/nesCoffeTestsTypes.ts @ulugbekna
+extensions/copilot/test/simulation/nesExternalTests.ts @ulugbekna
+extensions/copilot/test/simulation/nesOptionsToConfigurations.ts @ulugbekna
+extensions/copilot/test/simulation/workbench/components/nesExternalModeToolbar.tsx @ulugbekna
+extensions/copilot/test/simulation/workbench/stores/nesExternalOptions.ts @ulugbekna
+extensions/copilot/docs/NES_EXPECTED_EDIT_CAPTURE.md @ulugbekna
 extensions/microsoft-authentication/** @TylerLeonhardt
 extensions/github-authentication/** @TylerLeonhardt
 extensions/git/** @lszomoru
@@ -82,7 +122,6 @@ extensions/github/** @lszomoru
 extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts @kycutler @jruales
 
 # Testing
-test/mcp/** @TylerLeonhardt
 test/scenario/** @bryanchen-d
 test/sanity/** @dmitrivMS
 
@@ -102,4 +141,3 @@ src/vs/sessions/browser/workbench.ts @benibenj
 /.github/instructions/sessions.instructions.md @sandy081
 /.github/skills/sessions/SKILL.md @sandy081
 /.github/skills/chat-customizations-editor/SKILL.md @sandy081
-

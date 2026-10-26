@@ -39,7 +39,7 @@ suite('CommandLineAutoApprover', () => {
 		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
-	function setAutoApproveWithCommandLine(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }) {
+	function setAutoApproveWithCommandLine(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean | null }) {
 		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
@@ -92,6 +92,55 @@ suite('CommandLineAutoApprover', () => {
 			];
 			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), [false, false, false, false, false]);
 		});
+
+		test('keeps the Git directory option case-sensitive', async () => {
+			const safeSubcommands = ['status', 'log', 'show', 'diff', 'ls-files', 'grep needle', 'branch'];
+			const commands = [
+				...safeSubcommands.map(subcommand => `git -C repo ${subcommand}`),
+				'GIT -C repo DIFF',
+				...safeSubcommands.map(subcommand => `git -c key=value ${subcommand}`),
+				'git --no-pager -c core.pager=program log',
+				'git -C repo -c diff.external=program diff',
+			];
+			deepStrictEqual(
+				await Promise.all(commands.map(isAutoApproved)),
+				[
+					...safeSubcommands.map(() => true),
+					true,
+					...safeSubcommands.map(() => false),
+					false,
+					false,
+				]
+			);
+		});
+
+		test('requires confirmation for Git grep pager options', async () => {
+			const autoApprovedCommands = [
+				'git grep needle',
+				'git grep -n needle',
+				'git grep -o needle',
+				'git grep -e TODO',
+				'git grep -eTODO',
+				'git grep --only-matching needle',
+				'git -C repo grep needle',
+				'git --no-pager grep needle',
+			];
+			const confirmationRequiredCommands = [
+				'git grep -O needle',
+				'git grep -Osh -e needle',
+				'git grep -nOsh -e needle',
+				'git grep --open-files-in-pager -e needle',
+				'git grep --open-files-in-pager=sh -e needle',
+				'git --no-pager -C repo grep --"op=sh" -e needle',
+				'git --no-pager -C repo grep --\'op=sh\' -e needle',
+			];
+			for (const [testShell, testOs] of [['bash', OperatingSystem.Linux], ['pwsh', OperatingSystem.Windows]] as const) {
+				shell = testShell;
+				os = testOs;
+				deepStrictEqual(await Promise.all(autoApprovedCommands.map(isAutoApproved)), autoApprovedCommands.map(() => true));
+				deepStrictEqual(await Promise.all(confirmationRequiredCommands.map(isAutoApproved)), confirmationRequiredCommands.map(() => false));
+			}
+		});
 	});
 
 	suite('default sort rules', () => {
@@ -131,6 +180,70 @@ suite('CommandLineAutoApprover', () => {
 				'sort $\'--compress-program=/bin/sh\' input.txt',
 			];
 			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
+		});
+	});
+
+	suite('default package manager install rules', () => {
+		setup(() => {
+			setAutoApproveWithCommandLine(
+				terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>
+			);
+		});
+
+		test('auto-approves exact lockfile install commands', async () => {
+			const commands = [
+				'npm ci',
+				'npm ci   ',
+				'yarn install --frozen-lockfile',
+				'yarn  install  --frozen-lockfile   ',
+				'pnpm install --frozen-lockfile',
+				'pnpm  install  --frozen-lockfile   ',
+			];
+			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => true));
+		});
+
+		test('requires approval for lockfile install options', async () => {
+			const commands = [
+				'npm ci --prefix /outside/project',
+				'npm ci --workspace other',
+				'npm ci -w other',
+				'npm ci --workspaces',
+				'npm ci --script-shell=/tmp/payload',
+				'yarn install --frozen-lockfile --cwd /outside/project',
+				'yarn install --frozen-lockfile --modules-folder /outside/modules',
+				'yarn install --frozen-lockfile --focus',
+				'yarn install --frozen-lockfile --no-lockfile',
+				'pnpm install --frozen-lockfile -C /outside/project',
+				'pnpm install --frozen-lockfile --dir /outside/project',
+				'pnpm install --frozen-lockfile --filter other',
+				'pnpm install --frozen-lockfile --workspace-root',
+				'pnpm install --frozen-lockfile --no-frozen-lockfile',
+			];
+			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
+		});
+
+		test('preserves persisted legacy package manager overrides', async () => {
+			const defaultRules = terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>;
+			const exactCommands = ['npm ci', 'yarn install --frozen-lockfile', 'pnpm install --frozen-lockfile'];
+			const commandsWithOptions = ['npm ci --prefix other', 'yarn install --frozen-lockfile --cwd other', 'pnpm install --frozen-lockfile --dir other'];
+
+			setAutoApproveWithCommandLine({
+				...defaultRules,
+				'npm ci': true,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+			});
+			deepStrictEqual(await Promise.all(exactCommands.map(isAutoApproved)), exactCommands.map(() => true));
+			deepStrictEqual(await Promise.all(commandsWithOptions.map(isAutoApproved)), commandsWithOptions.map(() => false));
+
+			setAutoApproveWithCommandLine({
+				...defaultRules,
+				'npm ci': null,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': null,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': null,
+			});
+			deepStrictEqual(await Promise.all(exactCommands.map(isAutoApproved)), exactCommands.map(() => false));
+			deepStrictEqual(await Promise.all(commandsWithOptions.map(isAutoApproved)), commandsWithOptions.map(() => false));
 		});
 	});
 

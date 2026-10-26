@@ -47,6 +47,8 @@ import { disposableTimeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { BrowserNavigationFeatures } from './browserNavigationFeatures.js';
+import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
 
@@ -117,9 +119,12 @@ class BrowserTabQuickPick extends Disposable {
 			if (selected === this._openNewTabPick) {
 				logBrowserOpen(telemetryService, 'quickOpenWithoutUrl');
 				this._quickPick.hide();
-				await this._editorService.openEditor({
+				const editorPane = await this._editorService.openEditor({
 					resource: BrowserViewUri.forId(generateUuid()),
 				}, await this._browserViewService.getPreferredGroup());
+				if (editorPane instanceof BrowserEditor) {
+					editorPane.getContribution(BrowserNavigationFeatures)?.openUrlPicker();
+				}
 			} else {
 				await this._editorService.openEditor(selected.editor, await this._browserViewService.getPreferredGroup(selected.groupId));
 			}
@@ -335,14 +340,17 @@ class OpenIntegratedBrowserAction extends Action2 {
 		if (options.openToSide && editorPane?.group) {
 			editorPane.group.lock(true);
 		}
+		if (!options.url && editorPane instanceof BrowserEditor) {
+			editorPane.getContribution(BrowserNavigationFeatures)?.openUrlPicker();
+		}
 	}
 }
 
 class OpenFileInIntegratedBrowserAction extends Action2 {
 	constructor() {
-		const IS_LOCAL_HTML_FILE = ContextKeyExpr.and(
+		const IS_SUPPORTED_LOCAL_BROWSER_FILE = ContextKeyExpr.and(
 			ResourceContextKey.Scheme.isEqualTo(Schemas.file),
-			ContextKeyExpr.regex(ResourceContextKey.Extension.key, /\.html?$/i),
+			ContextKeyExpr.regex(ResourceContextKey.Extension.key, /\.(?:html?|mht(?:ml)?)$/i),
 		);
 		super({
 			id: BrowserViewCommandId.OpenFile,
@@ -350,25 +358,25 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.globe,
 			f1: true,
-			precondition: IS_LOCAL_HTML_FILE,
+			precondition: IS_SUPPORTED_LOCAL_BROWSER_FILE,
 			menu: [
 				{
 					id: MenuId.ExplorerContext,
 					group: 'navigation',
 					order: 29,
-					when: IS_LOCAL_HTML_FILE,
+					when: IS_SUPPORTED_LOCAL_BROWSER_FILE,
 				},
 				{
 					id: MenuId.EditorTitleContext,
 					group: '1_open',
 					order: 5,
-					when: IS_LOCAL_HTML_FILE,
+					when: IS_SUPPORTED_LOCAL_BROWSER_FILE,
 				},
 				{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
 					order: 99,
-					when: IS_LOCAL_HTML_FILE,
+					when: IS_SUPPORTED_LOCAL_BROWSER_FILE,
 				},
 			]
 		});
@@ -423,7 +431,10 @@ class NewTabAction extends Action2 {
 
 		logBrowserOpen(telemetryService, 'newTabCommand');
 
-		await editorService.openEditor({ resource }, await browserViewService.getPreferredGroup());
+		const editorPane = await editorService.openEditor({ resource }, await browserViewService.getPreferredGroup());
+		if (editorPane instanceof BrowserEditor) {
+			editorPane.getContribution(BrowserNavigationFeatures)?.openUrlPicker();
+		}
 	}
 }
 
@@ -582,7 +593,7 @@ registerWorkbenchContribution2(BrowserEditorOpenContextKeyContribution.ID, Brows
 /**
  * Opens localhost URLs and all-interfaces URLs in the Integrated Browser when the setting is enabled.
  */
-class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
+export class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
 	static readonly ID = 'workbench.contrib.localhostLinkOpener';
 
 	constructor(
@@ -597,13 +608,13 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		this._register(openerService.registerExternalOpener(this));
 	}
 
-	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
+	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string; viewColumn?: ViewColumn }, _token: CancellationToken): Promise<boolean> {
 		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
 			return false;
 		}
 
 		// If we are in a remote session, always use the original source URI (and not the href which may be the forwarded address)
-		if (this.browserViewWorkbenchService.willUseRemoteProxy() && ctx.sourceUri) {
+		if (this.browserViewWorkbenchService.resolveNetwork({ type: 'user' }) && ctx.sourceUri) {
 			href = ctx.sourceUri.toString();
 		}
 
@@ -626,7 +637,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, await this.browserViewWorkbenchService.getPreferredGroup());
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, await this.browserViewWorkbenchService.getPreferredGroup(ctx.viewColumn === ViewColumn.Beside ? SIDE_GROUP : undefined));
 		return true;
 	}
 }

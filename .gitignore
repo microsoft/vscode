@@ -18,12 +18,13 @@ coverage/
 !/src/vs/platform/agentHost/test/node/e2e/coverage/
 test_data/
 test-results/
-test-results.xml
+test-results*.xml
 vscode.lsif
 vscode.db
 /.profile-oss
 /cli/target
 /cli/openssl
+/copilot_shim/target
 product.overrides.json
 *.snap.actual
 *.tsbuildinfo

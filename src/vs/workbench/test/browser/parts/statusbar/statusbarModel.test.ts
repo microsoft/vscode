@@ -114,7 +114,7 @@ suite('Workbench status bar model', () => {
 		assert.strictEqual(entries[2].id, '1');
 	});
 
-	test('insertion order preserved when priorites are the same', () => {
+	test('insertion order preserved when priorities are the same', () => {
 		const container = document.createElement('div');
 		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
 

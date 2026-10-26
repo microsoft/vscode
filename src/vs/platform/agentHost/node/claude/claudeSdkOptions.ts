@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { McpSdkServerConfigWithInstance, McpServerConfig, OnElicitation, Options, Settings } from '@anthropic-ai/claude-agent-sdk';
+import type { McpSdkServerConfigWithInstance, McpServerConfig, OnElicitation, Options, PreToolUseHookInput, Settings, SyncHookJSONOutput } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { tmpdir } from 'os';
 import { delimiter, dirname, normalize } from '../../../../base/common/path.js';
@@ -55,6 +55,7 @@ export interface IBuildOptionsInput {
 	readonly permissionMode: ClaudePermissionMode;
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly onElicitation: OnElicitation;
+	readonly onPreToolUse?: (toolName: string, input: unknown) => SyncHookJSONOutput | undefined;
 	readonly isResume: boolean;
 	/**
 	 * One-shot SDK assistant-message uuid to resume *up to and including*
@@ -148,6 +149,25 @@ export async function buildOptions(
 		[AiAgentEnvVar]: AiAgentEnvValue,
 		PATH: `${dirname(resolvedRgDiskPath)}${delimiter}${process.env.PATH ?? ''}`,
 	};
+	const hooks: NonNullable<Options['hooks']> = {};
+	if (input.onPreToolUse) {
+		hooks.PreToolUse = [{
+			hooks: [async hookInput => {
+				const preToolUse = hookInput as PreToolUseHookInput;
+				return input.onPreToolUse?.(preToolUse.tool_name, preToolUse.tool_input) ?? {};
+			}],
+		}];
+	}
+	if (input.getUserPromptAdditionalContext) {
+		hooks.UserPromptSubmit = [{
+			hooks: [async () => ({
+				hookSpecificOutput: {
+					hookEventName: 'UserPromptSubmit' as const,
+					additionalContext: input.getUserPromptAdditionalContext?.(),
+				},
+			})],
+		}];
+	}
 
 	return {
 		cwd: input.workingDirectory.fsPath,
@@ -184,18 +204,7 @@ export async function buildOptions(
 				: {}),
 		},
 		systemPrompt: { type: 'preset', preset: 'claude_code' },
-		...(input.getUserPromptAdditionalContext ? {
-			hooks: {
-				UserPromptSubmit: [{
-					hooks: [async () => ({
-						hookSpecificOutput: {
-							hookEventName: 'UserPromptSubmit' as const,
-							additionalContext: input.getUserPromptAdditionalContext?.(),
-						},
-					})],
-				}],
-			},
-		} : {}),
+		...(Object.keys(hooks).length > 0 ? { hooks } : {}),
 		stderr: logStderr,
 	};
 }

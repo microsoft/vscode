@@ -81,6 +81,7 @@ suite('ChatModelFeedbackSurveyService', () => {
 			_serviceBrand: undefined,
 			onDidRefetchAssignments: options.onDidRefetchAssignments ?? Event.None,
 			getCurrentExperiments: async () => [],
+			getTreatmentWithAssignment: async () => ({ value: undefined, hasAssignment: Promise.resolve(false) }),
 			addTelemetryAssignmentFilter(_filter: IAssignmentFilter): void { },
 			getTreatment: async <T extends string | number | boolean>() => (options.getTreatment
 				? options.getTreatment()
@@ -94,7 +95,7 @@ suite('ChatModelFeedbackSurveyService', () => {
 		} as unknown as ICommandService);
 		instantiationService.stub(ILanguageModelsService, { lookupLanguageModel: () => undefined } as unknown as ILanguageModelsService);
 		instantiationService.stub(IChatSessionsService, { getChatSessionContribution: () => undefined } as unknown as IChatSessionsService);
-		const disposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>());
+		const disposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
 		instantiationService.stub(IChatService, { onDidDisposeSession: disposeSession.event } as unknown as IChatService);
 		instantiationService.stub(ILogService, new NullLogService());
 
@@ -374,6 +375,50 @@ suite('ChatModelFeedbackSurveyService', () => {
 
 		// A fresh instance means the entry really was released rather than reused.
 		assert.notStrictEqual(service.getSurvey(createResponse('req-1'))?.instanceId, first);
+	});
+
+	test('preserves the session prompt budget on model unload but resets it on deletion', async () => {
+		const { service, events, disposeSession } = await createService({ treatment: makePayload({ chance: { initial: 1 }, maxPerSession: 1, cooldownDays: 0 }) });
+		const firstResponse = createResponse('req-1');
+		const first = service.getSurvey(firstResponse)?.status;
+		service.dismiss(firstResponse);
+
+		disposeSession.fire({ sessionResources: [defaultSession], reason: 'disposed' });
+		const afterUnload = service.getSurvey(createResponse('req-2'))?.status;
+		disposeSession.fire({ sessionResources: [defaultSession], reason: 'cleared' });
+		const afterDeletion = service.getSurvey(createResponse('req-3'))?.status;
+
+		assert.deepStrictEqual({
+			statuses: [first, afterUnload, afterDeletion],
+			triggers: events.filter(e => e.kind === 'opened').map(e => e.trigger),
+		}, {
+			statuses: [ChatModelFeedbackSurveyStatus.Open, ChatModelFeedbackSurveyStatus.Collapsed, ChatModelFeedbackSurveyStatus.Open],
+			triggers: ['chance', 'chance'],
+		});
+	});
+
+	test('releases in-progress response state on model unload so another session can prompt', async () => {
+		const { service, disposeSession } = await createService({ treatment: makePayload({ chance: { initial: 1 }, cooldownDays: 0 }) });
+		const firstResponse = createResponse('req-1');
+		const first = service.getSurvey(firstResponse);
+		service.setCommentDraft(firstResponse, 'Unfinished feedback');
+
+		disposeSession.fire({ sessionResources: [defaultSession], reason: 'disposed' });
+		const otherResponse = createResponse('other-1', { sessionResource: URI.parse('vscode-chat-editor://session-2') });
+		const other = service.getSurvey(otherResponse);
+		const restored = service.getSurvey(createResponse('req-1'));
+
+		assert.deepStrictEqual({
+			firstStatus: first?.status,
+			otherStatus: other?.status,
+			freshInstance: restored?.instanceId !== first?.instanceId,
+			commentDraft: restored?.commentDraft,
+		}, {
+			firstStatus: ChatModelFeedbackSurveyStatus.Open,
+			otherStatus: ChatModelFeedbackSurveyStatus.Open,
+			freshInstance: true,
+			commentDraft: '',
+		});
 	});
 
 	test('keeps the control on the newest response even after the prompt budget is spent', async () => {

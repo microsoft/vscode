@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, ConfigurationChangeEvent, Disposable, Event, EventEmitter, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace, l10n, Command } from 'vscode';
+import * as path from 'path';
+import { CancellationToken, ConfigurationChangeEvent, Disposable, EventEmitter, FileType, ThemeIcon, Timeline, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace, l10n, Command, WorkspaceTimelineProvider } from 'vscode';
 import { Model } from './model';
 import { Repository, Resource } from './repository';
 import { debounce } from './decorators';
@@ -14,6 +15,8 @@ import { truncate } from './util';
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import type { AvatarQuery, AvatarQueryCommit } from './api/git';
 import { getCommitHover, getHoverCommitHashCommands, processHoverRemoteCommands } from './hover';
+import { toGitUri } from './uri';
+import { GitError, type Commit } from './git';
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -30,7 +33,8 @@ export class GitTimelineItem extends TimelineItem {
 		message: string,
 		timestamp: number,
 		id: string,
-		contextValue: string
+		contextValue: string,
+		readonly rootUri: Uri
 	) {
 		const index = message.indexOf('\n');
 		const label = index !== -1 ? `${truncate(message, index, false)}` : message;
@@ -60,11 +64,62 @@ export class GitTimelineItem extends TimelineItem {
 	}
 }
 
-export class GitTimelineProvider implements TimelineProvider {
-	private _onDidChange = new EventEmitter<TimelineChangeEvent | undefined>();
-	get onDidChange(): Event<TimelineChangeEvent | undefined> {
-		return this._onDidChange.event;
+/**
+ * The number of commits to return from each repository when the workspace timeline asks for all items.
+ */
+const WORKSPACE_TIMELINE_PAGE_SIZE = 50;
+
+function getCommitDate(commit: Commit, dateType: 'committed' | 'authored' | undefined): Date | undefined {
+	return dateType === 'authored' ? commit.authorDate : commit.commitDate;
+}
+
+function getCommitTimestamp(commit: Commit, dateType: 'committed' | 'authored' | undefined): number {
+	return getCommitDate(commit, dateType)?.getTime() ?? 0;
+}
+
+/**
+ * Selects a page of the workspace timeline from the logs of the repositories, newest first. Each log starts after the
+ * commits that earlier pages took from that repository, and has at least 1 more commit than the limit if there are more.
+ *
+ * Commits are only taken from the start of each log, so the number taken is where its next page starts, even when a
+ * log is not ordered by timestamp, e.g. when using the authored date.
+ *
+ * @returns The commits of the page, and for each repository with more commits, how many commits its next page skips.
+ */
+export function getWorkspaceTimelinePage<T>(logs: readonly { readonly root: string; readonly commits: readonly T[]; readonly skip: number }[], limit: number, getTimestamp: (commit: T, log: number) => number): { page: { log: number; commit: T }[]; nextSkip: Record<string, number> | undefined } {
+	const page: { log: number; commit: T }[] = [];
+	const positions = logs.map(() => 0);
+	while (page.length < limit) {
+		let next: number | undefined;
+		for (let log = 0; log < logs.length; log++) {
+			if (positions[log] < logs[log].commits.length && (next === undefined || getTimestamp(logs[log].commits[positions[log]], log) > getTimestamp(logs[next].commits[positions[next]], next))) {
+				next = log;
+			}
+		}
+
+		if (next === undefined) {
+			break;
+		}
+
+		page.push({ log: next, commit: logs[next].commits[positions[next]++] });
 	}
+
+	const nextSkip: Record<string, number> = {};
+	logs.forEach(({ root, commits, skip }, log) => {
+		if (commits.length > positions[log]) {
+			nextSkip[root] = skip + positions[log];
+		}
+	});
+
+	return { page, nextSkip: Object.keys(nextSkip).length > 0 ? nextSkip : undefined };
+}
+
+export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineProvider {
+	private readonly _onDidChangeTimeline = new EventEmitter<undefined>();
+	readonly onDidChangeTimeline = this._onDidChangeTimeline.event;
+
+	private readonly _onDidChangeWorkspaceTimeline = new EventEmitter<void>();
+	readonly onDidChangeWorkspaceTimeline = this._onDidChangeWorkspaceTimeline.event;
 
 	readonly id = 'git-history';
 	readonly label = l10n.t('Git History');
@@ -79,6 +134,8 @@ export class GitTimelineProvider implements TimelineProvider {
 	constructor(private readonly model: Model, private commands: CommandCenter) {
 		this.disposable = Disposable.from(
 			model.onDidOpenRepository(this.onRepositoriesChanged, this),
+			model.onDidCloseRepository(() => this.fireWorkspaceChanged()),
+			model.onDidChangeRepository(() => this.fireWorkspaceChanged()),
 			workspace.onDidChangeConfiguration(this.onConfigurationChanged, this)
 		);
 
@@ -116,24 +173,10 @@ export class GitTimelineProvider implements TimelineProvider {
 			);
 		}
 
-		// TODO@eamodio: Ensure that the uri is a file -- if not we could get the history of the repo?
+		const isFolder = await this.isFolder(uri);
 
-		let limit: number | undefined;
-		if (options.limit !== undefined && typeof options.limit !== 'number') {
-			try {
-				const result = await this.model.git.exec(repo.root, ['rev-list', '--count', `${options.limit.id}..`, '--', uri.fsPath]);
-				if (!result.exitCode) {
-					// Ask for 2 more (1 for the limit commit and 1 for the next commit) than so we can determine if there are more commits
-					limit = Number(result.stdout) + 2;
-				}
-			}
-			catch {
-				limit = undefined;
-			}
-		} else {
-			// If we are not getting everything, ask for 1 more than so we can determine if there are more commits
-			limit = options.limit === undefined ? undefined : options.limit + 1;
-		}
+		// If we are not getting everything, ask for 1 more than so we can determine if there are more commits
+		const limit = options.limit === undefined ? undefined : options.limit + 1;
 
 		await ensureEmojis();
 
@@ -142,67 +185,53 @@ export class GitTimelineProvider implements TimelineProvider {
 			{
 				maxEntries: limit,
 				hash: options.cursor,
-				follow: true,
+				// Following renames only works for files
+				follow: !isFolder,
+				filePaths: !isFolder,
 				shortStats: true,
 				// sortByAuthorDate: true
 			},
 			token
 		);
 
-		const paging = commits.length ? {
-			cursor: limit === undefined ? undefined : (commits.length >= limit ? commits[commits.length - 1]?.hash : undefined)
-		} : undefined;
+		const cursor = limit !== undefined && commits.length >= limit ? commits[commits.length - 1]?.hash : undefined;
 
 		// If we asked for an extra commit, strip it off
-		if (limit !== undefined && commits.length >= limit) {
+		if (cursor !== undefined) {
 			commits.splice(commits.length - 1, 1);
 		}
 
 		const config = workspace.getConfiguration('git', Uri.file(repo.root));
-		const dateType = config.get<'committed' | 'authored'>('timeline.date');
-		const showAuthor = config.get<boolean>('timeline.showAuthor');
 		const showUncommitted = config.get<boolean>('timeline.showUncommitted');
 
 		const openComparison = l10n.t('Open Comparison');
 
 		const emptyTree = await repo.getEmptyTree();
-		const unpublishedCommits = await repo.getUnpublishedCommits();
-		const remoteHoverCommands = await provideSourceControlHistoryItemHoverCommands(this.model, repo);
-
-		const avatarQuery = {
-			commits: commits.map(c => ({
-				hash: c.hash,
-				authorName: c.authorName,
-				authorEmail: c.authorEmail
-			}) satisfies AvatarQueryCommit),
-			size: 20
-		} satisfies AvatarQuery;
-		const avatars = await provideSourceControlHistoryItemAvatar(this.model, repo, avatarQuery);
+		const getDetails = await this.getCommitDetails(repo, commits, uri);
 
 		const items: GitTimelineItem[] = [];
 		for (let index = 0; index < commits.length; index++) {
 			const c = commits[index];
+			const { message, timestamp, description, tooltip } = await getDetails(c);
 
-			const date = dateType === 'authored' ? c.authorDate : c.commitDate;
-
-			const message = emojify(c.message);
-
-			const previousRef = commits[index + 1]?.hash ?? emptyTree;
-			const item = new GitTimelineItem(c.hash, previousRef, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
-			item.iconPath = new ThemeIcon('git-commit');
-			if (showAuthor) {
-				item.description = c.authorName;
+			if (isFolder) {
+				// A commit in a folder timeline is not a single version of a resource, so it opens the whole commit
+				const item = new GitTimelineItem(c.hash, c.parents[0] ?? emptyTree, message, timestamp, c.hash, 'git:folder:commit', Uri.file(repo.root));
+				item.iconPath = new ThemeIcon('git-commit');
+				item.description = description;
+				item.tooltip = tooltip;
+				item.command = this.getOpenCommitCommand(item, uri);
+				items.push(item);
+				continue;
 			}
 
-			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteHoverCommands ?? [] : [];
-			const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(this.model, repo, message) ?? message;
-
-			const commands: Command[][] = [
-				getHoverCommitHashCommands(uri, c.hash),
-				processHoverRemoteCommands(commitRemoteSourceCommands, c.hash)
-			];
-
-			item.tooltip = getCommitHover(avatars?.get(c.hash), c.authorName, c.authorEmail, date, messageWithLinks, c.shortStat, commands);
+			const previousRef = commits[index + 1]?.hash ?? emptyTree;
+			const item = new GitTimelineItem(c.hash, previousRef, message, timestamp, c.hash, 'git:file:commit', Uri.file(repo.root));
+			item.iconPath = new ThemeIcon('git-commit');
+			item.description = description;
+			item.tooltip = tooltip;
+			// The file can have had another name at this commit when following renames
+			item.resourceUri = c.filePath ? toGitUri(Uri.file(path.join(repo.root, c.filePath)), c.hash) : undefined;
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {
@@ -216,18 +245,19 @@ export class GitTimelineProvider implements TimelineProvider {
 			items.push(item);
 		}
 
-		if (options.cursor === undefined) {
+		if (options.cursor === undefined && !isFolder) {
 			const you = l10n.t('You');
 
 			const index = repo.indexGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
 			if (index) {
 				const date = this.repoOperationDate ?? new Date();
 
-				const item = new GitTimelineItem('~', 'HEAD', l10n.t('Staged Changes'), date.getTime(), 'index', 'git:file:index');
+				const item = new GitTimelineItem('~', 'HEAD', l10n.t('Staged Changes'), date.getTime(), 'index', 'git:file:index', Uri.file(repo.root));
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
 				item.description = '';
 				item.tooltip = getCommitHover(undefined, you, undefined, date, Resource.getStatusText(index.type), undefined, undefined);
+				item.resourceUri = toGitUri(uri, '~');
 
 				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 				if (cmd) {
@@ -246,10 +276,11 @@ export class GitTimelineProvider implements TimelineProvider {
 				if (working) {
 					const date = new Date();
 
-					const item = new GitTimelineItem('', index ? '~' : 'HEAD', l10n.t('Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
+					const item = new GitTimelineItem('', index ? '~' : 'HEAD', l10n.t('Uncommitted Changes'), date.getTime(), 'working', 'git:file:working', Uri.file(repo.root));
 					item.iconPath = new ThemeIcon('circle-outline');
 					item.description = '';
 					item.tooltip = getCommitHover(undefined, you, undefined, date, Resource.getStatusText(working.type), undefined, undefined);
+					item.resourceUri = uri;
 
 					const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 					if (cmd) {
@@ -265,21 +296,153 @@ export class GitTimelineProvider implements TimelineProvider {
 			}
 		}
 
+		return { items, cursor };
+	}
+
+	async provideWorkspaceTimeline(options: TimelineOptions, token: CancellationToken): Promise<Timeline> {
+		// The cursor holds the number of commits already returned from each repository that has more
+		const skipByRoot: Record<string, number> | undefined = options.cursor ? JSON.parse(options.cursor) : undefined;
+		const repositories = this.model.repositories.filter(repo => skipByRoot === undefined || skipByRoot[repo.root] !== undefined);
+		const limit = options.limit ?? WORKSPACE_TIMELINE_PAGE_SIZE;
+
+		await ensureEmojis();
+
+		// Ask each repository for 1 more than the limit so we can determine if there are more commits
+		const logs = await Promise.all(repositories.map(async repo => ({
+			repo,
+			root: repo.root,
+			skip: skipByRoot?.[repo.root] ?? 0,
+			commits: await this.logRepository(repo, limit + 1, skipByRoot?.[repo.root], token),
+			dateType: workspace.getConfiguration('git', Uri.file(repo.root)).get<'committed' | 'authored'>('timeline.date')
+		})));
+
+		const { page, nextSkip } = getWorkspaceTimelinePage(logs, limit, (commit, log) => getCommitTimestamp(commit, logs[log].dateType));
+
+		// Only resolve the details of repositories with commits in this page
+		const showRepository = this.model.repositories.length > 1;
+		const detailsByLog = new Map(await Promise.all([...new Set(page.map(entry => entry.log))].map(async log => {
+			const { repo } = logs[log];
+			const commits = page.filter(entry => entry.log === log).map(entry => entry.commit);
+			return [log, {
+				getDetails: await this.getCommitDetails(repo, commits, Uri.file(repo.root), showRepository),
+				emptyTree: await repo.getEmptyTree()
+			}] as const;
+		})));
+
+		const items: GitTimelineItem[] = [];
+		const hashes = new Set<string>();
+		for (const { log, commit } of page) {
+			// The same commit can be in multiple repositories, e.g. worktrees
+			if (hashes.has(commit.hash)) {
+				continue;
+			}
+			hashes.add(commit.hash);
+
+			const { repo } = logs[log];
+			const { getDetails, emptyTree } = detailsByLog.get(log)!;
+			const details = await getDetails(commit);
+			const item = new GitTimelineItem(commit.hash, commit.parents[0] ?? emptyTree, details.message, details.timestamp, commit.hash, 'git:workspace:commit', Uri.file(repo.root));
+			item.iconPath = new ThemeIcon('git-commit');
+			item.description = details.description;
+			item.tooltip = details.tooltip;
+			item.command = this.getOpenCommitCommand(item, undefined);
+			items.push(item);
+		}
+
 		return {
-			items: items,
-			paging: paging
+			items,
+			cursor: nextSkip ? JSON.stringify(nextSkip) : undefined
 		};
+	}
+
+	private async logRepository(repo: Repository, maxEntries: number, skip: number | undefined, token: CancellationToken): Promise<Commit[]> {
+		try {
+			return await repo.log({ maxEntries, skip, shortStats: true, silent: true }, token);
+		} catch (err) {
+			// A repository without commits has no history
+			if (err instanceof GitError && /does not have any commits yet/.test(err.stderr ?? '')) {
+				return [];
+			}
+
+			throw err;
+		}
+	}
+
+	/**
+	 * Resolves what is needed to show commits of a repository as timeline items.
+	 */
+	private async getCommitDetails(repo: Repository, commits: Commit[], hoverUri: Uri, showRepository = false) {
+		const config = workspace.getConfiguration('git', Uri.file(repo.root));
+		const dateType = config.get<'committed' | 'authored'>('timeline.date');
+		const showAuthor = config.get<boolean>('timeline.showAuthor');
+
+		const unpublishedCommits = await repo.getUnpublishedCommits();
+		const remoteHoverCommands = await provideSourceControlHistoryItemHoverCommands(this.model, repo);
+
+		const avatarQuery = {
+			commits: commits.map(c => ({
+				hash: c.hash,
+				authorName: c.authorName,
+				authorEmail: c.authorEmail
+			}) satisfies AvatarQueryCommit),
+			size: 20
+		} satisfies AvatarQuery;
+		const avatars = await provideSourceControlHistoryItemAvatar(this.model, repo, avatarQuery);
+
+		const repositoryName = path.basename(repo.root);
+
+		return async (c: Commit) => {
+			const date = getCommitDate(c, dateType);
+			const message = emojify(c.message);
+
+			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteHoverCommands ?? [] : [];
+			const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(this.model, repo, message) ?? message;
+
+			const commands: Command[][] = [
+				getHoverCommitHashCommands(hoverUri, c.hash),
+				processHoverRemoteCommands(commitRemoteSourceCommands, c.hash)
+			];
+
+			const descriptions = [showRepository ? repositoryName : undefined, showAuthor ? c.authorName : undefined].filter(d => !!d);
+
+			return {
+				message,
+				timestamp: getCommitTimestamp(c, dateType),
+				description: descriptions.length > 0 ? descriptions.join(' \u2022 ') : undefined,
+				tooltip: getCommitHover(avatars?.get(c.hash), c.authorName, c.authorEmail, date, messageWithLinks, c.shortStat, commands)
+			};
+		};
+	}
+
+	private getOpenCommitCommand(item: GitTimelineItem, uri: Uri | undefined): Command {
+		return {
+			title: l10n.t('Open Commit'),
+			command: 'git.timeline.viewCommit',
+			arguments: [item, uri, this.id]
+		};
+	}
+
+	private async isFolder(uri: Uri): Promise<boolean> {
+		try {
+			return ((await workspace.fs.stat(uri)).type & FileType.Directory) !== 0;
+		} catch {
+			return false;
+		}
 	}
 
 	private ensureProviderRegistration() {
 		if (this.providerDisposable === undefined) {
-			this.providerDisposable = workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'vscode-local-history'], this);
+			this.providerDisposable = Disposable.from(
+				workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'vscode-local-history'], this),
+				workspace.registerWorkspaceTimelineProvider(this)
+			);
 		}
 	}
 
 	private onConfigurationChanged(e: ConfigurationChangeEvent) {
 		if (e.affectsConfiguration('git.timeline.date') || e.affectsConfiguration('git.timeline.showAuthor') || e.affectsConfiguration('git.timeline.showUncommitted')) {
 			this.fireChanged();
+			this.fireWorkspaceChanged();
 		}
 	}
 
@@ -290,6 +453,7 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		// TODO@eamodio: Being naive for now and just always refreshing each time there is a new repository
 		this.fireChanged();
+		this.fireWorkspaceChanged();
 	}
 
 	private onRepositoryChanged(_repo: Repository, _uri: Uri) {
@@ -324,6 +488,11 @@ export class GitTimelineProvider implements TimelineProvider {
 
 	@debounce(500)
 	private fireChanged() {
-		this._onDidChange.fire(undefined);
+		this._onDidChangeTimeline.fire(undefined);
+	}
+
+	@debounce(500)
+	private fireWorkspaceChanged() {
+		this._onDidChangeWorkspaceTimeline.fire();
 	}
 }

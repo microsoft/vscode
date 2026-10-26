@@ -26,9 +26,8 @@ import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackSe
  * aware of the comments so the user can reveal and accept them.
  *
  * The mirror carries {@link IAgentFeedback.sourcePRReviewCommentId} (the GitHub
- * review thread id) so it can be deduplicated against the raw PR comment in the
- * editor (see `getSessionEditorComments`) and so resolving the agent feedback
- * resolves the originating GitHub thread (see
+ * review thread id) so it replaces the raw PR comment in the editor and so
+ * resolving the agent feedback resolves the originating GitHub thread (see
  * {@link import('./agentFeedbackPRThreadResolver.js').AgentFeedbackPRThreadResolverContribution}).
  *
  * Seeding is keyed off the session resource (the same key every other feedback
@@ -124,8 +123,7 @@ export class AgentFeedbackPRReviewSeederContribution extends Disposable implemen
 				}
 				continue;
 			}
-			// A mirror the user already accepted/submitted supersedes the raw PR
-			// comment; only seed a new created mirror when none exists yet.
+			// Any existing mirror supersedes the raw PR comment in the editor.
 			if (!mirroredSourceIds.has(comment.id)) {
 				this._agentFeedbackService.addFeedback(
 					sessionResource,

@@ -1,0 +1,181 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agents-window-extensions {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.agents-window-extensions > .agents-window-extensions-header,
+.agents-window-extensions > .agents-window-extensions-search,
+.agents-window-extensions > .agents-window-extensions-tree,
+.agents-window-extensions > .agents-window-extensions-empty {
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
+	margin-inline: auto;
+	box-sizing: border-box;
+}
+
+.agents-window-extensions-header {
+	flex-shrink: 0;
+}
+
+.agents-window-extensions-title-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-height: var(--vscode-spacing-size240);
+	margin-bottom: var(--vscode-spacing-size60);
+}
+
+.agents-window-extensions-title {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.agents-window-extensions-title-row > .monaco-button {
+	width: auto;
+	height: var(--vscode-spacing-size240);
+	flex-shrink: 0;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.agents-window-extensions-description {
+	margin: 0 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.45;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* A row, like the search boxes of other Customizations sections, so WebKit doesn't stretch the input box's percentage height to the whole section. */
+.agents-window-extensions-search {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-block: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.agents-window-extensions-search > .monaco-inputbox {
+	flex: 1;
+}
+
+.agents-window-extensions-tree {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.agents-window-extension-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	height: 100%;
+	padding-inline: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.agents-window-extension-icon {
+	display: flex;
+	flex-shrink: 0;
+}
+
+.agents-window-extension-icon .extension-icon .icon {
+	margin-right: 0;
+}
+
+.agents-window-extension-icon .extension-icon .codicon {
+	padding-right: 0;
+}
+
+.agents-window-extension-details {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+	gap: var(--vscode-spacing-size20);
+}
+
+.agents-window-extension-name-row {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.agents-window-extension-name {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 18px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agents-window-extension-publisher,
+.agents-window-extension-description {
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agents-window-extension-publisher {
+	flex-shrink: 0;
+	max-width: 40%;
+}
+
+.agents-window-extension-row.disabled .agents-window-extension-icon,
+.agents-window-extension-row.disabled .agents-window-extension-name,
+.agents-window-extension-row.disabled .agents-window-extension-publisher,
+.agents-window-extension-row.disabled .agents-window-extension-description {
+	opacity: 0.6;
+}
+
+/* Marks extensions that contribute things the Agents window doesn't support. Not dimmed with disabled rows, as it matters most before enabling them. Outranks the workbench's generic codicon size and color. */
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-warning.codicon {
+	flex-shrink: 0;
+	align-self: center;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+/* What suggested extensions contribute, which is why users might enable them. Not dimmed with disabled rows either. */
+.agents-window-extension-contributions {
+	display: flex;
+	align-self: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	overflow: hidden;
+}
+
+.agents-window-extensions-empty {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size400) var(--vscode-spacing-size240);
+	text-align: center;
+}
+
+.agents-window-extensions-empty-text {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.agents-window-extensions-empty-subtext {
+	font-size: var(--vscode-fontSize-body1);
+	color: var(--vscode-descriptionForeground);
+}

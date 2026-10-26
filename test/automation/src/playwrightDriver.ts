@@ -98,6 +98,25 @@ export class PlaywrightDriver {
 		return this._currentPage;
 	}
 
+	/** Resize the current window and return its previous size. */
+	async resizeWindow(size: { width: number; height: number }): Promise<{ width: number; height: number }> {
+		if ('browserWindow' in this.application) {
+			const window = await this.application.browserWindow(this.page);
+			try {
+				return await window.evaluate((window, size) => {
+					const [width, height] = window.getSize();
+					window.setSize(size.width, size.height);
+					return { width, height };
+				}, size);
+			} finally {
+				await window.dispose();
+			}
+		}
+		const previous = this.page.viewportSize() ?? await this.page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+		await this.page.setViewportSize(size);
+		return previous;
+	}
+
 	/**
 	 * Get all open windows/pages.
 	 * For Electron apps, returns all Electron windows.

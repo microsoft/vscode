@@ -4,64 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../base/common/async.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { ISocket } from '../../../base/parts/ipc/common/ipc.net.js';
+import { localize } from '../../../nls.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IAddress, IAddressProvider, IConnectionOptions, connectRemoteAgentTunnel } from '../../../platform/remote/common/remoteAgentConnection.js';
 import { IRemoteConnectionData, RemoteConnectionType } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteSocketFactoryService } from '../../../platform/remote/common/remoteSocketFactoryService.js';
 import { nodeSocketFactory } from '../../../platform/remote/node/nodeSocketFactory.js';
-import { TunnelProxy } from '../../../platform/tunnel/node/tunnelProxy.js';
-import { MainContext, MainThreadBrowserTunnelProxyShape } from '../common/extHost.protocol.js';
+import { ITunnelConnectFn, TunnelProxy } from '../../../platform/tunnel/node/tunnelProxy.js';
+import { ITunnelProxyInfo } from '../../../platform/tunnel/common/tunnelProxy.js';
 import { IExtHostBrowserTunnelProxy } from '../common/extHostBrowserTunnelProxy.js';
 import { IExtHostExtensionService } from '../common/extHostExtensionService.js';
 import { IExtHostManagedSockets } from '../common/extHostManagedSockets.js';
 import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
-import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { ExtHostManagedSocket } from './extHostTunnelService.js';
 import { ISignService } from '../../../platform/sign/common/sign.js';
 
 /**
- * Node implementation of {@link IExtHostBrowserTunnelProxy}: hosts a
- * {@link TunnelProxy} HTTPS server in the local extension host and routes its
- * traffic through the established remote connection (managed or websocket).
+ * Node implementation of {@link IExtHostBrowserTunnelProxy}: hosts, in the
+ * local extension host, one {@link TunnelProxy} HTTPS server per remote
+ * network browsers use. The renderer reference-counts networks and starts and
+ * stops their proxies.
  *
- * The connection descriptor is observed from {@link IExtHostExtensionService}
- * via {@link IExtHostExtensionService.onDidChangeRemoteConnectionData}, the same
- * renderer-synced source of truth used elsewhere, so this niche feature is a
- * pure consumer of remote-connection state and does not perturb authority
- * resolution. Managed connections are dialed in-process through
- * {@link IExtHostManagedSockets}.
+ * The window's own remote (network authority = the window's remote authority)
+ * dials destinations through the established remote connection (managed or
+ * websocket), observed from
+ * {@link IExtHostExtensionService.onDidChangeRemoteConnectionData}. Managed
+ * connections are dialed in-process through {@link IExtHostManagedSockets},
+ * which only exist in the local extension host because the resolver runs
+ * there.
  *
- * This only ever runs in the *local* extension host. The proxy must listen on a
- * port reachable by the owning window and route through the local machine's link
- * to the remote, and the managed (exec-server) socket factory only exists in the
- * local ext host because the resolver runs there. A remote-hosted instance would
- * bind on the wrong machine and could not service managed connections, so it
- * ignores enablement (see {@link $setEnabled}).
- *
- * The HTTPS server runs while the consumer has enabled it ({@link $setEnabled}).
- * It is started *once* and kept alive: the live connection endpoint is fed to it
- * through a long-lived, mutable {@link MutableAddressProvider} resolved per
- * outgoing connection. When the endpoint changes we update the provider and
- * drain the existing connection pool rather than tearing the server down, so the
- * renderer keeps the same proxy URL/credentials and active browsing is not
- * disrupted by unrelated connection-data updates (e.g. token refreshes).
+ * The remote connection's endpoint is fed to its proxy through a long-lived,
+ * mutable {@link MutableAddressProvider}. When the endpoint changes we update
+ * the provider and drain the proxy's connection pool rather than restarting
+ * it, so the renderer keeps the same proxy URL/credentials and active browsing
+ * is not disrupted by unrelated connection-data updates (e.g. token refreshes).
  */
 export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHostBrowserTunnelProxy {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _proxy: MainThreadBrowserTunnelProxyShape;
 	private readonly _addressProvider = new MutableAddressProvider();
-
-	private _enabled = false;
 	private _connection: IRemoteConnectionData | null = null;
 
-	private _tunnelProxy: TunnelProxy | undefined;
-	private _startPromise: Promise<void> | undefined;
+	private readonly _networkProxies = this._register(new DisposableMap<string, INetworkProxy>());
 
 	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService,
 		@ISignService private readonly _signService: ISignService,
 		@ILogService private readonly _logService: ILogService,
@@ -69,28 +57,33 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 		@IExtHostExtensionService extHostExtensionService: IExtHostExtensionService,
 	) {
 		super();
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadBrowserTunnelProxy);
 		this._setConnection(extHostExtensionService.getRemoteConnectionData());
 		this._register(extHostExtensionService.onDidChangeRemoteConnectionData(() => this._setConnection(extHostExtensionService.getRemoteConnectionData())));
 	}
 
-	override dispose(): void {
-		this._stop();
-		super.dispose();
+	$acquireNetworkProxy(authority: string): Promise<ITunnelProxyInfo> {
+		if (authority !== this._initData.remote.authority) {
+			return Promise.reject(new Error(localize('browser.unknownNetwork', "This page was opened for another remote ({0}). Open it again from a window connected to that remote.", authority)));
+		}
+		let entry = this._networkProxies.get(authority);
+		if (!entry) {
+			const proxy = new TunnelProxy(this._createRemoteConnector(), this._logService);
+			const created: INetworkProxy = { proxy, info: proxy.start(), dispose: () => proxy.dispose() };
+			created.info.catch(err => {
+				this._logService.error(`[ExtHostBrowserTunnelProxy] Failed to start proxy for network ${authority}:`, err);
+				// A released proxy was already disposed.
+				if (this._networkProxies.get(authority) === created) {
+					this._networkProxies.deleteAndDispose(authority);
+				}
+			});
+			this._networkProxies.set(authority, created);
+			entry = created;
+		}
+		return entry.info;
 	}
 
-	$setEnabled(enabled: boolean): void {
-		// Only the local extension host can host the proxy (see class doc). On the
-		// remote ext host there is no managed socket factory and the server would
-		// bind on the wrong machine, so ignore enablement entirely.
-		if (this._initData.remote.isRemote) {
-			return;
-		}
-		if (this._enabled === enabled) {
-			return;
-		}
-		this._enabled = enabled;
-		this._update();
+	$releaseNetworkProxy(authority: string): void {
+		this._networkProxies.deleteAndDispose(authority);
 	}
 
 	private _setConnection(connection: IRemoteConnectionData | null): void {
@@ -102,52 +95,14 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 		this._addressProvider.setAddress({ connectTo: connection.connectTo, connectionToken: connection.connectionToken });
 		// The endpoint moved: drain in-flight connections so they reconnect against
 		// the new address. The server itself stays up.
-		if (changed) {
-			this._tunnelProxy?.drainConnectionPool();
+		if (changed && this._initData.remote.authority) {
+			this._networkProxies.get(this._initData.remote.authority)?.proxy.drainConnectionPool();
 		}
 	}
 
-	private _update(): void {
-		if (this._enabled && !this._tunnelProxy && !this._startPromise) {
-			this._start();
-		} else if (!this._enabled) {
-			this._stop();
-		}
-	}
-
-	private _start(): void {
+	private _createRemoteConnector(): ITunnelConnectFn {
 		const options = this._createConnectionOptions();
-		const tunnelProxy = new TunnelProxy(
-			(host, port) => connectRemoteAgentTunnel(options, host, port),
-			this._logService,
-		);
-		const startPromise: Promise<void> = tunnelProxy.start().then(info => {
-			// A newer start/stop superseded us while we were starting.
-			if (this._startPromise !== startPromise) {
-				tunnelProxy.dispose();
-				return;
-			}
-			this._tunnelProxy = tunnelProxy;
-			this._startPromise = undefined;
-			this._proxy.$updateProxyInfo(info);
-		}, err => {
-			this._logService.error('[ExtHostBrowserTunnelProxy] Failed to start tunnel proxy:', err);
-			if (this._startPromise === startPromise) {
-				this._startPromise = undefined;
-			}
-			tunnelProxy.dispose();
-		});
-		this._startPromise = startPromise;
-	}
-
-	private _stop(): void {
-		const wasActive = !!this._tunnelProxy || !!this._startPromise;
-		this._tunnelProxy?.dispose();
-		this._tunnelProxy = undefined;
-		this._startPromise = undefined;
-		if (wasActive) {
-			this._proxy.$updateProxyInfo(undefined);
-		}
+		return (host, port) => connectRemoteAgentTunnel(options, host, port);
 	}
 
 	private _createConnectionOptions(): IConnectionOptions {
@@ -181,6 +136,12 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 			ipcLogger: null,
 		};
 	}
+}
+
+/** A running proxy server and its connection info once started. */
+interface INetworkProxy extends IDisposable {
+	readonly proxy: TunnelProxy;
+	readonly info: Promise<ITunnelProxyInfo>;
 }
 
 /**

@@ -595,6 +595,12 @@ interface IDownloadOperation {
 	fileBytesDownloaded: number;
 }
 
+interface IDownloadSource {
+	readonly resource: URI;
+	readonly name: string;
+	readonly isDirectory: boolean;
+}
+
 export class FileDownload {
 
 	private static readonly LAST_USED_DOWNLOAD_PATH_STORAGE_KEY = 'workbench.explorer.downloadPath';
@@ -609,7 +615,7 @@ export class FileDownload {
 	) {
 	}
 
-	download(source: ExplorerItem[]): Promise<void> {
+	download(source: readonly IDownloadSource[]): Promise<void> {
 		const cts = new CancellationTokenSource();
 
 		// Indicate progress globally
@@ -630,7 +636,7 @@ export class FileDownload {
 		return downloadPromise;
 	}
 
-	private async doDownload(sources: ExplorerItem[], progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
+	private async doDownload(sources: readonly IDownloadSource[], progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
 		for (const source of sources) {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -815,7 +821,7 @@ export class FileDownload {
 		operation.progressScheduler.work({ message });
 	}
 
-	private async doDownloadNative(explorerItem: ExplorerItem, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
+	private async doDownloadNative(explorerItem: IDownloadSource, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
 		progress.report({ message: explorerItem.name });
 
 		let defaultUri: URI;
