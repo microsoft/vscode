@@ -258,6 +258,48 @@ suite('TabbedActionListWidget', () => {
 		});
 	});
 
+	test('a disabled tab bar action explains why and does not run', () => {
+		const { widget } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		document.body.style.setProperty('--vscode-toolbar-hoverBackground', 'rgb(1, 2, 3)');
+		disposables.add({ dispose: () => { anchor.remove(); document.body.style.removeProperty('--vscode-toolbar-hoverBackground'); } });
+		let runs = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'add', icon: Codicon.add, tooltip: 'Add Models...', checked: true, disabledReason: 'Not supported here', run: () => runs++ },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', checked: true, run: () => { } },
+			],
+			createActionList: () => ({ items: [] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const button = document.querySelector<HTMLElement>('[data-id="add"]')!;
+		button.click();
+		assert.deepStrictEqual({
+			label: button.getAttribute('aria-label'),
+			disabled: button.getAttribute('aria-disabled'),
+			description: button.getAttribute('aria-description'),
+			title: button.title,
+			disabledClass: button.classList.contains('disabled'),
+			checkedBackground: mainWindow.getComputedStyle(button).backgroundColor,
+			enabledCheckedBackground: mainWindow.getComputedStyle(document.querySelector<HTMLElement>('[data-id="search"]')!).backgroundColor,
+			runs,
+		}, {
+			label: 'Add Models...',
+			disabled: 'true',
+			description: 'Not supported here',
+			title: 'Not supported here',
+			disabledClass: true,
+			checkedBackground: 'rgba(0, 0, 0, 0)',
+			enabledCheckedBackground: 'rgb(1, 2, 3)',
+			runs: 0,
+		});
+	});
+
 	test('Escape from a Details radio dismisses the entire popup, including retained search', async () => {
 		const { widget, input, selected } = createSearchableWidget(disposables, ['first match', 'second match']);
 		let radio: Radio | undefined;

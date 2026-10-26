@@ -10,6 +10,7 @@ import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { getPullRequestUrlKey, parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -314,6 +315,57 @@ export interface ISessionArtifact {
 }
 
 /**
+ * Identity of the resource an entry points to. GitHub pull request and issue links ignore case and trailing
+ * slashes, like the pull request and issue pills; other links and resources compare exactly, since their paths
+ * and queries can be case-sensitive. Commit hashes ignore case.
+ */
+export function getSessionArtifactKey(artifact: ISessionArtifact): string | undefined {
+	if (artifact.link) {
+		const link = artifact.link.toString(true);
+		return parseGitHubPullRequestUrl(link) || parseGitHubIssueUrl(link)
+			? `github:${getPullRequestUrlKey(link)}`
+			: `link:${artifact.link.toString()}`;
+	}
+	if (artifact.uri) {
+		return `uri:${artifact.uri.toString()}`;
+	}
+	const commitHash = artifact.commitHash?.trim().toLowerCase();
+	return commitHash ? `commit:${commitHash}` : undefined;
+}
+
+/**
+ * The entries a chat-scoped surface for `chat` shows: only those the chat recorded, where unowned legacy
+ * entries belong to the main chat (or to any chat while the main chat is unknown). A chat shows each resource
+ * (see {@link getSessionArtifactKey}) once, preferring an artifact over a reference. Without a chat, every chat's entries are shown, so chats that
+ * recorded the same resource each keep theirs.
+ */
+export function getChatSessionArtifacts(session: ISession | undefined, chat: IChat | undefined, reader: IReader | undefined): readonly ISessionArtifact[] {
+	const mainChat = session?.mainChat?.read(reader)?.resource;
+	const result: ISessionArtifact[] = [];
+	const indexByKey = new Map<string, number>();
+	for (const artifact of session?.artifacts?.read(reader) ?? []) {
+		const owner = artifact.chat ?? mainChat;
+		if (chat && owner && !isEqual(owner, chat.resource)) {
+			continue;
+		}
+		const value = getSessionArtifactKey(artifact);
+		if (!value) {
+			result.push(artifact);
+			continue;
+		}
+		const key = `${owner?.toString() ?? ''}\n${value}`;
+		const index = indexByKey.get(key);
+		if (index === undefined) {
+			indexByKey.set(key, result.length);
+			result.push(artifact);
+		} else if (artifact.isArtifact && !result[index].isArtifact) {
+			result[index] = artifact;
+		}
+	}
+	return result;
+}
+
+/**
  * GitHub information associated with a session.
  */
 export interface IGitHubInfo {
@@ -331,7 +383,7 @@ export interface IGitHubInfo {
 		readonly uri: URI;
 		/** Last host-observed pull request state. */
 		readonly state?: 'open' | 'closed' | 'merged';
-		/** State from the live workbench pull request model, when resolved. */
+		/** Last workbench-observed state, restored from cache until the live model resolves. */
 		readonly liveState?: 'open' | 'closed' | 'merged';
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
@@ -363,7 +415,7 @@ export interface IGitHubPullRequestRef {
 	readonly icon?: ThemeIcon;
 	/** Last host-observed pull request state. */
 	readonly state?: 'open' | 'closed' | 'merged';
-	/** State from the live workbench pull request model, when resolved. */
+	/** Last workbench-observed state, restored from cache until the live model resolves. */
 	readonly liveState?: 'open' | 'closed' | 'merged';
 	/**
 	 * Pull request title, when the session recorded one. Absent for pull requests
@@ -651,6 +703,9 @@ export interface ISessionCanvasDefinition {
 	readonly requiresInput: boolean;
 }
 
+/** `undefined` is unsettled; an array, including an empty one, is authoritative. */
+export type SessionCanvasDefinitionSnapshot = readonly ISessionCanvasDefinition[] | undefined;
+
 /**
  * Whether a chat's model is the chat's own or one put there on its behalf. This is the only
  * question model selection asks of it: `chat.defaultModel` seeds a chat that has no model of its
@@ -932,6 +987,7 @@ export interface ISessionCapabilities {
 	readonly supportsImport?: boolean;
 	/** Whether recorded artifacts can be removed from this session. */
 	readonly supportsRemoveArtifacts?: boolean;
+	readonly supportsArtifactIntegrations?: boolean;
 	/** Whether the owning provider permits presenting server-published canvases for this session. */
 	readonly supportsCanvases?: boolean;
 	/** Whether this session supports multiple chats. */

@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, IDisposable, DisposableMap, IReference, Mu
 import { Schemas } from '../../../../../base/common/network.js';
 import { deepClone } from '../../../../../base/common/objects.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { autorun, constObservable, derived, IObservable, ISettableObservable, ITransaction, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, ITransaction, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -33,7 +33,7 @@ import { linkKey } from '../../../../common/sessionLinks.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../base/common/cancellation.js';
@@ -374,9 +374,9 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		// Set workspace data
 		this._workspaceData.set(sessionWorkspace, undefined);
 		this._repoUri = sessionWorkspace?.folders[0]?.root;
-		if (this._repoUri) {
-			const id = this._repoUri.path.substring(1);
-			this.setOption('repositories', { id, name: id });
+		const repoNwo = this.repoNwo;
+		if (repoNwo) {
+			this.setOption('repositories', { id: repoNwo, name: repoNwo });
 		}
 
 		this.mainChat = observableValue<IChat>(this, buildChatFromSession(this));
@@ -1232,6 +1232,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					if (this._cloudChatObservers.has(model)) {
 						continue;
 					}
+					// Draft selections made before the chat loaded were dropped, and its
+					// content provider seeded defaults such as the legacy Cloud provider's
+					// "no repository" placeholder. The chat input validates these options
+					// to enable Send, so apply the draft's selections now, not only on send.
+					const draft = this._newSessions.get(toSessionId(this.id, model.sessionResource));
+					if (draft?.selectedOptions.size) {
+						this.chatSessionsService.updateSessionOptions(model.sessionResource, draft.selectedOptions);
+					}
 					let wasRunning = false;
 					let startedAt: number | undefined;
 					this._cloudChatObservers.set(model, autorun(reader => {
@@ -2011,6 +2019,22 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return newChat;
 	}
 
+	getNestedChatWorkspaceSupport(_sessionId: string, _reader: IReader | undefined): INestedChatWorkspaceSupport | undefined {
+		return undefined;
+	}
+
+	async resolveNestedChatFolder(_sessionId: string, _folder: URI, _token: CancellationToken): Promise<INestedChatFolderInfo> {
+		throw NestedChatWorkspaceError.notSupported();
+	}
+
+	async getNestedChatBranches(_sessionId: string, _folder: URI, _query: string, _token: CancellationToken): Promise<readonly string[]> {
+		throw NestedChatWorkspaceError.notSupported();
+	}
+
+	async applyNestedChatWorkspace(_sessionId: string, _chat: URI, _workspace: INestedChatWorkspace, _prompt: string): Promise<void> {
+		throw NestedChatWorkspaceError.notSupported();
+	}
+
 	/** Test seam: the contribution registry is global, so tests override this with a stub. */
 	protected _getCloudSandboxContribution(): Pick<CloudSandboxAgentHostContribution, 'provisionSession' | 'prepareSession' | 'trackSessionCreationProgress'> {
 		return getWorkbenchContribution<CloudSandboxAgentHostContribution>(CloudSandboxAgentHostContribution.ID);
@@ -2074,7 +2098,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}
 			}
 			const sessionConfig = await provisioned.provider.resolveInitialSessionConfig(provisioned.session.sessionId, config ?? {}, token);
-			await raceCancellationError(this._carryModelToSandbox(provisioned, chat.resource, selectedModel), token);
+			await this._carryModelToSandbox(provisioned, chat.resource, selectedModel, token);
 			// Preserve the prompt-derived title rather than the host's branch-name default.
 			await raceCancellationError(provisioned.provider.setInitialSessionTitle(provisioned.session.sessionId, session.title.get()), token);
 			const committed = await provisioned.provider.sendRequest(provisioned.session.sessionId, chat.resource, { ...options, sessionConfig });
@@ -2140,18 +2164,23 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * Every path that gives up tells the user: an absent `Message.model` means "host decides", so
 	 * nothing downstream would report running at a capability and price they did not choose.
 	 */
-	private async _carryModelToSandbox(provisioned: ICloudSandboxProvisionedSession, chatResource: URI, selected: { readonly rawModelId: string; readonly label: string; readonly config?: IAutomationSessionTemplate['modelConfiguration']; readonly fromCloudCatalog?: boolean } | undefined): Promise<void> {
+	private async _carryModelToSandbox(provisioned: ICloudSandboxProvisionedSession, chatResource: URI, selected: { readonly rawModelId: string; readonly label: string; readonly config?: IAutomationSessionTemplate['modelConfiguration']; readonly fromCloudCatalog?: boolean } | undefined, token: CancellationToken): Promise<void> {
 		if (!selected) {
 			return;
 		}
 		const { rawModelId, label } = selected;
 		const sessionId = provisioned.session.sessionId;
 		const provider = provisioned.provider;
+		const hasConfiguration = !!selected.config && Object.keys(selected.config).length > 0;
+		const configurationUnavailable = () => new Error(localize('sandbox.selectedModelConfigurationUnavailable', "The sandbox could not confirm the selected configuration for {0}. Your prompt was not sent.", label));
 
 		// Agent-host models are published under the session's model target, so that is the vendor
 		// prefix their identifiers carry. Without it there is nothing to resolve against.
 		const modelTarget = provider.getModelsSnapshot(sessionId).modelTarget;
 		if (!modelTarget) {
+			if (hasConfiguration) {
+				throw configurationUnavailable();
+			}
 			this.logService.info(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} reported no model target; letting the agent host choose.`);
 			this._notifySandboxModelNotApplied(label);
 			return;
@@ -2162,9 +2191,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		try {
 			const deadline = Date.now() + this._sandboxModelWaitMs;
 			for (; ;) {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				const resolution = provider.getModelsSnapshot(sessionId, desiredModelId).desiredModelResolution;
 				if (resolution.kind === 'available') {
 					if (selected.config && Object.keys(selected.config).length) {
+						await provider.validateInitialModelConfig(rawModelId, selected.config, token);
 						const schema = resolution.model.metadata.configurationSchema;
 						for (const [key, value] of Object.entries(selected.config)) {
 							const property = schema?.properties?.[key];
@@ -2182,6 +2215,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					return;
 				}
 				if (resolution.kind !== 'pending' && !selected.fromCloudCatalog) {
+					if (hasConfiguration) {
+						throw configurationUnavailable();
+					}
 					this.logService.info(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} does not advertise model '${rawModelId}'; letting the agent host choose.`);
 					this._notifySandboxModelNotApplied(label);
 					return;
@@ -2190,9 +2226,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				// `raceTimeout` signals a timeout with `undefined`, which is also what a `void`
 				// event resolves to — map the event to a value that tells the two apart.
 				const published = remaining > 0
-					? await raceTimeout(Event.toPromise(provider.onDidChangeModels, store).then(() => true), remaining)
+					? await raceCancellationError(raceTimeout(Event.toPromise(provider.onDidChangeModels, store).then(() => true), remaining), token)
 					: undefined;
 				if (!published) {
+					if (hasConfiguration) {
+						throw configurationUnavailable();
+					}
 					this.logService.warn(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} had not published model '${rawModelId}' in time; letting the agent host choose.`);
 					this._notifySandboxModelNotApplied(label);
 					return;

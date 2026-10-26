@@ -17,6 +17,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { ArtifactIntegrationsSettingId } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -24,6 +25,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
 import { parseGitHubCommitTarget, type IGitHubCommitTarget } from '../../../../platform/github/common/githubUrls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -44,7 +46,8 @@ import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '..
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
 import { IWorkbenchGitHubService } from '../../../../workbench/services/github/common/githubService.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { ISessionGitHubReferences, parseGitHubArtifactLink } from '../../github/common/sessionGitHubReferences.js';
@@ -104,7 +107,7 @@ function artifactValueKey(artifact: ISessionArtifact): string {
 	if (artifact.uri) {
 		return getChatImageResourceComparisonKey(artifact.uri);
 	}
-	return (artifact.link?.toString() ?? artifact.commitHash ?? artifact.id).toLowerCase();
+	return getSessionArtifactKey(artifact) ?? artifact.id;
 }
 
 /**
@@ -281,12 +284,12 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			id: artifact.id,
 			label: artifact.label,
 			icon,
-			toolbarActions: [toAction({
+			toolbarActions: [withChatPillHoverLabel(toAction({
 				id: `sessions.artifacts.copyResourceUri.${artifact.id}`,
 				label: localize('sessionArtifacts.copyResourceUri', "Copy URI"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(uri.toString(true)),
-			})],
+			}), chatPillCopyUrlHoverLabel)],
 			...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), artifact.label),
 			open: () => openArtifact(artifact, actions, () => actions.openResource(uri)),
 		}, actions);
@@ -519,11 +522,14 @@ class SessionGitHubCommitResolver extends Disposable {
 
 /** Publishes a session's artifact and reference sections for the chat input pills. */
 export class SessionArtifacts extends Disposable {
+	private readonly presentations = observableValue<ReadonlyMap<string, ArtifactIntegrationPresentation>>(this, new Map());
 
 	/** Sections for the artifacts pill: what the session produced. */
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 	/** Sections for the references pill: what the session points the user at. */
 	readonly referenceSections: IObservable<readonly IChatPillSection[]>;
+	/** Undecorated entries of the artifacts and references an integration presents; see {@link getPresentation}. */
+	readonly integratedEntries: IObservable<readonly IChatPillEntry[]>;
 
 	constructor(
 		session: IObservable<IActiveSession | undefined>,
@@ -531,6 +537,7 @@ export class SessionArtifacts extends Disposable {
 		/** The URLs the browsers pill lists; website entries for them are left out. */
 		private readonly _browserUrls: IObservable<ReadonlySet<string>>,
 		private readonly _gitHubReferences: IObservable<ISessionGitHubReferences>,
+		detailsHost: IArtifactDetailsHost,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -539,6 +546,7 @@ export class SessionArtifacts extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ISessionsGitHubService gitHubService: ISessionsGitHubService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchGitHubService workbenchGitHubService: IWorkbenchGitHubService,
 		@ILogService logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -553,9 +561,11 @@ export class SessionArtifacts extends Disposable {
 		const commitResolver = this._register(new SessionGitHubCommitResolver(gitHubService, logService));
 		const commitHoverCache = this._register(new ChatPillHoverCache());
 		const gitHubResolver = this._register(new GitHubResourceDetailsResolver(workbenchGitHubService, logService));
+		// The session publishes every chat's records; this surface shows only the focused chat's, like the GitHub pills.
+		const chatArtifacts = derived(this, reader => getChatSessionArtifacts(session.read(reader), chat.read(reader), reader));
 		this._register(autorun(reader => {
 			const current = session.read(reader);
-			const artifacts = current?.artifacts?.read(reader) ?? [];
+			const artifacts = chatArtifacts.read(reader);
 			commitHoverCache.retain(new Set(artifacts.filter(artifact => artifact.kind === SessionArtifactKind.Commit).map(artifact => artifact.id)), current?.sessionId);
 			gitHubResolver.retain(artifacts.flatMap(artifact =>
 				!artifact.isArtifact && artifact.isGitHub === true && artifact.link ? [{ identity: artifact, resource: artifact.link }] : []), current && !current.loading.read(reader) ? current.sessionId : undefined);
@@ -568,6 +578,66 @@ export class SessionArtifacts extends Disposable {
 			}
 			commitResolver.retain(commitTargets);
 		}));
+
+		const lifetimes = this._register(new DisposableMap<string, DisposableStore>());
+		const presentations = this.presentations;
+		const sessionChanges = observableSignalFromEvent(this, this._sessionsManagementService.onDidChangeSessions);
+		const integrationsEnabled = observableConfigValue(ArtifactIntegrationsSettingId, false, this._configurationService);
+		let owner: IActiveSession | undefined;
+		this._register(autorun(reader => {
+			const current = session.read(reader);
+			if (current !== owner) {
+				lifetimes.clearAndDisposeAll();
+				presentations.set(new Map(), undefined);
+				owner = current;
+			}
+			const artifacts = chatArtifacts.read(reader);
+			const ids = new Set(artifacts.map(artifact => artifact.id));
+			for (const id of lifetimes.keys()) {
+				if (!ids.has(id)) {
+					lifetimes.deleteAndDispose(id);
+					const next = new Map(presentations.read(undefined));
+					next.delete(id);
+					presentations.set(next, undefined);
+				}
+			}
+			if (!current) {
+				return;
+			}
+			if (!integrationsEnabled.read(reader) || !current.capabilities.read(reader).supportsArtifactIntegrations) {
+				lifetimes.clearAndDisposeAll();
+				presentations.set(new Map(), undefined);
+				return;
+			}
+			sessionChanges.read(reader);
+			for (const artifact of artifacts) {
+				if (lifetimes.has(artifact.id) || (!artifact.link && !artifact.uri)) {
+					continue;
+				}
+				const lifetime = new DisposableStore();
+				lifetimes.set(artifact.id, lifetime);
+				void this._sessionsManagementService.acquireArtifactIntegration(current, artifact.id).then(reference => {
+					if (!reference) {
+						return;
+					}
+					lifetime.add(reference);
+					if (lifetime.isDisposed) {
+						return;
+					}
+					const presentation = lifetime.add(instantiationService.createInstance(ArtifactIntegrationPresentation, reference.object, reader => {
+						const invokingChat = chat.read(reader);
+						return session.read(reader) === current ? invokingChat?.resource.toString() : undefined;
+					}, detailsHost));
+					presentations.set(new Map(presentations.read(undefined)).set(artifact.id, presentation), undefined);
+				}).catch(error => {
+					if (!lifetime.isDisposed) {
+						logService.error('[ArtifactIntegrations] Could not acquire artifact presentation', error);
+						lifetimes.deleteAndDispose(artifact.id);
+					}
+				});
+			}
+		}));
+
 		const imageCarouselEnabled = observableConfigValue<boolean>(ChatConfiguration.ImageCarouselEnabled, true, this._configurationService);
 		const generatedImageModel = derived(this, reader => {
 			const resource = chat.read(reader)?.resource;
@@ -635,6 +705,23 @@ export class SessionArtifacts extends Disposable {
 		// Rebuild after formatter/folder changes because the session folder mounts after activation.
 		const locationFormatting = observableSignalFromEvent(this, Event.any<unknown>(this._labelService.onDidChangeFormatters, workspaceContextService.onDidChangeWorkspaceFolders));
 
+		this.integratedEntries = derived(this, reader => {
+			const current = session.read(reader);
+			if (!current) {
+				return [];
+			}
+			locationFormatting.read(reader);
+			const actions = this._actions(current, chat.read(reader)?.resource ?? current.resource, reader);
+			return chatArtifacts.read(reader).flatMap(artifact => {
+				if (!this.hasIntegration(artifact.id, reader)) {
+					return [];
+				}
+				const target = artifact.kind === SessionArtifactKind.Commit && artifact.link ? parseGitHubCommitTarget(artifact.link) : undefined;
+				const entry = toEntry(artifact, actions, this._labelService, target ? commitResolver.get(target).read(reader) : undefined);
+				return entry ? [entry] : [];
+			});
+		});
+
 		const sectionsFor = (isArtifact: boolean) => derived(this, reader => {
 			const current = session.read(reader);
 			if (!current) {
@@ -651,9 +738,10 @@ export class SessionArtifacts extends Disposable {
 				...gitHubReferences?.pullRequests ?? [],
 				...gitHubReferences?.issues ?? [],
 			].map(ref => linkKey(ref.uri.toString())));
-			const artifacts: ISessionArtifactPresentation[] = (current.artifacts?.read(reader) ?? []).filter(artifact =>
+			const artifacts: ISessionArtifactPresentation[] = chatArtifacts.read(reader).filter(artifact =>
 				artifact.isArtifact === isArtifact
 				&& !surfacedIds.has(artifact.id)
+				&& !this.hasIntegration(artifact.id, reader)
 				&& !(artifact.link && parseGitHubArtifactLink(artifact) && surfacedLinks.has(linkKey(artifact.link.toString())))
 			);
 			if (isArtifact) {
@@ -664,6 +752,7 @@ export class SessionArtifacts extends Disposable {
 				const commit = target ? commitResolver.get(target).read(reader) : undefined;
 				return commit ? [[artifact.id, commit] as const] : [];
 			}));
+			const integrated = presentations.read(reader);
 			return buildSessionArtifactSections(
 				artifacts,
 				this._actions(current, chat.read(reader)?.resource ?? current.resource, reader),
@@ -674,11 +763,23 @@ export class SessionArtifacts extends Disposable {
 				gitHubResolver,
 				reader,
 				commitHoverCache,
-			);
+			).map(section => ({ ...section, entries: section.entries.map(entry => integrated.get(entry.id)?.decorate(entry, reader) ?? entry) }));
 		});
 
 		this.sections = sectionsFor(true);
 		this.referenceSections = sectionsFor(false);
+	}
+
+	decorateEntry(entry: IChatPillEntry, reader: IReader): IChatPillEntry {
+		return this.presentations.read(reader).get(entry.id)?.decorate(entry, reader) ?? entry;
+	}
+
+	getPresentation(id: string, reader: IReader): ArtifactIntegrationPresentation | undefined {
+		return this.presentations.read(reader).get(id);
+	}
+
+	hasIntegration(id: string, reader: IReader): boolean {
+		return (this.presentations.read(reader).get(id)?.snapshot.read(reader).contributions.length ?? 0) > 0;
 	}
 
 	private _actions(session: IActiveSession, chatResource: URI, reader: IReader): ISessionArtifactActions {

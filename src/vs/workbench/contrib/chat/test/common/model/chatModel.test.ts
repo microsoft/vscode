@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -133,6 +134,24 @@ suite('ChatModel', () => {
 			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
 			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
 		]);
+	});
+
+	test('artifact action snapshots survive JSON and operation log roundtrips without changing prompt text', () => {
+		const presentation = createTestArtifactRequestPresentation();
+		const data: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat, responderUsername: 'bot',
+			requests: [{
+				requestId: 'artifact-request', message: { text: 'Model-facing instructions', parts: [] }, variableData: { variables: [] },
+				response: [], isSystemInitiated: true, requestSource: 'artifactIntegration', artifactRequest: presentation,
+			}],
+		};
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, { value: data, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const operationLog = new ChatSessionOperationLog();
+		assert.deepStrictEqual([model.toJSON(), operationLog.read(operationLog.createInitial(model))].map(value => {
+			const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = restored.getRequests()[0];
+			return { prompt: request.message.text, source: request.requestSource, presentation: request.artifactRequest };
+		}), Array(2).fill({ prompt: 'Model-facing instructions', source: 'artifactIntegration', presentation }));
 	});
 
 	test('backfills and persists legacy Agent Merge sources without reclassifying other requests', () => {
@@ -926,9 +945,10 @@ suite('ChatModel', () => {
 			assert.deepStrictEqual(response.value.map(part => part.kind === 'thinking' ? {
 				kind: part.kind,
 				value: part.value,
+				reasoningStartedAt: part.reasoningStartedAt,
 				reasoningDurationMs: part.reasoningDurationMs,
 			} : { kind: part.kind }), [
-				{ kind: 'thinking', value: ['First', ' thought'], reasoningDurationMs: 1500 },
+				{ kind: 'thinking', value: ['First', ' thought'], reasoningStartedAt: 1000, reasoningDurationMs: 1500 },
 				{ kind: 'markdownContent' },
 			]);
 		} finally {
@@ -947,7 +967,54 @@ suite('ChatModel', () => {
 			request.response?.complete();
 
 			const thinkingPart = request.response?.entireResponse.value.find(part => part.kind === 'thinking');
-			assert.strictEqual(thinkingPart?.kind === 'thinking' ? thinkingPart.reasoningDurationMs : undefined, 2300);
+			assert.deepStrictEqual(thinkingPart?.kind === 'thinking' ? { startedAt: thinkingPart.reasoningStartedAt, durationMs: thinkingPart.reasoningDurationMs } : undefined, { startedAt: 1000, durationMs: 2300 });
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('keeps the recorded timing of restored reasoning instead of timing the replay', () => {
+		const clock = sinon.useFakeTimers({ now: 9000 });
+		try {
+			const response = testDisposables.add(new Response([]));
+			response.updateContent({ kind: 'thinking', id: 'recorded', value: 'Recorded reasoning', reasoningStartedAt: 1000, reasoningDurationMs: 4200 }, false, true);
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Between') }, false, true);
+			response.updateContent({ kind: 'thinking', id: 'untimed', value: 'Untimed reasoning' }, false, true);
+			clock.tick(800);
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') }, false, true);
+			response.finalizeReasoningDuration();
+
+			assert.deepStrictEqual(response.value.flatMap(part => part.kind === 'thinking'
+				? [{ id: part.id, startedAt: part.reasoningStartedAt, durationMs: part.reasoningDurationMs }]
+				: []), [
+				{ id: 'recorded', startedAt: 1000, durationMs: 4200 },
+				{ id: 'untimed', startedAt: undefined, durationMs: undefined },
+			]);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('leaves tool calls replayed from history untimed', async () => {
+		const clock = sinon.useFakeTimers({ now: 9000 });
+		try {
+			const response = testDisposables.add(new Response([]));
+			const rebuilt = new ChatToolInvocation({ invocationMessage: 'Reading a.ts' }, { id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal }, 'rebuilt', undefined, {});
+			response.updateContent(rebuilt, false, true);
+			response.updateContent({ kind: 'externalToolInvocationUpdate', toolCallId: 'external', toolName: 'search', isComplete: true, invocationMessage: 'Searched' }, false, true);
+			response.updateContent({ kind: 'externalToolInvocationUpdate', toolCallId: 'live', toolName: 'search', isComplete: false, invocationMessage: 'Searching' });
+			clock.tick(700);
+			response.updateContent({ kind: 'externalToolInvocationUpdate', toolCallId: 'live', toolName: 'search', isComplete: true, invocationMessage: 'Searched' });
+			clock.tick(300);
+			await rebuilt.didExecuteTool(undefined);
+
+			assert.deepStrictEqual(response.value.flatMap(part => part.kind === 'toolInvocation'
+				? [{ toolCallId: part.toolCallId, startedAt: part.startedAt, completedAt: part.completedAt }]
+				: []), [
+				{ toolCallId: 'rebuilt', startedAt: undefined, completedAt: undefined },
+				{ toolCallId: 'external', startedAt: undefined, completedAt: undefined },
+				{ toolCallId: 'live', startedAt: 9000, completedAt: 9700 },
+			]);
 		} finally {
 			clock.restore();
 		}

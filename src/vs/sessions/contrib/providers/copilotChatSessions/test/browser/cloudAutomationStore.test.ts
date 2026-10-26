@@ -19,12 +19,11 @@ import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { AutomationDetail, AutomationToolGroup, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
+import { IRepositoriesClient, Repository } from '../../../../../../platform/github/common/core/repositories.js';
+import { AutomationDetail, AutomationRepositoryConfiguration, AutomationToolGroup, AutomationTriggerDefinition, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ITasksClient, ListTasksResponse, Task, TaskListOptions } from '../../../../../../platform/github/common/missionControl/tasks.js';
-import { GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
-import { IRepositoriesClient, Repository } from '../../../../../../platform/github/common/core/repositories.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -61,6 +60,9 @@ const reconciliationMessage = 'The automation request may have been accepted. Re
 class TestApi extends mock<IAutomationsClient>() {
 	readonly historyOptions: (TaskListOptions | undefined)[] = [];
 	readonly calls: string[] = [];
+	readonly configurationRepositories: string[] = [];
+	activeConfigurations = 0;
+	maxActiveConfigurations = 0;
 	definitions: readonly AutomationDetail[] = [definition];
 	tasks: readonly Task[] = [];
 	listError: Error | undefined;
@@ -74,17 +76,35 @@ class TestApi extends mock<IAutomationsClient>() {
 	dispatchError: Error | undefined;
 	readonly dispatchRequests: CreateAutomationTaskRequest[] = [];
 	pendingList: Promise<void> | undefined;
-	pendingVisibility: Promise<boolean> | undefined;
-	readonly visibilityStarted = new DeferredPromise<void>();
+	pendingManageability: Promise<boolean> | undefined;
+	readonly manageabilityStarted = new DeferredPromise<void>();
 	lastSignal: AbortSignal | undefined;
 	patch: EditAutomationRequest | undefined;
 	created: CreateAutomationRequest | undefined;
-	canWrite = true;
-	async isPrivateRepository(_repository: GitHubRepositoryRef, signal: AbortSignal): Promise<boolean> {
-		this.calls.push('visibility');
+	canManage = true;
+	readonly repositoryManageability = new Map<string, boolean | Error>();
+	readonly repositoryPrivacy = new Map<string, boolean>();
+	readonly repositoryMetadataRequests: string[] = [];
+	override async getConfiguration(repository: RepositoryRef, signal: AbortSignal): Promise<AutomationRepositoryConfiguration> {
+		this.calls.push('capability');
+		this.configurationRepositories.push(repository.repo);
 		this.lastSignal = signal;
-		await this.visibilityStarted.complete();
-		return this.pendingVisibility ?? true;
+		await this.manageabilityStarted.complete();
+		this.maxActiveConfigurations = Math.max(this.maxActiveConfigurations, ++this.activeConfigurations);
+		try {
+			const result = this.repositoryManageability.get(repository.repo);
+			if (result instanceof Error) {
+				throw result;
+			}
+			return {
+				automations_enabled: true,
+				can_manage_automations: result ?? await this.pendingManageability ?? this.canManage,
+				allow_read_access_triggers: false,
+				require_trigger_scoped_writes: false,
+			};
+		} finally {
+			this.activeConfigurations--;
+		}
 	}
 	override async list(): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
 		this.calls.push('list');
@@ -141,6 +161,15 @@ class TestApi extends mock<IAutomationsClient>() {
 		return {};
 	}
 	toolsError: Error | undefined;
+	triggersError: Error | undefined;
+	triggerDefinitions: readonly AutomationTriggerDefinition[] = [{ name: 'issues', title: 'Issue created', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }] }];
+	override async listTriggers(): Promise<readonly AutomationTriggerDefinition[]> {
+		this.calls.push('triggers');
+		if (this.triggersError) {
+			throw this.triggersError;
+		}
+		return this.triggerDefinitions;
+	}
 	override async listTools(): Promise<readonly AutomationToolGroup[]> {
 		this.calls.push('tools');
 		if (this.toolsError) {
@@ -186,15 +215,13 @@ suite('CloudAutomationStore', () => {
 			override dispose(): void { }
 			override readonly authorization = { providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] };
 			override readonly automations = api;
-			override readonly repositories = new class extends mock<IRepositoriesClient>() {
-				override async get(ref: RepositoryRef, signal: AbortSignal) {
-					const isPrivate = await api.isPrivateRepository({ host: 'api.github.com', accountId: account.accountName, owner: ref.owner, repo: ref.name }, signal);
-					return new class extends mock<Repository>() {
-						override readonly private = isPrivate;
-						override readonly permissions = { push: api.canWrite, pull: true, admin: false };
-					}();
-				}
-			}();
+			override readonly repositories = upcastPartial<IRepositoriesClient>({
+				get: async repository => {
+					api.repositoryMetadataRequests.push(repository.repo);
+					const isPrivate = api.repositoryPrivacy.get(repository.repo) ?? true;
+					return upcastPartial<Repository>({ private: isPrivate });
+				},
+			});
 			override readonly tasks = new class extends mock<ITasksClient>() {
 				override async get() { return api.tasks[0]; }
 				override async abort() { api.calls.push('stop'); }
@@ -269,10 +296,11 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual({
 			loading: loading.configuration.tools.kind,
 			failed: failed.configuration.tools.kind,
+			description: ready.configuration.description,
 			tools: ready.configuration.tools.groups.flatMap((group: { tools: { id: string }[] }) => group.tools.map(tool => tool.id)),
 			cached: cached.configuration, requests: api.calls.filter(call => call === 'tools').length,
 		}, {
-			loading: 'loading', failed: 'error', tools: ['github/issue_read', 'github/list_issues', 'github/unnamed'],
+			loading: 'loading', failed: 'error', description: 'Runs even when your computer is off, triggered by events or on a schedule.', tools: ['github/issue_read', 'github/list_issues', 'github/unnamed'],
 			cached: ready.configuration, requests: 2,
 		});
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
@@ -442,7 +470,7 @@ suite('CloudAutomationStore', () => {
 			assert.deepStrictEqual({
 				result, requests: api.dispatchRequests, readOnly: !!provider.getAutomation(id)?.readOnlyReason,
 				canRun: provider.canRunAutomation(id), canUpdate: provider.canUpdateAutomation(id),
-			}, { result: { kind: 'accepted' }, requests: [{ event: 'manual' }], readOnly: true, canRun: true, canUpdate: false });
+			}, { result: { kind: 'accepted' }, requests: [{ event: 'manual' }], readOnly: false, canRun: true, canUpdate: true });
 		});
 	}
 
@@ -459,7 +487,7 @@ suite('CloudAutomationStore', () => {
 			await provider.runAutomation(provider.automations.get()[0].id);
 			await clock.tickAsync(120_000);
 			assert.deepStrictEqual({
-				calls: api.calls.filter(call => call !== 'visibility'),
+				calls: api.calls.filter(call => call !== 'capability'),
 				priorities: api.historyOptions.map(options => options?.priority),
 			}, {
 				calls: ['run', 'history', 'history', 'history', 'history', 'history'],
@@ -798,10 +826,10 @@ suite('CloudAutomationStore', () => {
 		});
 	});
 
-	test('repository search offers only private repositories and accepts GitHub URLs', async () => {
+	test('repository search offers only manageable repositories and accepts GitHub URLs', async () => {
 		const queries: string[] = [];
 		let authenticated = false;
-		const { provider, set, instantiation } = setup(undefined, undefined, upcastPartial<IGitHubService>({
+		const { provider, api, set, instantiation } = setup(undefined, undefined, upcastPartial<IGitHubService>({
 			authenticateForRepositoryAccess: async () => { authenticated = true; },
 			getRepositories: async query => {
 				queries.push(query);
@@ -811,6 +839,7 @@ suite('CloudAutomationStore', () => {
 				];
 			},
 		}));
+		api.repositoryPrivacy.set('public', false);
 		let placeholder: string | undefined;
 		const repositories: Array<readonly string[]> = [];
 		instantiation.stubInstance(RepositoryPicker, {
@@ -823,12 +852,62 @@ suite('CloudAutomationStore', () => {
 			dispose: () => { },
 		});
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.configurationRepositories.length = 0;
 		const selected = await provider.configuration.pickWorkspace(CancellationToken.None);
-		assert.deepStrictEqual({ authenticated, queries, placeholder, repositories, selected: selected?.toString() }, {
+		await provider.refresh({ background: true });
+		assert.deepStrictEqual({ authenticated, queries, placeholder, repositories, selected: selected?.toString(), configurationRepositories: api.configurationRepositories }, {
 			authenticated: true, queries: ['', 'owner/private'],
-			placeholder: 'Search for a private repository or paste a repository URL...',
-			repositories: [['owner/private'], ['owner/private']], selected: workspace.toString(),
+			placeholder: 'Search for a repository or paste a repository URL...',
+			repositories: [['owner/private'], ['owner/private']], selected: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' }).toString(),
+			configurationRepositories: ['private', 'private'],
 		});
+	});
+
+	test('repository search submits capability checks in bounded batches and preserves result order', async () => {
+		const pending = new DeferredPromise<boolean>();
+		const repositories = Array.from({ length: 100 }, (_, index) => ({
+			owner: 'owner', name: `repo-${index}`, fullName: `owner/repo-${index}`, defaultBranch: 'main', isPrivate: index % 2 === 0, description: '',
+		}));
+		const { provider, api, set, instantiation } = setup(undefined, undefined, upcastPartial<IGitHubService>({
+			authenticateForRepositoryAccess: async () => { },
+			getRepositories: async () => repositories,
+		}));
+		for (const repository of repositories) {
+			api.repositoryPrivacy.set(repository.name, repository.isPrivate);
+		}
+		const searchStarted = new DeferredPromise<void>();
+		const searchResult = new DeferredPromise<readonly string[]>();
+		instantiation.stubInstance(RepositoryPicker, {
+			pickRepository: async search => {
+				void searchStarted.complete();
+				void searchResult.complete(await search('', CancellationToken.None));
+				return undefined;
+			},
+			dispose: () => { },
+		});
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.configurationRepositories.length = 0;
+		api.maxActiveConfigurations = 0;
+		api.pendingManageability = pending.p;
+		const selection = provider.configuration.pickWorkspace(CancellationToken.None);
+		await searchStarted.p;
+		await timeout(0);
+		const startedBeforeRelease = api.configurationRepositories.length;
+		await pending.complete(true);
+		assert.deepStrictEqual({
+			startedBeforeRelease,
+			maxActiveConfigurations: api.maxActiveConfigurations,
+			metadataRequestsBeforeRelease: api.repositoryMetadataRequests.length,
+			result: await searchResult.p,
+		}, {
+			startedBeforeRelease: 3,
+			maxActiveConfigurations: 3,
+			metadataRequestsBeforeRelease: 5,
+			result: repositories.filter(repository => repository.isPrivate).map(repository => repository.fullName),
+		});
+		await selection;
 	});
 
 	test('repository selection fails closed if cloud is disabled while the picker is open', async () => {
@@ -923,7 +1002,7 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual({ name: automation.name, target: automation.target.providerId, zone: automation.schedule.timeZone, writable: provider.canCreateAutomation.get() },
 			{ name: 'Review', target: 'cloud', zone: 'UTC', writable: true });
 		const pending = new DeferredPromise<boolean>();
-		api.pendingVisibility = pending.p;
+		api.pendingManageability = pending.p;
 		const run = provider.runAutomation(automation.id);
 		await Promise.resolve();
 		entitlement.sentiment = { hidden: true };
@@ -1067,7 +1146,7 @@ suite('CloudAutomationStore', () => {
 			changed.fire(accounts.currentDefaultAccount);
 			assert.strictEqual(provider.canCreateAutomation.get(), false);
 			await timeout(0);
-			assert.deepStrictEqual(api.calls, ['visibility', 'list']);
+			assert.deepStrictEqual(api.calls, ['capability', 'list']);
 			await pending.complete();
 			await timeout(0);
 			assert.deepStrictEqual({
@@ -1198,6 +1277,172 @@ suite('CloudAutomationStore', () => {
 		]);
 	});
 
+	test('trigger catalog loads on demand, caches successes, retries failures and resets with the account', async () => {
+		const { provider, api, set, accounts, changed } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		assert.strictEqual(api.calls.includes('triggers'), false);
+		api.triggersError = new Error('offline');
+		provider.configuration.loadTriggers!();
+		await timeout(0);
+		const failed = provider.configuration.triggers!.get().kind;
+		api.triggersError = undefined;
+		provider.configuration.loadTriggers!();
+		await timeout(0);
+		provider.configuration.loadTriggers!();
+		const loaded = provider.configuration.triggers!.get();
+		accounts.currentDefaultAccount = { ...account, accountName: 'other', sessionId: 'other' };
+		changed.fire(accounts.currentDefaultAccount);
+		assert.deepStrictEqual({
+			failed, loaded, requests: api.calls.filter(call => call === 'triggers').length,
+			reset: provider.configuration.triggers!.get(),
+		}, { failed: 'error', loaded: { kind: 'ready', definitions: api.triggerDefinitions }, requests: 2, reset: { kind: 'loading' } });
+	});
+
+	test('trigger mutations distinguish transient catalog state from unsupported configurations', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		const cloudTrigger = { triggers: { issues: { types: ['opened'] } } };
+		const create = () => provider.createAutomation({
+			name: 'Issue', prompt: 'Triage', schedule: manual, cloudTrigger,
+			target: automation.target,
+		});
+		const update = () => provider.updateAutomation(automation.id, { cloudTrigger });
+
+		await assert.rejects(create(), /Available triggers are still loading/);
+		await assert.rejects(update(), /Available triggers are still loading/);
+		const callsWhileLoading = api.calls.filter(call => call === 'triggers').length;
+
+		api.triggersError = new Error('offline');
+		provider.configuration.loadTriggers!();
+		await timeout(0);
+		await assert.rejects(create(), /Available triggers could not be loaded.*Retry loading the trigger catalog/);
+		await assert.rejects(update(), /Available triggers could not be loaded.*Retry loading the trigger catalog/);
+
+		api.triggersError = undefined;
+		provider.configuration.loadTriggers!();
+		await timeout(0);
+		await update();
+		const updated = api.patch;
+		await create();
+		const created = api.created;
+
+		const unsupported = { triggers: { issues: { types: ['opened'] }, pull_request_opened: { types: ['opened'] } } };
+		await assert.rejects(provider.updateAutomation(automation.id, { cloudTrigger: unsupported }), /cannot be edited in VS Code/);
+		assert.deepStrictEqual({
+			callsWhileLoading,
+			triggerRequests: api.calls.filter(call => call === 'triggers').length,
+			updated,
+			created: created?.triggers,
+		}, {
+			callsWhileLoading: 0,
+			triggerRequests: 2,
+			updated: { triggers: cloudTrigger.triggers },
+			created: cloudTrigger.triggers,
+		});
+	});
+
+	test('Issue creation and explicit edits round trip without granting tool permissions', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		provider.configuration.loadTriggers!();
+		await timeout(0);
+		const trigger = { triggers: { issues: { types: ['opened'], write_scope: 'repository' as const, allow_copilot_triggers: true, future: { keep: 1 } } }, requireActorWritePermission: true };
+		const created = await provider.createAutomation({
+			name: 'Issue', prompt: 'Triage', schedule: manual, cloudTrigger: trigger, sessionTemplate: { config: { tools: [] } },
+			target: { kind: 'workspace', folderUri: workspace, providerId: 'cloud', sessionTypeId: 'cloud-agent', isolation: { kind: 'default' } },
+		});
+		api.definitions = [{ ...definition, triggers: trigger.triggers, require_actor_write_permission: true }];
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		await provider.updateAutomation(automation.id, { cloudTrigger: { ...trigger, requireActorWritePermission: false } });
+		const actorPatch = api.patch;
+		await provider.updateAutomation(automation.id, { name: 'Rename' });
+		assert.deepStrictEqual({
+			created: created.cloudTrigger, tools: api.created?.tools, permissions: Object.hasOwn(api.created!, 'permissions'), toolsets: api.created?.github_mcp_toolsets,
+			actorPatch, rename: api.patch, canRun: provider.canRunAutomation(automation.id),
+		}, { created: trigger, tools: [], permissions: false, toolsets: undefined, actorPatch: { require_actor_write_permission: false }, rename: { name: 'Rename' }, canRun: false });
+	});
+
+	test('PR filters round trip through create and edit while retaining unedited event entries', async () => {
+		const { provider, api, set } = setup();
+		api.triggerDefinitions = [
+			{ name: 'pull_request_opened', title: 'Opened', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }, { name: 'paths', required: false }] },
+			{ name: 'pull_request_comment', title: 'Comment', description: '', fields: [{ name: 'types', required: true, options: ['timeline_comment', 'review_comment'] }, { name: 'body_substring', required: false }] },
+		];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		provider.configuration.loadTriggers!();
+		await timeout(0);
+		const triggers = {
+			pull_request_opened: { types: ['opened'], paths: ['src/**', '!generated/**'], opaque: { keep: true } },
+			pull_request_comment: { types: ['timeline_comment', 'review_comment'], body_substring: '/review', write_scope: 'trigger' as const, allow_copilot_triggers: true },
+		};
+		const created = await provider.createAutomation({
+			name: 'Review', prompt: 'Review PR', schedule: manual, cloudTrigger: { triggers },
+			target: { kind: 'workspace', folderUri: workspace, providerId: 'cloud', sessionTypeId: 'cloud-agent', isolation: { kind: 'default' } },
+		});
+		api.definitions = [{ ...definition, ...api.created }];
+		await provider.refresh();
+		const changed = { ...triggers, pull_request_comment: { ...triggers.pull_request_comment, body_substring: '/check' } };
+		const edited = await provider.updateAutomation(created.id, { cloudTrigger: { triggers: changed } });
+		assert.deepStrictEqual({
+			created: created.cloudTrigger, patch: api.patch, edited: edited.cloudTrigger,
+		}, {
+			created: { triggers, requireActorWritePermission: false },
+			patch: { triggers: changed }, edited: { triggers: changed, requireActorWritePermission: false },
+		});
+	});
+
+	test('tools describe event triggers and preserve them on unrelated edits without authoring events', async () => {
+		const { api, set, tools, invoke } = setupTools();
+		api.definitions = [{ ...definition, triggers: { pull_request_comment: { types: ['review_comment'], body_substring: '/review', opaque: true } } }];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const [listed] = await invoke(tools.list, {});
+		const automation = listed.automations[0];
+		await invoke(tools.configure, { automationId: automation.id, prompt: 'New prompt' });
+		const patch = api.patch;
+		const rejected = await tools.configure.invoke({ callId: 'call', toolId: 'tool', parameters: { automationId: automation.id, schedule: { interval: 'manual' } }, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None);
+		assert.deepStrictEqual({ trigger: automation.cloudTrigger, patch, canRun: automation.availableOperations.includes('run'), rejected: rejected.content }, {
+			trigger: { triggers: api.definitions[0].triggers }, patch: { prompt: 'New prompt' }, canRun: false,
+			rejected: [{ kind: 'text', value: 'Edit event triggers in the automation dialog or on GitHub. Omit schedule when editing other fields.' }],
+		});
+	});
+
+	test('unrelated patches omit unsupported triggers and opaque settings', async () => {
+		const { provider, api, set } = setup();
+		const triggers = { issues: { types: ['opened'], write_scope: 'repository' as const, allow_copilot_triggers: true, future: { opaque: [1, false] } }, future_event: { types: ['future'] } };
+		api.definitions = [{ ...definition, triggers, require_actor_write_permission: true }];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		provider.configuration.loadTriggers!();
+		await timeout(0);
+		const automation = provider.automations.get()[0];
+		const canRun = provider.canRunAutomation(automation.id);
+		const updated = await provider.updateAutomation(automation.id, { name: 'New', prompt: 'New prompt', enabled: false, sessionTemplate: { modelId: 'model', config: { tools: [] } } });
+		assert.deepStrictEqual({
+			canRun, patch: api.patch, trigger: updated.cloudTrigger,
+		}, {
+			canRun: false, patch: { name: 'New', prompt: 'New prompt', disabled: true, model: 'model', tools: [] },
+			trigger: { triggers, requireActorWritePermission: true },
+		});
+		await assert.rejects(provider.updateAutomation(automation.id, { schedule: manual }), /cannot be edited/);
+	});
+
+	test('guarded edits detect trigger-only and actor-permission changes', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const expected = provider.automations.get()[0];
+		api.definitions = [{ ...definition, require_actor_write_permission: true }];
+		const actor = await provider.updateAutomationIfUnchanged(expected.id, { name: 'New' }, expected);
+		api.definitions = [{ ...definition, triggers: { issues: { types: ['opened'], future: { opaque: true } } } }];
+		const trigger = await provider.updateAutomationIfUnchanged(expected.id, { name: 'New' }, expected);
+		assert.deepStrictEqual({ actor: actor.kind, trigger: trigger.kind, patch: api.patch }, { actor: 'conflict', trigger: 'conflict', patch: undefined });
+	});
+
 	test('preflight conflicts and partial patches preserve remote configuration', async () => {
 		const { provider, api, set } = setup();
 		api.definitions = [{ ...definition, tools: ['future-tool'], reasoning_effort: 'future' }];
@@ -1288,26 +1533,17 @@ suite('CloudAutomationStore', () => {
 		});
 	});
 
-	test('repository writers can manage collaborator Repository automations but readers cannot', async () => {
+	test('repository capability permits collaborator Repository automation actions', async () => {
 		const { provider, api, set } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
-		for (const canWrite of [true, false]) {
-			api.canWrite = canWrite;
-			api.definitions = [{ ...definition, ownership: 'repository', created_by: { login: 'teammate' } }];
-			await provider.refresh();
-			const automation = provider.automations.get()[0];
-			assert.deepStrictEqual({
-				update: provider.canUpdateAutomation(automation.id), delete: provider.canDeleteAutomation(automation.id),
-				run: provider.canRunAutomation(automation.id),
-			}, { update: canWrite, delete: canWrite, run: canWrite });
-			if (canWrite) {
-				await provider.updateAutomation(automation.id, { name: 'Updated' });
-			} else {
-				await assert.rejects(provider.updateAutomation(automation.id, { name: 'Updated' }), AutomationUnavailableError);
-				await assert.rejects(provider.deleteAutomation(automation.id), AutomationUnavailableError);
-				await assert.rejects(provider.runAutomation(automation.id), AutomationUnavailableError);
-			}
-		}
+		api.definitions = [{ ...definition, ownership: 'repository', created_by: { login: 'teammate' } }];
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		assert.deepStrictEqual({
+			update: provider.canUpdateAutomation(automation.id), delete: provider.canDeleteAutomation(automation.id),
+			run: provider.canRunAutomation(automation.id),
+		}, { update: true, delete: true, run: true });
+		await provider.updateAutomation(automation.id, { name: 'Updated' });
 	});
 
 	test('catalogue lookups reuse descriptors and update after publication', async () => {
@@ -1353,7 +1589,7 @@ suite('CloudAutomationStore', () => {
 		});
 	});
 
-	test('write-access loss republishes automation capabilities after mutation revalidation', async () => {
+	test('manageability loss republishes automation capabilities after mutation revalidation', async () => {
 		const { provider, api, set } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
@@ -1363,7 +1599,7 @@ suite('CloudAutomationStore', () => {
 				permissionStates.push(provider.canUpdateAutomation(automation.id));
 			}
 		}));
-		api.canWrite = false;
+		api.canManage = false;
 		await assert.rejects(provider.updateAutomation(provider.automations.get()[0].id, { name: 'Updated' }), AutomationUnavailableError);
 		assert.deepStrictEqual(permissionStates, [true, false]);
 	});

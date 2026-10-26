@@ -59,7 +59,7 @@ suite('AllowedMcpServers', () => {
 			assert.strictEqual(isMcpServerMatched(matchers, { name: 'gitlab' }), false);
 		});
 
-		test('matches by remote URL with wildcards, case-insensitively', () => {
+		test('matches remote URL authorities case-insensitively with bounded wildcards', () => {
 			const matchers: IMcpServerMatcher[] = [{ serverUrl: 'https://*.example.com/*' }];
 			assert.strictEqual(isMcpServerMatched(matchers, { name: 's', url: 'https://mcp.example.com/api' }), true);
 			assert.strictEqual(isMcpServerMatched(matchers, { name: 's', url: 'https://MCP.EXAMPLE.COM/api' }), true);
@@ -95,7 +95,7 @@ suite('AllowedMcpServers', () => {
 			], [
 				true,
 				true,
-				false,
+				true,
 				true,
 				true,
 				true,
@@ -134,9 +134,77 @@ suite('AllowedMcpServers', () => {
 			assert.strictEqual(isMcpServerMatched(matchers, { name: 's', command: ['npx', '-y', 'server', '--flag'] }), false);
 			assert.strictEqual(isMcpServerMatched(matchers, { name: 's', url: 'https://mcp.example.com' }), false);
 		});
+
+		test('URL paths and query values are case-sensitive for exact and wildcard patterns', () => {
+			assert.deepStrictEqual(
+				['https://MCP.EXAMPLE.COM/API?key=Value', 'HTTPS://*.EXAMPLE.COM/API?key=*'].map(serverUrl =>
+					['https://mcp.example.com/API?key=Value', 'https://mcp.example.com/api?key=Value', 'https://mcp.example.com/API?key=value'].map(url =>
+						isMcpServerMatched([{ serverUrl }], { name: 's', url }))),
+				[[true, false, false], [true, false, true]]
+			);
+		});
+
+		test('preserves non-HTTP scheme and authority casing without folding paths or socket fragments', () => {
+			assert.deepStrictEqual(
+				['UNIX://HOST/tmp/Socket#API', 'UNIX://HOST/tmp/S*#API'].map(serverUrl =>
+					['unix://host/tmp/Socket#API', 'unix://HOST/tmp/socket#API', 'unix://host/tmp/Socket#api'].map(url =>
+						isMcpServerMatched([{ serverUrl }], { name: 's', url }))),
+				[[true, false, false], [true, false, false]]
+			);
+		});
+
+		test('matches policy commands and URLs using host-resolved strings but leaves names literal', () => {
+			const policyValues = {
+				'${EXECUTABLE}': 'node',
+				'${MISSING:-approved.js}': 'approved.js',
+				'${SCRIPT:-approved.js}': '',
+				'${MISSING}': '${MISSING}',
+				'${PATH}/node': '/host/node',
+				'https://${HOST}/API': 'https://mcp.example.com/API',
+				'${HOST}': 'mcp.example.com',
+			};
+			assert.deepStrictEqual([
+				isMcpServerMatched([{ serverCommand: ['${EXECUTABLE}', '${MISSING:-approved.js}'] }], { name: 's', command: ['node', 'approved.js'], policyValues }),
+				isMcpServerMatched([{ serverCommand: ['node', '${SCRIPT:-approved.js}'] }], { name: 's', command: ['node', ''], policyValues }),
+				isMcpServerMatched([{ serverCommand: ['node', '${MISSING}'] }], { name: 's', command: ['node', '${MISSING}'], policyValues }),
+				isMcpServerMatched([{ serverCommand: ['node', '${MISSING}'] }], { name: 's', command: ['node', ''], policyValues }),
+				isMcpServerMatched([{ serverCommand: ['${PATH}/node'] }], { name: 's', command: ['/host/node'], policyValues }),
+				isMcpServerMatched([{ serverCommand: ['${PATH}/node'] }], { name: 's', command: ['/host/node'] }),
+				isMcpServerMatched([{ serverUrl: 'https://${HOST}/API' }], { name: 's', url: 'https://mcp.example.com/API', policyValues }),
+				isMcpServerMatched([{ serverUrl: 'https://${HOST}/API' }], { name: 's', url: 'https://other.example.com/API', policyValues }),
+				isMcpServerMatched([{ serverName: '${HOST}' }], { name: 'mcp.example.com', policyValues }),
+				isMcpServerMatched([{ serverName: '${HOST}' }], { name: '${HOST}', policyValues }),
+			], [true, true, true, false, true, false, true, false, false, true]);
+		});
 	});
 
 	suite('checkMcpServerAllowed', () => {
+
+		test('transport-specific allow entries take precedence over names, but not over deny entries', () => {
+			const allow: IMcpServerMatcher[] = [
+				{ serverName: 'approved' },
+				{ serverCommand: ['node', 'approved.js', '--flag'] },
+				{ serverUrl: 'https://approved.example/API' },
+			];
+			const stdio = { name: 'approved', command: ['node', 'other.js'] };
+			const remote = { name: 'approved', url: 'https://other.example/API' };
+			assert.deepStrictEqual([
+				checkMcpServerAllowed(allow, undefined, stdio),
+				checkMcpServerAllowed(allow, undefined, remote),
+				checkMcpServerAllowed(allow, undefined, { name: 'other', command: ['node', 'approved.js', '--flag'] }),
+				checkMcpServerAllowed(allow, undefined, { name: 'other', command: ['node', '--flag', 'approved.js'] }),
+				checkMcpServerAllowed(allow, undefined, { name: 'other', url: 'https://approved.example/API' }),
+				checkMcpServerAllowed(allow.filter(m => !m.serverCommand), undefined, stdio),
+				checkMcpServerAllowed(allow.filter(m => !m.serverUrl), undefined, remote),
+				checkMcpServerAllowed(allow, [{ serverName: 'approved' }, { serverCommand: ['node', 'different.js'] }], stdio),
+				checkMcpServerAllowed(allow, [{ serverName: 'approved' }, { serverUrl: 'https://different.example' }], remote),
+			], [
+				McpServerAllowResult.NotAllowed, McpServerAllowResult.NotAllowed,
+				McpServerAllowResult.Allowed, McpServerAllowResult.NotAllowed,
+				McpServerAllowResult.Allowed, McpServerAllowResult.Allowed, McpServerAllowResult.Allowed,
+				McpServerAllowResult.Denied, McpServerAllowResult.Denied,
+			]);
+		});
 
 		test('no lists configured allows everything', () => {
 			assert.strictEqual(checkMcpServerAllowed(undefined, undefined, { name: 'x' }), McpServerAllowResult.Allowed);

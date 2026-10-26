@@ -78,8 +78,7 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
-import { getAgentHostApprovalDefault, resolveInitialAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
+import { getAgentHostApprovalDefault, getChatDefaultConfiguration, resolveInitialAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
@@ -1231,7 +1230,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
 
-		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
+		const configuredDefaults = getChatDefaultConfiguration(this._configurationService);
 		const configuredApprovals = getAgentHostApprovalDefault(this._configurationService);
 		if (configuredApprovals) {
 			config[SessionConfigKey.AutoApprove] = configuredApprovals;

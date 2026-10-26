@@ -8,13 +8,15 @@ import { COMPARE_AGENTS_ENABLED_SETTING } from '../../../services/sessions/commo
 
 export { NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID as NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 export const UNIFIED_WORKSPACE_PICKER_SETTING = ChatConfiguration.UnifiedWorkspacePicker;
+export const AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING = 'chat.agentSessions.responseSelectionMenu.enabled';
+export const AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING = 'chat.agentSessions.appearanceTools.enabled';
 export { COMPARE_AGENTS_ENABLED_SETTING };
 export const COMPARE_AGENTS_OPEN_IN_GRID_SETTING = 'sessions.chat.compareAgents.openInGrid';
 export const COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING = 'sessions.chat.compareAgents.showPickerHint';
 export const EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING = 'sessions.chat.experimental.newSessionComposerLayout';
 export const WORKSPACE_OPT_OUT_SETTING = 'sessions.chat.experimental.workspaceOptOut';
 export const ENVIRONMENT_PICKER_SETTING = 'sessions.chat.experimental.environmentPicker';
-export const ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING = 'sessions.chat.experimental.environmentPickerBeforeWorkspace';
+export const ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING = 'sessions.chat.experimental.environmentPickerManageRemotes';
 export const NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING = 'sessions.chat.experimental.newSessionComposerOptionsExpanded';
 export const AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING = 'sessions.chat.experimental.agentsPickerInAttachContextMenu';
 export const COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING = 'sessions.chat.experimental.collapsedSessionOptionsShowIcons';

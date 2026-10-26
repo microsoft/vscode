@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout, raceCancellationError } from '../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { formatConnectionDiagnosticError, getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
@@ -60,6 +60,8 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	private _initializing: Promise<void> | undefined;
 	private readonly _connects = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private readonly _pendingConnects = new Map<string, Promise<void>>();
+	private readonly _discoveryCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _lifetimeToken = cancelOnDispose(this._store);
 
 	constructor(
 		@ICloudSandboxApiService private readonly _api: ICloudSandboxApiService,
@@ -72,6 +74,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		@IAuthenticationService authentication: IAuthenticationService,
 		@IRemoteAgentHostService private readonly _remote: IRemoteAgentHostService,
 		@ITelemetryService private readonly _telemetry: ITelemetryService,
+		@IMissionControlAvailabilityService private readonly _availabilityService: IMissionControlAvailabilityService,
 	) {
 		super();
 		this._register(toDisposable(() => this._withdraw()));
@@ -94,8 +97,16 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				void this.refresh(CancellationToken.None).catch(error => this._reportBackgroundError(error));
 			}
 		};
+		let available = this._availabilityService.available.get();
+		this._register(autorun(reader => {
+			const next = this._availabilityService.available.read(reader);
+			if (next !== available) {
+				available = next;
+				updateEnabled();
+			}
+		}));
 		this._register(_configuration.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || e.affectsConfiguration('chat.disableAIFeatures')) {
+			if (e.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || e.affectsConfiguration(GitHubEnvironmentsEnabledSettingId) || e.affectsConfiguration('chat.disableAIFeatures')) {
 				updateEnabled();
 			}
 		}));
@@ -110,6 +121,8 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	get accountKey(): string | undefined { return this._accountKey; }
 	get enabled(): boolean {
 		return !this._entitlement.sentiment.hidden
+			&& this._availabilityService.available.get() === true
+			&& this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) === true
 			&& this._configuration.getValue<boolean>('chat.disableAIFeatures') !== true
 			&& this._configuration.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true;
 	}
@@ -161,7 +174,21 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		const generation = this._generation;
 		const refreshGeneration = ++this._refreshGeneration;
 		const account = this._accountKey;
-		const environments = await this._api.listEnvironments(token, { refresh: true });
+		const cancellation = this._discoveryCancellation.value ??= new CancellationTokenSource();
+		const operation = new DisposableStore();
+		const source = operation.add(new CancellationTokenSource(token));
+		operation.add(cancellation.token.onCancellationRequested(() => source.cancel()));
+		operation.add(this._lifetimeToken.onCancellationRequested(() => source.cancel()));
+		try {
+			await this._refreshHosts(generation, refreshGeneration, account, source.token);
+		} finally {
+			operation.dispose();
+		}
+	}
+
+	private async _refreshHosts(generation: number, refreshGeneration: number, account: string, token: CancellationToken): Promise<void> {
+		this._checkGeneration(generation, token);
+		const environments = await raceCancellationError(this._api.listEnvironments(token, { refresh: true }), token);
 		const own = await this._local.getMissionControlEnvironmentId?.();
 		const currentAccount = await this._api.getAccountKey();
 		this._checkGeneration(generation, token);
@@ -245,6 +272,9 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 			}
 			if (environment.status !== 'online') {
 				failure = { errorCategory: 'offline' };
+				// Hosts are listed from a cached inventory; record the status so the host stops being offered as online.
+				this._replaceHosts(this.hosts.get().map(candidate => candidate.id === id ? { ...candidate, status: environment.status } : candidate));
+				this._persist();
 				throw new Error(localize('missionControl.hostOffline', "{0} is not online. Start its owning application before connecting. Connecting will not start or replace this machine.", host.displayName ?? host.name));
 			}
 			if (await reuseConnection()) {
@@ -256,7 +286,10 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				this._requireHost(id);
 			}
 			connecting = true;
-			await raceCancellationError(this._connections.connect({ environmentId: id, name: host.name, environmentKind: 'user-local' }, source.token), source.token);
+			await raceCancellationError(this._connections.connect({
+				environmentId: id, name: host.name, environmentKind: 'user-local',
+				...(environment.encryption_keys ? { trustedEncryptionKeys: environment.encryption_keys } : {}),
+			}, source.token), source.token);
 			this._checkGeneration(generation, source.token);
 			this._requireHost(id);
 		} catch (error) {
@@ -290,6 +323,34 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	async disconnect(id: string): Promise<void> {
 		this._cancelConnect(id);
 		await this._connections.disconnect(id);
+	}
+
+	async delete(id: string, token: CancellationToken): Promise<void> {
+		const host = this._requireHost(id);
+		const account = this._accountKey;
+		if (host.kind !== 'user-local' || !account) {
+			throw new Error(localize('missionControl.deleteUnsupported', "Only user-shared environments can be deleted here."));
+		}
+		const generation = this._generation;
+		const operation = new DisposableStore();
+		const source = operation.add(new CancellationTokenSource(token));
+		operation.add(this._lifetimeToken.onCancellationRequested(() => source.cancel()));
+		const cancellation = this._discoveryCancellation.value ??= new CancellationTokenSource();
+		operation.add(cancellation.token.onCancellationRequested(() => source.cancel()));
+		try {
+			this._checkGeneration(generation, source.token);
+			await this._api.deleteEnvironment(id, source.token, account);
+			const currentAccount = await this._api.getAccountKey();
+			this._checkGeneration(generation, source.token);
+			if (account !== currentAccount) {
+				throw new CancellationError();
+			}
+			this._refreshGeneration++;
+			this._replaceHosts(this.hosts.get().filter(host => host.id !== id));
+			this._persist();
+		} finally {
+			operation.dispose();
+		}
 	}
 
 	setDisplayName(id: string, name: string | undefined): void {
@@ -378,6 +439,8 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 
 	private _withdraw(): void {
 		this._generation++;
+		this._discoveryCancellation.value?.cancel();
+		this._discoveryCancellation.clear();
 		this._initializing = undefined;
 		for (const host of this.hosts.get()) {
 			this._cancelConnect(host.id);

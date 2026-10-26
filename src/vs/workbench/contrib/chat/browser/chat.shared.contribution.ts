@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './agentSessions/agentHost/codexContinuation.contribution.js';
+import './agentSessions/agentHost/computerUseSetup.contribution.js';
 import './agentSessions/agentHost/localModel.contribution.js';
 import { getDefaultModelPolicyDescription } from '../common/modelSelection.js';
 import { CODEX_CONTINUATION_DEFAULT_THRESHOLD } from '../../../services/agentHost/browser/codexContinuation.js';
@@ -21,7 +22,7 @@ import { AccessibleViewRegistry } from '../../../../platform/accessibility/brows
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
@@ -46,7 +47,7 @@ import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTra
 import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAllowedServersConfig, mcpAppsEnabledConfig, mcpAutoStartConfig, mcpDeniedServersConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedModelValue, managedSettingsDisabledValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DEFAULT_PERMISSIONS_MODE_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedDefaultConfigurationValue, managedModelValue, managedSettingsDisabledValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -62,7 +63,7 @@ import { IPathService } from '../../../services/path/common/pathService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
 import { McpCollisionBehavior, allDiscoverySources, defaultDiscoverySourceEnablement, discoverySourceSettingsLabel, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection, mcpWorkspaceRootConfig } from '../../mcp/common/mcpConfiguration.js';
-import { autoApprovePolicyValue } from '../common/agentHostConfigPolicy.js';
+import { autoApprovePolicyValue, getDefaultConfigurationPolicyDescription } from '../common/agentHostConfigPolicy.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../common/chatDebugServiceImpl.js';
@@ -73,12 +74,13 @@ import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfigurationProperties } from './chatNetworkConfiguration.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, OpenInAgentsTitleBarHoverVariant } from '../common/constants.js';
 import { agentsWindowHandoffConfigurationProperties } from './agentSessionsConfiguration.js';
 import { chatProgressConfigurationProperties } from './chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties } from './aiCustomization/customizationMarketplaceConfiguration.js';
 import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
+import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../common/editing/chatSessionReviewPreferences.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -238,6 +240,9 @@ import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
 import { ChatMicrosoftSignInProbeContribution, ChatMicrosoftSignInProbeService, IChatMicrosoftSignInProbeService } from './chatSetup/chatSetupMicrosoftProbe.js';
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
+import { BtwSlashCommandContribution } from './btwSlashCommand.js';
+import { EditorSideChatProviderContribution } from './chatSideChatProvider.js';
+import { AskSelectionInSideChatAction, EditorResponseSelectionSideChatContribution } from './responseSelectionSideChatController.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { CodexStatusBarEntry } from './chatStatus/codexStatusEntry.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
@@ -603,7 +608,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EditorWorkingSetEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.editor.workingSet.enabled', "Show Copilot Agent Host session changes as a working set above the chat input instead of the Changes pill in the editor window. Select a file to open its diff, or keep its changes to remove it from the working set. The Keep and View All Edits buttons in its heading act on every file. Hosts without a session changeset keep the Changes pill. Local and other chat harnesses are unaffected."),
+			description: nls.localize('chat.editor.workingSet.enabled', "Show Agent Host session changes as a working set above the chat input instead of the Changes pill in the editor window. Use its context menu to enable or disable Keep and Undo in both the working set and the editor, or choose Show Pill to turn this setting off. View All Edits opens all changed files in a diff editor. Hosts without a session changeset keep the Changes pill. Local and other chat harnesses are unaffected."),
 			default: true,
 			tags: ['experimental'],
 			agentsWindow: { default: false, readOnly: true },
@@ -781,6 +786,24 @@ configurationRegistry.registerConfiguration({
 			},
 			default: { mode: 'interactive', approvals: ChatDefaultPermissionLevel.Manual },
 			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration for new agent sessions (such as Copilot). You can still change the mode and approval behavior per session, and each session remembers what was used."),
+			policyValueDescription: getDefaultConfigurationPolicyDescription,
+			policy: {
+				name: 'ChatDefaultConfiguration',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.144',
+				value: managedDefaultConfigurationValue,
+				managedSettings: {
+					[COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: { type: 'string' },
+					[COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: { type: 'boolean' },
+					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.defaultConfiguration.policy',
+						value: nls.localize('chat.defaultConfiguration.policy', "Sets the default configuration for new agent sessions, as a JSON object with an optional \"mode\" (\"interactive\", \"plan\", or \"autopilot\") and \"approvals\" (\"manual\", \"assisted\", or \"allowAll\"). Users can still change them for each session.")
+					}
+				},
+			},
 		},
 		[ChatConfiguration.DefaultModel]: {
 			type: 'string',
@@ -850,7 +873,6 @@ configurationRegistry.registerConfiguration({
 					}
 				},
 			},
-			agentHost: { key: AgentHostSessionSyncEnabledConfigKey },
 		},
 		[ChatConfiguration.SessionSyncExcludeRepositories]: {
 			type: 'array',
@@ -1086,7 +1108,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ProgressBorder]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
 		},
 		...chatProgressConfigurationProperties,
@@ -1169,9 +1191,9 @@ configurationRegistry.registerConfiguration({
 				type: 'object',
 				additionalProperties: false,
 				properties: {
-					serverName: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.allowedServers.serverName', "Match a server by its configured name.") },
-					serverUrl: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.allowedServers.serverUrl', "Match a remote server by its URL. Supports `*` wildcards, for example `https://*.example.com/*`.") },
-					serverCommand: { type: 'array', minItems: 1, items: { type: 'string' }, description: nls.localize('chat.mcp.allowedServers.serverCommand', "Match a local server by its exact command invocation, given as the command followed by its arguments.") },
+					serverName: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.allowedServers.serverName', "Match a server by its literal configured name. For local servers, names apply only when this allowlist has no command entries; for remote servers, only when it has no URL entries.") },
+					serverUrl: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.allowedServers.serverUrl', "Match a remote server by its URL, with case-insensitive scheme and host and a case-sensitive path. Supports `*` wildcards; a pattern with no path matches any path. Environment variable references expand on the host that connects to the server.") },
+					serverCommand: { type: 'array', minItems: 1, items: { type: 'string' }, description: nls.localize('chat.mcp.allowedServers.serverCommand', "Match a local server by its exact command followed by its arguments, in order. Environment variable references expand on the host that runs the server.") },
 				},
 				oneOf: [
 					{ required: ['serverName'] },
@@ -1179,7 +1201,7 @@ configurationRegistry.registerConfiguration({
 					{ required: ['serverCommand'] },
 				],
 			},
-			markdownDescription: nls.localize('chat.mcp.allowedServers', "Enterprise-managed allowlist that controls which Model Context Protocol servers may be installed and run. When set, only servers matching an entry are permitted; any other server is blocked. Servers can be matched by name, remote URL pattern (with `*` wildcards), or local command invocation. Omit entirely to allow all servers (subject to the deny list). Delivered via enterprise policy for governance; this setting is not surfaced to end users."),
+			markdownDescription: nls.localize('chat.mcp.allowedServers', "Enterprise-managed allowlist that controls which Model Context Protocol servers may be installed and run. Local servers must match a command entry when any command entries exist; remote servers must match a URL entry when any URL entries exist. Otherwise, servers may match a literal name entry. An empty list allows no servers; omit entirely to allow all servers, subject to the deny list. Gallery checks evaluate available installation candidates; the selected command or URL is checked again after resolution. Delivered via enterprise policy for governance; this setting is not surfaced to end users."),
 			default: null,
 			scope: ConfigurationScope.APPLICATION,
 			// Governance-only: delivered via the `ChatAllowedMcpServers` enterprise policy and hidden
@@ -1208,8 +1230,8 @@ configurationRegistry.registerConfiguration({
 				additionalProperties: false,
 				properties: {
 					serverName: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.deniedServers.serverName', "Match a server by its configured name.") },
-					serverUrl: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.deniedServers.serverUrl', "Match a remote server by its URL. Supports `*` wildcards, for example `https://*.example.com/*`.") },
-					serverCommand: { type: 'array', minItems: 1, items: { type: 'string' }, description: nls.localize('chat.mcp.deniedServers.serverCommand', "Match a local server by its exact command invocation, given as the command followed by its arguments.") },
+					serverUrl: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.deniedServers.serverUrl', "Match a remote server by its URL, with case-insensitive scheme and host and a case-sensitive path. Supports `*` wildcards; a pattern with no path matches any path. Environment variable references expand on the host that connects to the server.") },
+					serverCommand: { type: 'array', minItems: 1, items: { type: 'string' }, description: nls.localize('chat.mcp.deniedServers.serverCommand', "Match a local server by its exact command followed by its arguments, in order. Environment variable references expand on the host that runs the server.") },
 				},
 				oneOf: [
 					{ required: ['serverName'] },
@@ -2450,10 +2472,53 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
+		[ChatConfiguration.WelcomePageAgentsWindowGraphic]: {
+			type: 'string',
+			enum: [AgentsWindowGraphicVariant.None, AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.ManyWindowsToOne, AgentsWindowGraphicVariant.Auto],
+			enumDescriptions: [
+				nls.localize('chat.welcomePage.agentsWindowGraphic.none', "Show no graphic."),
+				nls.localize('chat.welcomePage.agentsWindowGraphic.windowComparison', "Show the editor window and the Agents window side by side."),
+				nls.localize('chat.welcomePage.agentsWindowGraphic.manyWindowsToOne', "Show how editor windows for several projects become one Agents window."),
+				nls.localize({ key: 'chat.welcomePage.agentsWindowGraphic.auto', comment: ['Values surrounded by single quotes are not to be translated.'] }, "Show 'manyWindowsToOne' when more than one editor window is open, and 'windowComparison' otherwise."),
+			],
+			description: nls.localize('chat.welcomePage.agentsWindowGraphic', "Controls which graphic explains the Agents window above the Agents window button on the Welcome page."),
+			default: AgentsWindowGraphicVariant.None,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ChatConfiguration.WelcomePageAgentsWindowSectionStyle]: {
+			type: 'string',
+			enum: [AgentsWindowSectionStyle.None, AgentsWindowSectionStyle.Card, AgentsWindowSectionStyle.Outline, AgentsWindowSectionStyle.Tint, AgentsWindowSectionStyle.Band, AgentsWindowSectionStyle.Separator],
+			enumDescriptions: [
+				nls.localize('chat.welcomePage.agentsWindowSectionStyle.none', "Don't set the section apart."),
+				nls.localize('chat.welcomePage.agentsWindowSectionStyle.card', "Show the section on a subtle surface, like the walkthrough tiles."),
+				nls.localize('chat.welcomePage.agentsWindowSectionStyle.outline', "Outline the section with a subtle border."),
+				nls.localize('chat.welcomePage.agentsWindowSectionStyle.tint', "Show the section on a surface tinted with the accent color."),
+				nls.localize('chat.welcomePage.agentsWindowSectionStyle.band', "Show the section on a subtle surface across the width of the page's content."),
+				nls.localize('chat.welcomePage.agentsWindowSectionStyle.separator', "Separate the section from the rest of the page with lines above and below it."),
+			],
+			description: nls.localize('chat.welcomePage.agentsWindowSectionStyle', "Controls how the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. Applies only while a graphic is shown."),
+			default: AgentsWindowSectionStyle.Outline,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[ChatConfiguration.TitleBarOpenInAgentsWindowEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.titleBar.openInAgentsWindow.enabled', "Controls whether the Open in Agents Window button is shown in the title bar."),
 			default: true,
+		},
+		[ChatConfiguration.TitleBarOpenInAgentsWindowRichHover]: {
+			type: 'string',
+			enum: [OpenInAgentsTitleBarHoverVariant.None, OpenInAgentsTitleBarHoverVariant.ManyWindowsToOne, OpenInAgentsTitleBarHoverVariant.WindowComparison],
+			enumDescriptions: [
+				nls.localize('chat.titleBar.openInAgentsWindow.richHover.none', "Show a simple tooltip, and grow the button to show its label."),
+				nls.localize('chat.titleBar.openInAgentsWindow.richHover.manyWindowsToOne', "Show a hover card with a graphic of editor windows for several projects becoming one Agents window, and keep the button an icon."),
+				nls.localize('chat.titleBar.openInAgentsWindow.richHover.windowComparison', "Show a hover card with a graphic of the editor window and the Agents window side by side, and keep the button an icon."),
+			],
+			description: nls.localize('chat.titleBar.openInAgentsWindow.richHover', "Controls whether hovering or focusing the Open in Agents Window button in the title bar shows a hover card that explains the Agents window, and which graphic the card shows. Applies to users who have created fewer than two sessions in the Agents window; other users always see a simple tooltip."),
+			default: OpenInAgentsTitleBarHoverVariant.None,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		...agentsWindowHandoffConfigurationProperties,
 		'chat.approvedAccountOrganizations': {
@@ -3313,6 +3378,8 @@ registerWorkbenchContribution2(PromptsDebugContribution.ID, PromptsDebugContribu
 registerWorkbenchContribution2(AgentHostChatDebugContribution.ID, AgentHostChatDebugContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatLanguageModelsDataContribution.ID, ChatLanguageModelsDataContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSlashCommandsContribution.ID, ChatSlashCommandsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(BtwSlashCommandContribution.ID, BtwSlashCommandContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(EditorSideChatProviderContribution.ID, EditorSideChatProviderContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatSessionOptionSlashCommandsContribution.ID, ChatSessionOptionSlashCommandsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatOutlineCreator.ID, ChatOutlineCreator, WorkbenchPhase.AfterRestored);
 
@@ -3417,6 +3484,7 @@ registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.D
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
 registerSingleton(ISessionChatPillVisibilityService, SessionChatPillVisibility, InstantiationType.Delayed);
+registerSingleton(IChatSessionReviewPreferencesService, ChatSessionReviewPreferencesService, InstantiationType.Delayed);
 registerSingleton(IChatPasteTargetService, ChatPasteTargetService, InstantiationType.Delayed);
 registerSingleton(IChatSideChatService, ChatSideChatService, InstantiationType.Delayed);
 registerSingleton(IChatRequestOriginService, ChatRequestOriginService, InstantiationType.Delayed);
@@ -3478,3 +3546,5 @@ registerSingleton(ISessionSummaryHoverService, SessionSummaryHoverService, Insta
 registerSingleton(IChatMicrosoftSignInProbeService, ChatMicrosoftSignInProbeService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
+ChatWidget.CONTRIBS.push(EditorResponseSelectionSideChatContribution);
+registerAction2(AskSelectionInSideChatAction);

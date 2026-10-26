@@ -16,6 +16,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -24,6 +25,8 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -34,11 +37,13 @@ import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -92,10 +97,15 @@ function canArchiveAutomationSession(session: ISession, reader?: IReader): boole
 		&& session.chats.read(reader).every(chat => terminal(chat.status.read(reader)));
 }
 export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automations.seenPluginTemplateIds';
+/** Onboarding spotlight targets, referenced by the Get Started checklist tours. */
+const AUTOMATION_TEMPLATES_ONBOARDING_TARGET_ID = 'sessions.automations.templates';
+const CREATE_AUTOMATION_ONBOARDING_TARGET_ID = 'sessions.automations.create';
 const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
 const AutomationCardCanUpdateContext = new RawContextKey<boolean>('sessionsAutomationCardCanUpdate', false);
 const AutomationCardHasExternalResourceContext = new RawContextKey<boolean>('sessionsAutomationCardHasExternalResource', false);
 const AutomationCardEnabledContext = new RawContextKey<boolean>('sessionsAutomationCardEnabled', false);
+const AutomationCardIsCloudContext = new RawContextKey<boolean>('sessionsAutomationCardIsCloud', false);
+const AutomationCardHasEventTriggerContext = new RawContextKey<boolean>('sessionsAutomationCardHasEventTrigger', false);
 
 function areAutomationTemplatesEqual(first: readonly IAutomationTemplate[], second: readonly IAutomationTemplate[]): boolean {
 	return first.length === second.length && first.every((template, index) => {
@@ -129,10 +139,13 @@ interface IAutomationCardEntry {
 	readonly hasExternalResourceContext: IContextKey<boolean>;
 	readonly canUpdateContext: IContextKey<boolean>;
 	readonly enabledContext: IContextKey<boolean>;
+	readonly isCloudContext: IContextKey<boolean>;
+	readonly hasEventTriggerContext: IContextKey<boolean>;
 	readonly nameText: HTMLElement;
 	readonly startingIcon: HTMLElement;
 	readonly startingRuns: ISettableObservable<ReadonlySet<string> | undefined>;
 	readonly scheduleEl: HTMLElement;
+	readonly scheduleHover: MutableDisposable<IDisposable>;
 	readonly folderEl: HTMLElement;
 	readonly folderHover: MutableDisposable<IDisposable>;
 	readonly promptEl: HTMLElement;
@@ -241,7 +254,7 @@ export class AutomationsCardsWidget extends Disposable {
 				? hasRuns
 					? localize('historyRefreshFailed', "Run history could not be refreshed. Showing the last available history. Use Refresh to try again.")
 					: localize('historyLoadFailed', "Run history could not be loaded. Use Refresh to try again.")
-				: catalogueState === 'ready' && (state === undefined || state === 'ready') && hasAutomations && !hasRuns ? localize('historyEmpty', "No runs yet. Run an automation now or wait for its next scheduled run.") : '';
+				: catalogueState === 'ready' && (state === undefined || state === 'ready') && hasAutomations && !hasRuns ? localize('historyEmpty', "No runs yet. Wait for the automation's next trigger, or run it now when available.") : '';
 			historyState.textContent = message;
 			historyState.style.display = message ? '' : 'none';
 		}));
@@ -408,6 +421,13 @@ class AutomationCardsSection extends Disposable {
 		this.errorCreateButton = this.renderErrorState();
 		this.templatesContainer = DOM.append(parent, $('.automations-templates'));
 		this.templatesContainer.style.display = 'none';
+		this._register(markOnboardingTarget(this.templatesContainer, AUTOMATION_TEMPLATES_ONBOARDING_TARGET_ID, {
+			open: () => {
+				if (this.builtInTemplatesSection) {
+					this.builtInTemplatesSection.open = true;
+				}
+			},
+		}));
 		this.dropOverlay = DOM.append(this.focusRoot, $('.automations-drop-overlay'));
 		this.dropOverlay.setAttribute('role', 'status');
 		this.dropOverlay.setAttribute('aria-live', 'polite');
@@ -623,7 +643,7 @@ class AutomationCardsSection extends Disposable {
 			const info = DOM.append(summary, renderIcon(Codicon.info));
 			info.classList.add('automations-ownership-info');
 			info.setAttribute('aria-hidden', 'true');
-			disposables.add(this.hoverService.setupDelayedHover(info, { content: description }));
+			disposables.add(this.hoverService.setupDelayedHover(info, { content: description, style: HoverStyle.Pointer }, { groupId: this.templateAriaId }));
 			disposables.add(DOM.addDisposableListener(info, DOM.EventType.CLICK, event => {
 				event.preventDefault();
 				event.stopPropagation();
@@ -678,6 +698,8 @@ class AutomationCardsSection extends Disposable {
 		const canUpdateContext = AutomationCardCanUpdateContext.bindTo(cardContextKeyService);
 		const hasExternalResourceContext = AutomationCardHasExternalResourceContext.bindTo(cardContextKeyService);
 		const enabledContext = AutomationCardEnabledContext.bindTo(cardContextKeyService);
+		const isCloudContext = AutomationCardIsCloudContext.bindTo(cardContextKeyService);
+		const hasEventTriggerContext = AutomationCardHasEventTriggerContext.bindTo(cardContextKeyService);
 		disposables.add(Gesture.addTarget(card));
 
 		const main = DOM.append(card, $<HTMLButtonElement>('button.automations-card-main', {
@@ -769,10 +791,13 @@ class AutomationCardsSection extends Disposable {
 			hasExternalResourceContext,
 			canUpdateContext,
 			enabledContext,
+			isCloudContext,
+			hasEventTriggerContext,
 			nameText: nameTextEl,
 			startingIcon,
 			startingRuns,
 			scheduleEl,
+			scheduleHover: disposables.add(new MutableDisposable<IDisposable>()),
 			folderEl,
 			folderHover,
 			promptEl,
@@ -800,12 +825,16 @@ class AutomationCardsSection extends Disposable {
 		card.hasExternalResourceContext.set(automation.externalResource !== undefined);
 		card.canUpdateContext.set(this.automationService.canUpdateAutomation(automation.id));
 		card.enabledContext.set(automation.enabled);
-		const schedule = automation.enabled ? formatSchedule(automation.schedule) : localize('disabled', "Disabled");
+		card.isCloudContext.set(automation.cloudTrigger !== undefined || automation.ownership !== undefined);
+		card.hasEventTriggerContext.set(hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {}));
+		const triggerSummary = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
+		const schedule = automation.enabled ? automationTriggerSummary(automation.cloudTrigger?.triggers ?? {}, true) ?? formatSchedule(automation.schedule) : localize('disabled', "Disabled");
 		const enabledChanged = !previous || previous.enabled !== automation.enabled;
-		const scheduleChanged = !previous || enabledChanged || formatSchedule(previous.schedule) !== formatSchedule(automation.schedule);
+		const scheduleChanged = !previous || enabledChanged || formatSchedule(previous.schedule) !== formatSchedule(automation.schedule)
+			|| automationTriggerSummary(previous.cloudTrigger?.triggers ?? {}) !== triggerSummary;
 		const nameChanged = !previous || previous.name !== automation.name;
 		if (nameChanged || scheduleChanged) {
-			card.card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, schedule));
+			card.card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, automation.enabled ? triggerSummary ?? schedule : schedule));
 		}
 		if (nameChanged) {
 			card.main.setAttribute('aria-label', localize('editAutomationNamed', "Edit automation {0}", automation.name));
@@ -822,6 +851,9 @@ class AutomationCardsSection extends Disposable {
 			DOM.reset(card.scheduleEl,
 				$('span' + ThemeIcon.asCSSSelector(icon), { 'aria-hidden': 'true' }),
 				$('span.automations-card-meta-label', undefined, schedule));
+			card.scheduleHover.value = triggerSummary
+				? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.scheduleEl, triggerSummary)
+				: undefined;
 		}
 
 		const folderLabel = automation.targetDisplay?.label ?? getAutomationTargetLabel(automation.target);
@@ -840,6 +872,11 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private updateCardRunState(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {
+		const eventTriggered = hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {});
+		if (eventTriggered && DOM.isActiveElement(card.runButton.element)) {
+			card.moreActionsButton.focus();
+		}
+		card.runButton.element.style.display = eventTriggered ? 'none' : '';
 		const starting = card.startingRuns.get() !== undefined;
 		card.startingIcon.style.display = starting ? '' : 'none';
 		card.promptEl.textContent = starting ? localize('automationStarting', "Starting run...") : automation.prompt;
@@ -915,6 +952,9 @@ class AutomationCardsSection extends Disposable {
 		createButton.label = localize('createAutomation', "Create Automation");
 		createButton.element.classList.add('automations-cards-create-button');
 		disposables.add(createButton.onDidClick(() => this.openCreateDialog()));
+		disposables.add(markOnboardingTarget(createButton.element, CREATE_AUTOMATION_ONBOARDING_TARGET_ID, {
+			onDidActivate: Event.map(createButton.onDidClick, () => undefined),
+		}));
 		return createButton;
 	}
 
@@ -1137,7 +1177,7 @@ class AutomationCardsSection extends Disposable {
 		const nameRow = DOM.append(card, $('.automations-template-card-name'));
 		const name = DOM.append(nameRow, $('span.automations-template-card-name-text'));
 		name.textContent = template.name;
-		this.templateDisposables.add(this.hoverService.setupDelayedHover(name, { content: template.name }));
+		this.templateDisposables.add(this.hoverService.setupDelayedHover(name, { content: template.name, style: HoverStyle.Pointer }, { groupId: this.templateAriaId }));
 		const badge = DOM.append(nameRow, $('span.automations-template-card-badge'));
 		badge.textContent = template.source
 			? localize('automationPluginTemplateBadge', "Plugin")
@@ -1147,12 +1187,12 @@ class AutomationCardsSection extends Disposable {
 		if (template.source) {
 			const source = DOM.append(card, $('span.automations-template-card-source'));
 			source.textContent = localize('automationTemplateSource', "From {0}", template.source.label);
-			this.templateDisposables.add(this.hoverService.setupDelayedHover(source, { content: template.source.label }));
+			this.templateDisposables.add(this.hoverService.setupDelayedHover(source, { content: template.source.label, style: HoverStyle.Pointer }, { groupId: this.templateAriaId }));
 		}
 		const description = DOM.append(card, $('span.automations-template-card-prompt'));
 		description.id = `automations-template-${this.templateAriaId}-${template.id}-description`;
 		description.textContent = template.description;
-		this.templateDisposables.add(this.hoverService.setupDelayedHover(description, { content: template.prompt }));
+		this.templateDisposables.add(this.hoverService.setupDelayedHover(description, { content: template.prompt, style: HoverStyle.Pointer, position: { hoverPosition: HoverPosition.RIGHT } }, { groupId: this.templateAriaId }));
 		card.setAttribute('aria-describedby', description.id);
 		const scheduleElement = DOM.append(card, $('span.automations-template-card-schedule'));
 		scheduleElement.textContent = schedule;
@@ -2353,7 +2393,7 @@ export class AutomationsCustomView extends AbstractCustomView {
 
 	readonly title: IObservable<string> = constObservable(localize('automationsTitle', "Automations"));
 	override readonly description: IObservable<string | undefined> = constObservable(
-		localize('automationsDescription', "Schedule agent sessions to run automatically on a cadence you choose."));
+		localize('automationsDescription', "Configure agent sessions to run automatically from events or on a schedule."));
 
 	private _widget: AutomationsCardsWidget | undefined;
 
@@ -2432,7 +2472,7 @@ export class AutomationsCustomViewContribution extends Disposable {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, false);
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, false, undefined, CREATE_AUTOMATION_ONBOARDING_TARGET_ID);
 		}));
 		this._register(actionViewItemService.register(Menus.CustomViewAutomations, 'sessions.automations.import', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
@@ -2537,7 +2577,7 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	private refreshRequested = false;
 	private actionRunning = false;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly refreshing?: IObservable<boolean>) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly refreshing?: IObservable<boolean>, private readonly onboardingTargetId?: string) {
 		super(context, action, options);
 	}
 
@@ -2579,6 +2619,11 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 				this.updateEnabled();
 			}
 		}));
+		if (this.onboardingTargetId) {
+			this._register(markOnboardingTarget(button.element, this.onboardingTargetId, {
+				onDidActivate: Event.map(Event.filter(button.onDidClick, () => this._action.enabled), () => undefined),
+			}));
+		}
 		this.updateLabel();
 		this.updateEnabled();
 		const refreshing = this.refreshing;
@@ -2765,7 +2810,7 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 			id: 'sessions.automations.duplicate',
 			title: localize2('duplicateAutomation', "Duplicate"),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 2, when: ChatAutomationsEnabledContext }],
+			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 2, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasEventTriggerContext.negate()) }],
 		});
 	}
 
@@ -2784,6 +2829,9 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 
 		try {
 			const name = getDuplicateAutomationName(automation.name, automationService.automations.get());
+			if (hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {})) {
+				throw new Error(localize('automation.duplicateEvents', "Duplicate event-triggered automations on GitHub to preserve their complete configuration."));
+			}
 			let duplicate: IAutomationDescriptor | undefined;
 			const result = await automationDialogService.showAutomationDialog({
 				initialValues: {
@@ -2831,7 +2879,7 @@ registerAction2(class ExportAutomationAction extends Action2 {
 			id: 'sessions.automations.export',
 			title: localize2('exportAutomation', "Export"),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 3, when: ChatAutomationsEnabledContext }],
+			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 3, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardIsCloudContext.negate()) }],
 		});
 	}
 

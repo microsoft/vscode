@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ImportChanges } from '../../common/dataTypes/importFilteringOptions';
-import { AggressivenessLevel, applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, isEagernessPrompt, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PatchModelPrediction, PromptingStrategy, RejectedEditsMemoryMode, ResponseFormat } from '../../common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, isEagernessPrompt, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PatchModelPrediction, PromptingStrategy, RejectedEditsCacheScope, RejectedEditsMemoryMode, RejectedEditsPlacement, ResponseFormat } from '../../common/dataTypes/xtabPromptOptions';
 
 function baseConfig(overrides: Partial<ModelConfiguration> = {}): ModelConfiguration {
 	return {
@@ -149,6 +149,38 @@ describe('applyStrategyConfig', () => {
 
 describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 
+	it.each(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const)('accepts reasoningEffort=%s', reasoningEffort => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ reasoningEffort, maxCompletionTokens: 8192 }));
+		expect({
+			error: result.error,
+			reasoningEffort: result.content?.reasoningEffort,
+			maxCompletionTokens: result.content?.maxCompletionTokens,
+		}).toEqual({ error: undefined, reasoningEffort, maxCompletionTokens: 8192 });
+	});
+
+	it('leaves request arguments unset by default', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig());
+		expect({
+			error: result.error,
+			reasoningEffort: result.content?.reasoningEffort,
+			maxCompletionTokens: result.content?.maxCompletionTokens,
+		}).toEqual({ error: undefined, reasoningEffort: undefined, maxCompletionTokens: undefined });
+	});
+
+	it.each(['', 'invalid', 'HIGH', null, 1])('rejects reasoningEffort=%s', reasoningEffort => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate({ ...baseConfig(), reasoningEffort });
+		expect(result.error).toBeDefined();
+	});
+
+	it.each([0, -1, 1.5, NaN, Infinity, -Infinity, '8192', null])('rejects maxCompletionTokens=%s', maxCompletionTokens => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate({ ...baseConfig(), maxCompletionTokens });
+		expect(result.error).toBeDefined();
+	});
+
+	it('accepts the minimum completion token budget', () => {
+		expect(MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ maxCompletionTokens: 1 })).content?.maxCompletionTokens).toBe(1);
+	});
+
 	it.each(['aggressionHighLow', 'aggressionLowMedium'] as const)('accepts a config with eagernessPrompt=%s', eagernessPrompt => {
 		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ eagernessPrompt }));
 		expect(result.error).toBeUndefined();
@@ -179,6 +211,31 @@ describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory: { rejectedEdits: RejectedEditsMemoryMode.DiffWithTags } }));
 		expect(result.error).toBeUndefined();
 		expect(result.content?.memory?.rejectedEdits).toBe(RejectedEditsMemoryMode.DiffWithTags);
+	});
+
+	it('accepts applied-then-undone rejected-edit memory in the model configuration', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory: { rejectedEdits: RejectedEditsMemoryMode.AppliedThenUndone } }));
+		expect(result.error).toBeUndefined();
+		expect(result.content?.memory?.rejectedEdits).toBe(RejectedEditsMemoryMode.AppliedThenUndone);
+	});
+
+	it('accepts the rejected-edit experiment options in the model configuration', () => {
+		const memory = { rejectedEdits: RejectedEditsMemoryMode.AppliedThenUndone, rejectedEditsMaxEditsAfter: 6, rejectedEditsPlacement: RejectedEditsPlacement.Newest, rejectedEditsRepetitions: 2, rejectedEditsMaxCount: 1, rejectedEditsCacheScope: RejectedEditsCacheScope.Edit, rejectedEditsOnlyFullyVisible: true };
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory }));
+		expect(result.error).toBeUndefined();
+		expect(result.content?.memory).toEqual(memory);
+	});
+
+	it('accepts cache scope none', () => {
+		const memory = { rejectedEdits: RejectedEditsMemoryMode.AppliedThenUndone, rejectedEditsCacheScope: RejectedEditsCacheScope.None };
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory }));
+		expect(result.error).toBeUndefined();
+		expect(result.content?.memory?.rejectedEditsCacheScope).toBe('none');
+	});
+
+	it('rejects an unknown rejected-edit placement', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory: { rejectedEdits: RejectedEditsMemoryMode.AppliedThenUndone, rejectedEditsPlacement: 'later' } as never }));
+		expect(result.error).toBeDefined();
 	});
 
 	it('accepts a config with allowImportChanges', () => {

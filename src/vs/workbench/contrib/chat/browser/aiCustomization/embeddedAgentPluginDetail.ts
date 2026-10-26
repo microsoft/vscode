@@ -26,7 +26,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { defaultButtonStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../../common/plugins/agentPluginService.js';
 import { createPolicyManagedEnablementAction, createUninstallPluginAction, getPluginPolicyEnablement, isPluginPolicyBlocked, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -98,7 +98,7 @@ export async function loadPluginReadme(
 			fetchedUri = URI.parse(`https://raw.githubusercontent.com/${githubBlobMatch.groups['owner']}/${githubBlobMatch.groups['repo']}/${githubBlobMatch.groups['rest']}`);
 		}
 		const context = await requestService.request({ type: 'GET', url: fetchedUri.toString(), callSite: 'aiCustomizationPluginDetail.fetchReadme' }, CancellationToken.None);
-		return { content: await asTextOrError(context) ?? '', baseUri: fetchedUri };
+		return { content: await asTextOrError(context) ?? '', baseUri: readmeUri };
 	}
 	throw new Error(`Unsupported plugin README URI scheme: ${readmeUri.scheme}`);
 }
@@ -165,6 +165,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly contributionLoadDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private current: IAgentPluginItem | undefined;
+	private primaryActionButton: Button | undefined;
 	private narrowLayout = false;
 	private readonly readmeRenderGuard = new PluginReadmeRenderGuard();
 	private updateEnablementAction: (() => void) | undefined;
@@ -265,6 +266,11 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		return this.leadingSlotEl;
 	}
 
+	/** The header's primary (non-secondary) action, if one is shown. */
+	get primaryAction(): Button | undefined {
+		return this.primaryActionButton;
+	}
+
 	setInput(item: IAgentPluginItem): void {
 		this.installWaitDisposables.clear();
 		this.contributionLoadDisposables.clear();
@@ -314,6 +320,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.statusBadgeEl.textContent = '';
 			this.statusBadgeEl.style.display = 'none';
 			DOM.clearNode(this.titleActionsEl);
+			this.primaryActionButton = undefined;
 			this.descriptionEl.textContent = '';
 			DOM.clearNode(this.factsEl);
 			this.sourceFactsEl.style.display = 'none';
@@ -334,6 +341,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.statusBadgeEl.style.display = 'none';
 		}
 		DOM.clearNode(this.titleActionsEl);
+		this.primaryActionButton = undefined;
 		DOM.clearNode(this.factsEl);
 		DOM.clearNode(this.contributionsListEl);
 
@@ -364,6 +372,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private renderTitleActions(item: IAgentPluginItem): void {
 		if (item.kind === AgentPluginItemKind.Marketplace) {
 			const installButton = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
+			this.primaryActionButton = installButton;
 			installButton.label = localize('install', "Install");
 			this.renderDisposables.add(installButton.onDidClick(async () => {
 				installButton.label = localize('installing', "Installing...");
@@ -452,10 +461,16 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			return;
 		}
 
-		const key = item.plugin.uri.toString();
-		const setEnablement = (state: ContributionEnablementState) => {
-			this.agentPluginService.enablementModel.setEnabled(key, state);
-			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+		const setEnablement = async (state: ContributionEnablementState) => {
+			splitButton.enabled = false;
+			try {
+				await setAgentPluginEnablement(item.plugin, this.agentPluginService.enablementModel, state);
+				status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			} catch (error) {
+				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
+			} finally {
+				splitButton.enabled = true;
+			}
 		};
 		const contextMenuProvider: IContextMenuProvider = {
 			showContextMenu: delegate => this.contextMenuService.showContextMenu({
@@ -465,7 +480,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		};
 		const alternateAction = this.renderDisposables.add(new Action('plugin.alternateScope', '', undefined, true, async () => {
 			const state = getPluginEnablementActionState(item.plugin.enablement.get());
-			setEnablement(state.alternateState);
+			await setEnablement(state.alternateState);
 		}));
 		const splitButton = this.renderDisposables.add(new ButtonWithDropdown(this.titleActionsEl, {
 			...defaultButtonStyles,

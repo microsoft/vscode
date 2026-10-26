@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer } from '../../../../../base/common/async.js';
+import { IntervalTimer, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
 import { type IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryAddress, getEntryTypeConfig } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -61,6 +61,9 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 	) {
 		super(remoteAgentHostService, configurationService, logService, instantiationService, sessionsProvidersService, notificationService);
 
+		// Factory registration can fire while the lazy WSL service is still constructing.
+		const reconcileEntries = this._register(new RunOnceScheduler(() => this._reconcile(), 0));
+		this._register(this._remoteAgentHostService.onDidChangeConfiguredEntries(() => reconcileEntries.schedule()));
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
 			this._resumeReconnects('WSL');
 			this._reconcile();

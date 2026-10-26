@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedPermissionDenials, hasManagedSettingsDefinitions, IManagedSettingsService, NullManagedSettingsService, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, requiresCopilotAgentHost, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_DEFAULT_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, managedDefaultConfigurationValue, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedPermissionDenials, hasManagedSettingsDefinitions, IManagedSettingsService, NullManagedSettingsService, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, requiresCopilotAgentHost, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
@@ -329,6 +329,41 @@ suite('Copilot managed settings projection', () => {
 
 	test('managedModelValue returns the same memoized callback (stable reference identity)', () => {
 		assert.strictEqual(managedModelValue(), managedModelValue());
+	});
+
+	test('managedModelValue reads the Copilot Fusion name as Auto', () => {
+		const value = managedModelValue();
+		assert.deepStrictEqual(
+			{
+				topLevel: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: ' Fusion ' } } as IPolicyData),
+				legacy: value({ managedSettings: { [COPILOT_MODEL_KEY]: 'fusion' } } as IPolicyData),
+				otherModel: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: 'fusion-preview' } } as IPolicyData),
+			},
+			{ topLevel: 'auto', legacy: 'auto', otherModel: 'fusion-preview' },
+		);
+	});
+
+	test('managedDefaultConfigurationValue projects the managed permission mode onto approvals, clamped by its restrictions', () => {
+		const value = (settings: Record<string, string | boolean>) => managedDefaultConfigurationValue({ managedSettings: settings } as IPolicyData);
+		assert.deepStrictEqual({
+			unset: value({}),
+			manual: value({ [COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: 'manual' }),
+			assisted: value({ [COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: 'assisted' }),
+			allowAll: value({ [COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: 'allow-all' }),
+			unrecognized: value({ [COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: 'yolo' }),
+			assistedDisabled: value({ [COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: 'assisted', [COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: true }),
+			allowAllDisabled: value({ [COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: 'allow-all', [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }),
+			restrictionsOnly: value({ [COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: true, [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }),
+		}, {
+			unset: undefined,
+			manual: '{"approvals":"manual"}',
+			assisted: '{"approvals":"assisted"}',
+			allowAll: '{"approvals":"allowAll"}',
+			unrecognized: '{"approvals":"manual"}',
+			assistedDisabled: '{"approvals":"manual"}',
+			allowAllDisabled: '{"approvals":"manual"}',
+			restrictionsOnly: undefined,
+		});
 	});
 
 	test('managedSettingsDisabledValue forces false only while managed settings are active', () => {

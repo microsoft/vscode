@@ -349,6 +349,16 @@ export const githubCopilotMcpRemoteServerProperties: Record<string, IAttributeDe
 	deferTools: githubCopilotMcpLocalServerProperties.deferTools,
 };
 
+export const githubCopilotBodyPlaceholders: Record<string, string> = {
+	cwd: localize('promptBody.githubCopilot.cwd', 'Current working directory.'),
+	homedir: localize('promptBody.githubCopilot.homedir', "User's home directory."),
+	configDir: localize('promptBody.githubCopilot.configDir', 'Copilot configuration directory.'),
+	grepToolName: localize('promptBody.githubCopilot.grepToolName', 'Effective file-content search tool name.'),
+	globToolName: localize('promptBody.githubCopilot.globToolName', 'Effective file-globbing tool name.'),
+	shellToolName: localize('promptBody.githubCopilot.shellToolName', 'Effective shell tool name.'),
+	shellCommandExamples: localize('promptBody.githubCopilot.shellCommandExamples', 'Shell-appropriate command examples.'),
+};
+
 // Attribute metadata for skill files (`SKILL.md`).
 export const skillAttributes: Record<string, IAttributeDefinition> = {
 	[PromptHeaderAttributes.name]: {
@@ -458,6 +468,13 @@ export const knownGithubCopilotTools = [
 	{ name: SpecedToolAliases.edit, description: localize('githubCopilot.edit', 'Edit files') },
 	{ name: SpecedToolAliases.search, description: localize('githubCopilot.search', 'Search files') },
 	{ name: SpecedToolAliases.agent, description: localize('githubCopilot.agent', 'Use subagents') },
+	{ name: SpecedToolAliases.web, description: localize('githubCopilot.web', 'Fetch URLs and search the web') },
+	{ name: SpecedToolAliases.todo, description: localize('githubCopilot.todo', 'Manage task lists') },
+];
+
+export const knownGithubCopilotToolNamespaces = [
+	{ name: 'github/*', description: localize('githubCopilot.githubTools', 'Use GitHub tools') },
+	{ name: 'playwright/*', description: localize('githubCopilot.playwrightTools', 'Use browser automation tools') },
 ];
 
 export interface IValueEntry {
