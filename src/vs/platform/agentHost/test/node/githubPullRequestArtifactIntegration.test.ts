@@ -74,6 +74,7 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 	let refreshHook: (() => void | Promise<void>) | undefined;
 	let mutationHook: (() => void | Promise<void>) | undefined;
 	let prepareMergeHook: (() => Promise<void>) | undefined;
+	let mergeHook: (() => Promise<void>) | undefined;
 	let workflowStatus = 'completed';
 	const jobs = new Map<number, Partial<WorkflowJob>>();
 	let completePrompt: ((kind: 'completed' | 'failed') => Promise<void>) | undefined;
@@ -118,12 +119,14 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 				return { token: 'prepared', ref: value.ref, expectedHeadSha: value.core.value!.headSha, resourceGeneration: value.generation, headGeneration: value.headGeneration, snapshot: value };
 			}
 			override async merge() {
+				await mergeHook?.();
 				mutations.push('merge');
 				const value = snapshot.get();
 				snapshot.set({ ...value, core: { ...value.core, value: { ...value.core.value!, state: 'merged' } } }, undefined);
 				return { outcome: 'succeeded' as const };
 			}
 			override async enqueue() {
+				await mergeHook?.();
 				mutations.push('queue');
 				return { outcome: 'succeeded' as const, mergeQueueEntryId: 'queue' };
 			}
@@ -221,6 +224,7 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 		onRefresh: (hook: () => void | Promise<void>) => { refreshHook = hook; },
 		onMutation: (hook: () => void | Promise<void>) => { mutationHook = hook; },
 		onPrepareMerge: (hook: () => Promise<void>) => { prepareMergeHook = hook; },
+		onMerge: (hook: () => Promise<void>) => { mergeHook = hook; },
 		setWorkflowStatus: (status: string) => { workflowStatus = status; },
 		setJob: (job: Partial<WorkflowJob> & { readonly id: number }) => { jobs.set(job.id, job); },
 		invoke: async (action: string, invokingChat = chat) => {
@@ -1689,6 +1693,51 @@ suite('GitHub pull request artifact integration', () => {
 			initial: failed.state, staleOutcome, final: f.service.ledger.state.get().runs.map(run => [run.state, !!run.indeterminate]), mutations: f.mutations,
 		}, { initial: 'interrupted', staleOutcome: true, final: [['completed', false]], mutations: [] });
 	}));
+
+	test('a merge that GitHub refuses fails with a known outcome and can be requested again', () => run(async store => {
+		const f = await fixture(store);
+		const refusal = 'GitHub API request failed: PUT repos/octo/repo/pulls/42/merge - 405 Method Not Allowed - Base branch was modified. Review and try the merge again.';
+		let refusals = 1;
+		f.onMerge(async () => {
+			if (refusals-- > 0) {
+				throw new GitHubRequestError(refusal, 'unknown', 405);
+			}
+		});
+		const refused = await f.invoke('merge');
+		const retried = await f.invoke('merge');
+		assert.deepStrictEqual({
+			refused: [refused.state, !!refused.indeterminate, refused.reason],
+			retried: [retried.state, !!retried.indeterminate],
+			mutations: f.mutations,
+		}, { refused: ['failed', false, refusal], retried: ['completed', false], mutations: ['merge'] });
+	}));
+
+	for (const queue of [false, true]) {
+		test(`an uncertain ${queue ? 'merge queue entry stays uncertain' : 'direct merge reconciles as not executed'} while the pull request remains open`, () => run(async store => {
+			const base = createPullRequestArtifactSnapshot();
+			const f = await fixture(store, { ...base, mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeQueueRequired: queue } } });
+			let failures = 1;
+			f.onMerge(async () => {
+				if (failures-- > 0) {
+					throw new GitHubRequestError('GitHub API request failed', 'network');
+				}
+			});
+			const uncertain = await f.invoke('merge');
+			await f.service.whenIdle();
+			await f.model.reconcile(uncertain.id);
+			const retried = await f.model.invoke(gitHubPullRequestArtifactIntegrationId, 'merge', f.chat, 'retry');
+			await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === retried.id && (run.state === 'blocked' || isArtifactRunSettled(run))));
+			assert.deepStrictEqual({
+				uncertain: [uncertain.state, !!uncertain.indeterminate],
+				runs: f.service.ledger.state.get().runs.map(run => [run.state, !!run.indeterminate]),
+				mutations: f.mutations,
+			}, {
+				uncertain: ['interrupted', true],
+				runs: queue ? [['interrupted', true], ['blocked', false]] : [['interrupted', false], ['completed', false]],
+				mutations: queue ? [] : ['merge'],
+			});
+		}));
+	}
 
 	test('paginates check details within the transport limit across refreshes and head changes', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();

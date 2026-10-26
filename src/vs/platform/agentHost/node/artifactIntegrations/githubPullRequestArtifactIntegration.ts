@@ -15,12 +15,13 @@ import { autorun, derived, IObservable, IReader, observableSignalFromEvent, obse
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ArtifactAction, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactGroupPresentation, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactAction, ArtifactActionRejectedError, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactGroupPresentation, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactConfigurationConflictError, ArtifactRetryLimitError } from '../../../artifactIntegrations/common/artifactIntegrationStore.js';
 import { firstCredentialFailure, FragmentState, GitHubFragmentError, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestReviewThread, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { GitHubRequestError, isSamlEnforcementError } from '../../../github/common/githubTransport.js';
+import { ApiRequestError, MutationUncertainError } from '../../../github/common/missionControl/missionControlClient.js';
 import { isPullRequestFeedbackAuthor } from '../../../github/common/pullRequestFeedback.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -75,6 +76,22 @@ async function withSignal<T>(token: CancellationToken, operation: (signal: Abort
 		return await operation(controller.signal);
 	} finally {
 		listener.dispose();
+	}
+}
+
+/**
+ * Reports a 4xx response to a pull request mutation as a known refusal, such as a merge after the base branch moved.
+ * GitHub did not apply such a request, whereas other failures may have taken effect and must be reconciled.
+ */
+async function rejectRefusedMutation<T>(mutation: () => Promise<T>): Promise<T> {
+	try {
+		return await mutation();
+	} catch (error) {
+		if (error instanceof GitHubRequestError && !(error instanceof MutationUncertainError) && !(error instanceof ApiRequestError && error.outcome === 'indeterminate')
+			&& error.statusCode !== undefined && error.statusCode >= 400 && error.statusCode < 500) {
+			throw new ArtifactActionRejectedError(error.message);
+		}
+		throw error;
 	}
 }
 
@@ -884,7 +901,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 									return { kind: 'skipped', reason: localize('prArtifact.authorizationChanged', "The action's authorization changed before it could run.") };
 								}
 								const pullRequestId = current.core.value.id;
-								await this.resource.withAuthentication(() => this.resource.withApiClient(signal, api => api.pullRequests.markReadyForReview(pullRequestId, signal, { caller })), token);
+								await rejectRefusedMutation(() => this.resource.withAuthentication(() => this.resource.withApiClient(signal, api => api.pullRequests.markReadyForReview(pullRequestId, signal, { caller })), token));
 								this.github.pullRequests.invalidatePullRequest(this.resource.ref, ['core', 'mergeability']);
 								return { kind: 'completed', summary: localize('prArtifact.markedReady', "Pull request marked ready for review.") };
 							}
@@ -901,14 +918,14 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 							const mergeability = preparation.snapshot.mergeability.value!;
 							const authorization = { confirmed: true as const, authorizationId: runId };
 							if (mergeability.mergeQueueRequired) {
-								await this.resource.withAuthentication(() => this.github.mutations.enqueue(preparation, authorization, signal), token);
+								await rejectRefusedMutation(() => this.resource.withAuthentication(() => this.github.mutations.enqueue(preparation, authorization, signal), token));
 								return { kind: 'completed', summary: localize('prArtifact.enqueued', "Pull request added to the merge queue.") };
 							}
 							const method = (['SQUASH', 'MERGE', 'REBASE'] as const).find(method => mergeability.allowedMergeMethods.includes(method));
 							if (!method) {
 								throw new Error(localize('prArtifact.noMergeMethod', "The repository does not allow a supported merge method."));
 							}
-							await this.resource.withAuthentication(() => this.github.mutations.merge(preparation, { method, authorization }, signal), token);
+							await rejectRefusedMutation(() => this.resource.withAuthentication(() => this.github.mutations.merge(preparation, { method, authorization }, signal), token));
 							return { kind: 'completed', summary: localize('prArtifact.mergeCompleted', "Pull request merged.") };
 						}),
 					},
@@ -921,6 +938,14 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 					&& (id === 'markReady' ? !snapshot.core.value.draft : snapshot.core.value.state === 'merged'
 						|| (isCurrentPullRequestFragment(snapshot.mergeability, mutation.headSha) && !!snapshot.mergeability.value.mergeQueueEntryId))) {
 					return { kind: 'completed', summary: localize('prArtifact.reconciled', "GitHub confirmed the pull request action's result.") };
+				}
+				// A direct merge takes effect when GitHub accepts it and cannot be undone, so a pull request that is
+				// still open at the same head was not merged. Merge queue entries can leave again, so they stay uncertain.
+				if (id === 'merge' && mutation?.runId === context.run.id && isCurrentPullRequestFragment(snapshot.core)
+					&& snapshot.core.value.state === 'open' && snapshot.core.value.headSha === mutation.headSha
+					&& isCurrentPullRequestFragment(snapshot.mergeability, mutation.headSha) && snapshot.mergeability.value.queueRequirementKnown
+					&& !snapshot.mergeability.value.mergeQueueRequired && !snapshot.mergeability.value.mergeQueueEntryId) {
+					return { kind: 'notExecuted' };
 				}
 				return { kind: 'indeterminate', reason: localize('prArtifact.uncertain', "GitHub has not confirmed this action's outcome. It will not be repeated automatically.") };
 			},
