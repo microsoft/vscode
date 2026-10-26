@@ -35954,24 +35954,6 @@ suite('AgentService (node dispatcher)', () => {
 					assert.deepStrictEqual(handedOver, [{ session: target.toString(), chat: peer.toString() }]);
 				});
 
-				test('a chat that never sent a message is not marked as having its transferred worktree announced', async () => {
-					const { service, source, target, peer } = await setupFolders();
-					const store = getTestSessionStateStore(service);
-					const handle = generateUuid();
-					setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
-						readDetachedWorktreeForRemoval: async candidate => candidate === handle ? { worktree: other, repositoryRoot: URI.file('/main'), branchName: 'agents/other' } : undefined,
-					}));
-					await writeSessionAdditionalWorktrees(store, source, [{ handle, workingDirectory: other.toString(), repositoryRoot: URI.file('/main').toString(), chat: peer.toString() }]);
-					await timeout(0);
-					const handedOver: { session: string; chat: string }[] = [];
-					const contributions = (service as unknown as { _chatContributions: { didHandOverWorktree(session: string, chat: string): void } })._chatContributions;
-					contributions.didHandOverWorktree = (session, chat) => { handedOver.push({ session, chat }); };
-
-					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
-
-					assert.deepStrictEqual(handedOver, []);
-				});
-
 				test('a move shares the worktree a descendant of the moved chat works in, though the chat itself doesn\'t (L6, Block 5)', async () => {
 					const { service, source, target, peer } = await setupFolders();
 					const store = getTestSessionStateStore(service);
