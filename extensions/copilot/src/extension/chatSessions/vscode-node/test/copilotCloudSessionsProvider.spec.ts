@@ -1231,6 +1231,84 @@ function permissionEvents(): AgentTaskSessionEvent[] {
 }
 
 describe('TaskTurnStreamer automation permissions', () => {
+	it.each([
+		['different identities', 'tool-from-completion', 'different-tool', 'The cloud runtime approved the permission and completed the tool call.'],
+		['identity only on completion', 'tool-from-completion', undefined, 'The cloud runtime approved the permission and completed the tool call.'],
+		['no correlatable identity', undefined, undefined, 'The cloud runtime approved the permission, but the tool outcome could not be correlated.'],
+	] as const)('correlates native approval with %s', async (_name, completedToolId, decisionToolId, expected) => {
+		const task = { ...automationPermissionTask(), state: 'completed' as const };
+		const events = [
+			...permissionEvents(),
+			evt('permission.completed', { requestId: 'prompt-1', result: { kind: 'approved' }, ...(completedToolId ? { toolCallId: completedToolId } : {}) }),
+			evt('tool.execution_complete', { toolCallId: 'tool-from-completion', success: true }),
+		];
+		const backend = new class extends mock<CloudAgentBackend>() {
+			override fetchTaskContent = vi.fn(async () => ({ task, turns: [] }));
+			override fetchTaskEvents = vi.fn(async () => events);
+		}();
+		const stream = new MockChatResponseStream();
+		await new TaskTurnStreamer(backend, new ChatSessionContentBuilder('copilot-cloud-agent', new TestGitService(), new TestLogService()), new TestLogService(), 1)
+			.stream(stream, task.id, { mode: 'current', seedEventIds: new Set(), permissionDecision: { requestId: 'prompt-1', toolCallId: decisionToolId, approved: true }, observationTimeoutMs: 0 }, CancellationToken.None);
+		expect(stream.output).toEqual([expected]);
+	});
+
+	it('preserves later assistant output and settlement after a non-steerable permission fails projection', async () => {
+		const task = { ...automationPermissionTask(), remote_steerable: false, state: 'in_progress' as const };
+		const initial = permissionEvents();
+		const later = [...initial, evt('assistant.message', { messageId: 'after', content: 'Later runtime output' })];
+		const backend = new class extends mock<CloudAgentBackend>() {
+			override fetchTaskContent = vi.fn<CloudAgentBackend['fetchTaskContent']>()
+				.mockResolvedValueOnce({ task, turns: [] })
+				.mockResolvedValueOnce({ task, turns: [] })
+				.mockResolvedValue({ task: { ...task, state: 'completed' }, turns: [] });
+			override fetchTaskEvents = vi.fn<CloudAgentBackend['fetchTaskEvents']>()
+				.mockResolvedValueOnce(initial).mockResolvedValueOnce(initial).mockResolvedValue(later);
+		}();
+		const parts: vscode.ExtendedChatResponsePart[] = [];
+		const stream = new MockChatResponseStream(part => parts.push(part));
+		await new TaskTurnStreamer(backend, new ChatSessionContentBuilder('copilot-cloud-agent', new TestGitService(), new TestLogService()), new TestLogService(), 1)
+			.stream(stream, task.id, { mode: 'current', seedEventIds: new Set() }, CancellationToken.None);
+		expect({
+			polls: backend.fetchTaskContent.mock.calls.length,
+			errors: stream.output,
+			messages: parts.filter(part => part instanceof ChatResponseMarkdownPart).map(part => part.value.value),
+		}).toEqual({ polls: 3, errors: ['This cloud session does not support permission responses from VS Code.'], messages: ['Later runtime output'] });
+	});
+
+	it.each(['approved', 'denied-interactively-by-user'] as const)('continues after %s to discover a permission on a later poll', async kind => {
+		const task = { ...automationPermissionTask(), state: 'in_progress' as const };
+		const completed = [...permissionEvents(), evt('permission.completed', { requestId: 'prompt-1', result: { kind } }), evt('tool.execution_complete', { toolCallId: 'tool-1', success: true })];
+		const later = [...completed, evt('permission.requested', { requestId: 'prompt-2', permissionRequest: { kind: 'mcp', toolCallId: 'tool-2', serverName: 'github', toolName: 'next', args: {} } }, { id: 'next-permission', parentId: 'start-1' })];
+		const backend = new class extends mock<CloudAgentBackend>() {
+			override fetchTaskContent = vi.fn(async () => ({ task, turns: [] }));
+			override fetchTaskEvents = vi.fn<CloudAgentBackend['fetchTaskEvents']>().mockResolvedValueOnce(completed).mockResolvedValue(later);
+		}();
+		const parts: vscode.ExtendedChatResponsePart[] = [];
+		const stream = new MockChatResponseStream(part => parts.push(part));
+		await new TaskTurnStreamer(backend, new ChatSessionContentBuilder('copilot-cloud-agent', new TestGitService(), new TestLogService()), new TestLogService(), 1)
+			.stream(stream, task.id, { mode: 'current', seedEventIds: new Set(), permissionDecision: { requestId: 'prompt-1', toolCallId: 'tool-1', approved: kind === 'approved' }, observationTimeoutMs: 100 }, CancellationToken.None);
+		expect({
+			polls: backend.fetchTaskEvents.mock.calls.length,
+			outcomes: stream.output,
+			confirmations: parts.filter(part => part instanceof ChatResponseConfirmationPart).map(part => part.data.requestId),
+		}).toEqual({ polls: 2, outcomes: [kind === 'approved' ? 'The cloud runtime approved the permission and completed the tool call.' : 'The cloud runtime denied the permission request.'], confirmations: ['prompt-2'] });
+	});
+
+	it('reports execution once and continues until the runtime settles', async () => {
+		const task = automationPermissionTask();
+		const events = [...permissionEvents(), evt('permission.completed', { requestId: 'prompt-1', result: { kind: 'approved' } }), evt('tool.execution_complete', { toolCallId: 'tool-1', success: true })];
+		const backend = new class extends mock<CloudAgentBackend>() {
+			override fetchTaskContent = vi.fn<CloudAgentBackend['fetchTaskContent']>()
+				.mockResolvedValueOnce({ task, turns: [] }).mockResolvedValueOnce({ task, turns: [] })
+				.mockResolvedValue({ task: { ...task, state: 'completed' }, turns: [] });
+			override fetchTaskEvents = vi.fn(async () => events);
+		}();
+		const stream = new MockChatResponseStream();
+		await new TaskTurnStreamer(backend, new ChatSessionContentBuilder('copilot-cloud-agent', new TestGitService(), new TestLogService()), new TestLogService(), 1)
+			.stream(stream, task.id, { mode: 'current', seedEventIds: new Set(), permissionDecision: { requestId: 'prompt-1', toolCallId: 'tool-1', approved: true } }, CancellationToken.None);
+		expect({ polls: backend.fetchTaskContent.mock.calls.length, output: stream.output }).toEqual({ polls: 3, output: ['The cloud runtime approved the permission and completed the tool call.'] });
+	});
+
 	it('returns locally for an already seeded pending request without remotely aborting', async () => {
 		const events = permissionEvents();
 		const task = automationPermissionTask();
