@@ -218,7 +218,48 @@ export class PanelPart extends AbstractPaneCompositePart {
 			kind: 'all',
 			minItems: 0,
 			actionMinWidth: 22,
-			getActionMinWidth: action => action instanceof SubmenuItemAction && action.item.isSplitButton ? 36 : undefined,
+			getActionMinWidth: action => {
+				if (action instanceof SubmenuItemAction && action.item.isSplitButton) {
+					return 36;
+				}
+				if (action.id === 'viewpane.action.filter') {
+					return 150;
+				}
+				if (action.id === 'workbench.action.debug.selectRepl') {
+					return 60;
+				}
+				return undefined;
+			},
+			getOverflowAction: (action) => {
+				if (action.id === 'viewpane.action.filter') {
+					return toAction({
+						id: action.id,
+						label: action.label || localize('filter', "Filter"),
+						run: () => {
+							const activeComposite = this.getActiveComposite();
+							if (activeComposite && 'focusFilter' in activeComposite && typeof (activeComposite as any).focusFilter === 'function') {
+								(activeComposite as any).focusFilter();
+								return;
+							}
+							if (activeComposite && 'getViewPaneContainer' in activeComposite && typeof (activeComposite as any).getViewPaneContainer === 'function') {
+								const viewPane = (activeComposite as any).getViewPaneContainer()?.panes?.[0];
+								if (viewPane && typeof viewPane.getFilterWidget === 'function') {
+									viewPane.getFilterWidget()?.focus();
+									return;
+								}
+							}
+						}
+					});
+				}
+				if (action.id === 'workbench.action.debug.selectRepl') {
+					return toAction({
+						id: action.id,
+						label: action.label || localize('selectDebugConsole', "Select Debug Console"),
+						run: () => this.commandService.executeCommand('workbench.action.debug.selectDebugConsole')
+					});
+				}
+				return action;
+			}
 		};
 	}
 
