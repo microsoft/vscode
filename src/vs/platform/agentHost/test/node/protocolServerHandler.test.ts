@@ -235,7 +235,7 @@ class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
 class MockAgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 	sessionWorktreeCleanup?: IAgentService['sessionWorktreeCleanup'];
-	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService(undefined, new class extends mock<IAgentHostDatabase>() { }()));
+	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService(undefined, new class extends mock<IAgentHostDatabase>() { }(), new class extends mock<AgentHostStateManager>() { }()));
 
 	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
 		return this._worktreeDiskUsage.measure(root, token, session);
@@ -2425,7 +2425,7 @@ suite('ProtocolServerHandler', () => {
 						active--;
 					}
 				},
-			}, new class extends mock<IAgentHostDatabase>() { }()));
+			}, new class extends mock<IAgentHostDatabase>() { }(), stateManager));
 			agentService.measureWorktreeDiskUsage = (uri, token) => sharedMeasurements.measure(uri, token);
 			const secondServer = disposables.add(new MockProtocolServer());
 			disposables.add(new ProtocolServerHandler(

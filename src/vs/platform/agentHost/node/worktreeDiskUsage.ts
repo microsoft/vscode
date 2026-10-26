@@ -11,7 +11,9 @@ import { join } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { SessionStatus } from '../common/state/sessionState.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 interface IWorktreeFileSystem {
 	lstat(path: string): Promise<BigIntStats>;
@@ -45,6 +47,7 @@ export class AgentHostWorktreeDiskUsageService extends Disposable implements IAg
 	constructor(
 		private readonly _fileSystem: IWorktreeFileSystem | undefined,
 		@IAgentHostDatabase private readonly _database: IAgentHostDatabase,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 	}
@@ -61,24 +64,47 @@ export class AgentHostWorktreeDiskUsageService extends Disposable implements IAg
 				return undefined;
 			}
 			const sessionKey = session.toString();
-			const sessionRevision = await this._database.getWorktreeDiskUsageRevision(sessionKey, root.toString());
-			const revision = sessionRevision === undefined ? undefined : `${sessionRevision}\0${rootStat.dev}:${rootStat.ino}`;
+			const worktree = root.toString();
+			const owners = [sessionKey, ...(await this._database.readWorktreeCoOwners(worktree)).map(owner => owner.session)];
+			const activityRevision = this._getIdleOwnersRevision(owners);
+			const sessionRevision = await this._database.getWorktreeDiskUsageRevision(sessionKey, worktree);
+			const currentActivityRevision = this._getIdleOwnersRevision(owners);
+			let revision = sessionRevision === undefined || activityRevision === undefined || currentActivityRevision !== activityRevision || rootStat.birthtimeNs <= 0n
+				? undefined : `${sessionRevision}\0${rootStat.dev}:${rootStat.ino}:${rootStat.birthtimeNs}`;
+			if (activityRevision === undefined || currentActivityRevision !== activityRevision) {
+				await this._database.deleteWorktreeDiskUsage(worktree);
+			}
 			if (revision !== undefined) {
-				const cached = await this._database.readWorktreeDiskUsage(sessionKey, root.toString(), revision);
+				const cached = await this._database.readWorktreeDiskUsage(sessionKey, worktree, revision);
 				throwIfCancelled(token);
-				if (cached !== undefined) {
+				if (this._getIdleOwnersRevision(owners) !== activityRevision) {
+					await this._database.deleteWorktreeDiskUsage(worktree);
+					revision = undefined;
+				} else if (cached !== undefined) {
 					return cached;
 				}
 			}
 			const sizeBytes = await measureWorktreeDiskUsage(root, token, fileSystem);
-			if (revision !== undefined && sizeBytes !== undefined
-				&& await this._database.getWorktreeDiskUsageRevision(sessionKey, root.toString()) === sessionRevision) {
+			if (revision !== undefined && sizeBytes !== undefined) {
+				const currentSessionRevision = await this._database.getWorktreeDiskUsageRevision(sessionKey, worktree);
 				throwIfCancelled(token);
-				await this._database.writeWorktreeDiskUsage(sessionKey, root.toString(), revision, sizeBytes);
+				if (this._getIdleOwnersRevision(owners) !== activityRevision) {
+					await this._database.deleteWorktreeDiskUsage(worktree);
+				} else if (currentSessionRevision === sessionRevision) {
+					await this._database.writeWorktreeDiskUsage(sessionKey, worktree, revision, sizeBytes);
+				}
 			}
 			return sizeBytes;
 		});
 		return session ? this._measurements.queue(root.toString(), measure) : measure();
+	}
+
+	private _getIdleOwnersRevision(owners: readonly string[]): string | undefined {
+		const summaries = owners.map(owner => this._stateManager.getSessionSummary(owner) ?? this._stateManager.getSurfacedSessionSummary(owner));
+		if (summaries.some(summary => summary && (summary.status & SessionStatus.InProgress) !== 0)) {
+			return undefined;
+		}
+		return JSON.stringify(summaries.map(summary => summary?.modifiedAt));
 	}
 }
 

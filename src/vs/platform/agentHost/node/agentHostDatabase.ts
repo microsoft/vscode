@@ -445,6 +445,8 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	getWorktreeDiskUsageRevision(session: string, worktree: string): Promise<string | undefined>;
 	readWorktreeDiskUsage(session: string, worktree: string, revision: string): Promise<number | undefined>;
 	writeWorktreeDiskUsage(session: string, worktree: string, revision: string, sizeBytes: number): Promise<void>;
+	/** Invalidates every owner's cached size after observing live work in the checkout. */
+	deleteWorktreeDiskUsage(worktree: string): Promise<void>;
 	isSessionRegistryEmpty(): Promise<boolean>;
 	/**
 	 * @deprecated superseded by per-provider {@link isProviderBackfilled}.
@@ -1213,7 +1215,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async readWorktreeDiskUsage(session: string, worktree: string, revision: string): Promise<number | undefined> {
-		const row = await get(await this._ensureDatabase(), 'SELECT size_bytes FROM worktree_disk_usage WHERE session_uri = ? AND worktree_uri = ? AND revision = ?', [session, worktree, revision]);
+		const row = await get(await this._ensureDatabase(), `SELECT size_bytes FROM worktree_disk_usage
+			WHERE worktree_uri = ? AND revision = ? AND (session_uri = ? OR session_uri IN (
+				SELECT session_uri FROM worktree_co_owners WHERE worktree_path = ?
+			)) LIMIT 1`, [worktree, revision, session, worktree]);
 		if (!row) {
 			return undefined;
 		}
@@ -1231,7 +1236,13 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			await run(await this._ensureDatabase(), `INSERT INTO worktree_disk_usage (session_uri, worktree_uri, revision, size_bytes)
 				SELECT session_uri, ?, ?, ? FROM sessions_v2 WHERE session_uri = ?
 				ON CONFLICT(session_uri, worktree_uri) DO UPDATE SET revision = excluded.revision, size_bytes = excluded.size_bytes`,
-			[worktree, revision, sizeBytes, session]);
+				[worktree, revision, sizeBytes, session]);
+		});
+	}
+
+	async deleteWorktreeDiskUsage(worktree: string): Promise<void> {
+		await this._transactionSequencer.queue(async () => {
+			await run(await this._ensureDatabase(), 'DELETE FROM worktree_disk_usage WHERE worktree_uri = ?', [worktree]);
 		});
 	}
 

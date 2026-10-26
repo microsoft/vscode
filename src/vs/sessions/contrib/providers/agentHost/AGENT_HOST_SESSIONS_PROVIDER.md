@@ -266,7 +266,7 @@ The local provider owns local runtime availability and local workspace access. R
 
 Behavior shared by both belongs in the base provider. Connection policy stays in the remote contribution.
 
-Worktree disk usage is persisted by the owning host in `agent-host.db`, not in the client's session-list cache. Idle-session measurements may carry the exact advertised backend session identity so the host can reuse sizes while its persisted session and co-owner revisions are unchanged. Running sessions are measured live. Cache hits check that the worktree still exists with the same filesystem identity; removed or recreated folders never reuse the previous checkout's size. The session identity is optional on the existing measurement extension, preserving uncached behavior for older clients and hosts.
+Worktree disk usage is persisted by the owning host in `agent-host.db`, not in the client's session-list cache. Measurements may carry the exact advertised backend session identity so the host can reuse sizes while its persisted session and co-owner revisions are unchanged and all owners are idle. Recorded co-owners share matching measurements. The host bypasses and invalidates cached sizes when any owner is running or waiting for input, and checks owner activity again before saving a scan. Cache hits check that the worktree still exists with the same device, inode, and creation time; hosts conservatively measure live when the filesystem cannot supply a creation time. Removed or recreated folders never reuse the previous checkout's size. The session identity is optional on the existing measurement extension, preserving uncached behavior for older clients and hosts.
 
 ## Testing
 

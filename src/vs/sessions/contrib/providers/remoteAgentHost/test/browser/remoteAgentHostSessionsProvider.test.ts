@@ -642,7 +642,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	for (const status of [ProtocolSessionStatus.Idle, ProtocolSessionStatus.InProgress, ProtocolSessionStatus.InputNeeded]) {
-		test(`uses the advertised session identity for cached sizes only while idle (${status})`, async () => {
+		test(`forwards the advertised identity so the host decides whether all worktree owners are idle (${status})`, async () => {
 			const sessions: (string | undefined)[] = [];
 			connection.measureWorktreeDiskUsage = async (_root, _token, session) => {
 				sessions.push(session?.toString());
@@ -657,7 +657,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				status,
 			})]);
 			await provider.getSessionWorktreeDiskUsage(provider.getSessions()[0].sessionId);
-			assert.deepStrictEqual(sessions, [status === ProtocolSessionStatus.Idle ? backendUri.toString() : undefined]);
+			assert.deepStrictEqual(sessions, [backendUri.toString()]);
 		});
 	}
 
