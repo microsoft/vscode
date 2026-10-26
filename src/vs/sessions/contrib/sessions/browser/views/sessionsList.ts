@@ -6304,6 +6304,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		runSessionsListMove(move, this._sessionsManagementService, this.notificationService, this.logService, {
 			notice: this.options.getMoveNotice?.(),
 			watch: watched => this.watchMoveForReveal(watched),
+			placementServices: { sessionsListModelService: this._sessionsListModelService, sessionGroupsService: this._sessionGroupsService },
 		}).catch(onUnexpectedError);
 	}
 
