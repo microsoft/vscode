@@ -444,13 +444,14 @@ suite('ModelPickerActionItem', () => {
 				summary: constObservable('3 Attempts'),
 				state: constObservable(undefined),
 				label: 'Compare Models',
+				description: constObservable('Run one prompt in parallel and compare results.'),
 				startCommandId: 'test.compareModels',
 			}),
 			comparisonKeybindingLabel: 'Ctrl+Alt+M',
 		});
 
 		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
-		assert.strictEqual(item['_getHoverContents'](), 'Models • 3 Attempts\n\nCompare Models (Ctrl+Alt+M)');
+		assert.strictEqual(item['_getHoverContents'](), 'Models • 3 Attempts\n\nCompare Models (Ctrl+Alt+M)\n\nRun one prompt in parallel and compare results.');
 	});
 
 	test('hover advertises comparison without a shortcut when the command is unbound', () => {

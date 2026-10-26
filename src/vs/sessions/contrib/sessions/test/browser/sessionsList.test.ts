@@ -5659,7 +5659,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void, mixedHarnesses = false, presentation: { compact?: boolean; phone?: boolean } = {}) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli' });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli' });
@@ -5685,8 +5685,8 @@ suite('Sessions - SessionsList', () => {
 						role: SessionComparisonParticipantRole.Attempt,
 						harness: {
 							providerId: 'test',
-							sessionTypeId: 'copilot',
-							label: 'Copilot',
+							sessionTypeId: mixedHarnesses ? 'claude' : 'copilot',
+							label: mixedHarnesses ? 'Claude' : 'Copilot',
 							modelConfiguration: { tier: 'balanced' },
 							modelConfigurationLabel: 'Balance',
 						},
@@ -5704,8 +5704,8 @@ suite('Sessions - SessionsList', () => {
 						role: SessionComparisonParticipantRole.Attempt,
 						harness: {
 							providerId: 'test',
-							sessionTypeId: 'copilot',
-							label: 'Copilot',
+							sessionTypeId: mixedHarnesses ? 'claude' : 'copilot',
+							label: mixedHarnesses ? 'Claude' : 'Copilot',
 							modelConfiguration: { tier: 'balanced' },
 							modelConfigurationLabel: 'Balance',
 						},
@@ -5742,6 +5742,10 @@ suite('Sessions - SessionsList', () => {
 				sectionMemberships: sectionParent ? new Map([[sectionId, sectionParent.id]]) : undefined,
 				memberships, comparisons: [comparison], pinnedSessionIds,
 			});
+			harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			});
+			configure?.(harness);
 			const contextMenus: (readonly IAction[])[] = [];
 			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
 				override showContextMenu(delegate: IContextMenuDelegate): void {
@@ -5750,13 +5754,25 @@ suite('Sessions - SessionsList', () => {
 			});
 			harness.managementService.onDidArchive = archived => [attempt1, attempt2, judge, synthesis]
 				.find(participant => participant.session === archived)?.isArchived.set(true, undefined);
+			if (presentation.phone) {
+				harness.instantiationService.stub(IContextKeyService, harness.store.add(new ContextKeyService(new TestConfigurationService())));
+				IsPhoneLayoutContext.bindTo(harness.instantiationService.get(IContextKeyService)).set(true);
+			}
 			const container = harness.createContainer();
+			if (presentation.phone) {
+				container.classList.add('agent-sessions-workbench', 'phone-layout');
+			}
+			for (const size of [2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36]) {
+				container.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+			}
 			container.style.setProperty('--vscode-descriptionForeground', 'rgb(128, 128, 128)');
+			container.style.setProperty('--vscode-tree-indentGuidesStroke', 'rgb(128, 128, 128)');
 			container.style.setProperty('--vscode-cornerRadius-small', '4px');
 			container.style.setProperty('--vscode-strokeThickness', '1px');
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => grouping,
 				sorting: () => SessionsSorting.Created,
+				compact: () => presentation.compact ?? false,
 				onSessionOpen: () => { },
 			}));
 			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, false);
@@ -5825,7 +5841,7 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ oneAttempt, bothAttempts, judgeWaiting }, {
 				oneAttempt: {
 					summary: 'Comparison · 1 attempt needs attention',
-					attempts: ['Attention needed', ''],
+					attempts: ['Attention needed', undefined],
 				},
 				bothAttempts: {
 					summary: 'Comparison · 2 attempts need attention',
@@ -5869,13 +5885,14 @@ suite('Sessions - SessionsList', () => {
 				order: participants.map(participant => participant.querySelector('.session-title')?.textContent),
 				attempts: attempts.map(attempt => {
 					const connectorIcon = attempt.querySelector<HTMLElement>('.session-icon')!;
-					const connectorBranchStyle = mainWindow.getComputedStyle(connectorIcon, '::before');
-					const connectorElbowStyle = mainWindow.getComputedStyle(connectorIcon, '::after');
+					const connector = attempt.querySelector<HTMLElement>('.session-group-connector')!;
+					const connectorBranchStyle = mainWindow.getComputedStyle(connector, '::before');
+					const connectorElbowStyle = mainWindow.getComputedStyle(connector, '::after');
 					return {
 						title: attempt.querySelector('.session-title')?.textContent,
 						ariaLabel: attempt.closest('.monaco-list-row')?.getAttribute('aria-label'),
 						status: attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent,
-						hasSpinner: attempt.querySelector('.session-comparison-attempt-status-icon')?.classList.contains('codicon-modifier-spin'),
+						hasSpinner: !!connectorIcon.querySelector('.monaco-pixel-spinner'),
 						details: attempt.querySelector('.session-details-row')?.textContent,
 						height: attempt.closest<HTMLElement>('.monaco-list-row')?.style.height,
 						connectorVisibility: mainWindow.getComputedStyle(connectorIcon).visibility,
@@ -5922,13 +5939,13 @@ suite('Sessions - SessionsList', () => {
 					labelMaxWidth: '100%',
 					labelsOverflow: 'hidden',
 				},
-				order: ['Synthesis', 'Judge', 'Copilot · Claude Opus 5', 'Copilot · Balance'],
+				order: ['Synthesis', 'Judge', 'Claude Opus 5', 'Balance'],
 				attempts: [
-					{ title: 'Copilot · Claude Opus 5', ariaLabel: 'Copilot · Claude Opus 5, State: In Progress', status: '', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible', connector: 'first', connectorBranchDisplay: 'none', connectorStroke: '1px', connectorColor: 'rgb(128, 128, 128)', connectorElbow: { topStroke: '1px', bottomStroke: '0px', topLeftRadius: '4px', bottomLeftRadius: '0px' } },
-					{ title: 'Copilot · Balance', ariaLabel: 'Copilot · Balance, State: In Progress', status: '', hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible', connector: 'last', connectorBranchDisplay: 'none', connectorStroke: '1px', connectorColor: 'rgb(128, 128, 128)', connectorElbow: { topStroke: '0px', bottomStroke: '1px', topLeftRadius: '0px', bottomLeftRadius: '4px' } },
+					{ title: 'Claude Opus 5', ariaLabel: 'Claude Opus 5, State: In Progress', status: undefined, hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible', connector: 'middle', connectorBranchDisplay: 'block', connectorStroke: '1px', connectorColor: 'rgb(128, 128, 128)', connectorElbow: { topStroke: '0px', bottomStroke: '1px', topLeftRadius: '0px', bottomLeftRadius: '4px' } },
+					{ title: 'Balance', ariaLabel: 'Balance, State: In Progress', status: undefined, hasSpinner: true, details: '', height: '30px', connectorVisibility: 'visible', connector: 'last', connectorBranchDisplay: 'none', connectorStroke: '1px', connectorColor: 'rgb(128, 128, 128)', connectorElbow: { topStroke: '0px', bottomStroke: '1px', topLeftRadius: '0px', bottomLeftRadius: '4px' } },
 				],
-				judge: { title: 'Judge', isAttempt: false, inProgress: true, hasProgressIndicator: true, connector: null },
-				independentParticipantConnectors: [null, null],
+				judge: { title: 'Judge', isAttempt: false, inProgress: true, hasProgressIndicator: true, connector: 'middle' },
+				independentParticipantConnectors: ['middle', 'middle'],
 			});
 
 			attempt1.status.set(SessionStatus.Completed, undefined);
@@ -5936,10 +5953,10 @@ suite('Sessions - SessionsList', () => {
 				statuses: attempts.map(attempt => attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent),
 				ariaLabels: attempts.map(attempt => attempt.closest('.monaco-list-row')?.getAttribute('aria-label')),
 			}, {
-				statuses: [undefined, ''],
+				statuses: [undefined, undefined],
 				ariaLabels: [
-					'Copilot · Claude Opus 5, updated now, State: Completed, in Workspace',
-					'Copilot · Balance, State: In Progress',
+					'Claude Opus 5, updated now, State: Completed, in Workspace',
+					'Balance, State: In Progress',
 				],
 			});
 			attempt2.status.set(SessionStatus.Completed, undefined);
@@ -5949,6 +5966,199 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				summary: 'Comparison · Reviewing attempts',
 				statuses: [undefined, undefined],
+			});
+		});
+
+		for (const presentation of [
+			{ compact: false, phone: false },
+			{ compact: true, phone: false },
+			{ compact: false, phone: true },
+			{ compact: true, phone: true },
+		]) {
+			const mode = `compact: ${presentation.compact}, phone: ${presentation.phone}`;
+
+			if (!presentation.phone) {
+				test(`aligns disclosure controls for every comparison participant (${mode})`, () => {
+					const { container } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, harness => {
+						harness.managementService.sessions = harness.managementService.sessions.map(session => {
+							const nested = buildTestSession({ id: session.sessionId, title: session.title.get(), chats: [{ id: 'peer', title: 'Nested chat' }] });
+							return {
+								...session,
+								chats: nested.session.chats,
+								mainChat: nested.session.mainChat,
+								capabilities: nested.session.capabilities,
+							};
+						});
+					}, false, presentation);
+					const participants = [...container.querySelectorAll<HTMLElement>('.session-item')];
+
+					assert.deepStrictEqual(participants.map(participant => {
+						const row = participant.closest<HTMLElement>('.monaco-list-row')!;
+						const twistie = row.querySelector<HTMLElement>('.monaco-tl-twistie')!;
+						const icon = participant.querySelector<HTMLElement>('.session-icon')!;
+						row.classList.add('hovered');
+						const appearance = {
+							title: participant.querySelector('.session-title')?.textContent,
+							leftOffset: twistie.getBoundingClientRect().left - icon.getBoundingClientRect().left,
+							topOffset: twistie.getBoundingClientRect().top - icon.getBoundingClientRect().top,
+							opacity: mainWindow.getComputedStyle(twistie).opacity,
+							pointerEvents: mainWindow.getComputedStyle(twistie).pointerEvents,
+						};
+						row.classList.remove('hovered');
+						return appearance;
+					}), ['Synthesis', 'Judge', 'Claude Opus 5', 'Balance'].map(title => ({
+						title, leftOffset: 0, topOffset: 0, opacity: '1', pointerEvents: 'auto',
+					})));
+				});
+			}
+
+			test(`keeps comparison connectors clear of participant status icons (${mode})`, () => {
+				const { container } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, undefined, false, presentation);
+				const participants = [...container.querySelectorAll<HTMLElement>('.session-item')];
+
+				assert.deepStrictEqual(participants.map(participant => {
+					const connector = participant.querySelector<HTMLElement>('.session-group-connector')!;
+					const elbow = mainWindow.getComputedStyle(connector, '::after');
+					const icon = participant.querySelector<HTMLElement>('.session-icon')!;
+					const iconLeft = icon.getBoundingClientRect().left - participant.getBoundingClientRect().left;
+					return {
+						inset: mainWindow.getComputedStyle(participant).paddingLeft,
+						connectorBeforeIcon: parseFloat(elbow.left) + parseFloat(elbow.width) <= iconLeft,
+						hasSpinner: !!icon.querySelector('.monaco-pixel-spinner'),
+						decorative: connector.getAttribute('aria-hidden'),
+						pointerEvents: mainWindow.getComputedStyle(connector).pointerEvents,
+					};
+				}), Array.from({ length: 4 }, () => ({
+					inset: '36px',
+					connectorBeforeIcon: true,
+					hasSpinner: true,
+					decorative: 'true',
+					pointerEvents: 'none',
+				})));
+			});
+
+			test(`keeps an expanded participant's incoming connector separate from its chat guide (${mode})`, () => {
+				const { attempt2, judge, container, harness, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, undefined, false, presentation);
+				const nested = buildTestSession({ id: 'nested-attempt', title: 'Attempt', chats: [{ id: 'peer', title: 'Nested chat' }] });
+				const session: ISession = {
+					...attempt2.session,
+					chats: nested.session.chats,
+					mainChat: nested.session.mainChat,
+					capabilities: nested.session.capabilities,
+				};
+				harness.managementService.sessions = harness.managementService.sessions.map(candidate => candidate === attempt2.session ? session : candidate);
+				list.refresh();
+				list.layout(600, 400);
+				list.setItemCollapsed({ session: session.resource }, false);
+				list.setFocusedItem({ session: judge.session.resource });
+				const participant = container.querySelector<HTMLElement>('.session-item[data-session-group-connector="last"]')!;
+				const connector = participant.querySelector<HTMLElement>('.session-group-connector')!;
+				const appearance = () => {
+					const incoming = mainWindow.getComputedStyle(connector, '::after');
+					const outgoing = mainWindow.getComputedStyle(participant, '::after');
+					return {
+						incoming: { top: incoming.top, opacity: incoming.opacity, borderBottom: incoming.borderBottomWidth },
+						outgoing: { top: outgoing.top, opacity: outgoing.opacity, borderBottom: outgoing.borderBottomWidth },
+					};
+				};
+				const resting = appearance();
+				list.setFocusedItem({ session: session.resource });
+				const focused = appearance();
+				list.setFocusedItem({ session: judge.session.resource });
+
+				if (!presentation.phone) {
+					const chat = container.querySelector<HTMLElement>('.session-comparison-chat')!;
+					const row = participant.closest<HTMLElement>('.monaco-list-row')!;
+					const twistie = row.querySelector<HTMLElement>('.session-comparison-attempt-twistie')!;
+					const icon = participant.querySelector<HTMLElement>('.session-icon')!;
+					row.classList.add('hovered');
+					assert.deepStrictEqual({
+						outgoingGuide: mainWindow.getComputedStyle(participant, '::after').left,
+						chatTrunk: mainWindow.getComputedStyle(chat, '::before').left,
+						chatElbow: mainWindow.getComputedStyle(chat, '::after').left,
+						chatIndent: mainWindow.getComputedStyle(chat).paddingLeft,
+						twistieLeft: twistie.getBoundingClientRect().left,
+						twistieTop: twistie.getBoundingClientRect().top,
+						twistieOpacity: mainWindow.getComputedStyle(twistie).opacity,
+						twistiePointerEvents: mainWindow.getComputedStyle(twistie).pointerEvents,
+						iconVisibility: mainWindow.getComputedStyle(icon).visibility,
+					}, {
+						outgoingGuide: '44px',
+						chatTrunk: '44px',
+						chatElbow: '44px',
+						chatIndent: '60px',
+						twistieLeft: icon.getBoundingClientRect().left,
+						twistieTop: icon.getBoundingClientRect().top,
+						twistieOpacity: '1',
+						twistiePointerEvents: 'auto',
+						iconVisibility: 'hidden',
+					});
+					row.classList.remove('hovered');
+				}
+
+				const incoming = { top: '0px', opacity: '1', borderBottom: '1px' };
+				const outgoing = { top: presentation.phone ? '32px' : presentation.compact ? '20px' : '28px', opacity: '0', borderBottom: '0px' };
+				assert.deepStrictEqual({
+					expanded: participant.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+					chats: [...container.querySelectorAll('.session-chat-title')].map(title => title.textContent),
+					resting,
+					focused,
+					unfocused: appearance(),
+				}, {
+					expanded: 'true',
+					chats: ['Nested chat'],
+					resting: { incoming, outgoing },
+					focused: { incoming, outgoing: { ...outgoing, opacity: '1' } },
+					unfocused: { incoming, outgoing },
+				});
+			});
+		}
+
+		test('keeps harness names when attempts use different harnesses', () => {
+			const { container } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, undefined, true);
+			assert.deepStrictEqual(
+				[...container.querySelectorAll('.session-comparison-attempt .session-title')].map(title => title.textContent),
+				['Copilot · Claude Opus 5', 'Claude · Balance'],
+			);
+		});
+
+		test('keeps the comparison icon quiet at rest and aligned with the title', () => {
+			const { container } = renderComparison();
+			const parent = container.querySelector<HTMLElement>('.session-comparison-group')!;
+			const chevron = parent.querySelector<HTMLElement>('.session-section-chevron')!;
+			const label = parent.querySelector<HTMLElement>('.session-section-label')!;
+			const icon = parent.querySelector<HTMLElement>('.session-section-icon')!;
+			assert.deepStrictEqual({
+				chevronOpacity: mainWindow.getComputedStyle(chevron).opacity,
+				labelWeight: mainWindow.getComputedStyle(label).fontWeight,
+				iconTop: icon.getBoundingClientRect().top,
+				labelTop: label.getBoundingClientRect().top,
+				height: parent.getBoundingClientRect().height,
+				rowHeight: parent.closest('.monaco-list-row')!.getBoundingClientRect().height,
+				connector: mainWindow.getComputedStyle(parent, '::after').borderLeftWidth,
+			}, {
+				chevronOpacity: '0',
+				labelWeight: '400',
+				iconTop: label.getBoundingClientRect().top,
+				labelTop: label.getBoundingClientRect().top,
+				height: 44,
+				rowHeight: 44,
+				connector: '1px',
+			});
+		});
+
+		test('hides the parent connector when the comparison is collapsed', () => {
+			const { container } = renderComparison();
+			const parent = container.querySelector<HTMLElement>('.session-comparison-group')!;
+			parent.querySelector('.session-section-chevron')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			assert.deepStrictEqual({
+				expanded: parent.closest('.monaco-list-row')!.getAttribute('aria-expanded'),
+				connector: mainWindow.getComputedStyle(parent, '::after').display,
+				participants: container.querySelectorAll('.session-item').length,
+			}, {
+				expanded: 'false',
+				connector: 'none',
+				participants: 0,
 			});
 		});
 
@@ -6132,7 +6342,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('does not connect a single hydrated attempt to independent participants', () => {
+		test('connects a single hydrated attempt and the other participants to the parent', () => {
 			const { container } = renderComparison(undefined, 'attempt1');
 			const participants = [...container.querySelectorAll<HTMLElement>('.session-item')];
 
@@ -6142,10 +6352,10 @@ suite('Sessions - SessionsList', () => {
 				attemptClasses: participants.map(participant => participant.classList.contains('session-comparison-attempt')),
 				connectors: participants.map(participant => participant.getAttribute('data-session-group-connector')),
 			}, {
-				order: ['Synthesis', 'Judge', 'Copilot · Claude Opus 5'],
+				order: ['Synthesis', 'Judge', 'Claude Opus 5'],
 				attempts: 1,
 				attemptClasses: [false, false, true],
-				connectors: [null, null, null],
+				connectors: ['middle', 'middle', 'last'],
 			});
 		});
 
@@ -6165,7 +6375,7 @@ suite('Sessions - SessionsList', () => {
 				customArchiveButtons: 0,
 				toolbars: 1,
 				stopButtons: 0,
-				sessionRows: ['Synthesis', 'Copilot · Claude Opus 5'],
+				sessionRows: ['Synthesis', 'Claude Opus 5'],
 			});
 
 		});
