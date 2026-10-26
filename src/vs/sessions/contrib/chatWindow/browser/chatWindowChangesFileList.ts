@@ -5,20 +5,21 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { Menus } from '../../../browser/menus.js';
 import { ChatWindowContext } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { SessionChangesEditor } from '../../changes/browser/sessionChangesEditor.js';
 
 /**
  * The changed files list of the Changes editor in chat windows. The core multi diff editor
  * actions switch the shared list state, but are gated to the workbench's own multi diff editor,
- * so this only adds menu entries for them with the chat window conditions. Only focusing the
+ * so this only adds menu entries for them, in the right side of the editor header row, with the chat window conditions. Only focusing the
  * list needs an action of its own, because the core one looks for the workbench's editor.
  */
 const ChangesFileListContext = ContextKeyExpr.and(
@@ -28,7 +29,7 @@ const ChangesFileListContext = ContextKeyExpr.and(
 	MultiDiffEditorFileListAvailableContext,
 )!;
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	command: {
 		id: 'multiDiffEditor.toggleFileList',
 		title: localize2('chatWindowChangesToggleFiles', "Toggle Files"),
@@ -41,7 +42,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: ChangesFileListContext,
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	submenu: MultiDiffEditorFilesViewAndPositionMenu,
 	title: localize('chatWindowChangesFilesViewAndPosition', "Files View & Position"),
 	group: '2_files',
