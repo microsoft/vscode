@@ -7460,32 +7460,31 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/**
 	 * Build the group membership context menu actions for the given session(s):
 	 * an "Add to Group"/"Move to Group" submenu listing the other groups in
-	 * display order, named by their path, followed by "New Group...", and
-	 * "Remove from Group" when applicable.
+	 * display order, named by their path, "Create Group", and "Remove from
+	 * Group" when applicable.
 	 */
 	private getGroupSessionActions(selected: ISession[]): IAction[] {
+		const actions: IAction[] = [];
 		if (selected.some(session => session.isArchived.get() || this.isActiveComparisonSession(session))) {
-			return [];
+			return actions;
 		}
 
 		const currentGroupIds = new Set(selected.map(s => this._sessionGroupsService.getGroupOfSession(s.sessionId)));
 		const currentGroupId = currentGroupIds.size === 1 ? [...currentGroupIds][0] : undefined;
 
 		const groupTree = this._sessionGroupsService.getTree();
-		const targetActions = this.getGroupsInDisplayOrder()
-			.filter(g => g.id !== currentGroupId)
-			.map(g => toAction({
+		const targetGroups = this.getGroupsInDisplayOrder().filter(g => g.id !== currentGroupId);
+		if (targetGroups.length > 0) {
+			const subActions = targetGroups.map(g => toAction({
 				id: `sessions.addToGroup.${g.id}`,
 				label: getSessionGroupPathLabel(groupTree.getPath(g.id)),
 				run: () => this.addSessionsToGroup(selected, g.id),
 			}));
-		const newGroupAction = toAction({
-			id: 'sessions.addToNewGroup',
-			label: localize('addToNewGroupAction', "New Group..."),
-			run: () => this.createGroupFromSessions(selected),
-		});
-		const label = currentGroupId !== undefined ? localize('moveToGroupAction', "Move to Group") : localize('addToGroupAction', "Add to Group");
-		const actions: IAction[] = [new SubmenuAction('sessions.addToGroupSubmenu', label, Separator.join(targetActions, [newGroupAction]))];
+			const label = currentGroupId !== undefined ? localize('moveToGroupAction', "Move to Group") : localize('addToGroupAction', "Add to Group");
+			actions.push(new SubmenuAction('sessions.addToGroupSubmenu', label, subActions));
+		}
+
+		actions.push(this.getCreateGroupAction(selected));
 
 		if (currentGroupId !== undefined) {
 			actions.push(toAction({
@@ -7507,11 +7506,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return comparison !== undefined && comparison.archivedAt === undefined;
 	}
 
-	private getCreateGroupAction(): IAction {
+	private getCreateGroupAction(sessions?: ISession[]): IAction {
 		return toAction({
 			id: 'sessions.createGroup',
 			label: localize('createGroupAction', "Create Group"),
-			run: () => this.createGroup([]),
+			run: () => {
+				if (sessions) {
+					this.createGroupFromSessions(sessions);
+				} else {
+					this.createGroup([]);
+				}
+			},
 		});
 	}
 

@@ -190,8 +190,8 @@ suite('Sessions list context menus', () => {
 			}, {
 				grouped,
 				ids: grouped
-					? ['extension.action', 'vs.actions.separator', 'sessions.addToGroupSubmenu', 'sessions.addToGroup.target', 'vs.actions.separator', 'sessions.addToNewGroup', 'sessions.removeFromGroup']
-					: ['extension.action', 'vs.actions.separator', 'sessions.addToGroupSubmenu', 'sessions.addToGroup.target', 'sessions.addToGroup.group', 'vs.actions.separator', 'sessions.addToNewGroup'],
+					? ['extension.action', 'vs.actions.separator', 'sessions.addToGroupSubmenu', 'sessions.addToGroup.target', 'sessions.createGroup', 'sessions.removeFromGroup']
+					: ['extension.action', 'vs.actions.separator', 'sessions.addToGroupSubmenu', 'sessions.addToGroup.target', 'sessions.addToGroup.group', 'sessions.createGroup'],
 				disposableIds: [],
 				menuDisposed: true,
 			});
@@ -284,11 +284,12 @@ suite('Sessions list context menus', () => {
 				'---',
 				'Pin',
 				'Add to Group',
+				'Create Group',
 				'---',
 				'Rename...',
 				'Delete...',
 			],
-			groupSubmenu: ['Group', '---', 'New Group...'],
+			groupSubmenu: ['Group'],
 		});
 	});
 
@@ -467,10 +468,10 @@ suite('Sessions list context menus', () => {
 
 		const groupMenu = menuOf('Hotfixes');
 		await groupMenu.find(action => action.id === 'sessions.createSubgroup')?.run();
-		const groupSubmenuOf = (actions: readonly IAction[]) => actions.find((action): action is SubmenuAction => action instanceof SubmenuAction);
-		const moveToGroup = groupSubmenuOf(menuOf('Fix login'));
-		await moveToGroup?.actions.find(action => action.id === 'sessions.addToNewGroup')?.run();
-		await groupSubmenuOf(menuOf('Loose'))?.actions.find(action => action.id === 'sessions.addToNewGroup')?.run();
+		const sessionMenu = menuOf('Fix login');
+		const moveToGroup = sessionMenu.find((action): action is SubmenuAction => action instanceof SubmenuAction);
+		await sessionMenu.find(action => action.id === 'sessions.createGroup')?.run();
+		await menuOf('Loose').find(action => action.id === 'sessions.createGroup')?.run();
 
 		assert.deepStrictEqual({
 			groupMenu: groupMenu.map(action => action.id),
@@ -478,7 +479,7 @@ suite('Sessions list context menus', () => {
 			created: harness.createdGroups,
 		}, {
 			groupMenu: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
-			moveToGroup: { label: 'Move to Group', targets: ['Release work', 'Release work › Hotfixes › Urgent', 'Triage', '', 'New Group...'] },
+			moveToGroup: { label: 'Move to Group', targets: ['Release work', 'Release work › Hotfixes › Urgent', 'Triage'] },
 			created: [
 				{ name: 'New Group', sessionIds: [], parentId: hotfixes.id },
 				{ name: 'New Group', sessionIds: [fix.sessionId], parentId: hotfixes.id },

@@ -156,7 +156,7 @@ export interface ISessionsListFixtureInteraction {
 	readonly hovered?: SessionsListFixtureRow;
 	/** The session, chat, or group row showing its inline rename editor. */
 	readonly renaming?: SessionsListFixtureRow;
-	/** Creates a group from these sessions and shows its name editor, like the session context menu's New Group. */
+	/** Creates a group from these sessions and shows its name editor, like Create Group. */
 	readonly createGroupFrom?: readonly string[];
 	/** Creates an empty subgroup in this group and shows its name editor, like Create Subgroup. */
 	readonly createSubgroupIn?: string;
