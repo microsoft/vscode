@@ -55,6 +55,37 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 
+	private chromeless = false;
+	private sessionHeaderHost: HTMLElement | undefined;
+
+	/**
+	 * The element that hosts a session header in place of the content of this title bar, which it then hides; see
+	 * {@link setHostsSessionHeader}.
+	 */
+	getSessionHeaderHost(): HTMLElement {
+		if (!this.sessionHeaderHost) {
+			this.sessionHeaderHost = $('.session-header-host');
+			this.element.appendChild(this.sessionHeaderHost);
+		}
+		return this.sessionHeaderHost;
+	}
+
+	/** Shows the {@link getSessionHeaderHost} in place of the content of this title bar. The window title it sets stays. */
+	setHostsSessionHeader(hosts: boolean): void {
+		this.element.classList.toggle('hosts-session-header', hosts);
+	}
+
+	get height() { return this.chromeless ? 0 : this.minimumHeight; }
+
+	/** Hides the title bar and the height it takes; the window title it sets stays. The chat windows show their chrome in their headers. */
+	setChromeless(chromeless: boolean): void {
+		if (this.chromeless !== chromeless) {
+			this.chromeless = chromeless;
+			this.element.classList.toggle('chromeless', chromeless);
+			this._onDidChange.fire(undefined);
+		}
+	}
+
 	get minimumHeight(): number {
 		const wcoEnabled = isWeb && isWCOEnabled();
 		let value = this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact
@@ -495,37 +526,6 @@ export class MainTitlebarPart extends TitlebarPart {
 export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTitlebarPart {
 
 	private static COUNTER = 1;
-
-	private chromeless = false;
-	private sessionHeaderHost: HTMLElement | undefined;
-
-	/**
-	 * The element that hosts a session header in place of the content of this title bar, which it then hides; see
-	 * {@link setHostsSessionHeader}.
-	 */
-	getSessionHeaderHost(): HTMLElement {
-		if (!this.sessionHeaderHost) {
-			this.sessionHeaderHost = $('.session-header-host');
-			this.element.appendChild(this.sessionHeaderHost);
-		}
-		return this.sessionHeaderHost;
-	}
-
-	/** Shows the {@link getSessionHeaderHost} in place of the content of this title bar. The window title it sets stays. */
-	setHostsSessionHeader(hosts: boolean): void {
-		this.container.classList.toggle('hosts-session-header', hosts);
-	}
-
-	get height() { return this.chromeless ? 0 : this.minimumHeight; }
-
-	/** Hides the title bar and the height it takes; the window title it sets stays. The chat windows show their chrome in their headers. */
-	setChromeless(chromeless: boolean): void {
-		if (this.chromeless !== chromeless) {
-			this.chromeless = chromeless;
-			this.container.classList.toggle('chromeless', chromeless);
-			this._onDidChange.fire(undefined);
-		}
-	}
 
 	constructor(
 		readonly container: HTMLElement,

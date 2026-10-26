@@ -17,7 +17,7 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { AuxiliaryTitlebarPart, TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
+import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
 // eslint-disable-next-line local/code-import-patterns -- Test the title-bar styling supplied by the Modern UI contribution.
 import '../../../workbench/contrib/modernUI/browser/media/titlebar.css';
 // eslint-disable-next-line local/code-import-patterns -- Use the rendered command center's sizing and border.
@@ -120,7 +120,7 @@ suite('Sessions - Titlebar Part', () => {
 		const part = store.add(titleService.createAuxiliaryTitlebarPart(container, new class extends mock<IEditorGroupsContainer>() { }(), instantiationService));
 		const read = () => {
 			part.layout(800, part.height, 0, 0);
-			return { height: part.height, containerHeight: part.container.style.height, notificationTop: container.style.getPropertyValue('--modern-ui-notifications-block-start-inset') };
+			return { height: part.height, containerHeight: part.element.style.height, notificationTop: container.style.getPropertyValue('--modern-ui-notifications-block-start-inset') };
 		};
 		const initial = read();
 		await configuration.setUserConfiguration(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Compact);
@@ -146,10 +146,10 @@ suite('Sessions - Titlebar Part', () => {
 		}());
 		const titleService = store.add(instantiationService.createInstance(TitleService));
 		const part = store.add(titleService.createAuxiliaryTitlebarPart(container, new class extends mock<IEditorGroupsContainer>() { }(), instantiationService));
-		assert.ok(part instanceof AuxiliaryTitlebarPart);
+		assert.ok(part instanceof TitlebarPart);
 		const previousDocumentTitle = mainWindow.document.title;
 		store.add(toDisposable(() => mainWindow.document.title = previousDocumentTitle));
-		const read = () => ({ height: part.height, containerHeight: part.container.style.height, chromeless: part.container.classList.contains('chromeless') });
+		const read = () => ({ height: part.height, containerHeight: part.element.style.height, chromeless: part.element.classList.contains('chromeless') });
 
 		const shown = read();
 		part.setChromeless(true);
@@ -173,9 +173,9 @@ suite('Sessions - Titlebar Part', () => {
 		}());
 		const titleService = store.add(instantiationService.createInstance(TitleService));
 		const part = store.add(titleService.createAuxiliaryTitlebarPart(container, new class extends mock<IEditorGroupsContainer>() { }(), instantiationService));
-		assert.ok(part instanceof AuxiliaryTitlebarPart);
+		assert.ok(part instanceof TitlebarPart);
 		const host = part.getSessionHeaderHost();
-		const read = () => ({ hosts: part.container.classList.contains('hosts-session-header'), height: part.height, sameHost: part.getSessionHeaderHost() === host, inTitlebar: host.parentElement === part.element });
+		const read = () => ({ hosts: part.element.classList.contains('hosts-session-header'), height: part.height, sameHost: part.getSessionHeaderHost() === host, inTitlebar: host.parentElement === part.element });
 
 		const before = read();
 		part.setHostsSessionHeader(true);

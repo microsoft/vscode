@@ -30,7 +30,7 @@ import { IEditorResolverService } from '../../../../workbench/services/editor/co
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../browser/menus.js';
-import { AuxiliaryTitlebarPart, TitlebarPart } from '../../../browser/parts/titlebarPart.js';
+import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
 import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowTerminalRowContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -473,7 +473,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				titlebar.setTitle(title);
 			}
 		}));
-		if (titlebar instanceof AuxiliaryTitlebarPart) {
+		if (titlebar instanceof TitlebarPart) {
 			// The chat's header carries the chrome of the window, in place of the title bar or inside it; the title bar does otherwise.
 			window.state.headerHost.set(titlebar.getSessionHeaderHost(), undefined);
 			windowDisposables.add(toDisposable(() => window.state.headerHost.set(undefined, undefined)));
