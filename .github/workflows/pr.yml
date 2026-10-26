@@ -201,8 +201,11 @@ jobs:
             echo "selects-no-agent-host-e2e=$selects_no_agent_host_e2e"
           } >> "$GITHUB_OUTPUT"
 
+  # Keep these checks first after Detect Changes so they appear at the top of the job group.
   compile:
     name: Compile & Hygiene
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
       # Hygiene and ESLint check only the files that changed since this commit, unless
@@ -308,9 +311,10 @@ jobs:
       - name: Check cyclic dependencies
         run: node build/lib/checkCyclicDependencies.ts out-build
 
-  # Runs alongside the Monaco Editor checks workflow (monaco-editor.yml) for now. Keep the two in sync.
   monaco-editor:
     name: Monaco Editor
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions: {}
@@ -392,9 +396,10 @@ jobs:
         working-directory: ./test/monaco
         run: npm run test
 
-  # Runs alongside the Telemetry workflow (telemetry.yml) for now. Keep the two in sync.
   telemetry:
     name: Telemetry
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions: {}
     steps:
