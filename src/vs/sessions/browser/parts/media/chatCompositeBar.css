@@ -82,9 +82,10 @@
 
 /* Title row: title + actions */
 .chat-composite-bar-title-row {
+	--chat-composite-bar-title-row-gap: 6px;
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: var(--chat-composite-bar-title-row-gap);
 	height: 100%;
 }
 
@@ -817,7 +818,13 @@
 }
 
 .session-header-bar.window-chrome .chat-composite-bar-title-actions {
-	margin-left: 0;
+	/* Replace the title row gap before the overflow with the gap between the window actions. */
+	margin-left: calc(var(--vscode-spacing-size20, 2px) - var(--chat-composite-bar-title-row-gap));
+}
+
+/* An empty window actions toolbar must not add its flex gap between its neighbors. */
+.session-header-bar.window-chrome .chat-composite-bar-window-chrome > .chat-composite-bar-toolbar.has-no-actions {
+	display: none;
 }
 
 /* The traffic lights of macOS sit over the leading edge. */
