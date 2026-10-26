@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-r276TsHbdWJnsWBkBVhoPNK3PT9ng29r81o15iXB+vA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-3hJmlAnfiLqTdGovphth4cmUhRBbhly0XFfZGqSyjFI=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -1280,6 +1280,76 @@
 				}
 
 			});
+
+			// #region Window drag forwarding
+			/** @type {Element | null} */
+			let windowDragTarget = null;
+			/** @type {number | undefined} */
+			let windowDragId;
+			/** @type {DataTransfer['dropEffect']} */
+			let windowDragDropEffect = 'none';
+			hostMessaging.onMessage('window-drag', (_event, data) => {
+				const frame = getActiveFrame();
+				const contentDocument = frame?.contentDocument;
+				if (!contentDocument) {
+					windowDragTarget = null;
+					windowDragId = undefined;
+					windowDragDropEffect = 'none';
+					return;
+				}
+				let target = data.type === 'dragleave' ? null : contentDocument.elementFromPoint(data.clientX, data.clientY);
+				// The host may have already queued a drop before receiving rejection feedback.
+				// Only the target that accepted the latest hover of this drag may receive it.
+				const acceptsDrop = data.id === windowDragId && target === windowDragTarget && windowDragDropEffect !== 'none';
+				if (data.type === 'drop' && !acceptsDrop) {
+					target = null;
+				}
+				const transfer = new DataTransfer();
+				for (const [type, value] of data.data) {
+					transfer.setData(type, data.type === 'drop' && acceptsDrop ? value : '');
+				}
+				// A constructed DataTransfer has no native drag operation. Track the target's
+				// dropEffect explicitly so its acceptance can be applied to the host drag.
+				let dropEffect = data.type === 'dragover' ? 'copy' : windowDragDropEffect;
+				Object.defineProperties(transfer, {
+					effectAllowed: { value: data.effectAllowed },
+					dropEffect: {
+						get: () => dropEffect,
+						set: value => { if (['none', 'copy', 'link', 'move'].includes(value)) { dropEffect = value; } },
+					},
+				});
+				/** @type {DragEventInit} */
+				const init = { ...data, dataTransfer: transfer, bubbles: true, cancelable: true, composed: true };
+				if (windowDragId !== data.id) {
+					windowDragTarget?.dispatchEvent(new DragEvent('dragleave', { ...init, relatedTarget: null }));
+					windowDragTarget = null;
+					windowDragId = data.id;
+					windowDragDropEffect = 'none';
+				}
+				if (windowDragTarget !== target) {
+					target?.dispatchEvent(new DragEvent('dragenter', { ...init, relatedTarget: windowDragTarget }));
+					windowDragTarget?.dispatchEvent(new DragEvent('dragleave', { ...init, relatedTarget: target }));
+					windowDragTarget = target;
+					windowDragDropEffect = 'none';
+				}
+				/** @type {DataTransfer['dropEffect']} */
+				let feedbackEffect = 'none';
+				if (target && data.type !== 'dragleave') {
+					const event = new DragEvent(data.type, init);
+					target.dispatchEvent(event);
+					feedbackEffect = event.defaultPrevented ? transfer.dropEffect : 'none';
+					windowDragDropEffect = feedbackEffect;
+				}
+				if (data.type !== 'dragleave') {
+					hostMessaging.postMessage('did-window-drag', { id: data.id, dropEffect: feedbackEffect });
+				}
+				if (data.type !== 'dragover') {
+					windowDragTarget = null;
+					windowDragId = undefined;
+					windowDragDropEffect = 'none';
+				}
+			});
+			// #endregion Window drag forwarding
 
 			// propagate vscode-context-menu-visible class
 			hostMessaging.onMessage('set-context-menu-visible', (_event, data) => {

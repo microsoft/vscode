@@ -434,6 +434,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._webview.value?.windowDidDragStart();
 	}
 
+	windowDidDrag(event: DragEvent) {
+		this._webview.value?.windowDidDrag(event);
+	}
+
 	windowDidDragEnd() {
 		this._webview.value?.windowDidDragEnd();
 	}
