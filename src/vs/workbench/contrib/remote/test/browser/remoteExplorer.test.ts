@@ -4,25 +4,126 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITunnelService, RemoteTunnel, TunnelPrivacyId } from '../../../../../platform/tunnel/common/tunnel.js';
+import { IDebugService } from '../../../debug/common/debug.js';
 import { IExternalUriOpenerService } from '../../../externalUriOpener/common/externalUriOpenerService.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { IWorkbenchConfigurationService } from '../../../../services/configuration/common/configuration.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { NotificationService } from '../../../../services/notification/common/notificationService.js';
-import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
-import { TunnelModel } from '../../../../services/remote/common/tunnelModel.js';
-import { isCandidateRemappedTunnelLocalEndpoint, OnAutoForwardedAction } from '../../browser/remoteExplorer.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { IRemoteExplorerService, PortsEnablement } from '../../../../services/remote/common/remoteExplorerService.js';
+import { Attributes, CandidatePort, OnPortForward, PortsAttributes, Tunnel, TunnelModel } from '../../../../services/remote/common/tunnelModel.js';
+import { AutomaticPortForwarding, isCandidateRemappedTunnelLocalEndpoint, OnAutoForwardedAction } from '../../browser/remoteExplorer.js';
 import { TunnelPanel } from '../../browser/tunnelView.js';
 
 suite('AutomaticPortForwarding', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const { name, otherPortsAttributes, initiallyPresent, expected } of [
+		{ name: 'skips initial process candidates when other port actions are unset', otherPortsAttributes: {}, initiallyPresent: true, expected: [] },
+		{ name: 'forwards initial process candidates with an explicit other port action', otherPortsAttributes: { onAutoForward: OnPortForward.Notify }, initiallyPresent: true, expected: [3000] },
+		{ name: 'forwards later process candidates when other port actions are unset', otherPortsAttributes: {}, initiallyPresent: false, expected: [3000] },
+	]) {
+		test(name, async () => {
+			const candidate: CandidatePort = { host: 'localhost', port: 3000, detail: 'node server.js' };
+			let candidates = initiallyPresent ? [candidate] : [];
+			const configurationService = new TestConfigurationService({
+				'remote.autoForwardPorts': true,
+				'remote.autoForwardPortsSource': 'process',
+				'remote.autoForwardPortsFallback': 0,
+				'remote.portsAttributes': {},
+				'remote.otherPortsAttributes': otherPortsAttributes,
+			});
+			store.add(configurationService.onDidChangeConfigurationEmitter);
+			const attributes = store.add(new PortsAttributes(configurationService));
+			const listening = new DeferredPromise<void>();
+			let updateCandidates: (() => Promise<void>) | undefined;
+			const model = new class extends mock<TunnelModel>() {
+				override get environmentTunnelsSet() { return true; }
+				override readonly forwarded = new Map<string, Tunnel>();
+				override readonly detected = new Map<string, Tunnel>();
+				override get candidatesOrUndefined() { return candidates; }
+				override get candidates() { return candidates; }
+				override readonly onCandidatesChanged: TunnelModel['onCandidatesChanged'] = (listener, thisArgs, disposables) => {
+					// Await the async event handler so each assertion observes completed candidate processing.
+					updateCandidates = async () => { await listener.call(thisArgs, new Map()); };
+					const subscription = toDisposable(() => { updateCandidates = undefined; });
+					if (Array.isArray(disposables)) {
+						disposables.push(subscription);
+					} else {
+						disposables?.add(subscription);
+					}
+					listening.complete();
+					return subscription;
+				};
+				override async getAttributes(ports: { host: string; port: number }[]) {
+					const result = new Map<number, Attributes>();
+					for (const port of ports) {
+						const value = attributes.getAttributes(port.port, port.host);
+						if (value) {
+							result.set(port.port, value);
+						}
+					}
+					return result;
+				}
+			};
+			const forwarded: number[] = [];
+			const forwarding = store.add(new AutomaticPortForwarding(
+				upcastPartial<ITerminalService>({ instances: [], onDidCreateInstance: Event.None, onDidDisposeInstance: Event.None }),
+				new class extends mock<INotificationService>() { },
+				new class extends mock<IOpenerService>() { },
+				new class extends mock<IExternalUriOpenerService>() { },
+				new class extends mock<IRemoteExplorerService>() {
+					override readonly tunnelModel = model;
+					override readonly portsFeaturesEnabled = PortsEnablement.AdditionalFeatures;
+					override readonly onEnabledPortsFeatures = Event.None;
+					override async forward(properties: Parameters<IRemoteExplorerService['forward']>[0]) {
+						forwarded.push(properties.remote.port);
+						return undefined;
+					}
+				},
+				upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: 'test' }),
+				store.add(new MockContextKeyService()),
+				upcastPartial<IWorkbenchConfigurationService>(Object.assign(configurationService, { whenRemoteConfigurationLoaded: async () => { } })),
+				upcastPartial<IDebugService>({ onDidNewSession: Event.None, onDidEndSession: Event.None }),
+				new class extends mock<IRemoteAgentService>() {
+					override async getEnvironment() { return upcastPartial<IRemoteAgentEnvironment>({ os: OperatingSystem.Linux }); }
+				},
+				new class extends mock<ITunnelService>() { },
+				new class extends mock<IHostService>() { },
+				new NullLogService(),
+				store.add(new InMemoryStorageService()),
+				new class extends mock<IPreferencesService>() { },
+			));
+			await listening.p;
+			// The existing forwarders do not dispose their notification handlers.
+			/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Dispose private handlers without adding a test-only production API. */
+			store.add(forwarding['procForwarder']!['notifier']);
+			store.add(forwarding['outputForwarder']!['notifier']);
+			/* eslint-enable local/code-no-bracket-notation-for-identifiers */
+			candidates = [candidate];
+			assert.ok(updateCandidates);
+			await updateCandidates();
+
+			assert.deepStrictEqual(forwarded, expected);
+		});
+	}
 
 	test('preserves navigation links after elevating a port without interpreting its label', async () => {
 		const label = '[Open](command:unexpected)';

@@ -314,6 +314,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				}
 			},
+			// Property defaults are editor suggestions; keep the effective default empty to preserve unset fallback attributes.
 			'remote.otherPortsAttributes': {
 				type: 'object',
 				properties: {
