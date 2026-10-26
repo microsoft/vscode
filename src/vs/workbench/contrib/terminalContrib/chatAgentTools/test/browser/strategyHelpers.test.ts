@@ -94,6 +94,81 @@ suite('stripCommandEchoAndPrompt', () => {
 		);
 	});
 
+	test('strips multi-line command echo, with and without output', () => {
+		// bash 5.2 echoes a bracketed paste with each line of the command on its own row
+		const commandLine = 'cat > /tmp/hello.py <<\'EOF\'\nimport sys\nprint(\'hello from\', sys.version_info[:2])\nEOF';
+		const withOutput = [
+			'user@host:~/src $ cat > /tmp/hello.py <<\'EOF\'',
+			'import sys',
+			'print(\'hello from\', sys.version_info[:2])',
+			'EOF',
+			'python3 /tmp/hello.py',
+			'hello from (3, 12)',
+			'user@host:~/src $ ',
+		].join('\n');
+		const withoutOutput = [
+			'user@host:~/src $ cat > /tmp/hello.py <<\'EOF\'',
+			'import sys',
+			'print(\'hello from\', sys.version_info[:2])',
+			'EOF',
+			'user@host:~/src $ ',
+		].join('\n');
+
+		assert.deepStrictEqual([
+			stripCommandEchoAndPrompt(withOutput, `${commandLine}\npython3 /tmp/hello.py`, undefined, /*allowLayoutMatch*/ true),
+			stripCommandEchoAndPrompt(withoutOutput, commandLine, undefined, /*allowLayoutMatch*/ true),
+		], [
+			'hello from (3, 12)',
+			'',
+		]);
+	});
+
+	test('strips command echo whose row breaks dropped a space or added padding', () => {
+		// zsh and ConPTY may break a long command line into rows that aren't soft-wrapped,
+		// dropping the space at the break
+		const zshCommandLine = ` echo xx${Array(59).fill('ab').join(' ')} | wc -c`;
+		const zshOutput = [
+			'➜  app git:(main) ✗  echo xxab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab a',
+			'b ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab',
+			'ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab | wc -c',
+			'     179',
+		].join('\n');
+		// A wide character that doesn't fit at the end of a row leaves a blank cell, which the
+		// joined soft-wrapped row keeps as a space
+		const wideCommandLine = `echo "${'x'.repeat(55)}完整进程列表"`;
+		const wideOutput = [
+			`user@host:~/src $ echo "${'x'.repeat(55)} 完整进程列表"`,
+			`${'x'.repeat(55)}完整进程列表`,
+			'user@host:~/src $ ',
+		].join('\n');
+
+		assert.deepStrictEqual([
+			stripCommandEchoAndPrompt(zshOutput, zshCommandLine, undefined, /*allowLayoutMatch*/ true),
+			stripCommandEchoAndPrompt(wideOutput, wideCommandLine, undefined, /*allowLayoutMatch*/ true),
+		], [
+			'     179',
+			`${'x'.repeat(55)}完整进程列表`,
+		]);
+	});
+
+	test('only matches the command echo by layout at the start of buffer contents', () => {
+		// The listing contains `ls -l` without its whitespace, but not on the first line
+		const listing = [
+			'total 16',
+			'-rw-r--r--  1 user  staff  1203 Sep 30 12:00 README.md',
+			'-rw-r--r--  1 user  staff   311 Sep 30 12:00 skills-lock.json',
+		].join('\n');
+
+		assert.deepStrictEqual([
+			stripCommandEchoAndPrompt(listing, 'ls -l', undefined, /*allowLayoutMatch*/ true),
+			// getOutput() starts after the echo, so it is never matched by layout
+			stripCommandEchoAndPrompt('cat\nfile\n', 'cat file'),
+		], [
+			listing,
+			'cat\nfile',
+		]);
+	});
+
 	test('strips trailing prompt with various prompt styles', () => {
 		// bash user@host:path $
 		assert.strictEqual(
