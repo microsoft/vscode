@@ -6000,6 +6000,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.sectionContextKey.set(section);
 		this.storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, section, StorageScope.PROFILE, StorageTarget.USER);
 		this.updateContentVisibility();
+		// Sync the sidebar before awaiting: count updates re-splice it and re-fire its
+		// selection, which would otherwise navigate back to the stale section.
+		this.ensureSectionsListReflectsActiveSection(section);
 		const navigationGeneration = this.contentNavigationGeneration;
 		await this.listWidget.setSection(section);
 		const modelSection = ITEMS_MODEL_SECTIONS.find(s => s === section);
