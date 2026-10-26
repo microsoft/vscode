@@ -67,6 +67,51 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.getSessionSummary(sessionUri)?.resource.toString(), sessionUri.toString());
 	});
 
+	test('a session restored with its data only (C15) registers its chats, its default chat unresolved, and no client sees it until it is removed', async () => {
+		const peer = buildChatUri(sessionUri, 'peer');
+		const resolved: string[] = [];
+		manager.restoreSessionData({ ...makeSessionSummary(), workingDirectories: ['file:///repo'], chats: [{ resource: sessionChatUri, title: '', status: SessionStatus.Idle }, { resource: peer, title: 'Peer', status: SessionStatus.Idle }] }, creationTimeChatStorageResource, {
+			title: 'Default',
+			modifiedAt: new Date(0).toISOString(),
+			workingDirectories: ['file:///repo'],
+			isRead: true,
+			draft: undefined,
+			config: { values: { own: true } },
+			providerData: 'default-backing',
+			resolver: async providerData => {
+				resolved.push(providerData ?? '');
+				return { turns: [] };
+			},
+		});
+		const whileLoaded = {
+			dataOnly: manager.isDataOnlySession(sessionUri),
+			chats: manager.getSessionState(sessionUri)?.chats.map(chat => chat.resource),
+			owners: [sessionChatUri, peer].map(chat => manager.getChatOwner(chat)),
+			defaultChatResolved: manager.getChatState(sessionChatUri) !== undefined,
+			defaultChatFolders: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === sessionChatUri)?.workingDirectories,
+			defaultChatConfig: manager.getChatConfig(sessionChatUri)?.values,
+			snapshots: [sessionUri, sessionChatUri, peer].map(resource => manager.getSnapshot(resource) !== undefined),
+		};
+		await manager.resolveChatState(sessionChatUri);
+		const resolvedSnapshot = manager.getSnapshot(sessionChatUri) !== undefined;
+		manager.removeSession(sessionUri);
+
+		assert.deepStrictEqual({ whileLoaded, resolved, resolvedSnapshot, dataOnlyAfterRemoval: manager.isDataOnlySession(sessionUri) }, {
+			whileLoaded: {
+				dataOnly: true,
+				chats: [sessionChatUri, peer],
+				owners: [sessionUri, sessionUri],
+				defaultChatResolved: false,
+				defaultChatFolders: ['file:///repo'],
+				defaultChatConfig: { own: true },
+				snapshots: [false, false, false],
+			},
+			resolved: ['default-backing'],
+			resolvedSnapshot: false,
+			dataOnlyAfterRemoval: false,
+		});
+	});
+
 	suite('Copilot head-branch PR publication', () => {
 		const reference = { referenceType: 'pr', repository: 'owner/repo', number: 42, title: '', url: 'https://github.com/owner/repo/pull/42', relations: ['headBranch'] };
 		const summary = () => ({
@@ -413,6 +458,38 @@ suite('AgentHostStateManager', () => {
 		}, {
 			sessionIsRead: true,
 			chatIsRead: true,
+			actions: [
+				{ channel: sessionChatUri, type: ActionType.ChatIsReadChanged, isRead: true },
+				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
+			],
+		});
+	});
+
+	test('a redundant read of a sole chat repairs a session left unread', () => {
+		// Restored unread while its sole chat is read, as a session promoted from a chat was.
+		manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource, { defaultChatIsRead: true });
+		const restored = {
+			sessionIsRead: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			chatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+		};
+		const actions: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(action => actions.push(action)));
+
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatIsReadChanged, isRead: true });
+
+		assert.deepStrictEqual({
+			restored,
+			sessionIsRead: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			actions: actions
+				.filter(({ action }) => action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged)
+				.map(({ channel, action }) => ({
+					channel,
+					type: action.type,
+					isRead: action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged ? action.isRead : undefined,
+				})),
+		}, {
+			restored: { sessionIsRead: false, chatIsRead: true },
+			sessionIsRead: true,
 			actions: [
 				{ channel: sessionChatUri, type: ActionType.ChatIsReadChanged, isRead: true },
 				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
@@ -2496,6 +2573,77 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
+		for (const failedDefaultChat of [false, true]) {
+			test(`session aggregation promotes input and progress, not ${failedDefaultChat ? 'default' : 'peer'} chat errors`, () => {
+				manager.createSession(makeSessionSummary());
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				const failedChat = failedDefaultChat ? defaultChat : buildChatUri(sessionUri, 'failed');
+				if (!failedDefaultChat) {
+					manager.addChat(sessionUri, failedChat, creationTimeChatStorageResource(sessionUri, failedChat, defaultChat), { title: 'Failed' });
+				}
+				manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, defaultChat), { title: 'Running' });
+				const startTurn = (chat: string, turnId: string) => manager.dispatchServerAction(chat, {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'hello', origin: { kind: MessageKind.User } },
+				});
+				startTurn(failedChat, 'failed-turn');
+				manager.dispatchServerAction(failedChat, {
+					type: ActionType.ChatError,
+					turnId: 'failed-turn',
+					duration: 1000,
+					part: createErrorResponsePart({ errorType: 'failed', message: 'boom' }),
+				});
+				manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+				const flags = SessionStatus.IsArchived;
+				const fallback = failedDefaultChat ? SessionStatus.Error : SessionStatus.Idle;
+				const snapshot = () => {
+					const state = manager.getSessionState(sessionUri)!;
+					return { status: state.status, activity: state.activity };
+				};
+				const afterError = snapshot();
+				startTurn(peerChat, 'running-turn');
+				manager.dispatchServerAction(peerChat, { type: ActionType.ChatActivityChanged, activity: 'Running tests' });
+				const whileRunning = snapshot();
+				manager.dispatchServerAction(peerChat, {
+					type: ActionType.ChatInputRequested,
+					request: withChatInputRequestPurpose({
+						id: 'request',
+						questions: [{ kind: ChatInputQuestionKind.Text, id: 'question', message: 'Continue?' }],
+					}, ChatInputRequestPurpose.AskUser),
+				});
+				const whileWaiting = snapshot();
+				manager.dispatchServerAction(peerChat, {
+					type: ActionType.ChatInputCompleted,
+					requestId: 'request',
+					response: ChatInputResponseKind.Accept,
+				});
+				const afterInput = snapshot();
+				manager.dispatchServerAction(peerChat, { type: ActionType.ChatTurnComplete, turnId: 'running-turn', duration: 1000 });
+
+				assert.deepStrictEqual({
+					afterError,
+					whileRunning,
+					whileWaiting,
+					afterInput,
+					afterComplete: snapshot(),
+					failedChatStatus: manager.getChatState(failedChat)!.status & ~flags,
+					catalogStatus: manager.getSessionState(sessionUri)!.chats.find(chat => chat.resource === failedChat)!.status & ~flags,
+					summaryStatus: manager.getSessionSummary(sessionUri)!.status,
+				}, {
+					afterError: { status: fallback | flags, activity: undefined },
+					whileRunning: { status: SessionStatus.InProgress | flags, activity: 'Running tests' },
+					whileWaiting: { status: SessionStatus.InputNeeded | flags, activity: 'Running tests' },
+					afterInput: { status: SessionStatus.InProgress | flags, activity: 'Running tests' },
+					afterComplete: { status: fallback | flags, activity: undefined },
+					failedChatStatus: SessionStatus.Error,
+					catalogStatus: SessionStatus.Error,
+					summaryStatus: fallback | flags,
+				});
+			});
+		}
+
 		test('a running peer chat forwards its own status to the session catalog so its tab can show progress', () => {
 			manager.createSession(makeSessionSummary());
 			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)), { title: 'Peer' });
@@ -3482,6 +3630,34 @@ suite('AgentHostStateManager', () => {
 			}));
 			manager.promoteChats(sessionUri, { ...makeSessionSummary(promoted), defaultChat: peer }, undefined, [peer]);
 			assert.deepStrictEqual({ announced, defaultChat: manager.getSessionState(promoted)?.defaultChat }, { announced: [false], defaultChat: peer });
+		});
+
+		test('a promoted session is read exactly when the chats it takes are', () => {
+			const { peer, sub } = setupTwoSessions();
+			const unreadPeer = buildChatUri(sessionUri, 'unread-peer');
+			manager.addChat(sessionUri, unreadPeer, creationTimeChatStorageResource(sessionUri, unreadPeer, sessionChatUri));
+			manager.dispatchServerAction(unreadPeer, { type: ActionType.ChatIsReadChanged, isRead: false });
+			// A tool chat taken along does not count toward its session's read state.
+			manager.dispatchServerAction(sub, { type: ActionType.ChatIsReadChanged, isRead: false });
+			const promoted = URI.from({ scheme: 'copilot', path: '/promoted' }).toString();
+			const promotedUnread = URI.from({ scheme: 'copilot', path: '/promoted-unread' }).toString();
+			const announced: Record<string, boolean> = {};
+			disposables.add(manager.onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					announced[notification.summary.resource] = isSessionStatusRead(notification.summary.status);
+				}
+			}));
+
+			manager.promoteChats(sessionUri, { ...makeSessionSummary(promoted), defaultChat: peer }, undefined, [peer, sub]);
+			manager.promoteChats(sessionUri, { ...makeSessionSummary(promotedUnread), defaultChat: unreadPeer }, undefined, [unreadPeer]);
+
+			assert.deepStrictEqual({
+				announced,
+				state: [promoted, promotedUnread].map(session => isSessionStatusRead(manager.getSessionState(session)!.status)),
+			}, {
+				announced: { [promoted]: true, [promotedUnread]: false },
+				state: [true, false],
+			});
 		});
 
 		test('a deleted chat is removed for good', () => {

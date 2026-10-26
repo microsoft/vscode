@@ -24,6 +24,7 @@ export function createCloudSandboxSessionPreparation(
 	root: IAgentSubscription<RootState>,
 	request: (method: 'extensions/cloneProject', params: { url: string; depth: 1 }) => Promise<unknown>,
 	owner: DisposableStore,
+	tracePreparation: (operation: () => Promise<URI>) => Promise<URI> = operation => operation(),
 ): RemoteAgentHostSessionPreparation {
 	const lifetime = cancelOnDispose(owner);
 	const preparations = new Map<string, { readonly promise: Promise<URI>; readonly cancellation: CancellationTokenPool }>();
@@ -54,7 +55,7 @@ export function createCloudSandboxSessionPreparation(
 		let preparation = preparations.get(key);
 		if (!preparation || preparation.cancellation.token.isCancellationRequested) {
 			const cancellation = new CancellationTokenPool();
-			const promise = prepareRepository(repository, projects, cancellation.token).finally(() => {
+			const promise = tracePreparation(() => prepareRepository(repository, projects, cancellation.token)).finally(() => {
 				if (preparations.get(key)?.promise === promise) {
 					preparations.delete(key);
 				}

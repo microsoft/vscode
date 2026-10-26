@@ -254,6 +254,24 @@
             }
         },
         {
+            "key": "chat.agentHost.githubEnvironments.enabled",
+            "name": "ChatAgentHostGitHubEnvironments",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "githubEnvironments.enabled.policy",
+                    "value": "Controls whether this machine can be shared as a GitHub environment and connect to other shared machines through Mission Control."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
             "key": "chat.agentHost.otel.captureContent",
             "name": "CopilotOtelCaptureContent",
             "category": "InteractiveSession",
@@ -513,7 +531,7 @@
             "localization": {
                 "description": {
                     "key": "chat.copilotCliCommand.enabled.policy",
-                    "value": "Controls whether VS Code provides the copilot command for GitHub Copilot CLI. When disabled, VS Code setup on Windows doesn't add the command to PATH and removes the entry it added, VS Code doesn't install GitHub Copilot CLI, and integrated terminals don't include the command. A GitHub Copilot CLI that was installed separately isn't affected."
+                    "value": "Controls whether VS Code provides the copilot command for GitHub Copilot CLI. When disabled, VS Code setup on Windows and the Linux DEB and RPM packages don't add the command to PATH and remove the entry they added, VS Code doesn't install GitHub Copilot CLI, and integrated terminals don't include the command. A GitHub Copilot CLI that was installed separately isn't affected."
                 }
             },
             "type": "boolean",
@@ -539,6 +557,27 @@
             "included": false,
             "agentHost": {
                 "status": "partial"
+            }
+        },
+        {
+            "key": "chat.defaultConfiguration",
+            "name": "ChatDefaultConfiguration",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "chat.defaultConfiguration.policy",
+                    "value": "Sets the default configuration for new agent sessions, as a JSON object with an optional \"mode\" (\"interactive\", \"plan\", or \"autopilot\") and \"approvals\" (\"manual\", \"assisted\", or \"allowAll\"). Users can still change them for each session."
+                }
+            },
+            "type": "object",
+            "default": {
+                "mode": "interactive",
+                "approvals": "manual"
+            },
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
             }
         },
         {

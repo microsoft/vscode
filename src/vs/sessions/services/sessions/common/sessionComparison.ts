@@ -133,7 +133,7 @@ export interface ISessionComparison {
 	readonly groupId: string;
 	readonly title: string;
 	readonly createdAt: number;
-	readonly workspace: URI;
+	readonly workspace?: URI;
 	readonly prompt: string;
 	/** Transient while the initial attempt sessions are still being created. */
 	readonly launching?: boolean;
@@ -152,7 +152,7 @@ export interface ISessionComparison {
 }
 
 export interface IStartSessionComparisonOptions {
-	readonly workspace: URI;
+	readonly workspace?: URI;
 	readonly prompt: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly attempts: readonly ISessionComparisonAttemptConfiguration[];
@@ -183,12 +183,9 @@ export interface ISessionComparisonService {
 
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
 
-export function getSessionComparisonWorkspaceError(branch: string | undefined, hasGitRemote: boolean | undefined): string | undefined {
+export function getSessionComparisonWorkspaceError(branch: string | undefined): string | undefined {
 	if (!branch) {
-		return localize('sessionComparison.gitRepositoryRequired', "Comparisons require a Git repository with at least one commit.");
-	}
-	if (hasGitRemote !== true) {
-		return localize('sessionComparison.gitRemoteRequired', "Comparisons require a Git remote.");
+		return localize('sessionComparison.gitBranchRequired', "Comparisons require a Git repository with branch information.");
 	}
 	return undefined;
 }

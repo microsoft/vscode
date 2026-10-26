@@ -28,14 +28,28 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry, type ICustomizationItem } from '../../../../common/customizationHarnessService.js';
+import { constObservable } from '../../../../../../../base/common/observable.js';
+import { Event } from '../../../../../../../base/common/event.js';
+import { AICustomizationSources } from '../../../../common/aiCustomizationWorkspaceService.js';
 
 suite('PromptHeaderAutocompletion', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: TestInstantiationService;
 	let completionProvider: PromptHeaderAutocompletion;
+	let activeTarget: Target;
+	let copilotToolInventory: readonly IAgentFileToolInventoryEntry[];
+	let otherCopilotToolInventory: readonly IAgentFileToolInventoryEntry[];
+	let copilotSkillInventory: ICustomizationItem[];
+	let otherCopilotSkillInventory: ICustomizationItem[];
 
 	setup(async () => {
+		activeTarget = Target.Undefined;
+		copilotToolInventory = [];
+		otherCopilotToolInventory = [];
+		copilotSkillInventory = [];
+		otherCopilotSkillInventory = [];
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
@@ -58,13 +72,19 @@ suite('PromptHeaderAutocompletion', () => {
 			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'gpt-4', name: 'GPT 4', vendor: 'openai', version: '1.0', family: 'gpt', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: false, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'bg-agent-model', name: 'BG Agent Model', vendor: 'copilot', version: '1.0', family: 'bg', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true }, targetChatSessionType: 'background' } satisfies ILanguageModelChatMetadata,
+			{ id: 'copilot-model', name: 'Copilot Model', vendor: 'copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test', tooltip: 'Copilot model tooltip', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] } } } } satisfies ILanguageModelChatMetadata,
+			{ id: 'gemini/Google/models/gemini-flash', name: 'Private Model', vendor: 'copilot-test', version: '1.0', family: 'private', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, byokModelIdentifier: 'gemini/Google/models/gemini-flash', maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test' } satisfies ILanguageModelChatMetadata,
+			{ id: 'other-copilot-model', name: 'Other Copilot Model', vendor: 'other-copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'other-copilot-test' } satisfies ILanguageModelChatMetadata,
+			{ id: 'copilot-model', name: 'Copilot Model from Other Harness', vendor: 'other-copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'other-copilot-test', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['max'] } } } } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
-			getLanguageModelIds() { return testModels.map(m => m.id); },
-			lookupLanguageModel(name: string) {
-				return testModels.find(m => m.id === name);
-			}
+			getLanguageModelIds() { return testModels.map((model, index) => `${model.vendor}:${model.id}:${index}`); },
+			lookupLanguageModel(identifier: string) {
+				const index = Number(identifier.substring(identifier.lastIndexOf(':') + 1));
+				return testModels[index];
+			},
+			hasResolvedVendor: () => true,
 		});
 
 		const customAgent: ICustomAgent = {
@@ -94,6 +114,33 @@ suite('PromptHeaderAutocompletion', () => {
 		});
 
 		instaService.stub(IChatModeService, new MockChatModeService());
+		const localDescriptor = createVSCodeHarnessDescriptor();
+		const copilotDescriptor = {
+			...localDescriptor,
+			id: 'copilot-test',
+			customAgentTarget: Target.GitHubCopilot,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => copilotSkillInventory,
+				provideAgentFileTools: async () => copilotToolInventory,
+			},
+		};
+		const otherCopilotDescriptor = {
+			...localDescriptor,
+			id: 'other-copilot-test',
+			customAgentTarget: Target.GitHubCopilot,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => otherCopilotSkillInventory,
+				provideAgentFileTools: async () => otherCopilotToolInventory,
+			},
+		};
+		instaService.stub(ICustomizationHarnessService, {
+			activeHarness: constObservable('copilot-test'),
+			availableHarnesses: constObservable([localDescriptor, copilotDescriptor, otherCopilotDescriptor]),
+			getActiveDescriptor: () => activeTarget === Target.GitHubCopilot ? copilotDescriptor : localDescriptor,
+			getSessionResourceForHarness: harnessId => URI.parse(`test:/${harnessId}`),
+		});
 
 		completionProvider = instaService.createInstance(PromptHeaderAutocompletion);
 	});
@@ -126,6 +173,71 @@ suite('PromptHeaderAutocompletion', () => {
 	const sortByLabel = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label);
 
 	suite('agent header completions', () => {
+		test('completes all github-copilot attributes from the schema', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'|',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, [
+				'deferred-tool-loading',
+				'description',
+				'disable-model-invocation',
+				'github',
+				'hooks',
+				'include-custom-instructions',
+				'infer',
+				'mcp-servers',
+				'model',
+				'model-policy',
+				'name',
+				'reasoning-effort',
+				'skills',
+				'strict-tools-list',
+				'target',
+				'tools',
+				'user-invocable',
+			]);
+		});
+
+		test('uses active harness target when target is not specified', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'|',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual({
+				hasMcpServers: labels.includes('mcp-servers'),
+				hasHandoffs: labels.includes('handoffs'),
+			}, {
+				hasMcpServers: true,
+				hasHandoffs: false,
+			});
+		});
+
+		test('explicit target overrides active harness target', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				'|',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.strictEqual(labels.includes('handoffs'), true);
+		});
 		test('complete model attribute name', async () => {
 			const content = [
 				'---',
@@ -165,6 +277,78 @@ suite('PromptHeaderAutocompletion', () => {
 			assert.ok(actual.some(({ label }) => label === 'model'));
 		});
 
+		test('complete models from the active github-copilot harness', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'copilot-model', result: 'model: copilot-model' },
+				{ label: 'gemini/Google/models/gemini-flash', result: 'model: gemini/Google/models/gemini-flash' },
+			]);
+		});
+
+		test('complete models from matching harnesses for an explicit github-copilot target', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'model: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'copilot-model', result: 'model: copilot-model' },
+				{ label: 'gemini/Google/models/gemini-flash', result: 'model: gemini/Google/models/gemini-flash' },
+				{ label: 'other-copilot-model', result: 'model: other-copilot-model' },
+			]);
+		});
+
+		test('complete reasoning effort from the selected github-copilot model', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: copilot-model',
+				'reasoning-effort: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'low', result: 'reasoning-effort: low' },
+				{ label: 'high', result: 'reasoning-effort: high' },
+			]);
+		});
+
+		test('aggregate reasoning efforts for the same model ID across matching harnesses', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'model: copilot-model',
+				'reasoning-effort: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'low', result: 'reasoning-effort: low' },
+				{ label: 'high', result: 'reasoning-effort: high' },
+				{ label: 'max', result: 'reasoning-effort: max' },
+			]);
+		});
+
 		test('complete model attribute value', async () => {
 			const content = [
 				'---',
@@ -197,6 +381,264 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'medium', result: 'reasoning-effort: medium' },
 				{ label: 'xhigh', result: 'reasoning-effort: xhigh' },
 			].sort(sortByLabel));
+		});
+
+		test('complete github-copilot model policy value', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'model-policy: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'preferred', result: 'model-policy: preferred' },
+				{ label: 'required', result: 'model-policy: required' },
+			]);
+		});
+
+		for (const attribute of [
+			'infer',
+			'disable-model-invocation',
+			'user-invocable',
+			'deferred-tool-loading',
+			'strict-tools-list',
+			'include-custom-instructions',
+		]) {
+			test(`complete github-copilot ${attribute} boolean values`, async () => {
+				const content = [
+					'---',
+					'description: "Test"',
+					'target: github-copilot',
+					`${attribute}: |`,
+					'---',
+				].join('\n');
+
+				const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+				assert.deepStrictEqual(labels, ['true', 'false']);
+			});
+		}
+
+		test('complete github-copilot target values', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['vscode', 'github-copilot']);
+		});
+
+		test('complete github-copilot tool values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'tools: [|]',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', 'github/*', 'playwright/*']);
+		});
+
+		test('complete github-copilot tools from all matching harness inventories', async () => {
+			copilotToolInventory = [
+				{ name: 'publisher.extension/clientTool', description: 'Provided by the client', availability: 'available' },
+				{ name: 'github/*', availability: 'available' },
+				{ name: 'disabled/*', availability: 'disabled' },
+			];
+			otherCopilotToolInventory = [{ name: 'other.extension/remoteClientTool', availability: 'available' }];
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'tools: [|]',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', 'publisher.extension/clientTool', 'github/*', 'disabled/*', 'other.extension/remoteClientTool', 'playwright/*']);
+		});
+
+		test('complete github-copilot skills from all matching harness inventories', async () => {
+			copilotSkillInventory = [
+				createSkill('review', { description: 'Review changes' }),
+				createSkill('disabled-skill', { enabled: false }),
+			];
+			otherCopilotSkillInventory = [createSkill('testing', { source: AICustomizationSources.plugin })];
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'skills: [|]',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['review', 'disabled-skill', 'testing']);
+		});
+
+		test('complete github-copilot github properties', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'github:',
+				'  toolsets: []',
+				'  |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['permissions']);
+		});
+
+		function createSkill(name: string, overrides: Partial<ICustomizationItem> = {}): ICustomizationItem {
+			return {
+				uri: URI.parse(`test:/skills/${name}/SKILL.md`),
+				type: PromptsType.skill,
+				name,
+				source: AICustomizationSources.local,
+				extensionId: undefined,
+				pluginUri: undefined,
+				enabled: true,
+				...overrides,
+			};
+		}
+
+		test('complete first github-copilot github property', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'github:',
+				'  |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['toolsets', 'permissions']);
+		});
+
+		test('complete github-copilot local MCP server properties', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  local:',
+				'    command: node',
+				'    |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, ['args', 'cwd', 'deferTools', 'env', 'timeout', 'tools', 'type']);
+		});
+
+		test('complete first github-copilot MCP server property', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  server:',
+				'    |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, ['args', 'command', 'cwd', 'deferTools', 'env', 'headers', 'timeout', 'tools', 'type', 'url']);
+		});
+
+		test('complete github-copilot remote MCP server properties', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  remote:',
+				'    type: http',
+				'    |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, ['deferTools', 'headers', 'timeout', 'tools', 'url']);
+		});
+
+		test('complete github-copilot MCP server type values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  server:',
+				'    type: h|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'local', result: '    type: local' },
+				{ label: 'stdio', result: '    type: stdio' },
+				{ label: 'http', result: '    type: http' },
+				{ label: 'sse', result: '    type: sse' },
+			]);
+		});
+
+		test('complete github-copilot MCP server type value directly after colon', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  server:',
+				'    type:|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual[0], { label: 'local', result: '    type: local' });
+		});
+
+		test('complete github-copilot MCP deferTools values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  server:',
+				'    command: node',
+				'    deferTools: a|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'auto', result: '    deferTools: auto' },
+				{ label: 'never', result: '    deferTools: never' },
+			]);
 		});
 
 		test('complete model attribute value with partial input', async () => {
@@ -503,6 +945,161 @@ suite('PromptHeaderAutocompletion', () => {
 			assert.ok(labels.includes('PostToolUse'), 'PostToolUse should be suggested');
 			// SessionEnd is not available for vscode target
 			assert.ok(!labels.includes('SessionEnd'), 'SessionEnd should not be available for vscode target');
+		});
+
+		test('complete all canonical github-copilot hook event names', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  sessionStart:',
+				'    - command: echo ready',
+				'  |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, [
+				'agentStop',
+				'errorOccurred',
+				'notification',
+				'permissionRequest',
+				'postToolUse',
+				'postToolUseFailure',
+				'preCompact',
+				'preMcpToolCall',
+				'preToolUse',
+				'sessionEnd',
+				'subagentStart',
+				'subagentStop',
+				'userPromptSubmitted',
+				'userPromptTransformed',
+			]);
+		});
+
+		test('github-copilot sessionStart offers command, HTTP, and prompt actions', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  sessionStart: |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, ['New Command', 'New HTTP Action', 'New Prompt Action']);
+		});
+
+		test('github-copilot hook action type completes supported values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  sessionStart:',
+				'    - type: c|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'command', result: '    - type: command' },
+				{ label: 'http', result: '    - type: http' },
+				{ label: 'prompt', result: '    - type: prompt' },
+			]);
+		});
+
+		test('github-copilot hook action type completes directly after colon', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  sessionStart:',
+				'    - type:|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual[0], { label: 'command', result: '    - type: command' });
+		});
+
+		test('github-copilot hook actions complete all supported fields', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  agentStop:',
+				'    - type: command',
+				'      |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, [
+				'args',
+				'bash',
+				'command',
+				'cwd',
+				'env',
+				'exec',
+				'linux',
+				'matcher',
+				'osx',
+				'powershell',
+				'timeout',
+				'timeoutSec',
+				'windows',
+			]);
+		});
+
+		test('github-copilot HTTP hook actions complete HTTP fields', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  preToolUse:',
+				'    - type: http',
+				'      |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, [
+				'allowedEnvVars',
+				'headers',
+				'matcher',
+				'timeout',
+				'timeoutSec',
+				'url',
+			]);
+		});
+
+		test('github-copilot startup prompt actions complete only prompt', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  sessionStart:',
+				'    - type: prompt',
+				'      |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, ['prompt']);
 		});
 
 		test('complete hook event names on empty line before existing hooks', async () => {

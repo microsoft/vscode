@@ -19,8 +19,6 @@ import { LocalizationsUpdater } from './contrib/localizationsUpdater.js';
 import { LogsDataCleaner } from './contrib/logsDataCleaner.js';
 import { UnusedWorkspaceStorageDataCleaner } from './contrib/storageDataCleaner.js';
 import { AgentHostMcpOAuthMetadataService, agentHostMcpOAuthMetadataChannelName } from '../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
-import { COPILOT_CONNECTORS_REQUEST_CHANNEL_NAME, CopilotConnectorsRequestChannel } from '../../../platform/copilotConnectors/common/copilotConnectorsIpc.js';
-import { CopilotConnectorsRequestService } from '../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { IChecksumService } from '../../../platform/checksum/common/checksumService.js';
 import { ChecksumService } from '../../../platform/checksum/node/checksumService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -96,6 +94,7 @@ import { ExtensionsScannerService } from '../../../platform/extensionManagement/
 import { ISSHRemoteAgentHostMainService, SSH_REMOTE_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService } from '../../../platform/agentHost/node/sshRemoteAgentHostService.js';
 import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostMainService } from '../../../platform/agentHost/common/devContainerAgentHost.js';
+import { createDevContainerAgentHostChannel } from '../../../platform/agentHost/common/devContainerAgentHostIpc.js';
 import { DevContainerAgentHostMainService } from '../../../platform/agentHost/node/devContainerAgentHostService.js';
 import { IWSLRemoteAgentHostMainService, WSL_REMOTE_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { WSLRemoteAgentHostMainService } from '../../../platform/agentHost/node/wslRemoteAgentHostService.js';
@@ -450,7 +449,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const instantiationService = accessor.get(IInstantiationService);
 		this._register(registerGitHubChannel(this.server, accessor.get(IGitHubService)));
 		this.server.registerChannel(agentHostMcpOAuthMetadataChannelName, ProxyChannel.fromService(instantiationService.createInstance(AgentHostMcpOAuthMetadataService), this._store));
-		this.server.registerChannel(COPILOT_CONNECTORS_REQUEST_CHANNEL_NAME, new CopilotConnectorsRequestChannel(() => instantiationService.createInstance(CopilotConnectorsRequestService)));
 
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
@@ -529,9 +527,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 		// Dev Container Agent Host
 		// Deliver inspection facts before a rejected connect RPC disposes its listeners.
-		const devContainerAgentHostChannel = ProxyChannel.fromService(accessor.get(IDevContainerAgentHostMainService), this._store, {
-			unbufferedEvents: ['onDidChangeSandboxSupport'],
-		});
+		const devContainerAgentHostChannel = createDevContainerAgentHostChannel(accessor.get(IDevContainerAgentHostMainService), this._store);
 		this.server.registerChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL, devContainerAgentHostChannel);
 
 		// WSL Remote Agent Host

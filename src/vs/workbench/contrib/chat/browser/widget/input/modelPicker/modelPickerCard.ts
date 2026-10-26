@@ -23,8 +23,8 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
-import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
-import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
+import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, getModelConfigValueLabel, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
+import { getCategoryLabel, getPriceCategoryLabel, getRoutingModelBadge, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
 import { getOrganizationDefaultDescription } from './modelPickerBadges.js';
 import { IModelPickerComparisonVariant } from './modelPickerComparison.js';
@@ -131,11 +131,12 @@ export interface IModelCardRoutingAlternative {
 	readonly label?: string;
 	/** The tier this alternative takes the place of; otherwise it follows the tiers. */
 	readonly replacesTier?: unknown;
+	/** Whether choosing the replaced tier saves that tier, which routes to this model, rather than selecting this model. */
+	readonly selectsTier?: boolean;
 	/** Shown below the tiers while the alternative is chosen. */
 	readonly description: string;
 	/** Describes the routing feature in the option's hover. */
 	readonly tooltip?: string;
-	readonly learnMoreUrl?: URI;
 	/** Whether the alternative is the model in use, rather than one of Auto's tiers. */
 	readonly selected: boolean;
 }
@@ -155,7 +156,7 @@ function modelChoicesEqual(a: IModelCardModelChoices | undefined, b: IModelCardM
 function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | undefined, b: readonly IModelCardRoutingAlternative[] | undefined): boolean {
 	return (a?.length ?? 0) === (b?.length ?? 0)
 		&& (a ?? []).every((alternative, index) => alternative.model === b?.[index].model && alternative.selected === b[index].selected
-			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier);
+			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier && alternative.selectsTier === b[index].selectsTier);
 }
 
 /**
@@ -173,6 +174,8 @@ export class ModelCard extends DisposableStore {
 	private _configurationChangeVersion = 0;
 	private _headerActions: ActionBar | undefined;
 	private _routingBadge: HTMLElement | undefined;
+	/** The effort level the routing badge describes: the one shown as selected, which a click changes before it saves. */
+	private _routingBadgeTier: unknown;
 	/** The pricing disclosure's button, rebuilt with the rest of the card on each render. */
 	private _pricingToggle: HTMLElement | undefined;
 	private _pricingChevron: HTMLElement | undefined;
@@ -226,7 +229,10 @@ export class ModelCard extends DisposableStore {
 		for (const [group, control] of this._groupControls) {
 			const property = getModelConfigProperty(options.model, options.configurationAccess, group, options.useModelConfigurationSchema);
 			if (property && Object.hasOwn(values, property.key)) {
-				control.setActiveItem(Math.max(0, property.schema.enum?.indexOf(values[property.key]) ?? -1));
+				const index = property.schema.enum?.indexOf(values[property.key]) ?? -1;
+				if (index >= 0) {
+					control.setActiveItem(index);
+				}
 			}
 		}
 		try {
@@ -299,6 +305,7 @@ export class ModelCard extends DisposableStore {
 		this._pricingBody = undefined;
 		this._headerActions = undefined;
 		this._routingBadge = undefined;
+		this._routingBadgeTier = undefined;
 		this._groupControls.clear();
 
 		const { model, isUBB, openerService } = this._options;
@@ -318,7 +325,7 @@ export class ModelCard extends DisposableStore {
 		}
 		// Without tiers to sit below, Auto's discount follows its description.
 		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
-			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent, undefined, !!metadata.autoModelFusion));
+			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent));
 		}
 
 		if (!isAuto) {
@@ -373,8 +380,12 @@ export class ModelCard extends DisposableStore {
 		const name = dom.append(header, dom.$('.chat-model-card-name', undefined, displayName));
 		this._contentDisposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), name, displayName));
 
-		if (this._options.routingAlternatives?.length) {
+		// Copilot Fusion's badge follows the effort level shown as selected.
+		const fusionTiers = isAutoModel(this._options.model) && !!metadata.autoModelFusion && !!this._configProperty(MODEL_CONFIG_GROUP_EFFORT);
+		if (this._options.routingAlternatives?.length || fusionTiers) {
 			this._routingBadge = this._renderBadge(header, '', false);
+			// The saved effort level, until the Effort Level control shows the one selected.
+			this._routingBadgeTier = this._configProperty(MODEL_CONFIG_GROUP_EFFORT)?.value;
 			this._updateRoutingBadge();
 		} else {
 			const badgeLabel = isRoutingModel
@@ -525,8 +536,9 @@ export class ModelCard extends DisposableStore {
 		];
 		const followingAlternatives = entries.length - choices.length;
 		const fusion = !!this._options.model.metadata.autoModelFusion;
-		// Fusion's tiers describe themselves below the control, so a hover would only repeat it.
-		const tooltip = (description: string | undefined) => isAuto && fusion && group === MODEL_CONFIG_GROUP_EFFORT ? undefined : description;
+		// Copilot Fusion's tiers describe themselves below the control, so a hover would only repeat it.
+		const describesTiersBelow = isAuto && fusion && group === MODEL_CONFIG_GROUP_EFFORT;
+		const tooltip = (description: string | undefined) => describesTiersBelow ? undefined : description;
 		const items = entries.map(({ choice, alternative }, index): IRadioOptionItem => {
 			if (!alternative) {
 				const { label, description, checked, readOnly, unavailable } = choice!;
@@ -563,53 +575,63 @@ export class ModelCard extends DisposableStore {
 			};
 		});
 		const section = this._renderSection(title);
+		const usesModelDefault = !isAuto && group === MODEL_CONFIG_GROUP_EFFORT && property.value === undefined;
+		if (usesModelDefault && dom.isHTMLElement(section.firstElementChild)) {
+			dom.append(section.firstElementChild, dom.$('span.chat-model-card-section-value', undefined, getModelConfigValueLabel(property.schema, undefined)));
+		}
 		const control = this._contentDisposables.add(new Radio({
-			ariaLabel: title,
+			ariaLabel: usesModelDefault ? localize('chat.modelPicker.defaultEffortAria', "{0}: model default", title) : title,
 			className: 'segmented',
+			allowNoSelection: usesModelDefault,
 			// Arrow keys move focus without changing the model's configuration.
 			arrowKeyBehavior: 'focus',
 			items,
 		}));
 		const alternativeDescriptions = new Map<IModelCardRoutingAlternative, HTMLElement>();
-		const discountFor = (choice: typeof choices[number] | undefined) => isAuto && group === MODEL_CONFIG_GROUP_EFFORT
-			? ILanguageModelChatMetadata.getAutoTierDiscountPercent(this._options.model.metadata, choice?.value)
-			: undefined;
-		let discountDescription: HTMLElement | undefined;
-		let discountTierLabel: string | undefined;
-		let discountTierPercent: number | undefined;
-		const discountStore = this._contentDisposables.add(new MutableDisposable<DisposableStore>());
-		// Names the tier shown as selected, which a click changes before its value saves.
+		// Copilot Fusion describes the selected tier, whose discount its badge shows. Auto describes the tier's discount.
+		const tierDescriptionFor = (choice: typeof choices[number] | undefined): string | undefined => {
+			if (describesTiersBelow) {
+				return choice && !choice.unavailable ? choice.description : undefined;
+			}
+			const discountPercent = isAuto && group === MODEL_CONFIG_GROUP_EFFORT
+				? ILanguageModelChatMetadata.getAutoTierDiscountPercent(this._options.model.metadata, choice?.value)
+				: undefined;
+			return discountPercent === undefined ? undefined : ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, choice?.label);
+		};
+		let tierDescription: HTMLElement | undefined;
+		let tierDescriptionText: string | undefined;
+		const tierDescriptionStore = this._contentDisposables.add(new MutableDisposable<DisposableStore>());
+		// Describes the tier shown as selected, which a click changes before its value saves.
 		// A failed save re-renders the card, which puts back the saved tier.
-		const renderDiscountDescription = (choice: typeof choices[number] | undefined, hidden: boolean) => {
-			const discountPercent = discountFor(choice);
-			const tierLabel = choice?.label;
-			if (discountPercent === undefined) {
-				if (discountDescription) {
-					discountDescription.hidden = true;
+		const renderTierDescription = (choice: typeof choices[number] | undefined, hidden: boolean) => {
+			const text = tierDescriptionFor(choice);
+			if (!text) {
+				if (tierDescription) {
+					tierDescription.hidden = true;
 				}
 				return;
 			}
-			if (discountDescription && tierLabel === discountTierLabel && discountPercent === discountTierPercent) {
-				discountDescription.hidden = hidden;
+			if (tierDescription && text === tierDescriptionText) {
+				tierDescription.hidden = hidden;
 				return;
 			}
 			const store = new DisposableStore();
-			const next = renderModelDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, tierLabel, fusion), this._options.openerService, store).element;
-			next.classList.add('chat-model-card-description', 'chat-model-card-discount-description');
+			const next = renderModelDescription(text, this._options.openerService, store).element;
+			next.classList.add('chat-model-card-description', describesTiersBelow ? 'chat-model-card-tier-description' : 'chat-model-card-discount-description');
 			next.hidden = hidden;
-			if (discountDescription) {
-				discountDescription.replaceWith(next);
+			if (tierDescription) {
+				tierDescription.replaceWith(next);
 			} else {
 				section.appendChild(next);
 			}
-			discountDescription = next;
-			discountTierLabel = tierLabel;
-			discountTierPercent = discountPercent;
-			discountStore.value = store;
+			tierDescription = next;
+			tierDescriptionText = text;
+			tierDescriptionStore.value = store;
 		};
 		const onDidChoose = isAuto ? control.onDidActivate : control.onDidSelect;
 		this._contentDisposables.add(onDidChoose(index => {
-			const { choice, alternative } = entries[index] ?? {};
+			const { choice, alternative: entryAlternative } = entries[index] ?? {};
+			const alternative = entryAlternative?.selectsTier && choice ? undefined : entryAlternative;
 			if (alternative) {
 				this._selectVariant(alternative.model, control).catch(onUnexpectedError);
 			} else if (choice) {
@@ -619,29 +641,37 @@ export class ModelCard extends DisposableStore {
 				element.hidden = candidate !== alternative;
 			}
 			if (choice && !alternative) {
-				renderDiscountDescription(choice, false);
-			} else if (discountDescription) {
-				discountDescription.hidden = true;
+				renderTierDescription(choice, false);
+				if (isAuto && group === MODEL_CONFIG_GROUP_EFFORT) {
+					this._routingBadgeTier = choice.value;
+					this._showRoutingBadge(getRoutingModelBadge(this._options.model.metadata, choice.value));
+				}
+			} else if (tierDescription) {
+				tierDescription.hidden = true;
 			}
 		}));
 		this._groupControls.set(group, control);
 		section.appendChild(control.domNode);
-		renderDiscountDescription(choices.find(choice => choice.checked), !!selectedAlternative);
+		renderTierDescription(choices.find(choice => choice.checked), !!selectedAlternative);
+		if (isAuto && group === MODEL_CONFIG_GROUP_EFFORT) {
+			this._routingBadgeTier = choices.find(choice => choice.checked)?.value;
+			this._updateRoutingBadge();
+		}
 		for (const alternative of alternatives) {
-			const element = renderModelDescription(alternative.description, this._options.openerService, this._contentDisposables, alternative.learnMoreUrl).element;
+			const element = renderModelDescription(alternative.description, this._options.openerService, this._contentDisposables).element;
 			element.classList.add('chat-model-card-description', 'chat-model-card-alternative-description');
 			element.hidden = !alternative.selected;
 			section.appendChild(element);
 			alternativeDescriptions.set(alternative, element);
 		}
-		// Disabled options can't take focus, so their reason is also shown as text for keyboard and screen reader users.
-		for (const choice of choices) {
-			if (choice.unavailable) {
-				const reason = choice.description
-					? localize('chat.modelPicker.unavailableOption', "{0}: {1}", choice.label, choice.description)
-					: localize('chat.modelPicker.unavailableOptionNoReason', "{0} is not available.", choice.label);
-				section.appendChild(dom.$('.chat-model-card-description.chat-model-card-unavailable-description', undefined, reason));
-			}
+		// Unavailable options show their reason on hover. They can't take focus, so the group also describes them for screen readers.
+		const unavailableReasons = choices.filter(choice => choice.unavailable).map(choice => choice.description
+			? localize('chat.modelPicker.unavailableOption', "{0}: {1}", choice.label, choice.description)
+			: localize('chat.modelPicker.unavailableOptionNoReason', "{0} is not available.", choice.label));
+		if (unavailableReasons.length) {
+			control.domNode.setAttribute('aria-description', unavailableReasons.join(' '));
+		} else {
+			control.domNode.removeAttribute('aria-description');
 		}
 	}
 
@@ -713,30 +743,29 @@ export class ModelCard extends DisposableStore {
 			.flatMap(choice => {
 				const promotion = ILanguageModelChatMetadata.getAutoTierPromotion(metadata, choice.value, now);
 				return promotion && !shown.has(promotion.id) && shown.add(promotion.id) ? [promotion] : [];
-			})
-			.sort((a, b) => Number(ILanguageModelChatMetadata.isAutoTierPromotionUpcoming(a, now)) - Number(ILanguageModelChatMetadata.isAutoTierPromotionUpcoming(b, now)));
-		for (const { message, ...promotion } of promotions) {
-			// A discount-only promotion shows only in the discount line.
+			});
+		for (const { message } of promotions) {
+			// A discount-only promotion shows only in the badge.
 			if (!message) {
 				continue;
 			}
-			const when = ILanguageModelChatMetadata.isAutoTierPromotionUpcoming(promotion, now)
-				? ILanguageModelChatMetadata.getPromoStartsAtLabel(promotion.startsAt)
-				: ILanguageModelChatMetadata.getPromoEndsAtLabel(promotion.endsAt);
-			const banner = createMessageBanner(when ? `${message} ${when}` : message, 'chat-model-hover-promo-text', Codicon.info, this._contentDisposables, this._options.openerService);
+			// The service's message already says when the promotion runs.
+			const banner = createMessageBanner(message, 'chat-model-hover-promo-text', Codicon.info, this._contentDisposables, this._options.openerService);
 			banner.classList.add('chat-model-card-tier-promotion');
 			this.element.appendChild(banner);
 		}
 	}
 
-	/** Shows the chosen alternative's badge, otherwise the routing model's own. */
+	/** Shows the chosen alternative's badge, otherwise the routing model's own at the effort level shown as selected. */
 	private _updateRoutingBadge(): void {
-		const alternatives = this._options.routingAlternatives;
-		const badge = this._routingBadge;
-		if (alternatives?.length && badge) {
-			const label = (alternatives.find(alternative => alternative.selected)?.model ?? this._options.model).metadata.detail;
-			badge.textContent = label ?? '';
-			badge.hidden = !label;
+		const alternative = this._options.routingAlternatives?.find(alternative => alternative.selected);
+		this._showRoutingBadge(alternative ? alternative.model.metadata.detail : getRoutingModelBadge(this._options.model.metadata, this._routingBadgeTier));
+	}
+
+	private _showRoutingBadge(label: string | undefined): void {
+		if (this._routingBadge) {
+			this._routingBadge.textContent = label ?? '';
+			this._routingBadge.hidden = !label;
 		}
 	}
 

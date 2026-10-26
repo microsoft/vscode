@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as cp from 'child_process';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
+import { pathToFileURL } from 'url';
 import { promisify } from 'util';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
@@ -82,7 +83,7 @@ suite('LocalGitService', () => {
 			}
 		}
 		const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
-			args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
+			args: ['clone', '--depth', '1', '--', 'https://github.com/test/private.git', '/tmp/private'],
 			environment: {
 				GIT_TRACE2: '0',
 				GIT_TRACE2_EVENT: '0',
@@ -107,12 +108,25 @@ suite('LocalGitService', () => {
 		assert.strictEqual(expectations.length, 0);
 	});
 
-	test('clone fetches and checks out a full commit SHA', async () => {
+	for (const ref of [undefined, 'main', 'v1.0.0']) {
+		test(`clone limits history for ${ref ?? 'the default branch'}`, async () => {
+			const expectations: IExecFileExpectation[] = [{
+				args: ['clone', '--depth', '1', ...(ref ? ['--branch', ref] : []), '--', 'https://github.com/test/repo.git', '/tmp/repo'],
+			}];
+			const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+			await service.clone('test-op', 'https://github.com/test/repo.git', '/tmp/repo', ref);
+
+			assert.strictEqual(expectations.length, 0);
+		});
+	}
+
+	test('clone shallowly fetches and checks out a full commit SHA', async () => {
 		const commit = 'AABBCCDDEEFF00112233445566778899AABBCCDD';
 		const normalizedCommit = commit.toLowerCase();
 		const expectations: IExecFileExpectation[] = [
-			{ args: ['clone', '--', 'https://github.com/test/repo.git', '/tmp/repo'] },
-			{ args: ['fetch', 'origin', normalizedCommit] },
+			{ args: ['clone', '--depth', '1', '--no-checkout', '--', 'https://github.com/test/repo.git', '/tmp/repo'] },
+			{ args: ['fetch', '--depth', '1', 'origin', normalizedCommit] },
 			{ args: ['rev-parse', `${normalizedCommit}^{commit}`], stdout: `${normalizedCommit}\n` },
 			{ args: ['checkout', '--detach', normalizedCommit] },
 			{ args: ['rev-parse', 'HEAD'], stdout: `${normalizedCommit}\n` },
@@ -132,8 +146,8 @@ suite('LocalGitService', () => {
 		await fs.mkdir(targetPath);
 		const checkoutError = new Error('Commit is unavailable');
 		const expectations: IExecFileExpectation[] = [
-			{ args: ['clone', '--', 'https://github.com/test/repo.git', targetPath] },
-			{ args: ['fetch', 'origin', commit] },
+			{ args: ['clone', '--depth', '1', '--no-checkout', '--', 'https://github.com/test/repo.git', targetPath] },
+			{ args: ['fetch', '--depth', '1', 'origin', commit] },
 			{ args: ['rev-parse', `${commit}^{commit}`], error: checkoutError },
 		];
 		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
@@ -150,14 +164,89 @@ suite('LocalGitService', () => {
 		const targetPath = join(parentPath, 'repo');
 		await fs.mkdir(targetPath);
 		const expectations: IExecFileExpectation[] = [
-			{ args: ['clone', '--', 'https://github.com/test/repo.git', targetPath] },
-			{ args: ['fetch', 'origin', commit], error: new CancellationError() },
+			{ args: ['clone', '--depth', '1', '--no-checkout', '--', 'https://github.com/test/repo.git', targetPath] },
+			{ args: ['fetch', '--depth', '1', 'origin', commit], error: new CancellationError() },
 		];
 		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
 
 		await assert.rejects(service.clone('test-op', 'https://github.com/test/repo.git', targetPath, commit), isCancellationError);
 		await assert.rejects(fs.stat(targetPath), error => (error as NodeJS.ErrnoException).code === 'ENOENT');
 		assert.strictEqual(expectations.length, 0);
+	});
+
+	suite('shallow repositories', () => {
+		let remotePath: string;
+		let repoPath: string;
+		let pinnedCommit: string;
+		let latestCommit: string;
+		const service = new LocalGitService(new NullLogService());
+
+		async function runGit(cwd: string, ...args: string[]): Promise<string> {
+			const { stdout } = await execFile('git', ['-C', cwd, ...args], { encoding: 'utf8' });
+			return stdout.trim();
+		}
+
+		async function commit(content: string): Promise<string> {
+			await fs.writeFile(join(remotePath, 'payload.txt'), content);
+			await runGit(remotePath, 'add', 'payload.txt');
+			await runGit(remotePath, '-c', 'user.name=VS Code Test', '-c', 'user.email=vscode-test@example.com', 'commit', '-m', content);
+			return runGit(remotePath, 'rev-parse', 'HEAD');
+		}
+
+		setup(async () => {
+			const root = await fs.mkdtemp(join(tmpdir(), 'vscode-plugin-git-shallow-'));
+			temporaryDirectories.push(root);
+			remotePath = join(root, 'remote');
+			repoPath = join(root, 'clone');
+			await fs.mkdir(remotePath);
+			await runGit(remotePath, 'init', '--initial-branch=main');
+			pinnedCommit = await commit('pinned content');
+			await runGit(remotePath, '-c', 'user.name=VS Code Test', '-c', 'user.email=vscode-test@example.com', 'tag', '-a', 'v1.0.0', '-m', 'release');
+			await commit('intermediate content');
+			latestCommit = await commit('latest content');
+		});
+
+		for (const ref of [undefined, 'main', 'v1.0.0']) {
+			test(`clones ${ref ?? 'the default branch'} without its history`, async () => {
+				await service.clone('clone-op', pathToFileURL(remotePath).toString(), repoPath, ref);
+
+				assert.deepStrictEqual({
+					head: await service.revParse(repoPath, 'HEAD'),
+					count: await runGit(repoPath, 'rev-list', '--all', '--count'),
+					shallow: await runGit(repoPath, 'rev-parse', '--is-shallow-repository'),
+				}, {
+					head: ref === 'v1.0.0' ? pinnedCommit : latestCommit,
+					count: '1',
+					shallow: 'true',
+				});
+
+				if (ref === 'v1.0.0') {
+					assert.strictEqual(await service.pull('pull-op', repoPath, { skipDetachedHead: true }), false);
+				} else {
+					const nextCommit = await commit('updated content');
+					await service.fetch('fetch-op', repoPath);
+					assert.strictEqual(await service.revListCount(repoPath, 'HEAD', '@{u}'), 1);
+					const changed = await service.pull('pull-op', repoPath, { skipDetachedHead: true });
+					assert.deepStrictEqual({
+						changed,
+						head: await service.revParse(repoPath, 'HEAD'),
+						content: await fs.readFile(join(repoPath, 'payload.txt'), 'utf8'),
+					}, { changed: true, head: nextCommit, content: 'updated content' });
+				}
+			}).timeout(20_000);
+		}
+
+		test('fetches an older pinned commit outside the shallow history', async () => {
+			await service.clone('clone-op', pathToFileURL(remotePath).toString(), repoPath, pinnedCommit.toUpperCase());
+
+			assert.deepStrictEqual({
+				head: await service.revParse(repoPath, 'HEAD'),
+				count: await runGit(repoPath, 'rev-list', 'HEAD', '--count'),
+				shallow: await runGit(repoPath, 'rev-parse', '--is-shallow-repository'),
+				branch: await runGit(repoPath, 'rev-parse', '--abbrev-ref', 'HEAD'),
+				content: await fs.readFile(join(repoPath, 'payload.txt'), 'utf8'),
+			}, { head: pinnedCommit, count: '1', shallow: 'true', branch: 'HEAD', content: 'pinned content' });
+		}).timeout(20_000);
 	});
 
 	test('authenticated Git removes tracing variables case-insensitively', async () => {
@@ -170,7 +259,7 @@ suite('LocalGitService', () => {
 		Object.assign(process.env, inherited);
 		try {
 			const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
-				args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
+				args: ['clone', '--depth', '1', '--', 'https://github.com/test/private.git', '/tmp/private'],
 				absentEnvironment: Object.keys(inherited),
 			}];
 			const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
@@ -212,7 +301,7 @@ suite('LocalGitService', () => {
 		});
 		try {
 			const expectations: IExecFileExpectation[] = [{ args: ['--version'], stdout: 'git version 2.31.0\n' }, {
-				args: ['clone', '--', 'https://github.com/test/private.git', '/tmp/private'],
+				args: ['clone', '--depth', '1', '--', 'https://github.com/test/private.git', '/tmp/private'],
 				environment: {
 					GIT_CONFIG_COUNT: '3',
 					GIT_CONFIG_KEY_0: 'http.proxy',

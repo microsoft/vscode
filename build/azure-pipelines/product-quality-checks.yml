@@ -1,3 +1,10 @@
+parameters:
+  # Hygiene and ESLint check only the files that the commits of the build change, unless a change can affect other
+  # files (see build/lib/changedFiles.ts). Other builds check every file.
+  - name: VSCODE_CHECK_CHANGED_FILES
+    type: boolean
+    default: false
+
 jobs:
   - job: Quality
     displayName: Quality Checks
@@ -40,6 +47,7 @@ jobs:
           path: .build/node_modules_cache
           cacheHitVar: NODE_MODULES_RESTORED
         displayName: Restore node_modules cache
+        retryCountOnTaskFailure: 2
 
       - script: tar -xzf .build/node_modules_cache/cache.tgz
         condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
@@ -142,10 +150,31 @@ jobs:
 
       - template: ./common/mixin-vscode-capi.yml@self
 
-      - script: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
-        env:
-          GITHUB_TOKEN: "$(github-token-code-oss)"
-        displayName: Compile & Hygiene
+      - ${{ if eq(parameters.VSCODE_CHECK_CHANGED_FILES, true) }}:
+        - script: node build/azure-pipelines/common/computeChangedSince.ts
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          displayName: Determine hygiene and ESLint scope
+
+        # With VSCODE_CHANGED_SINCE, hygiene and ESLint check only the files that changed since that commit, so they
+        # take seconds and fail the job before the compilation checks start. --continue-on-error reports both when both
+        # fail. ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
+        - script: |
+            set -e
+            changed_since="${VSCODE_CHANGED_SINCE:+ -- --changed-since $VSCODE_CHANGED_SINCE}"
+            npm exec -- npm-run-all2 -lp --continue-on-error "hygiene$changed_since" "eslint$changed_since"
+          displayName: Hygiene & ESLint
+
+        - script: npm exec -- npm-run-all2 -lp core-ci valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+          env:
+            GITHUB_TOKEN: "$(github-token-code-oss)"
+          displayName: Compile
+
+      - ${{ else }}:
+        - script: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+          env:
+            GITHUB_TOKEN: "$(github-token-code-oss)"
+          displayName: Compile & Hygiene
 
       - script: npm run download-builtin-extensions-cg
         displayName: Download component details of built-in extensions

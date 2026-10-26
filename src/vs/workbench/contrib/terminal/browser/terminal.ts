@@ -137,10 +137,21 @@ export interface IChatTerminalToolProgressPart {
 	getCommandAndOutputAsText(): string | undefined;
 }
 
+/** Where the retained output of a {@link IChatTerminalOutputSource} sits in its stream. */
+export interface IChatTerminalOutputPosition {
+	/** Changes whenever the output is replaced rather than appended to. Sources never share one, so a renderer that switches sources starts over. */
+	readonly generation: number;
+	/** How many characters of the stream were dropped before the retained output. */
+	readonly start: number;
+}
+
 /** A read-only output stream rendered by chat without a workbench terminal instance. */
 export interface IChatTerminalOutputSource {
 	readonly onDidChange: Event<void>;
+	/** The retained output. Once the stream outgrows the retention limit, its oldest output is dropped. */
 	readonly output: string;
+	/** Lets a renderer that already shows earlier output write only what was appended since. */
+	readonly outputPosition: IChatTerminalOutputPosition;
 	/**
 	 * Whether the underlying command has finished. A command can exit without
 	 * reporting an {@link exitCode}, so completion must be read from here
@@ -1365,7 +1376,8 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * Sets or triggers a quick pick to change the icon of this terminal.
 	 */
-	changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined>;
+	/** `null` resets the icon; `undefined` opens the picker or reports cancellation. */
+	changeIcon(icon?: TerminalIcon | null): Promise<TerminalIcon | null | undefined>;
 
 	/**
 	 * Sets or triggers a quick pick to change the color of the associated terminal tab icon.

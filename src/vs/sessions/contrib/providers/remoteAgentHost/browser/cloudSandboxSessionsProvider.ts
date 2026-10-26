@@ -16,7 +16,7 @@ import { StorageScope, StorageTarget } from '../../../../../platform/storage/com
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-import { resolveCloudSandboxSessionConfig } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
+import { resolveCloudSandboxSessionConfig, validateCloudSandboxModelConfig } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { readSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -39,6 +39,15 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	/** Sandboxes are per-session environments, not persistent Automation hosts. */
 	override get automations(): undefined { return undefined; }
+
+	/** Cloud sandbox storage is managed by the sandbox lifecycle, not worktree cleanup. */
+	override async getSessionWorktreeDiskUsage(_sessionId: string, _token = CancellationToken.None): Promise<number | undefined> {
+		return undefined;
+	}
+
+	protected override _validateBeforeCreate(): void {
+		throw new Error(localize('cloudSandbox.creationUnavailable', "Start new cloud sessions from the Cloud environment."));
+	}
 
 	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata | undefined {
 		const adopted = super._adoptCachedSessionMeta(meta);
@@ -78,9 +87,16 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return resolveCloudSandboxSessionConfig(connection, values, token);
 	}
 
-	protected override _adapterOptions() {
+	async validateInitialModelConfig(modelId: string, values: Readonly<Record<string, unknown>>, token: CancellationToken): Promise<void> {
+		if (!this.connection) {
+			throw new Error(localize('cloudSandbox.configUnavailable', "The sandbox connection is unavailable. Your prompt was not sent."));
+		}
+		await validateCloudSandboxModelConfig(this.connection, modelId, values, token);
+	}
+
+	protected override _adapterOptions(agentProvider: string) {
 		return {
-			...super._adapterOptions(),
+			...super._adapterOptions(agentProvider),
 			preserveStatusWhenDisconnected: true,
 			useSessionTitleForDefaultChat: true,
 			isSessionTitlePlaceholder: (title: string, session: URI) => session.scheme === CLOUD_SANDBOX_SESSION_SCHEME && title === AgentSession.id(session),
@@ -253,7 +269,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	override async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean> {
-		if (this.connection) {
+		if (this.connection && this.getBackendChatResource(chatResource)) {
 			return super.setChatReadState(sessionId, chatResource, isRead);
 		}
 		const sessionKey = this._sessionKeyFromChatId(sessionId);
@@ -266,7 +282,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			return true;
 		}
 		session.setChatRead(chatResource, isRead);
-		// Recorded conversations remain readable even when their compute can no longer reconnect.
+		// A connected environment may no longer host this recorded conversation.
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		return true;
 	}

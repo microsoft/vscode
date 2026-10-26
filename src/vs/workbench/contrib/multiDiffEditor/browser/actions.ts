@@ -26,7 +26,7 @@ import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../services/
 import { ActiveEditorContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { createMultiDiffEditorLayoutDebugModel, isMultiDiffEditorLayoutDebugStateProvider } from './multiDiffEditorLayoutDebug.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPosition, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, multiDiffEditorExperimentalFileListSetting, setMultiDiffEditorFileListPosition, setMultiDiffEditorFileListViewMode, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPosition, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, MultiDiffEditorFilesViewAndPositionMenu, setMultiDiffEditorFileListPosition, setMultiDiffEditorFileListViewMode, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -37,16 +37,12 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(MultiDiffEditor.ID), IsSessionsWindowContext.toNegated()),
 });
 
-const filesViewAndPositionMenu = new MenuId('MultiDiffEditorFilesViewAndPosition');
-const filesViewWhen = ContextKeyExpr.and(
-	ActiveEditorContext.isEqualTo(MultiDiffEditor.ID),
-	ContextKeyExpr.has(`config.${multiDiffEditorExperimentalFileListSetting}`),
-	MultiDiffEditorFileListAvailableContext,
-	IsSessionsWindowContext.toNegated(),
-);
+// The Agents window offers Toggle Details instead of Toggle Files, and contributes
+// the Files View & Position submenu to its own editor title menu.
+const filesViewWhen = ContextKeyExpr.and(ActiveMultiDiffEditorHasFileListContext, IsSessionsWindowContext.toNegated());
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	submenu: filesViewAndPositionMenu,
+	submenu: MultiDiffEditorFilesViewAndPositionMenu,
 	title: localize('filesViewAndPosition', "Files View & Position"),
 	group: 'z_files',
 	when: filesViewWhen,
@@ -260,9 +256,9 @@ abstract class SetFileListViewModeAction extends Action2 {
 			id,
 			title,
 			toggled: MultiDiffEditorFileListViewModeContext.isEqualTo(_viewMode),
-			precondition: filesViewWhen,
+			precondition: ActiveMultiDiffEditorHasFileListContext,
 			menu: {
-				id: filesViewAndPositionMenu,
+				id: MultiDiffEditorFilesViewAndPositionMenu,
 				group: '1_view',
 				order: _viewMode === 'list' ? 1 : 2,
 			},
@@ -292,9 +288,9 @@ abstract class SetFileListPositionAction extends Action2 {
 			id,
 			title,
 			toggled: MultiDiffEditorFileListPositionContext.isEqualTo(_position),
-			precondition: filesViewWhen,
+			precondition: ActiveMultiDiffEditorHasFileListContext,
 			menu: {
-				id: filesViewAndPositionMenu,
+				id: MultiDiffEditorFilesViewAndPositionMenu,
 				group: '2_position',
 				order: _position === 'left' ? 1 : 2,
 			},

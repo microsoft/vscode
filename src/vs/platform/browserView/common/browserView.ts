@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -163,12 +164,13 @@ export interface IBrowserViewWindowConfiguration {
 	/** Maximum number of entries to retain per browser session history. */
 	readonly maxHistoryEntries?: number;
 	/**
-	 * Resolved tunnel-proxy credentials for the window's remote browser views,
-	 * produced by the window's local node extension host (which hosts the HTTPS
-	 * tunnel proxy). `undefined` until the proxy has started, or when no proxy
-	 * is used. Applied to the Electron sessions of the window's remote views.
+	 * Tunnel-proxy credentials for each {@link IBrowserViewNetwork} the
+	 * window's views use, keyed by {@link IBrowserViewNetwork.authority}.
+	 * Produced by the window's local extension host, which hosts the proxy
+	 * servers. Applied to the Electron sessions of views whose storage is bound
+	 * to that network; other views always use the local network.
 	 */
-	readonly proxyInfo?: ITunnelProxyInfo;
+	readonly networkProxies?: { readonly [authority: string]: ITunnelProxyInfo };
 	/**
 	 * The window's contribution to the `file://` allowlist used by integrated
 	 * browser sessions. Main unions every window's contribution into a
@@ -275,6 +277,16 @@ export const enum BrowserViewPresentation {
 	Unlisted = 'unlisted',
 }
 
+export function getBrowserViewPopupAction(presentation: BrowserViewPresentation, url: string, hasRecentUserGesture: boolean): { action: 'integrated' | 'external' | 'deny'; consumeUserGesture: boolean } {
+	if (presentation === BrowserViewPresentation.Listed) {
+		return { action: 'integrated', consumeUserGesture: false };
+	}
+	if (hasRecentUserGesture && matchesSomeScheme(url, Schemas.http, Schemas.https)) {
+		return { action: 'external', consumeUserGesture: true };
+	}
+	return { action: 'deny', consumeUserGesture: false };
+}
+
 /**
  * Summary information about a browser view, including its current state and
  * ownership. Returned by the main service when listing or creating views.
@@ -354,12 +366,12 @@ export interface IBrowserViewState {
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
 	certificateError: IBrowserViewCertificateError | undefined;
-	storageScope: BrowserViewStorageScope;
+	/** The browser session the view uses: its storage and network. */
+	session: IBrowserViewSessionOptions;
 	storageKeys: IBrowserViewStorageKeys;
 	permissions: ISerializedBrowserPermissionsSnapshot;
 	browserZoomIndex: number;
 	elementSelectionState: IBrowserElementSelectionState;
-	isRemoteSession: boolean;
 	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
 	audiences: IBrowserViewAudience[];
@@ -460,15 +472,52 @@ export enum BrowserViewStorageScope {
 	Agent = 'agent'
 }
 
+/**
+ * A remote network that a browser view's traffic goes through instead of the
+ * local network, such as the remote of a remote workspace window. Storage is
+ * never used by two networks at once. Global storage is shared by every
+ * window and never uses a remote network.
+ */
+export interface IBrowserViewNetwork {
+	/** Identifies the network, e.g. the window's remote authority. */
+	readonly authority: string;
+}
+
+/** Identifies a browser session: its storage scope, the affinity that selects it within that scope, and its network. */
 export type IBrowserViewSessionOptions =
 	| { readonly scope: BrowserViewStorageScope.Global }
-	| { readonly scope: BrowserViewStorageScope.Workspace }
-	| { readonly scope: BrowserViewStorageScope.Ephemeral }
+	| {
+		readonly scope: BrowserViewStorageScope.Workspace;
+		/** Selects shared workspace storage for views on a network other than the host window's. */
+		readonly affinity?: string;
+		readonly network?: IBrowserViewNetwork;
+	}
+	| { readonly scope: BrowserViewStorageScope.Ephemeral; readonly network?: IBrowserViewNetwork }
 	| {
 		readonly scope: BrowserViewStorageScope.Agent;
 		/** Views with the same affinity share one in-memory browser session. */
 		readonly affinity?: string;
+		readonly network?: IBrowserViewNetwork;
 	};
+
+/** The remote network requested by session options; global storage never uses one. */
+export function getBrowserViewSessionNetwork(options: IBrowserViewSessionOptions): IBrowserViewNetwork | undefined {
+	return options.scope !== BrowserViewStorageScope.Global ? options.network : undefined;
+}
+
+/** Keep only the network and affinity supported by the storage scope. */
+export function toBrowserViewSessionOptions(scope: BrowserViewStorageScope, affinity: string | undefined, network: IBrowserViewNetwork | undefined): IBrowserViewSessionOptions {
+	const networkOption = network ? { network } : {};
+	switch (scope) {
+		case BrowserViewStorageScope.Global:
+			return { scope };
+		case BrowserViewStorageScope.Ephemeral:
+			return { scope, ...networkOption };
+		case BrowserViewStorageScope.Workspace:
+		case BrowserViewStorageScope.Agent:
+			return { scope, ...(affinity !== undefined ? { affinity } : {}), ...networkOption };
+	}
+}
 
 export function isInMemoryStorageScope(scope: BrowserViewStorageScope): boolean {
 	return scope === BrowserViewStorageScope.Ephemeral || scope === BrowserViewStorageScope.Agent;
@@ -481,13 +530,11 @@ export function isBrowserViewStorageScopeShareableWithAgent(scope: BrowserViewSt
 /** Selects an existing browser context by ID or resolves one from storage options. */
 export type BrowserViewSessionSelector = string | IBrowserViewSessionOptions;
 
-export function getAgentBrowserViewCreationDefaults(sessionId: string, storageAffinity?: string) {
+export function getAgentBrowserViewCreationDefaults(sessionId: string, storageAffinity?: string, network?: IBrowserViewNetwork) {
 	return {
 		owner: { type: 'agent', sessionId } as const,
 		initialAudiences: [{ type: 'agent' }] as const,
-		session: storageAffinity === undefined
-			? { scope: BrowserViewStorageScope.Agent } as const
-			: { scope: BrowserViewStorageScope.Agent, affinity: storageAffinity } as const
+		session: { scope: BrowserViewStorageScope.Agent, affinity: storageAffinity, network } as const,
 	};
 }
 
@@ -540,10 +587,10 @@ export interface BrowserViewEventData {
 	onDidPickArea: IBrowserViewRect | undefined;
 	onDidChangeAreaSelectionActive: boolean;
 	onDidChangeDeviceEmulation: IBrowserDeviceProfile | undefined;
-	onDidChangeRemoteStatus: boolean;
 	onDidChangeAudiences: IBrowserViewAudience[];
 	onDidRequestPermission: IBrowserViewPermissionRequestEvent;
 	onDidChangePermissions: ISerializedBrowserPermissionsSnapshot;
+	onDidRequestOpenExternal: string;
 }
 
 export type BrowserViewEventMap = { [K in keyof BrowserViewEventData]: Event<BrowserViewEventData[K]> };
@@ -725,7 +772,8 @@ export interface IBrowserViewService {
 	clearGlobalStorage(): Promise<void>;
 
 	/**
-	 * Clear all storage data for a specific workspace browser session
+	 * Clear all storage data for a specific workspace browser session,
+	 * including every partition selected by an affinity within it
 	 * @param workspaceId The workspace identifier
 	 */
 	clearWorkspaceStorage(workspaceId: string): Promise<void>;

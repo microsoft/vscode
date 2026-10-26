@@ -9,6 +9,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
@@ -72,6 +73,7 @@ export class SessionComparisonResult extends Disposable {
 
 	readonly domNode = dom.$('.session-comparison-result');
 	private readonly renderStore = this._register(new DisposableStore());
+	private readonly hoverLifecycleOptions = { groupId: generateUuid() };
 	private readonly titleId = `session-comparison-result-title-${generateUuid()}`;
 	private announcedComparisonId: string | undefined;
 	private renderedComparisonId: string | undefined;
@@ -389,7 +391,7 @@ export class SessionComparisonResult extends Disposable {
 			open.type = 'button';
 			open.setAttribute('aria-label', openLabel);
 			open.append(renderIcon(Codicon.arrowRight));
-			this.renderStore.add(this.hoverService.setupDelayedHover(open, { content: openLabel }));
+			this.renderStore.add(this.hoverService.setupDelayedHover(open, { content: openLabel, style: HoverStyle.Pointer }, this.hoverLifecycleOptions));
 			this.renderStore.add(dom.addDisposableListener(open, dom.EventType.CLICK, () => this.focusAttempt(comparison, attempt)));
 		}
 
@@ -466,7 +468,7 @@ export class SessionComparisonResult extends Disposable {
 			item.append(renderValidationGlyph(evidence));
 			dom.append(item, dom.$('span.session-comparison-scorecard-check-item-label')).textContent = describeCheckOutcome(check.label, evidence);
 			const description = describeValidation(check.label, evidence, getValidationCheckPurpose(check.key));
-			this.renderStore.add(this.hoverService.setupDelayedHover(item, { content: description }, { setupKeyboardEvents: true }));
+			this.renderStore.add(this.hoverService.setupDelayedHover(item, { content: description, style: HoverStyle.Pointer }, { ...this.hoverLifecycleOptions, setupKeyboardEvents: true }));
 		}
 	}
 

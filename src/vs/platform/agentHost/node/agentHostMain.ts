@@ -14,6 +14,7 @@ import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
+import { writeSync } from 'fs';
 import * as inspector from 'inspector';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
@@ -57,21 +58,57 @@ import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFile
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, createAgentHostClientByokLmConnection } from '../common/agentHostClientByokLmChannel.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, createAgentHostClientProxyConnection } from '../common/agentHostClientProxyChannel.js';
-import { join } from '../../../base/common/path.js';
+import { dirname, join } from '../../../base/common/path.js';
+import { FileAccess } from '../../../base/common/network.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostLaunchKindEnvVar, readAgentHostLaunchKind, type AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { markNodeCompileCacheReady } from '../../../base/node/nodeCompileCache.js';
+import { formatAgentHostExit, formatAgentHostStartupFailure, identifyAgentHostExitCaller } from '../common/agentHostProcessExit.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
 // When VSCODE_AGENT_HOST_PORT or VSCODE_AGENT_HOST_SOCKET_PATH env vars
 // are set, also starts a WebSocket server for external clients.
 
+installExitDiagnostics();
+
 void startAgentHost().catch(err => {
 	console.error(err);
+	writeStderrSync(formatAgentHostStartupFailure(err));
 	process.exit(1);
 });
+
+/**
+ * Reports how the process exits so the parent can distinguish orderly exits
+ * from crashes and external termination. Node runs `exit` listeners only for
+ * `process.exit()` and a drained event loop.
+ */
+function installExitDiagnostics(): void {
+	let exitCaller: string | undefined;
+	const exit = process.exit;
+	const recordingExit = (code?: number | string | null): never => {
+		if (exitCaller === undefined) {
+			const callSite: { stack?: string } = {};
+			Error.captureStackTrace(callSite, recordingExit);
+			exitCaller = identifyAgentHostExitCaller(callSite.stack, dirname(FileAccess.asFileUri('').fsPath));
+		}
+		return exit(code);
+	};
+	process.exit = recordingExit;
+	process.once('exit', () => writeStderrSync(formatAgentHostExit(exitCaller === undefined ? 'eventLoopDrained' : 'processExit', exitCaller)));
+}
+
+/** Writes to stderr before the process exits. */
+function writeStderrSync(text: string): void {
+	try {
+		// Node discards asynchronous work in `exit` handlers, and stderr pipes are asynchronous on POSIX.
+		// eslint-disable-next-line local/code-no-sync-fs
+		writeSync(2, text);
+	} catch {
+		process.stderr.write(text);
+	}
+}
 
 async function startAgentHost(): Promise<void> {
 	const utilityProcessServer = isUtilityProcess(process) ? new UtilityProcessServer() : undefined;

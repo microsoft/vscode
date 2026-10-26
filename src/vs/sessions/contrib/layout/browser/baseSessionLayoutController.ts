@@ -16,7 +16,7 @@ import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -39,6 +39,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../common/contextkeys.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ChatLayoutContext } from '../../../common/chatLayout.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -163,6 +164,7 @@ export abstract class BaseLayoutController extends Disposable {
 	private _settledEditorWorkingSetKey: URI | undefined;
 	private readonly _chatLayoutOwnerKeys = new ChatLayoutOwnerKeyRegistry();
 	private readonly _replacedSessionResources = new ResourceSet();
+	private _workingSetAdoptingReplacement: URI | undefined;
 	protected readonly _chatLayoutContext: ChatLayoutContext | undefined;
 
 	protected readonly activeSessionResourceObs;
@@ -534,6 +536,9 @@ export abstract class BaseLayoutController extends Disposable {
 		// closes run — captures which editor was active (e.g. the Changes tab) so it
 		// is restored active on return.
 		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
+			if (this._workingSetAdoptingReplacement && !isEqual(this._workingSetAdoptingReplacement, session?.resource)) {
+				this._workingSetAdoptingReplacement = undefined;
+			}
 			if (previousSession && !isEqual(previousSession.resource, session?.resource)) {
 				this._onActiveSessionSwitched(previousSession, session);
 				const wasReplaced = this._replacedSessionResources.delete(previousSession.resource);
@@ -740,8 +745,11 @@ export abstract class BaseLayoutController extends Disposable {
 		return registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.action.agentToggleSidePanel',
-					title: localize2('toggleSecondarySidebar', 'Toggle Side Panel'),
+					id: TOGGLE_SIDE_PANEL_COMMAND_ID,
+					title: {
+						...localize2('toggleSecondarySidebar', 'Toggle Side Panel'),
+						mnemonicTitle: localize({ key: 'miSidePanel', comment: ['&& denotes a mnemonic'] }, "Side Pa&&nel"),
+					},
 					icon: secondarySidebarToggleClosedIcon,
 					toggled: {
 						condition: ContextKeyExpr.or(AuxiliaryBarVisibleContext, MainEditorAreaVisibleContext)!,
@@ -773,6 +781,11 @@ export abstract class BaseLayoutController extends Disposable {
 							group: SessionActivityBarGroup.SidePanel,
 							order: 0,
 							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext)
+						},
+						{
+							id: MenuId.MenubarAppearanceMenu,
+							group: '2_workbench_layout',
+							order: 2,
 						}
 					]
 				});
@@ -845,6 +858,10 @@ export abstract class BaseLayoutController extends Disposable {
 			for (const { oldKey, newKey } of this._chatLayoutOwnerKeys.remapSession({ from, to })) {
 				this._remapOwnerKeyState(oldKey, newKey);
 			}
+		}
+
+		if (replacedSessionIsActive && !isEqual(from.resource, to.resource) && !this._workingSets.has(to.resource)) {
+			this._workingSetAdoptingReplacement = to.resource;
 		}
 	}
 
@@ -1232,6 +1249,10 @@ export abstract class BaseLayoutController extends Disposable {
 
 		return this._workingSetSequencer.queue(async () => {
 			if (isStaleChatOwner() || !this._editorWorkingSetService.beginApply(owner)) {
+				return;
+			}
+			if (workingSet === 'empty' && sessionResource && isEqual(sessionResource, this._workingSetAdoptingReplacement)) {
+				this._workingSetAdoptingReplacement = undefined;
 				return;
 			}
 			// When multiple sessions are visible, applying a working set must never

@@ -680,6 +680,8 @@ function isEquivalentTargetConfiguration(raw: unknown, candidate: IMcpServerCust
 		...(candidate.projectedConfiguration.type === McpServerType.LOCAL ? { args: [] } : {}),
 		tools: ['*'],
 		...raw,
+		// Earlier migrations wrote the legacy `local` alias for stdio servers.
+		...(raw.type === 'local' ? { type: McpServerType.LOCAL } : {}),
 	}, getTargetConfiguration(candidate));
 }
 

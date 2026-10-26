@@ -5,10 +5,11 @@
 
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
-import { IObservable } from '../../base/common/observable.js';
+import { IObservable, IReader } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
+import { localize } from '../../nls.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
@@ -64,6 +65,12 @@ export interface IAgentHostConnectionLabels {
 	readonly incompatible: string;
 }
 
+export function getAgentHostConnectionStatusLabel(status: RemoteAgentHostConnectionStatus): string {
+	return status.kind === 'connected' ? localize('agentHost.connected', "Connected")
+		: status.kind === 'connecting' ? localize('agentHost.connecting', "Connecting")
+			: localize('agentHost.disconnected', "Disconnected");
+}
+
 /**
  * Declares that a provider is one of many interchangeable members of a single
  * user-facing host. Members collapse into one `IAgentHostFilterEntry` that
@@ -108,6 +115,11 @@ export interface IAgentHostMcpServer {
 	readonly name: string;
 	/** Optional Connector catalog name for presentation only. */
 	readonly displayName?: string;
+	/**
+	 * Canonical Copilot Connector that owns this server. Connector-owned servers authenticate with the
+	 * session's GitHub credential, so they are authorized through Copilot Connectors, not an MCP token.
+	 */
+	readonly connectorName?: string;
 	readonly source?: McpServerSource;
 	/**
 	 * Plugin the host reports as the source of this server's configuration. Unlike
@@ -163,17 +175,6 @@ export interface IAgentHostMcpServer {
  * Adds remote connection properties and dynamic session configuration.
  */
 export interface IAgentHostSessionsProvider extends ISessionsProvider {
-	/**
-	 * Whether the host can move the session under another session of this provider (Block 4): the host moves sessions
-	 * (`vscode.sessionMove`) and says this one can move (its default chat is its only chat).
-	 */
-	canMoveSessionUnder(sessionId: string): boolean;
-	/**
-	 * Moves the session under `destinationSessionId` (Block 4): its chat becomes a chat of the destination, placed
-	 * after the destination's chat `after` (`undefined`: first), and the session ends. Rejects when the host refuses.
-	 */
-	moveSessionUnder(sessionId: string, destinationSessionId: string, after: URI | undefined): Promise<void>;
-
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
@@ -236,8 +237,12 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/** Optional labels for providers whose display name does not name the host. */
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
+	/** Availability before applying a user's hidden preference. Defaults to available. */
+	readonly isAvailableInEnvironmentPicker?: IObservable<boolean>;
 	/** Controls environment and workspace picker visibility without withdrawing existing sessions. Defaults to visible. */
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
+	/** Reveals this host after an explicit picker selection without changing its availability. */
+	showInEnvironmentPicker?(): void;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 
@@ -387,9 +392,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getCustomizations(sessionId: string): readonly Customization[];
 
 	/**
-	 * Returns the working directory for the session, if provided by the host.
+	 * Returns the host-provided working directory, tracking updates when a reader is supplied.
 	 */
-	getWorkingDirectory(sessionId: string): string | undefined;
+	getWorkingDirectory(sessionId: string, reader?: IReader): string | undefined;
 
 	/**
 	 * Returns the full ordered set of working-directory roots for the session
@@ -443,6 +448,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	getBackendChatResource(chatResource: URI): URI | undefined;
 
+	/** Returns the host-advertised session URI owning this session's customizations. */
+	getBackendSessionResource(sessionId: string): URI | undefined;
+
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
@@ -457,6 +465,16 @@ export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
  */
 export function isAgentHostProvider(provider: ISessionsProvider): provider is IAgentHostSessionsProvider {
 	return isAgentHostProviderId(provider.id);
+}
+
+/** Whether this provider can appear as an individual remote environment, independent of visibility. */
+export function isRemoteSessionCreationEnvironment(provider: ISessionsProvider): provider is IAgentHostSessionsProvider & { readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> } {
+	return isAgentHostProvider(provider) && provider.supportsWorkspaceSelection !== false && !!provider.connectionStatus && !provider.hostGroup;
+}
+
+/** Legacy providers may express availability through their visibility signal alone. */
+export function isAgentHostEnvironmentAvailable(provider: IAgentHostSessionsProvider, reader?: IReader): boolean {
+	return (provider.isAvailableInEnvironmentPicker ?? provider.isVisibleInEnvironmentPicker)?.read(reader) !== false;
 }
 
 export function getSessionConfigProvider(provider: ISessionsProvider): ISessionConfigProvider | undefined {

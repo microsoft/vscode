@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import type { AutomationTrigger } from '../../../../../platform/github/common/missionControl/automations.js';
 import type { JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
@@ -68,10 +69,13 @@ export interface IAutomationSessionTemplate {
 	readonly config?: Readonly<Record<string, unknown>>;
 }
 
-export function isAutomationModelConfiguration(value: unknown): value is NonNullable<IAutomationSessionTemplate['modelConfiguration']> {
+export function isAutomationModelConfiguration(value: unknown, allowUndefined?: false): value is NonNullable<IAutomationSessionTemplate['modelConfiguration']>;
+export function isAutomationModelConfiguration(value: unknown, allowUndefined: true): value is Readonly<Record<string, JsonPrimitive | undefined>>;
+export function isAutomationModelConfiguration(value: unknown, allowUndefined = false): value is Readonly<Record<string, JsonPrimitive | undefined>> {
 	return !!value && typeof value === 'object' && !Array.isArray(value)
 		&& (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
 		&& Object.values(value).every(entry => entry === null
+			|| (allowUndefined && entry === undefined)
 			|| typeof entry === 'string'
 			|| typeof entry === 'boolean'
 			|| (typeof entry === 'number' && Number.isFinite(entry)));
@@ -89,22 +93,27 @@ export function assertAutomationSessionTemplate(template: IAutomationSessionTemp
 	}
 }
 
-/**
- * A single scheduled automation. Identity is the immutable `id`; everything
- * else may be edited by the user.
- */
+/** Cloud-owned event configuration, retained independently of its schedule projection. */
+export interface IAutomationCloudTrigger {
+	readonly triggers: Readonly<Record<string, AutomationTrigger>>;
+	readonly requireActorWritePermission?: boolean;
+}
+
+/** A single automation with immutable identity and provider-owned execution configuration. */
 export interface IAutomationDescriptor {
 	/** Opaque identifier, unique across concrete providers as well as within one host. */
 	readonly id: string;
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 
 	/** Explicit workspace-backed or workspace-less execution target. */
 	readonly target: AutomationTarget;
 	/** Provider-owned display metadata for targets whose URI basename is not a useful label. */
 	readonly targetDisplay?: { readonly label: string; readonly icon: ThemeIcon };
 	readonly externalResource?: URI;
+	readonly ownership?: 'user' | 'repository';
 
 	/** Complete provider-owned session template. */
 	readonly sessionTemplate?: IAutomationSessionTemplate;

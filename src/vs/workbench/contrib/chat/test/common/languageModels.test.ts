@@ -199,6 +199,39 @@ suite('LanguageModels', function () {
 		assert.deepStrictEqual(result2.length, 0);
 	});
 
+	test('requests made while a resolution waits behind another share it', async function () {
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'slow-vendor', displayName: 'Slow Vendor', configuration: undefined, managementCommand: undefined, when: undefined },
+		], []);
+		const started = new DeferredPromise<void>();
+		const firstResolution = new DeferredPromise<void>();
+		let resolutions = 0;
+		store.add(languageModels.registerLanguageModelProvider('slow-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => {
+				if (++resolutions === 1) {
+					started.complete();
+					await firstResolution.p;
+				}
+				return [];
+			},
+			sendChatRequest: async () => {
+				throw new Error();
+			},
+			provideTokenCount: async () => {
+				throw new Error();
+			}
+		}));
+
+		const running = languageModels.selectLanguageModels({ vendor: 'slow-vendor' });
+		await started.p;
+		const waiting = [1, 2, 3].map(() => languageModels.selectLanguageModels({ vendor: 'slow-vendor' }));
+		firstResolution.complete();
+		await Promise.all([running, ...waiting]);
+
+		assert.strictEqual(resolutions, 2);
+	});
+
 	test('sendChatRequest returns a response-stream', async function () {
 
 		store.add(languageModels.registerLanguageModelProvider('actual-vendor', {
@@ -1945,6 +1978,25 @@ suite('LanguageModels - Duplicate configuration-only groups', () => {
 		await service.setModelConfiguration(modelId, { thinkingLevel: 'medium', contextSize: 272000 });
 		await service.selectLanguageModels({ vendor });
 		assert.deepStrictEqual(service.getModelConfiguration(modelId, false), { thinkingLevel: 'medium', contextSize: 272000 });
+	});
+
+	test('undefined resets remove shared overrides even when host defaults are tracked explicitly', async () => {
+		configurationDefaultKeys = ['thinkingLevel', 'contextSize'];
+		modelChanges.fire();
+		await service.selectLanguageModels({ vendor });
+		await service.setModelConfiguration(modelId, { thinkingLevel: undefined, contextSize: undefined });
+		assert.deepStrictEqual({
+			cached: service.getModelConfiguration(modelId, false),
+			effective: service.getModelConfiguration(modelId),
+			groups,
+		}, {
+			cached: undefined,
+			effective: { thinkingLevel: 'medium', contextSize: 272000 },
+			groups: [
+				{ vendor, name: 'Copilot CLI', settings: { other: { thinkingLevel: 'high' } } },
+				{ vendor: 'other-vendor', name: 'Other', settings: { 'test-model': { thinkingLevel: 'high' } } },
+			],
+		});
 	});
 
 	test('locked host defaults override saved preferences without replacing them', async () => {

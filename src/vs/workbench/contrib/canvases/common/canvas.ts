@@ -44,10 +44,14 @@ export interface ICanvasDefinition {
 	readonly requiresInput: boolean;
 }
 
+/** `undefined` is unsettled; an array, including an empty one, is authoritative. */
+export type CanvasDefinitionSnapshot = readonly ICanvasDefinition[] | undefined;
+
 /** Lists and opens registered canvas types for one canvas context. */
 export interface ICanvasDefinitionProvider {
 	readonly onDidChangeDefinitions: Event<void>;
-	listCanvases(): Promise<readonly ICanvasDefinition[]>;
+	/** Returns `undefined` while unsettled, then fires {@link onDidChangeDefinitions} when an authoritative snapshot is available. */
+	listCanvases(): Promise<CanvasDefinitionSnapshot>;
 	openCanvas(canvas: ICanvasDefinition, instanceId: string): Promise<void>;
 }
 
@@ -136,6 +140,8 @@ export interface ICanvasContextService {
 	 * `undefined` means the owner is outside this window's live scope.
 	 */
 	getContext(owner: ICanvasOwner, reader?: IReader): ICanvasContext | undefined;
+	/** Resolves the frontend chat-session resource that owns this opaque Canvas context. */
+	getFrontendSessionResource(owner: ICanvasOwner, reader?: IReader): URI | undefined;
 	/**
 	 * Selects the group that presents `input`, or `undefined` to let the editor
 	 * service choose. `restore` reopens a canvas that its working set could not

@@ -5,7 +5,6 @@
 
 import { isLocalAgentHostProviderDisabledByPolicy } from '../../../../platform/agentHost/common/agentService.js';
 import './media/chatView.css';
-import './media/voiceChatView.css';
 import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
@@ -61,7 +60,9 @@ import { isExperimentalSessionComposerLayoutEnabled, NewChatWidget } from './new
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
 import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from './sessionChatInputToolbar.js';
-import { ResponseSelectionSideChatController } from './responseSelectionSideChatController.js';
+import { ResponseSelectionSideChatController } from '../../../../workbench/contrib/chat/browser/responseSelectionSideChatController.js';
+import { logResponseSelectionWidgetAction } from '../../../common/sessionsTelemetry.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ISessionChatPillsDebugService } from './sessionChatInputToolbarDebug.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
@@ -78,7 +79,7 @@ import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../se
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 // 14px icon + 6px padding + 4px gap + breathing room. The percentage label expands over the editor on hover.
@@ -167,8 +168,18 @@ export class NewChatView extends AbstractChatView {
 		return { type: NewChatView.TYPE };
 	}
 
+	override setChat(chat: IChat): void {
+		if (this._widget instanceof NewChatInSessionWidget) {
+			this._widget.setChat(chat);
+		}
+	}
+
+	override get preserveOnSessionClear(): boolean {
+		return this._widget instanceof NewChatWidget && this._widget.preserveOnSessionClear;
+	}
+
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
-		this._widget.layout(height, Math.max(0, width - 2 * this.contentInset));
+		this._widget.layout(height, width);
 	}
 
 	override focus(): void {
@@ -184,6 +195,36 @@ export class NewChatView extends AbstractChatView {
 	override focusHarnessPicker(): void {
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.focusHarnessPicker();
+		}
+	}
+
+	override focusEnvironmentPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusEnvironmentPicker();
+		}
+	}
+
+	override focusBranchPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusBranchPicker();
+		}
+	}
+
+	override focusWorktreePicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusWorktreePicker();
+		}
+	}
+
+	override focusSyncAction(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusSyncAction();
+		}
+	}
+
+	override openModelComparison(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.openModelComparison();
 		}
 	}
 
@@ -246,6 +287,10 @@ export class ChatView extends AbstractChatView {
 
 	override readonly kind: ChatViewKind = 'chat';
 
+	override get activityBarActions() {
+		return this._chatPills.activityBarActions;
+	}
+
 	private readonly _widget: ChatWidget;
 	private readonly _widgetContainer: HTMLElement;
 	private readonly _externalSessionBanner: ExternalSessionBanner;
@@ -263,6 +308,7 @@ export class ChatView extends AbstractChatView {
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
 	private readonly _preparationModel = this._register(new MutableDisposable<ChatModel>());
+	private readonly _transcriptDisposables = this._register(new DisposableStore());
 
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -340,6 +386,7 @@ export class ChatView extends AbstractChatView {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
@@ -386,6 +433,11 @@ export class ChatView extends AbstractChatView {
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
+				supportsSideChat: derived(this, reader => {
+					const session = this._currentSessionObs.read(reader);
+					return !!session && session.status.read(reader) !== SessionStatus.Untitled
+						&& !session.isArchived.read(reader) && !!session.capabilities.read(reader).supportsSideChat;
+				}),
 				renderSecondaryToolbar: shouldRenderRunningSessionSecondaryToolbar(initiallyUsesExperimentalComposerLayout),
 				inputEditorMinLines: 2,
 				isSessionsWindow: true,
@@ -455,7 +507,10 @@ export class ChatView extends AbstractChatView {
 		this._setupTranscriptPreparationProgress(chatModel);
 		this._setupInitialTranscriptContext(chatModel);
 
-		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget, isResponseSelectionSupported()));
+		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget, isResponseSelectionSupported(), {
+			useActionMenu: () => configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING),
+			onAction: (variant, action) => logResponseSelectionWidgetAction(telemetryService, variant, action),
+		}));
 
 		// Mount the session banners directly above the chat input.
 		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
@@ -550,7 +605,7 @@ export class ChatView extends AbstractChatView {
 		});
 		let lastPreparationMessage: string | undefined;
 		let lastPreparationModel: ChatModel | undefined;
-		this._register(autorun(reader => {
+		this._transcriptDisposables.add(autorun(reader => {
 			const resource = this._currentChatResourceObs.read(reader);
 			const session = this._currentSessionObs.read(reader);
 			const preparation = session?.preparationProgress?.read(reader);
@@ -608,7 +663,7 @@ export class ChatView extends AbstractChatView {
 
 	private _setupInitialTranscriptContext(chatModel: IObservable<IChatModel | undefined>): void {
 		let currentEntryId: string | undefined;
-		this._register(autorun(reader => {
+		this._transcriptDisposables.add(autorun(reader => {
 			const model = chatModel.read(reader);
 			model?.lastRequestObs.read(reader);
 			const requests = model?.getRequests() ?? [];
@@ -624,6 +679,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override dispose(): void {
+		this._transcriptDisposables.dispose();
 		this._saveCurrentViewState();
 		this._loadCts.value?.cancel();
 		super.dispose();
@@ -663,7 +719,7 @@ export class ChatView extends AbstractChatView {
 
 		// Reflect this chat's last-turn changes, status, and background activity.
 		this._chatPills.setChat(chat);
-		this._selectionSideChatController.setChat(chat);
+		this._selectionSideChatController.setChat(chat.resource, derived(this, reader => chat.interactivity.read(reader) !== ChatInteractivity.Full || this._modelReadOnly.read(reader)));
 		this._banners.setDebugData(undefined);
 
 		// Reflect read-only (non-interactive) chats: hide the composer and gate
@@ -678,7 +734,9 @@ export class ChatView extends AbstractChatView {
 			const draftLoaded = isEqual(this._loadedChatResource.read(reader), resource);
 			const failure = this._loadFailure.read(reader);
 			const loadStatus = failure && isEqual(failure.resource, resource) ? failure.status : undefined;
-			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading || modelReadOnly || !!loadStatus, !loadStatus && interactivity !== ChatInteractivity.ReadOnly && !modelReadOnly && (((draftOnly || loading) && draftLoaded) || this.isInputBlocked.read(reader)), loadStatus);
+			const keepInputVisible = !loadStatus && interactivity !== ChatInteractivity.ReadOnly
+				&& (this.isInputBlocked.read(reader) || (!modelReadOnly && (draftOnly || loading) && draftLoaded));
+			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading || modelReadOnly || !!loadStatus, keepInputVisible, loadStatus);
 		});
 
 		// Skip loading if we're already showing this chat
@@ -987,6 +1045,7 @@ export class ChatView extends AbstractChatView {
 		}
 		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
 		this._widget.setModel(undefined);
+		this._selectionSideChatController.setChat(undefined, constObservable(true));
 		this._modelRef.clear();
 		// Clear the bound-resource attribute while the rebind is in flight so
 		// test automation can wait for the next `setChat` cycle to finish
@@ -1045,11 +1104,9 @@ export class ChatView extends AbstractChatView {
 		if (isHTMLElement(progressContainer)) {
 			progressContainer.style.top = `${widgetTop}px`;
 		}
-		const contentWidth = Math.max(0, width - 2 * this.contentInset);
-		this._comparisonResult.layout(contentWidth);
+		this._comparisonResult.layout(width);
 		size(this._widgetContainer, width, widgetHeight);
-		// Widget layout sizes embedded editors; its DOM viewport stays full-width for the scrollbar.
-		this._widget.layout(widgetHeight, contentWidth);
+		this._widget.layout(widgetHeight, width);
 		this._layoutStickyScrollBackground();
 	}
 
@@ -1104,6 +1161,7 @@ export class ChatView extends AbstractChatView {
 		const inputPartElement = this._widget.inputPart.element;
 		const persistentContentContainer = this._widget.inputPart.persistentContentContainerElement;
 		const pillsNode = this._chatPills.element;
+		this._chatPills.setInputElement(this._widget.inputPart.inputContainerElement);
 		const bannersNode = this._banners.domNode;
 		const comparisonResultNode = this._comparisonResult.domNode;
 		if (persistentContentContainer.firstChild !== pillsNode) {

@@ -12,7 +12,6 @@ import { Color, RGBA } from '../../../../../../../../base/common/color.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { NullOpenerService } from '../../../../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -154,6 +153,22 @@ suite('ModelCard', () => {
 		return Array.from(card.element.querySelectorAll('[role="radio"][aria-checked="true"]'), option => option.textContent ?? '');
 	}
 
+	test('an unspecified effort remains unchecked until the user chooses it', async () => {
+		let accepted = new DeferredPromise<void>();
+		const model = createModel({ configurationSchema: { properties: { reasoningEffort: { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'] } } } });
+		const fixture = createCard({}, { model, onDidAccept: () => accepted.complete() });
+		const before = { selected: selectedOptions(fixture.card), value: fixture.card.element.querySelector('.chat-model-card-section-value')?.textContent };
+		element(fixture.card.element, '[role="radio"]').click();
+		await accepted.p;
+		const after = selectedOptions(fixture.card);
+		accepted = new DeferredPromise<void>();
+		element(fixture.card.element, '[aria-label="Reset to Default"]').click();
+		await accepted.p;
+		assert.deepStrictEqual({ before, after, reset: selectedOptions(fixture.card), writes: fixture.writes }, {
+			before: { selected: [], value: 'Model default' }, after: ['Low'], reset: [], writes: [{ reasoningEffort: 'low' }, { reasoningEffort: undefined }],
+		});
+	});
+
 	/** The option labels of the first segmented control, split where a row break sits. */
 	function segmentRows(card: ModelCard): string[][] {
 		const rows: string[][] = [[]];
@@ -190,14 +205,15 @@ suite('ModelCard', () => {
 
 	suite('Fusion tier promotions', () => {
 		const day = 24 * 60 * 60 * 1000;
-		/** As the agent host presents it: while the service promotes Fusion's tiers, Fusion has no discount of its own. */
+		/** As the agent host presents it: Fusion has no discount of its own, only the service's promotions. */
 		function createFusionModel(promotions: NonNullable<ILanguageModelChatMetadata['autoModelTierPromotions']>, detail?: string): ILanguageModelChatMetadataAndIdentifier {
 			return {
 				...createModel({
 					id: 'auto',
-					name: 'Fusion',
-					...(promotions.length ? { detail } : { detail: '10% discount', autoModelDiscountPercent: 10 }),
-					autoModelFusion: { balanceUsesHydraFusion: true },
+					name: 'Copilot Fusion',
+					detail,
+					autoModelDiscountPercent: undefined,
+					autoModelFusion: true,
 					...(promotions.length && { autoModelTierPromotions: promotions }),
 					tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true),
 					configurationSchema: {
@@ -206,6 +222,7 @@ suite('ModelCard', () => {
 								type: 'string', title: 'Effort Level', group: 'navigation',
 								enum: ['balance', 'hydrafusion', 'hydrafusion-max'],
 								enumItemLabels: ['Standard', 'High', 'Max'],
+								enumDescriptions: ['Prioritizes versatile models for efficient everyday coding.', 'Prioritizes capable models for challenging tasks and deeper reasoning.', 'Prioritizes the most capable models for the most demanding tasks and complex reasoning.'],
 								default: 'balance',
 							},
 						},
@@ -222,42 +239,52 @@ suite('ModelCard', () => {
 		const read = (card: ModelCard) => ({
 			chip: card.element.querySelector('.chat-model-card-badge')?.textContent,
 			discount: card.element.querySelector<HTMLElement>('.chat-model-card-discount-description:not([hidden])')?.textContent,
-			promotions: Array.from(card.element.querySelectorAll('.chat-model-card-tier-promotion'), banner => banner.textContent?.replace(/\. Ends .*|\. Starts .*/, '.')),
+			tier: card.element.querySelector<HTMLElement>('.chat-model-card-tier-description:not([hidden])')?.textContent,
+			promotions: Array.from(card.element.querySelectorAll('.chat-model-card-tier-promotion'), banner => banner.textContent),
 		});
 
-		test('a running promotion sets the discount of the tiers it covers, other tiers show none, and so does the chip', () => {
+		test('the chip follows the tier shown as selected, naming a running promotion\'s discount only on the tiers it covers', () => {
 			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([promotion(iso(-day), iso(day), ['hydrafusion'])]) });
 			const covered = read(card);
 			card.element.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
 			assert.deepStrictEqual({ covered, uncovered: read(card) }, {
-				covered: { chip: undefined, discount: 'Models routed via Fusion High receive a 30% discount.', promotions: ['Get 30% off Fusion usage.'] },
-				uncovered: { chip: undefined, discount: undefined, promotions: ['Get 30% off Fusion usage.'] },
+				covered: { chip: '30% discount', discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: ['Get 30% off Fusion usage.'] },
+				uncovered: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'] },
 			});
 		});
 
 		test('the chip shows a running promotion that covers every tier', () => {
 			const { card } = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-day), iso(day))], '30% discount') });
-			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: 'Models routed via Fusion Standard receive a 30% discount.', promotions: ['Get 30% off Fusion usage.'] });
+			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'] });
 		});
 
-		test('a promotion without a message changes the discount without showing a banner', () => {
+		test('a promotion without a message shows its discount in the chip without a banner', () => {
 			const { message: _, ...discountOnly } = promotion(iso(-day), iso(day), ['hydrafusion']);
 			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([discountOnly]) });
-			assert.deepStrictEqual(read(card), { chip: undefined, discount: 'Models routed via Fusion High receive a 30% discount.', promotions: [] });
+			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: [] });
 		});
 
-		test('an upcoming promotion is announced with its start date and no discount, and once it ends Fusion\'s own discount returns', () => {
+		test('a running promotion is announced in the service\'s words, and promotions outside their window or with unparsable dates are not shown', () => {
+			const running = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-day), iso(day))], '30% discount') }).card;
 			const upcoming = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(day), iso(2 * day))]) }).card;
-			const startsAt = new Date(Date.now() + day).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-			// The agent host drops ended promotions.
-			const ended = createCard({ tier: 'balance' }, { model: createFusionModel([]) }).card;
+			const ended = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-2 * day), iso(-day))]) }).card;
+			const malformed = createCard({ tier: 'balance' }, { model: createFusionModel([promotion('not a date', iso(day))]) }).card;
 			assert.deepStrictEqual({
-				upcoming: { ...read(upcoming), text: upcoming.element.querySelector('.chat-model-card-tier-promotion')?.textContent },
+				running: running.element.querySelector('.chat-model-card-tier-promotion')?.textContent,
+				upcoming: read(upcoming),
 				ended: read(ended),
+				malformed: read(malformed),
 			}, {
-				upcoming: { chip: undefined, discount: undefined, promotions: ['Get 30% off Fusion usage.'], text: `Get 30% off Fusion usage. Starts ${startsAt}.` },
-				ended: { chip: '10% discount', discount: 'Models routed via Fusion Standard receive a 10% discount.', promotions: [] },
+				running: 'Get 30% off Fusion usage.',
+				upcoming: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
+				ended: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
+				malformed: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
 			});
+		});
+
+		test('without a running promotion, Fusion shows no discount', () => {
+			const { card } = createCard({ tier: 'balance' }, { model: createFusionModel([]) });
+			assert.deepStrictEqual(read(card), { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] });
 		});
 
 	});
@@ -325,7 +352,6 @@ suite('ModelCard', () => {
 			model,
 			description: `${model.metadata.name} is a research preview.`,
 			tooltip: 'It picks a workflow per task, using one or more models to draft, review, or escalate.',
-			learnMoreUrl: URI.parse('https://example.com/hydrafusion'),
 			selected: model === selected,
 		}));
 		const result = createCard({ tier: 'balance' }, { model: createAutoModel(), routingAlternatives: alternatives() });
@@ -362,16 +388,16 @@ suite('ModelCard', () => {
 				selected: ['Balance'],
 				descriptions: ['Models routed via Auto Balance receive a 10% discount.'],
 			},
-			onClick: ['HydraFusion is a research preview. Learn more'],
+			onClick: ['HydraFusion is a research preview.'],
 			chosen: {
 				selected: ['HydraFusion'],
-				descriptions: ['HydraFusion is a research preview. Learn more'],
+				descriptions: ['HydraFusion is a research preview.'],
 				ariaLabel: 'HydraFusion, HydraFusion is a research preview. It picks a workflow per task, using one or more models to draft, review, or escalate.',
 				focused: 'HydraFusion',
 				badge: 'Research preview',
 			},
-			onMax: ['HydraFusion Max is a research preview. Learn more'],
-			chosenMax: { selected: ['HydraFusion Max'], descriptions: ['HydraFusion Max is a research preview. Learn more'] },
+			onMax: ['HydraFusion Max is a research preview.'],
+			chosenMax: { selected: ['HydraFusion Max'], descriptions: ['HydraFusion Max is a research preview.'] },
 			onTier: ['Models routed via Auto Efficiency receive a 10% discount.'],
 			restoredBadge: '10% discount',
 			writes: [{ tier: 'efficiency' }],
@@ -671,6 +697,49 @@ suite('ModelCard', () => {
 			});
 		}
 	}
+
+	for (const contextTiers of [['long_context', 'default'], ['long_context'], ['default']]) {
+		test(`named context tiers use their own prices regardless of enum order: ${contextTiers.join(', ')}`, async () => {
+			const model = createModel({
+				cacheCost: 4, cacheWriteCost: 8,
+				longContextOutputCost: 400, longContextCacheCost: 8, longContextCacheWriteCost: 16,
+				configurationSchema: {
+					properties: {
+						contextTier: {
+							type: 'string', group: 'tokens', enum: contextTiers, default: contextTiers[0],
+							enumItemLabels: contextTiers.map(tier => tier === 'long_context' ? '1M' : '264K'),
+						},
+					},
+				},
+			});
+			const accepted = new DeferredPromise<void>();
+			const { card, writes } = createCard({}, { model, onDidAccept: () => accepted.complete() });
+			const read = () => ({
+				selected: selectedOptions(card),
+				prices: Array.from(card.element.querySelectorAll('.chat-model-card-pricing-value'), element => element.textContent),
+			});
+			const initial = read();
+			const standardPrices = ['40', '200', '4', '8'];
+			const longPrices = ['80', '400', '8', '16'];
+			if (contextTiers.length > 1) {
+				element(card.element, '[role="radio"]:last-child').click();
+				await accepted.p;
+			}
+			assert.deepStrictEqual({ initial, after: read(), writes }, {
+				initial: contextTiers[0] === 'long_context' ? { selected: ['1M'], prices: longPrices } : { selected: ['264K'], prices: standardPrices },
+				after: contextTiers.length === 1 && contextTiers[0] === 'long_context' ? { selected: ['1M'], prices: longPrices } : { selected: ['264K'], prices: standardPrices },
+				writes: contextTiers.length > 1 ? [{ contextTier: 'default' }] : [],
+			});
+		});
+	}
+
+	test('numeric context windows retain their existing tier pricing and missing-rate fallback', () => {
+		const prices = [264000, 1000000].map(context => {
+			const { card } = createCard({ context });
+			return Array.from(card.element.querySelectorAll('.chat-model-card-pricing-value'), element => element.textContent);
+		});
+		assert.deepStrictEqual(prices, [['40', '200'], ['80', '200']]);
+	});
 
 	test('the pricing pill stays with its disclosure heading when collapsed and expanded', () => {
 		const { card } = createCard();
@@ -1105,7 +1174,7 @@ suite('ModelCard', () => {
 		}, { badge: 'Research preview', context: undefined });
 	});
 
-	test('an unavailable Auto tier shows its reason as text, since it can\'t take focus', () => {
+	test('an unavailable Auto tier shows its reason only on hover, and its group describes it for screen readers', () => {
 		const auto = createAutoModel();
 		const tier = auto.metadata.configurationSchema!.properties!.tier;
 		const model = {
@@ -1129,10 +1198,12 @@ suite('ModelCard', () => {
 		const radios = Array.from(card.element.querySelectorAll<HTMLElement>('[role="radio"]'));
 
 		assert.deepStrictEqual({
-			reasons: Array.from(card.element.querySelectorAll('.chat-model-card-unavailable-description'), element => element.textContent),
+			visibleReasons: card.element.querySelectorAll('.chat-model-card-unavailable-description').length,
+			groupDescription: radios[0].parentElement?.getAttribute('aria-description'),
 			disabled: radios.map(radio => radio.getAttribute('aria-disabled') === 'true'),
 		}, {
-			reasons: ['Max: This tier requires models that the user does not have access to.', 'Premium is not available.'],
+			visibleReasons: 0,
+			groupDescription: 'Max: This tier requires models that the user does not have access to. Premium is not available.',
 			disabled: [false, false, true, true],
 		});
 	});

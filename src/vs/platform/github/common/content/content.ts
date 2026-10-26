@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ApiQueryOptions, ApiRequestOptions } from '../client/request.js';
+import { RepositoryRef } from '../client/types.js';
 
 /** Metadata for a repository file, directory, symlink, or submodule. */
 export interface ContentEntry {
@@ -141,17 +142,17 @@ export type GetTreeOptions = ApiQueryOptions<{
 /** Operations for reading repository files, directory contents, and Git objects. */
 export interface IContentClient {
 	/** GET /repos/{owner}/{repo}/commits/{ref}: resolve a branch, tag, or HEAD to an immutable commit SHA. */
-	resolveRef(owner: string, repo: string, ref: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<string>;
+	resolveRef(repository: RepositoryRef, ref: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<string>;
 
 	/** Downloads public UTF-8 text at an immutable commit, preserving BOM/whitespace and rejecting files over 1 MiB. */
-	getRawFile(owner: string, repo: string, commitSha: string, path: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<string>;
+	getRawFile(repository: RepositoryRef, commitSha: string, path: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<string>;
 
 	/** GET /repos/{owner}/{repo}/contents/{path}: read the object representation, using an empty path for the root. */
-	getContent(owner: string, repo: string, path: string, signal: AbortSignal, options?: GetContentOptions): Promise<RepositoryContent>;
+	getContent(repository: RepositoryRef, path: string, signal: AbortSignal, options?: GetContentOptions): Promise<RepositoryContent>;
 
 	/** GET /repos/{owner}/{repo}/git/trees/{treeRef}: read a tree's entries and truncation status by tree/commit SHA or ref. */
-	getTree(owner: string, repo: string, treeRef: string, signal: AbortSignal, options?: GetTreeOptions): Promise<GitTree>;
+	getTree(repository: RepositoryRef, treeRef: string, signal: AbortSignal, options?: GetTreeOptions): Promise<GitTree>;
 
 	/** GET /repos/{owner}/{repo}/git/blobs/{sha}: read base64-encoded file data. */
-	getBlob(owner: string, repo: string, sha: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GitBlob>;
+	getBlob(repository: RepositoryRef, sha: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GitBlob>;
 }
