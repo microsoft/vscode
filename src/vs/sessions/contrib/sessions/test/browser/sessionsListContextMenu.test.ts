@@ -116,6 +116,7 @@ suite('Sessions list context menus', () => {
 			override createMenu(id: MenuId, contextKeyServiceOfMenu: IContextKeyService): IMenu {
 				menuContextKeyService = contextKeyServiceOfMenu;
 				const disposable = toDisposable(() => menuDisposed = true);
+				const isItemMenu = id === Menus.SessionItemContextMenu || id === Menus.SessionChatItemContext;
 				const extensionAction = new MenuItemAction({
 					id: 'extension.action',
 					title: 'Extension Action',
@@ -134,7 +135,7 @@ suite('Sessions list context menus', () => {
 					onDidChange: Event.None,
 					getActions: () => {
 						const actions = includeExtensionAction ? [...testMenuActions, extensionAction] : testMenuActions;
-						return actions.length ? [['navigation', actions]] : [];
+						return isItemMenu && actions.length ? [['navigation', actions]] : [];
 					},
 					dispose: () => disposable.dispose(),
 				};
@@ -402,7 +403,7 @@ suite('Sessions list context menus', () => {
 		dispatchContextMenu(groupHeader);
 
 		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
-			ids: ['sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
+			ids: ['sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			disposableIds: [],
 		});
 	});
@@ -429,7 +430,7 @@ suite('Sessions list context menus', () => {
 				disposableIds: [],
 			},
 			groupActions: {
-				ids: ['sessions.createGroup', 'vs.actions.separator', 'sessions.deleteGroupAction'],
+				ids: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.deleteGroupAction'],
 				disposableIds: [],
 			},
 			deletedGroups: [[group.id]],
@@ -478,7 +479,7 @@ suite('Sessions list context menus', () => {
 			moveToGroup: { label: moveToGroup?.label, targets: moveToGroup?.actions.map(action => action.label) },
 			created: harness.createdGroups,
 		}, {
-			groupMenu: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
+			groupMenu: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			moveToGroup: { label: 'Move to Group', targets: ['Release work', 'Release work › Hotfixes › Urgent', 'Triage'] },
 			created: [
 				{ name: 'New Group', sessionIds: [], parentId: hotfixes.id },
@@ -498,7 +499,7 @@ suite('Sessions list context menus', () => {
 		dispatchContextMenu(groupHeader);
 
 		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
-			ids: ['sessions.createGroup'],
+			ids: ['sessionsViewPane.markAllInSectionRead'],
 			disposableIds: [],
 		});
 	});
@@ -719,8 +720,8 @@ suite('Sessions list context menus', () => {
 				grouped,
 				actions: {
 					ids: grouped
-						? ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
-						: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.moveSectionToGroup', 'sessions.moveSectionToGroup.target', 'sessions.moveSectionToGroup.group', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.createGroup'],
+						? ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
+						: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.moveSectionToGroup', 'sessions.moveSectionToGroup.target', 'sessions.moveSectionToGroup.group', 'sessions.createGroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor'],
 					disposableIds: [],
 				},
 				readSessions: ['Visible', 'Filtered'],
@@ -841,8 +842,8 @@ suite('Sessions list context menus', () => {
 			events,
 		}, {
 			title: 'Promote to Session',
-			group: '1_move',
-			order: 1,
+			group: '2_organize',
+			order: 3,
 			shown: { enabled: true, settingOff: false, aiDisabled: false, notMovable: false },
 			results: [true, false, false, false],
 			events: [
@@ -921,9 +922,9 @@ suite('Sessions list context menus', () => {
 			order: item.order,
 			when: item.when?.serialize(),
 		})), [
-			{ id: RENAME_CHAT_COMMAND_ID, title: 'Rename...', group: '1_chat', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
-			{ id: 'sessions.list.openChatToSide', title: 'Open to the Side', group: '1_chat', order: 2, when: undefined },
-			{ id: 'sessions.list.deleteChat', title: 'Delete...', group: '2_delete', order: 1, when: 'sessionChatItem.canDelete' },
+			{ id: RENAME_CHAT_COMMAND_ID, title: 'Rename...', group: '4_manage', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
+			{ id: 'sessions.list.openChatToSide', title: 'Open to the Side', group: 'navigation', order: 2, when: undefined },
+			{ id: 'sessions.list.deleteChat', title: 'Delete...', group: '4_manage', order: 2, when: 'sessionChatItem.canDelete' },
 		]);
 		const deleteToolbarItem = MenuRegistry.getMenuItems(Menus.SessionChatItemToolbar)
 			.filter(isIMenuItem)

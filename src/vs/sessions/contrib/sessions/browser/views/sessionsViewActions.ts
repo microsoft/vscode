@@ -459,6 +459,14 @@ MenuRegistry.appendMenuItem(SessionSectionToolbarMenuId, {
 	when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'external'),
 });
 
+MenuRegistry.appendMenuItem(Menus.SessionSectionContext, {
+	submenu: Menus.SessionsViewExternalFilter,
+	title: localize2('configureExternalSessions', "Configure External Sessions"),
+	group: '4_manage',
+	order: 1,
+	when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'external'),
+});
+
 //  Sort / Group Actions
 
 registerAction2(class SortByCreatedAction extends Action2 {
@@ -728,9 +736,9 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 			id: NEW_SESSION_FOR_WORKSPACE_ACTION_ID,
 			title: localize2('newSessionForWorkspace', "New Session"),
 			icon: Codicon.plus,
-			menu: [
+			menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].flatMap(id => [
 				{
-					id: SessionSectionToolbarMenuId,
+					id,
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(
@@ -739,7 +747,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 						SessionGroupingSectionContext)
 				},
 				{
-					id: SessionSectionToolbarMenuId,
+					id,
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(
@@ -749,7 +757,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 							SessionSectionHasNonCloudRepositoryContext.negate()),
 					),
 				},
-			]
+			])
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISessionSection): Promise<void> {
@@ -794,17 +802,15 @@ registerAction2(class NewQuickChatAction extends Action2 {
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyN),
 				when: ContextKeyExpr.and(QuickChatEnabledContext, IsSessionsWindowContext, EditorAreaFocusContext.negate()),
 			},
-			menu: [
-				{
-					// Sole create affordance for quick chats: the "+" on the
-					// always-visible in-list "Chats" section header. Opens the
-					// composer; the session type is chosen via its inline picker.
-					id: SessionSectionToolbarMenuId,
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(QuickChatEnabledContext, ContextKeyExpr.equals(SessionSectionTypeContext.key, 'quickchats')),
-				},
-			]
+			menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({
+				// Sole create affordance for quick chats: the "+" on the
+				// always-visible in-list "Chats" section header. Opens the
+				// composer; the session type is chosen via its inline picker.
+				id,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(QuickChatEnabledContext, ContextKeyExpr.equals(SessionSectionTypeContext.key, 'quickchats')),
+			}))
 		});
 	}
 	override run(accessor: ServicesAccessor): void {
@@ -867,10 +873,10 @@ abstract class BaseArchiveSectionAction extends Action2 {
 			id: 'sessionsView.sectionArchive',
 			title: action.title,
 			icon: action.icon,
-			menu: [{
-				id: SessionSectionToolbarMenuId,
-				group: 'navigation',
-				order: 1,
+			menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({
+				id,
+				group: id === SessionSectionToolbarMenuId ? 'navigation' : '1_state',
+				order: id === SessionSectionToolbarMenuId ? 1 : 2,
 				// Not on Done itself, and not on the "Chats" (quick chats) section.
 				// Also not on Automations.
 				when: ContextKeyExpr.and(
@@ -878,7 +884,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'quickchats'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'automations'),
 				),
-			}]
+			}))
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISessionSection): Promise<void> {
@@ -952,12 +958,12 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 			id: 'sessionsView.markAllInGroupAsDone',
 			title: action.title,
 			icon: action.icon,
-			menu: [{
-				id: SessionGroupToolbarMenuId,
-				group: 'navigation',
+			menu: [SessionGroupToolbarMenuId, Menus.SessionGroupContext].map(id => ({
+				id,
+				group: id === SessionGroupToolbarMenuId ? 'navigation' : '1_state',
 				order: 2,
 				when: SessionGroupHasVisibleSessionsContext,
-			}]
+			}))
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISessionGroupItem): Promise<void> {
@@ -1053,12 +1059,12 @@ registerAction2(class NewSessionInGroupAction extends Action2 {
 			id: 'sessionsView.newSessionInGroup',
 			title: localize2('newSessionInGroup', "New Session"),
 			icon: Codicon.plus,
-			menu: [{
-				id: SessionGroupToolbarMenuId,
+			menu: [SessionGroupToolbarMenuId, Menus.SessionGroupContext].map(id => ({
+				id,
 				group: 'navigation',
 				order: 1,
 				when: SessionGroupIsComparisonContext.negate(),
-			}]
+			}))
 		});
 	}
 	run(accessor: ServicesAccessor, context?: ISessionGroupItem): void {
@@ -1244,8 +1250,8 @@ abstract class BaseArchiveSessionAction extends Action2 {
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
-				group: 'secondary/1_session',
-				order: 30,
+				group: 'secondary/1_state',
+				order: 20,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, ContextKeyExpr.equals(SessionIsArchivedContext.key, false), SessionHeaderTargetsChatContext.negate()),
 			}))]
 		});
@@ -1303,8 +1309,8 @@ abstract class BaseUnarchiveSessionAction extends Action2 {
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
-				group: 'secondary/1_session',
-				order: 5,
+				group: 'secondary/1_state',
+				order: 20,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}))]
 		});
@@ -1348,8 +1354,8 @@ abstract class BaseArchiveChatAction extends Action2 {
 			icon: action.icon,
 			menu: [{
 				id: Menus.SessionChatItemContext,
-				group: '1_chat',
-				order: 3,
+				group: '1_state',
+				order: 2,
 				when,
 			}, {
 				id: Menus.SessionChatItemToolbar,
@@ -1358,8 +1364,8 @@ abstract class BaseArchiveChatAction extends Action2 {
 				when: ContextKeyExpr.and(when, SessionChatItemIsUntitledContext.negate()),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
-				group: 'secondary/1_session',
-				order: 30,
+				group: 'secondary/1_state',
+				order: 20,
 				when: ContextKeyExpr.and(SessionHeaderTargetsChatContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext.negate()),
 			}))],
 		});
@@ -1411,8 +1417,8 @@ abstract class BaseUnarchiveChatAction extends Action2 {
 			icon: action.icon,
 			menu: [{
 				id: Menus.SessionChatItemContext,
-				group: '1_chat',
-				order: 3,
+				group: '1_state',
+				order: 2,
 				when,
 			}, {
 				id: Menus.SessionChatItemToolbar,
@@ -1453,7 +1459,7 @@ registerAction2(class OpenParentSessionAction extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.SessionChatItemContext,
-				group: '0_open',
+				group: 'navigation',
 				order: 1,
 				when: SessionChatItemIsStandaloneContext,
 			}, {
@@ -1487,7 +1493,7 @@ abstract class BaseMoveSessionListChatAction extends Action2 {
 			},
 			menu: [{
 				id: Menus.SessionChatItemContext,
-				group: '2_order',
+				group: '2_organize',
 				order: direction === 'up' ? 1 : 2,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, direction === 'up' ? SessionChatItemCanMoveUpContext : SessionChatItemCanMoveDownContext),
 			}],
@@ -1671,8 +1677,8 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 				),
 			}, {
 				id: Menus.SessionChatItemContext,
-				group: '1_chat',
-				order: 2.5,
+				group: '1_state',
+				order: 1,
 				when: ContextKeyExpr.and(
 					SessionChatItemCanSetReadStateContext,
 					SessionChatItemIsReadContext.negate(),
@@ -1680,8 +1686,8 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 				),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
-				group: 'secondary/5_read',
-				order: 0,
+				group: 'secondary/1_state',
+				order: 10,
 				when: ContextKeyExpr.and(
 					SessionIsCreatedContext,
 					SessionIsReadContext.negate(),
@@ -1715,8 +1721,8 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 				),
 			}, {
 				id: Menus.SessionChatItemContext,
-				group: '1_chat',
-				order: 2.5,
+				group: '1_state',
+				order: 1,
 				when: ContextKeyExpr.and(
 					SessionChatItemCanSetReadStateContext,
 					SessionChatItemIsReadContext,
@@ -1724,8 +1730,8 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 				),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
-				group: 'secondary/5_read',
-				order: 0,
+				group: 'secondary/1_state',
+				order: 10,
 				when: ContextKeyExpr.and(
 					SessionIsCreatedContext,
 					SessionIsReadContext,

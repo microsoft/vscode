@@ -456,6 +456,31 @@ function isSessionGroupingSection(sectionId: string): boolean {
 	return sectionId.startsWith('workspace:') || sectionId.startsWith(REPOSITORY_SECTION_PREFIX) || sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX);
 }
 
+/** The {@link SessionSectionTypeContext} value of a section: its grouping kind, or its id for the fixed sections. */
+function getSessionSectionType(sectionId: string): string {
+	return sectionId.startsWith('workspace:') ? 'workspace' : sectionId.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : sectionId;
+}
+
+/**
+ * Joins context menu groups with separators, merging groups of the same name in
+ * the order given and ordering the groups as the menu service does: `navigation`
+ * first, ungrouped actions last, and the rest by name. Lets the list merge its
+ * own actions into contributed groups.
+ */
+function joinContextMenuGroups(groups: readonly (readonly [string, readonly IAction[]])[]): IAction[] {
+	const merged = new Map<string, IAction[]>();
+	for (const [group, actions] of groups) {
+		let target = merged.get(group);
+		if (!target) {
+			target = [];
+			merged.set(group, target);
+		}
+		target.push(...actions);
+	}
+	const rank = (group: string) => group === 'navigation' ? 0 : group ? 1 : 2;
+	return Separator.join(...[...merged].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b)).map(([, actions]) => actions));
+}
+
 function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
 	return 'showMore' in item && (item as ISessionShowMore).showMore === true;
 }
@@ -2671,7 +2696,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 
 		// Set context key for section type so toolbar actions can use when clauses
-		const sectionType = element.id.startsWith('workspace:') ? 'workspace' : element.id.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : element.id.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : element.id;
+		const sectionType = getSessionSectionType(element.id);
 		SessionSectionTypeContext.bindTo(template.contextKeyService).set(sectionType);
 		const hasGitHubRepository = SessionSectionHasGitHubRepositoryContext.bindTo(template.contextKeyService);
 		const hasNonCloudRepository = SessionSectionHasNonCloudRepositoryContext.bindTo(template.contextKeyService);
@@ -7385,18 +7410,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const menuGroups = menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([group, actions]): [string, IAction[]] => [group, actions.map(wrapAction)]);
-		const groupActions = this.getGroupSessionActions(selectedSessions);
-		if (groupActions.length > 0) {
-			// Group membership actions depend on the list's groups, so they are built here and merged into the contributed Organize group.
-			const organizeGroup = menuGroups.find(([group]) => group === SessionItemOrganizeMenuGroup);
-			if (organizeGroup) {
-				organizeGroup[1].push(...groupActions);
-			} else {
-				const index = menuGroups.findIndex(([group]) => !group || (group !== 'navigation' && group.localeCompare(SessionItemOrganizeMenuGroup) > 0));
-				menuGroups.splice(index === -1 ? menuGroups.length : index, 0, [SessionItemOrganizeMenuGroup, groupActions]);
-			}
-		}
-		const actions = Separator.join(...menuGroups.map(([, actions]) => actions));
+		// Group membership actions depend on the list's groups, so they are built here and merged into the contributed Organize group.
+		const actions = joinContextMenuGroups([...menuGroups, [SessionItemOrganizeMenuGroup, this.getGroupSessionActions(selectedSessions)]]);
 		if (actions.length === 0) {
 			this._sessionContextMenuDisposables.clear();
 			return;
@@ -7539,21 +7554,22 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private showSectionContextMenu(section: ISessionSection, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
-		const actions: IAction[] = [];
-		if (section.id === EXTERNAL_SESSIONS_SECTION_ID) {
-			const contextKeyService = this.contextKeyService.createOverlay([[SessionSectionTypeContext.key, EXTERNAL_SESSIONS_SECTION_ID]]);
-			actions.push(...getFlatContextMenuActions(this.menuService.getMenuActions(SessionSectionToolbarMenuId, contextKeyService, { arg: section, shouldForwardArgs: true })), new Separator());
-		}
+		const contextKeyService = this.contextKeyService.createOverlay([
+			[SessionSectionTypeContext.key, getSessionSectionType(section.id)],
+			[SessionSectionHasNonCloudRepositoryContext.key, section.sessions.some(session => session.workspace.get()?.folders.some(folder => folder.root.scheme !== GITHUB_REMOTE_FILE_SCHEME) ?? false)],
+		]);
+		const groups: [string, readonly IAction[]][] = [];
+		const organize: IAction[] = [];
 		const grouping = this.options.grouping();
 		if (grouping === SessionsGrouping.Date && DATE_SECTION_IDS.includes(section.id)) {
-			actions.push(this.getMarkAllSessionsReadAction(() => section.sessions), new Separator());
+			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => section.sessions)]]);
 		}
 		if (grouping !== SessionsGrouping.Date && isSessionGroupingSection(section.id)) {
-			actions.push(this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => getSessionGroupingSectionId(session, grouping) === section.id)));
+			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => getSessionGroupingSectionId(session, grouping) === section.id))]]);
 			const parentId = this.getSectionParentId(section.id);
-			const groups = this.getGroupsInDisplayOrder().filter(group => this.canHoldSubgroups(group.id));
-			if (groups.length > 0) {
-				actions.push(new Separator(), new SubmenuAction('sessions.moveSectionToGroup', localize('moveSectionToGroup', "Move to Group"), groups.map(group => toAction({
+			const groupsInDisplayOrder = this.getGroupsInDisplayOrder().filter(group => this.canHoldSubgroups(group.id));
+			if (groupsInDisplayOrder.length > 0) {
+				organize.push(new SubmenuAction('sessions.moveSectionToGroup', localize('moveSectionToGroup', "Move to Group"), groupsInDisplayOrder.map(group => toAction({
 					id: `sessions.moveSectionToGroup.${group.id}`,
 					label: getSessionGroupPathLabel(this._sessionGroupsService.getTree().getPath(group.id)),
 					checked: group.id === parentId,
@@ -7562,23 +7578,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}))));
 			}
 			if (parentId !== undefined) {
-				actions.push(toAction({
+				organize.push(toAction({
 					id: 'sessions.removeSectionFromGroup',
 					label: localize('removeSectionFromGroup', "Remove from Group"),
 					run: () => this.moveSectionToGroup(section, undefined),
 				}));
 			}
-			actions.push(new Separator(), ...this.getGroupAppearanceActions(
+			groups.push(['4_manage', this.getGroupAppearanceActions(
 				this._sessionGroupsService.getSectionAppearance(section.id),
 				icon => this._sessionGroupsService.setSectionIcon(section.id, icon),
 				color => this._sessionGroupsService.setSectionColor(section.id, color),
-			), new Separator());
+			)]);
 		}
-		actions.push(this.getCreateGroupAction());
-		this.contextMenuService.showContextMenu({
-			getActions: () => actions,
-			getAnchor: () => anchor,
-		});
+		organize.push(this.getCreateGroupAction());
+		groups.push(['2_organize', organize]);
+		this.showHeaderContextMenu(Menus.SessionSectionContext, contextKeyService, section, groups, anchor);
 	}
 
 	private moveSectionToGroup(section: ISessionSection, parentId: string | undefined): void {
@@ -7637,10 +7651,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private showGroupContextMenu(groupItem: ISessionGroupItem, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
-		const actions: IAction[] = [];
 		const comparison = groupItem.comparison;
-		if (this.options.grouping() !== SessionsGrouping.Date && !groupItem.isEmpty) {
-			actions.push(this.getMarkAllSessionsReadAction(() => {
+		const contextKeyService = this.contextKeyService.createOverlay([
+			[SessionGroupHasVisibleSessionsContext.key, groupItem.subtreeSessions.length > 0 && comparison?.launching !== true],
+			[SessionGroupIsEmptyContext.key, groupItem.isEmpty],
+			[SessionGroupIsComparisonContext.key, !!comparison],
+		]);
+		const groups: [string, readonly IAction[]][] = [];
+		if (!groupItem.isEmpty) {
+			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => {
 				const subtree = this._sessionGroupsService.getTree().getSubtree(groupItem.group.id);
 				const sessionIds = new Set(subtree.flatMap(group => this._sessionGroupsService.getSessionIdsInGroup(group.id)));
 				const groupIds = new Set(subtree.map(group => group.id));
@@ -7653,46 +7672,64 @@ export class SessionsList extends Disposable implements ISessionsList {
 					return sessionIds.has(session.sessionId)
 						|| (!session.isArchived.get() && !this.isSessionPinned(session) && parentId !== undefined && groupIds.has(parentId));
 				});
-			}), new Separator());
+			})]]);
 		}
-		actions.push(this.canHoldSubgroups(groupItem.group.id) ? this.getCreateSubgroupAction(groupItem) : this.getCreateGroupAction());
+		if (this.canHoldSubgroups(groupItem.group.id)) {
+			groups.push(['2_organize', [this.getCreateSubgroupAction(groupItem)]]);
+		}
 		if (!comparison) {
-			actions.push(
-				new Separator(),
+			groups.push(['4_manage', [
 				...this.getGroupAppearanceActions(
 					groupItem.group,
 					icon => this._sessionGroupsService.setGroupIcon(groupItem.group.id, icon),
 					color => this._sessionGroupsService.setGroupColor(groupItem.group.id, color),
 				),
-				new Separator(),
 				toAction({
 					id: 'sessions.renameGroupAction',
 					label: localize('renameGroupAction', "Rename..."),
 					run: () => this.beginRenameGroup(groupItem.group.id),
 				}),
 				this.getDeleteGroupAction(groupItem),
-			);
+			]]);
 		} else {
 			if (this.sessionComparisonService.canRetryJudge(comparison.id)) {
-				actions.push(
-					new Separator(),
-					toAction({
-						id: 'sessions.retryComparisonJudge',
-						label: localize('retryComparisonJudge', "Retry Judge"),
-						run: () => this.sessionComparisonService.retryJudge(comparison.id),
-					}),
-				);
+				groups.push(['navigation', [toAction({
+					id: 'sessions.retryComparisonJudge',
+					label: localize('retryComparisonJudge', "Retry Judge"),
+					run: () => this.sessionComparisonService.retryJudge(comparison.id),
+				})]]);
 			}
 			const comparisonRecord = this.sessionComparisonService.getComparison(comparison.id);
 			const comparisonSessions = comparisonRecord ? getComparisonSessions(comparisonRecord, this._sessionsManagementService) : [];
 			// Deleting while attempts are still launching would retire the comparison under its in-flight launches.
 			if (comparisonRecord?.launching !== true && !comparisonSessions.some(session => isSessionActive(session, undefined))) {
-				actions.push(new Separator(), this.getDeleteGroupAction(groupItem));
+				groups.push(['4_manage', [this.getDeleteGroupAction(groupItem)]]);
 			}
+		}
+		this.showHeaderContextMenu(Menus.SessionGroupContext, contextKeyService, groupItem, groups, anchor);
+	}
+
+	/** Shows a header's contributed context menu with the list's own header actions merged into its groups. */
+	private showHeaderContextMenu(menuId: MenuId, contextKeyService: IContextKeyService, arg: ISessionSection | ISessionGroupItem, groups: readonly (readonly [string, readonly IAction[]])[], anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
+		const disposables = new DisposableStore();
+		this._sessionContextMenuDisposables.value = disposables;
+		const menu = disposables.add(this.menuService.createMenu(menuId, contextKeyService));
+		const actions = joinContextMenuGroups([...groups, ...menu.getActions({ arg, shouldForwardArgs: true })]);
+		if (actions.length === 0) {
+			this._sessionContextMenuDisposables.clear();
+			return;
 		}
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => anchor,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
+			onHide: () => {
+				if (this._sessionContextMenuDisposables.value === disposables) {
+					this._sessionContextMenuDisposables.clear();
+				} else {
+					disposables.dispose();
+				}
+			},
 		});
 	}
 
