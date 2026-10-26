@@ -19,7 +19,7 @@ import { IWorkbenchGitHubService } from '../../../../services/github/common/gith
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import { renderPicker } from './tabbedModelPicker.fixture.js';
 
-async function renderCloudPicker(context: ComponentFixtureContext, view: 'list' | 'pricing' | 'long' | 'unknown'): Promise<void> {
+async function renderCloudPicker(context: ComponentFixtureContext, view: 'list' | 'pricing' | 'long' | 'unknown', connected = false): Promise<void> {
 	const details = view !== 'list';
 	const unknownLimits = view === 'unknown';
 	const api = context.disposableStore.add(new CloudSandboxApiService(
@@ -65,7 +65,19 @@ async function renderCloudPicker(context: ComponentFixtureContext, view: 'list' 
 	));
 	const catalog = await api.listModels(CancellationToken.None);
 	const provider = context.disposableStore.add(new AgentHostLanguageModelProvider('cloud-sandbox', 'cloud-models'));
-	provider.updateAdditionalModels(catalog.models.map(withCloudSandboxDraftModelConfig));
+	provider.updateAdditionalModels(connected ? catalog.models : catalog.models.map(withCloudSandboxDraftModelConfig));
+	if (connected) {
+		provider.updateModels([{
+			id: 'cloud-model', name: 'Cloud Model', provider: 'copilot', maxContextWindow: 1_050_000,
+			configSchema: {
+				type: 'object',
+				properties: {
+					reasoningEffort: { type: 'string', title: 'Effort Level', enum: ['low', 'medium', 'high', 'xhigh', 'max'] },
+					contextTier: { type: 'string', title: 'Context tier', enum: ['default', 'long_context'], enumLabels: ['Default', 'Long context'], default: 'default' },
+				},
+			},
+		}]);
+	}
 	const models = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 	await renderPicker(context, {
 		models, selectedModelId: 'cloud-models:cloud-model', controlModels: {}, pinnedModelIds: [],
@@ -103,4 +115,6 @@ export default defineThemedFixtureGroup({ path: 'chat/input/cloudModelPicker' },
 	Pricing: defineComponentFixture({ render: context => renderCloudPicker(context, 'pricing') }),
 	LongContext: defineComponentFixture({ render: context => renderCloudPicker(context, 'long') }),
 	UnknownLimits: defineComponentFixture({ render: context => renderCloudPicker(context, 'unknown') }),
+	Connected: defineComponentFixture({ render: context => renderCloudPicker(context, 'pricing', true) }),
+	ConnectedLongContext: defineComponentFixture({ render: context => renderCloudPicker(context, 'long', true) }),
 });

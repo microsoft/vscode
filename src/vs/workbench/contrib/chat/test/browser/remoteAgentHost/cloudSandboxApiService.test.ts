@@ -1493,7 +1493,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 		});
 	});
 
-	test('requests versioned cloud limits and switches the context tier and displayed prices together', async () => {
+	test('keeps versioned Cloud context labels and prices through host connection', async () => {
 		let apiVersion: string | string[] | undefined;
 		const { service } = createService(store, {
 			tasks: [], repositories: new Map(),
@@ -1517,7 +1517,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 		const catalog = await service.listModels(CancellationToken.None);
 		const provider = store.add(new AgentHostLanguageModelProvider('cloud-sandbox', 'cloud-models'));
 		provider.updateAdditionalModels(catalog.models);
-		const [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		let [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		const values: Record<string, unknown> = {};
 		const accepted = new DeferredPromise<void>();
 		const configurationAccess = {
@@ -1536,10 +1536,24 @@ suite('CloudSandboxApiService connection credentials', () => {
 		assert.ok(longContext);
 		longContext.click();
 		await accepted.p;
-		assert.deepStrictEqual({ apiVersion, before, after: snapshot(), values }, {
+		const after = snapshot();
+		provider.updateModels([{
+			id: 'context-model', provider: 'copilot', name: 'Context Model',
+			configSchema: {
+				type: 'object',
+				properties: {
+					reasoningEffort: { type: 'string', title: 'Effort Level', enum: ['low', 'medium', 'high'] },
+					contextTier: { type: 'string', title: 'Context tier', enum: ['default', 'long_context'], enumLabels: ['Default', 'Long context'], default: 'default' },
+				},
+			},
+		}]);
+		[model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		card.update({ model, isUBB: true, openerService: NullOpenerService, configurationAccess });
+		assert.deepStrictEqual({ apiVersion, before, after, connected: snapshot(), values }, {
 			apiVersion: '2026-06-01',
 			before: { selected: ['272K'], prices: ['200', '1000', '10', '250'], summary: 'Model default · 272K' },
 			after: { selected: ['1M'], prices: ['400', '1500', '20', '500'], summary: 'Model default · 1M' },
+			connected: { selected: ['1M'], prices: ['400', '1500', '20', '500'], summary: 'Model default · 1M' },
 			values: { contextTier: 'long_context' },
 		});
 	});

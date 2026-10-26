@@ -129,6 +129,97 @@ suite('AgentHostLanguageModelProvider', () => {
 		});
 	});
 
+	const cloudContextModel: SessionModelInfo = {
+		id: 'context-model', provider: 'copilot', name: 'Cloud Model',
+		configSchema: {
+			type: 'object',
+			properties: { contextTier: { type: 'string', title: 'Context Size', enum: ['default', 'long_context'], enumLabels: ['272K', '1M'], default: 'default' } },
+		},
+	};
+	const hostContextModel: SessionModelInfo = {
+		...cloudContextModel,
+		configSchema: {
+			type: 'object', required: ['contextTier'],
+			properties: { contextTier: { type: 'string', title: 'Host context', enum: ['default', 'long_context'], enumLabels: ['Default', 'Long context'], enumDescriptions: ['Standard window', 'Extended window'], default: 'long_context', readOnly: true } },
+		},
+		_meta: withAgentManagedModelDefaults(withAgentModelConfigurationDefaults(undefined, ['contextTier']), { model: true, keys: ['contextTier'] }),
+	};
+
+	for (const values of [['long_context', 'default'], ['default']]) {
+		test(`maps Cloud context labels by host tier without changing configuration: ${values.join(', ')}`, async () => {
+			const provider = createProvider();
+			const schema = hostContextModel.configSchema!;
+			provider.updateModels([{
+				...hostContextModel,
+				configSchema: {
+					...schema,
+					properties: {
+						contextTier: {
+							...schema.properties.contextTier, enum: values, default: values[0],
+							enumLabels: values.map(value => value === 'default' ? 'Default' : 'Long context'),
+							enumDescriptions: values.map(value => value === 'default' ? 'Standard window' : 'Extended window'),
+						},
+					},
+				},
+			}]);
+			const [before] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			provider.updateAdditionalModels([cloudContextModel]);
+			const [after] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			assert.deepStrictEqual(after.metadata, {
+				...before.metadata,
+				configurationSchema: {
+					...before.metadata.configurationSchema,
+					properties: { contextTier: { ...before.metadata.configurationSchema?.properties?.contextTier, enumItemLabels: values.map(value => value === 'default' ? '272K' : '1M') } },
+				},
+			});
+		});
+	}
+
+	test('keeps host context labels when Cloud catalogue enrichment is incompatible', async () => {
+		const hostSchema = hostContextModel.configSchema!;
+		const cloudSchema = cloudContextModel.configSchema!;
+		const scenarios: { name: string; host: SessionModelInfo; catalog: SessionModelInfo[] }[] = [
+			{ name: 'missing catalogue', host: hostContextModel, catalog: [] },
+			{ name: 'different model', host: hostContextModel, catalog: [{ ...cloudContextModel, id: 'other-model' }] },
+			{ name: 'different provider', host: hostContextModel, catalog: [{ ...cloudContextModel, provider: 'other' }] },
+			{ name: 'non-Cloud provider', host: { ...hostContextModel, provider: 'other', _meta: { modelGroupId: 'copilot' } }, catalog: [{ ...cloudContextModel, provider: 'other', _meta: { modelGroupId: 'copilot' } }] },
+			{ name: 'direct host billing', host: { ...hostContextModel, _meta: { modelGroupId: 'anthropic' } }, catalog: [cloudContextModel] },
+			{ name: 'direct catalogue billing', host: hostContextModel, catalog: [{ ...cloudContextModel, _meta: { modelGroupId: 'anthropic' } }] },
+			{ name: 'no named catalogue tiers', host: hostContextModel, catalog: [{ ...cloudContextModel, configSchema: undefined }] },
+			{ name: 'incomplete catalogue labels', host: hostContextModel, catalog: [{ ...cloudContextModel, configSchema: { ...cloudSchema, properties: { contextTier: { ...cloudSchema.properties.contextTier, enumLabels: ['272K'] } } } }] },
+			{ name: 'incompatible catalogue type', host: hostContextModel, catalog: [{ ...cloudContextModel, configSchema: { ...cloudSchema, properties: { contextTier: { ...cloudSchema.properties.contextTier, type: 'number' } } } }] },
+			{ name: 'unknown host tier', host: { ...hostContextModel, configSchema: { ...hostSchema, properties: { contextTier: { ...hostSchema.properties.contextTier, enum: ['default', 'custom'] } } } }, catalog: [cloudContextModel] },
+			{ name: 'incompatible host type', host: { ...hostContextModel, configSchema: { ...hostSchema, properties: { contextTier: { ...hostSchema.properties.contextTier, type: 'number', enum: [0, 1] } } } }, catalog: [cloudContextModel] },
+			{ name: 'no host tiers', host: { ...hostContextModel, configSchema: undefined }, catalog: [cloudContextModel] },
+			{ name: 'numeric host context', host: { ...hostContextModel, configSchema: { type: 'object', properties: { contextSize: { type: 'number', title: 'Context size', enum: [128_000, 256_000], enumLabels: ['128K', '256K'] } } } }, catalog: [cloudContextModel] },
+			{ name: 'disabled host model', host: { ...hostContextModel, policyState: PolicyState.Disabled }, catalog: [cloudContextModel] },
+		];
+		for (const scenario of scenarios) {
+			const provider = createProvider();
+			provider.updateModels([scenario.host]);
+			const [before] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			provider.updateAdditionalModels(scenario.catalog);
+			const [after] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			assert.deepStrictEqual(after, before, scenario.name);
+		}
+	});
+
+	test('refreshes Cloud numeric labels and restores host labels when the catalogue clears', async () => {
+		const provider = createProvider();
+		provider.updateModels([hostContextModel]);
+		const readLabels = async () => (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.configurationSchema?.properties?.contextTier.enumItemLabels;
+		const before = await readLabels();
+		provider.updateAdditionalModels([cloudContextModel]);
+		const connected = await readLabels();
+		const schema = cloudContextModel.configSchema!;
+		provider.updateAdditionalModels([{ ...cloudContextModel, configSchema: { ...schema, properties: { contextTier: { ...schema.properties.contextTier, enumLabels: ['300K', '2M'] } } } }]);
+		const refreshed = await readLabels();
+		provider.updateAdditionalModels([]);
+		assert.deepStrictEqual({ before, connected, refreshed, cleared: await readLabels(), hostLabels: hostContextModel.configSchema?.properties.contextTier.enumLabels }, {
+			before: ['Default', 'Long context'], connected: ['272K', '1M'], refreshed: ['300K', '2M'], cleared: ['Default', 'Long context'], hostLabels: ['Default', 'Long context'],
+		});
+	});
+
 	test('groups native autoTier without inventing a default or losing fast', async () => {
 		const provider = createProvider();
 		provider.updateModels([{
