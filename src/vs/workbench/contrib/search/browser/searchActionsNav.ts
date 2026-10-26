@@ -350,7 +350,8 @@ registerAction2(class FocusSearchInputCommandAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const searchView = await openSearchView(accessor.get(IViewsService), false);
-		searchView?.searchAndReplaceWidget.focus();
+		// Focusing must not import macOS's global Find clipboard over the query.
+		searchView?.searchAndReplaceWidget.focus(true, false, true);
 	}
 });
 
