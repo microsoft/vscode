@@ -115,4 +115,31 @@ suite('SessionSectionOrderService', () => {
 			changes: 1,
 		});
 	});
+
+	test('adopts the position and promotion of a former identity unless it has its own', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const service = disposables.add(new SessionSectionOrderService(storageService));
+		service.reorder(['a', 'b', 'c'], 'a', 'c', 'after', 'a');
+		let changes = 0;
+		disposables.add(service.onDidChange(() => changes++));
+
+		service.adoptPosition('a', 'renamed-a');
+		// 'c' keeps its own position, and 'b' has no promotion to give.
+		service.adoptPosition('b', 'c');
+		service.adoptPosition('missing', 'renamed-missing');
+		service.adoptPosition('a', 'renamed-a');
+
+		const ids = ['a', 'b', 'c', 'renamed-a', 'renamed-missing'];
+		assert.deepStrictEqual({
+			order: service.capturePositions(ids).order,
+			promoted: ids.filter(id => service.isPromoted(id)),
+			reloaded: disposables.add(new SessionSectionOrderService(storageService)).capturePositions(ids).order,
+			changes,
+		}, {
+			order: ['b', 'c', 'a', 'renamed-a'],
+			promoted: ['a', 'renamed-a'],
+			reloaded: ['b', 'c', 'a', 'renamed-a'],
+			changes: 1,
+		});
+	});
 });
