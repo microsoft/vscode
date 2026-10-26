@@ -49,6 +49,9 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly managementChanges: { id: string; action: 'rename' | 'remove' }[] = [];
 	readonly connectionChanges: { id: string; connected: boolean }[] = [];
 	readonly visibilityChanges: { id: string; hidden: boolean }[] = [];
+	readonly copiedAddresses: string[] = [];
+	readonly locationChanges: string[] = [];
+	copyFailure: Error | undefined;
 	pendingConnection: DeferredPromise<void> | undefined;
 	pendingManagement: DeferredPromise<void> | undefined;
 	failedKinds: readonly RemoteKind[] = [];
@@ -80,6 +83,18 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		this.managementChanges.push({ id, action: 'rename' });
 		await this.pendingManagement?.p;
 		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, name: 'Renamed remote' } : remote).sort((a, b) => a.name.localeCompare(b.name)), undefined);
+	}
+
+	async copyAddress(id: string): Promise<void> {
+		if (this.copyFailure) {
+			throw this.copyFailure;
+		}
+		this.copiedAddresses.push(id);
+	}
+
+	async changePreferredAgentLocation(id: string): Promise<void> {
+		this.locationChanges.push(id);
+		await this.pendingManagement?.p;
 	}
 
 	async remove(id: string): Promise<void> {
@@ -220,7 +235,7 @@ suite('RemotesWidget', () => {
 			rowHeight: row.getBoundingClientRect().height,
 			groupHeight: parent.querySelector('.remotes-group-row')!.getBoundingClientRect().height,
 			headerHeight: headers[1].getBoundingClientRect().height,
-			actionsWidth: headers[3].getBoundingClientRect().width === 72,
+			actionsWidth: headers[3].getBoundingClientRect().width === 96,
 			sashes: parent.querySelectorAll('.monaco-sash.vertical').length > 0,
 		}, {
 			values: ['Build server', 'Connected'], aligned: true,
@@ -530,10 +545,10 @@ suite('RemotesWidget', () => {
 		widget.setVisible(true);
 		await timeout(0);
 		const expected = [
-			['Connect to Desktop', 'Rename Desktop...', 'Delete Desktop'],
-			['Disconnect Build server', 'Rename Build server...'],
-			['Connect to Laptop', 'Rename Laptop...'],
-			['Connect to Ubuntu', 'Rename Ubuntu...'],
+			['Connect to Desktop', 'Rename Desktop...', 'Copy Address of Desktop', 'Delete Desktop'],
+			['Disconnect Build server', 'Rename Build server...', 'Copy Address of Build server'],
+			['Connect to Laptop', 'Rename Laptop...', 'Copy Address of Laptop', 'Change Preferred Agent Location for Laptop'],
+			['Connect to Ubuntu', 'Rename Ubuntu...', 'Copy Address of Ubuntu'],
 		];
 		assert.deepStrictEqual({ before, after: actions(), changes: model.managementChanges }, { before: expected, after: expected, changes: [] });
 	});
@@ -565,6 +580,62 @@ suite('RemotesWidget', () => {
 			remaining: parent.querySelector('[data-remote-id="environment:desktop"]') !== null,
 			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
 		}, { busy: { deletion: 'true', rename: 'true' }, changes: [{ id: 'environment:desktop', action: 'remove' }], remaining: false, focused: true });
+	});
+
+	test('Copy Address works on every visible remote without changing connections or focus', async () => {
+		const { parent, model } = createWidget(OperatingSystem.Windows);
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([...model.remotes.get(), {
+			id: 'environment:offline', name: 'Offline', kind: 'environment', detail: 'host', canRemove: true,
+			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Offline',
+		}], undefined);
+		const buttons = [...parent.querySelectorAll<HTMLElement>('[data-remote-id] .remotes-actions-column .codicon-copy')];
+		const ids = buttons.map(button => button.closest<HTMLElement>('[data-remote-id]')!.dataset.remoteId);
+		for (const button of buttons) {
+			button.focus();
+			button.click();
+			await timeout(0);
+			assert.strictEqual(dom.getActiveElement(), button);
+		}
+		assert.deepStrictEqual({ copied: model.copiedAddresses, connections: model.connectionChanges }, { copied: ids, connections: [] });
+	});
+
+	test('tunnel location action is keyboard accessible and guards duplicate requests while copying stays available', async () => {
+		const { parent, model } = createWidget();
+		const row = parent.querySelector('[data-remote-id="tunnel:laptop"]')!;
+		const copy = row.querySelector<HTMLElement>('.codicon-copy')!;
+		const location = row.querySelector<HTMLElement>('.codicon-server-process')!;
+		copy.focus();
+		copy.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		copy.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		assert.strictEqual(dom.getActiveElement(), location);
+		model.pendingManagement = new DeferredPromise<void>();
+		for (const type of ['keydown', 'keyup']) {
+			location.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		location.click();
+		const busy = location.getAttribute('aria-disabled');
+		copy.click();
+		await model.pendingManagement.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			busy, enabled: location.getAttribute('aria-disabled'), calls: model.locationChanges, copied: model.copiedAddresses,
+		}, { busy: 'true', enabled: null, calls: ['tunnel:laptop'], copied: ['tunnel:laptop'] });
+	});
+
+	test('new inline actions report failures and location changes re-enable for retry', async () => {
+		const { parent, model, errors } = createWidget();
+		const row = parent.querySelector('[data-remote-id="tunnel:laptop"]')!;
+		const copyError = new Error('Clipboard unavailable');
+		const locationError = new Error('Cannot save preference');
+		model.copyFailure = copyError;
+		row.querySelector<HTMLElement>('.codicon-copy')!.click();
+		model.pendingManagement = new DeferredPromise<void>();
+		const location = row.querySelector<HTMLElement>('.codicon-server-process')!;
+		location.click();
+		await model.pendingManagement.error(locationError);
+		await timeout(0);
+		assert.deepStrictEqual({ errors, enabled: location.getAttribute('aria-disabled') }, { errors: [copyError, locationError], enabled: null });
 	});
 
 	test('failed Delete retains the row, reports the error and allows retry', async () => {
@@ -1105,6 +1176,9 @@ suite('RemotesWidget', () => {
 		}
 		await timeout(0);
 		rename.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		const copy = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .codicon-copy')!;
+		assert.strictEqual(dom.getActiveElement(), copy);
+		copy.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
 		assert.deepStrictEqual({ changes: model.managementChanges, focused: dom.getActiveElement() === connection }, {
 			changes: [{ id: 'ssh:build', action: 'rename' }], focused: true,
 		});

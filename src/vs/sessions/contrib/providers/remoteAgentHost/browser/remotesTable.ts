@@ -61,7 +61,7 @@ export interface IRemoteTableRow {
 }
 
 type RemoteColumn = 'gutter' | 'name' | 'connection' | 'actions';
-export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'rename' | 'delete' | 'signIn';
+export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'rename' | 'copyAddress' | 'locationPreference' | 'delete' | 'signIn';
 
 type RemoteCellTemplate = {
 	readonly container: HTMLElement;
@@ -72,7 +72,7 @@ type RemoteCellTemplate = {
 		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'connection'; readonly label: HTMLElement; readonly warning: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
-		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
+		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
 export function getConnectionLabel(remote: ICustomizationRemote, connecting?: boolean): string {
@@ -158,7 +158,17 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							this.onAction(template.row.entry, 'delete');
 						}
 					}));
-					template = { ...base, column: this.column, action, rename, delete: deleteAction, documentation, toolbar, actionLayout: '' };
+					const copyAddress = disposables.add(new Action('remotes.copyAddress', '', ThemeIcon.asClassName(Codicon.copy), true, async () => {
+						if (template.row?.entry.type === 'remote') {
+							this.onAction(template.row.entry, 'copyAddress');
+						}
+					}));
+					const locationPreference = disposables.add(new Action('remotes.locationPreference', '', ThemeIcon.asClassName(Codicon.serverProcess), true, async () => {
+						if (template.row?.entry.type === 'remote') {
+							this.onAction(template.row.entry, 'locationPreference');
+						}
+					}));
+					template = { ...base, column: this.column, action, rename, copyAddress, locationPreference, delete: deleteAction, documentation, toolbar, actionLayout: '' };
 				}
 				disposables.add(dom.addDisposableGenericMouseDownListener(container, event => dom.EventHelper.stop(event, true)));
 				break;
@@ -280,10 +290,15 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const showDocumentation = template.column === 'actions' && entry.type === 'group' && !!entry.documentation;
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
 				const showDelete = showConnection && entry.remote.kind === 'environment' && entry.remote.canRemove;
-				const actionLayout = `${showConfig}:${showDocumentation}:${showConnection}:${showDelete}`;
+				const showLocationPreference = showConnection && entry.remote.kind === 'tunnel';
+				const actionLayout = `${showConfig}:${showDocumentation}:${showConnection}:${showDelete}:${showLocationPreference}`;
 				if (template.column === 'actions' && template.actionLayout !== actionLayout) {
 					template.actionLayout = actionLayout;
-					template.toolbar.setActions(showConnection ? [template.action, template.rename, ...(showDelete ? [template.delete] : [])] : [
+					template.toolbar.setActions(showConnection ? [
+						template.action, template.rename, template.copyAddress,
+						...(showLocationPreference ? [template.locationPreference] : []),
+						...(showDelete ? [template.delete] : []),
+					] : [
 						...(showDocumentation ? [template.documentation] : []),
 						...(showConfig ? [template.action] : []),
 					]);
@@ -321,6 +336,11 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						? localize('remotes.connectUnavailable', "Connect to {0}: {1}", entry.remote.name, entry.remote.unavailableReason) : template.action.label;
 					template.rename.label = localize('remotes.rename', "Rename {0}...", entry.remote.name);
 					template.rename.enabled = !entry.busy;
+					template.copyAddress.label = localize('remotes.copyAddress', "Copy Address of {0}", entry.remote.name);
+					template.locationPreference.label = localize('remotes.locationPreference', "Change Preferred Agent Location for {0}", entry.remote.name);
+					template.locationPreference.enabled = !entry.busy
+						&& !RemoteAgentHostConnectionStatus.isConnecting(entry.remote.connectionStatus)
+						&& !RemoteAgentHostConnectionStatus.isReconnecting(entry.remote.connectionStatus);
 					template.delete.label = localize('remotes.delete', "Delete {0}", entry.remote.name);
 					template.delete.enabled = showDelete && !entry.busy;
 				}

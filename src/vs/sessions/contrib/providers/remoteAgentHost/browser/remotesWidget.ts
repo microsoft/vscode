@@ -161,7 +161,7 @@ export class RemotesWidget extends Disposable {
 			{ id: 'gutter', label: '', weight: 0, minimumWidth: 64, maximumWidth: 64 },
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.8, minimumWidth: 220 },
 			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 144 },
-			{ id: 'actions', label: '', weight: 0, minimumWidth: 72, maximumWidth: 72 },
+			{ id: 'actions', label: '', weight: 0, minimumWidth: 96, maximumWidth: 96 },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
@@ -268,7 +268,11 @@ export class RemotesWidget extends Disposable {
 			} else if (action === 'connect') {
 				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
 			} else if (action === 'rename') {
-				void this.renameRemote(entry.remote.id);
+				void this.manageRemote(entry.remote.id, 'rename');
+			} else if (action === 'copyAddress') {
+				void this.copyAddress(entry.remote.id);
+			} else if (action === 'locationPreference' && entry.remote.kind === 'tunnel') {
+				void this.manageRemote(entry.remote.id, 'locationPreference');
 			} else if (action === 'delete' && entry.remote.kind === 'environment' && entry.remote.canRemove) {
 				void this.deleteEnvironment(entry.remote.id);
 			}
@@ -474,14 +478,28 @@ export class RemotesWidget extends Disposable {
 		this.layout();
 	}
 
-	private async renameRemote(id: string): Promise<void> {
+	private async copyAddress(id: string): Promise<void> {
+		try {
+			await this.model.copyAddress(id);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.notificationService.error(error);
+			}
+		}
+	}
+
+	private async manageRemote(id: string, action: 'rename' | 'locationPreference'): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
 		this.pendingActions.add(id);
 		this.render();
 		try {
-			await this.model.rename(id);
+			if (action === 'locationPreference') {
+				await this.model.changePreferredAgentLocation(id);
+			} else {
+				await this.model.rename(id);
+			}
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this.notificationService.error(error);

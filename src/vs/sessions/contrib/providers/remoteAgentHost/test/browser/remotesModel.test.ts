@@ -19,12 +19,20 @@ import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService,
 import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotification, INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { TestProgressService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IInputOptions, IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
@@ -74,6 +82,10 @@ suite('RemotesModel', () => {
 			pendingConfirmation: undefined as DeferredPromise<IConfirmationResult> | undefined,
 		};
 		const confirmations: IConfirmation[] = [];
+		const copiedAddresses: string[] = [];
+		const locationPromptResult: { result: RemoteAgentHostLocationPreference | undefined } = { result: undefined };
+		const locationPreferences = new Map<string, RemoteAgentHostLocationPreference>();
+		const notifications: INotification[] = [];
 		const environmentConnections: string[] = [];
 		const environmentNames: { id: string; name: string | undefined }[] = [];
 		const environmentDeletions: string[] = [];
@@ -93,12 +105,25 @@ suite('RemotesModel', () => {
 		let tunnelAuthentication: () => Promise<'github' | 'microsoft' | undefined> = async () => 'github';
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IConfigurationService, configuration);
-		instantiationService.stub(IDialogService, {
-			confirm: async confirmation => {
+		instantiationService.stub(IDialogService, new class extends TestDialogService {
+			override async confirm(confirmation: IConfirmation) {
 				confirmations.push(confirmation);
 				return environmentState.pendingConfirmation?.p ?? { confirmed: true };
-			},
+			}
+		}({ confirmed: true }, locationPromptResult));
+		instantiationService.stub(IClipboardService, { writeText: async text => { copiedAddresses.push(text); } });
+		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, {
+			getPreference: key => locationPreferences.get(key),
+			setPreference: (key, preference) => { locationPreferences.set(key, preference); },
 		});
+		instantiationService.stub(IProductService, { nameShort: 'Code - OSS' });
+		instantiationService.stub(IProgressService, new TestProgressService());
+		instantiationService.stub(INotificationService, new class extends TestNotificationService {
+			override notify(notification: INotification) {
+				notifications.push(notification);
+				return super.notify(notification);
+			}
+		}());
 		instantiationService.stub(ILogService, new class extends NullLogService {
 			override warn(message: string, ...args: unknown[]) { logEntries.push({ message, args }); }
 		}());
@@ -241,6 +266,7 @@ suite('RemotesModel', () => {
 		const model = store.add(instantiationService.createInstance(RemotesModel, discover));
 		return {
 			model, storage, configuration, removals, logEntries, initializationReentered, providers, providersChanged, connectionChanges, reconnects, signIns,
+			copiedAddresses, locationPromptResult, locationPreferences, notifications,
 			setConnections: (value: readonly IRemoteAgentHostConnectionInfo[]) => { connections = value; connectionsChanged.fire(); },
 			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
 			failConnection: (error: Error) => { connectionFailure = error; },
@@ -309,6 +335,61 @@ suite('RemotesModel', () => {
 			connected: { status: RemoteAgentHostConnectionStatus.connected, error: undefined },
 			removed: undefined,
 		});
+	});
+
+	test('copies each remote address without connecting or copying its display name', async () => {
+		const { model, configuration, environmentAvailable, environmentHosts, copiedAddresses, connectionChanges, reconnects, setDisplayName } = setup();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		environmentHosts.set([{ id: 'desktop', name: 'Friendly desktop', kind: 'user-local', status: 'offline' }], undefined);
+		await model.refresh(CancellationToken.None);
+		setDisplayName('ssh:build', 'Renamed SSH');
+		const addresses = model.remotes.get().map(remote => remote.id);
+		for (const address of addresses) {
+			await model.copyAddress(address);
+		}
+		assert.deepStrictEqual({ copiedAddresses, connectionChanges, reconnects }, {
+			copiedAddresses: ['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop', 'cloudsandbox:desktop'], connectionChanges: [], reconnects: [],
+		});
+	});
+
+	for (const preference of [undefined, 'editor', 'dedicated'] as const) {
+		test(`tunnel location action reuses preference persistence and reconnect (${preference})`, async () => {
+			const { model, locationPromptResult, locationPreferences, connectionChanges } = setup();
+			await model.refresh(CancellationToken.None);
+			locationPromptResult.result = preference;
+			await model.changePreferredAgentLocation('tunnel:laptop');
+			assert.deepStrictEqual({ preferences: [...locationPreferences], connectionChanges }, {
+				preferences: preference ? [['tunnel:laptop', preference]] : [],
+				connectionChanges: preference ? [{ id: 'tunnel:laptop', connected: true }] : [],
+			});
+		});
+	}
+
+	test('tunnel location saves without a provider and reports reconnect failures', async () => {
+		const { model, providers, locationPromptResult, locationPreferences, notifications, failConnection } = setup();
+		await model.refresh(CancellationToken.None);
+		locationPromptResult.result = 'editor';
+		failConnection(new Error('Connection refused'));
+		await model.changePreferredAgentLocation('tunnel:laptop');
+		providers.delete('tunnel:laptop');
+		await model.changePreferredAgentLocation('tunnel:laptop');
+		assert.deepStrictEqual({ preferences: [...locationPreferences], messages: notifications.map(notification => notification.message) }, {
+			preferences: [['tunnel:laptop', 'editor']],
+			messages: ['Preference saved for Laptop, but reconnection failed: Connection refused', 'Preference saved for Laptop, but no active connection was found. This takes effect the next time it connects.'],
+		});
+	});
+
+	test('new management actions reject absent, disabled and unsupported targets', async () => {
+		const { model, setConfiguration, copiedAddresses, locationPreferences } = setup();
+		await model.refresh(CancellationToken.None);
+		await assert.rejects(model.changePreferredAgentLocation('ssh:build'), /only be changed for tunnels/);
+		await assert.rejects(model.copyAddress('missing'), /no longer available/);
+		await assert.rejects(model.changePreferredAgentLocation('missing'), /no longer available/);
+		await setConfiguration(RemoteAgentHostsEnabledSettingId, false);
+		await assert.rejects(model.copyAddress('tunnel:laptop'), /no longer available/);
+		await assert.rejects(model.changePreferredAgentLocation('tunnel:laptop'), /no longer available/);
+		assert.deepStrictEqual({ copiedAddresses, preferences: [...locationPreferences] }, { copiedAddresses: [], preferences: [] });
 	});
 
 	test('Remove forgets registered remotes and discovery can find them again', async () => {

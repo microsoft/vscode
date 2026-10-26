@@ -13,6 +13,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { promptRemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
@@ -100,6 +103,12 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		async rename(id: string) {
 			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, name: `${remote.name} (renamed)` } : remote), undefined);
 		}
+		async copyAddress(id: string) {
+			await instantiationService.get(IClipboardService).writeText(id);
+		}
+		async changePreferredAgentLocation(id: string) {
+			await promptRemoteAgentHostLocationPreference(instantiationService.get(IDialogService), id, 'Code - OSS');
+		}
 		async remove(id: string) {
 			this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
 		}
@@ -123,6 +132,15 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
+	InlineActions: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: async context => {
+			await render(context, 1000, OS, false, [], true);
+			for (const row of context.container.querySelectorAll('[data-remote-id]')) {
+				row.closest('.monaco-list-row')?.classList.add('hovered');
+			}
+		},
+	}),
 	ConnectionError: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED 127.0.0.1:43192' }),
