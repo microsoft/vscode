@@ -13,8 +13,12 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { McpServerStatus } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../../platform/notification/test/common/testNotificationService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -117,6 +121,40 @@ suite('ChatMcpAuthenticationContentPart', () => {
 			updated: 'The MCP server GitHub requires authentication. Authenticate?',
 			visible: 'The MCP server GitHub requires authentication. Authenticate?',
 		});
+	});
+
+	test('uses an actionable notification in screen reader mode', async () => {
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isScreenReaderOptimized(): boolean { return true; }
+		});
+		const prompts: { message: string; label: string; run: () => void }[] = [];
+		instantiationService.stub(INotificationService, new class extends TestNotificationService {
+			override prompt(...[severity, message, choices]: Parameters<INotificationService['prompt']>) {
+				prompts.push({ message: message.toString(), label: choices[0].label, run: choices[0].run });
+				return super.prompt(severity, message, choices);
+			}
+		});
+		const { part, authenticated } = createPart(
+			[{ id: 'azure-exp', name: 'Azure Experimental', resource: 'https://azure.example.com' }],
+			[server('azure-exp', 'Azure ExP', McpServerStatus.AuthRequired)],
+		);
+
+		assert.deepStrictEqual({
+			inlineText: part.domNode.textContent,
+			inlineAction: part.domNode.querySelector('[role="button"]'),
+			hidden: part.domNode.style.display === 'none',
+			prompts: prompts.map(({ message, label }) => ({ message, label })),
+		}, {
+			inlineText: '',
+			inlineAction: null,
+			hidden: true,
+			prompts: [{ message: 'The MCP server Azure ExP requires authentication. Authenticate?', label: 'Authenticate' }],
+		});
+
+		prompts[0].run();
+		await timeout(0);
+
+		assert.deepStrictEqual(authenticated, ['azure-exp']);
 	});
 
 	test('updates stale server names and authentication targets from live pending servers', async () => {

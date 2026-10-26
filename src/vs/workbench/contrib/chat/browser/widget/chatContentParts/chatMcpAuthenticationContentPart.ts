@@ -8,14 +8,16 @@ import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRender
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { appendEscapedMarkdownInlineCode, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer } from '../../../common/chatService/chatService.js';
@@ -30,6 +32,8 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 
 	private readonly rendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private authenticateAction: HTMLAnchorElement | undefined;
+	private authNotification: INotificationHandle | undefined;
+	private renderedScreenReaderMode: boolean | undefined;
 
 	/**
 	 * Whether this part was ever shown. Used to distinguish the initial empty
@@ -55,9 +59,12 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.domNode = dom.$('.chat-mcp-servers-interaction');
+		this._register(toDisposable(() => this.closeAuthenticationNotification()));
 		// Re-render whenever the set of servers requiring auth changes — e.g. a
 		// server whose auth requirement surfaced after this part was first shown
 		// is pushed into the same observable by the session handler — or while a
@@ -68,15 +75,18 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 			this.update(dataServers, authenticating);
 		}));
 		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => this.update(this.data.servers.get(), this._authenticating.get())));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.update(this.data.servers.get(), this._authenticating.get())));
 	}
 
 	private update(dataServers: readonly IChatMcpAuthenticationRequiredServer[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
 		const pendingServers = this.getPendingServers(dataServers);
 		const pendingServersChanged = !this.pendingServersEqual(pendingServers, this._pendingServers);
 		this._pendingServers = pendingServers;
-		if (authenticating?.id !== this._renderedAuthenticatingServerId || (!authenticating && pendingServersChanged)) {
+		const screenReaderMode = this.accessibilityService.isScreenReaderOptimized();
+		if (this.renderedScreenReaderMode !== screenReaderMode || authenticating?.id !== this._renderedAuthenticatingServerId || (!authenticating && pendingServersChanged)) {
 			this.render(pendingServers, authenticating);
 			this._renderedAuthenticatingServerId = authenticating?.id;
+			this.renderedScreenReaderMode = screenReaderMode;
 		}
 		this.updateVisibility(pendingServers, authenticating);
 	}
@@ -100,6 +110,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		this.rendered.clear();
 
 		if (authenticating) {
+			this.closeAuthenticationNotification();
 			this._renderMessage(
 				ThemeIcon.modify(Codicon.loading, 'spin'),
 				localize('mcp.auth.authenticating', 'Authenticating {0}...', appendEscapedMarkdownInlineCode(authenticating.name)),
@@ -111,12 +122,22 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		}
 
 		if (!servers.length) {
+			this.closeAuthenticationNotification();
 			if (actionHadFocus) {
 				this.options.onDidRemoveFocusedAction?.();
 			}
 			return;
 		}
 
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			this.showAuthenticationNotification(servers);
+			if (actionHadFocus) {
+				this.options.onDidRemoveFocusedAction?.();
+			}
+			return;
+		}
+
+		this.closeAuthenticationNotification();
 		const links = servers
 			.map(server => appendEscapedMarkdownInlineCode(server.name))
 			.join(', ');
@@ -133,6 +154,23 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		if (actionHadFocus) {
 			this.authenticateAction?.focus();
 		}
+	}
+
+	private showAuthenticationNotification(servers: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[]): void {
+		this.closeAuthenticationNotification();
+		const names = servers.map(server => server.name).join(', ');
+		const message = servers.length === 1
+			? localize('mcp.auth.notification.single', 'The MCP server {0} requires authentication. Authenticate?', names)
+			: localize('mcp.auth.notification.multiple', 'The MCP servers {0} require authentication. Authenticate?', names);
+		this.authNotification = this.notificationService.prompt(Severity.Info, message, [{
+			label: localize('mcp.auth.authenticate', 'Authenticate'),
+			run: () => void this.authenticate(),
+		}]);
+	}
+
+	private closeAuthenticationNotification(): void {
+		this.authNotification?.close();
+		this.authNotification = undefined;
 	}
 
 	private _renderMessage(icon: ThemeIcon, content: string, action?: { href: string; run: () => void }): HTMLAnchorElement | undefined {
@@ -195,9 +233,9 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 			this._hasBeenVisible = true;
 			return;
 		}
-		const visible = pendingServers.length > 0;
+		const visible = pendingServers.length > 0 && !this.accessibilityService.isScreenReaderOptimized();
 		this.domNode.style.display = visible ? '' : 'none';
-		if (visible) {
+		if (pendingServers.length > 0) {
 			this._hasBeenVisible = true;
 		} else if (this._hasBeenVisible && !this.data.isUsed) {
 			// Every server has been authenticated. Mark this part used so a
