@@ -127,6 +127,8 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ChatEditorPreferCopilotHarness: { status: 'enforced' },
 	ChatTemporaryDefaultToLocalHarness: { status: 'enforced' },
 	ChatAgentHostGitHubEnvironments: { status: 'enforced' },
+	// Policy-backed configuration gates both workbench presentation and the mirrored Agent Host root setting.
+	ChatCanvases: { status: 'enforced' },
 	// Mirrored into the root config of every host.
 	CopilotSessionSync: { status: 'enforced' },
 
