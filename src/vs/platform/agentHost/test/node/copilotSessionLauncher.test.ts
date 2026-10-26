@@ -3596,6 +3596,7 @@ suite('CopilotSessionLauncher resume config', () => {
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_INTERRUPTED_COMMIT: true,
 			},
 			v2FeatureFlags: {
 				...catalogInstallationFeatureFlags,
@@ -3607,6 +3608,7 @@ suite('CopilotSessionLauncher resume config', () => {
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_INTERRUPTED_COMMIT: true,
 				HYDRAFUSION_PLAN_V2: true,
 			},
 			v2WithoutHydraFusionFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
@@ -3621,6 +3623,7 @@ suite('CopilotSessionLauncher resume config', () => {
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_INTERRUPTED_COMMIT: true,
 				HYDRAFUSION_PLAN_V2: true,
 			},
 			disabledExperimentalMode: undefined,

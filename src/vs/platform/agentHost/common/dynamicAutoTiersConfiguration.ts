@@ -11,7 +11,7 @@ export const dynamicAutoTiersConfigurationProperties = {
 	[AgentHostDynamicAutoTiersEnabledSettingId]: {
 		type: 'boolean',
 		markdownDescription: nls.localize('chat.copilot.dynamicAutoTiers.enabled', "When enabled, Copilot Agent Host sessions take Auto's tiers from the Copilot service and, when it provides them, present Auto as Copilot Fusion, which can offer HydraFusion and HydraFusion Max as its tiers. When disabled, or when the service provides no tiers, Auto and HydraFusion are offered as separate models, with HydraFusion controlled by `#{0}#`. Changing this setting restarts the Copilot runtime after active turns finish.", AgentHostHydraFusionEnabledSettingId),
-		default: false,
+		default: true,
 		experiment: { mode: 'startup' },
 		scope: ConfigurationScope.APPLICATION_MACHINE,
 		tags: ['preview', 'experimental', 'advanced'],
