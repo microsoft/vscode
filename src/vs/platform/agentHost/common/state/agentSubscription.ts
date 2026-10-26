@@ -1240,6 +1240,10 @@ export class AgentSubscriptionManager extends Disposable {
 		return [...this._subscriptions.keys()];
 	}
 
+	getSubscriptionKind(resource: URI): StateComponents | undefined {
+		return this._subscriptions.get(resource)?.kind;
+	}
+
 	/**
 	 * Read-only descriptors of every active resource subscription, for
 	 * inspection/debug surfaces. Does NOT include the always-live root

@@ -74,6 +74,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		remove: id => removedEnablement.push(id),
 	};
 	const uninstallCalls: Array<{ provider: string; request: IAgentPluginUninstallRequest }> = [];
+	const enablementCalls: Array<{ provider: string; plugin: string; enabled: boolean }> = [];
 
 	let fileService: FileService;
 
@@ -82,6 +83,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		changedEnablement.length = 0;
 		defaultEnablement.length = 0;
 		uninstallCalls.length = 0;
+		enablementCalls.length = 0;
 		fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
 	});
@@ -109,6 +111,9 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			uninstallSupported ? new class extends mock<IAgentHostService>() {
 				override async uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest): Promise<void> {
 					uninstallCalls.push({ provider, request });
+				}
+				override async setPluginEnabled(provider: string, plugin: string, enabled: boolean): Promise<void> {
+					enablementCalls.push({ provider, plugin, enabled });
 				}
 			}() : new class extends mock<IAgentHostService>() { }(),
 		));
@@ -195,6 +200,23 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 				{ id: enabledPlugin.toString(), enabled: true },
 			],
 		});
+	});
+
+	test('delegates direct plugin enablement to the Agent Host by source identity', async () => {
+		const uri = joinPath(installedPluginsRoot, '_direct', 'canvas');
+		await writePlugin(uri, 'canvas');
+		await writeInstalledPlugins([{ name: 'canvas', marketplace: '', uri, enabled: false, source: { source: 'github', repo: 'owner/repo', ref: 'main' } }]);
+		const discovery = createDiscovery();
+		discovery.start(enablementModel);
+		const plugins = await waitForState(discovery.plugins, plugins => !!plugins?.length);
+		const plugin = plugins![0];
+		assert.ok(plugin.setEnabled);
+		await plugin.setEnabled(true);
+		await plugin.setEnabled(false);
+		assert.deepStrictEqual(enablementCalls, [
+			{ provider: 'copilotcli', plugin: 'b28f37595143df611741ca53f1d7e05eb85b133a1307f8a3a44cb383649d6ab2', enabled: true },
+			{ provider: 'copilotcli', plugin: 'b28f37595143df611741ca53f1d7e05eb85b133a1307f8a3a44cb383649d6ab2', enabled: false },
+		]);
 	});
 
 	test('disambiguates same-name direct plugin uninstalls by source identity', async () => {

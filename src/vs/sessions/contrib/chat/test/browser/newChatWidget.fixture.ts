@@ -20,6 +20,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -58,7 +59,7 @@ import { ICustomizationHarnessService } from '../../../../../workbench/contrib/c
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService, McpServerCustomizationMigration, PluginMarketplaceCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, GuidanceCustomizationMigration, GuidanceCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService, McpServerCustomizationMigration, PluginMarketplaceCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { CustomizationMigrationCategoryId } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
@@ -504,6 +505,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
+			reg.defineInstance(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
+				override readonly enabled = false;
+				override readonly accountKey = undefined;
+				override readonly hosts = constObservable([]);
+			}());
 			if (petEnabled) {
 				reg.defineInstance(IAccessibilityService, new FixtureMotionAccessibilityService(container, disposableStore));
 				reg.defineInstance(IChatPetService, disposableStore.add(new FixtureChatPetService({
@@ -681,7 +687,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override computeMigration(resource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
 				override computeMigration(resource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
 				override computeMigration(resource: URI, type: CustomizationMigrationType.PluginMarketplaces): Promise<PluginMarketplaceCustomizationMigration>;
+				override computeMigration(resource: URI, type: GuidanceCustomizationMigrationType): Promise<GuidanceCustomizationMigration>;
 				override async computeMigration(_resource: URI, type: CustomizationMigrationType): Promise<CustomizationMigration> {
+					if (type === CustomizationMigrationType.ChatParticipants || type === CustomizationMigrationType.ToolSets) {
+						return { type, items: [] };
+					}
 					if (type === CustomizationMigrationType.McpServers) {
 						return { type, candidates: [], servers: [], exclusions: [], discoveryComplete: true, coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false } };
 					}

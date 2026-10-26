@@ -38,6 +38,7 @@ import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiC
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../../../browser/actions/chatPluginActions.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationItem } from '../../../common/customizationHarnessService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallOrigin, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -83,6 +84,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		installedIdentifiers: readonly string[] = [],
 		browseSections?: ICustomizationMarketplaceBrowseSections | Promise<ICustomizationMarketplaceBrowseSections>,
 		sourcePreviews: Readonly<Record<string, readonly ICustomizationMarketplaceResource[] | Promise<readonly ICustomizationMarketplaceResource[]>>> = {},
+		providerItems: readonly ICustomizationItem[] = [],
 	) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
@@ -236,7 +238,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		instantiationService.stub(IAICustomizationItemsModel, new class extends mock<IAICustomizationItemsModel>() {
 			override getActiveItemSource(): IAICustomizationItemSource {
 				return new class extends mock<IAICustomizationItemSource>() {
-					override async fetchProviderItems() { return []; }
+					override async fetchProviderItems() { return providerItems; }
 				}();
 			}
 			override getItems(section: ItemsModelSection) {
@@ -260,7 +262,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			override async generateCustomization(type: PromptsType): Promise<void> { creationEvents.push(type); }
 		}());
 		const page = store.add(instantiationService.createInstance(AICustomizationDiscoveryPage, container, undefined, {
-			selectSection() { }, selectSectionWithMarketplace() { }, openInstalled(target) { openedInstalled.push(target); }, openMarketplaceItem(resource) { openedDetails.push(resource); }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
+			selectSection() { creationEvents.push('navigate'); }, async createCustomization(section) { creationEvents.push(section); }, selectSectionWithMarketplace() { }, openInstalled(target) { openedInstalled.push(target); }, openMarketplaceItem(resource) { openedDetails.push(resource); }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
 		}, 'Copilot'));
 		page.rebuildCards(new Set(visibleSections));
 		page.layout(new DOM.Dimension(900, 600));
@@ -393,21 +395,25 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
-	for (const [action, type] of [
-		['newAgent', PromptsType.agent],
-		['newSkill', PromptsType.skill],
-		['newInstructions', PromptsType.instructions],
-		['newPrompt', PromptsType.prompt],
+	for (const [action, section] of [
+		['newAgent', AICustomizationManagementSection.Agents],
+		['newSkill', AICustomizationManagementSection.Skills],
+		['newInstructions', AICustomizationManagementSection.Instructions],
+		['newPrompt', AICustomizationManagementSection.Prompts],
+		['addMcp', AICustomizationManagementSection.McpServers],
+		['addPlugin', AICustomizationManagementSection.Plugins],
 	] as const) {
-		test(`Add Customization > ${action} closes Discover before starting creation`, async () => {
+		test(`Add Customization > ${action} delegates to the section creation flow`, async () => {
 			const fixture = createPage(['agentFinder'], [
 				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Skills,
 				AICustomizationManagementSection.Instructions,
 				AICustomizationManagementSection.Prompts,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Plugins,
 			]);
 			await fixture.selectAddCustomization(action);
-			assert.deepStrictEqual(fixture.creationEvents, ['close', type]);
+			assert.deepStrictEqual(fixture.creationEvents, [section]);
 		});
 	}
 
@@ -642,6 +648,130 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, {
 			browseCardKeptAfterMcpChange: true,
 			rows: ['Local mail skill'],
+		});
+	});
+
+	test('installation notifications keep browse cards mounted unless a displayed installation changes', async () => {
+		const fixture = createPage(['agentFinder']);
+		const item = resource('remote-mail', { mediaType: CustomizationMarketplaceMediaType.Skill });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [item] });
+		await timeout(0);
+		const card = fixture.container.querySelector('.customization-discovery-card');
+		const primaryAction = card?.querySelector<HTMLElement>('.customization-discovery-card-primary');
+		assert.ok(card && primaryAction);
+		primaryAction.focus();
+
+		fixture.notifyInstallChange();
+		fixture.setInstallState(resource('unrelated'), { kind: 'installing' });
+		fixture.notifyInstallChange();
+		fixture.setInstallState(item, { kind: 'available' });
+		fixture.notifyInstallChange();
+		const unchanged = { mounted: card.isConnected, focused: DOM.getActiveElement() === primaryAction };
+
+		fixture.setInstallState(item, { kind: 'installing' });
+		fixture.notifyInstallChange();
+		const installingCard = fixture.container.querySelector('.customization-discovery-card');
+		fixture.setInstallState(item, { kind: 'installing' });
+		fixture.notifyInstallChange();
+
+		assert.deepStrictEqual({
+			unchanged,
+			oldCardRemoved: !card.isConnected,
+			installingCardKept: installingCard?.isConnected,
+			installing: installingCard?.querySelector('.monaco-button')?.getAttribute('aria-busy'),
+			requests: fixture.requests.length,
+		}, {
+			unchanged: { mounted: true, focused: true },
+			oldCardRemoved: true,
+			installingCardKept: true,
+			installing: 'true',
+			requests: 1,
+		});
+	});
+
+	for (const targetKind of ['skill', 'plugin'] as const) {
+		test(`equivalent ${targetKind} installation target URIs keep browse cards and focus`, async () => {
+			const fixture = createPage(['agentFinder']);
+			const item = resource('installed-item');
+			fixture.setInstallState(item, { kind: 'installed', target: { kind: targetKind, uri: URI.file('/installed/item'), name: 'item' } });
+			fixture.page.setVisible(true);
+			await fixture.requests[0].result.complete({ items: [item] });
+			await timeout(0);
+			const card = fixture.container.querySelector('.customization-discovery-card');
+			const primaryAction = card?.querySelector<HTMLElement>('.customization-discovery-card-primary');
+			assert.ok(card && primaryAction);
+			primaryAction.focus();
+
+			fixture.setInstallState(item, { kind: 'installed', target: { kind: targetKind, uri: URI.file('/installed/item'), name: 'item' } });
+			fixture.notifyInstallChange();
+			const unchanged = { mounted: card.isConnected, focused: DOM.getActiveElement() === primaryAction };
+			fixture.setInstallState(item, { kind: 'installed', target: { kind: targetKind, uri: URI.file('/installed/other'), name: 'item' } });
+			fixture.notifyInstallChange();
+
+			assert.deepStrictEqual({ unchanged, changedTargetRerendered: !card.isConnected }, {
+				unchanged: { mounted: true, focused: true },
+				changedTargetRerendered: true,
+			});
+		});
+	}
+
+	test('equivalent setup URLs keep browse cards while changed URLs update actions', async () => {
+		const fixture = createPage(['agentFinder']);
+		const item = resource('setup-item');
+		fixture.setInstallState(item, { kind: 'unavailable', message: 'Manual setup', setupUrl: URI.parse('https://example.com/setup') });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [item] });
+		await timeout(0);
+		const card = fixture.container.querySelector('.customization-discovery-card');
+		assert.ok(card);
+		fixture.setInstallState(item, { kind: 'unavailable', message: 'Manual setup', setupUrl: URI.parse('https://example.com/setup') });
+		fixture.notifyInstallChange();
+		const unchangedCardKept = card.isConnected;
+		fixture.setInstallState(item, { kind: 'unavailable', message: 'Manual setup', setupUrl: URI.parse('https://example.com/other') });
+		fixture.notifyInstallChange();
+		const setupAction = fixture.container.querySelector<HTMLElement>('.customization-discovery-card-actions .monaco-button');
+		assert.ok(setupAction);
+		setupAction.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			unchangedCardKept,
+			changedUrlRerendered: !card.isConnected,
+			opened: fixture.opened.map(uri => typeof uri === 'string' ? uri : uri.toString()),
+		}, {
+			unchangedCardKept: true,
+			changedUrlRerendered: true,
+			opened: ['https://example.com/other'],
+		});
+	});
+
+	test('curated browse cards track installation changes independently of catalog results', async () => {
+		const item = resource('curated-skill', { mediaType: CustomizationMarketplaceMediaType.Skill });
+		const fixture = createPage(['agentFinder'], undefined, undefined, undefined, undefined, {
+			sourceId: 'agentFinder',
+			sections: [{ id: 'featured', title: 'Featured', items: [item] }],
+		});
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+		const card = fixture.container.querySelector('.customization-discovery-card');
+		assert.ok(card);
+		fixture.notifyInstallChange();
+		const unchangedCardKept = card.isConnected;
+		fixture.setInstallState(item, { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed/curated-skill') } });
+		fixture.notifyInstallChange();
+
+		assert.deepStrictEqual({
+			unchangedCardKept,
+			oldCardRemoved: !card.isConnected,
+			action: fixture.container.querySelector('.customization-discovery-card-primary')?.getAttribute('aria-label'),
+			requests: fixture.requests.length,
+		}, {
+			unchangedCardKept: true,
+			oldCardRemoved: true,
+			action: 'Open installed customization curated-skill',
+			requests: 1,
 		});
 	});
 
@@ -943,6 +1073,308 @@ suite('AICustomizationDiscoveryPage', () => {
 			requests: fixture.requests.length,
 			visible: fixture.page.getAccessibilityContent().match(/^mail-(?:skill-\d+|plugin)$/gm),
 		}, { requests: 3, visible: ['mail-plugin'] });
+	});
+
+	test('canvas search uses plugin pages and filters explicit compatibility tags', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@type:canvas');
+		fixture.page.setVisible(true);
+		const cursor = { token: 'canvas-next-page' };
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('category-only-canvas', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					tags: ['canvas'],
+				}),
+			],
+		});
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
+			items: [
+				resource('first-page-canvas', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					compatibilityTags: ['canvas'],
+					installCount: 5,
+				}),
+				resource('missing-count', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					compatibilityTags: ['canvas'],
+				}),
+				resource('description-only-canvas', {
+					description: 'A canvas workflow without compatibility metadata',
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				}),
+			],
+			nextCursor: cursor,
+		});
+		await waitForRequestCount(fixture.requests, 3);
+		await fixture.requests[2].result.complete({
+			items: [
+				resource('canvas-plugin', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					compatibilityTags: ['canvas'],
+					installCount: 12,
+				}),
+				resource('canvas-only-plugin', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					compatibilityTags: ['canvas-only'],
+					installCount: 5,
+				}),
+				resource('zero-count', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					compatibilityTags: ['canvas'],
+					installCount: 0,
+				}),
+			],
+		});
+		await timeout(0);
+		const content = fixture.page.getAccessibilityContent();
+		const lines = content.split('\n');
+		const positions = ['canvas-plugin', 'first-page-canvas', 'canvas-only-plugin', 'missing-count', 'zero-count'].map(name => content.indexOf(name));
+
+		assert.deepStrictEqual({
+			requests: fixture.requests.map(request => request.options),
+			canvas: lines.includes('canvas-plugin'),
+			canvasOnly: lines.includes('canvas-only-plugin'),
+			firstPageCanvas: lines.includes('first-page-canvas'),
+			descriptionOnly: lines.includes('description-only-canvas'),
+			categoryOnly: lines.includes('category-only-canvas'),
+			positions,
+			ariaLabel: fixture.container.querySelector('.customization-discovery-results .monaco-list')?.getAttribute('aria-label'),
+		}, {
+			requests: [
+				{ query: undefined, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: undefined, pageSize: 50, cursor: undefined },
+				{ query: 'canvas', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id], pageSize: 50, cursor: undefined },
+				{ query: 'canvas', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id], pageSize: 50, cursor },
+			],
+			canvas: true,
+			canvasOnly: true,
+			firstPageCanvas: true,
+			descriptionOnly: false,
+			categoryOnly: false,
+			positions: [...positions].sort((first, second) => first - second),
+			ariaLabel: 'Canvas extension search results',
+		});
+	});
+
+	test('canvas text search preserves user text and requests only plugins', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('diagram @type:canvas');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('diagram-semantic-first', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 1 }),
+				resource('diagram-popular-second', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 100 }),
+				resource('diagram-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
+			],
+		});
+		await timeout(0);
+		const content = fixture.page.getAccessibilityContent();
+
+		assert.deepStrictEqual({
+			request: fixture.requests[0].options,
+			semanticOrder: content.indexOf('diagram-semantic-first') < content.indexOf('diagram-popular-second'),
+			ordinary: content.includes('diagram-plugin'),
+		}, {
+			request: { query: 'diagram', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: undefined, pageSize: 24, cursor: undefined },
+			semanticOrder: true,
+			ordinary: false,
+		});
+	});
+
+	test('combining Canvas with another type preserves the other type query and results', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@type:mcp @type:canvas');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('mail-mcp')],
+		});
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
+			items: [resource('canvas-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'] })],
+		});
+		await timeout(0);
+		const content = fixture.page.getAccessibilityContent();
+
+		assert.deepStrictEqual({
+			requests: fixture.requests.map(request => request.options),
+			mcp: content.includes('mail-mcp'),
+			canvas: content.includes('canvas-plugin'),
+			ariaLabel: fixture.container.querySelector('.customization-discovery-results .monaco-list')?.getAttribute('aria-label'),
+		}, {
+			requests: [
+				{ query: undefined, mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined },
+				{ query: 'canvas', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id], pageSize: 50, cursor: undefined },
+			],
+			mcp: true,
+			canvas: true,
+			ariaLabel: 'Customization search results',
+		});
+	});
+
+	test('source-specific canvas-compatible plugins appear under Plugins and Canvases without the GitHub Feed fallback', async () => {
+		const fixture = createPage([configuredMarketplaceSourceId]);
+		fixture.page.showMarketplace('@type:plugin', configuredMarketplaceSourceId);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('configured-canvas', {
+					sourceId: configuredMarketplaceSourceId,
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					compatibilityTags: ['canvas-only'],
+				}),
+			],
+		});
+		await timeout(0);
+		const pluginResults = [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent);
+
+		fixture.page.setSearchQuery('@type:canvas');
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
+			items: [
+				resource('configured-canvas', {
+					sourceId: configuredMarketplaceSourceId,
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					compatibilityTags: ['canvas-only'],
+				}),
+			],
+		});
+		await timeout(0);
+		const canvasResults = [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent);
+
+		assert.deepStrictEqual({
+			requests: fixture.requests.map(request => request.options),
+			pluginResults,
+			canvasResults,
+		}, {
+			requests: [
+				{
+					query: undefined,
+					mediaType: undefined,
+					sourceIds: [configuredMarketplaceSourceId],
+					pageSize: 24,
+					cursor: undefined,
+				},
+				{
+					query: undefined,
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					sourceIds: [configuredMarketplaceSourceId],
+					pageSize: 50,
+					cursor: undefined,
+				},
+			],
+			pluginResults: ['configured-canvas'],
+			canvasResults: ['configured-canvas'],
+		});
+	});
+
+	test('plugin search includes ordinary, canvas-capable, and canvas-only plugins', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@type:plugin');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('ordinary-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
+				resource('canvas-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'] }),
+				resource('canvas-only-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas-only'] }),
+			],
+		});
+		await timeout(0);
+		const content = fixture.page.getAccessibilityContent();
+
+		assert.deepStrictEqual({
+			ordinary: content.includes('ordinary-plugin'),
+			canvas: content.includes('canvas-plugin'),
+			canvasOnly: content.includes('canvas-only-plugin'),
+		}, {
+			ordinary: true,
+			canvas: true,
+			canvasOnly: true,
+		});
+	});
+
+	test('installed plugin and Canvas filters overlap without duplicate rows', async () => {
+		const plugin = resource('canvas-only-plugin', {
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			compatibilityTags: ['canvas', 'canvas-only'],
+		});
+		const fixture = createPage(
+			undefined,
+			[AICustomizationManagementSection.Plugins],
+			[],
+			undefined,
+			[],
+			undefined,
+			{},
+			[{
+				uri: URI.file('/provider/canvas-only-plugin'),
+				type: 'plugin',
+				name: 'canvas-only-plugin',
+				description: 'Canvas only',
+				source: 'plugin',
+				extensionId: undefined,
+				pluginUri: undefined,
+			}, {
+				uri: URI.file('/provider/ordinary-plugin'),
+				type: 'plugin',
+				name: 'ordinary-plugin',
+				description: 'Ordinary plugin',
+				source: 'plugin',
+				extensionId: undefined,
+				pluginUri: undefined,
+			}],
+		);
+		fixture.setInstallState(plugin, { kind: 'installed', target: { kind: 'plugin', name: 'canvas-only-plugin' } });
+		fixture.notifyInstallChange();
+		fixture.page.setVisible(true);
+
+		const getRows = () => [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent).sort();
+		fixture.page.setSearchQuery('@installed');
+		await timeout(0);
+		const allResults = getRows();
+
+		fixture.page.setSearchQuery('@installed @type:plugin');
+		await timeout(0);
+		const pluginResults = getRows();
+
+		fixture.page.setSearchQuery('@installed @type:canvas');
+		await timeout(0);
+		const canvasResults = getRows();
+
+		fixture.page.setSearchQuery('@installed @type:plugin @type:canvas');
+		await timeout(0);
+		const combinedResults = getRows();
+
+		assert.deepStrictEqual({
+			allResults,
+			pluginResults,
+			canvasResults,
+			combinedResults,
+		}, {
+			allResults: ['canvas-only-plugin', 'ordinary-plugin'],
+			pluginResults: ['canvas-only-plugin', 'ordinary-plugin'],
+			canvasResults: ['canvas-only-plugin'],
+			combinedResults: ['canvas-only-plugin', 'ordinary-plugin'],
+		});
+	});
+
+	test('does not associate a URI-backed local plugin with a name-only provider installation', async () => {
+		const plugin = resource('shared-name', {
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			compatibilityTags: ['canvas', 'canvas-only'],
+		});
+		const localPlugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = URI.file('/local/shared-name');
+			override readonly label = 'shared-name';
+		}();
+		const fixture = createPage(undefined, [AICustomizationManagementSection.Plugins], [localPlugin]);
+		fixture.setInstallState(plugin, { kind: 'installed', target: { kind: 'plugin', name: 'shared-name' } });
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('@installed @type:plugin');
+		fixture.page.setVisible(true);
+		await timeout(0);
+
+		assert.strictEqual(fixture.page.getAccessibilityContent().includes('shared-name'), true);
 	});
 
 	test('plugin-only search finds a match after the first 24 filtered items', async () => {
@@ -1914,6 +2346,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			mediaType: CustomizationMarketplaceMediaType.Skill,
 			installation: { kind: 'skill', repository: 'owner/catalog', ref: 'v1', path: 'skills/unreadable' },
 		});
+
 		const fixture = createPage();
 		fixture.setInstallState(candidate, { kind: 'error', target: { kind: 'skill', uri: URI.file('/workspace/.agents/skills/unreadable/SKILL.md') }, message: 'Permission denied' });
 		fixture.page.setSearchQuery('@installed unreadable');
@@ -1924,6 +2357,37 @@ suite('AICustomizationDiscoveryPage', () => {
 			action: fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')?.textContent,
 			disabled: fixture.container.querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button')?.getAttribute('aria-disabled'),
 		}, { detail: 'Skill · GitHub Feed · Could not verify installation', action: 'Uninstall', disabled: 'false' });
+	});
+
+	test('explains unresolved plugin identity and disables uninstall until inventory recovers', async () => {
+		const candidate = resource('pacman', { displayName: 'Token Pacman Plugin', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin });
+		const fixture = createPage();
+		const target = { kind: 'plugin' as const, name: 'token-pacman' };
+		const message = 'Refresh the plugin inventory to resolve the installation identity.';
+		fixture.setInstallState(candidate, { kind: 'installed', target, uninstallUnavailableMessage: message });
+		fixture.page.setSearchQuery('@installed pacman');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const button = () => fixture.container.querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button');
+		const unresolved = {
+			detail: fixture.container.querySelector('.customization-discovery-result-detail')?.textContent,
+			action: button()?.textContent,
+			disabled: button()?.getAttribute('aria-disabled'),
+			label: button()?.getAttribute('aria-label'),
+		};
+		button()?.click();
+		fixture.setInstallState(candidate, { kind: 'installed', target });
+		fixture.notifyInstallChange();
+		await timeout(0);
+		assert.deepStrictEqual({ unresolved, recovered: button()?.getAttribute('aria-disabled') }, {
+			unresolved: {
+				detail: `Plugin · GitHub Feed · ${message}`,
+				action: 'Uninstall',
+				disabled: 'true',
+				label: `Uninstall Token Pacman Plugin. ${message}`,
+			},
+			recovered: 'false',
+		});
 	});
 
 	test('does not render after disposal while repair completes', async () => {

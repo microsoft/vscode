@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, NullRemoteAgentHostService, readWebSocketRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -31,8 +32,8 @@ import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../servi
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../common/constants.js';
+import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../common/constants.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 
 suite('SessionEnvironmentPicker', () => {
@@ -128,7 +129,7 @@ suite('SessionEnvironmentPicker', () => {
 		]);
 	});
 
-	test('an explicitly selected host never resolves through another host or a hidden provider', () => {
+	test('an explicitly selected host never resolves through another host or an unavailable provider', () => {
 		const remote: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['agenthost-remote-selected'] };
 		const selected = upcastPartial<IAgentHostSessionsProvider>({
 			...provider('agenthost-remote-selected', 'remote'),
@@ -136,6 +137,40 @@ suite('SessionEnvironmentPicker', () => {
 		});
 		assert.strictEqual(getEnvironmentWorkspaceProvider(remote, [selected, provider('agenthost-remote-other', 'remote')], folder), undefined);
 	});
+
+	test('a hidden but available remote stays resolvable for a selected draft without returning to the picker', () => {
+		const selected = upcastPartial<IAgentHostSessionsProvider>({
+			...provider('agenthost-selected', 'remote'),
+			connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
+			isAvailableInEnvironmentPicker: constObservable(true),
+			isVisibleInEnvironmentPicker: constObservable(false),
+		});
+		const environment = getRemoteSessionCreationEnvironment(selected)!;
+		assert.deepStrictEqual({
+			picker: getSessionCreationEnvironments([selected]),
+			selected: environment.id,
+			resolved: getEnvironmentWorkspaceProvider(environment, [selected], folder)?.id,
+		}, { picker: [], selected: selected.id, resolved: selected.id });
+	});
+
+	for (const containerRequested of [false, true]) {
+		test(`restored hidden remote retains its destination without adding it to the picker (container: ${containerRequested})`, () => {
+			const remote = upcastPartial<IAgentHostSessionsProvider>({
+				...provider('agenthost-hidden', 'remote'), connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
+				isVisibleInEnvironmentPicker: constObservable(false), isAvailableInEnvironmentPicker: constObservable(true),
+			});
+			const environments = getSessionCreationEnvironments([provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local'), remote]);
+			const selected = getDefaultSessionCreationEnvironment(environments, URI.parse('vscode-agent-host://host/project'), remote.id, containerRequested, remote);
+			assert.deepStrictEqual({
+				selected: selected && { id: selected.id, kind: selected.kind, label: selected.label, providers: selected.providerIds },
+				picker: environments.map(environment => environment.id),
+				resolved: selected && getEnvironmentWorkspaceProvider(selected, [remote], folder)?.id,
+			}, {
+				selected: { id: containerRequested ? `container:${remote.id}` : remote.id, kind: containerRequested ? 'container' : 'remote', label: containerRequested ? 'Dev Container' : remote.label, providers: [remote.id] },
+				picker: ['local'], resolved: remote.id,
+			});
+		});
+	}
 
 	test('renders before repository controls, updates its accessible name, and selects through the action widget', async () => {
 		const instantiation = store.add(new TestInstantiationService());
@@ -168,6 +203,7 @@ suite('SessionEnvironmentPicker', () => {
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(ISessionsProvidersService, { getProvider: () => undefined });
 		instantiation.stub(IRemoteAgentHostService, new NullRemoteAgentHostService());
+		instantiation.stub(IMissionControlEnvironmentService, { enabled: false, hosts: constObservable([]) });
 		const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local, cloud]), selected, async environment => selected.set(environment, undefined), () => []));
 		const container = dom.$('div');
 		dom.append(container, dom.$('span', undefined, 'Repository'));
@@ -192,12 +228,13 @@ suite('SessionEnvironmentPicker', () => {
 		});
 	});
 
-	for (const remotesEnabled of [false, true]) {
+	for (const { remotesEnabled, environmentPickerEnabled } of [false, true].flatMap(remotesEnabled => [false, true].map(environmentPickerEnabled => ({ remotesEnabled, environmentPickerEnabled })))) {
 		for (const manageEnabled of [undefined, false, true]) {
-			test(`Manage visibility follows the setting and remote-host availability (remotes: ${remotesEnabled}, manage: ${manageEnabled})`, async () => {
+			test(`Manage visibility follows all gates (remotes: ${remotesEnabled}, picker: ${environmentPickerEnabled}, manage: ${manageEnabled})`, async () => {
 				const instantiation = store.add(new TestInstantiationService());
 				const configuration = new TestConfigurationService({
 					[RemoteAgentHostsEnabledSettingId]: remotesEnabled,
+					[ENVIRONMENT_PICKER_SETTING]: environmentPickerEnabled,
 					...(manageEnabled === undefined ? {} : { [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: manageEnabled }),
 					[RemoteAgentHostsSettingId]: [
 						{ name: 'WebSocket', address: 'ws://localhost:3000' },
@@ -224,8 +261,29 @@ suite('SessionEnvironmentPicker', () => {
 					...provider('agenthost-remote-unknown', 'remote'), label: 'Unknown',
 					remoteAddress: 'unknown:remote', connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
 				}));
+				const otherEnvironments = [
+					{ id: 'managed', kind: 'managed-sandbox', label: 'Managed Sandbox' },
+					{ id: 'future', kind: 'future-kind', label: 'Future Environment' },
+				];
+				for (const host of otherEnvironments) {
+					providers.push(upcastPartial<IAgentHostSessionsProvider>({
+						...provider(`agenthost-${host.id}`, 'remote'), label: host.label,
+						remoteAddress: `cloudsandbox:${host.id}`, connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
+					}));
+				}
+				const hosts = observableValue<readonly IMissionControlHost[]>(store, [
+					{ id: 'remote', name: 'Environment', kind: 'user-local', status: 'online' },
+					...otherEnvironments.map(host => ({ ...host, name: host.label, status: 'online' })),
+				]);
+				const inventory = { enabled: true, accountKey: 'account' as string | undefined };
+				instantiation.stub(IMissionControlEnvironmentService, {
+					hosts,
+					get enabled() { return inventory.enabled; },
+					get accountKey() { return inventory.accountKey; },
+				});
 				instantiation.stub(ISessionsProvidersService, { getProvider: <T extends ISessionsProvider>(id: string) => providers.find(provider => provider.id === id) as T | undefined });
-				instantiation.stub(IRemoteAgentHostService, { configuredEntries: entries });
+				let configuredEntries = entries.filter(entry => entry.connection.type !== RemoteAgentHostEntryType.CloudSandbox);
+				instantiation.stub(IRemoteAgentHostService, { get configuredEntries() { return configuredEntries; } });
 				const telemetry = new TestExperimentTriggerTelemetryService();
 				instantiation.stub(ITelemetryService, telemetry);
 				instantiation.stub(IContextKeyService, new MockContextKeyService());
@@ -245,10 +303,13 @@ suite('SessionEnvironmentPicker', () => {
 				let menu: { label: string | undefined; separator: boolean }[] = [];
 				let submenus: (readonly string[] | undefined)[] = [];
 				let websocketActions: readonly IAction[] | undefined;
+				let hideDefaultKeybindingTooltip: boolean | undefined;
 				instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 					isVisible: false,
 					hide: () => { calls.push('hide'); hide?.(); },
-					show: <T>(_user: string, _preview: boolean, items: IActionListItem<T>[], delegate: IActionListDelegate<T>) => {
+					show: (...args: Parameters<IActionWidgetService['show']>) => {
+						const [, , items, delegate, , , , , options] = args;
+						hideDefaultKeybindingTooltip = options?.hideDefaultKeybindingTooltip;
 						menu = items.map(item => ({ label: item.label, separator: item.kind === ActionListItemKind.Separator }));
 						submenus = items.filter(item => item.kind === ActionListItemKind.Action).map(item => item.submenuActions?.map(action => action.label));
 						websocketActions = items.find(item => item.label === 'WebSocket')?.submenuActions;
@@ -269,14 +330,14 @@ suite('SessionEnvironmentPicker', () => {
 				const trigger = container.querySelector<HTMLElement>('[role="button"]')!;
 				assert.deepStrictEqual(telemetry.triggers, []);
 				trigger.click();
-				const showManage = remotesEnabled && manageEnabled === true;
+				const showManage = remotesEnabled && environmentPickerEnabled && manageEnabled === true;
 				await websocketActions?.[0].run();
 				if (showManage) {
 					accept!(menu.length - 1);
 					await Promise.resolve();
 				}
 				assert.deepStrictEqual({
-					menu, remoteSubmenus: submenus.slice(1, providers.length + 1), calls, selected: selected.get()?.id, expanded: trigger.getAttribute('aria-expanded'), triggers: telemetry.triggers,
+					menu, hideDefaultKeybindingTooltip, remoteSubmenus: submenus.slice(1, providers.length + 1), calls, selected: selected.get()?.id, expanded: trigger.getAttribute('aria-expanded'), triggers: telemetry.triggers,
 				}, {
 					menu: [
 						{ label: 'This Computer', separator: false },
@@ -285,30 +346,65 @@ suite('SessionEnvironmentPicker', () => {
 						{ label: 'Connect via SSH...', separator: false },
 						...(showManage ? [{ label: '', separator: true }, { label: 'Manage...', separator: false }] : []),
 					],
+					hideDefaultKeybindingTooltip: true,
 					remoteSubmenus: [
 						showManage ? undefined : ['Manage SSH'],
 						showManage ? undefined : ['Manage Tunnel'],
 						showManage && isWindows ? undefined : ['Manage WSL'],
 						showManage ? undefined : ['Manage Environment'],
 						['Manage Dev Container'], ['Manage WebSocket'], ['Manage Secure WebSocket'], ['Manage Unknown'],
+						['Manage Managed Sandbox'], ['Manage Future Environment'],
 					],
 					calls: ['manage:WebSocket', ...(showManage ? ['hide', `command:${OPEN_REMOTES_EDITOR_COMMAND_ID}:`] : [])],
 					selected: 'local', expanded: showManage ? 'false' : 'true',
-					triggers: remotesEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
+					triggers: remotesEnabled && environmentPickerEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
 				});
 				hide?.();
+				configuredEntries = [...entries];
 				await configuration.setUserConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, !manageEnabled);
 				trigger.click();
 				assert.deepStrictEqual({
 					visibleAfterSettingChange: menu.some(item => item.label === 'Manage...'),
-					sshSubmenu: submenus[1], websocketSubmenu: submenus[6],
+					sshSubmenu: submenus[1], environmentSubmenu: submenus[4], websocketSubmenu: submenus[6],
 					triggers: telemetry.triggers,
 				}, {
-					visibleAfterSettingChange: remotesEnabled && !manageEnabled,
-					sshSubmenu: remotesEnabled && !manageEnabled ? undefined : ['Manage SSH'],
+					visibleAfterSettingChange: remotesEnabled && environmentPickerEnabled && !manageEnabled,
+					sshSubmenu: remotesEnabled && environmentPickerEnabled && !manageEnabled ? undefined : ['Manage SSH'],
+					environmentSubmenu: remotesEnabled && environmentPickerEnabled && !manageEnabled ? undefined : ['Manage Environment'],
 					websocketSubmenu: ['Manage WebSocket'],
-					triggers: remotesEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
+					triggers: remotesEnabled && environmentPickerEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
 				});
+				if (showManage) {
+					await configuration.setUserConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, true);
+					const environmentSubmenu = () => {
+						hide?.();
+						trigger.click();
+						return submenus[4];
+					};
+					await configuration.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, false);
+					const pickerDisabled = environmentSubmenu();
+					const manageWithoutPicker = menu.some(item => item.label === 'Manage...');
+					await configuration.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, true);
+					const pickerReenabled = environmentSubmenu();
+					hosts.set(hosts.get().map(host => ({ ...host, status: 'offline' })), undefined);
+					const offline = environmentSubmenu();
+					accept!(4);
+					await Promise.resolve();
+					const selectedEnvironment = selected.get()?.id;
+					inventory.enabled = false;
+					const disabled = environmentSubmenu();
+					inventory.enabled = true;
+					inventory.accountKey = undefined;
+					const signedOut = environmentSubmenu();
+					inventory.accountKey = 'other-account';
+					hosts.set([], undefined);
+					const withdrawn = environmentSubmenu();
+					assert.deepStrictEqual({ pickerDisabled, manageWithoutPicker, pickerReenabled, offline, selectedEnvironment, disabled, signedOut, withdrawn }, {
+						pickerDisabled: ['Manage Environment'], manageWithoutPicker: false, pickerReenabled: undefined,
+						offline: undefined, selectedEnvironment: remoteEnvironments[3].id,
+						disabled: ['Manage Environment'], signedOut: ['Manage Environment'], withdrawn: ['Manage Environment'],
+					});
+				}
 			});
 		}
 	}

@@ -135,6 +135,103 @@ suite('AgentHostWorktreeCleanupService', () => {
 		});
 	}
 
+	test('reports actual errors and retries an archived worktree without recreating it or waiting for backoff', async () => {
+		const { database, worktree, cleanup } = create({ now: () => 100 });
+		await useWorktree(database, SESSION, recorded('archived'), true);
+		const unknown = await cleanup.sessionWorktreeCleanup(SESSION, false);
+		const scheduled = await cleanup.sessionWorktreeCleanup(SESSION, true);
+		worktree.failures = 1;
+		await cleanup.runPass();
+		const failed = await cleanup.sessionWorktreeCleanup(SESSION, false);
+		const retried = await cleanup.sessionWorktreeCleanup(SESSION, true);
+		await cleanup.runPass();
+
+		assert.deepStrictEqual({
+			unknown, scheduled, failed, retried,
+			remaining: await pending(database),
+			archived: await database.readSessionArchived(SESSION.toString()),
+			calls: worktree.calls,
+		}, {
+			unknown: { state: 'unknown' },
+			scheduled: { state: 'pending' },
+			failed: { state: 'failed', message: 'git failed' },
+			retried: { state: 'pending' },
+			remaining: [],
+			archived: true,
+			calls: [`remove:${sessionId}:commit:agents/archived`, `remove:${sessionId}:commit:agents/archived`],
+		});
+	});
+
+	test('retries additional worktrees and cancels their removal if the session is restored meanwhile', async () => {
+		const { database, worktree, cleanup } = create();
+		await useWorktree(database, SESSION, recorded('archived'), true);
+		const state = await database.readSessionState(SESSION.toString());
+		assert.ok(state);
+		await database.writeSessionState(SESSION.toString(), state.header.revision, {
+			values: {
+				[ADDITIONAL_WORKTREES_METADATA_KEY]: JSON.stringify([{
+					handle: HANDLE, workingDirectory: recorded('detached').worktree.toString(), repositoryRoot: URI.file('/repo').toString(),
+				}]),
+			},
+			folders: [], chats: [], markPayloadDirty: false,
+		});
+		await cleanup.sessionWorktreeCleanup(SESSION, true);
+		const requested = (await pending(database)).sort();
+		const archived = await database.readSessionState(SESSION.toString());
+		assert.ok(archived);
+		await database.writeSessionState(SESSION.toString(), archived.header.revision, {
+			values: { [AH_META_IS_ARCHIVED_DB_KEY]: '' }, folders: [], chats: [], markPayloadDirty: false,
+		});
+		await cleanup.runPass();
+		assert.deepStrictEqual({ requested, pending: await pending(database), calls: worktree.calls }, {
+			requested: ['detached:commit:0', 'session:commit:0'],
+			pending: [],
+			calls: [`mark:${HANDLE}:true`],
+		});
+	});
+
+	test('reports running cleanup independently of elapsed time', async () => {
+		const { database, worktree, cleanup } = create();
+		await useWorktree(database, SESSION, recorded('archived'), true);
+		await cleanup.sessionWorktreeCleanup(SESSION, true);
+		worktree.removal = new DeferredPromise<void>();
+		const pass = cleanup.runPass();
+		await worktree.removalStarted.p;
+		try {
+			assert.deepStrictEqual(await cleanup.sessionWorktreeCleanup(SESSION, false), { state: 'running' });
+		} finally {
+			worktree.removal.complete();
+			await pass;
+		}
+	});
+
+	test('refuses retrying cleanup for a live or unknown session', async () => {
+		const { database, worktree, cleanup } = create();
+		await useWorktree(database, SESSION, recorded('archived'));
+		await assert.rejects(cleanup.sessionWorktreeCleanup(SESSION, true), /Only archived sessions/);
+		await assert.rejects(cleanup.sessionWorktreeCleanup(OTHER_SESSION, true), /Only archived sessions/);
+		assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database) }, { calls: [], pending: [] });
+	});
+
+	test('distinguishes shared-worktree protection and skipped removals from errors', async () => {
+		const { database, worktree, cleanup } = create();
+		await useWorktree(database, SESSION, recorded('archived'), true);
+		await useWorktree(database, OTHER_SESSION, recorded('archived'));
+		const shared = await cleanup.sessionWorktreeCleanup(SESSION, true);
+		await cleanup.runPass();
+		const blocked = await cleanup.sessionWorktreeCleanup(SESSION, false);
+		const state = await database.readSessionState(OTHER_SESSION.toString());
+		assert.ok(state);
+		await database.writeSessionState(OTHER_SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
+		worktree.outcome = 'skipped';
+		await cleanup.runPass();
+		assert.deepStrictEqual({ shared, blocked, deferred: await cleanup.sessionWorktreeCleanup(SESSION, false) }, {
+			shared: { state: 'inUse' },
+			blocked: { state: 'inUse' },
+			deferred: { state: 'skipped' },
+		});
+	});
+
 	test('archive and delete only record the removal, and a pass removes each worktree by its mode', async () => {
 		const { database, worktree, cleanup } = create();
 		const synced = AgentSession.uri('copilotcli', 'synced');

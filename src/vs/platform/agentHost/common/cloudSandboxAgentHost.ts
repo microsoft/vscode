@@ -117,7 +117,8 @@ export interface ICloudSandboxCreatedSession {
 }
 
 /** Client task-creation provenance, not a claim about environment readiness. */
-export type CloudSandboxTaskCreationPath = 'newEnvironment' | 'existingEnvironment' | 'reservationClaimed' | 'reservationFallback' | 'reservationUnconfirmed' | 'unknown';
+export const cloudSandboxTaskCreationPaths = ['newEnvironment', 'existingEnvironment', 'reservationClaimed', 'reservationFallback', 'reservationUnconfirmed', 'unknown'] as const;
+export type CloudSandboxTaskCreationPath = typeof cloudSandboxTaskCreationPaths[number];
 
 /** The draft configuration to reserve without submitting a user turn. */
 export interface ICloudSandboxReserveSessionRequest {
@@ -330,6 +331,8 @@ export interface IMissionControlEnvironment {
 
 /** Identifies which sandbox environment/session credentials are being minted for. */
 export interface ICloudSandboxConnectionRequest {
+	/** Local reporting scope; user-local hosts must not emit cloud sandbox lifecycle events. Never sent to the server. */
+	readonly environmentKind?: 'user-local';
 	/** Stable environment identifier (`env_<uuid>`) of the sandbox. */
 	readonly environmentId: string;
 	/**
@@ -421,6 +424,8 @@ export interface ICloudSandboxApiService {
 	getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment>;
 	/** Lists the authenticated account's environments without attaching or provisioning compute. */
 	listEnvironments(token: CancellationToken, options?: { readonly refresh?: boolean }): Promise<readonly IMissionControlEnvironment[]>;
+	/** Hard-delete an environment owned by the expected account; managed sandboxes also delete backing compute and storage. */
+	deleteEnvironment(environmentId: string, token: CancellationToken, expectedAccountKey: string): Promise<void>;
 	/** Returns fresh credential-free inventory for the current account without issuing a request. */
 	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined;
 

@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { raceTimeout } from '../../../base/common/async.js';
-import { CancellationError } from '../../../base/common/errors.js';
+import { CancellationError, getErrorCode } from '../../../base/common/errors.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -1725,6 +1725,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			});
 
 			client.on('error', (err: Error) => {
+				if (err instanceof AggregateError && !err.message) {
+					// Node's dual-stack connection errors have no message, and IPC drops their nested errors.
+					err.message = err.errors.filter((error: unknown): error is Error => error instanceof Error && !!error.message)
+						.map(error => error.message).join('\n') || getErrorCode(err) || err.message;
+				}
 				this._logService.error(`${LOG_PREFIX} SSH connection error: ${err.message}`);
 				// ssh2 reports a refused host key as "Host denied (verification
 				// failed)", which is both jargon and redundant — the host key

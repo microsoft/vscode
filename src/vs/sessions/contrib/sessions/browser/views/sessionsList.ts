@@ -81,7 +81,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
-import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
+import { IInputOptions, InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IOnboardingFocusTarget, markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
@@ -120,7 +120,7 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
-import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
+import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
@@ -1228,24 +1228,20 @@ class SessionItemActionRunner extends ActionRunner {
 	}
 }
 
-function renderInlineRenameInput(
+/**
+ * Creates the input box of an inline rename editor from its draft state. Rows
+ * are rerendered whenever the list updates, so the draft, selection, and focus
+ * are kept in `state` and restored instead of resetting to the original name.
+ */
+function createInlineRenameInputBox(
 	container: HTMLElement,
-	contextViewService: IContextViewService,
+	contextViewService: IContextViewService | undefined,
 	state: IInlineRenameValueState,
-	ariaLabel: string,
+	options: IInputOptions,
 	disposables: DisposableStore,
-	onFinish: (title: string | undefined, restoreListFocus: boolean) => void,
 ): InputBox {
 	DOM.clearNode(container);
-	const input = new InputBox(container, contextViewService, {
-		inputBoxStyles: defaultInputBoxStyles,
-		ariaLabel,
-		validationOptions: {
-			validation: value => value.trim()
-				? null
-				: { content: localize('inlineRename.empty', "Title cannot be empty"), type: MessageType.ERROR },
-		},
-	});
+	const input = new InputBox(container, contextViewService, options);
 	disposables.add(toDisposable(() => {
 		state.selection = {
 			start: input.inputElement.selectionStart ?? input.value.length,
@@ -1266,6 +1262,27 @@ function renderInlineRenameInput(
 		input.focus();
 		input.select();
 	}
+	disposables.add(DOM.addDisposableListener(input.inputElement, DOM.EventType.INPUT, () => state.value = input.value));
+	return input;
+}
+
+function renderInlineRenameInput(
+	container: HTMLElement,
+	contextViewService: IContextViewService,
+	state: IInlineRenameValueState,
+	ariaLabel: string,
+	disposables: DisposableStore,
+	onFinish: (title: string | undefined, restoreListFocus: boolean) => void,
+): InputBox {
+	const input = createInlineRenameInputBox(container, contextViewService, state, {
+		inputBoxStyles: defaultInputBoxStyles,
+		ariaLabel,
+		validationOptions: {
+			validation: value => value.trim()
+				? null
+				: { content: localize('inlineRename.empty', "Title cannot be empty"), type: MessageType.ERROR },
+		},
+	}, disposables);
 
 	let done = false;
 	const finish = (commit: boolean, restoreListFocus: boolean) => {
@@ -1287,7 +1304,6 @@ function renderInlineRenameInput(
 		onFinish(commit && title !== state.initialValue.trim() ? title : undefined, restoreListFocus);
 	};
 
-	disposables.add(DOM.addDisposableListener(input.inputElement, DOM.EventType.INPUT, () => state.value = input.value));
 	disposables.add(DOM.addStandardDisposableListener(input.inputElement, DOM.EventType.KEY_DOWN, event => {
 		if (event.equals(KeyCode.Enter)) {
 			event.preventDefault();
@@ -2789,6 +2805,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 
 	/** Keyed by template because sticky scroll renders a second copy of a header while its tree row stays rendered. */
 	private readonly renderedGroups = new Map<ISessionGroupTemplate, ISessionGroupItem>();
+	private renameState: (IInlineRenameValueState & { readonly groupId: string }) | undefined;
 
 	constructor(
 		private readonly delegate: ISessionGroupRendererDelegate,
@@ -2871,6 +2888,9 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		if (element.editing) {
 			this.renderInput(element, template);
 		} else {
+			if (this.renameState?.groupId === element.group.id) {
+				this.renameState = undefined;
+			}
 			template.inputContainer.style.display = 'none';
 			template.labelContainer.style.display = '';
 		}
@@ -2879,15 +2899,14 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 	private renderInput(element: ISessionGroupItem, template: ISessionGroupTemplate): void {
 		template.labelContainer.style.display = 'none';
 		template.inputContainer.style.display = '';
-		DOM.clearNode(template.inputContainer);
 
-		const input = template.elementDisposables.add(new InputBox(template.inputContainer, undefined, {
+		if (this.renameState?.groupId !== element.group.id) {
+			this.renameState = { groupId: element.group.id, initialValue: element.group.name, value: element.group.name };
+		}
+		const input = createInlineRenameInputBox(template.inputContainer, undefined, this.renameState, {
 			inputBoxStyles: defaultInputBoxStyles,
 			ariaLabel: localize('sessionGroupName', "Group name"),
-		}));
-		input.value = element.group.name;
-		input.focus();
-		input.select();
+		}, template.elementDisposables);
 
 		let done = false;
 		const commit = () => {
@@ -2895,6 +2914,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 				return;
 			}
 			done = true;
+			this.renameState = undefined;
 			this.delegate.commitEdit(element.group, input.value.trim());
 		};
 		const cancel = () => {
@@ -2902,6 +2922,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 				return;
 			}
 			done = true;
+			this.renameState = undefined;
 			this.delegate.cancelEdit(element.group);
 		};
 
@@ -5775,7 +5796,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				await this.commandService.executeCommand('sessionsView.manageAutomations');
 				break;
 			case CUSTOMIZATIONS_SECTION_ID:
-				await this.commandService.executeCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID);
+				if (this.options.customizationMigrationsAvailable?.get()) {
+					await this.commandService.executeCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID, {
+						migration: true,
+					} satisfies IOpenAICustomizationsCommandOptions);
+				} else {
+					await this.commandService.executeCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID);
+				}
 				break;
 		}
 	}

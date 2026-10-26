@@ -130,6 +130,9 @@ function isOfferedAutoTier(schema: IModelConfigPropertySchema, value: unknown): 
 
 /** The label an enum value is shown with, falling back to a formatted raw value. */
 export function getModelConfigValueLabel(schema: IModelConfigPropertySchema, value: unknown): string {
+	if (value === undefined) {
+		return localize('chat.modelPicker.modelDefault', "Model default");
+	}
 	if (value === 'fast' && schema.enum?.includes('efficiency') && !schema.enum.includes('fast')) {
 		return localize('chat.modelPicker.automaticTier', "Automatic");
 	}
@@ -138,13 +141,12 @@ export function getModelConfigValueLabel(schema: IModelConfigPropertySchema, val
 	return label ?? (typeof value === 'number' ? formatTokenCount(value) : String(value));
 }
 
-/**
- * Whether the context property is set to its largest value. Producers order the
- * context enum from smallest window to largest, so the last entry is the
- * extended one.
- */
+/** Named tiers use their wire value; other context enums retain the producer's smallest-to-largest ordering. */
 export function isExtendedContext(property: IModelConfigProperty): boolean {
 	const values = property.schema.enum ?? [];
+	if (property.key === 'contextTier') {
+		return property.value === 'long_context' && values.includes('long_context');
+	}
 	return values.length > 1 && property.value === values[values.length - 1];
 }
 
@@ -186,11 +188,14 @@ export function getModelConfigDisplayValues(
 					? localize('chat.modelPicker.managedConfigValue', "{0}: {1}, managed by the agent host", title, label)
 					: localize('chat.modelPicker.configValue', "{0}: {1}", title, label),
 			});
+		} else if (property && property.value === undefined && group === MODEL_CONFIG_GROUP_EFFORT && model && !isAutoModel(model)) {
+			const label = getModelConfigValueLabel(property.schema, undefined);
+			values.push({ group, label, description: localize('chat.modelPicker.defaultEffort', "Effort Level: {0}", label) });
 		} else if (!property && group === MODEL_CONFIG_GROUP_CONTEXT && model && !isAutoModel(model) && !isHydraFusionModel(model)) {
 			const total = getModelContextWindowTotal(model.metadata);
 			if (Number.isFinite(total) && total > 0) {
 				const label = formatTokenCount(total);
-				values.push({ group, label, description: localize('chat.modelPicker.maxContext', "Max context: {0}", label) });
+				values.push({ group, label: localize('chat.modelPicker.maxContextValue', "Max {0}", label), description: localize('chat.modelPicker.maxContext', "Max context: {0}", label) });
 			}
 		}
 	}

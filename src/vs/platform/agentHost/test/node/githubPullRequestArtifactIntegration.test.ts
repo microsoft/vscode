@@ -10,15 +10,18 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { mock } from '../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ArtifactRecord, getArtifactActionAvailability, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactRecord, getArtifactActionAvailability, IArtifactDetailsModel, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { ArtifactIntegrationService } from '../../../artifactIntegrations/common/artifactIntegrationService.js';
 import { ArtifactPromptOutcome, ArtifactPromptRequest, ArtifactPromptState, IArtifactRuntime } from '../../../artifactIntegrations/common/artifactRuntime.js';
 import { GitHubCredentialInvalidation, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
+import { IActionsClient, WorkflowJob, WorkflowRun } from '../../../github/common/core/actions.js';
 import { IPullRequestsClient } from '../../../github/common/core/pullRequests.js';
+import { IReviewsClient } from '../../../github/common/core/reviews.js';
+import { RepositoryRef } from '../../../github/common/client/types.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { GitHubRequestError } from '../../../github/common/githubTransport.js';
 import { PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
@@ -34,7 +37,7 @@ import { AgentConfigurationService } from '../../node/agentConfigurationService.
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
-import { GitHubPullRequestArtifactIntegration } from '../../node/artifactIntegrations/githubPullRequestArtifactIntegration.js';
+import { getPullRequestGroupPresentation, GitHubPullRequestArtifactIntegration } from '../../node/artifactIntegrations/githubPullRequestArtifactIntegration.js';
 import { createPullRequestArtifactSnapshot } from '../common/githubPullRequestArtifactTestUtils.js';
 import { createTestGitHubService } from './testGitHubService.js';
 
@@ -71,6 +74,8 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 	let refreshHook: (() => void | Promise<void>) | undefined;
 	let mutationHook: (() => void | Promise<void>) | undefined;
 	let prepareMergeHook: (() => Promise<void>) | undefined;
+	let workflowStatus = 'completed';
+	const jobs = new Map<number, Partial<WorkflowJob>>();
 	let completePrompt: ((kind: 'completed' | 'failed') => Promise<void>) | undefined;
 	const branches = new Map<string, string>();
 	const mutations: string[] = [];
@@ -125,6 +130,30 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 		}();
 	}();
 	const github = createTestGitHubService(client, Event.map(invalidated.event, () => undefined), {
+		actions: new class extends mock<IActionsClient>() {
+			override async getRun(_repository: RepositoryRef, runId: number) {
+				return upcastPartial<WorkflowRun>({ id: runId, status: workflowStatus });
+			}
+			override async getJob(_repository: RepositoryRef, jobId: number) {
+				const job = jobs.get(jobId);
+				if (!job) {
+					throw new Error('Not Found');
+				}
+				return upcastPartial<WorkflowJob>(job);
+			}
+			override async rerunJob(repository: RepositoryRef, jobId: number) {
+				await mutationHook?.();
+				mutations.push(`rerunJob:${repository.owner}/${repository.repo}/${jobId}`);
+			}
+		}(),
+		reviews: new class extends mock<IReviewsClient>() {
+			// Like GitHub, the observed thread list only changes when it is read again.
+			override async resolveThread(threadId: string) {
+				await mutationHook?.();
+				mutations.push(`resolveThread:${threadId}`);
+				return { id: threadId, isResolved: true };
+			}
+		}(),
 		pullRequests: new class extends mock<IPullRequestsClient>() {
 			override async markReadyForReview(id: string) {
 				await mutationHook?.();
@@ -192,6 +221,8 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 		onRefresh: (hook: () => void | Promise<void>) => { refreshHook = hook; },
 		onMutation: (hook: () => void | Promise<void>) => { mutationHook = hook; },
 		onPrepareMerge: (hook: () => Promise<void>) => { prepareMergeHook = hook; },
+		setWorkflowStatus: (status: string) => { workflowStatus = status; },
+		setJob: (job: Partial<WorkflowJob> & { readonly id: number }) => { jobs.set(job.id, job); },
 		invoke: async (action: string, invokingChat = chat) => {
 			const run = await model.invoke(gitHubPullRequestArtifactIntegrationId, action, invokingChat, `manual-${++request}`);
 			await waitForState(service.ledger.state, state => state.runs.some(candidate => candidate.id === run.id && ((candidate.actionKind === 'prompt' && candidate.state === 'running') || isArtifactRunSettled(candidate))));
@@ -247,6 +278,45 @@ suite('GitHub pull request artifact integration', () => {
 		}, {
 			main: { title, description: body, format: 'markdown' }, lists: ['checks', 'comments'],
 			commentSection: false, comments: [], emptyDescription: '',
+		});
+	}));
+
+	test('ranks each pull request for a group: repair needed, comments, open, draft, merged, closed', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, base);
+		// The main part shows the same state icon as the group, except that the group also flags attention.
+		const group = () => {
+			const { group: value, main } = f.model.snapshot.get().contributions[0].view;
+			return value ? `${value.priority}:${value.icon.id}:${value.icon.colorId} main=${main?.icon.id}` : undefined;
+		};
+		const core = base.core.value!;
+		const states: Record<string, string | undefined> = { open: group() };
+		f.snapshot.set({ ...base, checks: { ...base.checks, value: { ...base.checks.value!, checks: [{ ...base.checks.value!.checks[0], conclusion: 'FAILURE' }] } } }, undefined);
+		states.failing = group();
+		f.snapshot.set({ ...base, mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeable: 'CONFLICTING' } } }, undefined);
+		states.conflicting = group();
+		f.snapshot.set({ ...base, core: { ...base.core, value: { ...core, draft: true } } }, undefined);
+		states.draft = group();
+		f.snapshot.set({ ...base, core: { ...base.core, value: { ...core, state: 'merged' } } }, undefined);
+		states.merged = group();
+		f.snapshot.set({ ...base, core: { ...base.core, value: { ...core, state: 'closed', draft: true } } }, undefined);
+		states.closedDraft = group();
+		f.snapshot.set({ ...base, core: { status: 'loading', complete: false } }, undefined);
+		states.loading = group();
+		assert.deepStrictEqual({ groupLabel: f.model.snapshot.get().contributions[0].groupLabel, states }, {
+			groupLabel: 'Pull Requests',
+			states: {
+				open: '4:git-pull-request:charts.green main=git-pull-request',
+				failing: '6:git-pull-request-error:charts.orange main=git-pull-request',
+				conflicting: '6:git-pull-request-error:charts.orange main=git-pull-request',
+				draft: '3:git-pull-request-draft:descriptionForeground main=git-pull-request-draft',
+				merged: '2:git-pull-request-done:charts.purple main=git-pull-request-done',
+				closedDraft: '1:git-pull-request-closed:charts.red main=git-pull-request-closed',
+				loading: undefined,
+			},
+		});
+		assert.deepStrictEqual(getPullRequestGroupPresentation({ state: 'open', draft: false }, { needsRepair: false, hasComments: true }), {
+			icon: { id: 'git-pull-request-comment', colorId: 'charts.green' }, priority: 5,
 		});
 	}));
 
@@ -959,6 +1029,165 @@ suite('GitHub pull request artifact integration', () => {
 			{ state: 'completed', mutations: ['ready'], prompts: 0, draft: false });
 	}));
 
+	/** Actions job IDs are their check-run IDs, so genuine Actions checks link to a job with their own ID. */
+	function itemActionSnapshot() {
+		const base = createPullRequestArtifactSnapshot();
+		const job = (run: number, job: number, owner = 'octo') => `https://github.com/${owner}/repo/actions/runs/${run}/job/${job}`;
+		return {
+			...base,
+			checks: {
+				...base.checks, value: {
+					...base.checks.value!, checks: [
+						{ id: '100', name: 'Build', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE', required: true, detailsUrl: job(10, 100) },
+						{ id: '101', name: 'Lint', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'SUCCESS', detailsUrl: job(10, 101) },
+						{ id: '110', name: 'Fork', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE', detailsUrl: job(11, 110, 'fork') },
+						{ id: '120', name: 'External', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE', detailsUrl: 'https://ci.example.test/runs/1' },
+						{ id: '130', name: 'Status', type: 'statusContext' as const, status: 'FAILURE', detailsUrl: job(12, 130) },
+						// A third-party check whose details link to the Lint job.
+						{ id: '140', name: 'Borrowed', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE', detailsUrl: job(10, 101) },
+					],
+				},
+			},
+			reviewThreads: {
+				...base.reviewThreads, value: [
+					{ id: 'thread', isResolved: false, path: 'src/a.ts', comments: [{ id: 'comment', author: { login: 'owner', association: 'OWNER' }, body: 'Please fix' }] },
+				],
+			},
+		};
+	}
+
+	function buildJob(overrides: Partial<WorkflowJob> = {}): Partial<WorkflowJob> & { readonly id: number } {
+		return { id: 100, run_id: 10, head_sha: 'head', check_run_url: 'https://api.github.com/repos/octo/repo/check-runs/100', ...overrides };
+	}
+
+	async function runItemAction(details: IArtifactDetailsModel, itemId: string, actionId: string): Promise<string> {
+		try {
+			await details.runItemAction!(itemId, actionId, CancellationToken.None);
+			return 'done';
+		} catch (error) {
+			return error instanceof Error ? error.message : String(error);
+		}
+	}
+
+	test('offers Rerun Check on failed Actions jobs of the repository and Resolve Comment on review threads, and runs them directly', () => run(async store => {
+		const f = await fixture(store, itemActionSnapshot());
+		f.setJob(buildJob());
+		const checks = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'checks'));
+		const comments = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'comments'));
+		const offered = {
+			checks: [checks.details.get().itemActions, checks.details.get().items.map(item => [item.label, item.actions])],
+			comments: [comments.details.get().itemActions, comments.details.get().items.map(item => [item.id, item.actions])],
+		};
+		f.setWorkflowStatus('in_progress');
+		const running = await runItemAction(checks, '100', 'rerunCheck');
+		f.setWorkflowStatus('completed');
+		const results = [running, await runItemAction(checks, '101', 'rerunCheck'), await runItemAction(checks, '140', 'rerunCheck'), await runItemAction(checks, '100', 'rerunCheck'), await runItemAction(comments, 'thread', 'resolveThread')];
+		const afterResolve = comments.details.get().items.map(item => item.id);
+		results.push(await runItemAction(comments, 'thread', 'resolveThread'));
+		const notRerunnable = 'This check is no longer failing on the pull request\'s current revision, or GitHub Actions cannot rerun it.';
+		assert.deepStrictEqual({ offered, results, afterResolve, mutations: f.mutations, runs: f.service.ledger.state.get().runs.length, prompts: f.prompts.length }, {
+			offered: {
+				checks: [[{ id: 'rerunCheck', iconId: 'debug-rerun', label: 'Rerun Check' }], [
+					['Build', ['rerunCheck']], ['Fork', undefined], ['External', undefined], ['Status', undefined], ['Borrowed', undefined], ['Lint', undefined],
+				]],
+				comments: [[{ id: 'resolveThread', iconId: 'check', label: 'Resolve Comment' }], [['thread', ['resolveThread']]]],
+			},
+			results: [
+				'The workflow of Build is still running. Rerun the check after it finishes.',
+				notRerunnable, notRerunnable,
+				'done', 'done',
+				'This review thread is already resolved or no longer available.',
+			],
+			afterResolve: [],
+			mutations: ['rerunJob:octo/repo/100', 'resolveThread:thread'],
+			runs: 0, prompts: 0,
+		});
+	}));
+
+	test('Rerun Check runs only a job GitHub confirms as that check on the current head', () => run(async store => {
+		const f = await fixture(store, itemActionSnapshot());
+		const checks = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'checks'));
+		const results: string[] = [];
+		for (const job of [undefined, buildJob({ check_run_url: 'https://api.github.com/repos/octo/repo/check-runs/101' }), buildJob({ run_id: 11 }), buildJob({ head_sha: 'old' })]) {
+			if (job) {
+				f.setJob(job);
+			}
+			results.push(await runItemAction(checks, '100', 'rerunCheck'));
+		}
+		const notRerunnable = 'This check is no longer failing on the pull request\'s current revision, or GitHub Actions cannot rerun it.';
+		assert.deepStrictEqual({ results, mutations: f.mutations }, { results: ['Not Found', notRerunnable, notRerunnable, notRerunnable], mutations: [] });
+	}));
+
+	test('Rerun Check confirms retained check results with GitHub before running', () => run(async store => {
+		const base = itemActionSnapshot();
+		const stale = { ...base, checks: { ...base.checks, status: 'stale' as const, complete: false } };
+		const f = await fixture(store, stale);
+		f.setJob(buildJob());
+		const checks = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'checks'));
+		// Retained same-head results stay visible and actionable while refreshing.
+		const offered = checks.details.get().items.find(item => item.id === '100')?.actions;
+		const unconfirmed = await runItemAction(checks, '100', 'rerunCheck');
+		f.onRefresh(() => {
+			f.snapshot.set({ ...f.snapshot.get(), checks: { ...base.checks, value: { ...base.checks.value, checks: base.checks.value.checks.map(check => check.id === '100' ? { ...check, conclusion: 'SUCCESS' } : check) } } }, undefined);
+		});
+		const fixed = await runItemAction(checks, '100', 'rerunCheck');
+		f.onRefresh(() => { f.snapshot.set({ ...f.snapshot.get(), checks: base.checks }, undefined); });
+		const failing = await runItemAction(checks, '100', 'rerunCheck');
+		const notRerunnable = 'This check is no longer failing on the pull request\'s current revision, or GitHub Actions cannot rerun it.';
+		assert.deepStrictEqual({ offered, results: [unconfirmed, fixed, failing], mutations: f.mutations }, {
+			offered: ['rerunCheck'], results: [notRerunnable, notRerunnable, 'done'], mutations: ['rerunJob:octo/repo/100'],
+		});
+	}));
+
+	test('a resolved comment disappears at once and stays hidden until GitHub\'s thread list catches up', () => run(async store => {
+		const base = itemActionSnapshot();
+		const other = { id: 'other', isResolved: false, path: 'src/b.ts', comments: [{ id: 'other-comment', author: { login: 'owner', association: 'OWNER' }, body: 'Rename this' }] };
+		const thread = base.reviewThreads.value[0];
+		const f = await fixture(store, { ...base, reviewThreads: { ...base.reviewThreads, value: [thread, other] } });
+		const comments = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'comments'));
+		const state = () => {
+			const view = f.model.snapshot.get().contributions[0].view;
+			return {
+				items: comments.details.get().items.map(item => item.id),
+				section: view.sections.find(section => section.id === 'comments')?.label,
+				addressComments: view.stateActions.some(action => action.id === 'addressReviews'),
+			};
+		};
+		const before = state();
+		const resolvedAt = Date.now();
+		const read = (threads: readonly typeof thread[], secondsAfterResolve: number) => ({ ...base.reviewThreads, observedAt: new Date(resolvedAt + secondsAfterResolve * 1000).toISOString(), value: threads });
+		await comments.runItemAction!('thread', 'resolveThread', CancellationToken.None);
+		const resolved = state();
+		f.snapshot.set({ ...f.snapshot.get(), reviewThreads: read([thread, other], 5) }, undefined);
+		const laggingRead = state();
+		f.snapshot.set({ ...f.snapshot.get(), reviewThreads: read([thread, other], 45) }, undefined);
+		const reopened = state();
+		await comments.runItemAction!('thread', 'resolveThread', CancellationToken.None);
+		f.snapshot.set({ ...f.snapshot.get(), reviewThreads: read([{ ...thread, isResolved: true }, other], 1) }, undefined);
+		f.snapshot.set({ ...f.snapshot.get(), reviewThreads: read([thread, other], 50) }, undefined);
+		assert.deepStrictEqual({ before, resolved, laggingRead, reopened, afterConfirmation: state() }, {
+			before: { items: ['thread', 'other'], section: '2', addressComments: true },
+			resolved: { items: ['other'], section: '1', addressComments: true },
+			laggingRead: { items: ['other'], section: '1', addressComments: true },
+			reopened: { items: ['thread', 'other'], section: '2', addressComments: true },
+			// Once GitHub confirmed the resolution, a later report of the thread as unresolved means it was reopened.
+			afterConfirmation: { items: ['thread', 'other'], section: '2', addressComments: true },
+		});
+	}));
+
+	test('item actions run while an artifact action is busy and do not offer reruns on closed pull requests', () => run(async store => {
+		const snapshot = itemActionSnapshot();
+		const f = await fixture(store, snapshot);
+		const checks = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'checks'));
+		const comments = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'comments'));
+		const repair = await f.invoke('fixCI');
+		await comments.runItemAction!('thread', 'resolveThread', CancellationToken.None);
+		f.snapshot.set({ ...f.snapshot.get(), core: { ...snapshot.core, value: { ...snapshot.core.value!, state: 'closed' } } }, undefined);
+		assert.deepStrictEqual({ repair: repair.state, mutations: f.mutations, closedRerun: checks.details.get().items.some(item => item.actions) }, {
+			repair: 'running', mutations: ['resolveThread:thread'], closedRerun: false,
+		});
+	}));
+
 	test('manual repairs follow the invoking checkout while automation stays with the original chat', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, base);
@@ -1042,6 +1271,116 @@ suite('GitHub pull request artifact integration', () => {
 		assert.deepStrictEqual({ beforeSync, afterSync: f.mutations }, { beforeSync: [], afterSync: ['ready'] });
 	}));
 
+	test('refreshes immediately on enablement and repairs failing CI while an approval check is pending', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, base);
+		f.onRefresh(() => {
+			f.snapshot.set({
+				...base, checks: {
+					...base.checks, value: {
+						...base.checks.value!, checks: [
+							{ id: 'ci', name: 'CI', type: 'checkRun', status: 'COMPLETED', conclusion: 'FAILURE' },
+							{ id: 'approval', name: 'Awaiting approvals', type: 'checkRun', status: 'IN_PROGRESS' },
+						]
+					}
+				},
+			}, undefined);
+		});
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
+		await timeout(200);
+
+		assert.deepStrictEqual({
+			prompts: f.prompts.length,
+			actions: f.service.ledger.state.get().runs.map(run => [run.actionId, run.state]),
+		}, { prompts: 1, actions: [['fixCI', 'running']] });
+	}));
+
+	test('polls fresh state every 60 seconds across core refresh reactivation and stops when disabled', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, base);
+		const refreshTimes: number[] = [];
+		const enabledAt = Date.now();
+		f.onRefresh(() => { refreshTimes.push(Date.now() - enabledAt); });
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
+		await timeout(30_000);
+		f.snapshot.set({ ...base, core: { ...base.core, status: 'loading', complete: false } }, undefined);
+		await timeout(1_000);
+		f.snapshot.set({ ...base }, undefined);
+		await timeout(28_999);
+		const beforeFirstPoll = [...refreshTimes];
+		await timeout(1);
+		const afterFirstPoll = [...refreshTimes];
+		f.onRefresh(() => {
+			refreshTimes.push(Date.now() - enabledAt);
+			f.snapshot.set({
+				...base, checks: {
+					...base.checks, value: {
+						...base.checks.value!, checks: [
+							{ id: 'ci', name: 'CI', type: 'checkRun', status: 'COMPLETED', conclusion: 'FAILURE' },
+						]
+					}
+				},
+			}, undefined);
+		});
+		await timeout(59_999);
+		const beforeSecondPoll = f.prompts.length;
+		await timeout(201);
+		const afterSecondPoll = { prompts: f.prompts.length, refreshedAt: refreshTimes[2] };
+		await f.finishPrompt();
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 1, { fixCI: false });
+		const refreshCount = refreshTimes.length;
+		await timeout(61_000);
+
+		assert.deepStrictEqual({
+			beforeFirstPoll, afterFirstPoll, beforeSecondPoll, afterSecondPoll,
+			refreshesAfterDisablement: refreshTimes.length - refreshCount,
+		}, {
+			beforeFirstPoll: [50], afterFirstPoll: [50, 60_000], beforeSecondPoll: 0,
+			afterSecondPoll: { prompts: 1, refreshedAt: 120_000 }, refreshesAfterDisablement: 0,
+		});
+	}));
+
+	test('refresh invalidation does not loop when automation reactivates', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, base);
+		const refreshTimes: number[] = [];
+		const enabledAt = Date.now();
+		f.onRefresh(async () => {
+			refreshTimes.push(Date.now() - enabledAt);
+			f.snapshot.set({ ...base, core: { ...base.core, status: 'loading', complete: false } }, undefined);
+			await timeout(1);
+			f.snapshot.set(base, undefined);
+		});
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
+		await timeout(180_500);
+
+		assert.deepStrictEqual({ refreshTimes, prompts: f.prompts.length }, { refreshTimes: [50, 60_000, 120_000, 180_000], prompts: 0 });
+	}));
+
+	test('polls immediately after an overdue core refresh and stops when disposed', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, base);
+		const refreshTimes: number[] = [];
+		const enabledAt = Date.now();
+		f.onRefresh(() => { refreshTimes.push(Date.now() - enabledAt); });
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
+		await timeout(30_000);
+		f.snapshot.set({ ...base, core: { ...base.core, status: 'loading', complete: false } }, undefined);
+		await timeout(31_000);
+		const whileLoading = [...refreshTimes];
+		f.snapshot.set(base, undefined);
+		await timeout(59_999);
+		const beforeNextPoll = [...refreshTimes];
+		await timeout(1);
+		const afterNextPoll = [...refreshTimes];
+		f.service.dispose();
+		await timeout(61_000);
+
+		assert.deepStrictEqual({ whileLoading, beforeNextPoll, afterNextPoll, afterDisposal: refreshTimes }, {
+			whileLoading: [50], beforeNextPoll: [50, 61_000], afterNextPoll: [50, 61_000, 121_000], afterDisposal: [50, 61_000, 121_000],
+		});
+	}));
+
 	test('retries unresolved repair objectives with fresh state and a bounded attempt budget', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, {
@@ -1056,11 +1395,11 @@ suite('GitHub pull request artifact integration', () => {
 		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
 		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.state === 'running'));
 		await f.finishPrompt();
-		await timeout(20_000);
+		await timeout(10 * 60_000 - 1_000);
 		const beforeBackoff = f.prompts.length;
-		await timeout(11_000);
+		await timeout(1_000);
 		await f.finishPrompt('failed');
-		await timeout(31_000);
+		await timeout(10 * 60_000);
 		await f.finishPrompt();
 		await waitForState(f.model.snapshot, snapshot => snapshot.contributions[0].configuration.values.fixCI === false);
 		const runs = f.service.ledger.state.get().runs;
@@ -1073,6 +1412,44 @@ suite('GitHub pull request artifact integration', () => {
 			reason: 'Turned off after 3 unsuccessful attempts. Review the last run before enabling this automation again.',
 		});
 	}));
+
+	for (const progress of ['new head', 'new failure', 'resolved blocker'] as const) {
+		test(`starts a new repair without the unchanged cooldown after a ${progress}`, () => run(async store => {
+			const base = createPullRequestArtifactSnapshot();
+			const failing = {
+				...base, checks: {
+					...base.checks, value: {
+						...base.checks.value!, checks: [
+							{ id: 'ci', name: 'CI', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
+							{ id: 'lint', name: 'Lint', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
+						]
+					}
+				}
+			};
+			const f = await fixture(store, failing);
+			await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
+			await waitForState(f.service.ledger.state, state => state.runs.some(run => run.state === 'running'));
+			await f.finishPrompt();
+			if (progress === 'new head') {
+				f.snapshot.set({
+					...failing,
+					core: { ...base.core, value: { ...base.core.value!, headSha: 'new-head' } },
+					checks: { ...failing.checks, headSha: 'new-head', value: { ...failing.checks.value, headSha: 'new-head' } },
+				}, undefined);
+			} else {
+				const checks = progress === 'new failure' ? [...failing.checks.value.checks,
+				{ id: 'test', name: 'Test', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
+				] : failing.checks.value.checks.map(check => check.id === 'ci' ? { ...check, conclusion: 'SUCCESS' } : check);
+				f.snapshot.set({ ...failing, checks: { ...failing.checks, value: { ...failing.checks.value, checks } } }, undefined);
+			}
+			await timeout(200);
+
+			assert.deepStrictEqual({
+				prompts: f.prompts.length,
+				retries: f.service.ledger.state.get().runs.map(run => run.retryOf),
+			}, { prompts: 2, retries: [undefined, undefined] });
+		}));
+	}
 
 	test('enabling both repair rules waits for an idle chat and runs comments then CI without duplicate prompts', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
@@ -1124,7 +1501,7 @@ suite('GitHub pull request artifact integration', () => {
 		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.state === 'running'));
 		await f.finishPrompt();
 		f.onRefresh(() => { f.snapshot.set(base, undefined); });
-		await timeout(31_000);
+		await timeout(10 * 60_000 + 100);
 		assert.deepStrictEqual({ prompts: f.prompts.length, enabled: f.model.snapshot.get().contributions[0].configuration.values.fixCI }, { prompts: 1, enabled: true });
 	}));
 

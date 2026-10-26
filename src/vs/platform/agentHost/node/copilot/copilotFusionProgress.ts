@@ -197,6 +197,15 @@ export class CopilotFusionProgress {
 		this._patterns.clear();
 	}
 
+	/** Reports the running phase again as new, for a turn that takes over its in-flight workflow. */
+	resumeRunningPhase(): ICopilotFusionProgressUpdate | undefined {
+		const toolCall = this._phase && this._phaseTools.get(getFusionPhaseToolCallId(this._phase.fusionId, this._phase.phaseId));
+		if (!this._phase || !toolCall) {
+			return undefined;
+		}
+		return { activity: this._activity, phase: { toolCall, isNew: true, presentation: getFusionPhasePresentation(this._phase.phaseKind) } };
+	}
+
 	interrupt(timestamp?: string): ICopilotFusionProgressUpdate | undefined {
 		if (!this._inFlight) {
 			return undefined;
