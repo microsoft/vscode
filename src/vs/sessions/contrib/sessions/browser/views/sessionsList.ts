@@ -7332,7 +7332,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
-			[SessionItemHasMoveDestinationContext.key, selectedSessions.length === 1 && getSessionMoveDestinations(element, this._sessionsManagementService.getSessions(), this._sessionsManagementService).length > 0],
+			[SessionItemHasMoveDestinationContext.key, getSessionMoveDestinations(element, this._sessionsManagementService.getSessions(), this._sessionsManagementService).length > 0],
 			[SessionItemHasUnreadNestedSessionsContext.key, selectedSessions.some(session =>
 				!session.isArchived.get()
 				&& session.capabilities.get().supportsIndependentChatReadState === true

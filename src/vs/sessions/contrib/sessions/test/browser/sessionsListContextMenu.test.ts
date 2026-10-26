@@ -722,10 +722,10 @@ suite('Sessions list context menus', () => {
 
 		assert.deepStrictEqual({
 			chat: describe(Menus.SessionChatItemContext, MOVE_CHAT_TO_SESSION_ACTION_ID, { ...base, 'sessionChatItem.canMove': true, 'sessionChatItem.hasMoveDestination': true }, 'sessionChatItem.hasMoveDestination'),
-			session: { ...describe(MenuId.SessionItemContextMenu, MOVE_SESSION_INTO_SESSION_ACTION_ID, { ...base, 'sessionItem.hasMoveDestination': true }, 'sessionItem.hasMoveDestination'), multiSelection: !!item(MenuId.SessionItemContextMenu, MOVE_SESSION_INTO_SESSION_ACTION_ID)?.when?.evaluate({ getValue: <T>(key: string) => ({ ...base, 'sessionItem.hasMoveDestination': true, 'sessionItem.isMultiSelection': true } as Record<string, unknown>)[key] as T }) },
+			session: { ...describe(MenuId.SessionItemContextMenu, MOVE_SESSION_INTO_SESSION_ACTION_ID, { ...base, 'sessionItem.hasMoveDestination': true }, 'sessionItem.hasMoveDestination'), multiSelection: { shown: !!item(MenuId.SessionItemContextMenu, MOVE_SESSION_INTO_SESSION_ACTION_ID)?.when?.evaluate({ getValue: <T>(key: string) => ({ ...base, 'sessionItem.hasMoveDestination': true, 'sessionItem.isMultiSelection': true } as Record<string, unknown>)[key] as T }), enabled: !!item(MenuId.SessionItemContextMenu, MOVE_SESSION_INTO_SESSION_ACTION_ID)?.command.precondition?.evaluate({ getValue: <T>(key: string) => ({ 'sessionItem.isMultiSelection': true } as Record<string, unknown>)[key] as T }) } },
 		}, {
 			chat: { title: 'Move to Session...', group: '1_move', order: 2, enabled: true, settingOff: false, aiDisabled: false, noDestination: false },
-			session: { title: 'Move to Session...', group: '1_move', order: 1, enabled: true, settingOff: false, aiDisabled: false, noDestination: false, multiSelection: false },
+			session: { title: 'Move to Session...', group: '1_move', order: 1, enabled: true, settingOff: false, aiDisabled: false, noDestination: false, multiSelection: { shown: true, enabled: false } },
 		});
 	});
 

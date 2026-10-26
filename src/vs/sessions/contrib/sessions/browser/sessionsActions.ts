@@ -864,11 +864,12 @@ registerAction2(class MoveSessionIntoSessionAction extends Action2 {
 			id: MOVE_SESSION_INTO_SESSION_ACTION_ID,
 			title: MOVE_TO_SESSION_LABEL,
 			f1: false,
+			precondition: SessionItemIsMultiSelectionContext.negate(),
 			menu: [{
 				id: MenuId.SessionItemContextMenu,
 				group: '1_move',
 				order: 1,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate(), SessionItemHasMoveDestinationContext),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionItemHasMoveDestinationContext),
 			}],
 		});
 	}
