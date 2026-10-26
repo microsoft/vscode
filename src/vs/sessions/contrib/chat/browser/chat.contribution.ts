@@ -779,6 +779,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.WINDOW,
 			description: localize('sessions.chat.experimental.environmentPickerManageRemotes', "Controls whether Remote Environments management and its picker visibility preferences are enabled. Adds a command, a Sessions menu entry, and a Manage entry when the Environment picker and remote agent hosts are enabled. When disabled, saved visibility preferences are ignored but retained."),
+			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING]: {
