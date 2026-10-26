@@ -308,7 +308,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 			assert.deepStrictEqual({
-				discoveryHelp: content.includes('choose Environments to discover your environments'),
+				discoveryHelp: content.includes('choose GitHub Environments to discover your environments'),
 				folderBrowsing: content.includes('then select a folder on that host.'),
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),

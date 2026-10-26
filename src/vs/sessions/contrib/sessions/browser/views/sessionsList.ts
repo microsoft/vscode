@@ -44,13 +44,14 @@ import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../../common/sessionApplic
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
+import { getGitHubRepositoryId, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -60,7 +61,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -2208,17 +2209,8 @@ function getChatWorkspaceBadgeLabel(sessionWorkspace: ISessionWorkspace | undefi
 }
 
 function getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
-	const repository = getGitHubRemoteFileRepository(workspace.folders[0]?.root);
-	return repository ? `${repository.owner}/${repository.name}` : workspace.label;
-}
-
-/** The repository of a `github-remote-file` URI, such as a cloud session's workspace folder. */
-function getGitHubRemoteFileRepository(uri: URI | undefined): ISessionRepository | undefined {
-	if (uri?.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
-		return undefined;
-	}
-	const [owner, name] = uri.path.split('/').filter(Boolean);
-	return owner && name ? { owner, name } : undefined;
+	const repository = getGitHubRepositoryOfRemoteFile(workspace.folders[0]?.root);
+	return repository ? `${repository.owner}/${repository.repo}` : workspace.label;
 }
 
 interface ISessionRowLocationOptions {
@@ -4106,6 +4098,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * custom group: `true` lists every session, `false` caps the section.
 	 */
 	private static readonly SESSION_GROUP_EXPANSION_STATE_KEY = 'sessionsListControl.sessionGroupExpansionState';
+	/** Set once {@link SessionsList.migrateCloudSandboxRepositorySections} has run. */
+	private static readonly CLOUD_SANDBOX_REPOSITORY_SECTIONS_MIGRATED_KEY = 'sessionsListControl.cloudSandboxRepositorySectionsMigrated';
 	private static readonly DEFAULT_SESSION_GROUP_LIMIT = 5;
 
 	/**
@@ -8085,6 +8079,123 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
+	// -- One-time state migration --
+
+	/**
+	 * Repository grouping showed cloud sandbox sessions in their workspace section until they joined
+	 * their repository's section. Once ever, this gives each such repository section the list state
+	 * recorded for that workspace section, unless the repository section has its own: its custom
+	 * group and position there, top-level position, icon and color, collapse state, and show
+	 * more/show less choice. Nothing is removed, as Workspace grouping still shows the workspace section.
+	 *
+	 * A Copilot cloud session's workspace section is named `<owner>/<repo>` like a cloud sandbox
+	 * session's, so state keyed by that name (position, icon and color) is adopted only for
+	 * repositories that state keyed unambiguously shows had cloud sandbox sessions: a custom group
+	 * placement in Repository grouping, or a collapse or show more/show less choice keyed by an
+	 * `https://github.com/<owner>/<repo>` workspace, which Copilot cloud sessions never have.
+	 */
+	// TODO@benibenj Remove after 2027-01-26, once profiles have run it.
+	static migrateCloudSandboxRepositorySections(storageService: IStorageService, sessionGroupsService: ISessionGroupsService, sessionSectionOrderService: ISessionSectionOrderService): void {
+		if (storageService.getBoolean(SessionsList.CLOUD_SANDBOX_REPOSITORY_SECTIONS_MIGRATED_KEY, StorageScope.PROFILE, false)) {
+			return;
+		}
+		try {
+			// Workspace section ids, by the id of the repository section that adopts their state.
+			const workspaceSectionIds = new Map<string, Set<string>>();
+			const addWorkspaceSection = (repositorySectionId: string, workspaceSectionId: string) => {
+				let ids = workspaceSectionIds.get(repositorySectionId);
+				if (!ids) {
+					ids = new Set();
+					workspaceSectionIds.set(repositorySectionId, ids);
+				}
+				ids.add(workspaceSectionId);
+			};
+
+			for (const key of [SessionsList.SECTION_COLLAPSE_STATE_KEY, SessionsList.SESSION_GROUP_EXPANSION_STATE_KEY]) {
+				const state = readStoredBooleans(storageService, key);
+				let changed = false;
+				for (const [stateId, value] of Object.entries(state)) {
+					const repository = stateId.startsWith('workspace:https:') ? getGitHubRepositoryOfUrl(URI.parse(stateId.slice('workspace:'.length))) : undefined;
+					if (!repository) {
+						continue;
+					}
+					const repositorySectionId = getRepositorySectionId({ owner: repository.owner, name: repository.repo });
+					// A cloud sandbox session's workspace section is named after the repository it names by URL.
+					addWorkspaceSection(repositorySectionId, `workspace:${repository.owner}/${repository.repo}`);
+					if (state[repositorySectionId] === undefined) {
+						state[repositorySectionId] = value;
+						changed = true;
+					}
+				}
+				if (changed) {
+					storageService.store(key, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+				}
+			}
+
+			// Repository grouping placed a workspace section without a repository under `repository:workspace:<name>`.
+			const placements: { readonly key: string; readonly groupId: string; readonly repositorySectionId: string }[] = [];
+			for (const group of sessionGroupsService.getGroups()) {
+				for (const key of sessionGroupsService.getSectionIdsInGroup(group.id)) {
+					if (!key.startsWith(`${REPOSITORY_SECTION_PREFIX}workspace:`)) {
+						continue;
+					}
+					const workspaceSectionId = key.slice(REPOSITORY_SECTION_PREFIX.length);
+					const [owner, name] = getGitHubRepositoryId(workspaceSectionId.slice('workspace:'.length))?.split('/') ?? [];
+					if (owner && name) {
+						const repositorySectionId = getRepositorySectionId({ owner, name });
+						addWorkspaceSection(repositorySectionId, workspaceSectionId);
+						placements.push({ key, groupId: group.id, repositorySectionId });
+					}
+				}
+			}
+			for (const { key, groupId, repositorySectionId } of placements) {
+				// A promoted section was placed at the top level by the user, which `getGroupOfSection` does not record.
+				if (sessionGroupsService.getGroupOfSection(repositorySectionId) === undefined && !sessionSectionOrderService.isPromoted(repositorySectionId)) {
+					sessionGroupsService.moveSection(repositorySectionId, groupId, { siblingId: key, position: 'after' });
+				}
+			}
+
+			for (const [repositorySectionId, ids] of workspaceSectionIds) {
+				for (const workspaceSectionId of ids) {
+					sessionSectionOrderService.adoptPosition(workspaceSectionId, repositorySectionId);
+					const appearance = sessionGroupsService.getSectionAppearance(workspaceSectionId);
+					if (appearance && !sessionGroupsService.getSectionAppearance(repositorySectionId)) {
+						sessionGroupsService.setSectionIcon(repositorySectionId, appearance.icon);
+						sessionGroupsService.setSectionColor(repositorySectionId, appearance.color);
+					}
+				}
+			}
+		} finally {
+			storageService.store(SessionsList.CLOUD_SANDBOX_REPOSITORY_SECTIONS_MIGRATED_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+	}
+}
+
+/** A stored JSON record of booleans, without its other values. */
+function readStoredBooleans(storageService: IStorageService, key: string): Record<string, boolean> {
+	try {
+		const parsed = JSON.parse(storageService.get(key, StorageScope.PROFILE) ?? '{}');
+		if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+			return Object.fromEntries(Object.entries(parsed).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean'));
+		}
+	} catch {
+		// Ignore corrupt persisted state.
+	}
+	return {};
+}
+
+/** Migrates persisted sessions list state at startup, before the list restores it. */
+export class SessionsListStateMigrationContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsListStateMigration';
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@ISessionGroupsService sessionGroupsService: ISessionGroupsService,
+		@ISessionSectionOrderService sessionSectionOrderService: ISessionSectionOrderService,
+	) {
+		SessionsList.migrateCloudSandboxRepositorySections(storageService, sessionGroupsService, sessionSectionOrderService);
+	}
 }
 
 //#endregion
@@ -8520,14 +8631,10 @@ function workspaceCollapseStateId(sessions: readonly ISession[]): string | undef
 		: undefined;
 }
 
-/**
- * The GitHub repository of a session's primary folder. A cloud session's folder names it
- * in its `github-remote-file` URI; other sessions report it through their Git metadata.
- */
+/** The GitHub repository of a session's primary folder, as {@link getSessionFolderGitHubRepository} describes. */
 export function getSessionRepository(session: ISession): ISessionRepository | undefined {
-	const folder = session.workspace.get()?.folders[0];
-	const gitHubInfo = folder?.gitRepository?.gitHubInfo.get();
-	return getGitHubRemoteFileRepository(folder?.root) ?? (gitHubInfo ? { owner: gitHubInfo.owner, name: gitHubInfo.repo } : undefined);
+	const repository = getSessionFolderGitHubRepository(session.workspace.get()?.folders[0]);
+	return repository && { owner: repository.owner, name: repository.repo };
 }
 
 function getRepositorySectionId(repository: ISessionRepository): string {
@@ -8614,12 +8721,23 @@ export interface INewSessionSource {
 }
 
 /**
+ * Whether a new session can start in a session's workspace. A folder that only names a repository
+ * by URL, like a cloud sandbox session's before its sandbox connects, has no checkout to start in.
+ */
+export function canStartNewSessionLike(session: ISession): boolean {
+	return !getGitHubRepositoryOfUrl(session.workspace.get()?.folders[0]?.root);
+}
+
+/**
  * The most recently created session of each available environment among `sessions`, in
  * Environment filter order. New sessions in a repository section start in their workspaces.
  */
 export function getNewSessionSources(sessions: readonly ISession[], sessionsProvidersService: ISessionsProvidersService): INewSessionSource[] {
 	const sources = new Map<string, INewSessionSource>();
 	for (const session of sessions) {
+		if (!canStartNewSessionLike(session)) {
+			continue;
+		}
 		const environment = sessionsProvidersService.getProvider(session.providerId)?.environment;
 		if (!environment || environment.isConnected?.get() === false) {
 			continue;
