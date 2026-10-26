@@ -161,7 +161,7 @@ export class RemotesWidget extends Disposable {
 			{ id: 'gutter', label: '', weight: 0, minimumWidth: 64, maximumWidth: 64 },
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.8, minimumWidth: 220 },
 			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 144 },
-			{ id: 'actions', label: '', weight: 0, minimumWidth: 72, maximumWidth: 72 },
+			{ id: 'actions', label: '', weight: 0, minimumWidth: 144, maximumWidth: 144 },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
@@ -268,9 +268,15 @@ export class RemotesWidget extends Disposable {
 			} else if (action === 'connect') {
 				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
 			} else if (action === 'rename') {
-				void this.renameRemote(entry.remote.id);
-			} else if (action === 'delete' && entry.remote.kind === 'environment' && entry.remote.canRemove) {
-				void this.deleteEnvironment(entry.remote.id);
+				void this.manageRemote(entry.remote.id, 'rename');
+			} else if (action === 'copyAddress') {
+				void this.copyAddress(entry.remote.id);
+			} else if (action === 'locationPreference' && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh')) {
+				void this.manageRemote(entry.remote.id, 'locationPreference');
+			} else if (action === 'updateServer') {
+				void this.manageRemote(entry.remote.id, 'updateServer');
+			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || entry.remote.kind === 'tunnel' && entry.remote.canDelete)) {
+				void this.deleteRemote(entry.remote.id, entry.remote.kind);
 			}
 		}
 	}
@@ -474,14 +480,32 @@ export class RemotesWidget extends Disposable {
 		this.layout();
 	}
 
-	private async renameRemote(id: string): Promise<void> {
+	private async copyAddress(id: string): Promise<void> {
+		try {
+			await this.model.copyAddress(id);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.notificationService.error(error);
+			}
+		}
+	}
+
+	private async manageRemote(id: string, action: 'rename' | 'locationPreference' | 'updateServer'): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
+		const focusedAction = dom.getActiveElement();
+		const restoreFocus = dom.isHTMLElement(focusedAction) && this.domNode.contains(focusedAction) && focusedAction.closest<HTMLElement>('[data-remote-id]')?.dataset.remoteId === id;
 		this.pendingActions.add(id);
 		this.render();
 		try {
-			await this.model.rename(id);
+			if (action === 'locationPreference') {
+				await this.model.changePreferredAgentLocation(id);
+			} else if (action === 'updateServer') {
+				await this.model.updateServer(id);
+			} else {
+				await this.model.rename(id);
+			}
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this.notificationService.error(error);
@@ -493,7 +517,8 @@ export class RemotesWidget extends Disposable {
 				const active = dom.getActiveElement();
 				const activeRow = dom.isHTMLElement(active) && this.domNode.contains(active) ? active.closest<HTMLElement>('[data-remote-id]') : undefined;
 				const index = this.rows.findIndex(row => row.id === id);
-				if (activeRow && activeRow.dataset.remoteId !== id && index >= 0) {
+				if (index >= 0 && (activeRow && activeRow.dataset.remoteId !== id
+					|| restoreFocus && !focusedAction?.isConnected && active === this.domNode.ownerDocument.body)) {
 					this.table.setFocus([index]);
 					this.table.domFocus();
 				}
@@ -501,7 +526,7 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private async deleteEnvironment(id: string): Promise<void> {
+	private async deleteRemote(id: string, kind: 'environment' | 'tunnel'): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
@@ -510,7 +535,11 @@ export class RemotesWidget extends Disposable {
 		this.pendingActions.add(id);
 		this.render();
 		try {
-			await this.model.remove(id);
+			if (kind === 'tunnel') {
+				await this.model.deleteTunnel(id);
+			} else {
+				await this.model.remove(id);
+			}
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this.notificationService.error(error);
