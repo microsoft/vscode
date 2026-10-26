@@ -26,7 +26,7 @@ suite('ToolSetsContribution', () => {
 		return store.add(instaService.createInstance(LanguageModelToolsService));
 	}
 
-	test('ClientToolSetsContribution exposes only Screenshot Window and Tool Search from vscode-general in the Sessions window', () => {
+	test('ClientToolSetsContribution exposes only Tool Search from vscode-general in the Sessions window', () => {
 		const makeTool = (name: string): IToolData => ({
 			id: name,
 			modelDescription: name,
@@ -34,7 +34,7 @@ suite('ToolSetsContribution', () => {
 			toolReferenceName: name,
 			source: ToolDataSource.Internal,
 		});
-		const general = ['runTests', 'testFailure', 'rename', 'usages', 'screenshotWindow', 'toolSearch'].map(makeTool);
+		const general = ['runTests', 'testFailure', 'rename', 'usages', 'toolSearch'].map(makeTool);
 		const removed = ['extensions', 'installExtension', 'newWorkspace', 'runCommand', 'vscodeAPI'].map(makeTool);
 		const createContribution = (isSessionsWindow: boolean) => {
 			const toolsService = createToolsService();
@@ -55,8 +55,8 @@ suite('ToolSetsContribution', () => {
 			sessionsMembers: Array.from(sessionsToolsService.getToolSet('vscode-general')?.getTools() ?? [], tool => tool.toolReferenceName),
 			coreMembers: Array.from(coreToolsService.getToolSet('vscode-general')?.getTools() ?? [], tool => tool.toolReferenceName),
 		}, {
-			sessionsMembers: ['screenshotWindow', 'toolSearch'],
-			coreMembers: ['runTests', 'testFailure', 'rename', 'usages', 'screenshotWindow', 'toolSearch'],
+			sessionsMembers: ['toolSearch'],
+			coreMembers: ['runTests', 'testFailure', 'rename', 'usages', 'toolSearch'],
 		});
 	});
 
@@ -117,7 +117,7 @@ suite('ToolSetsContribution', () => {
 	test('ClientToolSetsContribution exposes Appearance tools only in the Sessions window', () => {
 		const createContribution = (isSessionsWindow: boolean) => {
 			const toolsService = createToolsService();
-			for (const name of ['getThemeColors', 'setChatBackground']) {
+			for (const name of ['getThemeColors', 'setChatBackground', 'screenshotWindow']) {
 				store.add(toolsService.registerToolData({ id: name, modelDescription: name, displayName: name, toolReferenceName: name, source: ToolDataSource.Internal }));
 			}
 			const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
@@ -131,7 +131,7 @@ suite('ToolSetsContribution', () => {
 			sessionsMembers: Array.from(createContribution(true).getToolSet('vscode-appearance')?.getTools() ?? [], tool => tool.toolReferenceName),
 			coreHasSet: !!createContribution(false).getToolSet('vscode-appearance'),
 		}, {
-			sessionsMembers: ['getThemeColors', 'setChatBackground'],
+			sessionsMembers: ['getThemeColors', 'setChatBackground', 'screenshotWindow'],
 			coreHasSet: false,
 		});
 	});

@@ -11,7 +11,6 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { browserChatToolReferenceNames } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
-import { ScreenshotWindowToolReferenceName } from './screenshotWindowTool.js';
 
 /**
  * Describes a tool set whose membership is resolved dynamically from a list of tool reference names.
@@ -99,10 +98,11 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 				referenceName: 'vscodeAppearance',
 				icon: Codicon.paintcan,
 				description: localize('clientToolSet.appearance.description', "Appearance"),
-				detail: localize('clientToolSet.appearance.detail', "Read theme colors and change the chat background of the Agents window."),
+				detail: localize('clientToolSet.appearance.detail', "Read theme colors, change the chat background, and capture the Agents window."),
 				members: [
 					'getThemeColors',
 					'setChatBackground',
+					'screenshotWindow',
 				],
 			}));
 		}
@@ -124,7 +124,6 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 			detail: localize('clientToolSet.vscode.detail', "Navigate code, manage extensions, and run built-in VS Code commands."),
 			members: [
 				...(workspaceService.isSessionsWindow ? [] : ['runTests', 'testFailure', 'rename', 'usages']),
-				ScreenshotWindowToolReferenceName,
 				'toolSearch',
 			],
 		}));

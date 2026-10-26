@@ -237,9 +237,6 @@ import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExpor
 // Computer Use setup: drag Copilot Computer Use into System Settings
 import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelperApp.contribution.js';
 
-// Chat tool: screenshot the window
-import '../workbench/contrib/chat/electron-browser/builtInTools/screenshotWindowTool.contribution.js';
-
 //#endregion
 
 
