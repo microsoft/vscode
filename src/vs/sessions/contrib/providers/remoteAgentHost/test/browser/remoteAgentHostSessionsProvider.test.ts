@@ -575,7 +575,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 					affectsConfiguration: key => key === ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING,
 				});
 			};
-			const defaultOff = snapshot();
+			const defaultOn = snapshot();
 			await setEnabled(true);
 			const enabled = snapshot();
 			await setEnabled(false);
@@ -587,14 +587,14 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			await setEnabled(true);
 			const restored = snapshot();
 			provider.showInEnvironmentPicker();
-			assert.deepStrictEqual({ defaultOff, enabled, disabled, offline, restored, shown: snapshot(), observed }, {
-				defaultOff: { visible: true, entries: 1, hidden: true },
+			assert.deepStrictEqual({ defaultOn, enabled, disabled, offline, restored, shown: snapshot(), observed }, {
+				defaultOn: { visible: false, entries: 0, hidden: true },
 				enabled: { visible: false, entries: 0, hidden: true },
 				disabled: { visible: true, entries: 1, hidden: true },
 				offline: { visible: false, entries: 0, hidden: true },
 				restored: { visible: false, entries: 0, hidden: true },
 				shown: { visible: true, entries: 1, hidden: false },
-				observed: [true, false, true, false, true, false, true],
+				observed: [false, true, false, true, false, true],
 			});
 		});
 	}

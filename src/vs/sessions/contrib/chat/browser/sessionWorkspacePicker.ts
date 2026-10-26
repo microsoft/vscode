@@ -2049,7 +2049,8 @@ export class WorkspacePicker extends Disposable {
 				extended.icon = RemoteAgentHostConnectionStatus.isIncompatible(status)
 					? Codicon.warning
 					: Codicon.remote;
-				extended.hoverContent = getStatusHover(status, provider.remoteAddress);
+				const lastConnectionError = this.remoteAgentHostService.connections.find(connection => connection.address === provider.remoteAddress)?.lastConnectionError;
+				extended.hoverContent = getStatusHover(status, provider.remoteAddress, lastConnectionError);
 				if (provider.remoteAddress && provider.canRemove !== false) {
 					extended.onRemove = async () => {
 						await removeRemoteHost(provider, this.remoteAgentHostService, this.configurationService);

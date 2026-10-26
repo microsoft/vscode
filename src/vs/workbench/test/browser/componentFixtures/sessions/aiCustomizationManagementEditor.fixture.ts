@@ -3614,6 +3614,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				label: 'Extensions',
 				icon: Codicon.extensions,
 				description: 'Choose which installed extensions run in the Agents window.',
+				separatorBefore: true,
 				supportsHarness: () => true,
 				getBadge: () => constObservable('Some installed extensions can be enabled in the Agents window.'),
 				create: () => ({ dispose: () => { } }),

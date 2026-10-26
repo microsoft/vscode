@@ -33,7 +33,7 @@ import { IExternalUriOpenerService } from '../../../../workbench/contrib/externa
 import { externalUriOpenersSettingId } from '../../../../workbench/contrib/externalUriOpener/common/configuration.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
-import { ChatInputPills, StandardChatInputPillSources, createChatInputPillSource, IChatInputPillSource } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
+import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
@@ -66,6 +66,7 @@ import { SessionCanvasesControl } from '../../canvases/browser/sessionCanvasesCo
 import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
 import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
 import { ArtifactDetailsContextView } from './artifactDetailsContextView.js';
+import { ArtifactIntegrationPillSources, IArtifactIntegrationPillItem } from './artifactIntegrationPillSources.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
 import { EditorsOrder } from '../../../../workbench/common/editor.js';
@@ -702,30 +703,37 @@ export class SessionChatInputToolbar extends Disposable {
 				...createAction(OPEN_PULL_REQUEST_ACTION_ID, localize('sessionChatPills.activityBar.openPullRequest', "Open Pull Request"), activityBarPullRequests.sections, activityBarPullRequests.icon.read(reader), 'PullRequestOverview', pullRequestRefs.read(reader)),
 			];
 		});
-		const integratedSources = derived(this, reader => {
+		const pinScope = derived(this, reader => {
+			const session = this._session.read(reader);
+			const chat = this._chat.read(reader);
+			return session && chat ? JSON.stringify([session.providerId, session.resource.toString(), chat.resource.toString()]) : undefined;
+		});
+		/** Integrated artifacts in pill order, each with its pill kind and whether its kind's filter keeps it. */
+		const integratedItems = derived(this, reader => {
 			if (this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
 				return [];
 			}
 			const pullRequests = new Map(pullRequestSections.read(reader).flatMap(section => section.entries.map(entry => [entry.id, entry] as const)));
 			const issues = new Map(issueSections.read(reader).flatMap(section => section.entries.map(entry => [entry.id, entry] as const)));
 			const artifacts = this._session.read(reader)?.artifacts?.read(reader) ?? [];
-			return sessionArtifacts.integratedEntries.read(reader).flatMap((entry): IChatInputPillSource[] => {
-				const preferredEntry = pullRequests.get(entry.id) ?? issues.get(entry.id);
-				const decorated = preferredEntry ? sessionArtifacts.decorateEntry(preferredEntry, reader) : entry;
-				if (!decorated.inlinePill) {
+			return sessionArtifacts.integratedEntries.read(reader).flatMap((base): IArtifactIntegrationPillItem[] => {
+				const presentation = sessionArtifacts.getPresentation(base.id, reader);
+				if (!presentation) {
 					return [];
 				}
-				const kind = pullRequests.has(entry.id) ? SessionChatPillKind.PullRequests : issues.has(entry.id) ? SessionChatPillKind.Issues
-					: artifacts.find(artifact => artifact.id === entry.id)?.isArtifact ? SessionChatPillKind.Artifacts : SessionChatPillKind.References;
+				const entry = pullRequests.get(base.id) ?? issues.get(base.id) ?? base;
+				const decorated = sessionArtifacts.decorateEntry(entry, reader);
+				const isArtifact = artifacts.find(artifact => artifact.id === base.id)?.isArtifact === true;
+				const kind = pullRequests.has(base.id) ? SessionChatPillKind.PullRequests : issues.has(base.id) ? SessionChatPillKind.Issues
+					: isArtifact ? SessionChatPillKind.Artifacts : SessionChatPillKind.References;
 				return [{
-					...createChatInputPillSource(decorated.inlinePill, kind),
-					isVisible: kind === SessionChatPillKind.PullRequests
-						? constObservable(visibility.pullRequests.isVisible(getPullRequestStatusFromIcon(decorated.icon) ?? pullRequests.get(entry.id)?.pullRequestState, reader))
-						: undefined,
-					getContextMenuPrimaryActions: () => decorated.promotedAction ? [decorated.promotedAction] : [],
+					entry, presentation, kind, isArtifact,
+					visible: kind !== SessionChatPillKind.PullRequests
+						|| visibility.pullRequests.isVisible(getPullRequestStatusFromIcon(decorated.icon) ?? pullRequests.get(base.id)?.pullRequestState, reader),
 				}];
 			});
 		});
+		const integratedSources = this._register(instantiationService.createInstance(ArtifactIntegrationPillSources, integratedItems, pinScope, detailsHost)).sources;
 		const changesLabel = derived(this, reader => {
 			const session = this._session.read(reader);
 			if (isNestedChat(session, this._chat.read(reader), reader) || isCloudSandboxSession(session)) {
@@ -770,11 +778,7 @@ export class SessionChatInputToolbar extends Disposable {
 			browsers: { sections: this._browsers.sections },
 			subagents: this._backgroundActivities,
 			backgroundShells,
-		}, SESSION_CHAT_PILL_KINDS, derived(this, reader => {
-			const session = this._session.read(reader);
-			const chat = this._chat.read(reader);
-			return session && chat ? JSON.stringify([session.providerId, session.resource.toString(), chat.resource.toString()]) : undefined;
-		})));
+		}, SESSION_CHAT_PILL_KINDS, pinScope));
 		const actionRunner = this._register(new SessionActivatingActionRunner(() => this._session.get(), this._sessionsService));
 		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {
 			debugName: 'SessionChatInputToolbar.content',

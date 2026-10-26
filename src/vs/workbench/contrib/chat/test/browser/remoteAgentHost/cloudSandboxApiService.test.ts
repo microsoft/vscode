@@ -27,9 +27,14 @@ import type { TaskClient } from '../../../../../../platform/github/common/missio
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { asText, IRequestService } from '../../../../../../platform/request/common/request.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSandboxApiService.js';
+import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { ModelCard } from '../../../browser/widget/input/modelPicker/modelPickerCard.js';
+import { createModelAction } from '../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
+import { getModelConfigSummary } from '../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { EnvironmentsClient } from '../../../../../../platform/github/common/missionControl/environmentsClient.js';
@@ -1448,6 +1453,111 @@ suite('CloudSandboxApiService connection credentials', () => {
 		});
 	});
 
+	test('renders cloud catalogue prices and effort without a local Copilot catalogue or a fixed Auto price', async () => {
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({
+				data: [
+					{ id: 'auto', name: 'Auto', billing: { is_premium: true, multiplier: 0.9 } },
+					{
+						id: 'priced-model', name: 'Priced Model', model_picker_price_category: 'medium',
+						billing: { token_prices: { batch_size: 1_000_000, input_price: 200_000_000_000, output_price: 1_000_000_000_000, cache_price: 10_000_000_000 } },
+						capabilities: { supports: { reasoning_effort: ['low', 'medium', 'high', 'xhigh', 'max'] }, limits: { max_context_window_tokens: 1_050_000 } },
+					},
+				],
+			}),
+		});
+		const catalog = await service.listModels(CancellationToken.None);
+		const provider = store.add(new AgentHostLanguageModelProvider('cloud-sandbox', 'cloud-models'));
+		provider.updateAdditionalModels(catalog.models);
+		const [auto, model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const card = store.add(new ModelCard({
+			model,
+			isUBB: true,
+			openerService: NullOpenerService,
+			configurationAccess: { getModelConfiguration: () => undefined, setModelConfiguration: async () => { }, getModelConfigurationActions: () => [] },
+		}));
+		assert.deepStrictEqual({
+			autoDescription: createModelAction(auto, undefined, () => { }).action.description,
+			autoMultiplier: auto.metadata.multiplierNumeric,
+			titles: Array.from(card.element.querySelectorAll('.chat-model-card-section-title'), element => element.textContent),
+			prices: Array.from(card.element.querySelectorAll('.chat-model-card-pricing-row'), row => ({
+				label: row.querySelector('.chat-model-card-pricing-label')?.textContent,
+				value: row.querySelector('.chat-model-card-pricing-value')?.textContent,
+			})),
+		}, {
+			autoDescription: undefined,
+			autoMultiplier: undefined,
+			titles: ['Effort Level', 'Max context', 'Pricing details'],
+			prices: [{ label: 'Input', value: '200' }, { label: 'Output', value: '1000' }, { label: 'Cache Read', value: '10' }],
+		});
+	});
+
+	test('keeps versioned Cloud context labels and prices through host connection', async () => {
+		let apiVersion: string | string[] | undefined;
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: (_url, _token, options) => {
+				apiVersion = options.headers?.['X-GitHub-Api-Version'];
+				return jsonResponse({
+					data: [{
+						id: 'context-model', name: 'Context Model',
+						billing: {
+							token_prices: {
+								batch_size: 1_000_000,
+								default: { context_max: 272_000, input_price: 200, output_price: 1000, cache_price: 10, cache_write_price: 250 },
+								long_context: { context_max: 922_000, input_price: 400, output_price: 1500, cache_price: 20, cache_write_price: 500 },
+							}
+						},
+						capabilities: { limits: { max_context_window_tokens: 1_050_000 }, supports: { reasoning_effort: ['low', 'medium', 'high'] } },
+					}]
+				});
+			},
+		});
+		const catalog = await service.listModels(CancellationToken.None);
+		const provider = store.add(new AgentHostLanguageModelProvider('cloud-sandbox', 'cloud-models'));
+		provider.updateAdditionalModels(catalog.models);
+		let [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const values: Record<string, unknown> = {};
+		const accepted = new DeferredPromise<void>();
+		const configurationAccess = {
+			getModelConfiguration: () => values,
+			setModelConfiguration: async (_id: string, next: Record<string, unknown>) => { Object.assign(values, next); },
+			getModelConfigurationActions: () => [],
+		};
+		const card = store.add(new ModelCard({ model, isUBB: true, openerService: NullOpenerService, configurationAccess, onDidAccept: () => accepted.complete() }));
+		const snapshot = () => ({
+			selected: Array.from(card.element.querySelectorAll('[aria-checked="true"]'), element => element.textContent),
+			prices: Array.from(card.element.querySelectorAll('.chat-model-card-pricing-value'), element => element.textContent),
+			summary: getModelConfigSummary(model, configurationAccess),
+		});
+		const before = snapshot();
+		const longContext = card.element.querySelector<HTMLElement>('[aria-label="Context Size"] [role="radio"]:last-child');
+		assert.ok(longContext);
+		longContext.click();
+		await accepted.p;
+		const after = snapshot();
+		provider.updateModels([{
+			id: 'context-model', provider: 'copilot', name: 'Context Model',
+			configSchema: {
+				type: 'object',
+				properties: {
+					reasoningEffort: { type: 'string', title: 'Effort Level', enum: ['low', 'medium', 'high'] },
+					contextTier: { type: 'string', title: 'Context tier', enum: ['default', 'long_context'], enumLabels: ['Default', 'Long context'], default: 'default' },
+				},
+			},
+		}]);
+		[model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		card.update({ model, isUBB: true, openerService: NullOpenerService, configurationAccess });
+		assert.deepStrictEqual({ apiVersion, before, after, connected: snapshot(), values }, {
+			apiVersion: '2026-06-01',
+			before: { selected: ['272K'], prices: ['200', '1000', '10', '250'], summary: 'Model default · 272K' },
+			after: { selected: ['1M'], prices: ['400', '1500', '20', '500'], summary: 'Model default · 1M' },
+			connected: { selected: ['1M'], prices: ['400', '1500', '20', '500'], summary: 'Model default · 1M' },
+			values: { contextTier: 'long_context' },
+		});
+	});
+
 	for (const body of [{}, { data: [null] }, { data: [{ id: 'bad', name: 'Bad', capabilities: { supports: { reasoning_effort: [1] } } }] }]) {
 		test(`rejects invalid cloud model metadata: ${JSON.stringify(body)}`, async () => {
 			const { service } = createService(store, { tasks: [], repositories: new Map(), onRequest: () => jsonResponse(body) });
@@ -2004,6 +2114,69 @@ suite('CloudSandboxApiService history cache', () => {
 
 suite('Mission Control environment discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const statusCode of [204, 404]) {
+		test(`environment deletion accepts ${statusCode} and invalidates cached and in-flight discovery`, async () => {
+			const requests: IRequestOptions[] = [];
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<IRequestContext>();
+			let holdDiscovery = false;
+			const { service, requestOutcomes } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: (url, _token, options) => {
+					if (options.type === 'DELETE') {
+						requests.push(options);
+						return jsonResponse({}, statusCode);
+					}
+					if (url.pathname.endsWith('/agents/environments')) {
+						if (holdDiscovery) {
+							void started.complete();
+							return response.p;
+						}
+						return jsonResponse([{ id: 'host', kind: 'user-local', name: 'Host', status: 'offline' }]);
+					}
+					return undefined;
+				},
+			});
+			await service.listEnvironments(CancellationToken.None);
+			holdDiscovery = true;
+			const discovery = service.listEnvironments(CancellationToken.None, { refresh: true });
+			const rejected = assert.rejects(discovery, CancellationError);
+			await started.p;
+			const account = await service.getAccountKey();
+			assert.ok(account);
+			await service.deleteEnvironment('host/with spaces', CancellationToken.None, account);
+			await response.complete(jsonResponse([{ id: 'host', kind: 'user-local', name: 'Stale', status: 'offline' }]));
+			await rejected;
+			assert.deepStrictEqual({
+				requests: requests.map(request => {
+					assert.ok(request.url);
+					return { path: new URL(request.url).pathname, method: request.type, body: request.data };
+				}),
+				cached: service.getCachedEnvironments(),
+				deleteOutcomes: requestOutcomes.filter(([action]) => action === 'deleteEnvironment'),
+			}, {
+				requests: [{ path: '/agents/environments/host%2Fwith%20spaces', method: 'DELETE', body: undefined }],
+				cached: undefined,
+				deleteOutcomes: [['deleteEnvironment', statusCode === 204 ? 'succeeded' : 'clientError']],
+			});
+		});
+	}
+
+	for (const statusCode of [401, 403, 500]) {
+		test(`environment deletion surfaces HTTP ${statusCode} and preserves cached inventory`, async () => {
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: (_url, _token, options) => options.type === 'DELETE'
+					? jsonResponse({}, statusCode) : jsonResponse([{ id: 'host', kind: 'user-local', name: 'Host', status: 'offline' }]),
+			});
+			const before = await service.listEnvironments(CancellationToken.None);
+			const account = await service.getAccountKey();
+			assert.ok(account);
+			await assert.rejects(service.deleteEnvironment('host', CancellationToken.None, account), /environment delete failed/);
+			assert.deepStrictEqual(service.getCachedEnvironments(), before);
+		});
+	}
 
 	test('caches credential-free metadata and invalidates it when the account changes', async () => {
 		const { service, requestedUrls, changeAuthentication } = createService(store, {
@@ -4216,6 +4389,14 @@ suite('CloudSandboxApiService task ownership', () => {
 		{
 			name: 'task deletion',
 			run: (service: CloudSandboxApiService, accountKey: string) => service.deleteTask('task-owned', CancellationToken.None, accountKey),
+			response: {},
+			statusCode: 204,
+			method: 'DELETE',
+			body: undefined,
+		},
+		{
+			name: 'environment deletion',
+			run: (service: CloudSandboxApiService, accountKey: string) => service.deleteEnvironment('env-owned', CancellationToken.None, accountKey),
 			response: {},
 			statusCode: 204,
 			method: 'DELETE',

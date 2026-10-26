@@ -954,6 +954,30 @@ suite('SessionWorktreeCleanupService', () => {
 		]);
 	}));
 
+	test('reports the full scan total when empty archived worktrees disappear and when cached', async () => {
+		const service = disposables.add(createService(
+			[createSession('empty', oldDate(), SessionStatus.Completed, true), createSession('retained', oldDate())],
+			true,
+			session => session.sessionId === 'empty' ? 0 : ByteSize.GB,
+		));
+		const snapshots: { ids: string[]; scanned: number | undefined; total: number | undefined }[] = [];
+		const record: NonNullable<Parameters<typeof service.getWorktrees>[1]> = (worktrees, progress) => {
+			snapshots.push({ ids: worktrees.map(worktree => worktree.session.sessionId), scanned: progress?.scannedWorktrees, total: progress?.totalWorktrees });
+		};
+		await service.getWorktrees(0, record);
+		await service.getWorktrees(0, record);
+		assert.deepStrictEqual({
+			initial: snapshots[0],
+			completed: snapshots.slice(-2),
+		}, {
+			initial: { ids: ['empty', 'retained'], scanned: 0, total: 2 },
+			completed: [
+				{ ids: ['retained'], scanned: 2, total: 2 },
+				{ ids: ['retained'], scanned: 2, total: 2 },
+			],
+		});
+	});
+
 	test('cancels disk measurement when disposed', async () => {
 		let canceled = false;
 		const measurementStarted = new DeferredPromise<void>();

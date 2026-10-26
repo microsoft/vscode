@@ -114,6 +114,28 @@ suite('ToolSetsContribution', () => {
 		});
 	});
 
+	test('ClientToolSetsContribution exposes Appearance tools only in the Sessions window', () => {
+		const createContribution = (isSessionsWindow: boolean) => {
+			const toolsService = createToolsService();
+			for (const name of ['getThemeColors', 'setChatBackground']) {
+				store.add(toolsService.registerToolData({ id: name, modelDescription: name, displayName: name, toolReferenceName: name, source: ToolDataSource.Internal }));
+			}
+			const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = isSessionsWindow;
+			}();
+			store.add(new ClientToolSetsContribution(toolsService, workspaceService));
+			return toolsService;
+		};
+
+		assert.deepStrictEqual({
+			sessionsMembers: Array.from(createContribution(true).getToolSet('vscode-appearance')?.getTools() ?? [], tool => tool.toolReferenceName),
+			coreHasSet: !!createContribution(false).getToolSet('vscode-appearance'),
+		}, {
+			sessionsMembers: ['getThemeColors', 'setChatBackground'],
+			coreHasSet: false,
+		});
+	});
+
 	test('getEnabledSelectionReferences keeps enabled tool set references and drops covered tools', () => {
 		const toolsService = createToolsService();
 
