@@ -38,7 +38,9 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
-import { ISessionChatItem, SessionsList, SessionsListFocusedChatItemContext } from '../../browser/views/sessionsList.js';
+import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionsList, SessionsListFocusedChatItemContext } from '../../browser/views/sessionsList.js';
+import { Menus } from '../../../../browser/menus.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
@@ -157,6 +159,51 @@ suite('Sessions - Session management actions', () => {
 
 		assert.deepStrictEqual(calls, [true, false].flatMap(read =>
 			[peer, second].map(chat => ({ sessionId: parent.sessionId, chat: chat.resource.toString(), read }))));
+	});
+
+	test('nested chat context menu offers read and unread for the clicked chat only', async () => {
+		const parent = createTestSession('Parent').session;
+		const peer = upcastPartial<IChat>({ resource: URI.parse('test:/peer') });
+		const focused = upcastPartial<IChat>({ resource: URI.parse('test:/focused') });
+		const harness = createActionHarness([], undefined, undefined, undefined, false, { focusedChats: [{ session: parent, chat: focused }] });
+		const calls: { method: string; sessionId: string; chat?: string }[] = [];
+		harness.instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			markRead: async session => { calls.push({ method: 'markRead', sessionId: session.sessionId }); },
+			markUnread: async session => { calls.push({ method: 'markUnread', sessionId: session.sessionId }); },
+			markChatRead: async (session, chat) => { calls.push({ method: 'markChatRead', sessionId: session.sessionId, chat: chat.resource.toString() }); },
+			markChatUnread: async (session, chat) => { calls.push({ method: 'markChatUnread', sessionId: session.sessionId, chat: chat.resource.toString() }); },
+		}));
+
+		const menuItems = MenuRegistry.getMenuItems(Menus.SessionChatItemContext)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === MARK_SESSION_READ_COMMAND_ID || item.command.id === MARK_SESSION_UNREAD_COMMAND_ID);
+		const visibleFor = (values: Record<string, ContextKeyValue>) => menuItems.filter(item => item.when?.evaluate(context(values)) ?? true).map(item => item.command.id);
+		const chatRow = { [SessionChatItemCanSetReadStateContext.key]: true, [SessionChatItemIsArchivedContext.key]: false };
+		assert.deepStrictEqual({
+			read: visibleFor({ ...chatRow, [SessionChatItemIsReadContext.key]: true }),
+			unread: visibleFor({ ...chatRow, [SessionChatItemIsReadContext.key]: false }),
+			archived: visibleFor({ ...chatRow, [SessionChatItemIsReadContext.key]: true, [SessionChatItemIsArchivedContext.key]: true }),
+			noIndependentReadState: visibleFor({ ...chatRow, [SessionChatItemIsReadContext.key]: true, [SessionChatItemCanSetReadStateContext.key]: false }),
+		}, {
+			read: [MARK_SESSION_UNREAD_COMMAND_ID],
+			unread: [MARK_SESSION_READ_COMMAND_ID],
+			archived: [],
+			noIndependentReadState: [],
+		});
+
+		for (const commandId of [MARK_SESSION_UNREAD_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID]) {
+			const handler = CommandsRegistry.getCommand(commandId)?.handler;
+			assert.ok(handler);
+			await handler(harness.instantiationService, { session: parent, chat: peer } satisfies ISessionChatItem);
+			await handler(harness.instantiationService, { session: parent, chat: parent.mainChat.get() } satisfies ISessionChatItem);
+		}
+
+		assert.deepStrictEqual(calls, [
+			{ method: 'markChatUnread', sessionId: parent.sessionId, chat: peer.resource.toString() },
+			{ method: 'markUnread', sessionId: parent.sessionId },
+			{ method: 'markChatRead', sessionId: parent.sessionId, chat: peer.resource.toString() },
+			{ method: 'markRead', sessionId: parent.sessionId },
+		]);
 	});
 
 	test('scopes Rename and Archive keybindings to their Agents Window surfaces', () => {

@@ -88,18 +88,33 @@ suite('Chat configuration', () => {
 		});
 	});
 
-	test('Marketplace visibility is experiment-controlled and default-off while the GitHub Feed is default-on', () => {
+	test('Marketplace and Copilot connectors are default-on previews while preserving experiment controls', () => {
 		assert.deepStrictEqual({
-			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled],
+			settings: [
+				customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled],
+				customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled],
+			].map(setting => ({
+				type: setting.type,
+				default: setting.default,
+				tags: setting.tags.filter(tag => tag !== 'onExP'),
+				experiment: setting.experiment,
+				previewDisabled: setting.policy.value({ chat_preview_features_enabled: false }),
+				previewEnabled: setting.policy.value({ chat_preview_features_enabled: true }),
+				unmanaged: setting.policy.value({}),
+			})),
+			connectorsScope: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled].scope,
 			publicFeed: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled].default,
 		}, {
-			marketplace: {
+			settings: [0, 1].map(() => ({
 				type: 'boolean',
-				tags: ['experimental', 'advanced'],
-				description: 'Shows Browse instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages.',
-				default: false,
+				default: true,
+				tags: ['preview'],
 				experiment: { mode: 'auto' },
-			},
+				previewDisabled: false,
+				previewEnabled: undefined,
+				unmanaged: undefined,
+			})),
+			connectorsScope: ConfigurationScope.APPLICATION,
 			publicFeed: true,
 		});
 	});

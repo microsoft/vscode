@@ -20,7 +20,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IDeletedSessionGroups, ISessionGroup, ISessionGroupPlacement, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -268,6 +268,7 @@ export interface IListHarnessOptions {
 	readonly groups?: readonly ISessionGroup[];
 	readonly memberships?: ReadonlyMap<string, string>;
 	readonly sectionMemberships?: ReadonlyMap<string, string>;
+	readonly sectionAppearances?: ReadonlyMap<string, ISessionGroupAppearance>;
 	readonly pinnedSessionIds?: ReadonlySet<string>;
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
@@ -351,8 +352,29 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			return status === SessionStatus.Error ? Codicon.error : isArchived ? Codicon.passFilled : completedStateIcon ?? Codicon.circleSmallFilled;
 		}
 	});
+	const appearanceChanges = store.add(new Emitter<ISessionGroupsChangeEvent>());
+	const sectionAppearances = new Map(options.sectionAppearances);
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
-		override readonly onDidChange = Event.None;
+		override readonly onDidChange = appearanceChanges.event;
+		override getSectionAppearance(sectionId: string) { return sectionAppearances.get(sectionId); }
+		override setSectionIcon(sectionId: string, icon: string | undefined) {
+			this.setSectionAppearance(sectionId, { ...sectionAppearances.get(sectionId), icon });
+		}
+		override setSectionColor(sectionId: string, color: string | undefined) {
+			this.setSectionAppearance(sectionId, { ...sectionAppearances.get(sectionId), color });
+		}
+		private setSectionAppearance(sectionId: string, appearance: ISessionGroupAppearance): void {
+			const previous = sectionAppearances.get(sectionId);
+			if (previous?.icon === appearance.icon && previous?.color === appearance.color) {
+				return;
+			}
+			if (appearance.icon === undefined && appearance.color === undefined) {
+				sectionAppearances.delete(sectionId);
+			} else {
+				sectionAppearances.set(sectionId, appearance);
+			}
+			appearanceChanges.fire({ groupsChanged: false, membershipChanged: new Set() });
+		}
 		override getGroups() { return [...groups]; }
 		override getTree() { return new SessionGroupTree(groups); }
 		override getGroup(groupId: string) { return groups.find(group => group.id === groupId); }

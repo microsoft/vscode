@@ -23,14 +23,14 @@ import { NullPolicyService } from '../../../../../platform/policy/common/policy.
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
 import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayoutEnabled, isSessionEnvironmentPickerEnabled, isSessionWorkspaceOptOutEnabled } from '../../browser/newChatWidget.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import '../../browser/chat.contribution.js';
 
 // Capture the registered schema before configuration tests reset the shared registry.
 const experimentalNewSessionComposerLayoutProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING];
 const environmentPickerProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[ENVIRONMENT_PICKER_SETTING];
+const environmentPickerManageRemotesProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING];
 const workspaceOptOutProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[WORKSPACE_OPT_OUT_SETTING];
-const environmentPickerBeforeWorkspaceProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING];
 const newSessionComposerOptionsExpandedProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING];
 const agentsPickerInAttachContextMenuProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING];
 const newSessionWelcomePhrasesProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[NEW_SESSION_WELCOME_PHRASES_SETTING];
@@ -38,14 +38,14 @@ const newSessionWelcomePhrasesProperty = Registry.as<IConfigurationRegistry>(Con
 suite('New session composer layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Environment picker is an opt-in window setting', () => {
+	test('Environment picker is a default-on window setting without an experimental tag', () => {
 		assert.deepStrictEqual({
 			type: environmentPickerProperty.type,
 			default: environmentPickerProperty.default,
 			scope: environmentPickerProperty.scope,
 			tags: environmentPickerProperty.tags,
 			experiment: environmentPickerProperty.experiment,
-		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
+		}, { type: 'boolean', default: true, scope: ConfigurationScope.WINDOW, tags: ['onExP'], experiment: { mode: 'auto' } });
 	});
 
 	test('workspace opt-out is a default-off experiment-controlled window setting', () => {
@@ -56,6 +56,16 @@ suite('New session composer layout', () => {
 			tags: workspaceOptOutProperty.tags,
 			experiment: workspaceOptOutProperty.experiment,
 		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
+	});
+
+	test('Manage Remotes is a default-on experiment-controlled window setting', () => {
+		assert.deepStrictEqual({
+			type: environmentPickerManageRemotesProperty.type,
+			default: environmentPickerManageRemotesProperty.default,
+			scope: environmentPickerManageRemotesProperty.scope,
+			tags: environmentPickerManageRemotesProperty.tags,
+			experiment: environmentPickerManageRemotesProperty.experiment,
+		}, { type: 'boolean', default: true, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
 	});
 
 	test('workspace opt-out requires its own setting and both layout settings', () => {
@@ -76,16 +86,6 @@ suite('New session composer layout', () => {
 		assert.deepStrictEqual(results, [false, false, false, false, false, false, false, false, false, false, false, true]);
 	});
 
-	test('Environment-first ordering is an opt-in experimental window setting', () => {
-		assert.deepStrictEqual({
-			type: environmentPickerBeforeWorkspaceProperty.type,
-			default: environmentPickerBeforeWorkspaceProperty.default,
-			scope: environmentPickerBeforeWorkspaceProperty.scope,
-			tags: environmentPickerBeforeWorkspaceProperty.tags,
-			experiment: environmentPickerBeforeWorkspaceProperty.experiment,
-		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
-	});
-
 	for (const unifiedPicker of [false, true]) {
 		for (const experimentalLayout of [false, true]) {
 			for (const environmentPicker of [undefined, false, true]) {
@@ -94,7 +94,6 @@ suite('New session composer layout', () => {
 						[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
 						[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
 						[ENVIRONMENT_PICKER_SETTING]: environmentPicker,
-						[ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING]: true,
 					});
 					store.add(configurationService.onDidChangeConfigurationEmitter);
 					assert.deepStrictEqual({

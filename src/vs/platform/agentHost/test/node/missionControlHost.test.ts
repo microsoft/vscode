@@ -441,7 +441,7 @@ suite('Mission Control host integration', () => {
 		assert.deepStrictEqual({ count: await options.getSessionCount?.(), countReads }, { count: 42, countReads: 1 });
 	});
 
-	function createMirror(git?: IAgentHostGitService) {
+	function createMirror(git?: IAgentHostGitService, repositoryMetadataEnabled = true) {
 		const instantiation = store.add(new TestInstantiationService());
 		const state = store.add(new AgentHostStateManager(store.add(new NullLogService())));
 		const creations = sinon.spy(instantiation, 'createInstance');
@@ -457,6 +457,8 @@ suite('Mission Control host integration', () => {
 		}
 		const enabled = sinon.stub(host.environment, 'isEnabled').get(() => true);
 		store.add(toDisposable(() => enabled.restore()));
+		const metadataEnabled = sinon.stub(host.environment, 'isRepositoryMetadataEnabled').get(() => repositoryMetadataEnabled);
+		store.add(toDisposable(() => metadataEnabled.restore()));
 		const creation = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment);
 		assert.ok(creation);
 		const options = creation.args[1] as IMissionControlEnvironmentHost;
@@ -495,6 +497,24 @@ suite('Mission Control host integration', () => {
 			projects: [{ uri: 'https://github.com/microsoft/vscode', display_name: 'microsoft/vscode' }],
 			localProject: project,
 		});
+	});
+
+	test('omits repository metadata on host frames when disabled without changing the local project', async () => {
+		const f = createMirror(undefined, false);
+		const session = 'ahp-session:/without-repository';
+		const project = { uri: URI.file('/checkout').toString(), displayName: 'checkout' };
+		f.state.restoreSession({
+			resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilotcli', title: 'Repository',
+			status: SessionStatus.Idle, createdAt: '2026-10-15T00:00:00Z', modifiedAt: '2026-10-15T00:00:00Z',
+			project, workingDirectories: [project.uri],
+		}, [], creationTimeChatStorageResource);
+		f.state.dispatchServerAction(session, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+		await f.publisher.registerSession(session);
+		f.clock.runAll();
+		assert.deepStrictEqual({
+			projects: f.events.flatMap(event => event.event === 'sessionEvents' ? [event.data.project] : []),
+			localProject: f.state.getSessionSummary(session)?.project,
+		}, { projects: [undefined], localProject: project });
 	});
 
 	for (const session of ['ahp-session:/draft', 'copilotcli:/draft']) {
@@ -683,10 +703,13 @@ suite('Mission Control host integration', () => {
 		const state = new class extends mock<AgentHostStateManager>() {
 			override getOverlaySessionSummaries() { return []; }
 		}();
-		createHost(instantiation, state);
+		const { host } = createHost(instantiation, state);
 		const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
 		const projectOptions = creations.getCalls().find(call => call.args[0] === MissionControlProjects)!.args[1] as ConstructorParameters<typeof MissionControlProjects>[0];
 		const home = '/home/test';
+		const defaultCloneRoot = projectOptions.getCloneRoot!();
+		const cloneRoot = '/another-drive/clones';
+		sinon.stub(host.environment, 'cloneRoot').get(() => cloneRoot);
 		let projects = ['/home/test/code/project'];
 		const relay = new class extends mock<MissionControlProtocolServer>() { override readonly rootMeta = {}; }();
 		store.add(environment.attach(relay, [home], () => [home], () => projects, `${home}/.copilot`));
@@ -699,10 +722,13 @@ suite('Mission Control host integration', () => {
 			initialProjects,
 			updatedProjects: projectOptions.getProjectRoots!(),
 			catalogueGrants: projectOptions.getRoots(),
+			defaultCloneRoot,
+			cloneRoot: projectOptions.getCloneRoot!(),
 		}, {
 			defaultDirectory: URI.file(`${home}/.copilot`).toString(),
 			grants: [home], initialProjects: ['/home/test/code/project'],
 			updatedProjects: ['/another-drive/project'], catalogueGrants: [home],
+			defaultCloneRoot: undefined, cloneRoot,
 		});
 	});
 
@@ -839,6 +865,48 @@ suite('Mission Control host integration', () => {
 			{ eventName: 'agentHost.missionControlOperation', data: { ...base, ...relay, operation: 'relayRecovery', outcome: 'succeeded', statusCode: undefined, interruptedClients: 1 } },
 			{ eventName: 'agentHost.missionControlOperation', data: { ...base, ...relay, operation: 'relayDisconnected', outcome: 'info', statusCode: undefined, errorCategory: 'network', interruptedClients: undefined } },
 		]);
+	});
+
+	test('logs heartbeat responses and publish failures without adding heartbeat telemetry or logging mirror backpressure', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		const { events } = createHost(instantiation);
+		const logService = instantiation.get(ILogService);
+		const info = sinon.spy(logService, 'info');
+		const warn = sinon.spy(logService, 'warn');
+		store.add(toDisposable(() => {
+			info.restore();
+			warn.restore();
+		}));
+		const options = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
+		options.onDiagnostic!({
+			operationId: '', phase: 'heartbeatResponse', timestamp: 0, outcome: 'info',
+			detail: 'environmentId=environment; advertisedStatus=online; httpStatus=200',
+		});
+		for (const failure of ['queueLimit', 'mirrorBackpressure'] as const) {
+			options.onPublishDiagnostic!({
+				operationId: '', phase: 'relayPublish', timestamp: 0, outcome: 'failed', failure,
+				detail: 'queuedFrames=508; inFlightFrames=4; attemptedFrames=1',
+			});
+		}
+		for (const detail of [undefined, '']) {
+			options.onPublishDiagnostic!({
+				operationId: '', phase: 'relayPublish', timestamp: 0, outcome: 'failed', failure: 'socketFailure', detail,
+			});
+		}
+		assert.deepStrictEqual({
+			info: info.args, warnings: warn.args,
+			heartbeatTelemetry: events.filter(event => event.eventName === 'agentHost.missionControlOperation'),
+		}, {
+			info: [['[AgentHost] Mission Control heartbeat response; environmentId=environment; advertisedStatus=online; httpStatus=200']],
+			warnings: [
+				['[AgentHost] Mission Control publish failed; reason=queueLimit; queuedFrames=508; inFlightFrames=4; attemptedFrames=1'],
+				['[AgentHost] Mission Control publish failed; reason=socketFailure'],
+				['[AgentHost] Mission Control publish failed; reason=socketFailure'],
+			],
+			heartbeatTelemetry: [],
+		});
 	});
 
 	test('routes Copilot compatibility requests by advertised session ownership and publishes plan refresh hints', async () => {

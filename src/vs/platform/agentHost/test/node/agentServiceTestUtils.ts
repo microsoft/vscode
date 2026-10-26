@@ -51,6 +51,7 @@ import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostL
 import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { AgentHostUtilityModelService, IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 
@@ -59,6 +60,7 @@ const chatPersistenceServices = new WeakMap<AgentService, IAgentHostPeerChatPers
 const catalogDatabases = new WeakMap<AgentService, IAgentHostDatabase>();
 const sessionStateStores = new WeakMap<AgentService, IAgentHostSessionStateStore>();
 const worktreeCleanupServices = new WeakMap<AgentService, IAgentHostWorktreeCleanupService>();
+const gitStateServices = new WeakMap<AgentService, IAgentHostGitStateService>();
 const worktreeIsolations = new WeakMap<AgentService, MutableTestAgentHostWorktreeIsolation>();
 
 class MutableTestAgentHostWorktreeIsolation extends Disposable {
@@ -133,6 +135,14 @@ export function getTestWorktreeCleanupService(agentService: AgentService): IAgen
 		throw new Error('AgentService was not created by createTestAgentService');
 	}
 	return cleanup;
+}
+
+export function getTestGitStateService(agentService: AgentService): IAgentHostGitStateService {
+	const gitStateService = gitStateServices.get(agentService);
+	if (!gitStateService) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return gitStateService;
 }
 
 /**
@@ -320,6 +330,7 @@ export function createTestAgentService(
 		catalogDatabases.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostDatabase)));
 		sessionStateStores.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostSessionStateStore)));
 		worktreeCleanupServices.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeCleanupService)));
+		gitStateServices.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitStateService)));
 		worktreeIsolations.set(composition.agentService, worktreeIsolation);
 		return composition.agentService;
 	} catch (error) {

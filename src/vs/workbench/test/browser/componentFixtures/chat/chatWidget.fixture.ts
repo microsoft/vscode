@@ -51,7 +51,7 @@ import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../..
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
 import { TestFileService } from '../../../common/workbenchTestServices.js';
 import { MockChatEditingSession } from '../../../../contrib/chat/test/common/mockChatEditingSession.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration, waitForFixtureDomCondition } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices, registerSubagentFixtureServices } from './chatFixtureUtils.js';
 import { IDetachedXTermOptions, ITerminalChatService, ITerminalConfigurationService, ITerminalService } from '../../../../contrib/terminal/browser/terminal.js';
 import { createFakeDetachedTerminal } from '../../../../contrib/terminal/test/browser/chatTerminalMirrorTestUtils.js';
@@ -1326,13 +1326,10 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		}
 		const output = messages.flatMap(message => message.assistant ?? []).find(part => part.kind === 'terminal')?.output;
 		const firstLine = output?.split(/\r?\n/)[0];
-		const renderedOutput = () => response.querySelector('.xterm-rows')?.textContent?.replace(/\u00a0/g, ' ');
-		for (let attempt = 0; attempt < 25 && !renderedOutput()?.includes(firstLine ?? ''); attempt++) {
-			await timeout(20);
-		}
-		if (!firstLine || !renderedOutput()?.includes(firstLine)) {
+		if (!firstLine) {
 			throw new Error('The terminal output did not render');
 		}
+		await waitForFixtureDomCondition(response, () => response.querySelector('.xterm-rows')?.textContent?.replace(/\u00a0/g, ' ').includes(firstLine) === true, context.disposableStore);
 	}
 	const terminalParts = messages.flatMap(message => message.assistant ?? []).filter(part => part.kind === 'terminal');
 	const terminalWidgets = [...context.container.querySelectorAll('.chat-tool-invocation-part')].filter(part => part.querySelector('.chat-terminal-content-part, .chat-terminal-thinking-collapsible'));

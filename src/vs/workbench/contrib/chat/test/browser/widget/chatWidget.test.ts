@@ -1581,11 +1581,14 @@ suite('ChatWidget', () => {
 		});
 		const failed = { inputVisible: !inputElement.classList.contains('chat-input-hidden'), bannerVisible, message, action: action?.label };
 		await action?.run();
+		widget.setReadOnly(true, true, { kind: 'live', isLoading: true, message: 'Reopening conversation...' });
+		const reopening = { inputVisible: !inputElement.classList.contains('chat-input-hidden'), bannerVisible, message, action: action?.label };
 		widget.setReadOnly(true, true, undefined);
 		widget.setReadOnly(true, true, undefined);
 
-		assert.deepStrictEqual({ failed, inputVisible: !inputElement.classList.contains('chat-input-hidden'), bannerVisible, retries, layoutHeights }, {
+		assert.deepStrictEqual({ failed, reopening, inputVisible: !inputElement.classList.contains('chat-input-hidden'), bannerVisible, retries, layoutHeights }, {
 			failed: { inputVisible: true, bannerVisible: true, message: 'Live history unavailable', action: 'Retry' },
+			reopening: { inputVisible: true, bannerVisible: true, message: 'Reopening conversation...', action: undefined },
 			inputVisible: true, bannerVisible: false, retries: 1,
 			layoutHeights: [90 - CHAT_READ_ONLY_BANNER_HEIGHT, 90],
 		});

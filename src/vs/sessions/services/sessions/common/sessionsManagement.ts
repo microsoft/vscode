@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import type { IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable } from '../../../../base/common/observable.js';
@@ -582,6 +583,9 @@ export interface ISessionsManagementService {
 
 	/** Returns the current on-disk size of the session's isolated worktree. */
 	getSessionWorktreeDiskUsage?(session: ISession, token?: CancellationToken): Promise<number | undefined>;
+
+	/** Reports cleanup status, optionally retrying removal without restoring or deleting session history. */
+	sessionWorktreeCleanup?(session: ISession, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;

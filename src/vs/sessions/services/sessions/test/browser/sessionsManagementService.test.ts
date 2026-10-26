@@ -44,9 +44,11 @@ import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -1867,7 +1869,9 @@ suite('SessionsManagementService', () => {
 
 		for (const registerBeforeManagement of [true, false]) {
 			test(`routes existing environment sessions without advertising their backends (${registerBeforeManagement ? 'initial' : 'late'} registration)`, async () => {
-				const providers = disposables.add(new SessionsProvidersService());
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+				const providers = disposables.add(instantiationService.createInstance(SessionsProvidersService));
 				const cloudSession = stubSession({ sessionId: 'cloud:draft', providerId: 'cloud' });
 				const workspace = upcastPartial<ISessionWorkspace>({ uri: URI.file('/repository') });
 				const cloud = new class extends TestSessionsProvider {
@@ -8169,6 +8173,19 @@ suite('SessionsManagementService', () => {
 		function chat(session: string, id: string): IChat {
 			return { ...stubChat, resource: URI.parse(`test:///${session}#${id}`), title: constObservable(id), status: constObservable(SessionStatus.Completed) };
 		}
+
+		test('an untitled chat that has not sent a message cannot be moved even when its provider allows it', () => {
+			const main = chat('A', 'main');
+			const unsent: IChat = { ...chat('A', 'unsent'), status: constObservable(SessionStatus.Untitled) };
+			const sent = chat('A', 'sent');
+			const sessionA = stubSession({ sessionId: 'A', providerId: 'test', chats: constObservable([main, unsent, sent]), mainChat: constObservable(main) });
+			const provider = new class extends TestSessionsProvider {
+				override canMoveChat(): boolean { return true; }
+			}(sessionA);
+			const { service } = createSessionsManagementService(sessionA, disposables, provider);
+
+			assert.deepStrictEqual([main, unsent, sent].map(candidate => service.canMoveChat(sessionA, candidate)), [true, false, true]);
+		});
 
 		test('routes chat and session moves to the owning provider with the provider\'s session ids and chat resources', async () => {
 			const main = chat('A', 'main'), peer = chat('A', 'peer'), mainB = chat('B', 'main');

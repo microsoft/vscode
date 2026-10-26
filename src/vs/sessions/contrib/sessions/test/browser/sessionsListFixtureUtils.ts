@@ -42,6 +42,7 @@ import { MockKeybindingService } from '../../../../../platform/keybinding/test/c
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -58,6 +59,7 @@ import { IWorkbenchAssignmentService } from '../../../../../workbench/services/a
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices, defineComponentFixture, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -69,7 +71,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
@@ -187,6 +189,8 @@ export interface ISessionsListFixtureHeader {
 export interface ISessionsListFixtureState {
 	readonly sessions: readonly ISessionsListFixtureSession[];
 	readonly groups?: readonly ISessionsListFixtureGroup[];
+	/** Comparisons reference fixture-local group ids. */
+	readonly comparisons?: readonly ISessionComparison[];
 	readonly view?: ISessionsListFixtureView;
 	readonly interaction?: ISessionsListFixtureInteraction;
 	/** Renders the Sessions header above the list. */
@@ -610,6 +614,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IQuickInputService, new TestQuickInputService());
 			reg.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 			reg.define(IContextKeyService, ContextKeyService);
 			reg.define(IMenuService, SessionsListFixtureMenuService);
@@ -682,11 +687,6 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 				override readonly extUri = new ExtUri(() => true);
 			}());
-			reg.defineInstance(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
-				override readonly comparisons = constObservable([]);
-				override getComparison() { return undefined; }
-				override getComparisonForSession() { return undefined; }
-			}());
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment: IChatSentiment = {};
 			}());
@@ -725,6 +725,20 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	const groupIds = seedListState(instantiationService, state, getSession);
+	const comparisons = (state.comparisons ?? []).map(comparison => {
+		const groupId = groupIds.get(comparison.groupId);
+		if (!groupId) {
+			throw new Error(`Unknown comparison group '${comparison.groupId}'.`);
+		}
+		return { ...comparison, groupId };
+	});
+	instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+		override readonly comparisons = constObservable(comparisons);
+		override getComparison(id: string) { return comparisons.find(comparison => comparison.id === id); }
+		override getComparisonForSession(resource: URI) {
+			return comparisons.find(comparison => comparison.participants.some(participant => isEqual(participant.sessionResource, resource)));
+		}
+	}());
 	const resolve = (row: SessionsListFixtureRow): SessionsListItemReference => {
 		if (hasKey(row, { group: true })) {
 			const groupId = groupIds.get(row.group);

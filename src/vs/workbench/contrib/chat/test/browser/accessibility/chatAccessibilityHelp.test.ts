@@ -15,6 +15,24 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents opening session links from the input without sending', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
+		assert.deepStrictEqual({
+			withoutSending: help.includes('opened without sending your message'),
+			keyboard: help.includes('<keybinding:editor.action.openLink>'),
+		}, { withoutSending: true, keyboard: true });
+	});
+
+	test('documents the shared picker and startup lock for Cloud drafts', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
+		assert.deepStrictEqual({
+			cloud: help.includes('or a new Cloud session'),
+			keyboard: help.includes('Tab reaches separate Mode and Permissions buttons'),
+			locked: help.includes('Cloud draft choices are locked while the first request starts the session'),
+			focus: help.includes('Escape closes the picker and returns focus to the button that opened it'),
+		}, { cloud: true, keyboard: true, locked: true, focus: true });
+	});
+
 	test('documents side questions and concurrent responses in both windows but not inline or quick chat', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
@@ -104,14 +122,24 @@ suite('Chat Accessibility Help', () => {
 		test(`documents the sharing toggle and backend selection (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
-				backend: help.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				backend: help.includes('Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments when available'),
 				setting: help.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
-				explicitOptIn: help.includes('Selecting a method does not enable sharing; changing it turns sharing off'),
-				keyboard: help.includes('Enter or Space to enable or disable sharing'),
+				enabling: help.includes('Selecting a method updates the setting and enables sharing'),
+				disabling: help.includes('Selecting Off disables sharing'),
+				remembered: help.includes('without changing the preferred method'),
+				footer: help.includes('The footer shows the name used to identify this machine on other clients'),
+				rename: help.includes('press Tab to reach the name link in the footer') && help.includes('Renaming while Off does not enable sharing'),
+				directSetting: help.includes('Changing the setting directly turns sharing off'),
+				keyboard: help.includes('arrow keys in the title bar, Enter or Space to open it'),
 			}, {
 				backend: type !== 'inlineChat' && type !== 'quickChat',
 				setting: type !== 'inlineChat' && type !== 'quickChat',
-				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
+				enabling: type !== 'inlineChat' && type !== 'quickChat',
+				disabling: type !== 'inlineChat' && type !== 'quickChat',
+				remembered: type !== 'inlineChat' && type !== 'quickChat',
+				footer: type !== 'inlineChat' && type !== 'quickChat',
+				rename: type !== 'inlineChat' && type !== 'quickChat',
+				directSetting: type !== 'inlineChat' && type !== 'quickChat',
 				keyboard: type !== 'inlineChat' && type !== 'quickChat',
 			});
 		});
@@ -157,7 +185,10 @@ suite('Chat Accessibility Help', () => {
 			managed: help.includes('Its value is announced as managed by the agent host and cannot be changed.'),
 			overridable: help.includes('An overridable default remains selectable.'),
 			modelSpecific: help.includes('Changing models uses the options available for the newly selected model.'),
-		}, { managed: true, overridable: true, modelSpecific: true });
+			unspecified: help.includes('Model default means no effort override is selected'),
+			maximum: help.includes('A value prefixed with Max is the model\'s capacity, not a selected context window.'),
+			cloudValidation: help.includes('New Cloud chat choices are checked against the host before the first request is sent.'),
+		}, { managed: true, overridable: true, modelSpecific: true, unspecified: true, maximum: true, cloudValidation: true });
 	});
 
 	test('documents participant redirection only in workbench panel and editor chats', () => {
@@ -301,12 +332,14 @@ suite('Chat Accessibility Help', () => {
 		}, { artifacts: true, conversation: true, keyboard: true, immediateResize: true });
 	});
 
-	test('documents opening and attaching images shown in responses', () => {
+	test('documents opening, attaching, and copying images shown in responses', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
-			open: help.includes('To open an image shown in a response, use Tab to focus it and press Enter or Space'),
-			attach: help.includes('choose Add File to Chat, or drag it into the chat input'),
-		}, { open: true, attach: true });
+			open: help.includes('To open a file image shown in a response, use Tab to focus it and press Enter or Space'),
+			attach: help.includes('drag it into the chat input, or use Copy Image and paste it into the input'),
+			copy: help.includes('press Shift+F10 to open its context menu, then choose Copy Image'),
+			path: help.includes('For images stored in a file, Copy Image Path copies the file path'),
+		}, { open: true, attach: true, copy: true, path: true });
 	});
 
 	test('documents the shared editor artifacts pill and its actions', () => {

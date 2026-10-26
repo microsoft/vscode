@@ -808,11 +808,13 @@ export class TabbedModelPicker extends Disposable {
 		const actions: ITabBarAction[] = [];
 		const comparison = context.comparison;
 		if (comparison?.available.get()) {
+			const label = this._labelWithKeybinding(comparison.label, comparison.startCommandId);
+			const description = comparison.description?.get();
 			// Grouped with Search at the end of the tab bar, away from the provider tabs.
 			actions.push({
 				id: 'comparison',
 				icon: Codicon.compare,
-				tooltip: this._labelWithKeybinding(comparison.label, comparison.startCommandId),
+				tooltip: description ? localize('comparisonTooltip', "{0}\n\n{1}", label, description) : label,
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
@@ -829,7 +831,7 @@ export class TabbedModelPicker extends Disposable {
 			});
 		}
 		// Hidden while searching, when the filter takes the tab strip's place.
-		if (context.showManageModels && !this._searchVisible) {
+		if (context.showManageModels && !this._searchVisible && !comparison?.state.get()) {
 			actions.push({
 				id: 'addProvider',
 				icon: Codicon.add,
@@ -1145,6 +1147,11 @@ export class TabbedModelPicker extends Disposable {
 
 	/** HydraFusion's rows: one standing for its tiers when it has them, else one per model. */
 	private _hydraFusionRowModels(context: ITabbedModelPickerContext): readonly ILanguageModelChatMetadataAndIdentifier[] {
+		// HydraFusion is one of Fusion's effort levels, so a Fusion that offers none here, as in inline chat, offers no HydraFusion either.
+		const auto = this._autoModel(context);
+		if (auto?.metadata.autoModelFusion && !getModelConfigProperty(auto, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)) {
+			return [];
+		}
 		const tiers = this._hydraFusionTiers(context);
 		return tiers.length ? [this._hydraFusionRowModel(tiers, context)] : this._hydraFusionModels(context);
 	}
@@ -1165,9 +1172,17 @@ export class TabbedModelPicker extends Disposable {
 		const auto = this._autoModel(context);
 		if (auto) {
 			const item = this._createModelItem(auto, context);
-			// Copilot Fusion leads the list at twice the height of the other rows, so it stands out.
-			items.push(auto.metadata.autoModelFusion
-				? { ...item, heightInLines: 2, className: [item.className, 'chat-model-picker-featured'].filter(Boolean).join(' ') }
+			// Copilot Fusion leads the list at twice the height of the other rows, with a line saying what it does.
+			const fusionDetail = auto.metadata.autoModelFusion ? localize('chat.modelPicker.fusionDetail', "Picks or combines the best models for your task") : undefined;
+			items.push(fusionDetail
+				? {
+					...item,
+					heightInLines: 2,
+					detail: fusionDetail,
+					// The row's label replaces its text for screen readers, so it carries the visible line too.
+					ariaDescription: [fusionDetail, item.ariaDescription].filter(Boolean).join(', '),
+					className: [item.className, 'chat-model-picker-featured'].filter(Boolean).join(' '),
+				}
 				: item);
 		}
 		if (this._hostsHydraFusion(context)) {
@@ -1248,12 +1263,16 @@ export class TabbedModelPicker extends Disposable {
 				? hydraFusionTier.metadata.detail
 				: getRoutingModelBadge(model.metadata, effort)
 			: undefined;
-		// Copilot Fusion's discount takes the Copilot brand gradient to stand out.
-		const fusionDiscountBadge = !modelBadge && !hydraFusionTier && getFusionDiscountPercent(model.metadata, effort) !== undefined;
+		// Copilot Fusion without a discount, or anything else to show, is recommended instead.
+		const fusionRecommendedBadge = !modelBadge && !routingBadge && model.metadata.autoModelFusion
+			? localize('chat.modelPicker.fusionRecommendedBadge', "Recommended")
+			: undefined;
+		// Copilot Fusion's discount or recommendation takes the Copilot brand gradient to stand out.
+		const fusionBadge = !!fusionRecommendedBadge || (!modelBadge && !hydraFusionTier && getFusionDiscountPercent(model.metadata, effort) !== undefined);
 		const badgeClassName = modelBadge
 			? `chat-model-picker-badge-${modelBadge.tone}`
-			: fusionDiscountBadge
-				? 'chat-model-picker-badge-fusion-discount'
+			: fusionBadge
+				? 'chat-model-picker-badge-fusion'
 				: routingBadge ? 'chat-model-picker-badge-preview' : undefined;
 		const hydraFusionTierLabel = hydraFusionTier && this._getHydraFusionTier(hydraFusionTier, context).label;
 		const localDirect = context.localModels?.getDirectModel(model, context.configurationAccess);
@@ -1286,8 +1305,8 @@ export class TabbedModelPicker extends Disposable {
 			},
 			kind: ActionListItemKind.Action,
 			label: rowLabel,
-			description: modelBadge || routingBadge ? undefined : action.description,
-			badge: modelBadge?.text ?? routingBadge,
+			description: modelBadge || routingBadge || fusionRecommendedBadge ? undefined : action.description,
+			badge: modelBadge?.text ?? routingBadge ?? fusionRecommendedBadge,
 			additionalBadges: this._getOrganizationDefaultBadges(model, context),
 			ariaDescription: localDirect
 				? localDirect.ariaDescription

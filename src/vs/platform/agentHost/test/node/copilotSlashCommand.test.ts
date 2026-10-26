@@ -560,13 +560,13 @@ suite('Copilot slash command handlers', () => {
 				calls: [
 					'install:document-skills@anthropic', 'reload:install',
 					'update:document-skills@anthropic', 'reload:update',
-					'list', 'disable:document-skills', 'reload:enablement',
+					'list', 'disable:document-skills@anthropic', 'reload:enablement',
 					'uninstall:document-skills@anthropic', 'reload:uninstall',
 				],
 			});
 		});
 
-		test('disables built-in plugins but rejects direct-source plugins', async () => {
+		test('disables built-in and direct-source plugins and reloads', async () => {
 			const calls: string[] = [];
 			const plugins: ICopilotPluginCommandApi = {
 				...pluginApi(calls),
@@ -590,9 +590,10 @@ suite('Copilot slash command handlers', () => {
 				},
 				direct: {
 					kind: 'text',
-					text: 'Plugin direct-plugin is installed directly and cannot be enabled or disabled. Uninstall it instead.',
+					text: 'Disabled plugin direct-plugin.',
+					runtimeSettingsChanged: true,
 				},
-				calls: ['disable:builtin-plugin', 'reload:enablement'],
+				calls: ['disable:builtin-plugin', 'reload:enablement', 'disable:direct-plugin-source', 'reload:enablement'],
 			});
 		});
 
@@ -614,6 +615,22 @@ suite('Copilot slash command handlers', () => {
 				},
 				calls: ['enable:azure', 'reload:enablement'],
 			});
+		});
+
+		test('enables a direct source without affecting a same-name marketplace install', async () => {
+			const calls: string[] = [];
+			const plugins: ICopilotPluginCommandApi = {
+				...pluginApi(calls),
+				list: async () => ({
+					plugins: [
+						{ name: 'canvas', marketplace: '', enabled: false, directSourceId: 'github-source' },
+						{ name: 'canvas', marketplace: 'awesome-copilot', enabled: false },
+					],
+				}),
+			};
+			await invokeCopilotPluginCommand('enable github-source', plugins, reloadPlugins(calls));
+			await invokeCopilotPluginCommand('enable canvas@awesome-copilot', plugins, reloadPlugins(calls));
+			assert.deepStrictEqual(calls, ['enable:github-source', 'reload:enablement', 'enable:canvas@awesome-copilot', 'reload:enablement']);
 		});
 
 		test('invokes plugin marketplace commands', async () => {

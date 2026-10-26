@@ -59,6 +59,10 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._missionControl?.environmentId;
 	}
 
+	async getMissionControlEnvironmentName(): Promise<string | undefined> {
+		return this._missionControl?.environmentName;
+	}
+
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI> {
 		return this._runMutation(() => this._agentService.createSession({ ...config, legacyChatUris: undefined }));
 	}
@@ -135,6 +139,20 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Agent Host plugin uninstall is unavailable');
 		}
 		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request, session, chat));
+	}
+
+	listPluginInstallations(provider: AgentProvider, session?: URI, chat?: URI) {
+		if (!this._agentService.listPluginInstallations) {
+			throw new Error('Agent Host plugin installation inventory is unavailable');
+		}
+		return this._agentService.listPluginInstallations(provider, session, chat);
+	}
+
+	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean): Promise<void> {
+		if (!this._agentService.setPluginEnabled) {
+			throw new Error('Agent Host plugin enablement is unavailable');
+		}
+		return this._runMutation(() => this._agentService.setPluginEnabled!(provider, plugin, enabled));
 	}
 
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {

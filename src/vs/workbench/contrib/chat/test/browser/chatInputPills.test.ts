@@ -908,6 +908,27 @@ suite('StandardChatInputPillSources', () => {
 		assert.deepStrictEqual({ before, filtered, restored: hasIcon('closed') }, { before: true, filtered: true, restored: true });
 	});
 
+	test('does not reserve a focusable row for pill kinds hidden by default', () => {
+		const references = observableValue<readonly IChatPillSection[]>('references', []);
+		const pills = createPills({
+			customizations: { sections: constObservable([{ title: 'Instructions', entries: [{ id: 'agents', label: 'AGENTS.md', open: () => { } }] }]) },
+			references: { sections: references },
+		});
+		const state = () => ({
+			visible: pills.inputPills.visible,
+			empty: pills.inputPills.element.classList.contains('empty'),
+			focusable: pills.inputPills.element.querySelector('.chat-pills-row-content')?.hasAttribute('tabindex'),
+		});
+		const defaultHidden = state();
+		references.set([{ title: 'References', entries: [{ id: 'docs', label: 'Docs', open: () => { } }] }], undefined);
+		pills.visibility.hide(SessionChatPillKind.References);
+
+		assert.deepStrictEqual({ defaultHidden, userHidden: state() }, {
+			defaultHidden: { visible: false, empty: false, focusable: false },
+			userHidden: { visible: true, empty: true, focusable: true },
+		});
+	});
+
 	test('keeps the row available for restoring a hidden pill', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const hidden = observableValue('hiddenPills', false);

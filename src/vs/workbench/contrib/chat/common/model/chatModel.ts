@@ -2667,7 +2667,13 @@ export const enum ChatRequestRemovalReason {
 	/**
 	 * Remove because the request is moving to another model
 	 */
-	Adoption
+	Adoption,
+
+	/**
+	 * Removed because the provider replaced a request without billed usage with a
+	 * newer one. The provider's billing is unchanged, so the session cost is kept.
+	 */
+	Replacement,
 }
 
 export interface IChatRemoveRequestEvent {
@@ -3717,7 +3723,9 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (index !== -1) {
 			this._requests.splice(index, 1);
-			this._resetSessionCost();
+			if (reason !== ChatRequestRemovalReason.Replacement) {
+				this._resetSessionCost();
+			}
 			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason });
 			request.response?.dispose();
 		}

@@ -177,6 +177,7 @@ import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../ch
 import { IChatPetService } from '../../chatPetService.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
 import { ModelPickerActionItem, IModelPickerDelegate, IModelPickerPresentationOptions } from './modelPicker/modelPickerActionItem.js';
+import { withoutFusionEffortLevel } from './modelPicker/modelPickerModelConfig.js';
 import { getChatSessionTelemetryContext, getChatSessionTelemetryIds } from '../../../common/chatService/chatServiceTelemetry.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
@@ -1625,7 +1626,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getSessionType: () => this.modelTargetSessionType,
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
-			modelConfiguration: this._modelConfigStore,
+			// Inline chat, editor or terminal, offers no Copilot Fusion effort level while the host pins Fusion's tier there.
+			modelConfiguration: this.location === ChatAgentLocation.EditorInline || this.location === ChatAgentLocation.Terminal
+				? withoutFusionEffortLevel(this._modelConfigStore, modelId => this.languageModelsService.lookupLanguageModel(modelId))
+				: this._modelConfigStore,
 		};
 	}
 
@@ -5231,6 +5235,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const store = this._sessionWorkingSetView.value = new DisposableStore();
 					const sessionKeep = derived(r => this._sessionFileChanges.read(r)?.keep.read(r));
 					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed, {
+						editingSession: () => this._widget?.viewModel?.model.editingSession,
 						keep: async (diffs, automatic) => {
 							const keep = sessionKeep.read(undefined);
 							if (keep) {

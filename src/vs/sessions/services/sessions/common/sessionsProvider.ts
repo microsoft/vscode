@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import type { IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
@@ -81,6 +82,8 @@ export type INestedChatWorkspace =
 export interface INestedChatWorkspaceSupport {
 	/** The session's own folder (its default chat's primary folder, excluding scratch folders); `undefined` for a workspace-less session. */
 	readonly sessionFolder: URI | undefined;
+	/** When the session folder is the session's own git worktree, its branch and repository label; `undefined` otherwise. */
+	readonly sessionFolderWorktree: { readonly branch: string | undefined; readonly repositoryLabel: string | undefined } | undefined;
 	/** Whether the agent gives a chat its own folder (agent capability `multipleWorkingDirectories`). */
 	readonly multipleFolders: boolean;
 	/** Folder browse actions of this provider (same host), for "Browse…". */
@@ -671,6 +674,9 @@ export interface ISessionsProvider {
 	 * Providers without host-owned worktrees leave this capability undefined.
 	 */
 	getSessionWorktreeDiskUsage?(sessionId: string, token?: CancellationToken): Promise<number | undefined>;
+
+	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
+	sessionWorktreeCleanup?(sessionId: string, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 
 	/**
 	 * Unarchive a session.

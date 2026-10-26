@@ -14,7 +14,6 @@ concurrency:
 
 jobs:
   test:
-    # Distinct from the required pull request check names so manual runs never satisfy them.
     name: chat-lib manual tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30

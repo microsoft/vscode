@@ -50,6 +50,7 @@ import { ISessionConfigProvider, ISessionsProvider } from '../../../../../servic
 import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
 import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker.js';
+import '../../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
 import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../chat/browser/media/chatInput.css';
 
@@ -562,6 +563,18 @@ suite('AgentHostModePicker', () => {
 			permissions: permissionsButton?.textContent,
 			focusPreserved: document.activeElement === modeButton,
 		}, { sameModeButton: true, samePermissionsButton: true, mode: 'Plan', permissions: 'Assisted permissions', focusPreserved: true });
+	});
+
+	test('ignores configuration changes from other sessions', () => {
+		const { trigger, config, configChanged } = setup();
+		const modeButton = trigger.querySelector<HTMLElement>('.agent-host-mode-button')!;
+		config.values.mode = 'plan';
+
+		configChanged.fire('another-session');
+		const afterOtherSession = modeButton.textContent;
+		configChanged.fire('test-session');
+
+		assert.deepStrictEqual({ afterOtherSession, afterOwnSession: modeButton.textContent }, { afterOtherSession: 'Interactive', afterOwnSession: 'Plan' });
 	});
 
 	test('opens permission settings from the gear without changing session configuration', async () => {

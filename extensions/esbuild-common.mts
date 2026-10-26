@@ -128,7 +128,7 @@ async function watchWithParcel(
 				rebuild();
 			}
 		}, {
-			ignore: [...ignore],
+			ignore: [...ignore, path.resolve(watchRoot, 'node_modules'), path.resolve(watchRoot, '.git')],
 		});
 	};
 	await Promise.all([

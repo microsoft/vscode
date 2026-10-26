@@ -9,10 +9,8 @@ import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotSdkLogLevelSettin
 
 export class CopilotAgentStartupConfig {
 	constructor(
-		readonly sessionSync: boolean,
 		readonly rubberDuck: boolean,
 		readonly claudeAdvisor: boolean,
-		readonly tgrep: boolean,
 		readonly hydraFusion: boolean,
 		readonly hydraFusionV2: boolean,
 		readonly hydraFusionMultiRoot: boolean,

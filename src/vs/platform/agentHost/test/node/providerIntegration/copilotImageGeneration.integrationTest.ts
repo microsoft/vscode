@@ -234,19 +234,27 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 		const completed = await driveTurnWithModelToCompletion(connection, session, 'image-saved', 'Generate a red dot.', 'gpt-4o', 2);
 		// What the real SDK sent the model as the image tool's result.
 		const toolResult = requests.flatMap(request => request.messages).filter(message => message.role === 'tool').map(message => messageText(message.content)).join('\n');
-		const path = /^path: (?<path>.+)$/m.exec(toolResult)?.groups?.path;
+		const [resultText, hookGuidance] = toolResult.split('\n\nTool "image_generation" succeeded. Additional guidance from postToolUse hooks:\n');
+		const path = /^path: (?<path>.+)$/m.exec(resultText)?.groups?.path;
 		const location = path ? relative(directory, path).split(sep) : [];
 
 		assert.deepStrictEqual({
 			response: completed.responseText.trim(),
-			toolResult: toolResult.replace(/sha256:[0-9a-f]{64}/, 'sha256:<id>').replace(path ?? '<no path>', '<path>'),
+			toolResult: resultText.replace(/sha256:[0-9a-f]{64}/, 'sha256:<id>').replaceAll(path ?? '<no path>', '<path>'),
+			missingPresentationGuidance: [
+				'already displayed in the chat',
+				'listed as artifacts',
+				'Do not embed them again in Markdown',
+				'or register them with add_artifact_or_reference',
+			].filter(clause => !hookGuidance?.includes(clause)),
 			location: { insideHome: location[0] !== '..', folder: [location.at(-4), location.at(-2)], fileName: path && basename(path) },
 			savedImage: path ? (await readFile(path)).equals(Buffer.from(GENERATED_PNG, 'base64')) : false,
 			imageRequests,
 			unexpectedRequests,
 		}, {
 			response: 'IMAGE_SAVED',
-			toolResult: 'Image generated successfully.\nimage_id: sha256:<id>\npath: <path>',
+			toolResult: 'Image generated successfully.\nimage_id: sha256:<id>\npath: <path>\nsaved_to: <path>',
+			missingPresentationGuidance: [],
 			location: { insideHome: true, folder: ['session-state', 'images'], fileName: 'image-dc2f9147f39d1c93.png' },
 			savedImage: true,
 			imageRequests: ['POST /v1/images/generations'],

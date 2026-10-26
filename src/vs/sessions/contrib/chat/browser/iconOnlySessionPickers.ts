@@ -5,25 +5,18 @@
 
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
-import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { createConfigureKeybindingAction } from '../../../../platform/actions/common/menuService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { ENVIRONMENT_PICKER_ICON_ONLY_SETTING } from '../common/constants.js';
 import { getSessionPickerId } from './sessionPickerToolbar.js';
 
 /** Which new-session pickers the user collapsed to their icon (`true`) or expanded to show their label (`false`). */
 const ICON_ONLY_PICKERS_STORAGE_KEY = 'agentSessions.newSession.iconOnlyPickers';
-
-/** The environment picker's id, whose default presentation {@link ENVIRONMENT_PICKER_ICON_ONLY_SETTING} controls. */
-export const ENVIRONMENT_PICKER_ID = FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID;
 
 /** Lets the user collapse individual pickers in the new-session options row to just their icon. */
 export interface ISessionOptionsIconOnlyPickers {
@@ -56,22 +49,16 @@ function readStoredChoices(storageService: IStorageService): ReadonlyMap<string,
 	return choices;
 }
 
-/**
- * Remembers which new-session pickers are collapsed to their icon. A choice made from a picker's
- * context menu persists per profile and takes precedence over the experiment-controlled default
- * of the environment picker.
- */
+/** Remembers per-profile choices to collapse new-session pickers to their icon from their context menu. */
 export class IconOnlySessionPickers extends Disposable implements ISessionOptionsIconOnlyPickers {
 
 	private readonly _choices: ISettableObservable<ReadonlyMap<string, boolean>>;
-	private readonly _environmentPickerIconOnlyByDefault: IObservable<boolean>;
 	readonly iconOnlyPickerIds: IObservable<ReadonlySet<string>>;
 
 	constructor(
 		/** Resolves pickers that are not hosted by a session picker toolbar, such as repository controls. */
 		private readonly _resolvePickerId: (element: HTMLElement) => string | undefined,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -81,11 +68,6 @@ export class IconOnlySessionPickers extends Disposable implements ISessionOption
 		this._register(_storageService.onDidChangeValue(StorageScope.PROFILE, ICON_ONLY_PICKERS_STORAGE_KEY, this._store)(() => {
 			this._choices.set(readStoredChoices(_storageService), undefined);
 		}));
-		this._environmentPickerIconOnlyByDefault = observableFromEvent(
-			this,
-			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ENVIRONMENT_PICKER_ICON_ONLY_SETTING)),
-			() => configurationService.getValue<boolean>(ENVIRONMENT_PICKER_ICON_ONLY_SETTING) === true,
-		);
 		this.iconOnlyPickerIds = derived(this, reader => {
 			const choices = this._choices.read(reader);
 			const ids = new Set<string>();
@@ -94,16 +76,8 @@ export class IconOnlySessionPickers extends Disposable implements ISessionOption
 					ids.add(id);
 				}
 			}
-			if (!choices.has(ENVIRONMENT_PICKER_ID) && this._environmentPickerIconOnlyByDefault.read(reader)) {
-				ids.add(ENVIRONMENT_PICKER_ID);
-			}
 			return ids;
 		});
-	}
-
-	/** Whether the user chose how the picker is presented, so its default no longer applies. */
-	hasChoice(pickerId: string, reader: IReader | undefined): boolean {
-		return this._choices.read(reader).has(pickerId);
 	}
 
 	getPickerId(element: HTMLElement): string | undefined {

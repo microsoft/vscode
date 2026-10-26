@@ -508,6 +508,13 @@ export function getCompletedResponseCollapseEndIndex(content: ReadonlyArray<ICha
 	return finalResponseStartIndex;
 }
 
+/** Match the list's nearest-pixel measurement for image responses so refreshes do not shift them. */
+function roundChatItemHeight(element: ChatTreeItem, height: number): number {
+	const hasImageGeneration = isResponseVM(element) && element.response.value.some(part =>
+		(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && isImageGenerationToolInvocation(part));
+	return hasImageGeneration ? Math.round(height) : Math.ceil(height);
+}
+
 /** How a freshly measured row height should be reconciled against the tree's known height. */
 export type ChatItemHeightUpdateKind = 'none' | 'fire' | 'scheduleInitial' | 'deferReMeasure';
 
@@ -1051,8 +1058,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		template.lastMeasuredHeight = height;
-		const normalizedHeight = Math.ceil(height);
 		const element = template.currentElement;
+		const normalizedHeight = roundChatItemHeight(element, height);
 		this.updateWorkingProgressRounding(template, height);
 		const update = reconcileChatItemHeight(
 			normalizedHeight,
@@ -1092,7 +1099,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!progress) {
 			return;
 		}
-		const rounding = `${Math.ceil(measuredHeight) - measuredHeight}px`;
+		const rounding = `${roundChatItemHeight(template.currentElement, measuredHeight) - measuredHeight}px`;
 		if (progress.domNode.style.getPropertyValue('--chat-response-height-rounding') !== rounding) {
 			progress.domNode.style.setProperty('--chat-response-height-rounding', rounding);
 		}
@@ -2350,7 +2357,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const currentBackgroundActivity = this.persistentBackgroundActivityTracker.value?.getActivity(element) ?? getPersistentBackgroundActivity(partsToRender);
 				const inheritedBackgroundActivity = this.persistentBackgroundActivityTracker.value?.getInheritedActivity(element)
 					?? { activeSubagentCount: 0, activeBackgroundTerminalCount: 0 };
-				const activityLabel = getPersistentActivityLabel(partsToRender, inheritedBackgroundActivity, currentBackgroundActivity, this.viewModel?.model.backgroundShellCount?.get());
+				const backgroundActivity = {
+					activeSubagentCount: inheritedBackgroundActivity.activeSubagentCount + currentBackgroundActivity.activeSubagentCount,
+					activeBackgroundTerminalCount: this.viewModel?.model.backgroundShellCount?.get() ?? inheritedBackgroundActivity.activeBackgroundTerminalCount + currentBackgroundActivity.activeBackgroundTerminalCount,
+				};
+				const activityLabel = getPersistentActivityLabel(partsToRender, undefined, backgroundActivity);
 				const progressLabel = activityLabel ?? getTrailingProgressLabel(partsToRender);
 				return {
 					kind: 'working',
@@ -2359,6 +2370,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					announce: activityLabel ? 'polite' : false,
 					progressStep: element.response.value.length,
 					showDelayedProgressMessage: !activityLabel,
+					backgroundActivity: backgroundActivity.activeSubagentCount > 0 || backgroundActivity.activeBackgroundTerminalCount > 0 ? {
+						subagents: formatPersistentBackgroundActivityLabel({ ...backgroundActivity, activeBackgroundTerminalCount: 0 }),
+						backgroundShells: formatPersistentBackgroundActivityLabel({ ...backgroundActivity, activeSubagentCount: 0 }),
+					} : undefined,
 				};
 			}
 		}
@@ -2428,7 +2443,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return;
 			}
 			const progress = this.getPersistentWorkingProgress(element, annotateSpecialMarkdownContent(element.response.value));
-			if (!workingProgressPart || workingProgressPart.updateWorkingContent(progress.content, progress.isActive, progress.announce, progress.progressStep, progress.showDelayedProgressMessage, progress.imageGeneration)) {
+			if (!workingProgressPart || workingProgressPart.updateWorkingContent(progress.content, progress.isActive, progress.announce, progress.progressStep, progress.showDelayedProgressMessage, progress.imageGeneration, progress.backgroundActivity)) {
 				this.fireItemHeightChange(templateData);
 			}
 			return;
@@ -3473,7 +3488,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						alreadyRenderedPart.dispose();
 						alreadyRenderedPart.domNode?.remove();
 					}
-					workingPart.updateWorkingContent(partToRender.content, partToRender.isActive, partToRender.announce, partToRender.progressStep, partToRender.showDelayedProgressMessage, partToRender.imageGeneration);
+					workingPart.updateWorkingContent(partToRender.content, partToRender.isActive, partToRender.announce, partToRender.progressStep, partToRender.showDelayedProgressMessage, partToRender.imageGeneration, partToRender.backgroundActivity);
 					renderedParts[contentIndex] = workingPart;
 					displacedWorkingPart = undefined;
 					return;
@@ -3554,6 +3569,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				suppressProgressShimmer: this.isPersistentProgressEnabled() && this.rendererOptions.renderStyle !== 'minimal',
 				isConversation: this.isConversationProgress(),
 				progressMessageAction: this.rendererOptions.progressMessageAction,
+				backgroundActivityPillSections: this.rendererOptions.backgroundActivityPillSections,
 				onWillCollapse: this.delegate.preserveScrollPosition,
 				container: templateData.rowContainer,
 				editorPool: this._editorPool,
@@ -6160,7 +6176,7 @@ export function getPersistentActivityLabel(
 		activeBackgroundTerminalCount: backgroundShellCount ?? inheritedActivity.activeBackgroundTerminalCount + currentActivity.activeBackgroundTerminalCount,
 	});
 	if (activityLabel) {
-		return activityLabel;
+		return new MarkdownString().appendText(activityLabel);
 	}
 	const lastPart = findLast(parts, isParentFlowContent);
 	if (!lastPart) {
@@ -6176,7 +6192,7 @@ export function getPersistentActivityLabel(
 	return undefined;
 }
 
-function formatPersistentBackgroundActivityLabel(activity: IPersistentBackgroundActivity): IMarkdownString | undefined {
+function formatPersistentBackgroundActivityLabel(activity: IPersistentBackgroundActivity): string | undefined {
 	const subagentDescription = activity.activeSubagentCount === 1
 		? localize('persistentProgress.oneSubagent', "1 subagent")
 		: activity.activeSubagentCount > 1
@@ -6188,17 +6204,17 @@ function formatPersistentBackgroundActivityLabel(activity: IPersistentBackground
 			? localize('persistentProgress.backgroundCommands', "{0} background commands", activity.activeBackgroundTerminalCount)
 			: undefined;
 	if (subagentDescription && backgroundCommandDescription) {
-		return new MarkdownString().appendText(localize('persistentProgress.runningBackgroundWork', "{0} and {1} running", subagentDescription, backgroundCommandDescription));
+		return localize('persistentProgress.runningBackgroundWork', "{0} and {1} running", subagentDescription, backgroundCommandDescription);
 	}
 	if (subagentDescription) {
-		return new MarkdownString().appendText(activity.activeSubagentCount === 1
+		return activity.activeSubagentCount === 1
 			? localize('persistentProgress.oneSubagentRunning', "1 subagent running")
-			: localize('persistentProgress.subagentsRunning', "{0} subagents running", activity.activeSubagentCount));
+			: localize('persistentProgress.subagentsRunning', "{0} subagents running", activity.activeSubagentCount);
 	}
 	if (backgroundCommandDescription) {
-		return new MarkdownString().appendText(activity.activeBackgroundTerminalCount === 1
+		return activity.activeBackgroundTerminalCount === 1
 			? localize('persistentProgress.oneBackgroundCommandRunning', "1 background command running")
-			: localize('persistentProgress.backgroundCommandsRunning', "{0} background commands running", activity.activeBackgroundTerminalCount));
+			: localize('persistentProgress.backgroundCommandsRunning', "{0} background commands running", activity.activeBackgroundTerminalCount);
 	}
 	return undefined;
 }

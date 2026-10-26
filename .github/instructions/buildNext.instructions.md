@@ -65,6 +65,7 @@ In [build/gulpfile.vscode.ts](../../build/gulpfile.vscode.ts), the `core-ci` tas
 - `runEsbuildTranspile()` → transpile command
 - `runEsbuildBundle()` → bundle command
 
+PR CI runs `core-ci-pr` instead, which shares the steps of `core-ci` up to and including the transpile to `out-build` but builds no minified bundles; nothing in PR CI reads them. Only the product builds run `core-ci`, so changes that break only minified bundling surface there.
 Desktop, server, server-web, and standalone web packaging use the same `runEsbuildBundle()` helper. Minified bundles enable `--minify --mangle-privates --nls`. Local server and web builds generate API proposal names and the shared build date explicitly instead of compiling an intermediate production tree.
 
 The canonical production entry points and product/built-in-extension injection live in [build/next/index.ts](../../build/next/index.ts); curated resource lists and copied-script minification live in [resources.ts](../../build/next/resources.ts). Build targets and bootstrap entry points are shared with packaging through [build/lib/esbuild.ts](../../build/lib/esbuild.ts), so package metadata is injected into the same files the bundler emits. Gulp still orchestrates compilation, extension builds, packaging, and translations; there is no separate legacy production bundle/minify chain.

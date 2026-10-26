@@ -24,6 +24,10 @@ import { arrayProperty, asObject, booleanProperty, idProperty, nextLink, normali
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
 import { PullRequestRequestPlanner } from './pullRequestRequestPlanner.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
+
+/** How long an idle check suite of an app other than GitHub Actions is awaited before it is considered not to report. */
+const idleCheckSuiteGracePeriod = 10 * 1000;
 
 export type PullRequestFragmentResult =
 	| { readonly fragment: 'core'; readonly value: PullRequestCore; readonly complete: true }
@@ -116,7 +120,7 @@ const expectedCheckSuitesQuery = `query AgentHostPullRequestExpectedCheckSuites(
 			... on Commit {
 				oid
 				checkSuites(first: 100, after: $after) {
-					nodes { id status conclusion app { name slug } checkRuns(first: 1) { totalCount } }
+					nodes { id status conclusion createdAt app { name slug } checkRuns(first: 1) { totalCount } }
 					pageInfo { hasNextPage endCursor }
 				}
 			}
@@ -151,6 +155,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		private readonly _capabilities: IGitHubCapabilities,
 		private readonly _endpoint: IGitHubEndpointProvider,
 		private readonly _logService?: ILogService,
+		private readonly _clock: Pick<IRequestScheduler, 'now'> = systemRequestScheduler,
 	) { }
 
 	promote(signal: AbortSignal, priority: PullRequestSubscriptionOptions['priority']): void {
@@ -511,13 +516,18 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				priority,
 				{ caller: 'github.pullRequestQuery' },
 			);
-			throwGraphQLErrors(response.errors);
+			throwGraphQLErrors(response.errors.filter(error => !isRefusedCheckSuiteApp(error)));
 			const commit = objectAt(response.data, 'repository', 'object');
 			if (requiredString(commit, 'oid') !== headSha) {
 				throw new GitHubRequestError('GitHub expected check suites were for an old pull request head', 'unknown');
 			}
 			const connection = objectProperty(commit, 'checkSuites');
-			suites.push(...arrayProperty(connection, 'nodes').map(toCheckSuite));
+			for (const node of arrayProperty(connection, 'nodes')) {
+				const suite = toExpectedCheckSuite(node, this._clock.now());
+				if (suite) {
+					suites.push(suite);
+				}
+			}
 			const pageInfo = pageInfoFrom(connection);
 			if (!pageInfo.hasNextPage) {
 				return suites;
@@ -811,16 +821,39 @@ function toRestStatus(value: unknown): PullRequestCheck {
 	};
 }
 
-function toCheckSuite(value: unknown): PullRequestCheckSuite {
+/**
+ * GitHub withholds the app of some suites, including GitHub Actions ones, from a token without SSO access to the organization,
+ * while still returning the suite itself. The app is only a label, so such a suite stays usable without it.
+ */
+function isRefusedCheckSuiteApp(error: GitHubGraphQLError): boolean {
+	const path = error.path;
+	return error.type?.toUpperCase() === 'FORBIDDEN' && path?.length === 6 && path[0] === 'repository' && path[1] === 'object'
+		&& path[2] === 'checkSuites' && path[3] === 'nodes' && typeof path[4] === 'number' && path[5] === 'app';
+}
+
+/**
+ * GitHub queues a suite for every installed checks app on each push, and an app that does not report on the commit leaves
+ * it queued without check runs indefinitely. A third-party CI app that will report can also take a moment to create its
+ * runs, so an idle suite stays expected until the grace period after its creation passes. Only GitHub Actions creates a
+ * suite for a triggered workflow, so its suites and those whose app or creation time is unknown always stay expected.
+ */
+function toExpectedCheckSuite(value: unknown, now: number): PullRequestCheckSuite | undefined {
 	const item = asObject(value, 'GitHub check suite was malformed');
+	const id = requiredId(item, 'id');
 	const app = optionalObjectProperty(item, 'app');
-	const checkRuns = objectProperty(item, 'checkRuns');
+	const slug = app && stringProperty(app, 'slug');
+	const status = normalizedEnumProperty(item, 'status');
+	const checkRunsReported = (numberProperty(objectProperty(item, 'checkRuns'), 'totalCount') ?? 0) > 0;
+	const createdAt = Date.parse(stringProperty(item, 'createdAt') ?? '');
+	if (!checkRunsReported && status === 'QUEUED' && slug && slug !== 'github-actions' && now - createdAt >= idleCheckSuiteGracePeriod) {
+		return undefined;
+	}
 	return {
-		id: requiredId(item, 'id'),
-		name: app ? stringProperty(app, 'name') ?? stringProperty(app, 'slug') ?? 'unknown' : 'unknown',
-		status: normalizedEnumProperty(item, 'status'),
+		id,
+		name: app ? stringProperty(app, 'name') ?? slug ?? 'unknown' : 'unknown',
+		status,
 		conclusion: normalizedEnumProperty(item, 'conclusion'),
-		checkRunsReported: (numberProperty(checkRuns, 'totalCount') ?? 0) > 0,
+		checkRunsReported,
 	};
 }
 

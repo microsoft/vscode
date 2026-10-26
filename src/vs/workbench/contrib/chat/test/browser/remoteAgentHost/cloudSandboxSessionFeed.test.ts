@@ -46,7 +46,8 @@ function connection(): ICloudSandboxSessionFeedConnection {
 function changed(id: string, updatedAt = '2026-10-18T12:00:00Z') {
 	return {
 		type: 'message',
-		group: 'opaque-user-group',
+		from: 'server',
+		dataType: 'json',
 		data: { type: 'task.changed', schema_version: 1, task: { id, updated_at: updatedAt } },
 	};
 }
@@ -135,11 +136,21 @@ suite('CloudSandboxSessionFeed', () => {
 		assert.deepStrictEqual(h.invalidations, [true, true]);
 	}));
 
+	test('accepts task hints from the negotiated group', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createFeed(store);
+		await h.feed.start();
+		h.sockets[0].receive({ ...changed('one'), from: 'group', group: connection().group });
+		await timeout(501);
+		assert.deepStrictEqual({ taskBatches: h.taskBatches, connected: h.feed.connected }, {
+			taskBatches: [['one']], connected: true,
+		});
+	}));
+
 	test('ignores unknown messages and other groups without disrupting the subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store);
 		await h.feed.start();
 		for (const message of [
-			{ ...changed('one'), group: 'another-group' },
+			{ ...changed('one'), from: 'group', group: 'another-group' },
 			{ type: 'message', group: 'opaque-user-group', data: { type: 'future.event' } },
 			{ type: 'future.envelope' },
 		]) {

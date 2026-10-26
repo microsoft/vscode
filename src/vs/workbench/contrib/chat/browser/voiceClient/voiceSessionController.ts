@@ -24,7 +24,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { AgentsVoiceSettingId, AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, getVoiceRecentTurns, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { voiceCloseCodeInfo, VoiceCloseCode } from '../../common/voiceClient/voiceCloseCodes.js';
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
@@ -6674,7 +6674,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * so it stays accurate even though the backend isn't told about it.
 	 */
 	private _reportedAgentState(realState: string, isActive: boolean): { state: string; hideConfirmationDetail: boolean } {
-		if (realState === 'waiting_for_confirmation' && !isActive) {
+		if (realState === 'waiting_for_confirmation' && !isActive && !this.voiceClientService.isSessionAwarenessEnabled) {
 			return { state: 'thinking', hideConfirmationDetail: true };
 		}
 		return { state: realState, hideConfirmationDetail: false };
@@ -6835,6 +6835,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		if (targetSessionId && !sessionList.some(session => session.id === targetSessionId)) {
 			sessionList.push({ id: targetSessionId, is_active: true, agent_state: 'unknown' });
+		}
+		if (this.voiceClientService.isSessionAwarenessEnabled) {
+			const active = sessionList.find(session => session.is_active);
+			const model = active ? this.chatService.getSession(URI.parse(active.id)) : undefined;
+			if (active && model) {
+				active.recent_turns = getVoiceRecentTurns(model, 3, true);
+			}
 		}
 
 		// `active_session` is not sent: the per-session `is_active` flag already

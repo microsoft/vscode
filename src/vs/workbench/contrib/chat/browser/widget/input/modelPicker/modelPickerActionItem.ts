@@ -33,6 +33,8 @@ export interface IModelPickerPresentationOptions {
 
 export interface IModelPickerDelegate {
 	readonly comparison?: IModelPickerComparison;
+	/** Whether a committed comparison is currently being submitted. */
+	readonly comparisonBusy?: IObservable<boolean>;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	/**
@@ -284,8 +286,10 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		const keybinding = comparison.startCommandId
 			? this.keybindingService.lookupKeybinding(comparison.startCommandId, this._contextKeyService)?.getLabel()
 			: undefined;
-		return keybinding
+		const label = keybinding
 			? localize('chat.modelPicker.comparisonActionWithKeybinding', "{0} ({1})", comparison.label, keybinding)
 			: comparison.label;
+		const description = comparison.description?.get();
+		return description ? localize('chat.modelPicker.comparisonDescription', "{0}\n\n{1}", label, description) : label;
 	}
 }

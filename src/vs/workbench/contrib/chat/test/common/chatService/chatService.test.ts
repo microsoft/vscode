@@ -3952,6 +3952,7 @@ suite('ChatService', () => {
 		const remoteScheme = 'remote-streaming-test';
 
 		interface IProvidedSessionOptions {
+			readonly agent?: IChatAgentImplementation;
 			readonly progressObs?: ISettableObservable<IChatProgress[]>;
 			readonly isCompleteObs?: ISettableObservable<boolean>;
 			readonly isReadOnly?: ISettableObservable<boolean>;
@@ -3974,7 +3975,7 @@ suite('ChatService', () => {
 			instantiationService.stub(IChatSessionsService, mockSessionsService);
 
 			testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
-			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, { async invoke() { return {}; } }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, opts.agent ?? { async invoke() { return {}; } }));
 
 			let history = opts.history ?? [{ type: 'request', prompt: 'hello', participant: remoteScheme }];
 			const onDidChangeHistory = opts.onDidChangeHistory;
@@ -5464,6 +5465,67 @@ suite('ChatService', () => {
 			});
 		});
 
+		for (const draft of ['', 'A newer draft']) {
+			test(`a rejected request retains its prompt and error across history refresh without replacing ${draft ? 'a newer' : 'an empty'} draft`, async () => {
+				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+				const invoked = new DeferredPromise<void>();
+				const rejection = new DeferredPromise<never>();
+				const history: IChatSessionHistoryItem[] = [
+					{ type: 'request', id: 'accepted', prompt: 'Accepted request', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Original response') }], participant: remoteScheme },
+				];
+				const { resource } = setupRemoteProvider({
+					history,
+					onDidChangeHistory: changes.event,
+					agent: {
+						invoke: () => {
+							invoked.complete();
+							return rejection.p;
+						},
+					},
+				});
+				const service = createChatServiceWithFrozenHistoryClock();
+				instantiationService.stub(IChatService, service);
+				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const model = ref.object;
+				const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				const sent = await service.sendRequest(resource, 'Keep this rejected prompt', { agentIdSilent: remoteScheme });
+				assert.ok(ChatSendResult.isSent(sent));
+				await invoked.p;
+				const response = await sent.data.responseCreatedPromise;
+				const attachments: IChatRequestVariableEntry[] = draft
+					? [{ kind: 'file', id: 'new-draft-file', name: 'draft.ts', value: URI.file('/workspace/draft.ts') }]
+					: [];
+				model.inputModel.setState({ inputText: draft, attachments });
+				const message = 'Your message could not be sent: The host cannot accept this request.';
+				await rejection.error(new Error(message));
+				await sent.data.responseCompletePromise;
+				changes.fire([
+					history[0],
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Refreshed response') }], participant: remoteScheme },
+				]);
+				await waitForResponse(model, 'accepted', 'Refreshed response');
+
+				assert.deepStrictEqual({
+					items: viewModel.getItems().map(item => isRequestVM(item) ? item.messageText : isResponseVM(item) ? item.errorDetails?.message ?? item.response.toString() : 'pending'),
+					responsePreserved: model.getRequests().at(-1)?.response === response,
+					complete: response?.isComplete,
+					active: model.hasActiveRequest.get(),
+					draft: model.inputModel.state.get()?.inputText,
+					attachments: model.inputModel.state.get()?.attachments,
+				}, {
+					items: ['Accepted request', 'Refreshed response', 'Keep this rejected prompt', message],
+					responsePreserved: true,
+					complete: true,
+					active: false,
+					draft,
+					attachments,
+				});
+			});
+		}
+
 		test('passive history removes absent restored turns without removing local turns', async () => {
 			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 			const first: IChatSessionHistoryItem[] = [
@@ -6132,6 +6194,37 @@ suite('ChatService', () => {
 				requests: expected,
 				viewModels: expected,
 				serialized: expected,
+			});
+		});
+
+		test('a live server-initiated request removes the earlier request it replaces', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'user', type: 'request', prompt: 'hello', participant: remoteScheme },
+					{ id: 'notice-1', type: 'request', prompt: 'first notice', participant: remoteScheme, isSystemInitiated: true },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue<boolean>('isComplete', true),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			// Billing reported only as a session aggregate is kept when a notice without usage is replaced.
+			ref.object.setSessionCost({ credits: 2, status: 'complete' });
+			onDidStartServerRequest.fire({ id: 'notice-2', prompt: 'merged notice', isSystemInitiated: true, replacesRequestId: 'notice-1' });
+			onDidStartServerRequest.fire({ id: 'notice-3', prompt: 'merged again', isSystemInitiated: true, replacesRequestId: 'notice-2' });
+			onDidStartServerRequest.fire({ id: 'notice-4', prompt: 'unknown replacement', isSystemInitiated: true, replacesRequestId: 'missing' });
+
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => request.id),
+				sessionCost: ref.object.sessionCostInfo,
+			}, {
+				requests: ['user', 'notice-3', 'notice-4'],
+				sessionCost: { credits: 2, status: 'complete' },
 			});
 		});
 

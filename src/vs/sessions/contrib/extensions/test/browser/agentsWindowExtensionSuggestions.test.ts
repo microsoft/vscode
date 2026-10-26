@@ -84,9 +84,11 @@ suite('AgentsWindowExtensionSuggestions', () => {
 		const extensions = [
 			anExtension('tools', { contributes: { languageModelTools: [{}] } }),
 			anExtension('mcp', { contributes: { commands: [{}], mcpServerDefinitionProviders: [{}] } }),
+			anExtension('skills', { contributes: { chatSkills: [{}] } }),
 			anExtension('grammar', { contributes: { grammars: [{}] } }),
 			anExtension('markdown', { contributes: { 'markdown.markdownItPlugins': true } }),
 			anExtension('enabled', { contributes: { languageModelTools: [{}] }, enablementState: EnablementState.EnabledWorkspace }),
+			anExtension('enabledAutomatically', { contributes: { languageModelTools: [{}] }, enablementState: EnablementState.EnabledGlobally }),
 			anExtension('commandsOnly', { contributes: { commands: [{}] } }),
 			anExtension('themeOnly', { contributes: { themes: [{}] } }),
 			anExtension('noTools', { contributes: { languageModelTools: [] } }),
@@ -99,7 +101,7 @@ suite('AgentsWindowExtensionSuggestions', () => {
 
 		assert.deepStrictEqual(
 			extensions.filter(extension => isAgentsWindowExtensionSuggestion(extension, candidate => supported.has(candidate.identifier.id))).map(extension => extension.identifier.id),
-			['pub.tools', 'pub.mcp', 'pub.grammar', 'pub.markdown', 'pub.enabled'],
+			['pub.tools', 'pub.mcp', 'pub.skills', 'pub.enabled', 'pub.enabledAutomatically'],
 		);
 	});
 
@@ -119,7 +121,7 @@ suite('AgentsWindowExtensionSuggestions', () => {
 
 		service.dismissBadge();
 		const afterRestart = createService({ local, storageService, telemetryService: new TestExperimentTriggerTelemetryService() }).showBadge.get();
-		local.push(anExtension('grammar', { contributes: { grammars: [{}] } }));
+		local.push(anExtension('skills', { contributes: { chatSkills: [{}] } }));
 		onChange.fire(undefined);
 
 		assert.deepStrictEqual({
@@ -129,11 +131,11 @@ suite('AgentsWindowExtensionSuggestions', () => {
 		}, {
 			badges: [true, false, true],
 			afterRestart: false,
-			suggested: ['pub.tools', 'pub.enabled', 'pub.grammar'],
+			suggested: ['pub.tools', 'pub.enabled', 'pub.skills'],
 		});
 	});
 
-	test('logs the experiment trigger in every arm where the badge or the Suggested group could show', () => {
+	test('logs the experiment trigger in every arm where the badge or the AI Features group could show', () => {
 		const disabled = anExtension('tools', { contributes: { languageModelTools: [{}] } });
 		const enabled = anExtension('enabled', { contributes: { languageModelTools: [{}] }, enablementState: EnablementState.EnabledWorkspace });
 		const cases: Omit<IServiceOptions, 'storageService' | 'telemetryService'>[] = [

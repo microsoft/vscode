@@ -110,6 +110,7 @@ suite('Artifact Server Tools', () => {
 			'persistence or location outside the workspace is not an eligibility signal',
 			'incidental resources, commits you create unless the user asks',
 			'sessions and chats created with session-management tools',
+			'Generated images are listed as artifacts automatically; do not register them again',
 			'Never create, copy, or relocate a file solely to have an artifact to register',
 			'promotes a matching reference, preserving its id',
 			'never downgrade artifacts',

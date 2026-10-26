@@ -53,9 +53,10 @@ export class ArtifactActivitiesModel extends Disposable {
 			const items = this.runs(snapshot).map(run => this.item(run, snapshot));
 			return {
 				expanded: state.activitiesExpanded,
+				loading: this.loading,
 				items,
 				summary: localize('artifactActivitiesLoadedCount', "{0} loaded", items.length),
-				message: this.error || (this.loading ? localize('artifactActivitiesLoading', "Loading activities...") : ''),
+				message: this.error,
 				more: this.error ? {
 					id: 'retry', label: localize('artifactActivitiesRetry', "Retry Loading Activities"),
 					enabled: !this.loading, run: () => { void this.loadPage(this.retryPage); },

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -81,7 +82,6 @@ import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/me
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
 import { AbstractChatView, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
-import { ChatViewSessionActivityBar } from '../../../../browser/parts/sessionActivityBar.js';
 import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import '../../../../browser/parts/media/chatCompositeBar.css';
@@ -102,9 +102,9 @@ suite('Sessions - Chat View', () => {
 	test('keeps the scroll arrow clickable above the ruler timeline', () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
-		workbench.style.cssText = 'position: fixed; top: 0; left: 0; --vscode-spacing-size120: 12px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size240: 24px; --vscode-strokeThickness: 1px; --session-activity-bar-column-width: 42px;';
+		workbench.style.cssText = 'position: fixed; top: 0; left: 0; --vscode-spacing-size120: 12px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size240: 24px; --vscode-strokeThickness: 1px;';
 		const part = dom.append(workbench, dom.$('.part.sessionspart'));
-		const view = dom.append(part, dom.$('.chat-view-chat.has-session-activity-bar'));
+		const view = dom.append(part, dom.$('.chat-view-chat'));
 		const session = dom.append(view, dom.$('.interactive-session.prompt-timeline-host.prompt-timeline-with-rail'));
 		session.style.cssText = 'width: 480px; height: 300px; --prompt-timeline-bottom: 100px;';
 		const list = dom.append(session, dom.$('.interactive-list'));
@@ -124,44 +124,28 @@ suite('Sessions - Chat View', () => {
 		}, { arrowReceivesPointer: true, timelineStillReceivesPointer: true });
 	});
 
-	for (const width of [480, 1280]) {
-		for (const singleGroup of [false, true]) {
-			test(`aligns the scroll arrow with the activity bar gutter in ${width}px ${singleGroup ? 'single' : 'split'} chats`, () => {
-				const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
-				disposables.add(toDisposable(() => workbench.remove()));
-				workbench.style.cssText = '--vscode-spacing-size120: 12px; --vscode-spacing-size20: 2px; --vscode-spacing-size240: 24px; --vscode-strokeThickness: 1px; --session-view-content-horizontal-padding: 24px; --session-view-centered-content-max-width: 950px; --session-activity-bar-content-inset: 30px;';
-				workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
-				const part = dom.append(workbench, dom.$('.part.sessionspart'));
-				const groups = dom.append(part, dom.$('.chat-groups-view'));
-				groups.classList.toggle('single-group', singleGroup);
-				const host = dom.append(groups, dom.$('.session-activity-bar-host'));
-				host.style.width = `${width}px`;
-				host.style.height = '300px';
-				const session = dom.append(host, dom.$('.interactive-session'));
-				session.style.cssText = 'position: relative; width: 100%; height: 100%;';
-				const scrollDown = dom.append(session, dom.$('.chat-scroll-down'));
-				scrollDown.style.display = 'flex';
-				const activityBar = dom.append(host, dom.$('.session-activity-bar.docked'));
-				const actions = dom.append(activityBar, dom.$('.monaco-action-bar.vertical'));
-				const item = dom.append(actions, dom.$('.action-item'));
-				const action = dom.append(item, dom.$('.action-label'));
+	test('keeps the scroll arrow inside a short transcript left by a tall composer', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.cssText = 'position: fixed; top: 0; left: 0; --vscode-spacing-size80: 8px; --vscode-spacing-size120: 12px; --vscode-spacing-size240: 24px;';
+		const session = dom.append(workbench, dom.$('.interactive-session'));
+		session.style.cssText = 'width: 480px; --vscode-chat-persistent-content-height: 28px;';
+		const list = dom.append(session, dom.$('.interactive-list'));
+		const button = dom.append(list, dom.$('button.chat-scroll-down'));
+		button.style.display = 'flex';
 
-				const arrowBounds = scrollDown.getBoundingClientRect();
-				const actionBounds = action.getBoundingClientRect();
-				assert.deepStrictEqual({
-					arrowWidth: arrowBounds.width,
-					rightInset: dom.getWindow(scrollDown).getComputedStyle(scrollDown).right,
-					centerOffset: arrowBounds.left + arrowBounds.width / 2 - actionBounds.left - actionBounds.width / 2,
-					cornerRadius: dom.getWindow(scrollDown).getComputedStyle(scrollDown).borderRadius,
-				}, {
-					arrowWidth: 24,
-					rightInset: '15px',
-					centerOffset: 0,
-					cornerRadius: '8px',
-				});
-			});
-		}
-	}
+		const offsets = (listHeight: number) => {
+			list.style.height = `${listHeight}px`;
+			const listBounds = list.getBoundingClientRect();
+			const bounds = button.getBoundingClientRect();
+			return { top: bounds.top - listBounds.top, bottom: listBounds.bottom - bounds.bottom };
+		};
+		assert.deepStrictEqual({ short: offsets(50), tall: offsets(300) }, {
+			// The arrow's usual 36px bottom offset would put its top 10px above the list.
+			short: { top: 0, bottom: 26 },
+			tall: { top: 240, bottom: 36 },
+		});
+	});
 
 	test('dims inactive composer drawers without hiding actions or double-dimming transcript notices', () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
@@ -552,9 +536,8 @@ suite('Sessions - Chat View', () => {
 		let offsetReads = 0;
 		let bannerHeight = 35;
 		Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
-		const view: { contentInset: number; _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
+		const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
 			element,
-			contentInset: 0,
 			_lastLayout: { width: 500, height: 400 },
 			_externalSessionBanner: { domNode: banner },
 			_widgetContainer: widgetContainer,
@@ -574,18 +557,15 @@ suite('Sessions - Chat View', () => {
 		banner.classList.add('hidden');
 		view._layoutChatWidget();
 		progressOffsets.push(progress.style.top);
-		view.contentInset = ChatViewSessionActivityBar.RESERVED_WIDTH;
-		view._layoutChatWidget();
 		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets, viewportWidth: widgetContainer.style.width }, {
 			hiddenReads: 0, offsetReads: 2,
-			// With the toolbar, embedded editors are laid out for the content between the insets on both sides.
-			layouts: [[400, 500], [365, 500], [340, 500], [400, 500], [400, 440]],
+			layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
 			progressOffsets: ['0px', '35px', '60px', '0px'],
 			viewportWidth: '500px',
 		});
 	});
 
-	test('keeps chat content centered with even space on both sides when the toolbar is shown, and retains the outer scrollbar', async () => {
+	test('centers chat content in the width its host lays it out with, to the left of the Session Activity Bar\'s column, and keeps the scrollbar at its right edge', async () => {
 		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
 		root.style.setProperty('--vscode-spacing-size240', '24px');
@@ -596,8 +576,6 @@ suite('Sessions - Chat View', () => {
 		const part = dom.append(root, dom.$('.part.sessionspart'));
 		const session = dom.append(part, dom.$('.session-view'));
 		const groups = dom.append(session, dom.$('.chat-groups-view.single-group'));
-		// The toolbar's host publishes its column for surfaces that sit beside it.
-		groups.style.setProperty('--session-activity-bar-column-width', '42px');
 		const headerHost = dom.append(groups, dom.$('.chat-group-view-bar'));
 		const header = dom.append(dom.append(headerHost, dom.$('.chat-composite-bar.session-header-bar')), dom.$('.chat-composite-bar-header'));
 		const view = disposables.add(new class extends AbstractChatView {
@@ -631,20 +609,19 @@ suite('Sessions - Chat View', () => {
 			if (targetWindow.getComputedStyle(header).maxWidth !== '950px'
 				|| targetWindow.getComputedStyle(widget).maxWidth !== 'none'
 				|| targetWindow.getComputedStyle(banner).boxSizing !== 'border-box'
-				|| targetWindow.getComputedStyle(rail).position !== 'absolute'
-				|| !targetWindow.getComputedStyle(view.element).getPropertyValue('--session-activity-bar-content-inset')) {
+				|| targetWindow.getComputedStyle(rail).position !== 'absolute') {
 				throw new Error('Session header and chat styles have not loaded');
 			}
 		}, 10, 100);
 
-		const snapshot = (width: number, inset: number, split = false) => {
+		const snapshot = (width: number, split = false) => {
 			widget.classList.remove('prompt-timeline-host', 'prompt-timeline-with-rail');
 			groups.classList.toggle('single-group', !split);
 			session.classList.toggle('grid-layout', split);
 			part.style.width = `${width}px`;
 			headerHost.style.width = `${width}px`;
-			view.layout(width, 300, 0, 0, inset);
-			tree.layout(160, Math.min(split ? Infinity : 950, width - 2 * inset));
+			view.layout(width, 300, 0, 0);
+			tree.layout(160, Math.min(split ? Infinity : 950, width));
 			const origin = view.element.getBoundingClientRect();
 			const band = (element: HTMLElement) => {
 				const bounds = element.getBoundingClientRect();
@@ -661,8 +638,8 @@ suite('Sessions - Chat View', () => {
 			};
 		};
 		// The ruler prompt timeline: where response content and the input sit, and the center of a resting mark.
-		const rulerSnapshot = (width: number, inset: number) => {
-			snapshot(width, inset);
+		const rulerSnapshot = (width: number) => {
+			snapshot(width);
 			widget.classList.add('prompt-timeline-host', 'prompt-timeline-with-rail');
 			const origin = view.element.getBoundingClientRect();
 			const response = listContainer.querySelector<HTMLElement>('.interactive-item-container')!;
@@ -677,31 +654,23 @@ suite('Sessions - Chat View', () => {
 			};
 		};
 
+		// With the Session Activity Bar, a 600px wide chat is laid out with 566px, to the left of the strip's 34px column.
 		assert.deepStrictEqual({
-			narrow: snapshot(600, 30),
-			wide: snapshot(1200, 30),
-			split: snapshot(1200, 30, true),
-			// Just wide enough that the full-width centered band would reach the strip.
-			nearlyWide: snapshot(1000, 30),
-			disabled: snapshot(600, 0),
-			wideDisabled: snapshot(1200, 0),
-			ruler: rulerSnapshot(600, 30),
-			rulerDisabled: rulerSnapshot(600, 0),
+			narrow: snapshot(566),
+			wide: snapshot(1166),
+			split: snapshot(1166, true),
+			ruler: rulerSnapshot(566),
 		}, {
-			narrow: { header: [0, 600], response: [30, 540], input: [30, 540], suggestion: [30, 540], banner: [54, 492], scrollbarRight: 600 },
-			wide: { header: [125, 950], response: [125, 950], input: [125, 950], suggestion: [125, 950], banner: [125, 950], scrollbarRight: 1200 },
-			split: { header: [0, 1200], response: [30, 1140], input: [30, 1140], suggestion: [30, 1140], banner: [125, 950], scrollbarRight: 1200 },
-			nearlyWide: { header: [25, 950], response: [30, 940], input: [30, 940], suggestion: [30, 940], banner: [54, 892], scrollbarRight: 1000 },
-			disabled: { header: [0, 600], response: [0, 600], input: [0, 600], suggestion: [0, 600], banner: [24, 552], scrollbarRight: 600 },
-			wideDisabled: { header: [125, 950], response: [125, 950], input: [125, 950], suggestion: [125, 950], banner: [125, 950], scrollbarRight: 1200 },
-			// The ruler shares the toolbar's column: content keeps the same even band, and the resting marks are
-			// centered on the 30px strip 12px from the edge (center 27px from the edge).
-			ruler: { content: [54, 546], input: [30, 540], markCenter: 573 },
-			// Without the toolbar, the ruler keeps its own right-side reservation beside the scrollbar.
-			rulerDisabled: { content: [24, 530], input: [0, 600], markCenter: 580 },
+			// The response is full width for its own padding to center it; the scrollbar is at the chat's right edge.
+			narrow: { header: [0, 566], response: [0, 566], input: [0, 566], suggestion: [0, 566], banner: [24, 518], scrollbarRight: 566 },
+			wide: { header: [108, 950], response: [108, 950], input: [108, 950], suggestion: [108, 950], banner: [108, 950], scrollbarRight: 1166 },
+			split: { header: [0, 1166], response: [0, 1166], input: [0, 1166], suggestion: [0, 1166], banner: [108, 950], scrollbarRight: 1166 },
+			// The ruler keeps its own right-side reservation beside the scrollbar, as in a chat without the strip.
+			ruler: { content: [24, 496], input: [0, 566], markCenter: 546 },
 		});
 	});
-	test('lays out the new-chat-in-session composer like the new-session composer, clear of the activity bar', async () => {
+
+	test('lays out the new-chat-in-session composer like the new-session composer, centered in the width its host lays it out with', async () => {
 		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
 		root.style.setProperty('--vscode-spacing-size160', '16px');
@@ -730,11 +699,11 @@ suite('Sessions - Chat View', () => {
 			}
 		}, 10, 100);
 
-		const bounds = (composer: typeof newSession, width: number, inset: number) => {
+		const bounds = (composer: typeof newSession, width: number) => {
 			part.style.width = `${width}px`;
 			newSession.view.element.hidden = composer !== newSession;
 			nestedSession.view.element.hidden = composer !== nestedSession;
-			composer.view.layout(width, 300, 0, 0, inset);
+			composer.view.layout(width, 300, 0, 0);
 			const origin = composer.view.element.getBoundingClientRect();
 			return [composer.workspaceRow, composer.inputArea].map(element => {
 				const rect = element.getBoundingClientRect();
@@ -742,15 +711,16 @@ suite('Sessions - Chat View', () => {
 			});
 		};
 		const snapshot = (composer: typeof newSession) => ({
-			activityBar: bounds(composer, 600, ChatViewSessionActivityBar.RESERVED_WIDTH),
-			disabled: bounds(composer, 600, 0),
-			wide: bounds(composer, 1400, 0),
+			// To the left of the Session Activity Bar's column, in a 600px wide session view.
+			activityBar: bounds(composer, 566),
+			disabled: bounds(composer, 600),
+			wide: bounds(composer, 1400),
 		});
 
 		assert.deepStrictEqual({ newSession: snapshot(newSession), nestedSession: snapshot(nestedSession) }, {
-			// The options row and the input share the centered column; the activity bar inset keeps it clear of the strip.
-			newSession: { activityBar: [[46, 554], [46, 554]], disabled: [[16, 584], [16, 584]], wide: [[300, 1100], [300, 1100]] },
-			nestedSession: { activityBar: [[46, 554], [46, 554]], disabled: [[16, 584], [16, 584]], wide: [[300, 1100], [300, 1100]] },
+			// The options row and the input share the centered column.
+			newSession: { activityBar: [[16, 550], [16, 550]], disabled: [[16, 584], [16, 584]], wide: [[300, 1100], [300, 1100]] },
+			nestedSession: { activityBar: [[16, 550], [16, 550]], disabled: [[16, 584], [16, 584]], wide: [[300, 1100], [300, 1100]] },
 		});
 	});
 
@@ -2308,7 +2278,7 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual({
 			beforeChat,
 			chat: inputOptions?.chat?.get()?.resource.toString(),
-			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div')) : renderRepositoryControls,
+			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div'), getDefaultHoverDelegate('element')) : renderRepositoryControls,
 			petPlatform: inputOptions?.getChatPetPlatformElements?.(),
 		}, { beforeChat: undefined, chat: 'chat:/composer', repositoryControls, petPlatform: [petPlatform] });
 	});

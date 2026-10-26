@@ -39,7 +39,7 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IAgentHostFileSystemService } from '../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { findRemoteAgentHostSessionTypeAuthority, isCopilotAgentHostProvider, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
 import { authenticateWithConnectionCustomization, IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostSessionPreparation } from './remoteAgentHostConnectionCustomization.js';
@@ -418,6 +418,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			return workingDirectory;
 		};
 		const isNewSession = (sessionResource: URI): boolean => this._workingDirectoryResolver.isNewSession(sessionResource);
+		const customization = this._connectionCustomizations.get(address);
 
 		// Chat session contribution
 		agentStore.add(this._chatSessionsService.registerChatSessionContribution({
@@ -425,6 +426,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			name: agentId,
 			displayName,
 			description: agent.description,
+			inputPlaceholder: customization?.inputPlaceholder?.(agent.provider),
+			icon: isCopilotAgentHostProvider(agent.provider) ? Codicon.copilot.id : undefined,
 			hideFromSessionTypePicker: !this._isSessionsWindow && isCloudSandboxConnectionAddress(address),
 			canDelegate: true,
 			requiresCustomModels: true,
@@ -485,7 +488,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
 		// Session handler (unified)
-		const customization = this._connectionCustomizations.get(address);
 		const sessionHandler = agentStore.add(this._instantiationService.createInstance(
 			AgentHostSessionHandler, {
 			provider: agent.provider,
@@ -511,7 +513,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			resolveInitialSessionConfig: customization?.resolveInitialSessionConfig,
 			modelIdentifierAliases: customization?.modelIdentifierAliases,
 			isSessionTitlePlaceholder: customization?.isSessionTitlePlaceholder,
-			useSessionTitleForDefaultChat: customization?.useSessionTitleForDefaultChat,
+			useSessionTitleForDefaultChat: customization?.useSessionTitleForDefaultChat ?? agent.provider === 'copilot',
 			onSessionMaterialized: sessionResource => this._chatSessionsService.notifySessionMaterialized?.(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
