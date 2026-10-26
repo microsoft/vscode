@@ -278,7 +278,12 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 							editors: harness.activeGroupEditors.map(editor => editor.resource?.path),
 							savedComposition: controller.composition(controller.ownerKeyFor(session)),
 							savedPanel: controller.capturedPanelVisibility(controller.ownerKeyFor(session)),
-						}, { editors: [], savedComposition: composition, savedPanel: panel });
+						}, {
+							editors: [],
+							// A peer shown with the side pane closed records no composition.
+							savedComposition: composition.editor && composition.auxiliaryBar ? undefined : composition,
+							savedPanel: panel,
+						});
 						assert.deepStrictEqual(visible(), peerComposition);
 					}
 					controller.dispose();
@@ -1121,6 +1126,27 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.layoutService.toggleSidePane();
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: true }, 'reopening via the real toggle must restore A\'s own composition, not B\'s legacy pre-hide state');
+	});
+
+	test('chat: revisiting an owner first shown with the side pane closed keeps it closed', async () => {
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
+		await settle();
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		setVisible(false, false);
+		await settle();
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+
+		assert.deepStrictEqual({ composition: visible(), savedB: controller.composition(controller.ownerKeyFor(sessionB)) }, { composition: { editor: false, auxiliaryBar: false }, savedB: undefined });
 	});
 
 	test('[R5] a fresh controller backed by an independently reconstructed storage service restores A\'s own normal-toggle last-open composition, not B\'s, with no geometry involved', async () => {

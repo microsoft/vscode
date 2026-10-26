@@ -45,6 +45,8 @@ The items in [Known warts](#known-warts) are not target patterns. They remain be
 
 Bootstrap creates the pre-DI foundation, awaits telemetry, registers lazy descriptors, creates the strict instantiation service, composes `AgentService`, and finally activates contributions.
 
+The Node child-process IPC server is constructed after runtime initialization, with its channels registered synchronously before yielding. Construction announces IPC readiness to the parent, so asynchronous initialization must not separate that handshake from channel registration. The Electron utility-process transport is attached early to receive MessagePorts during startup.
+
 The foundation loads persisted session storage identities before constructing `SessionDataService` or any provider. The orchestrator and per-session storage boundaries share that codec and retain foundation ownership.
 
 Tests use the same synchronous foundation, core registrations, and composition, but supply telemetry directly, apply typed overrides after registering core defaults, skip production host services, and use a mutable worktree seam whose default delegate is `NullAgentHostWorktreeIsolation`.
@@ -97,6 +99,8 @@ Never add a descriptor-created service to another `DisposableStore`. `AgentHostR
 A descriptor that is never resolved is never constructed and therefore never disposed. `InstantiationService` disposes only instances it creates.
 
 ## Test overrides
+
+Copilot runtime startup, session storage, plan permissions, MCP definition locations, and local-model storage share `ICopilotHomeService`. Production resolves the home URI and its diagnostic source once from `COPILOT_HOME` or the native user home. Consumers compose URIs and convert to filesystem paths only at native filesystem or SDK boundaries. Unit fixtures register `TestCopilotHomeService` with their fake home instead of changing the process environment; resolver tests cover environment-variable precedence.
 
 `createTestAgentService` builds the shared foundation and core graph with typed overrides applied explicitly after the core defaults. Its returned `AgentService` disposes the whole test graph.
 

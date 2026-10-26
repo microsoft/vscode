@@ -132,6 +132,10 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
+	async deleteProviderTurns(...[providerTurnIds, afterHostTurnId]: Parameters<ISessionDatabase['deleteProviderTurns']>): ReturnType<ISessionDatabase['deleteProviderTurns']> {
+		return this.raw.deleteProviderTurns(providerTurnIds, afterHostTurnId);
+	}
+
 	async insertPersistedTurn(...[record]: Parameters<ISessionDatabase['insertPersistedTurn']>): ReturnType<ISessionDatabase['insertPersistedTurn']> {
 		const result = await this.raw.insertPersistedTurn({ ...record, chatUri: this.identity.toStorage(record.chatUri), payload: this.identity.turnPayload(record.payload, 'storage') });
 		return result;

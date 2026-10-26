@@ -11,39 +11,45 @@ import type { CopilotSlashCommandOutput, CopilotSlashCommandResult, ICopilotSlas
 
 type CopilotPluginsApi = CopilotSession['rpc']['plugins'];
 
-export type ICopilotPluginCommandApi = Pick<CopilotPluginsApi, 'list' | 'install' | 'uninstall' | 'update' | 'enable' | 'disable' | 'reload'> & {
+export type ICopilotPluginCommandApi = Pick<CopilotPluginsApi, 'list' | 'install' | 'uninstall' | 'update' | 'enable' | 'disable'> & {
 	readonly marketplaces: Pick<CopilotPluginsApi['marketplaces'], 'add' | 'remove' | 'list' | 'browse' | 'refresh'>;
 };
 
-export async function installCopilotPlugin(plugins: ICopilotPluginCommandApi, source: string) {
+/** Why installed plugins are reloaded into a live session. */
+export type CopilotPluginReloadReason = 'install' | 'uninstall' | 'update' | 'enablement' | 'marketplaceRemove';
+
+/** Reloads installed plugins into the live session; owned by the session so it can account for runtime changes. */
+export type ReloadCopilotPlugins = (reason: CopilotPluginReloadReason) => Promise<void>;
+
+export async function installCopilotPlugin(plugins: ICopilotPluginCommandApi, reload: ReloadCopilotPlugins, source: string) {
 	const result = await plugins.install({ source });
-	await plugins.reload();
+	await reload('install');
 	return result;
 }
 
-export async function uninstallCopilotPlugin(plugins: ICopilotPluginCommandApi, name: string, directSourceId?: string): Promise<void> {
+export async function uninstallCopilotPlugin(plugins: ICopilotPluginCommandApi, reload: ReloadCopilotPlugins, name: string, directSourceId?: string): Promise<void> {
 	await plugins.uninstall({ name, directSourceId });
-	await plugins.reload();
+	await reload('uninstall');
 }
 
-export async function removeCopilotPluginMarketplace(plugins: ICopilotPluginCommandApi, name: string, force?: boolean) {
+export async function removeCopilotPluginMarketplace(plugins: ICopilotPluginCommandApi, reload: ReloadCopilotPlugins, name: string, force?: boolean) {
 	const result = await plugins.marketplaces.remove({ name, force });
 	if (force && result.removed) {
-		await plugins.reload();
+		await reload('marketplaceRemove');
 	}
 	return result;
 }
 
 export function getCopilotCustomizationCommandHandler(
 	command: RuntimeSlashCommandInfo,
-	plugins?: ICopilotPluginCommandApi,
+	plugins?: { readonly api: ICopilotPluginCommandApi; readonly reload: ReloadCopilotPlugins },
 	getInstalledPlugins?: () => Promise<Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins']>,
 ): ICopilotSlashCommandHandler | undefined {
 	if (command.kind !== 'builtin' || !['mcp', 'plugin', 'skills'].includes(command.name)) {
 		return undefined;
 	}
 	return {
-		invoke: command.name === 'plugin' && plugins ? input => invokeCopilotPluginCommand(input, plugins) : undefined,
+		invoke: command.name === 'plugin' && plugins ? input => invokeCopilotPluginCommand(input, plugins.api, plugins.reload) : undefined,
 		getProgressMessage: command.name === 'plugin' && plugins ? getCopilotPluginProgressMessage : undefined,
 		showProgressImmediately: command.name === 'plugin' && plugins ? input => splitCommand(input).command === 'install' : undefined,
 		getOutput: async (input, result) => {
@@ -92,7 +98,7 @@ function getCopilotPluginProgressMessage(input: string): string | undefined {
 	return undefined;
 }
 
-export async function invokeCopilotPluginCommand(input: string, plugins: ICopilotPluginCommandApi): Promise<CopilotSlashCommandResult | undefined> {
+export async function invokeCopilotPluginCommand(input: string, plugins: ICopilotPluginCommandApi, reload: ReloadCopilotPlugins): Promise<CopilotSlashCommandResult | undefined> {
 	const { command, rest } = splitCommand(input);
 	switch (command) {
 		case '':
@@ -103,7 +109,7 @@ export async function invokeCopilotPluginCommand(input: string, plugins: ICopilo
 			if (!rest) {
 				return pluginUsage(localize('copilotPlugin.installUsage', "Usage: /plugin install <source>"));
 			}
-			const result = await installCopilotPlugin(plugins, rest);
+			const result = await installCopilotPlugin(plugins, reload, rest);
 			const details = [
 				localize('copilotPlugin.installed', "Installed plugin {0}.", pluginDisplayName(result.plugin.name, result.plugin.marketplace)),
 				result.plugin.version ? localize('copilotPlugin.installedVersion', "Version: {0}", result.plugin.version) : undefined,
@@ -121,14 +127,14 @@ export async function invokeCopilotPluginCommand(input: string, plugins: ICopilo
 			if (!rest) {
 				return pluginUsage(localize('copilotPlugin.uninstallUsage', "Usage: /plugin uninstall <plugin>"));
 			}
-			await uninstallCopilotPlugin(plugins, rest);
+			await uninstallCopilotPlugin(plugins, reload, rest);
 			return pluginResult(localize('copilotPlugin.uninstalled', "Uninstalled plugin {0}.", rest));
 		case 'update': {
 			if (!rest) {
 				return pluginUsage(localize('copilotPlugin.updateUsage', "Usage: /plugin update <plugin>"));
 			}
 			const result = await plugins.update({ name: rest });
-			await plugins.reload();
+			await reload('update');
 			const version = result.newVersion
 				? localize('copilotPlugin.updatedVersion', " Updated version: {0}.", result.newVersion)
 				: '';
@@ -145,14 +151,11 @@ export async function invokeCopilotPluginCommand(input: string, plugins: ICopilo
 					return pluginUsage(localize('copilotPlugin.notFound', "Plugin {0} is not installed.", rest));
 				}
 				await plugins.enable({ names: [rest] });
-				await plugins.reload();
+				await reload('enablement');
 				return pluginResult(localize('copilotPlugin.enabled', "Enabled plugin {0}.", rest));
 			}
 			if (typeof plugin === 'string') {
 				return pluginUsage(plugin);
-			}
-			if (plugin.directSourceId !== undefined) {
-				return pluginUsage(localize('copilotPlugin.directEnablementUnsupported', "Plugin {0} is installed directly and cannot be enabled or disabled. Uninstall it instead.", rest));
 			}
 			const enabled = command === 'enable';
 			if (plugin.enabled === enabled) {
@@ -160,24 +163,25 @@ export async function invokeCopilotPluginCommand(input: string, plugins: ICopilo
 					? localize('copilotPlugin.alreadyEnabled', "Plugin {0} is already enabled.", rest)
 					: localize('copilotPlugin.alreadyDisabled', "Plugin {0} is already disabled.", rest));
 			}
+			const target = plugin.directSourceId ?? pluginDisplayName(plugin.name, plugin.marketplace);
 			if (command === 'enable') {
-				await plugins.enable({ names: [plugin.name] });
+				await plugins.enable({ names: [target] });
 			} else {
-				await plugins.disable({ names: [plugin.name] });
+				await plugins.disable({ names: [target] });
 			}
-			await plugins.reload();
+			await reload('enablement');
 			return pluginResult(command === 'enable'
 				? localize('copilotPlugin.enabled', "Enabled plugin {0}.", rest)
 				: localize('copilotPlugin.disabled', "Disabled plugin {0}.", rest));
 		}
 		case 'marketplace':
-			return invokeCopilotPluginMarketplaceCommand(rest, plugins);
+			return invokeCopilotPluginMarketplaceCommand(rest, plugins, reload);
 		default:
 			return pluginUsage(pluginHelp());
 	}
 }
 
-async function invokeCopilotPluginMarketplaceCommand(input: string, plugins: ICopilotPluginCommandApi): Promise<CopilotSlashCommandResult> {
+async function invokeCopilotPluginMarketplaceCommand(input: string, plugins: ICopilotPluginCommandApi, reload: ReloadCopilotPlugins): Promise<CopilotSlashCommandResult> {
 	const { command, rest } = splitCommand(input);
 	switch (command) {
 		case 'add': {
@@ -194,7 +198,7 @@ async function invokeCopilotPluginMarketplaceCommand(input: string, plugins: ICo
 			if (!name || args.some(arg => arg !== '--force' && arg !== name)) {
 				return pluginUsage(localize('copilotPlugin.marketplaceRemoveUsage', "Usage: /plugin marketplace remove <name> [--force]"));
 			}
-			const result = await removeCopilotPluginMarketplace(plugins, name, force);
+			const result = await removeCopilotPluginMarketplace(plugins, reload, name, force);
 			if (!result.removed) {
 				return pluginResult([
 					localize('copilotPlugin.marketplaceNotRemoved', "Marketplace {0} was not removed because it has installed plugins.", name),
@@ -267,12 +271,12 @@ function splitCommand(input: string): { command: string; rest: string } {
 }
 
 async function findPlugin(target: string, plugins: ICopilotPluginCommandApi): Promise<Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins'][number] | string | undefined> {
-	const matches = (await plugins.list()).plugins.filter(plugin => pluginDisplayName(plugin.name, plugin.marketplace) === target || plugin.name === target);
+	const matches = (await plugins.list()).plugins.filter(plugin => plugin.directSourceId === target || pluginDisplayName(plugin.name, plugin.marketplace) === target || plugin.name === target);
 	if (!matches.length) {
 		return undefined;
 	}
 	if (matches.length > 1) {
-		return localize('copilotPlugin.ambiguous', "Multiple plugins are named {0}. Use the full plugin@marketplace name.", target);
+		return localize('copilotPlugin.ambiguous', "Multiple plugins are named {0}. Use the full plugin@marketplace name or direct source ID.", target);
 	}
 	return matches[0];
 }

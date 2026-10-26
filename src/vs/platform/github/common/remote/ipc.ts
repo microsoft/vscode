@@ -42,7 +42,7 @@ export interface AcquireClientRequest extends ClientRequest {
 }
 
 /** Endpoint profiles, not domain names: content and gist REST methods use the REST target. */
-export type ApiRequestTarget = 'rest' | 'graphql' | 'rawContent' | 'missionControl';
+export type ApiRequestTarget = 'rest' | 'graphql' | 'rawContent' | 'missionControl' | 'connectors';
 
 export interface ApiRequestEnvelope extends ClientRequest {
 	readonly target: ApiRequestTarget;
@@ -69,7 +69,7 @@ export type SerializedGitHubError =
 	| { readonly type: 'rateLimit'; readonly retryAfterMs: number }
 	| { readonly type: 'cancelled' };
 export type SerializedMissionControlError =
-	| { readonly type: 'missionControl'; readonly statusCode: number; readonly kind: RequestErrorKind; readonly response?: ApiErrorResponse | CodedApiErrorResponse; readonly requestId?: string; readonly retryAfterSeconds?: number; readonly outcome?: 'indeterminate' }
+	| { readonly type: 'missionControl'; readonly statusCode: number; readonly kind: RequestErrorKind; readonly response?: ApiErrorResponse | CodedApiErrorResponse; readonly requestId?: string; readonly code?: string; readonly limitedResource?: string; readonly retryAfterSeconds?: number; readonly outcome?: 'indeterminate' }
 	| { readonly type: 'mutationUncertain'; readonly kind: RequestErrorKind; readonly statusCode?: number };
 
 export type GitHubErrorResponse = readonly [metadata: { readonly type: 'error'; readonly error: SerializedGitHubError | SerializedMissionControlError }, bodyText: string | undefined];
@@ -86,7 +86,7 @@ export type ApiResponseMessage = readonly [metadata: ApiResponseEnvelope, bodyTe
 
 export const parseRequestEnvelope = parse.object<ApiRequestEnvelope>({
 	clientId: parse.nonEmptyString,
-	target: parse.oneOf('rest', 'graphql', 'rawContent', 'missionControl'),
+	target: parse.oneOf('rest', 'graphql', 'rawContent', 'missionControl', 'connectors'),
 	request: parseRequest,
 	requestId: parse.optional(parse.nonEmptyString),
 });

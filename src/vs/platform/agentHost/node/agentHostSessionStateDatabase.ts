@@ -296,6 +296,8 @@ export interface IAgentHostSessionChatStateTransfer {
 	/** Working directories some moved chats show in the target; other moved chats keep their stored value. */
 	readonly chats: readonly { readonly chat: string; readonly workingDirectories: readonly string[] }[];
 	readonly folders: readonly IAgentHostSessionFolderStateTransfer[];
+	/** Session-level values the move changes in each session (`null` deletes), such as a transferred worktree's record (Block 5). */
+	readonly values: { readonly source: Readonly<Record<string, string | null>>; readonly target: Readonly<Record<string, string | null>> };
 }
 
 export type AgentHostSessionChatStateTransferCheck = 'ok' | 'conflict' | 'notImported' | 'tombstoned';
@@ -332,7 +334,17 @@ export async function transferSessionChatStateRows(connection: ISessionStateSqlC
 	await connection.run('UPDATE session_state SET revision = ? WHERE session_uri = ?', [targetRevision, target]);
 	await moveChatStateRows(connection, source, target, moved, transfer.chats, targetRevision, undefined, sourceDefaultChat);
 	await carryFolderStateRows(connection, source, target, transfer.folders, targetRevision);
+	await writeTransferredValues(connection, source, transfer.values.source, sourceRevision);
+	await writeTransferredValues(connection, target, transfer.values.target, targetRevision);
 	return { sourceRevision, targetRevision };
+}
+
+/** Writes session-level values a move changes, at the session's new revision. Runs inside the caller's transaction. */
+async function writeTransferredValues(connection: ISessionStateSqlConnection, session: string, values: Readonly<Record<string, string | null>>, revision: number): Promise<void> {
+	for (const [key, value] of Object.entries(values)) {
+		await connection.run(`INSERT INTO session_state_values (session_uri, key, value, revision) VALUES (?, ?, ?, ?)
+			ON CONFLICT(session_uri, key) DO UPDATE SET value = excluded.value, revision = excluded.revision`, [session, key, value, revision]);
+	}
 }
 
 /** The central state a promoted chat's new session starts with (Block 4): imported, never read from older-build copies. */
@@ -344,6 +356,8 @@ export interface IAgentHostSessionChatStatePromotion {
 	readonly legacyMirrorBase: string;
 	/** The new session's session-level values. */
 	readonly values: Readonly<Record<string, string>>;
+	/** Session-level values the promotion changes in the source (`null` deletes), such as a transferred worktree's record (Block 5). */
+	readonly sourceValues: Readonly<Record<string, string | null>>;
 	/** Working directories some moved chats show in the new session; other moved chats keep their stored value. */
 	readonly chats: readonly { readonly chat: string; readonly workingDirectories: readonly string[] }[];
 	readonly folders: readonly IAgentHostSessionFolderStateTransfer[];
@@ -388,6 +402,7 @@ export async function promoteSessionChatStateRows(connection: ISessionStateSqlCo
 	}
 	await moveChatStateRows(connection, source, target, moved, promotion.chats, targetRevision, defaultChat);
 	await carryFolderStateRows(connection, source, target, promotion.folders, targetRevision);
+	await writeTransferredValues(connection, source, promotion.sourceValues, sourceRevision);
 	for (const [prefix, value] of [[legacyMirrorPrefix, promotion.legacyMirrorBase], [launchDirsBackfilledPrefix, '1'], [importedMarkerPrefix, JSON.stringify({ v: promotion.importVersion, at: promotion.importedAt })]]) {
 		await connection.run('INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [prefix + target, value]);
 	}

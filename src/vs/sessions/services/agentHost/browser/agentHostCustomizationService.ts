@@ -19,6 +19,7 @@ import { type CustomizationEnablement } from '../../../../platform/agentHost/com
 import { ISession } from '../../sessions/common/session.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IAgentHostActiveClientService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 
 export class AgentHostCustomizationService extends AbstractAgentHostCustomizationService {
@@ -31,8 +32,9 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@INotificationService notificationService: INotificationService,
 	) {
-		super(instantiationService, logService);
+		super(instantiationService, logService, notificationService);
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			for (const session of e.removed) {
 				this._disposeMcpDiagnostics(session.resource);
@@ -68,7 +70,12 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		if (!provider) {
 			return undefined;
 		}
+		const backendSession = provider.getBackendSessionResource(session.sessionId);
+		if (!backendSession) {
+			return undefined;
+		}
 		return {
+			backendSession,
 			customizations: provider.getCustomizations(session.sessionId),
 			resourceUris: {
 				fromAgentHost: resource => provider.mapAgentHostResource(resource),
@@ -109,6 +116,23 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			}
 		}
 		return [];
+	}
+
+	getBackendChatResource(sessionResource: URI): URI | undefined {
+		const directSession = this._getSession(sessionResource);
+		const ownedChat = directSession ? undefined : this._sessionsManagementService.getSessionForChatResource(sessionResource);
+		const session = directSession ?? ownedChat?.session;
+		if (!session) {
+			return undefined;
+		}
+		const provider = this._getAHSProvider(session);
+		if (!provider) {
+			return undefined;
+		}
+		const activeSession = this._sessionsService.activeSession.get();
+		const chat = ownedChat?.chat
+			?? (activeSession && isEqual(activeSession.resource, session.resource) ? activeSession.activeChat.get() : session.mainChat.get());
+		return provider.getBackendChatResource(chat.resource);
 	}
 
 	private _ensureProviderListener(provider: IAgentHostSessionsProvider): void {

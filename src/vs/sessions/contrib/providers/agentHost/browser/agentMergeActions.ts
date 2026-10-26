@@ -5,12 +5,14 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Action2, ISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { AgentMergeMergePullRequest, AgentMergeRepairAction, AgentMergeSessionOverrides, AgentMergeSettingId, agentMergeMergePullRequestValues, AGENT_MERGE_SETTING_TAG, resolveAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostPullRequestOperationId } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -36,6 +38,7 @@ const agentMergeCommandPrecondition = ContextKeyExpr.and(
 	ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 	SessionIsArchivedContext.negate(),
 	ContextKeyExpr.equals(`config.${AgentMergeSettingId.Enabled}`, true),
+	ContextKeyExpr.notEquals(`config.${ArtifactIntegrationsSettingId}`, true),
 );
 
 /**
@@ -126,7 +129,7 @@ const agentMergeMergePullRequestDescriptions: Record<AgentMergeMergePullRequest,
  * into context keys so the command palette only offers the action that
  * actually applies, and the button bar dropdown can render check marks.
  */
-class AgentMergeContextContribution extends Disposable implements IWorkbenchContribution {
+export class AgentMergeContextContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.agentMergeContext';
 
@@ -142,7 +145,7 @@ class AgentMergeContextContribution extends Disposable implements IWorkbenchCont
 		const enabledKey = SessionAgentMergeEnabledContext.bindTo(contextKeyService);
 		const actionKeys = new Map(agentMergeRepairActions.map(action => [action, AgentMergeSessionActionContexts[action].bindTo(contextKeyService)]));
 		const mergePullRequestKey = AgentMergeSessionMergePullRequestContext.bindTo(contextKeyService);
-		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
 			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		let lastLogged: string | undefined;
 		this._register(autorun(reader => {
@@ -184,6 +187,9 @@ abstract class AgentMergeActionBase extends Action2 {
 
 	/** The active session and its active chat, whose folder's Agent Merge the actions change. */
 	protected getActiveSession(accessor: ServicesAccessor) {
+		if (accessor.get(IConfigurationService).getValue<boolean>(ArtifactIntegrationsSettingId) === true) {
+			throw new Error(localize('agentMerge.artifactIntegrationsEnabled', "Agent Merge is unavailable while artifact integrations are enabled."));
+		}
 		const session = accessor.get(ISessionsService).activeSession.get();
 		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId);
 		return session && provider && isAgentHostProvider(provider) ? { session, provider, chat: session.activeChat.get().resource } : undefined;

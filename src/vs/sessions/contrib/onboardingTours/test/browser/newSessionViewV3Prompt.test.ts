@@ -24,6 +24,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../chat/browser/newSessionComposerService.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { IGitHubRecentUserWork } from '../../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { NewSessionViewV3PromptRunner, selectNewSessionViewV3GitHubCandidate } from '../../browser/newSessionViewV3Prompt.js';
@@ -94,6 +95,21 @@ const STANDARD_OPTIONS = [
 
 suite('NewSessionViewV3Prompt', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const variation of ['options', 'githubPrompt']) {
+		test(`only optional prompt personalization uses enrichment priority (${variation})`, async () => {
+			const result = await runPrompt({ 'onb.newSessionViewV3.variation': variation }, {}, {
+				issues: [issue('Issue', '2026-08-07T12:00:00Z')], pullRequests: [],
+			}, { gitRemoteUrl: 'https://github.com/o/r.git' });
+			assert.deepStrictEqual({
+				requests: result.gitHubRequests.map(request => request.kind).sort(),
+				options: result.gitHubRequestOptions,
+			}, {
+				requests: ['issueLinkage', 'issues', 'pullRequests'],
+				options: Array(3).fill(variation === 'options' ? { priority: 'enrichment' } : undefined),
+			});
+		});
+	}
 
 	test('selects the newest actionable pull request and prioritizes conflicts on the same pull request', () => {
 		const reviewPullRequest = pullRequest('Review', '2026-08-07T12:00:00Z', undefined, '2026-08-07T09:00:00Z', '2026-08-07T10:00:00Z');
@@ -985,6 +1001,7 @@ async function runPrompt(
 	readonly telemetry: readonly TestTelemetryEvent[];
 	readonly rawTelemetry: readonly TestTelemetryEvent[];
 	readonly gitHubRequests: readonly TestGitHubRequest[];
+	readonly gitHubRequestOptions: readonly (ApiRequestOptions | undefined)[];
 }> {
 	let animation: { prompt: string; durationMs: number; placeholder: string } | undefined;
 	const promptOptionStates: NewSessionPromptOptionsState[] = [];
@@ -1035,15 +1052,18 @@ async function runPrompt(
 	}();
 	const gitHubService = new class extends mock<IGitHubService>() {
 		readonly requests: TestGitHubRequest[] = [];
+		readonly requestOptions: (ApiRequestOptions | undefined)[] = [];
 		override readonly enterpriseHost = options.enterpriseHost;
-		override async getRecentAssignedIssues(owner: string, repo: string) {
+		override async getRecentAssignedIssues(owner: string, repo: string, _token: CancellationToken, requestOptions?: ApiRequestOptions) {
+			this.requestOptions.push(requestOptions);
 			this.requests.push({ kind: 'issues', owner, repo });
 			if (gitHubResult instanceof Error) {
 				throw gitHubResult;
 			}
 			return gitHubResult.issues;
 		}
-		override async getRecentAuthoredPullRequests(owner: string, repo: string) {
+		override async getRecentAuthoredPullRequests(owner: string, repo: string, _token: CancellationToken, requestOptions?: ApiRequestOptions) {
+			this.requestOptions.push(requestOptions);
 			this.requests.push({ kind: 'pullRequests', owner, repo });
 			if (options.pullRequestLookupNeverResolves) {
 				return new Promise<never>(() => { });
@@ -1053,7 +1073,8 @@ async function runPrompt(
 			}
 			return gitHubResult.pullRequests;
 		}
-		override async getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number) {
+		override async getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number, _token: CancellationToken, requestOptions?: ApiRequestOptions) {
+			this.requestOptions.push(requestOptions);
 			this.requests.push({ kind: 'reviews', owner, repo, pullRequestNumber });
 			if (options.reviewLookupNeverResolves) {
 				return new Promise<never>(() => { });
@@ -1063,7 +1084,8 @@ async function runPrompt(
 			}
 			return gitHubResult.pullRequests.find(pullRequest => pullRequest.number === pullRequestNumber)?.reviewThreads ?? [];
 		}
-		override async getIssuesWithLinkedPullRequests(owner: string, repo: string, issueNumbers: readonly number[]) {
+		override async getIssuesWithLinkedPullRequests(owner: string, repo: string, issueNumbers: readonly number[], _token: CancellationToken, requestOptions?: ApiRequestOptions) {
+			this.requestOptions.push(requestOptions);
 			this.requests.push({ kind: 'issueLinkage', owner, repo, issueNumbers });
 			if (options.issueLinkageLookupNeverResolves) {
 				return new Promise<never>(() => { });
@@ -1125,7 +1147,7 @@ async function runPrompt(
 			controller.onDidSelectOption(option);
 		}
 	}
-	return { animation, promptOptionStates, telemetry: summarizeTelemetry(telemetryService.events), rawTelemetry: telemetryService.events, gitHubRequests: gitHubService.requests };
+	return { animation, promptOptionStates, telemetry: summarizeTelemetry(telemetryService.events), rawTelemetry: telemetryService.events, gitHubRequests: gitHubService.requests, gitHubRequestOptions: gitHubService.requestOptions };
 }
 
 function pullRequest(title: string, updatedAt: string, statusCheckRollupState?: string, latestCommitAt?: string, latestCommentAt?: string, number = 1, hasMergeConflicts = false) {

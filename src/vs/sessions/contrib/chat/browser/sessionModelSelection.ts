@@ -66,6 +66,7 @@ export const ISessionModelSelection = createDecorator<ISessionModelSelection>('s
 
 export interface ISessionModelSelection {
 	readonly comparison?: IModelPickerComparison;
+	readonly comparisonBusy?: IObservable<boolean>;
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<ISessionModelSelectionState>;
 	readonly modelConfiguration?: IModelConfigurationAccess;
@@ -96,6 +97,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	readonly state: IObservable<ISessionModelSelectionState> = this._state;
 	readonly modelConfiguration: IModelConfigurationAccess | undefined;
 	readonly comparison: IModelPickerComparison | undefined;
+	readonly comparisonBusy: IObservable<boolean> | undefined;
 
 	private readonly _providerListener = this._register(new MutableDisposable());
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
@@ -128,6 +130,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			readonly modelConfiguration?: boolean;
 			readonly fallbackModelConfiguration?: IModelConfigurationAccess;
 			readonly comparison?: IModelPickerComparison;
+			readonly comparisonBusy?: IObservable<boolean>;
 		},
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -136,6 +139,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	) {
 		super();
 		this.comparison = options.comparison;
+		this.comparisonBusy = options.comparisonBusy;
 		const configurationAccess = () => this._modelConfigurationAccess ?? options.fallbackModelConfiguration;
 		this.modelConfiguration = options.modelConfiguration ? {
 			getModelConfiguration: modelId => configurationAccess()?.getModelConfiguration(modelId),
@@ -254,14 +258,14 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const session = this._activeSession;
 		const provider = this._activeProvider;
 		const workspace = session?.workspace.get();
-		if (!session || !provider || !workspace || !provider.getModelsSnapshotForCreation) {
+		if (!session || !provider || !provider.getModelsSnapshotForCreation) {
 			return undefined;
 		}
 		const entry = this._getComparisonModels().find(entry => entry.presentation.identifier === modelIdentifier);
 		if (!entry) {
 			return undefined;
 		}
-		const resolution = provider.getModelsSnapshotForCreation(workspace.uri, entry.sessionType.id, entry.model.identifier).desiredModelResolution;
+		const resolution = provider.getModelsSnapshotForCreation(workspace?.uri, entry.sessionType.id, entry.model.identifier).desiredModelResolution;
 		return resolution.kind === 'available' ? { sessionType: entry.sessionType, model: resolution.model } : undefined;
 	}
 
@@ -273,7 +277,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const session = this._activeSession;
 		const provider = this._activeProvider;
 		const workspace = session?.workspace.get();
-		if (!session || !provider || !workspace || !provider.getModelsSnapshotForCreation) {
+		if (!session || !provider || !provider.getModelsSnapshotForCreation || !workspace && !session.isQuickChat?.get()) {
 			return [];
 		}
 		const models = new Map<string, {
@@ -281,16 +285,15 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			readonly sessionType: ISessionType;
 			readonly model: ILanguageModelChatMetadataAndIdentifier;
 		}>();
-		for (const sessionType of provider.getSessionTypes(workspace.uri)) {
-			for (const model of provider.getModelsSnapshotForCreation(workspace.uri, sessionType.id).models) {
+		for (const sessionType of workspace ? provider.getSessionTypes(workspace.uri) : provider.sessionTypes) {
+			for (const model of provider.getModelsSnapshotForCreation(workspace?.uri, sessionType.id).models) {
 				models.set(model.identifier, {
 					presentation: {
 						...model,
 						metadata: {
 							...model.metadata,
-							// Comparison tabs represent execution harnesses, not the upstream
-							// model provider a harness happens to use for one model.
-							modelGroup: { id: sessionType.id },
+							// Only BYOK models keep upstream provider tabs; other models compare execution harnesses.
+							modelGroup: (model.metadata.isBYOK || model.metadata.byokModelIdentifier ? model.metadata.modelGroup : undefined) ?? { id: sessionType.id },
 						},
 					},
 					sessionType,

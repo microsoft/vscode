@@ -10,9 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { createTestGitHubClient, createTestGitHubService } from './testGitHubService.js';
-import { PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
+import { PullRequestMutationApi, PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
-import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -484,11 +483,11 @@ suite('Agent Merge server tools', () => {
 					: { outcome, value: { id: 'C2', state: published ? 'SUBMITTED' : 'PENDING' } },
 				resolved: published,
 			};
-			const calls: Parameters<IPullRequestMutations['replyAndResolveThread']>[] = [];
+			const calls: Parameters<PullRequestMutationApi['replyAndResolveThread']>[] = [];
 			const trackedReplies: Promise<PullRequestReplyAndResolveResult>[] = [];
 			const client = createTestGitHubClient({
-				mutations: new class extends mock<IPullRequestMutations>() {
-					override async replyAndResolveThread(...args: Parameters<IPullRequestMutations['replyAndResolveThread']>) {
+				mutations: new class extends mock<PullRequestMutationApi>() {
+					override async replyAndResolveThread(...args: Parameters<PullRequestMutationApi['replyAndResolveThread']>) {
 						calls.push(args);
 						return mutationResult;
 					}
@@ -507,6 +506,7 @@ suite('Agent Merge server tools', () => {
 			};
 			const context: IAgentMergeTurnContext = {
 				client, session: sessionUri, chat: buildDefaultChatUri(sessionUri), folderKey: workingDirectory.toString(),
+				apiClient: createTestGitHubService().acquireRepositoryApiClient(new AbortController().signal),
 				turnId: 'turn', ref, headSha: 'head', actions: ['addressReviews'],
 				configuration: { ...defaultAgentMergeConfiguration, addressReviews: true, replyAttribution: true },
 				snapshot, signal: new AbortController().signal, commentWatermark: '',

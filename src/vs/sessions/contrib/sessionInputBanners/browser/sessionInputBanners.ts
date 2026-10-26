@@ -13,6 +13,8 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ArtifactIntegrationsSettingId } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
@@ -93,6 +95,7 @@ export class SessionInputBanners extends Disposable {
 	private readonly _legacyCIDismissed = observableValue<ReadonlySet<string>>(this, new Set());
 	private readonly _legacyCommentsDismissed = observableValue<ReadonlySet<string>>(this, new Set());
 	private readonly _feedbackChanged: IObservable<void>;
+	private readonly _artifactIntegrationsEnabled: IObservable<boolean>;
 	private readonly _widget: SessionInputBannerWidget;
 
 	private readonly _session = derived(this, reader => {
@@ -129,7 +132,8 @@ export class SessionInputBanners extends Disposable {
 		const createdFeedback = this.feedbackService.getFeedback(session.resource)
 			.filter(item => item.state === AgentFeedbackState.Created);
 		const gitHubInfo = activeChat.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-		const pullRequests = getGitHubPullRequestRefs(gitHubInfo);
+		// Artifact integrations own pull request checks and review comments.
+		const pullRequests = this._artifactIntegrationsEnabled.read(reader) ? [] : getGitHubPullRequestRefs(gitHubInfo);
 		const onlyPullRequest = pullRequests.length === 1 ? pullRequests[0] : undefined;
 		const dismissed = this._dismissed.read(reader);
 		const legacyCIDismissed = this._legacyCIDismissed.read(reader).has(session.sessionId);
@@ -221,6 +225,7 @@ export class SessionInputBanners extends Disposable {
 		this._widget = this._register(instantiationService.createInstance(SessionInputBannerWidget, []));
 		this.domNode.appendChild(this._widget.domNode);
 		this._feedbackChanged = observableSignalFromEvent(this, this.feedbackService.onDidChangeFeedback);
+		this._artifactIntegrationsEnabled = observableConfigValue(ArtifactIntegrationsSettingId, false, this.configurationService);
 
 		this._loadDismissedState();
 		this._registerStorageListener(STORAGE_KEY_DISMISSED, this._dismissed);
@@ -237,14 +242,14 @@ export class SessionInputBanners extends Disposable {
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
 			const agentMerge = this._agentMergeConfiguration.read(reader);
-			if (!session || (agentMerge?.enabled && agentMerge.actions.fixCI && agentMerge.actions.addressReviews)) {
+			if (!session || this._artifactIntegrationsEnabled.read(reader) || (agentMerge?.enabled && agentMerge.actions.fixCI && agentMerge.actions.addressReviews)) {
 				return;
 			}
 			const gitHubInfo = session.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			for (const pullRequest of getGitHubPullRequestRefs(gitHubInfo)) {
 				const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 				const prModel = prModelRef.object;
-				void prModel.refresh();
+				void prModel.refresh({ priority: 'visible' });
 				reader.store.add(prModel.startPolling());
 				const livePullRequest = prModel.pullRequest.read(reader);
 				if (!livePullRequest || livePullRequest.state !== GitHubPullRequestState.Open) {
@@ -254,7 +259,7 @@ export class SessionInputBanners extends Disposable {
 					continue;
 				}
 				const ciModelRef = reader.store.add(this.gitHubService.createPullRequestCIModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number, livePullRequest.headSha));
-				void ciModelRef.object.refresh();
+				void ciModelRef.object.refresh(false, { priority: 'visible' });
 				reader.store.add(ciModelRef.object.startPolling());
 			}
 		}));
@@ -401,25 +406,28 @@ export class SessionInputBanners extends Disposable {
 			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.chatResource),
 			run: () => state.debug ? undefined : this._addressComments(state, this._queryFor(state, '/act-on-feedback')),
 		};
-		const primary = hasCI && hasComments ? {
-			id: 'fixCIAndAddressComments',
-			label: localize('inputBanner.fixChecksAndAddressComments', "Fix Checks & Address Comments"),
-			primary: true,
-			dropdownActions: [fixCI, addressComments],
-			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.chatResource),
-			run: () => state.debug ? undefined : this._fixCIAndAddressComments(state),
-		} satisfies ISessionInputBannerAction : hasCI ? fixCI : addressComments;
-
 		const revealCI: ISessionInputBannerAction = {
 			id: 'revealCI',
-			label: localize('inputBanner.revealChecks', "Reveal"),
+			label: hasCI && hasComments
+				? localize('inputBanner.revealChecksDropdown', "Reveal Checks")
+				: localize('inputBanner.revealChecks', "Reveal"),
 			run: () => { if (!state.debug) { void this._revealPullRequest(state.pullRequest); } },
 		};
 		const revealComments: ISessionInputBannerAction = {
 			id: 'revealComments',
-			label: localize('inputBanner.revealPRComments', "Reveal"),
+			label: hasCI && hasComments
+				? localize('inputBanner.revealPRCommentsDropdown', "Reveal Comments")
+				: localize('inputBanner.revealPRComments', "Reveal"),
 			run: () => { if (!state.debug && state.firstCommentId) { this._revealComment(state.sessionResource, state.firstCommentId); } },
 		};
+		const primary = hasCI && hasComments ? {
+			id: 'fixCIAndAddressComments',
+			label: localize('inputBanner.fixChecksAndAddressComments', "Fix Checks & Address Comments"),
+			primary: true,
+			dropdownActions: [fixCI, addressComments, revealCI, revealComments],
+			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.chatResource),
+			run: () => state.debug ? undefined : this._fixCIAndAddressComments(state),
+		} satisfies ISessionInputBannerAction : hasCI ? fixCI : addressComments;
 		return hasCI && hasComments ? [primary] : [primary, hasCI ? revealCI : revealComments];
 	}
 

@@ -65,6 +65,7 @@ export interface INewSessionPromptOptionsController {
 export interface INewSessionComposerPicker {
 	getDomNode(): HTMLElement | undefined;
 	open(): void;
+	openComparison?(): void;
 }
 
 export interface INewSessionComposer {

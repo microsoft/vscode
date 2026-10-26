@@ -10,13 +10,36 @@ fi
 
 cd "$ROOT"
 
+# Names the suite that is running, so that a failure that stops the script
+# (set -e) reports which suite failed and with which exit code.
+CURRENT_SUITE=""
+start_suite() {
+	CURRENT_SUITE="$1"
+	echo
+	echo "### $1"
+	echo
+}
+report_failed_suite() {
+	local status=$?
+	if [[ $status -ne 0 && -n "$CURRENT_SUITE" ]]; then
+		echo "Integration tests failed in '$CURRENT_SUITE' with exit code $status." >&2
+		if [[ "$GITHUB_ACTIONS" == "true" ]]; then
+			echo "::error title=Integration tests failed::'$CURRENT_SUITE' exited with code $status"
+		fi
+	fi
+}
+trap report_failed_suite EXIT
+
 # Parse arguments
 EXTRA_ARGS=()
 BUILD_ARGS=()
 RUN_FILE=""
 RUN_GLOB=""
+RUN_LIST=""
 GREP_PATTERN=""
 SUITE_FILTER=""
+ONLY_NODE_TESTS=false
+ONLY_EXTENSION_HOST_TESTS=false
 HELP=false
 AGENT_HOST_E2E_GLOB="**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js"
 
@@ -46,9 +69,27 @@ while [[ $# -gt 0 ]]; do
 			EXTRA_ARGS+=("$1" "$2")
 			shift 2
 			;;
+		--runList)
+			RUN_LIST="$2"
+			EXTRA_ARGS+=("$1" "$2")
+			shift 2
+			;;
+		--runList=*)
+			RUN_LIST="${1#--runList=}"
+			EXTRA_ARGS+=("$1")
+			shift
+			;;
 		--suite)
 			SUITE_FILTER="$2"
 			shift 2
+			;;
+		--only-node-tests)
+			ONLY_NODE_TESTS=true
+			shift
+			;;
+		--only-extension-host-tests)
+			ONLY_EXTENSION_HOST_TESTS=true
+			shift
 			;;
 		*)
 			EXTRA_ARGS+=("$1")
@@ -65,10 +106,11 @@ if $HELP; then
 	echo ""
 	echo "Runs integration tests. When no filters are given, all integration tests"
 	echo "(node.js integration tests + extension host tests) are run."
-	echo "Agent Host E2E entrypoints run in parallel before the remaining node.js tests."
+	echo "Agent Host E2E suites are not included; run them with scripts/test-agent-host-e2e.sh."
 	echo ""
-	echo "--run and --runGlob select which node.js integration test files to load."
-	echo "Extension host tests are skipped when these options are used."
+	echo "--run and --runGlob select which node.js integration test files to load, and"
+	echo "--runList runs only the files that a list names. Extension host tests are"
+	echo "skipped when these options are used."
 	echo ""
 	echo "--grep filters test cases by name across all test runners. When used alone,"
 	echo "the pattern is applied to both node.js integration tests and all extension"
@@ -77,13 +119,19 @@ if $HELP; then
 	echo "--suite selects which extension host test suites to run."
 	echo "Node.js integration tests are skipped when this option is used."
 	echo ""
+	echo "--only-node-tests and --only-extension-host-tests run one of the two parts,"
+	echo "for example in separate CI steps."
+	echo ""
 	echo "Options:"
 	echo "  --build                      use the out-build directory for node.js and JSON tests"
 	echo "  --run <file>                  run tests from a specific file (src/ path)"
 	echo "  --runGlob, --glob <pattern>   select test files by path glob (e.g. '**/editor/**/*.integrationTest.js')"
+	echo "  --runList <file>              run only the test files listed in <file>, one per line (src/ paths)"
 	echo "  --grep, -g, -f <pattern>      filter test cases by name (matched against test titles)"
 	echo "  --suite <pattern>             run only matching extension host test suites"
 	echo "                                supports comma-separated list and glob patterns"
+	echo "  --only-node-tests             run only the node.js integration tests"
+	echo "  --only-extension-host-tests   run only the extension host tests"
 	echo "  --help, -h                    show this help"
 	echo ""
 	echo "Available suites: $KNOWN_SUITES"
@@ -104,8 +152,17 @@ if $HELP; then
 fi
 
 HAS_FILTER=false
-if [[ -n "$RUN_FILE" || -n "$RUN_GLOB" ]]; then
+if [[ -n "$RUN_FILE" || -n "$RUN_GLOB" || -n "$RUN_LIST" ]]; then
 	HAS_FILTER=true
+fi
+
+if $ONLY_NODE_TESTS && { $ONLY_EXTENSION_HOST_TESTS || [[ -n "$SUITE_FILTER" ]]; }; then
+	echo "Error: --only-node-tests cannot be combined with --only-extension-host-tests or --suite"
+	exit 1
+fi
+if $ONLY_EXTENSION_HOST_TESTS && $HAS_FILTER; then
+	echo "Error: --only-extension-host-tests cannot be combined with --run, --runGlob or --runList"
+	exit 1
 fi
 
 # Check whether a given suite name matches the --suite filter.
@@ -175,18 +232,12 @@ fi
 
 # Unit tests
 
-if [[ -z "$SUITE_FILTER" ]]; then
-	echo
-	echo "### node.js integration tests"
-	echo
+if [[ -z "$SUITE_FILTER" ]] && ! $ONLY_EXTENSION_HOST_TESTS; then
+	start_suite "node.js integration tests"
 	node --input-type=module -e "import { getAgentHostTestProfile } from './src/vs/platform/agentHost/test/node/agentHostTestProfile.ts'; console.log('Agent Host test profile:', getAgentHostTestProfile(), '(' + (process.env.AGENT_HOST_TEST_PROFILE_REASON ?? 'default') + ')');"
 	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
-		if [[ "$VSCODE_SKIP_AGENT_HOST_E2E" == "1" ]]; then
-			echo "Skipping Agent Host E2E tests because no relevant files changed."
-		else
-			node ./test/integration/agentHost/runner.ts "${EXTRA_ARGS[@]}"
-		fi
-		VSCODE_SKIP_PRELAUNCH=1 ./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
+		# Agent Host E2E runs separately, in parallel isolated processes: scripts/test-agent-host-e2e.sh
+		./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
 	else
 		./scripts/test.sh "${EXTRA_ARGS[@]}"
 	fi
@@ -196,6 +247,11 @@ fi
 if [[ -z "$SUITE_FILTER" ]] && $HAS_FILTER; then
 	echo ""
 	echo "Filter active, skipping extension host tests."
+	rm -rf -- "$VSCODEUSERDATADIR"
+	exit 0
+fi
+
+if $ONLY_NODE_TESTS; then
 	rm -rf -- "$VSCODEUSERDATADIR"
 	exit 0
 fi
@@ -219,113 +275,85 @@ else
 fi
 
 if should_run_suite api-folder; then
-echo
-echo "### API tests (folder)"
-echo
+start_suite "API tests (folder)"
 "$INTEGRATION_TEST_ELECTRON_PATH" $ROOT/extensions/vscode-api-tests/testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/singlefolder-tests $API_TESTS_EXTRA_ARGS
 kill_app
 fi
 
 if should_run_suite api-workspace; then
-echo
-echo "### API tests (workspace)"
-echo
+start_suite "API tests (workspace)"
 "$INTEGRATION_TEST_ELECTRON_PATH" $ROOT/extensions/vscode-api-tests/testworkspace.code-workspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/workspace-tests $API_TESTS_EXTRA_ARGS
 kill_app
 fi
 
 if should_run_suite colorize; then
-echo
-echo "### Colorize tests"
-echo
+start_suite "Colorize tests"
 npm run test-extension -- -l vscode-colorize-tests "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite terminal-suggest; then
-echo
-echo "### Terminal Suggest tests"
-echo
+start_suite "Terminal Suggest tests"
 npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite typescript; then
-echo
-echo "### TypeScript tests"
-echo
+start_suite "TypeScript tests"
 "$INTEGRATION_TEST_ELECTRON_PATH" $ROOT/extensions/typescript-language-features/test-workspace --extensionDevelopmentPath=$ROOT/extensions/typescript-language-features --extensionTestsPath=$ROOT/extensions/typescript-language-features/out/test/unit $API_TESTS_EXTRA_ARGS
 kill_app
 fi
 
 if should_run_suite markdown; then
-echo
-echo "### Markdown tests"
-echo
+start_suite "Markdown tests"
 npm run test-extension -- -l markdown-language-features "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite emmet; then
-echo
-echo "### Emmet tests"
-echo
+start_suite "Emmet tests"
 "$INTEGRATION_TEST_ELECTRON_PATH" $ROOT/extensions/emmet/test-workspace --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test $API_TESTS_EXTRA_ARGS
 kill_app
 fi
 
 if should_run_suite git; then
-echo
-echo "### Git tests"
-echo
+start_suite "Git tests"
 "$INTEGRATION_TEST_ELECTRON_PATH" $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $API_TESTS_EXTRA_ARGS
 kill_app
 fi
 
 if should_run_suite git-base; then
-echo
-echo "### Git Base tests"
-echo
+start_suite "Git Base tests"
 npm run test-extension -- -l git-base "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite ipynb; then
-echo
-echo "### Ipynb tests"
-echo
+start_suite "Ipynb tests"
 npm run test-extension -- -l ipynb "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite notebook-renderers; then
-echo
-echo "### Notebook Output tests"
-echo
+start_suite "Notebook Output tests"
 npm run test-extension -- -l notebook-renderers "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite configuration-editing; then
-echo
-echo "### Configuration editing tests"
-echo
+start_suite "Configuration editing tests"
 npm run test-extension -- -l configuration-editing "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite github-authentication; then
-echo
-echo "### GitHub Authentication tests"
-echo
+start_suite "GitHub Authentication tests"
 npm run test-extension -- -l github-authentication "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite copilot; then
-echo
-echo "### Copilot tests"
-echo
+start_suite "Copilot tests"
 npm run test-extension -- -l copilot "${GREP_ARGS[@]}"
 kill_app
 fi
@@ -333,23 +361,17 @@ fi
 # Tests standalone (CommonJS)
 
 if should_run_suite css; then
-echo
-echo "### CSS tests"
-echo
+start_suite "CSS tests"
 cd "$ROOT/extensions/css-language-features/server" && "$ROOT/scripts/node-electron.sh" test/index.js
 fi
 
 if should_run_suite html; then
-echo
-echo "### HTML tests"
-echo
+start_suite "HTML tests"
 cd "$ROOT/extensions/html-language-features/server" && "$ROOT/scripts/node-electron.sh" test/index.js
 fi
 
 if should_run_suite json; then
-echo
-echo "### JSON tests"
-echo
+start_suite "JSON tests"
 "$ROOT/scripts/node-electron.sh" "$ROOT/extensions/json-language-features/client/out/test/index.js" "${BUILD_ARGS[@]}"
 fi
 

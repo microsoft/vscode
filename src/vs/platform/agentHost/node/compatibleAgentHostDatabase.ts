@@ -151,6 +151,22 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.identity.record(result, 'runtime');
 	}
 
+	getWorktreeDiskUsageRevision(session: string, worktree: string): Promise<string | undefined> {
+		return this.raw.getWorktreeDiskUsageRevision(this.identity.toStorage(session), worktree);
+	}
+
+	readWorktreeDiskUsage(session: string, worktree: string, revision: string): Promise<number | undefined> {
+		return this.raw.readWorktreeDiskUsage(this.identity.toStorage(session), worktree, revision);
+	}
+
+	writeWorktreeDiskUsage(session: string, worktree: string, revision: string, sizeBytes: number): Promise<void> {
+		return this.raw.writeWorktreeDiskUsage(this.identity.toStorage(session), worktree, revision, sizeBytes);
+	}
+
+	deleteWorktreeDiskUsage(worktree: string): Promise<void> {
+		return this.raw.deleteWorktreeDiskUsage(worktree);
+	}
+
 	async isSessionRegistryEmpty(...[]: Parameters<IAgentHostDatabase['isSessionRegistryEmpty']>): ReturnType<IAgentHostDatabase['isSessionRegistryEmpty']> {
 		const result = await this.raw.isSessionRegistryEmpty();
 		return this.identity.record(result, 'runtime');
@@ -700,6 +716,71 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	isWorktreeInUse(...[worktreePath, excludedSession]: Parameters<IAgentHostDatabase['isWorktreeInUse']>): ReturnType<IAgentHostDatabase['isWorktreeInUse']> {
 		// Central working directories are keyed by the session's storage spelling.
 		return this.raw.isWorktreeInUse(worktreePath, excludedSession === undefined ? undefined : this.identity.toStorage(excludedSession));
+	}
+
+	async listWorktreeCoOwnersOfSession(...[session]: Parameters<IAgentHostDatabase['listWorktreeCoOwnersOfSession']>): ReturnType<IAgentHostDatabase['listWorktreeCoOwnersOfSession']> {
+		return (await this.raw.listWorktreeCoOwnersOfSession(this.identity.toStorage(session))).map(row => ({ ...row, session: this.identity.toRuntime(row.session) }));
+	}
+
+	async readWorktreeCoOwners(...[worktreePath]: Parameters<IAgentHostDatabase['readWorktreeCoOwners']>): ReturnType<IAgentHostDatabase['readWorktreeCoOwners']> {
+		return (await this.raw.readWorktreeCoOwners(worktreePath)).map(row => ({ ...row, session: this.identity.toRuntime(row.session) }));
+	}
+
+	async pruneWorktreeCoOwners(...[worktreePath]: Parameters<IAgentHostDatabase['pruneWorktreeCoOwners']>): ReturnType<IAgentHostDatabase['pruneWorktreeCoOwners']> {
+		return (await this.raw.pruneWorktreeCoOwners(worktreePath)).map(row => ({ ...row, session: this.identity.toRuntime(row.session) }));
+	}
+
+	pruneDeletedWorktreeCoOwners(): ReturnType<IAgentHostDatabase['pruneDeletedWorktreeCoOwners']> {
+		return this.raw.pruneDeletedWorktreeCoOwners();
+	}
+
+	clearStaleWorktreeCoOwners(...[worktreePath]: Parameters<IAgentHostDatabase['clearStaleWorktreeCoOwners']>): ReturnType<IAgentHostDatabase['clearStaleWorktreeCoOwners']> {
+		return this.raw.clearStaleWorktreeCoOwners(worktreePath);
+	}
+
+	insertScratchFolder(...[request]: Parameters<IAgentHostDatabase['insertScratchFolder']>): ReturnType<IAgentHostDatabase['insertScratchFolder']> {
+		return this.raw.insertScratchFolder({ ...request, chatUri: this.identity.toStorage(request.chatUri) });
+	}
+
+	markScratchFolderOwned(...args: Parameters<IAgentHostDatabase['markScratchFolderOwned']>): ReturnType<IAgentHostDatabase['markScratchFolderOwned']> {
+		return this.raw.markScratchFolderOwned(...args);
+	}
+
+	markScratchFolderRemoving(...args: Parameters<IAgentHostDatabase['markScratchFolderRemoving']>): ReturnType<IAgentHostDatabase['markScratchFolderRemoving']> {
+		return this.raw.markScratchFolderRemoving(...args);
+	}
+
+	async listScratchFolders(): ReturnType<IAgentHostDatabase['listScratchFolders']> {
+		return (await this.raw.listScratchFolders()).map(row => ({ ...row, chatUri: this.identity.toRuntime(row.chatUri) }));
+	}
+
+	hasScratchFolder(...args: Parameters<IAgentHostDatabase['hasScratchFolder']>): ReturnType<IAgentHostDatabase['hasScratchFolder']> {
+		return this.raw.hasScratchFolder(...args);
+	}
+
+	recordScratchFolderRemovalFailure(...args: Parameters<IAgentHostDatabase['recordScratchFolderRemovalFailure']>): ReturnType<IAgentHostDatabase['recordScratchFolderRemovalFailure']> {
+		return this.raw.recordScratchFolderRemovalFailure(...args);
+	}
+
+	deleteScratchFolder(...args: Parameters<IAgentHostDatabase['deleteScratchFolder']>): ReturnType<IAgentHostDatabase['deleteScratchFolder']> {
+		return this.raw.deleteScratchFolder(...args);
+	}
+
+	isScratchFolderInUse(...args: Parameters<IAgentHostDatabase['isScratchFolderInUse']>): ReturnType<IAgentHostDatabase['isScratchFolderInUse']> {
+		return this.raw.isScratchFolderInUse(...args);
+	}
+
+	markOrphanedScratchFolderRemoving(...[folder, chatUris]: Parameters<IAgentHostDatabase['markOrphanedScratchFolderRemoving']>): ReturnType<IAgentHostDatabase['markOrphanedScratchFolderRemoving']> {
+		// Every recorded spelling of the chat: a row written before its chat had a storage identity holds the runtime one.
+		return this.raw.markOrphanedScratchFolderRemoving(folder, chatUris.flatMap(chat => [chat, this.identity.toStorage(chat), this.identity.toRuntime(chat)]));
+	}
+
+	isSessionLive(...[session]: Parameters<IAgentHostDatabase['isSessionLive']>): ReturnType<IAgentHostDatabase['isSessionLive']> {
+		return this.raw.isSessionLive(this.identity.toStorage(session));
+	}
+
+	async findAdditionalWorktreeOwners(...[handle]: Parameters<IAgentHostDatabase['findAdditionalWorktreeOwners']>): ReturnType<IAgentHostDatabase['findAdditionalWorktreeOwners']> {
+		return (await this.raw.findAdditionalWorktreeOwners(handle)).map(session => this.identity.toRuntime(session));
 	}
 
 	readSessionArchived(...[session]: Parameters<IAgentHostDatabase['readSessionArchived']>): ReturnType<IAgentHostDatabase['readSessionArchived']> {

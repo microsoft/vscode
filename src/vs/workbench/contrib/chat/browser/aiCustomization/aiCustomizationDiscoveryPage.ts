@@ -8,6 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
 import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
@@ -15,7 +16,7 @@ import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/s
 import { Action, IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { equals } from '../../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -28,8 +29,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { affectsCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -38,15 +39,17 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { verifiedPublisherIcon } from '../../../../services/extensionManagement/common/extensionsIcons.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -61,13 +64,52 @@ import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOri
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
 import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
+import { getPluginCustomizationMarketplaceSourceId } from './pluginCustomizationMarketplaceProvider.js';
 
 const $ = DOM.$;
 const searchDelay = 300;
 const catalogPageSize = 24;
+const canvasCatalogPageSize = 50;
 const browseCatalogPageSize = 100;
 const maxFilteredCatalogPagesPerLoad = 8;
+/** Bounds how many pages an in-place refresh re-fetches to restore the results the user had loaded. */
+const maxRefreshCatalogPages = 20;
 const leadingBrowseItemCount = 4;
+const loadingAnnouncementDelay = 1000;
+
+type CustomizationMarketplaceBrowseRenderedEvent = {
+	view: 'curated' | 'fallback';
+	curatedSectionCount: number;
+};
+
+type CustomizationMarketplaceBrowseRenderedClassification = {
+	owner: 'pwang347';
+	comment: 'Tracks whether the customization Browse page rendered curated feed sections or the fallback grouped catalog without collecting customization identifiers or content.';
+	view: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the rendered Browse content used curated sections or fallback catalog groups.' };
+	curatedSectionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of curated sections rendered, or zero for the fallback grouped catalog.' };
+};
+
+type CustomizationMarketplaceBrowseLoadedEvent = {
+	timeToFirstContentMs: number;
+	timeToSettledMs: number;
+	sourceCount: number;
+	cachedSourceCount: number;
+};
+
+type CustomizationMarketplaceBrowseLoadedClassification = {
+	owner: 'houghj16';
+	comment: 'Tracks Browse loading responsiveness and in-memory cache use without collecting source identifiers, queries, or customization content.';
+	timeToFirstContentMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds until the first cached or freshly loaded Browse content was available, or -1 when no content loaded.' };
+	timeToSettledMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds until all applicable Browse sources settled.' };
+	sourceCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of applicable fallback and curated sources.' };
+	cachedSourceCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of applicable sources with reusable in-memory content.' };
+};
+
+interface IMarketplaceLoadProgress {
+	readonly completed: number;
+	readonly total: number;
+	readonly cached: number;
+}
 
 function formatCompactCount(count: number): string {
 	if (count > 1_000_000) {
@@ -79,6 +121,8 @@ function formatCompactCount(count: number): string {
 }
 
 const resultRowHeight = 56;
+const linkedAlternativeRowHeight = 80;
+const collapsedLinkedAlternativeRowHeight = 32;
 const searchInputHeight = 20;
 const firstPartyPublishers = new Set(['azure', 'azure-samples', 'github', 'microsoft', 'microsoftdocs']);
 const firstPartyMcpNamespaces = new Set(['azure', 'azure-ai-foundry', 'com.microsoft', 'io.github.azure', 'io.github.azure-samples', 'io.github.github', 'io.github.microsoft', 'io.github.microsoftdocs']);
@@ -97,16 +141,17 @@ function isFirstPartyBrowseItem(resource: ICustomizationMarketplaceResource): bo
 	return firstPartyMcpNamespaces.has(namespace);
 }
 
-function getLeadingBrowseItems(resources: readonly ICustomizationMarketplaceResource[]): readonly ICustomizationMarketplaceResource[] {
-	const firstParty = resources.filter(isFirstPartyBrowseItem).slice(0, leadingBrowseItemCount);
+function getLeadingBrowseItems(resources: readonly IPrioritizedMarketplaceResource[]): readonly IPrioritizedMarketplaceResource[] {
+	const groups = groupPrioritizedMarketplaceResources(resources);
+	const firstParty = groups.filter(group => group.some(({ resource }) => isFirstPartyBrowseItem(resource))).slice(0, leadingBrowseItemCount);
 	if (firstParty.length === leadingBrowseItemCount) {
-		return firstParty;
+		return firstParty.flat();
 	}
-	const firstPartyKeys = new Set(firstParty.map(getCustomizationMarketplaceResourceKey));
+	const firstPartyKeys = new Set(firstParty.flatMap(group => group.map(({ resource }) => getCustomizationMarketplaceResourceKey(resource))));
 	return [
 		...firstParty,
-		...resources.filter(resource => !firstPartyKeys.has(getCustomizationMarketplaceResourceKey(resource))),
-	].slice(0, leadingBrowseItemCount);
+		...groups.filter(group => group.every(({ resource }) => !firstPartyKeys.has(getCustomizationMarketplaceResourceKey(resource)))),
+	].slice(0, leadingBrowseItemCount).flat();
 }
 
 interface IInstalledDiscoveryItem {
@@ -129,15 +174,33 @@ interface IInstalledDiscoveryItem {
 	readonly promptDetail?: IAICustomizationListItem;
 	readonly pluginDetail?: IAgentPluginItem;
 	readonly mcpDetail?: IMcpServerDetailInput;
+	readonly matchMarketplaceByName?: boolean;
+	readonly linkedConnectionRole?: LinkedConnectionRole;
+	readonly alternativeExpanded?: boolean;
 }
 
 interface ICatalogDiscoveryItem {
 	readonly kind: 'available';
 	readonly id: string;
 	readonly resource: ICustomizationMarketplaceResource;
+	readonly linkedConnectionRole?: LinkedConnectionRole;
+	readonly alternativeExpanded?: boolean;
 }
 
-type DiscoveryListEntry = IInstalledDiscoveryItem | ICatalogDiscoveryItem | { readonly kind: 'loading'; readonly id: 'loading' };
+type DiscoveryListEntry = (IInstalledDiscoveryItem | ICatalogDiscoveryItem | { readonly kind: 'loading'; readonly id: 'loading' }) & {
+	// Snapshot action state so unchanged rows can be retained without leaving stale buttons.
+	readonly installationState?: CustomizationMarketplaceInstallState;
+	readonly uninstalling?: boolean;
+	readonly installError?: string;
+};
+type LinkedConnectionRole = 'connector' | 'alternative';
+
+interface IPrioritizedMarketplaceResource {
+	readonly resource: ICustomizationMarketplaceResource;
+	readonly linkedConnectionRole?: LinkedConnectionRole;
+}
+
+type PrioritizedMarketplaceResourceGroup = readonly IPrioritizedMarketplaceResource[];
 
 interface ICatalogPageState {
 	readonly items: readonly ICustomizationMarketplaceResource[];
@@ -147,15 +210,31 @@ interface ICatalogPageState {
 
 interface IBrowseCatalogCache {
 	readonly items: readonly ICustomizationMarketplaceResource[];
-	readonly page: ICatalogPageState;
+	readonly page: ICatalogPageState | undefined;
+	readonly curatedSections: readonly ICustomizationMarketplaceBrowseSection[] | undefined;
+	readonly curatedSourceId: string | undefined;
+	readonly sourceSections: readonly ISourceBrowseSection[];
+	readonly curatedSourceError: ICustomizationMarketplaceSourceError | undefined;
 }
+
+interface ISourceBrowseSection extends ICustomizationMarketplaceBrowseSection {
+	readonly sourceId: string;
+}
+
+type BrowseSectionsLoadOutcome =
+	| { readonly kind: 'success'; readonly result: ICustomizationMarketplaceBrowseSections | undefined }
+	| { readonly kind: 'error'; readonly error: Error };
 
 interface IDiscoveryRowTemplate {
 	readonly root: HTMLElement;
+	readonly linkedConnectionLabel: HTMLButtonElement;
+	readonly linkedConnectionText: HTMLElement;
+	readonly linkedConnectionIcon: HTMLElement;
 	readonly primaryAction: HTMLButtonElement;
 	readonly icon: HTMLElement;
 	readonly identity: HTMLElement;
 	readonly name: HTMLElement;
+	readonly verified: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly description: HTMLElement;
 	readonly stats: HTMLElement;
@@ -198,6 +277,10 @@ function getCatalogType(resource: ICustomizationMarketplaceResource): 'skill' | 
 	}
 }
 
+function isCanvasMarketplaceResource(resource: ICustomizationMarketplaceResource): boolean {
+	return getCatalogType(resource) === 'plugin' && resource.compatibilityTags?.some(tag => tag === 'canvas' || tag === 'canvas-only') === true;
+}
+
 function getSectionForCatalogType(type: 'skill' | 'mcp' | 'plugin'): AICustomizationManagementSection {
 	switch (type) {
 		case 'skill': return AICustomizationManagementSection.Skills;
@@ -221,6 +304,36 @@ function normalizedName(value: string): string {
 	return value.trim().toLowerCase();
 }
 
+function installationStatesEqual(a: CustomizationMarketplaceInstallState | undefined, b: CustomizationMarketplaceInstallState | undefined): boolean {
+	if (!a || !b) {
+		return a === b;
+	}
+	if (a.kind === 'unavailable' && b.kind === 'unavailable') {
+		return a.message === b.message && isEqual(a.setupUrl, b.setupUrl);
+	}
+	if (hasInstallationTarget(a) && hasInstallationTarget(b)
+		&& (a.target.kind === 'skill' || a.target.kind === 'plugin')
+		&& (b.target.kind === 'skill' || b.target.kind === 'plugin')) {
+		return isEqual(a.target.uri, b.target.uri) && structuralEquals(
+			{ ...a, target: { ...a.target, uri: undefined } },
+			{ ...b, target: { ...b.target, uri: undefined } },
+		);
+	}
+	return structuralEquals(a, b);
+}
+
+function discoveryListEntriesEqual(a: DiscoveryListEntry, b: DiscoveryListEntry): boolean {
+	const { installationState: aState, ...aItem } = a;
+	const { installationState: bState, ...bItem } = b;
+	if (!installationStatesEqual(aState, bState)) {
+		return false;
+	}
+	if (aItem.kind === 'installed' && bItem.kind === 'installed') {
+		return isEqual(aItem.uri, bItem.uri) && structuralEquals({ ...aItem, uri: undefined }, { ...bItem, uri: undefined });
+	}
+	return structuralEquals(aItem, bItem);
+}
+
 function hasInstallationTarget(state: CustomizationMarketplaceInstallState): state is Extract<CustomizationMarketplaceInstallState, { target: CustomizationMarketplaceInstallationTarget }> {
 	return 'target' in state;
 }
@@ -231,8 +344,9 @@ function getInstalledItemMarketplaceRecord(
 ): IRecordedCustomizationMarketplaceResource | undefined {
 	switch (item.type) {
 		case 'skill':
-		case 'plugin':
 			return item.uri ? installations.findByTarget({ kind: item.type, uri: item.uri }) : undefined;
+		case 'plugin':
+			return installations.findByTarget({ kind: 'plugin', uri: item.uri, name: item.matchMarketplaceByName ? item.name : undefined });
 		case 'mcp':
 			return item.mcpServerId ? installations.findByTarget({ kind: 'mcp', id: item.mcpServerId }) : undefined;
 		default:
@@ -242,6 +356,125 @@ function getInstalledItemMarketplaceRecord(
 
 function isCopilotConnectorResource(resource: ICustomizationMarketplaceResource | undefined): boolean {
 	return resource?.installation?.kind === 'copilotConnector';
+}
+
+function isVerifiedCopilotConnector(resource: ICustomizationMarketplaceResource | undefined): boolean {
+	return resource?.sourceId === CustomizationMarketplaceSources.CopilotConnectors.id;
+}
+
+function renderVerifiedCopilotConnector(
+	container: HTMLElement,
+	resource: ICustomizationMarketplaceResource | undefined,
+	hoverService: IHoverService,
+	disposables: DisposableStore,
+): void {
+	const verified = isVerifiedCopilotConnector(resource);
+	container.style.display = verified ? '' : 'none';
+	if (!verified) {
+		container.setAttribute('aria-hidden', 'true');
+		container.removeAttribute('aria-label');
+		return;
+	}
+	container.removeAttribute('aria-hidden');
+	const label = localize('customizationDiscovery.verifiedByGitHub', "Verified by GitHub");
+	container.setAttribute('aria-label', label);
+	disposables.add(hoverService.setupDelayedHover(container, { content: label }));
+}
+
+function getAlternativeDisclosureLabel(): string {
+	return localize('customizationDiscovery.alternative', "1 alternative customization");
+}
+
+function prioritizeLinkedCopilotConnectors(resources: readonly ICustomizationMarketplaceResource[]): readonly IPrioritizedMarketplaceResource[] {
+	const connectorsById = new Map<string, ICustomizationMarketplaceResource>();
+	const ambiguousConnectorIds = new Set<string>();
+	for (const resource of resources) {
+		if (resource.installation?.kind !== 'copilotConnector') {
+			continue;
+		}
+		for (const connectorId of new Set([resource.installation.name, ...(resource.connectorIds ?? [])])) {
+			const id = normalizedName(connectorId);
+			const existing = connectorsById.get(id);
+			if (existing && existing !== resource) {
+				connectorsById.delete(id);
+				ambiguousConnectorIds.add(id);
+			} else if (!ambiguousConnectorIds.has(id)) {
+				connectorsById.set(id, resource);
+			}
+		}
+	}
+	if (!connectorsById.size) {
+		return resources
+			.map((resource, originalIndex) => ({ resource, originalIndex }))
+			.sort((left, right) => getMarketplaceResourcePriority(right.resource) - getMarketplaceResourcePriority(left.resource) || left.originalIndex - right.originalIndex)
+			.map(({ resource }) => ({ resource }));
+	}
+	const alternativeByConnectorKey = new Map<string, ICustomizationMarketplaceResource>();
+	const connectorKeyByAlternativeKey = new Map<string, string>();
+	for (const resource of resources) {
+		if (isCopilotConnectorResource(resource) || !resource.connectorIds?.length) {
+			continue;
+		}
+		const linkedConnectors = (resource.connectorIds ?? [])
+			.map(connectorId => connectorsById.get(normalizedName(connectorId)))
+			.filter((connector): connector is ICustomizationMarketplaceResource => connector !== undefined)
+			.filter((connector, index, connectors) => connectors.indexOf(connector) === index);
+		if (linkedConnectors.length !== 1) {
+			continue;
+		}
+		const connectorKey = getCustomizationMarketplaceResourceKey(linkedConnectors[0]);
+		if (alternativeByConnectorKey.has(connectorKey)) {
+			continue;
+		}
+		alternativeByConnectorKey.set(connectorKey, resource);
+		connectorKeyByAlternativeKey.set(getCustomizationMarketplaceResourceKey(resource), connectorKey);
+	}
+
+	const groups: { readonly priority: number; readonly originalIndex: number; readonly resources: PrioritizedMarketplaceResourceGroup }[] = [];
+	for (let originalIndex = 0; originalIndex < resources.length; originalIndex++) {
+		const resource = resources[originalIndex];
+		const key = getCustomizationMarketplaceResourceKey(resource);
+		if (connectorKeyByAlternativeKey.has(key)) {
+			continue;
+		}
+		const alternative = isCopilotConnectorResource(resource) ? alternativeByConnectorKey.get(key) : undefined;
+		groups.push({
+			priority: getMarketplaceResourcePriority(resource),
+			originalIndex,
+			resources: alternative
+				? [
+					{ resource, linkedConnectionRole: 'connector' },
+					{ resource: alternative, linkedConnectionRole: 'alternative' },
+				]
+				: [{ resource }],
+		});
+	}
+	return groups
+		.sort((left, right) => right.priority - left.priority || left.originalIndex - right.originalIndex)
+		.flatMap(group => group.resources);
+}
+
+function groupPrioritizedMarketplaceResources(resources: readonly IPrioritizedMarketplaceResource[]): readonly PrioritizedMarketplaceResourceGroup[] {
+	const groups: IPrioritizedMarketplaceResource[][] = [];
+	for (let index = 0; index < resources.length; index++) {
+		const resource = resources[index];
+		if (resource.linkedConnectionRole === 'connector' && resources[index + 1]?.linkedConnectionRole === 'alternative') {
+			groups.push([resource, resources[++index]]);
+		} else {
+			groups.push([resource]);
+		}
+	}
+	return groups;
+}
+
+function getMarketplaceResourcePriority(resource: ICustomizationMarketplaceResource): number {
+	if (isCopilotConnectorResource(resource)) {
+		return 3;
+	}
+	if (resource.sourceId === CustomizationMarketplaceSources.AgentFinderPublicFeed.id) {
+		return getCatalogType(resource) === 'skill' ? 1 : 2;
+	}
+	return 0;
 }
 
 function getInstallationStateLabel(state: CustomizationMarketplaceInstallState, connector: boolean): string {
@@ -261,6 +494,7 @@ function getInstallationStateLabel(state: CustomizationMarketplaceInstallState, 
 		case 'repairing': return localize('customizationDiscovery.repairing', "Repairing");
 		case 'uninstalling': return localize('customizationDiscovery.uninstallingState', "Uninstalling");
 		case 'error': return localize('customizationDiscovery.verificationFailed', "Could not verify installation");
+		case 'installed': return state.uninstallUnavailableMessage ?? localize('customizationDiscovery.installed', "Installed");
 		default: return localize('customizationDiscovery.installed', "Installed");
 	}
 }
@@ -339,6 +573,7 @@ function renderRecordedCustomizationActions(
 	}
 
 	const cancellable = isCancellableConnectorOperation(resource, state);
+	const uninstallUnavailableMessage = state.kind === 'installed' ? state.uninstallUnavailableMessage : undefined;
 	const button = disposables.add(new Button(container, { ...defaultButtonStyles, secondary: true, small: true }));
 	button.label = cancellable
 		? localize('customizationDiscovery.connectorCancel', "Cancel")
@@ -348,21 +583,23 @@ function renderRecordedCustomizationActions(
 				? localize('customizationDiscovery.checkingProgress', "Checking...")
 				: state.kind === 'uninstalling'
 					? localize('customizationDiscovery.uninstalling', "Uninstalling...")
-					: operationError && state.kind === 'installed'
+					: operationError && state.kind === 'installed' && !uninstallUnavailableMessage
 						? localize('customizationDiscovery.retryUninstall', "Retry Uninstall")
 						: connector
 							? localize('customizationDiscovery.connectorDisconnect', "Disconnect")
 							: localize('customizationDiscovery.uninstall', "Uninstall");
-	button.enabled = cancellable || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'error';
-	button.setAriaLabel(cancellable
-		? localize('customizationDiscovery.cancelConnectorRepairLabel', "Cancel reconnecting {0}", name)
-		: connector
-			? localize('customizationDiscovery.disconnectConnectorLabel', "Disconnect {0}", name)
-			: localize('customizationDiscovery.uninstallLabel', "{0} {1}", button.label, name));
+	button.enabled = !uninstallUnavailableMessage && (cancellable || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'error');
+	button.setAriaLabel(uninstallUnavailableMessage
+		? localize('customizationDiscovery.uninstallUnavailableLabel', "Uninstall {0}. {1}", name, uninstallUnavailableMessage)
+		: cancellable
+			? localize('customizationDiscovery.cancelConnectorRepairLabel', "Cancel reconnecting {0}", name)
+			: connector
+				? localize('customizationDiscovery.disconnectConnectorLabel', "Disconnect {0}", name)
+				: localize('customizationDiscovery.uninstallLabel', "{0} {1}", button.label, name));
 	button.element.setAttribute('aria-busy', String(!cancellable && (state.kind === 'uninstalling' || state.kind === 'repairing' || state.kind === 'checking')));
 	disposables.add(DOM.addDisposableListener(button.element, DOM.EventType.CLICK, event => event.stopPropagation()));
 	disposables.add(button.onDidClick(cancellable ? onCancel : onUninstall));
-	const uninstallError = state.kind === 'error' ? state.message : state.kind === 'installed' ? operationError : undefined;
+	const uninstallError = uninstallUnavailableMessage ?? (state.kind === 'error' ? state.message : state.kind === 'installed' ? operationError : undefined);
 	if (uninstallError) {
 		disposables.add(hoverService.setupDelayedHover(button.element, { content: uninstallError }));
 	}
@@ -379,12 +616,17 @@ function getCatalogMediaType(types: ReadonlySet<CustomizationDiscoveryType>): Cu
 	if (types.has('mcp')) {
 		return CustomizationMarketplaceMediaType.McpServer;
 	}
+	if (types.has('canvas')) {
+		return CustomizationMarketplaceMediaType.CopilotPlugin;
+	}
 	return undefined;
 }
 
 class DiscoveryListDelegate implements IListVirtualDelegate<DiscoveryListEntry> {
-	getHeight(_element: DiscoveryListEntry): number {
-		return resultRowHeight;
+	getHeight(element: DiscoveryListEntry): number {
+		return element.kind !== 'loading' && element.linkedConnectionRole === 'alternative'
+			? element.alternativeExpanded ? linkedAlternativeRowHeight : collapsedLinkedAlternativeRowHeight
+			: resultRowHeight;
 	}
 
 	getTemplateId(_element: DiscoveryListEntry): string {
@@ -408,6 +650,8 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		private readonly onOpenDetails: (resource: ICustomizationMarketplaceResource) => void,
 		private readonly onOpenInstalled: (item: IInstalledDiscoveryItem) => void,
 		private readonly isDirectUninstalling: (item: IInstalledDiscoveryItem) => boolean,
+		private readonly onToggleAlternative: (item: IInstalledDiscoveryItem | ICatalogDiscoveryItem) => void,
+		private readonly onRenderAlternative: (item: IInstalledDiscoveryItem | ICatalogDiscoveryItem, disclosure: HTMLButtonElement) => void,
 		private readonly themeService: IThemeService,
 	) { }
 
@@ -415,6 +659,11 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		container.classList.add('customization-discovery-result-row');
 		const root = DOM.append(container, $('.customization-discovery-result-content'));
 		const primaryAction = createCustomizationCardPrimaryAction(root, '', 'customization-discovery-result-primary');
+		const linkedConnectionLabel = DOM.append(root, $<HTMLButtonElement>('button.customization-discovery-result-linked-label'));
+		linkedConnectionLabel.type = 'button';
+		const linkedConnectionText = DOM.append(linkedConnectionLabel, $('span.customization-discovery-result-linked-label-text'));
+		const linkedConnectionIcon = DOM.append(linkedConnectionLabel, renderIcon(Codicon.chevronRightCompact));
+		linkedConnectionIcon.setAttribute('aria-hidden', 'true');
 		const templateDisposables = new DisposableStore();
 		const loading = templateDisposables.add(createPixelSpinner(root, { variant: 'ring' })).element;
 		loading.classList.add('customization-discovery-result-loading');
@@ -423,16 +672,22 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		const heading = DOM.append(identity, $('.customization-discovery-result-heading'));
 		const name = DOM.append(heading, $('.customization-discovery-result-name'));
 		const detail = DOM.append(heading, $('.customization-discovery-result-detail'));
+		const verified = DOM.append(heading, $('.customization-discovery-verified'));
+		verified.appendChild(renderIcon(verifiedPublisherIcon));
 		const description = DOM.append(identity, $('.customization-discovery-result-description'));
 		const aside = DOM.append(root, $('.customization-discovery-result-aside'));
 		const stats = DOM.append(aside, $('.customization-discovery-result-stats'));
 		const actions = DOM.append(aside, $('.customization-discovery-result-actions'));
 		return {
 			root,
+			linkedConnectionLabel,
+			linkedConnectionText,
+			linkedConnectionIcon,
 			primaryAction,
 			icon,
 			identity,
 			name,
+			verified,
 			detail,
 			description,
 			stats,
@@ -448,10 +703,24 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		DOM.clearNode(templateData.stats);
 		DOM.clearNode(templateData.actions);
 		templateData.root.classList.toggle('loading', element.kind === 'loading');
+		templateData.root.classList.toggle('linked-connector', element.kind !== 'loading' && element.linkedConnectionRole === 'connector');
+		templateData.root.classList.toggle('linked-alternative', element.kind !== 'loading' && element.linkedConnectionRole === 'alternative');
+		const collapsedAlternative = element.kind !== 'loading' && element.linkedConnectionRole === 'alternative' && !element.alternativeExpanded;
+		templateData.root.classList.toggle('collapsed-alternative', collapsedAlternative);
 		templateData.root.inert = element.kind === 'loading';
-		templateData.primaryAction.disabled = element.kind === 'loading';
+		templateData.primaryAction.disabled = element.kind === 'loading' || collapsedAlternative;
+		templateData.primaryAction.hidden = collapsedAlternative;
+		templateData.icon.hidden = collapsedAlternative;
+		templateData.identity.hidden = collapsedAlternative;
+		templateData.stats.hidden = collapsedAlternative;
+		templateData.actions.hidden = collapsedAlternative;
 		if (element.kind === 'loading') {
+			templateData.linkedConnectionText.textContent = '';
+			templateData.linkedConnectionLabel.hidden = true;
 			templateData.name.textContent = '';
+			templateData.verified.style.display = 'none';
+			templateData.verified.setAttribute('aria-hidden', 'true');
+			templateData.verified.removeAttribute('aria-label');
 			templateData.detail.textContent = '';
 			templateData.description.textContent = '';
 			templateData.primaryAction.removeAttribute('aria-label');
@@ -464,7 +733,9 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		const resource = installed ? element.catalogResource : element.resource;
 		const marketplaceState = installed && element.catalogResource ? this.getInstallState(element.catalogResource) : undefined;
 		const opensInstalled = installed && (!marketplaceState || marketplaceState.kind === 'installed');
-		const installationDetail = marketplaceState && marketplaceState.kind !== 'installed' ? getInstallationStateLabel(marketplaceState, isCopilotConnectorResource(resource)) : undefined;
+		const installationDetail = marketplaceState?.kind === 'installed'
+			? marketplaceState.uninstallUnavailableMessage
+			: marketplaceState ? getInstallationStateLabel(marketplaceState, isCopilotConnectorResource(resource)) : undefined;
 		const detail = [
 			type ? getTypeLabel(type) : !installed ? element.resource.mediaType : undefined,
 			installed ? element.sourceLabel : this.getSourceLabel(element.resource),
@@ -481,13 +752,44 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		);
 
 		templateData.name.textContent = name;
+		renderVerifiedCopilotConnector(templateData.verified, resource, this.hoverService, templateData.elementDisposables);
+		const alternative = element.linkedConnectionRole === 'alternative';
+		templateData.linkedConnectionLabel.hidden = !alternative;
+		if (alternative) {
+			this.onRenderAlternative(element, templateData.linkedConnectionLabel);
+			const expanded = !!element.alternativeExpanded;
+			templateData.linkedConnectionText.textContent = getAlternativeDisclosureLabel();
+			templateData.linkedConnectionIcon.classList.toggle('codicon-chevron-down-compact', expanded);
+			templateData.linkedConnectionIcon.classList.toggle('codicon-chevron-right-compact', !expanded);
+			templateData.linkedConnectionLabel.setAttribute('aria-expanded', String(expanded));
+			templateData.linkedConnectionLabel.setAttribute('aria-label', expanded
+				? localize('customizationDiscovery.hideAlternativeAriaLabel', "Hide 1 alternative customization")
+				: localize('customizationDiscovery.showAlternativeAriaLabel', "Show 1 alternative customization"));
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.linkedConnectionLabel, DOM.EventType.CLICK, event => {
+				event.stopPropagation();
+				this.onToggleAlternative(element);
+			}));
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.linkedConnectionLabel, DOM.EventType.KEY_DOWN, event => {
+				if (event.key === 'Enter' || event.key === ' ') {
+					event.preventDefault();
+					event.stopPropagation();
+					this.onToggleAlternative(element);
+				}
+			}));
+		} else {
+			templateData.linkedConnectionText.textContent = '';
+			templateData.linkedConnectionLabel.removeAttribute('aria-expanded');
+			templateData.linkedConnectionLabel.removeAttribute('aria-label');
+		}
 		templateData.name.removeAttribute('href');
 		templateData.name.removeAttribute('rel');
 		templateData.detail.textContent = detail;
 		templateData.description.textContent = description;
 		templateData.primaryAction.setAttribute('aria-label', opensInstalled
 			? localize('customizationDiscovery.openInstalled', "Open installed customization {0}", name)
-			: localize('customizationDiscovery.openDetails', "View details for {0}", name));
+			: element.linkedConnectionRole === 'alternative'
+				? localize('customizationDiscovery.openAlternativeDetails', "View details for {0}, another way to connect", name)
+				: localize('customizationDiscovery.openDetails', "View details for {0}", name));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.name, { content: name }));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.description, { content: description }));
 		const registerOpenListeners = (open: () => void) => {
@@ -601,6 +903,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly resultStatus: HTMLElement;
 	private readonly browseDisposables = this._register(new DisposableStore());
 	private readonly browsePrimaryActions = new Map<string, HTMLButtonElement>();
+	private readonly browseAlternativeActions = new Map<string, HTMLButtonElement>();
+	private readonly browseInstallStates = new Map<ICustomizationMarketplaceResource, CustomizationMarketplaceInstallState>();
+	private readonly resultAlternativeActions = new Map<string, HTMLButtonElement>();
 	private readonly resultStatusDisposables = this._register(new DisposableStore());
 	private readonly descriptionDisposables = this._register(new DisposableStore());
 	private readonly searchActionDisposables = this._register(new DisposableStore());
@@ -615,17 +920,36 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly pendingInstalls = new Set<string>();
 	private readonly pendingUninstalls = new Set<string>();
 	private readonly pendingDirectUninstalls = new Set<string>();
+	private readonly expandedAlternatives = new Set<string>();
 	private forceMarketplaceRefresh = false;
+	private clearMarketplaceResults = false;
+	/** Sources named by pending forced refreshes; `undefined` when any source may have changed. */
+	private changedMarketplaceSourceIds: Set<string> | undefined = new Set();
+	/** Number of catalog results to restore when an in-place background refresh reloads the current query. */
+	private refreshDepth: number | undefined;
 	private readonly marketplaceRefreshScheduler = this._register(new RunOnceScheduler(() => {
 		const force = this.forceMarketplaceRefresh;
+		const clearResults = this.clearMarketplaceResults;
+		const changedSourceIds = this.changedMarketplaceSourceIds;
 		this.forceMarketplaceRefresh = false;
+		this.clearMarketplaceResults = false;
+		this.changedMarketplaceSourceIds = new Set();
+		const selectedSourceId = this.selectedSourceId;
 		this.updateSources();
-		this.handleAvailabilityChanged(force);
+		const affectsCurrentView = force && (selectedSourceId !== this.selectedSourceId || this.isCurrentViewAffectedBySources(changedSourceIds));
+		if (force && !affectsCurrentView && changedSourceIds) {
+			this.invalidateBrowseCatalogCache(changedSourceIds);
+		}
+		this.handleAvailabilityChanged(affectsCurrentView, !clearResults);
 	}, 0));
 	private query = CustomizationDiscoveryQuery.parse('');
 	private installedItems: readonly IInstalledDiscoveryItem[] = [];
 	private providerPlugins: readonly IInstalledDiscoveryItem[] = [];
 	private catalogItems: readonly ICustomizationMarketplaceResource[] = [];
+	private curatedSections: readonly ICustomizationMarketplaceBrowseSection[] | undefined;
+	private curatedSourceId: string | undefined;
+	private sourceSections: readonly ISourceBrowseSection[] = [];
+	private curatedSourceError: ICustomizationMarketplaceSourceError | undefined;
 	private marketplaceSources: readonly ICustomizationMarketplaceSourceInfo[] = [];
 	private selectedSourceId: string | undefined;
 	private visibleSectionIds = new Set<AICustomizationManagementSection>();
@@ -640,6 +964,21 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private providerPluginSequence = 0;
 	private lastDimension: DOM.Dimension | undefined;
 	private lastAnnouncement: string | undefined;
+	private lastLoadingAnnouncement: string | undefined;
+	private pendingLoadingAnnouncement: string | undefined;
+	private readonly loadingAnnouncementScheduler = this._register(new RunOnceScheduler(() => {
+		const message = this.pendingLoadingAnnouncement;
+		this.pendingLoadingAnnouncement = undefined;
+		if (message && this.loading) {
+			this.lastLoadingAnnouncement = message;
+			this.announce(message);
+		}
+	}, loadingAnnouncementDelay));
+	private lastBrowseTelemetryView: 'curated' | 'fallback' | undefined;
+	private catalogLoadProgress: IMarketplaceLoadProgress | undefined;
+	private curatedLoadProgress: IMarketplaceLoadProgress | undefined;
+	private browseLoadStartedAt: number | undefined;
+	private browseFirstContentAt: number | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -660,9 +999,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IAgentPluginService private readonly pluginService: IAgentPluginService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
-		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.enabledSourceIds = this.getEnabledCatalogSourceIds();
@@ -686,7 +1025,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 		const searchRow = DOM.append(header, $('.customization-discovery-search-row'));
 		const searchContainer = DOM.append(searchRow, $('.customization-discovery-search'));
-		const placeholder = localize('customizationDiscovery.searchPlaceholder', "Search customizations");
+		const placeholder = localize('customizationDiscovery.searchPlaceholder', "Search MCP servers, plugins, skills and more...");
 		this.searchWidget = this._register(this.instantiationService.createInstance(
 			SuggestEnabledInput,
 			'aiCustomizationDiscovery.search',
@@ -752,6 +1091,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			resource => this.openMarketplaceItem(resource, 'search'),
 			item => this.openInstalledItem(item),
 			item => this.pendingDirectUninstalls.has(item.id),
+			item => this.toggleAlternative(item),
+			(item, disclosure) => this.resultAlternativeActions.set(item.id, disclosure),
 			this.themeService,
 		);
 		this.resultList = this._register(this.instantiationService.createInstance(
@@ -777,7 +1118,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			},
 		));
 		this._register(this.resultList.onDidOpen(event => {
-			if (event.element?.kind === 'installed') {
+			if (event.element && event.element.kind !== 'loading' && event.element.linkedConnectionRole === 'alternative' && !event.element.alternativeExpanded) {
+				this.toggleAlternative(event.element);
+			} else if (event.element?.kind === 'installed') {
 				const resource = event.element.catalogResource;
 				if (!resource || this.getInstallState(resource).kind === 'installed') {
 					this.openInstalledItem(event.element);
@@ -790,7 +1133,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}));
 		this._register(this.searchWidget.onShouldFocusResults(() => this.resultList.domFocus()));
 		this._register(this.resultList.onDidScroll(event => {
-			if (!this.query.isEmpty() && !this.errorMessage && event.scrollHeight > event.height && event.scrollTop + event.height >= event.scrollHeight - resultRowHeight * 3) {
+			if ((!this.query.isEmpty() || this.selectedSourceId) && !this.errorMessage && event.scrollHeight > event.height && event.scrollTop + event.height >= event.scrollHeight - resultRowHeight * 3) {
 				this.continuationScheduler.schedule();
 			}
 		}));
@@ -809,10 +1152,14 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.refreshInstalledItems();
 			}
 		});
-		this._register(this.installService.onDidChange(() => this.render()));
-		this._register(this.themeService.onDidColorThemeChange(() => this.render()));
+		this._register(this.installService.onDidChange(() => {
+			if (!this.resultListContainer.hidden || [...this.browseInstallStates].some(([resource, state]) => !installationStatesEqual(state, this.getInstallState(resource)))) {
+				this.render();
+			}
+		}));
+		this._register(this.themeService.onDidColorThemeChange(() => this.render(false)));
 		if (this.marketplaceService.onDidChangeSources) {
-			this._register(this.marketplaceService.onDidChangeSources(() => this.scheduleMarketplaceRefresh(true)));
+			this._register(this.marketplaceService.onDidChangeSources(event => this.scheduleMarketplaceRefresh(true, false, event.sourceIds)));
 		}
 		this._register(this.entitlementService.onDidChangeSentiment(() => this.handleAvailabilityChanged()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
@@ -831,9 +1178,31 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}));
 	}
 
-	private scheduleMarketplaceRefresh(force: boolean): void {
+	private scheduleMarketplaceRefresh(force: boolean, clearResults = true, sourceIds?: readonly string[]): void {
 		this.forceMarketplaceRefresh ||= force;
+		this.clearMarketplaceResults ||= clearResults;
+		if (force) {
+			if (sourceIds) {
+				for (const sourceId of sourceIds) {
+					this.changedMarketplaceSourceIds?.add(sourceId);
+				}
+			} else {
+				this.changedMarketplaceSourceIds = undefined;
+			}
+		}
 		this.marketplaceRefreshScheduler.schedule();
+	}
+
+	private isCurrentViewAffectedBySources(sourceIds: ReadonlySet<string> | undefined): boolean {
+		return !sourceIds || this.getCurrentQuerySources().some(source => sourceIds.has(source.id));
+	}
+
+	/** Drops cached Browse results that include the changed sources so they reload when shown again. */
+	private invalidateBrowseCatalogCache(sourceIds: ReadonlySet<string>): void {
+		this.browseCatalogCache.delete('');
+		for (const sourceId of sourceIds) {
+			this.browseCatalogCache.delete(sourceId);
+		}
 	}
 
 	private updateSources(): void {
@@ -901,7 +1270,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.resultList.scrollTop = 0;
 		this.lastAnnouncement = undefined;
 		this.render();
-		if (this.shouldQueryCatalog() && !this.loaded) {
+		if (this.shouldQueryCatalog() && (!this.loaded || sourceId !== undefined)) {
 			void this.loadCatalog(false);
 		}
 	}
@@ -916,22 +1285,22 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			const disposables = new DisposableStore();
 			const actions: IAction[] = [];
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Agents)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.newAgent', localize('customizationDiscovery.newAgent', "New Agent"), undefined, true, () => this.createCustomization(PromptsType.agent))));
+				actions.push(disposables.add(new Action('customizationDiscovery.newAgent', localize('customizationDiscovery.newAgent', "New Agent"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Agents))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Skills)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.newSkill', localize('customizationDiscovery.newSkill', "New Skill"), undefined, true, () => this.createCustomization(PromptsType.skill))));
+				actions.push(disposables.add(new Action('customizationDiscovery.newSkill', localize('customizationDiscovery.newSkill', "New Skill"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Skills))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Instructions)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.newInstructions', localize('customizationDiscovery.newInstructions', "New Instructions"), undefined, true, () => this.createCustomization(PromptsType.instructions))));
+				actions.push(disposables.add(new Action('customizationDiscovery.newInstructions', localize('customizationDiscovery.newInstructions', "New Instructions"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Instructions))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Prompts)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.newPrompt', localize('customizationDiscovery.newPrompt', "New Prompt"), undefined, true, () => this.createCustomization(PromptsType.prompt))));
+				actions.push(disposables.add(new Action('customizationDiscovery.newPrompt', localize('customizationDiscovery.newPrompt', "New Prompt"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Prompts))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.McpServers)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.addMcp', localize('customizationDiscovery.addMcp', "Add MCP Server"), undefined, true, () => this.callbacks.selectSection(AICustomizationManagementSection.McpServers))));
+				actions.push(disposables.add(new Action('customizationDiscovery.addMcp', localize('customizationDiscovery.addMcp', "Add MCP Server"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.McpServers))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Plugins)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.selectSection(AICustomizationManagementSection.Plugins))));
+				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Plugins))));
 			}
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => addButton.element,
@@ -945,41 +1314,27 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}));
 	}
 
-	private createCustomization(type: PromptsType): Promise<void> {
-		this.callbacks.closeEditor();
-		return this.workspaceService.generateCustomization(type);
-	}
-
 	private updateDescription(): void {
 		this.descriptionDisposables.clear();
-		const sections = [
-			AICustomizationManagementSection.Plugins,
-			AICustomizationManagementSection.McpServers,
-			AICustomizationManagementSection.Skills,
-			AICustomizationManagementSection.Instructions,
-			AICustomizationManagementSection.Agents,
-			AICustomizationManagementSection.Hooks,
-		] as const;
+		const docsUrl = 'https://aka.ms/vscode-customizations';
 		const description = localize({
 			key: 'customizationDiscovery.description',
 			comment: [
-				'Preserve the double square brackets: they mark the customization types that become links. Keep all six links in this order: Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.',
+				'Preserve the double square brackets: they mark the Learn more link to the agent customization documentation.',
 			],
-		}, "Find new ways to extend your agent with [[Plugins]], [[MCP Servers]], [[Skills]], [[Instructions]], [[Agents]], and [[Hooks]].");
+		}, "Tailor your agent to your tools, your team, and your workflow. [[Learn more]]");
 		renderFormattedText(description, {
 			actionHandler: {
-				callback: (index, event) => {
+				callback: (_index, event) => {
 					event.preventDefault();
-					const section = sections[Number(index)];
-					if (section) {
-						this.callbacks.selectSection(section);
-					}
+					void this.openExternal(docsUrl);
 				},
 				disposables: this.descriptionDisposables,
 			},
 		}, this.titleDescription);
 		for (const link of this.titleDescription.children) {
-			link.setAttribute('href', '#');
+			link.setAttribute('href', docsUrl);
+			link.setAttribute('aria-label', localize('customizationDiscovery.learnMore', "Learn more about agent customizations"));
 		}
 	}
 
@@ -1021,13 +1376,22 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private resetCatalogState(): void {
 		this.installErrors.clear();
+		this.refreshDepth = undefined;
 		const cached = this.query.isEmpty() ? this.browseCatalogCache.get(this.selectedSourceId ?? '') : undefined;
 		this.catalogPage = cached?.page;
 		if (cached) {
 			this.catalogItems = cached.items;
+			this.curatedSections = cached.curatedSections;
+			this.curatedSourceId = cached.curatedSourceId;
+			this.sourceSections = cached.sourceSections;
+			this.curatedSourceError = cached.curatedSourceError;
 			this.loaded = true;
 		} else {
 			this.catalogItems = [];
+			this.curatedSections = undefined;
+			this.curatedSourceId = undefined;
+			this.sourceSections = [];
+			this.curatedSourceError = undefined;
 			this.loaded = false;
 		}
 	}
@@ -1072,6 +1436,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		));
 		plugins.checked = this.query.types.has('plugin');
 
+		const canvases = this.searchActionDisposables.add(new Action(
+			'customizationDiscovery.filter.canvas',
+			localize('customizationDiscovery.filterCanvases', "Canvases"),
+			undefined,
+			true,
+			() => this.setQuery(this.query.withType('canvas', !this.query.types.has('canvas'))),
+		));
+		canvases.checked = this.query.types.has('canvas');
+		canvases.tooltip = localize('customizationDiscovery.filterCanvasesDescription', "Agent-driven workflow interfaces.");
+
 		const skills = this.searchActionDisposables.add(new Action(
 			'customizationDiscovery.filter.skill',
 			localize('customizationDiscovery.filterSkills', "Skills"),
@@ -1084,23 +1458,34 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		actions.push(new SubmenuAction(
 			'customizationDiscovery.filter',
 			localize('customizationDiscovery.filter', "Filter Customizations..."),
-			[installed, new Separator(), mcp, plugins, skills],
+			[installed, new Separator(), mcp, plugins, canvases, skills],
 			ThemeIcon.asClassName(Codicon.filter),
 		));
 		this.searchToolbar.setActions(actions);
 	}
 
-	private handleAvailabilityChanged(force = false): void {
+	private handleAvailabilityChanged(force = false, preserveResults = false): void {
 		const enabledSourceIds = this.getEnabledCatalogSourceIds();
-		if (!force && equals(this.enabledSourceIds, enabledSourceIds)) {
+		const sameSources = equals(this.enabledSourceIds, enabledSourceIds);
+		if (!force && sameSources) {
 			return;
 		}
 		this.enabledSourceIds = enabledSourceIds;
 		this.searchScheduler.cancel();
 		this.cancelCatalogRequest();
+		const preserveDisplayedResults = preserveResults && sameSources;
+		this.refreshDepth = preserveDisplayedResults
+			? Math.max(this.refreshDepth ?? 0, this.catalogPage?.items.length ?? 0) || undefined
+			: undefined;
 		this.catalogPage = undefined;
 		this.browseCatalogCache.clear();
-		this.catalogItems = [];
+		if (!preserveDisplayedResults) {
+			this.catalogItems = [];
+			this.curatedSections = undefined;
+			this.curatedSourceId = undefined;
+			this.sourceSections = [];
+		}
+		this.curatedSourceError = undefined;
 		this.loaded = false;
 		this.errorMessage = undefined;
 		this.render();
@@ -1183,7 +1568,19 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 		this.installedItems = items;
 		void this.refreshProviderPlugins();
-		this.render();
+		this.renderInstalledItemsChange();
+	}
+
+	/**
+	 * Installed items only feed search results; browse cards are derived from the
+	 * catalog and installation state. Avoid rebuilding the browse cards when only
+	 * installed items change, since that churns frequently (e.g. MCP server status).
+	 */
+	private renderInstalledItemsChange(): void {
+		if (this.query.isEmpty()) {
+			return;
+		}
+		this.render(true);
 	}
 
 	private async refreshProviderPlugins(): Promise<void> {
@@ -1207,8 +1604,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				section: AICustomizationManagementSection.Plugins,
 				uri: item.uri,
 				disabled: item.enabled === false,
+				matchMarketplaceByName: true,
 			}));
-			this.render();
+			this.renderInstalledItemsChange();
 		} catch (error) {
 			if (sequence === this.providerPluginSequence && !isCancellationError(error)) {
 				this.notificationService.error(localize('customizationDiscovery.providerPluginsError', "Could not load installed plugins. {0}", getErrorMessage(error)));
@@ -1219,19 +1617,55 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private getFilteredInstalledItems(): readonly IInstalledDiscoveryItem[] {
 		const text = normalizedName(this.query.text);
 		const items = [...this.installedItems, ...this.providerPlugins];
+		const marketplaceInstallations = this.installService.installations.get();
 		return items
-			.filter(item => this.matchesType(item.type))
+			.filter(item => this.matchesInstalledItem(item, marketplaceInstallations))
+			.filter(item => {
+				if (!this.selectedSourceId) {
+					return true;
+				}
+				const marketplace = item.catalogResource ?? getInstalledItemMarketplaceRecord(item, marketplaceInstallations)?.resource;
+				const pluginMarketplaceReference = item.pluginDetail?.kind === AgentPluginItemKind.Installed
+					? item.pluginDetail.plugin.fromMarketplace?.marketplaceReference
+					: undefined;
+				const sourceId = marketplace?.sourceId ?? (pluginMarketplaceReference ? getPluginCustomizationMarketplaceSourceId(pluginMarketplaceReference) : undefined);
+				return sourceId === this.selectedSourceId;
+			})
 			.filter(item => !text || [item.name, item.description, item.sourceLabel, getTypeLabel(item.type)].some(value => value && normalizedName(value).includes(text)))
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	private matchesType(type: DiscoveryItemType): boolean {
+	private matchesDiscoveryType(type: DiscoveryItemType | undefined, resource?: ICustomizationMarketplaceResource): boolean {
+		if (!type) {
+			return false;
+		}
 		if (this.query.types.size === 0) {
 			return true;
 		}
 		return type === 'skill' && this.query.types.has('skill')
 			|| type === 'mcp' && this.query.types.has('mcp')
-			|| type === 'plugin' && this.query.types.has('plugin');
+			|| type === 'plugin' && this.query.types.has('plugin')
+			|| resource !== undefined && this.query.types.has('canvas') && isCanvasMarketplaceResource(resource);
+	}
+
+	private matchesInstalledItem(item: IInstalledDiscoveryItem, installations: ICustomizationMarketplaceInstallationSnapshot): boolean {
+		return this.matchesDiscoveryType(item.type, item.catalogResource ?? getInstalledItemMarketplaceRecord(item, installations)?.resource);
+	}
+
+	private matchesMarketplaceResource(resource: ICustomizationMarketplaceResource): boolean {
+		return this.matchesDiscoveryType(getCatalogType(resource), resource);
+	}
+
+	private isCanvasOnlyQuery(): boolean {
+		return this.query.types.size === 1 && this.query.types.has('canvas');
+	}
+
+	private hasBlankCanvasFilter(): boolean {
+		return this.query.types.has('canvas') && !this.query.text;
+	}
+
+	private isBlankCanvasBrowse(): boolean {
+		return this.isCanvasOnlyQuery() && !this.query.text;
 	}
 
 	private shouldQueryCatalog(): boolean {
@@ -1262,6 +1696,38 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		return !this.query.installed && this.catalogPage?.nextCursor !== undefined;
 	}
 
+	private shouldQueryCanvasFallback(): boolean {
+		return this.hasBlankCanvasFilter()
+			&& (!this.selectedSourceId || this.selectedSourceId === CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
+	}
+
+	private async queryCanvasFallback(token: CancellationToken, sequence: number): Promise<ICustomizationMarketplacePage | undefined> {
+		const items: ICustomizationMarketplaceResource[] = [];
+		const sourceErrors: ICustomizationMarketplaceSourceError[] = [];
+		let cursor: ICustomizationMarketplaceCursor | undefined;
+		for (let pageCount = 0; pageCount < maxFilteredCatalogPagesPerLoad; pageCount++) {
+			// Best-effort compatibility fallback until github/copilot-agent-runtime#29133 provides filter-only catalog retrieval.
+			const page = await this.marketplaceService.query({
+				query: 'canvas',
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
+				pageSize: canvasCatalogPageSize,
+				cursor,
+			}, token);
+			if (sequence !== this.requestSequence || token.isCancellationRequested) {
+				return undefined;
+			}
+			items.push(...page.items);
+			sourceErrors.push(...page.sourceErrors ?? []);
+			cursor = page.nextCursor;
+			if (!cursor) {
+				return { items, sourceErrors };
+			}
+		}
+		this.filteredBackfillLimitReached = true;
+		return { items, sourceErrors };
+	}
+
 	private getMarketplaceSourceLabel(sourceId: string): string {
 		const source = this.marketplaceSources.find(source => source.id === sourceId)
 			?? (this.marketplaceService.allSources ?? this.marketplaceService.sources).find(source => source.id === sourceId);
@@ -1279,74 +1745,297 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.continuationScheduler.cancel();
 		this.request.value?.cancel();
 		this.request.clear();
+		this.resetLoadingAnnouncement();
 		this.loading = false;
 		this.loadingMore = false;
+		this.catalogLoadProgress = undefined;
+		this.curatedLoadProgress = undefined;
+	}
+
+	private updateCatalogPage(page: ICustomizationMarketplacePage, append: boolean, preserveExistingOrder = false): boolean {
+		let items: readonly ICustomizationMarketplaceResource[];
+		if (append) {
+			items = [...(this.catalogPage?.items ?? []), ...page.items];
+		} else if (preserveExistingOrder && this.catalogPage?.items.length) {
+			const incoming = new Map(page.items.map(item => [getCustomizationMarketplaceResourceKey(item), item]));
+			const existingKeys = new Set(this.catalogPage.items.map(item => getCustomizationMarketplaceResourceKey(item)));
+			items = [
+				...this.catalogPage.items.flatMap(item => {
+					const updated = incoming.get(getCustomizationMarketplaceResourceKey(item));
+					return updated ? [updated] : [];
+				}),
+				...page.items.filter(item => !existingKeys.has(getCustomizationMarketplaceResourceKey(item))),
+			];
+		} else {
+			items = page.items;
+		}
+		this.catalogPage = {
+			items,
+			nextCursor: page.nextCursor,
+			sourceErrors: page.sourceErrors,
+		};
+		const seen = new Set<string>();
+		this.catalogItems = this.catalogPage.items.filter(item => {
+			if (item.mediaType === CustomizationMarketplaceMediaType.CursorPlugin) {
+				return false;
+			}
+			const key = getCustomizationMarketplaceResourceKey(item);
+			if (seen.has(key)) {
+				return false;
+			}
+			seen.add(key);
+			return true;
+		});
+		this.noteBrowseFirstContent();
+		return this.catalogItems.some(item => this.matchesMarketplaceResource(item));
+	}
+
+	private noteBrowseFirstContent(): void {
+		if (this.browseLoadStartedAt !== undefined && this.browseFirstContentAt === undefined &&
+			(this.catalogItems.length > 0 || this.curatedSections?.some(section => section.items.length > 0) || this.sourceSections.length > 0)) {
+			this.browseFirstContentAt = Date.now();
+		}
+	}
+
+	private getBrowsePresentation(): 'curated' | 'fallback' | undefined {
+		if (!this.query.isEmpty()) {
+			return undefined;
+		}
+		if (this.selectedSourceId) {
+			if (this.curatedSourceId === this.selectedSourceId && this.curatedSections?.some(section => section.items.length > 0)) {
+				return 'curated';
+			}
+			return this.catalogItems.length ? 'fallback' : undefined;
+		}
+		if (this.curatedSections?.some(section => section.items.length > 0) || this.sourceSections.length) {
+			return 'curated';
+		}
+		if (!this.loading && this.catalogItems.length > 0) {
+			return 'fallback';
+		}
+		return undefined;
+	}
+
+	private async loadSourceSections(
+		token: CancellationToken,
+		browseSectionsPromise: Promise<BrowseSectionsLoadOutcome>,
+		onProgress: () => void,
+	): Promise<void> {
+		let curatedSourceId: string | undefined;
+		try {
+			const outcome = await browseSectionsPromise;
+			if (outcome.kind === 'success') {
+				curatedSourceId = outcome.result?.sourceId;
+			}
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				return;
+			}
+			onUnexpectedError(error);
+		}
+
+		const connectorSourceId = CustomizationMarketplaceSources.CopilotConnectors.id;
+		const sources = this.marketplaceSources
+			.filter(source => source.id !== CustomizationMarketplaceSources.AgentFinderPublicFeed.id && source.id !== curatedSourceId)
+			.sort((first, second) => first.id === connectorSourceId ? -1 : second.id === connectorSourceId ? 1 : 0);
+		const sections: ISourceBrowseSection[] = [];
+		for (const source of sources) {
+			if (token.isCancellationRequested) {
+				return;
+			}
+			try {
+				const page = await this.marketplaceService.query({
+					sourceIds: [source.id],
+					pageSize: leadingBrowseItemCount,
+				}, token);
+				if (token.isCancellationRequested) {
+					return;
+				}
+				const items = page.items
+					.filter(resource => getCatalogType(resource) !== undefined)
+					.slice(0, leadingBrowseItemCount);
+				if (items.length) {
+					sections.push({
+						id: `source:${source.id}`,
+						sourceId: source.id,
+						title: source.displayName ?? source.id,
+						items,
+					});
+					this.sourceSections = [...sections];
+					this.noteBrowseFirstContent();
+					onProgress();
+				}
+			} catch (error) {
+				if (isCancellationError(error) || token.isCancellationRequested) {
+					return;
+				}
+				onUnexpectedError(error);
+			}
+		}
+		if (!token.isCancellationRequested) {
+			this.sourceSections = sections;
+		}
+	}
+
+	private cacheBrowseCatalog(): void {
+		if (!this.query.isEmpty() || (!this.catalogPage && this.curatedSections === undefined && !this.sourceSections.length)) {
+			return;
+		}
+		this.browseCatalogCache.set(this.selectedSourceId ?? '', {
+			items: this.catalogItems,
+			page: this.catalogPage,
+			curatedSections: this.curatedSections,
+			curatedSourceId: this.curatedSourceId,
+			sourceSections: [...this.sourceSections],
+			curatedSourceError: this.curatedSourceError,
+		});
 	}
 
 	private async loadCatalog(append: boolean): Promise<void> {
 		if (!this.shouldQueryCatalog() || (append && (this.loading || !this.hasNextCatalogPage()))) {
 			return;
 		}
+		const loadingContinuation = append;
+		const browseRequest = !append && this.query.isEmpty();
+		const refreshDepth = append ? undefined : this.refreshDepth;
+		// Keep the displayed results until the refreshed results are complete; partial progress would shrink the list.
+		const refreshingInPlace = refreshDepth !== undefined && this.catalogItems.length > 0;
 		const sequence = ++this.requestSequence;
 		this.cancelCatalogRequest();
 		const request = new CancellationTokenSource();
 		this.request.value = request;
 		this.loading = true;
 		this.loadingMore = append;
+		if (browseRequest) {
+			this.lastBrowseTelemetryView = undefined;
+			this.browseLoadStartedAt = Date.now();
+			this.browseFirstContentAt = undefined;
+			this.catalogLoadProgress = undefined;
+			this.curatedLoadProgress = undefined;
+		}
 		this.filteredBackfillLimitReached = false;
 		this.errorMessage = undefined;
 		this.render(true);
 
 		try {
-			const backfill = !this.query.isEmpty() && this.query.types.size > 0 && getCatalogMediaType(this.query.types) === undefined;
-			let hasMatchingCatalogItem = false;
-			for (let pageCount = 0; pageCount < (backfill ? maxFilteredCatalogPagesPerLoad : 1); pageCount++) {
-				const page = await this.marketplaceService.query({
+			const browseSectionsPromise = browseRequest
+				? this.loadBrowseSections(request.token, progress => {
+					if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
+						return;
+					}
+					this.curatedLoadProgress = {
+						completed: progress.completedSectionCount,
+						total: progress.totalSectionCount,
+						cached: progress.cachedSectionCount,
+					};
+					this.curatedSections = progress.result.sections;
+					this.curatedSourceId = progress.result.sourceId;
+					this.curatedSourceError = progress.result.error
+						? { sourceId: progress.result.sourceId, message: progress.result.error }
+						: undefined;
+					this.noteBrowseFirstContent();
+					this.render();
+				})
+				: undefined;
+			const sourceSectionsPromise = browseSectionsPromise && !this.selectedSourceId
+				? this.loadSourceSections(request.token, browseSectionsPromise, () => {
+					if (sequence === this.requestSequence && !request.token.isCancellationRequested) {
+						this.render();
+					}
+				})
+				: undefined;
+			let catalogError: Error | undefined;
+			try {
+				const backfill = !this.query.isEmpty() && this.query.types.size > 0
+					&& (getCatalogMediaType(this.query.types) === undefined || this.query.types.has('canvas'));
+				const exhaustCanvasPages = this.isBlankCanvasBrowse();
+				const getCatalogQuery = (cursor: ICustomizationMarketplaceCursor | undefined): ICustomizationMarketplaceQuery => ({
 					query: this.query.text || undefined,
 					mediaType: getCatalogMediaType(this.query.types),
 					sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
-					pageSize: this.query.isEmpty() ? browseCatalogPageSize : catalogPageSize,
-					cursor: append ? this.catalogPage?.nextCursor : undefined,
-				}, request.token);
+					pageSize: exhaustCanvasPages ? canvasCatalogPageSize : this.query.isEmpty() && !this.selectedSourceId ? browseCatalogPageSize : catalogPageSize,
+					cursor,
+				});
+				const onProgress: CustomizationMarketplaceQueryProgressCallback | undefined = browseRequest ? progress => {
+					if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
+						return;
+					}
+					this.catalogLoadProgress = {
+						completed: progress.completedSourceIds.length,
+						total: progress.totalSourceCount,
+						cached: progress.cachedSourceIds.length,
+					};
+					if (!refreshingInPlace && (progress.page.items.length > 0 || this.catalogItems.length === 0)) {
+						this.updateCatalogPage(progress.page, false, !this.selectedSourceId);
+					}
+					this.render();
+				} : undefined;
+				let hasMatchingCatalogItem = false;
+				for (let pageCount = 0; pageCount < (backfill ? maxFilteredCatalogPagesPerLoad : 1); pageCount++) {
+					const page = pageCount === 0 && refreshDepth !== undefined
+						? await this.queryCatalogToDepth(getCatalogQuery, refreshDepth, request.token, onProgress)
+						: await this.marketplaceService.query(getCatalogQuery(append ? this.catalogPage?.nextCursor : undefined), request.token, onProgress);
+					if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
+						return;
+					}
+					hasMatchingCatalogItem = this.updateCatalogPage(page, append, browseRequest && !append && !this.selectedSourceId);
+					append = true;
+					if (!backfill || !page.nextCursor || hasMatchingCatalogItem && !exhaustCanvasPages) {
+						break;
+					}
+					if (pageCount === maxFilteredCatalogPagesPerLoad - 1) {
+						this.filteredBackfillLimitReached = true;
+					}
+				}
+				const primaryPage = this.catalogPage;
+				if (!loadingContinuation && this.shouldQueryCanvasFallback()) {
+					const fallback = await this.queryCanvasFallback(request.token, sequence);
+					if (!fallback) {
+						return;
+					}
+					this.updateCatalogPage({
+						...fallback,
+						nextCursor: primaryPage?.nextCursor,
+						sourceErrors: [...primaryPage?.sourceErrors ?? [], ...fallback.sourceErrors ?? []],
+					}, true);
+				}
+			} catch (error) {
+				if (sequence !== this.requestSequence || isCancellationError(error)) {
+					return;
+				}
+				this.filteredBackfillLimitReached = false;
+				catalogError = error instanceof Error ? error : new Error(getErrorMessage(error));
+			}
+			if (browseSectionsPromise) {
+				this.loaded = true;
+				this.errorMessage = catalogError ? getErrorMessage(catalogError) : undefined;
+				this.render();
+				this.logBrowseRendered();
+				const outcome = await browseSectionsPromise;
 				if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
 					return;
 				}
-				this.catalogPage = {
-					items: append ? [...(this.catalogPage?.items ?? []), ...page.items] : page.items,
-					nextCursor: page.nextCursor,
-					sourceErrors: page.sourceErrors,
-				};
-				const seen = new Set<string>();
-				this.catalogItems = this.catalogPage.items.filter(item => {
-					if (item.mediaType === CustomizationMarketplaceMediaType.CursorPlugin) {
-						return false;
-					}
-					const key = getCustomizationMarketplaceResourceKey(item);
-					if (seen.has(key)) {
-						return false;
-					}
-					seen.add(key);
-					return true;
-				});
-				hasMatchingCatalogItem = this.catalogItems.some(item => {
-					const type = getCatalogType(item);
-					return type !== undefined && this.matchesType(type);
-				});
-				append = true;
-				if (!backfill || !page.nextCursor || hasMatchingCatalogItem) {
-					break;
+				if (outcome.kind === 'error') {
+					catalogError ??= outcome.error;
+				} else {
+					this.curatedSections = outcome.result?.sections;
+					this.curatedSourceId = outcome.result?.sourceId;
+					this.curatedSourceError = outcome.result?.error
+						? { sourceId: outcome.result.sourceId, message: outcome.result.error }
+						: undefined;
 				}
-				if (pageCount === maxFilteredCatalogPagesPerLoad - 1) {
-					this.filteredBackfillLimitReached = true;
+				await sourceSectionsPromise;
+				if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
+					return;
 				}
 			}
 			this.loaded = true;
-			if (this.query.isEmpty() && this.catalogPage) {
-				this.browseCatalogCache.set(this.selectedSourceId ?? '', {
-					items: this.catalogItems,
-					page: this.catalogPage,
-				});
+			this.errorMessage = catalogError ? getErrorMessage(catalogError) : undefined;
+			if (!catalogError) {
+				this.refreshDepth = undefined;
 			}
+			this.cacheBrowseCatalog();
+			this.logBrowseRendered();
 		} catch (error) {
 			if (sequence !== this.requestSequence || isCancellationError(error)) {
 				return;
@@ -1356,10 +2045,85 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.errorMessage = getErrorMessage(error);
 		} finally {
 			if (this.request.value === request) {
+				if (browseRequest) {
+					this.logBrowseLoaded();
+				}
+				this.resetLoadingAnnouncement();
 				this.loading = false;
 				this.request.clear();
-				this.render(this.loadingMore);
+				this.render();
 			}
+		}
+	}
+
+	/**
+	 * Queries the first catalog page and requests continuation pages until at least `depth` results are
+	 * loaded, so an in-place refresh restores the results the user had already scrolled to in one update.
+	 */
+	private async queryCatalogToDepth(
+		getQuery: (cursor: ICustomizationMarketplaceCursor | undefined) => ICustomizationMarketplaceQuery,
+		depth: number,
+		token: CancellationToken,
+		onProgress: CustomizationMarketplaceQueryProgressCallback | undefined,
+	): Promise<ICustomizationMarketplacePage> {
+		let page = await this.marketplaceService.query(getQuery(undefined), token, onProgress);
+		for (let pageCount = 1; page.nextCursor && page.items.length < depth && pageCount < maxRefreshCatalogPages && !token.isCancellationRequested; pageCount++) {
+			const next = await this.marketplaceService.query(getQuery(page.nextCursor), token);
+			const sourceErrors = new Map([...page.sourceErrors ?? [], ...next.sourceErrors ?? []].map(error => [error.sourceId, error]));
+			page = {
+				items: [...page.items, ...next.items],
+				total: next.total ?? page.total,
+				nextCursor: next.nextCursor,
+				sourceErrors: sourceErrors.size ? [...sourceErrors.values()] : undefined,
+			};
+		}
+		return page;
+	}
+
+	private logBrowseRendered(): void {
+		if (!this.query.isEmpty() || !this.loaded) {
+			return;
+		}
+		const view = this.getBrowsePresentation();
+		if (!view) {
+			return;
+		}
+		if (view === this.lastBrowseTelemetryView) {
+			return;
+		}
+		this.lastBrowseTelemetryView = view;
+		this.telemetryService.publicLog2<CustomizationMarketplaceBrowseRenderedEvent, CustomizationMarketplaceBrowseRenderedClassification>('chatCustomizationMarketplace.browseRendered', {
+			view,
+			curatedSectionCount: view === 'curated' ? this.curatedSections?.filter(section => section.items.length > 0).length ?? 0 : 0,
+		});
+	}
+
+	private logBrowseLoaded(): void {
+		const startedAt = this.browseLoadStartedAt;
+		if (startedAt === undefined) {
+			return;
+		}
+		const sourceCount = (this.catalogLoadProgress?.total ?? 0) + (this.curatedLoadProgress?.total ?? 0);
+		this.telemetryService.publicLog2<CustomizationMarketplaceBrowseLoadedEvent, CustomizationMarketplaceBrowseLoadedClassification>('chatCustomizationMarketplace.browseLoaded', {
+			timeToFirstContentMs: this.browseFirstContentAt === undefined ? -1 : this.browseFirstContentAt - startedAt,
+			timeToSettledMs: Date.now() - startedAt,
+			sourceCount,
+			cachedSourceCount: (this.catalogLoadProgress?.cached ?? 0) + (this.curatedLoadProgress?.cached ?? 0),
+		});
+		this.browseLoadStartedAt = undefined;
+		this.browseFirstContentAt = undefined;
+	}
+
+	private async loadBrowseSections(token: CancellationToken, onProgress: NonNullable<Parameters<NonNullable<ICustomizationMarketplaceService['getBrowseSections']>>[2]>): Promise<BrowseSectionsLoadOutcome> {
+		try {
+			return {
+				kind: 'success',
+				result: await this.marketplaceService.getBrowseSections?.({
+					sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
+				}, token, onProgress),
+			};
+		} catch (error) {
+			return { kind: 'error', error: error instanceof Error ? error : new Error(getErrorMessage(error)) };
 		}
 	}
 
@@ -1368,10 +2132,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private hasMatchingCatalogItems(): boolean {
-		return this.catalogItems.some(item => {
-			const type = getCatalogType(item);
-			return type !== undefined && this.matchesType(type);
-		});
+		return this.catalogItems.some(item => this.matchesMarketplaceResource(item));
 	}
 
 	private isCatalogPending(): boolean {
@@ -1379,8 +2140,17 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			|| this.filteredBackfillLimitReached && this.hasNextCatalogPage() && !this.hasMatchingCatalogItems());
 	}
 
-	private render(preserveResults = false): void {
-		this.sourceWarnings.update(this.catalogPage?.sourceErrors ?? [], this.loading);
+	private render(preserveResults = true): void {
+		const sourceErrors = [...this.catalogPage?.sourceErrors ?? []];
+		if (this.curatedSourceError && !sourceErrors.some(error => error.sourceId === this.curatedSourceError?.sourceId)) {
+			sourceErrors.push(this.curatedSourceError);
+		}
+		this.sourceWarnings.update(
+			sourceErrors,
+			this.loading,
+			this.loaded && !this.loading,
+			this.isCatalogEnabled() && !this.query.installed ? this.getCurrentQuerySources().map(source => source.id) : [],
+		);
 		const catalogPending = this.isCatalogPending();
 		const showProgress = this.visible && catalogPending && !this.isLoadingMore();
 		if (showProgress !== this.progressBarActive) {
@@ -1392,7 +2162,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 		}
 		this.browseContent.setAttribute('aria-busy', String(catalogPending));
-		const searchMode = !this.query.isEmpty();
+		const searchMode = !this.query.isEmpty() || this.selectedSourceId !== undefined && this.getBrowsePresentation() !== 'curated';
 		this.browseScrollable.getDomNode().hidden = searchMode;
 		this.resultListContainer.hidden = !searchMode;
 		if (searchMode) {
@@ -1404,7 +2174,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private scheduleContinuationIfNeeded(): void {
-		if (!this.visible || this.query.isEmpty() || this.loading || this.errorMessage || !this.hasNextCatalogPage()) {
+		if (!this.visible || this.query.isEmpty() && !this.selectedSourceId || this.loading || this.errorMessage || !this.hasNextCatalogPage()) {
 			this.continuationScheduler.cancel();
 			return;
 		}
@@ -1415,32 +2185,56 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private getLoadingLabel(): string {
+		const progress = this.query.isEmpty() && !this.loadingMore
+			? {
+				completed: (this.catalogLoadProgress?.completed ?? 0) + (this.curatedLoadProgress?.completed ?? 0),
+				total: (this.catalogLoadProgress?.total ?? 0) + (this.curatedLoadProgress?.total ?? 0),
+				cached: (this.catalogLoadProgress?.cached ?? 0) + (this.curatedLoadProgress?.cached ?? 0),
+			}
+			: undefined;
 		return this.loadingMore
 			? localize('customizationDiscovery.loadingMore', "Loading more customizations...")
-			: this.catalogItems.length ? localize('customizationDiscovery.reloading', "Reloading customizations...")
-				: localize('customizationDiscovery.loading', "Loading customizations...");
+			: progress?.total ? progress.cached
+				? localize('customizationDiscovery.refreshingProgress', "Refreshing customizations... {0} of {1} sources refreshed.", progress.completed, progress.total)
+				: localize('customizationDiscovery.loadingProgress', "Loading customizations... {0} of {1} sources loaded.", progress.completed, progress.total)
+				: this.catalogItems.length ? localize('customizationDiscovery.reloading', "Reloading customizations...")
+					: localize('customizationDiscovery.loading', "Loading customizations...");
 	}
 
-	private getSearchMarketplaceResources(): readonly ICustomizationMarketplaceResource[] {
+	private getSearchMarketplaceResources(): readonly IPrioritizedMarketplaceResource[] {
 		const resources = new Map(this.catalogItems.map(resource => [getCustomizationMarketplaceResourceKey(resource), resource]));
-		for (const { resource } of this.installService.installations.get().installations) {
-			const key = getCustomizationMarketplaceResourceKey(resource);
-			if (!resources.has(key)) {
-				resources.set(key, resource);
+		if (!this.selectedSourceId || this.query.installed) {
+			for (const { resource } of this.installService.installations.get().installations) {
+				const key = getCustomizationMarketplaceResourceKey(resource);
+				if (!resources.has(key)) {
+					resources.set(key, resource);
+				}
 			}
 		}
 		const query = normalizedName(this.query.text);
-		return [...resources.values()].filter(resource => {
+		const matching = [...resources.values()].filter(resource => {
 			const type = getCatalogType(resource);
 			return !!type
-				&& this.matchesType(type)
+				&& this.matchesMarketplaceResource(resource)
 				&& (!this.selectedSourceId || resource.sourceId === this.selectedSourceId)
 				&& (!query || [resource.displayName, resource.description, getTypeLabel(type), this.getMarketplaceSourceLabel(resource.sourceId)].some(value => normalizedName(value).includes(query)));
 		});
+		if (this.isBlankCanvasBrowse()) {
+			return matching
+				.map((resource, originalIndex) => ({ resource, originalIndex }))
+				.sort((first, second) => (second.resource.installCount ?? 0) - (first.resource.installCount ?? 0) || first.originalIndex - second.originalIndex)
+				.map(({ resource }) => ({ resource }));
+		}
+		return this.selectedSourceId
+			? matching.map(resource => ({ resource }))
+			: prioritizeLinkedCopilotConnectors(matching);
 	}
 
 	private renderSearchResults(preserveResults: boolean): void {
 		this.resultStatusDisposables.clear();
+		this.resultList.ariaLabel = this.isCanvasOnlyQuery()
+			? localize('customizationDiscovery.canvasResultsLabel', "Canvas extension search results")
+			: localize('customizationDiscovery.resultsLabel', "Customization search results");
 		const installed = [...this.getFilteredInstalledItems()];
 		const marketplaceInstallations = this.installService.installations.get();
 		const installedByMarketplaceRecord = new Map<IRecordedCustomizationMarketplaceResource, number>();
@@ -1450,22 +2244,25 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				installedByMarketplaceRecord.set(marketplace, index);
 			}
 		}
-		const installedCatalog: IInstalledDiscoveryItem[] = [];
-		const available: ICatalogDiscoveryItem[] = [];
-		for (const resource of this.getSearchMarketplaceResources()) {
+		const consumedInstalledIndices = new Set<number>();
+		const marketplaceEntries: (IInstalledDiscoveryItem | ICatalogDiscoveryItem)[] = [];
+		for (const { resource, linkedConnectionRole } of this.getSearchMarketplaceResources()) {
 			const type = getCatalogType(resource)!;
 			const state = this.getInstallState(resource);
 			if (hasInstallationTarget(state)) {
 				const marketplace = marketplaceInstallations.findByResource(resource);
 				const matchingInstalledIndex = marketplace ? installedByMarketplaceRecord.get(marketplace) : undefined;
 				if (matchingInstalledIndex !== undefined) {
-					installed[matchingInstalledIndex] = {
+					consumedInstalledIndices.add(matchingInstalledIndex);
+					marketplaceEntries.push({
 						...installed[matchingInstalledIndex],
 						sourceLabel: this.getMarketplaceResourceLabel(resource),
 						catalogResource: resource,
-					};
+						linkedConnectionRole,
+						alternativeExpanded: linkedConnectionRole === 'alternative' && this.isAlternativeExpanded(resource),
+					});
 				} else {
-					installedCatalog.push({
+					marketplaceEntries.push({
 						kind: 'installed',
 						id: `installed:catalog:${getCustomizationMarketplaceResourceKey(resource)}`,
 						name: resource.displayName,
@@ -1477,26 +2274,52 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 						uri: state.target.kind === 'skill' || state.target.kind === 'plugin' ? state.target.uri : undefined,
 						mcpServerId: state.target.kind === 'mcp' ? state.target.id : undefined,
 						mcpConnectorName: state.target.kind === 'copilotConnector' ? state.target.name : undefined,
+						linkedConnectionRole,
+						alternativeExpanded: linkedConnectionRole === 'alternative' && this.isAlternativeExpanded(resource),
 					});
 				}
-			} else {
-				available.push({ kind: 'available', id: `available:${getCustomizationMarketplaceResourceKey(resource)}`, resource });
+			} else if (!this.query.installed) {
+				marketplaceEntries.push({
+					kind: 'available',
+					id: `available:${getCustomizationMarketplaceResourceKey(resource)}`,
+					resource,
+					linkedConnectionRole,
+					alternativeExpanded: linkedConnectionRole === 'alternative' && this.isAlternativeExpanded(resource),
+				});
 			}
 		}
 
-		const allInstalled = [...installed, ...installedCatalog];
-		const entries: DiscoveryListEntry[] = this.query.installed ? allInstalled : [...allInstalled, ...available];
+		const unmatchedInstalled = this.selectedSourceId && !this.query.installed
+			? []
+			: installed.filter((_, index) => !consumedInstalledIndices.has(index));
+		const entries: DiscoveryListEntry[] = [...unmatchedInstalled, ...marketplaceEntries].map(entry => {
+			const resource = entry.kind === 'available' ? entry.resource : entry.catalogResource;
+			return {
+				...entry,
+				installationState: resource ? this.getInstallState(resource) : undefined,
+				uninstalling: entry.kind === 'installed' && this.pendingDirectUninstalls.has(entry.id),
+				installError: resource ? this.installErrors.get(getCustomizationMarketplaceResourceKey(resource)) : undefined,
+			};
+		});
 		const resultCount = entries.length;
 		if (this.isLoadingMore() && resultCount > 0) {
 			entries.push({ kind: 'loading', id: 'loading' });
 		}
 		let start = 0;
+		let end = this.resultList.length;
+		let newEnd = entries.length;
 		if (preserveResults) {
-			while (start < this.resultList.length && start < entries.length && structuralEquals(this.resultList.element(start), entries[start])) {
+			while (start < this.resultList.length && start < entries.length && discoveryListEntriesEqual(this.resultList.element(start), entries[start])) {
 				start++;
 			}
+			while (end > start && newEnd > start && discoveryListEntriesEqual(this.resultList.element(end - 1), entries[newEnd - 1])) {
+				end--;
+				newEnd--;
+			}
 		}
-		this.resultList.splice(start, this.resultList.length - start, entries.slice(start));
+		if (start !== end || start !== newEnd) {
+			this.resultList.splice(start, end - start, entries.slice(start, newEnd));
+		}
 
 		const installError = this.installErrors.values().next().value;
 		const catalogPending = this.isCatalogPending();
@@ -1515,21 +2338,25 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.focus();
 				void this.loadCatalog(this.loadingMore);
 			}));
-		} else if (entries.length === 0 && this.sourceWarnings.hasWarnings) {
-			this.resultStatus.textContent = localize('customizationDiscovery.sourcesUnavailable', "Available customizations could not be fully loaded. Retry an unavailable source.");
-		} else if (entries.length === 0 && !this.sourceWarnings.hasErrors) {
+		} else if (entries.length === 0 && this.sourceWarnings.hasFailures) {
+			this.resultStatus.textContent = '';
+		} else if (entries.length === 0 && !this.sourceWarnings.hasInlinePrompts) {
 			this.resultStatus.textContent = this.filteredBackfillLimitReached
 				? localize('customizationDiscovery.moreResultsPossible', "More catalog results may match this search.")
-				: localize('customizationDiscovery.noResults', "No customizations match this search.");
+				: this.isCanvasOnlyQuery()
+					? localize('customizationDiscovery.noCanvasResults', "No canvas extensions match this search.")
+					: localize('customizationDiscovery.noResults', "No customizations match this search.");
 		} else {
 			this.resultStatus.textContent = '';
 		}
 		if (this.loading) {
-			this.announce(this.getLoadingLabel());
+			this.announceLoading(this.getLoadingLabel());
 		}
 		if (!catalogPending && !this.errorMessage) {
 			this.announce([
-				localize('customizationDiscovery.resultCount', "{0} customizations found.", resultCount),
+				this.isCanvasOnlyQuery()
+					? localize('customizationDiscovery.canvasResultCount', "{0} canvas extensions found.", resultCount)
+					: localize('customizationDiscovery.resultCount', "{0} customizations found.", resultCount),
 				this.sourceWarnings.getAccessibilityContent(),
 			].filter(Boolean).join('\n'));
 		}
@@ -1538,16 +2365,18 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private renderBrowse(): void {
 		this.browseDisposables.clear();
 		this.browsePrimaryActions.clear();
+		this.browseAlternativeActions.clear();
+		this.browseInstallStates.clear();
 		DOM.clearNode(this.browseSections);
 		if (!this.isCatalogEnabled()) {
 			this.browseStatus.textContent = localize('customizationDiscovery.catalogDisabled', "Search your installed customizations, or enable a marketplace source to explore available items.");
 			return;
 		}
-		if (this.loading && this.catalogItems.length === 0) {
+		if (this.loading && this.catalogItems.length === 0 && !this.curatedSections?.some(section => section.items.length > 0) && !this.sourceSections.length) {
 			this.browseStatus.textContent = '';
 			return;
 		}
-		if (this.errorMessage && this.catalogItems.length === 0) {
+		if (this.errorMessage && this.catalogItems.length === 0 && !this.curatedSections?.some(section => section.items.length > 0) && !this.sourceSections.length) {
 			const message = localize('customizationDiscovery.error', "Could not load available customizations. {0}", this.errorMessage);
 			this.browseStatus.textContent = message;
 			this.announce(message);
@@ -1557,29 +2386,69 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		this.browseStatus.textContent = '';
-		const leading = getLeadingBrowseItems(this.catalogItems);
-		const leadingIds = new Set(leading.map(getCustomizationMarketplaceResourceKey));
-		if (leading.length) {
-			this.renderBrowseSection(
-				localize('customizationDiscovery.leadingSection', "Expand your agent's horizons"),
-				leading,
-				undefined,
-				true,
-			);
+		const browsePresentation = this.getBrowsePresentation();
+		const curatedSections = browsePresentation === 'curated'
+			? this.curatedSections?.filter(section => section.items.length > 0)
+			: undefined;
+		if (curatedSections?.length) {
+			for (let index = 0; index < curatedSections.length; index++) {
+				const section = curatedSections[index];
+				this.renderBrowseSection(
+					section.title,
+					section.items.map<IPrioritizedMarketplaceResource>(resource => ({ resource })),
+					undefined,
+					index === 0,
+				);
+			}
 		}
-		const groups: readonly { readonly type: CustomizationDiscoveryType; readonly label: string }[] = [
-			{ type: 'skill', label: localize('customizationDiscovery.skillsSection', "Skills") },
-			{ type: 'mcp', label: localize('customizationDiscovery.mcpsSection', "MCP servers") },
-			{ type: 'plugin', label: localize('customizationDiscovery.pluginsSection', "Plugins") },
-		];
-		for (const group of groups) {
-			const items = this.catalogItems.filter(item => getCatalogType(item) === group.type && !leadingIds.has(getCustomizationMarketplaceResourceKey(item))).slice(0, leadingBrowseItemCount);
-			if (items.length) {
-				this.renderBrowseSection(group.label, items, group.type, false);
+		if (!this.selectedSourceId) {
+			for (const section of this.sourceSections) {
+				this.renderBrowseSection(
+					section.title,
+					section.items.map<IPrioritizedMarketplaceResource>(resource => ({ resource })),
+					undefined,
+					false,
+					{
+						label: localize('customizationDiscovery.viewAll', "View All"),
+						ariaLabel: localize('customizationDiscovery.viewAllSource', "View all customizations from {0}", section.title),
+						run: () => this.selectSource(section.sourceId),
+					},
+				);
+			}
+		}
+		if (browsePresentation === 'fallback') {
+			const prioritizedResources = prioritizeLinkedCopilotConnectors(this.catalogItems);
+			const leading = this.selectedSourceId ? [] : getLeadingBrowseItems(prioritizedResources);
+			const leadingIds = new Set(leading.map(({ resource }) => getCustomizationMarketplaceResourceKey(resource)));
+			if (leading.length) {
+				this.renderBrowseSection(
+					localize('customizationDiscovery.leadingSection', "Expand your agent's horizons"),
+					leading,
+					undefined,
+					true,
+				);
+			}
+			const groups: readonly { readonly type: CustomizationDiscoveryType; readonly label: string }[] = [
+				{ type: 'skill', label: localize('customizationDiscovery.skillsSection', "Skills") },
+				{ type: 'mcp', label: localize('customizationDiscovery.mcpsSection', "MCP servers") },
+				{ type: 'plugin', label: localize('customizationDiscovery.pluginsSection', "Plugins") },
+			];
+			const remainingGroups = groupPrioritizedMarketplaceResources(prioritizedResources)
+				.filter(group => group.every(({ resource }) => !leadingIds.has(getCustomizationMarketplaceResourceKey(resource))));
+			for (const group of groups) {
+				const items = remainingGroups
+					.filter(items => getCatalogType(items[0].resource) === group.type)
+					.slice(0, leadingBrowseItemCount)
+					.flat();
+				if (items.length) {
+					this.renderBrowseSection(group.label, items, group.type, false);
+				}
 			}
 		}
 		if (this.loading) {
-			this.browseStatus.textContent = '';
+			const loadingLabel = this.getLoadingLabel();
+			this.browseStatus.textContent = loadingLabel;
+			this.announceLoading(loadingLabel);
 		} else if (this.errorMessage) {
 			const message = localize('customizationDiscovery.error', "Could not load available customizations. {0}", this.errorMessage);
 			this.browseStatus.textContent = message;
@@ -1587,32 +2456,95 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			const retry = this.browseDisposables.add(new Button(this.browseStatus, { ...defaultButtonStyles, secondary: true, small: true }));
 			retry.label = localize('customizationDiscovery.retry', "Retry");
 			this.browseDisposables.add(retry.onDidClick(() => void this.loadCatalog(false)));
-		} else if (!this.catalogItems.length && this.loaded && this.sourceWarnings.hasWarnings) {
-			this.browseStatus.textContent = localize('customizationDiscovery.sourcesUnavailable', "Available customizations could not be fully loaded. Retry an unavailable source.");
-		} else if (!this.catalogItems.length && this.loaded && !this.sourceWarnings.hasErrors) {
+		} else if (!this.catalogItems.length && !curatedSections?.length && !this.sourceSections.length && this.loaded && this.sourceWarnings.hasFailures) {
+			this.browseStatus.textContent = '';
+		} else if (!this.catalogItems.length && !curatedSections?.length && !this.sourceSections.length && this.loaded && !this.sourceWarnings.hasInlinePrompts) {
 			this.browseStatus.textContent = localize('customizationDiscovery.emptyCatalog', "No catalog customizations are available.");
+		} else if (this.errorMessage) {
+			this.browseStatus.textContent = localize('customizationDiscovery.additionalItemsError', "Some additional customizations could not be loaded. {0}", this.errorMessage);
 		} else {
 			this.browseStatus.textContent = this.installErrors.values().next().value ?? '';
 		}
-		if (!this.loading && this.sourceWarnings.hasErrors) {
+		if (!this.loading && this.sourceWarnings.hasInlinePrompts) {
 			this.announce(this.sourceWarnings.getAccessibilityContent());
 		}
 	}
 
-	private renderBrowseSection(label: string, items: readonly ICustomizationMarketplaceResource[], type: CustomizationDiscoveryType | undefined, elevated: boolean): void {
+	private renderBrowseSection(
+		label: string,
+		items: readonly IPrioritizedMarketplaceResource[],
+		type: CustomizationDiscoveryType | undefined,
+		elevated: boolean,
+		action?: { readonly label: string; readonly ariaLabel: string; readonly run: () => void },
+	): void {
 		const section = DOM.append(this.browseSections, $('.customization-discovery-section'));
 		section.classList.toggle('featured', elevated);
 		const header = DOM.append(section, $('.customization-discovery-section-header'));
 		DOM.append(header, $('h3.customization-discovery-section-title')).textContent = label;
-		if (type) {
+		if (type || action) {
 			const showAll = DOM.append(header, $('button.customization-discovery-show-all')) as HTMLButtonElement;
 			showAll.type = 'button';
-			showAll.textContent = localize('customizationDiscovery.showAll', "Show All");
-			this.browseDisposables.add(DOM.addDisposableListener(showAll, DOM.EventType.CLICK, () => this.setQuery(this.query.withType(type, true))));
+			showAll.textContent = action?.label ?? localize('customizationDiscovery.viewAll', "View All");
+			if (action) {
+				showAll.setAttribute('aria-label', action.ariaLabel);
+			}
+			this.browseDisposables.add(DOM.addDisposableListener(showAll, DOM.EventType.CLICK, () => {
+				if (action) {
+					action.run();
+				} else if (type) {
+					this.setQuery(this.query.withType(type, true));
+				}
+			}));
 		}
 		const grid = DOM.append(section, $('.customization-discovery-grid'));
-		for (const item of items) {
-			this.renderBrowseCard(grid, item);
+		for (const group of groupPrioritizedMarketplaceResources(items)) {
+			if (group.length === 2) {
+				this.renderBrowseCardGroup(grid, group[0].resource, group[1].resource);
+			} else {
+				this.renderBrowseCard(grid, group[0].resource);
+			}
+		}
+	}
+
+	private renderBrowseCardGroup(parent: HTMLElement, connector: ICustomizationMarketplaceResource, alternative: ICustomizationMarketplaceResource): void {
+		const group = DOM.append(parent, $('.customization-discovery-card-group'));
+		this.renderBrowseCard(group, connector);
+		const alternativeContainer = DOM.append(group, $('.customization-discovery-card-alternative'));
+		const alternativeKey = getCustomizationMarketplaceResourceKey(alternative);
+		const expanded = this.isAlternativeExpanded(alternative);
+		alternativeContainer.classList.toggle('expanded', expanded);
+		const disclosure = DOM.append(alternativeContainer, $<HTMLButtonElement>('button.customization-discovery-card-linked-label'));
+		disclosure.type = 'button';
+		disclosure.setAttribute('aria-expanded', String(expanded));
+		disclosure.setAttribute('aria-label', expanded
+			? localize('customizationDiscovery.hideAlternativeAriaLabel', "Hide 1 alternative customization")
+			: localize('customizationDiscovery.showAlternativeAriaLabel', "Show 1 alternative customization"));
+		const disclosureIcon = DOM.append(disclosure, $('.codicon'));
+		disclosureIcon.classList.add(...ThemeIcon.asClassNameArray(expanded ? Codicon.chevronDownCompact : Codicon.chevronRightCompact));
+		disclosureIcon.setAttribute('aria-hidden', 'true');
+		DOM.append(disclosure, $('span')).textContent = getAlternativeDisclosureLabel();
+		this.browseAlternativeActions.set(alternativeKey, disclosure);
+		const toggle = () => {
+			const shouldExpand = !this.expandedAlternatives.delete(alternativeKey);
+			if (shouldExpand) {
+				this.expandedAlternatives.add(alternativeKey);
+			}
+			this.renderBrowse();
+			this.browseAlternativeActions.get(alternativeKey)?.focus();
+		};
+		this.browseDisposables.add(DOM.addDisposableListener(disclosure, DOM.EventType.CLICK, event => {
+			event.stopPropagation();
+			toggle();
+		}));
+		this.browseDisposables.add(DOM.addDisposableListener(disclosure, DOM.EventType.KEY_DOWN, event => {
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault();
+				event.stopPropagation();
+				toggle();
+			}
+		}));
+		if (expanded) {
+			this.renderBrowseCard(alternativeContainer, alternative);
 		}
 	}
 
@@ -1621,6 +2553,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const resourceKey = getCustomizationMarketplaceResourceKey(item);
 		card.dataset.resourceKey = resourceKey;
 		const state = this.getInstallState(item);
+		this.browseInstallStates.set(item, state);
 		const primaryAction = createCustomizationCardPrimaryAction(
 			card,
 			state.kind === 'installed'
@@ -1638,6 +2571,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			item.icon,
 			this.themeService.getColorTheme().type,
 			this.browseDisposables,
+			true,
 		);
 		const body = DOM.append(card, $('.customization-discovery-card-body'));
 		const heading = DOM.append(body, $('.customization-discovery-card-heading'));
@@ -1708,7 +2642,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			: localize('customizationDiscovery.installStarted', "Installing {0}.", resource.displayName));
 		this.render();
 		try {
-			await this.installService.install(resource);
+			const origin = !query.isEmpty()
+				? 'search'
+				: this.curatedSections?.some(section => section.items.some(item => getCustomizationMarketplaceResourceKey(item) === resourceKey))
+					? 'curatedSection'
+					: 'browseFallback';
+			await this.installService.install(resource, origin);
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -1840,6 +2779,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.pendingDirectUninstalls.delete(item.id);
 				if (!this._store.isDisposed) {
 					this.refreshInstalledItems();
+					// The pending state is not part of the list entry, so an uninstall that leaves the item in place must re-render it fully.
+					this.render();
 				}
 			}
 			return;
@@ -1972,19 +2913,72 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 	}
 
+	private announceLoading(message: string): void {
+		if (message === this.lastLoadingAnnouncement) {
+			this.pendingLoadingAnnouncement = undefined;
+			this.loadingAnnouncementScheduler.cancel();
+		} else if (this.lastLoadingAnnouncement === undefined) {
+			this.lastLoadingAnnouncement = message;
+			this.announce(message);
+		} else {
+			this.pendingLoadingAnnouncement = message;
+			if (!this.loadingAnnouncementScheduler.isScheduled()) {
+				this.loadingAnnouncementScheduler.schedule();
+			}
+		}
+	}
+
+	private resetLoadingAnnouncement(): void {
+		this.loadingAnnouncementScheduler.cancel();
+		this.lastLoadingAnnouncement = undefined;
+		this.pendingLoadingAnnouncement = undefined;
+	}
+
 	private getEntryAriaLabel(entry: DiscoveryListEntry): string {
 		if (entry.kind === 'loading') {
 			return this.getLoadingLabel();
 		}
 		if (entry.kind === 'installed') {
+			if (entry.linkedConnectionRole === 'alternative' && !entry.alternativeExpanded) {
+				return localize('customizationDiscovery.collapsedAlternativeAriaLabel', "1 alternative customization, collapsed");
+			}
 			const state = entry.catalogResource ? this.getInstallState(entry.catalogResource) : undefined;
 			const stateLabel = state ? getInstallationStateLabel(state, isCopilotConnectorResource(entry.catalogResource)) : localize('customizationDiscovery.installed', "Installed");
 			const stateDetail = state?.kind === 'error' ? localize('customizationDiscovery.verificationErrorDetail', ", {0}", state.message) : '';
-			return localize('customizationDiscovery.installedAriaLabel', "{0}, {1}, {2}{3}{4}. {5}", entry.name, getTypeLabel(entry.type), `${stateLabel}${stateDetail}`, entry.sourceLabel ? localize('customizationDiscovery.sourceAriaLabel', ", source {0}", entry.sourceLabel) : '', entry.disabled ? localize('customizationDiscovery.disabledAriaLabel', ", disabled") : '', entry.description);
+			const verified = isVerifiedCopilotConnector(entry.catalogResource) ? localize('customizationDiscovery.verifiedAriaLabel', ", verified by GitHub") : '';
+			return localize('customizationDiscovery.installedAriaLabel', "{0}, {1}, {2}{3}{4}{5}. {6}", entry.name, getTypeLabel(entry.type), `${stateLabel}${stateDetail}`, entry.sourceLabel ? localize('customizationDiscovery.sourceAriaLabel', ", source {0}", entry.sourceLabel) : '', verified, entry.disabled ? localize('customizationDiscovery.disabledAriaLabel', ", disabled") : '', entry.description);
+		}
+		if (entry.linkedConnectionRole === 'alternative' && !entry.alternativeExpanded) {
+			return localize('customizationDiscovery.collapsedAlternativeAriaLabel', "1 alternative customization, collapsed");
 		}
 		const type = getCatalogType(entry.resource);
 		const state = this.getInstallState(entry.resource);
-		return localize('customizationDiscovery.availableAriaLabel', "{0}, {1}, source {2}. {3}. {4}", entry.resource.displayName, type ? getTypeLabel(type) : entry.resource.mediaType, this.getMarketplaceResourceLabel(entry.resource), entry.resource.description, state.kind);
+		const verified = isVerifiedCopilotConnector(entry.resource) ? localize('customizationDiscovery.verifiedAriaLabel', ", verified by GitHub") : '';
+		return localize('customizationDiscovery.availableAriaLabel', "{0}, {1}, source {2}{3}. {4}. {5}", entry.resource.displayName, type ? getTypeLabel(type) : entry.resource.mediaType, this.getMarketplaceResourceLabel(entry.resource), verified, entry.resource.description, state.kind);
+	}
+
+	private isAlternativeExpanded(resource: ICustomizationMarketplaceResource): boolean {
+		return this.expandedAlternatives.has(getCustomizationMarketplaceResourceKey(resource));
+	}
+
+	private toggleAlternative(item: IInstalledDiscoveryItem | ICatalogDiscoveryItem): void {
+		const resource = item.kind === 'installed' ? item.catalogResource : item.resource;
+		if (!resource) {
+			return;
+		}
+		const key = getCustomizationMarketplaceResourceKey(resource);
+		const expanded = !this.expandedAlternatives.delete(key);
+		if (expanded) {
+			this.expandedAlternatives.add(key);
+		}
+		this.renderSearchResults(true);
+		for (let index = 0; index < this.resultList.length; index++) {
+			if (this.resultList.element(index).id === item.id) {
+				this.resultList.setFocus([index]);
+				this.resultAlternativeActions.get(item.id)?.focus();
+				break;
+			}
+		}
 	}
 
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void {
@@ -2068,12 +3062,31 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	getAccessibilityContent(): string {
-		const searchResources = this.getSearchMarketplaceResources();
+		const browsePresentation = this.getBrowsePresentation();
+		const browseSections = this.query.isEmpty() && browsePresentation === 'curated'
+			? [
+				...(this.curatedSections?.filter(section => section.items.length > 0) ?? []),
+				...(this.selectedSourceId ? [] : this.sourceSections),
+			]
+			: undefined;
+		const searchResources = browseSections?.length
+			? browseSections.flatMap(section => section.items.map<IPrioritizedMarketplaceResource>(resource => ({ resource })))
+			: this.query.isEmpty() && !this.selectedSourceId && browsePresentation === undefined
+				? []
+				: this.getSearchMarketplaceResources();
+		const collapsedAlternatives = searchResources.filter(({ resource, linkedConnectionRole }) =>
+			linkedConnectionRole === 'alternative' && !this.isAlternativeExpanded(resource));
+		const visibleSearchResources = searchResources.filter(({ resource, linkedConnectionRole }) =>
+			linkedConnectionRole !== 'alternative' || this.isAlternativeExpanded(resource));
 		const marketplaceInstallations = this.installService.installations.get();
-		const recorded = searchResources
-			.map(resource => ({ resource, state: this.getInstallState(resource) }))
+		const recorded = visibleSearchResources
+			.map(({ resource, linkedConnectionRole }) => ({ resource, linkedConnectionRole, state: this.getInstallState(resource) }))
 			.filter(entry => hasInstallationTarget(entry.state));
-		const recordedInstallations = new Set(recorded.flatMap(({ resource }) => {
+		const recordedInstallations = new Set(searchResources.flatMap(({ resource }) => {
+			const state = this.getInstallState(resource);
+			if (!hasInstallationTarget(state)) {
+				return [];
+			}
 			const installation = marketplaceInstallations.findByResource(resource);
 			return installation ? [installation] : [];
 		}));
@@ -2081,10 +3094,33 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			const marketplace = getInstalledItemMarketplaceRecord(item, marketplaceInstallations);
 			return !marketplace || !recordedInstallations.has(marketplace);
 		});
-		const available = searchResources.filter(item => {
-			const type = getCatalogType(item);
-			return type && this.matchesType(type) && !hasInstallationTarget(this.getInstallState(item));
+		const available = visibleSearchResources.filter(({ resource }) => {
+			return this.matchesMarketplaceResource(resource) && !hasInstallationTarget(this.getInstallState(resource));
 		});
+		const sourceSectionIds = new Set(this.sourceSections.map(section => section.id));
+		const marketplaceContent = browseSections?.length
+			? browseSections.map(section => [
+				section.title,
+				sourceSectionIds.has(section.id) ? localize('customizationDiscovery.viewAllSourceAccessible', "View all customizations from {0}.", section.title) : undefined,
+				...section.items.map(item => {
+					const state = this.getInstallState(item);
+					const type = getCatalogType(item);
+					const stateLabel = hasInstallationTarget(state)
+						? getInstallationStateLabel(state, isCopilotConnectorResource(item))
+						: state.kind === 'unavailable'
+							? state.message
+							: localize('customizationDiscovery.available', "Available");
+					return `${item.displayName}\n${[type ? getTypeLabel(type) : item.mediaType, this.getMarketplaceResourceLabel(item), stateLabel].filter(Boolean).join(' · ')}\n${item.description}`;
+				}),
+			].filter(Boolean).join('\n\n'))
+			: [
+				...recorded.map(({ resource, state }) => `${resource.displayName}\n${[getTypeLabel(getCatalogType(resource) ?? 'plugin'), this.getMarketplaceSourceLabel(resource.sourceId), !this.query.isEmpty() && isVerifiedCopilotConnector(resource) ? localize('customizationDiscovery.verifiedByGitHub', "Verified by GitHub") : undefined, getInstallationStateLabel(state, isCopilotConnectorResource(resource))].filter(Boolean).join(' · ')}\n${resource.description}${state.kind === 'error' ? `\n${state.message}` : state.kind === 'missing' && state.repairUnavailableMessage ? `\n${state.repairUnavailableMessage}` : ''}`),
+				...available.map(({ resource }) => {
+					const state = this.getInstallState(resource);
+					const verifiedLabel = !this.query.isEmpty() && isVerifiedCopilotConnector(resource) ? localize('customizationDiscovery.verifiedByGitHub', "Verified by GitHub") : undefined;
+					return `${resource.displayName}\n${[getTypeLabel(getCatalogType(resource) ?? 'plugin'), this.getMarketplaceResourceLabel(resource), verifiedLabel].filter(Boolean).join(' · ')}\n${resource.description}${state.kind === 'unavailable' && state.setupUrl ? `\n${localize('customizationDiscovery.manualSetupAccessible', "Manual setup required. View Setup opens the publisher's instructions.")}` : ''}`;
+				}),
+			];
 		return [
 			localize('customizationDiscovery.title', "Browse customizations"),
 			this.query.isEmpty()
@@ -2096,12 +3132,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.loading ? this.getLoadingLabel() : undefined,
 			this.errorMessage,
 			this.sourceWarnings.getAccessibilityContent(),
+			...collapsedAlternatives.map(() => getAlternativeDisclosureLabel()),
 			...installed.map(item => `${item.name}\n${[getTypeLabel(item.type), item.sourceLabel, localize('customizationDiscovery.installed', "Installed")].filter(Boolean).join(' · ')}\n${item.description}`),
-			...recorded.map(({ resource, state }) => `${resource.displayName}\n${[getTypeLabel(getCatalogType(resource) ?? 'plugin'), this.getMarketplaceSourceLabel(resource.sourceId), getInstallationStateLabel(state, isCopilotConnectorResource(resource))].join(' · ')}\n${resource.description}${state.kind === 'error' ? `\n${state.message}` : state.kind === 'missing' && state.repairUnavailableMessage ? `\n${state.repairUnavailableMessage}` : ''}`),
-			...available.map(item => {
-				const state = this.getInstallState(item);
-				return `${item.displayName}\n${getTypeLabel(getCatalogType(item) ?? 'plugin')} · ${this.getMarketplaceResourceLabel(item)}\n${item.description}${state.kind === 'unavailable' && state.setupUrl ? `\n${localize('customizationDiscovery.manualSetupAccessible', "Manual setup required. View Setup opens the publisher's instructions.")}` : ''}`;
-			}),
+			...marketplaceContent,
 		].filter(Boolean).join('\n\n');
 	}
 

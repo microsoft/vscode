@@ -247,12 +247,9 @@ async function renderAgentHostToolOutcomes(context: ComponentFixtureContext, sce
 			context.container.querySelector<HTMLElement>('.chat-terminal-thinking-collapsible .monaco-button')!.click();
 			await waitForFixtureCondition(() => !!context.container.querySelector('.chat-terminal-output-container.expanded .xterm-screen'), 'Native terminal output did not expand');
 		}
-		await waitForFixtureCondition(() => {
-			const animating = context.container.getAnimations({ subtree: true }).some(animation =>
-				(animation.playState === 'running' || animation.pending) && animation.effect?.getComputedTiming().endTime !== Infinity);
-			const scrollbarWillHide = !context.container.matches(':hover') && context.container.querySelector('.scrollbar.visible');
-			return !animating && !scrollbarWillHide;
-		}, 'Expanded group layout did not settle');
+		await waitForFixtureCondition(() => !context.container.getAnimations({ subtree: true }).some(animation =>
+			(animation.playState === 'running' || animation.pending) && animation.effect?.getComputedTiming().endTime !== Infinity
+		), 'Expanded group layout did not settle');
 	}
 }
 
@@ -270,7 +267,7 @@ async function renderDeterministicToolSummaries(context: ComponentFixtureContext
 	if (!handle) {
 		throw new Error('Tool summary fixture did not initialize');
 	}
-	const { model, listWidget } = handle;
+	const { model } = handle;
 	const request = model.getRequests()[0];
 	const groups = [
 		{
@@ -330,10 +327,9 @@ async function renderDeterministicToolSummaries(context: ComponentFixtureContext
 	const expected = [...groups, ...editGroups].map(group => group.title);
 	await waitForFixtureCondition(() => {
 		const titles = [...context.container.querySelectorAll('.chat-tool-chain-collapsible > .chat-used-context-label .monaco-button-mdlabel')].map(label => label.textContent);
-		const scrollbarWillHide = !listWidget.domNode.matches(':hover') && listWidget.domNode.querySelector('.scrollbar.visible');
 		const animating = context.container.getAnimations({ subtree: true }).some(animation =>
 			(animation.playState === 'running' || animation.pending) && animation.effect?.getComputedTiming().endTime !== Infinity);
-		return titles.length === expected.length && titles.every((title, index) => title === expected[index]) && !scrollbarWillHide && !animating;
+		return titles.length === expected.length && titles.every((title, index) => title === expected[index]) && !animating;
 	}, 'Deterministic tool summaries did not settle');
 }
 

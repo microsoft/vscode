@@ -15,9 +15,6 @@ const _allApiProposals = {
 	agentSessionsWorkspace: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.agentSessionsWorkspace.d.ts',
 	},
-	agentsWindowActivation: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.agentsWindowActivation.d.ts',
-	},
 	agentsWindowConfiguration: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.agentsWindowConfiguration.d.ts',
 	},
@@ -62,6 +59,9 @@ const _allApiProposals = {
 	},
 	canonicalUriProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts',
+	},
+	chatArtifactIntegrations: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatArtifactIntegrations.d.ts',
 	},
 	chatContextProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatContextProvider.d.ts',
@@ -303,6 +303,9 @@ const _allApiProposals = {
 	fsChunks: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.fsChunks.d.ts',
 	},
+	github: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.github.d.ts',
+	},
 	inlineCompletionsAdditions: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.inlineCompletionsAdditions.d.ts',
 	},
@@ -395,6 +398,9 @@ const _allApiProposals = {
 	},
 	notebookVariableProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookVariableProvider.d.ts',
+	},
+	notificationTelemetry: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notificationTelemetry.d.ts',
 	},
 	portsAttributes: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.portsAttributes.d.ts',

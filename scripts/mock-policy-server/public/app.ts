@@ -24,6 +24,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		status?: number;
 		body?: unknown;
 		mode?: EndpointResponseMode;
+		delayMs?: number;
 		active?: boolean;
 	}
 
@@ -55,6 +56,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		path: string;
 		outcome: 'mocked' | 'passthrough' | 'upstream-error';
 		status: number;
+		delayMs?: number;
 	}
 
 	interface SchemaResult {
@@ -105,6 +107,9 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const editor = $('editor') as HTMLTextAreaElement;
 	const responseStatusInput = $('response-status') as HTMLInputElement;
 	const responseModeSelect = $('response-mode') as HTMLSelectElement;
+	const responseDelayInput = $('response-delay') as HTMLInputElement;
+	const responseDelayValidation = $('response-delay-validation');
+	const maxResponseDelayMs = 2_147_483_647;
 	const responseConfiguration = $('response-configuration');
 	const responseStatusValidation = $('response-status-validation');
 	const presetSelect = $('preset') as HTMLSelectElement;
@@ -471,6 +476,38 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		}
 	}
 
+	function parseResponseDelay(): number | undefined {
+		const raw = responseDelayInput.value.trim();
+		const delayMs = Number(raw);
+		const valid = raw !== '' && Number.isInteger(delayMs) && delayMs >= 0 && delayMs <= maxResponseDelayMs;
+		const message = valid ? '' : `Enter an integer from 0 to ${maxResponseDelayMs}.`;
+		responseDelayInput.setCustomValidity(message);
+		responseDelayInput.setAttribute('aria-invalid', String(!valid));
+		responseDelayValidation.textContent = message;
+		responseDelayValidation.dataset.kind = valid ? '' : 'error';
+		return valid ? delayMs : undefined;
+	}
+
+	async function setResponseDelay(endpoint: Endpoint): Promise<void> {
+		const delayMs = parseResponseDelay();
+		const previousDelayMs = endpoint.delayMs ?? 0;
+		if (delayMs === undefined || delayMs === previousDelayMs) {
+			return;
+		}
+		endpoint.delayMs = delayMs;
+		try {
+			applyState(await updateState({ endpoint: endpoint.id, delayMs }));
+			toast(delayMs > 0 ? `${endpoint.label} responses delayed by ${delayMs} ms` : `${endpoint.label} responses no longer delayed`);
+		} catch (error) {
+			endpoint.delayMs = previousDelayMs;
+			if (endpoint.id === activeId) {
+				responseDelayInput.value = String(previousDelayMs);
+				parseResponseDelay();
+			}
+			toast(`Save failed: ${error instanceof Error ? error.message : String(error)}`, true);
+		}
+	}
+
 	function parseResponseStatus(): number | undefined {
 		const raw = responseStatusInput.value.trim();
 		const status = Number(raw);
@@ -746,6 +783,8 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		endpointMeta.replaceChildren(routeSpan);
 		responseStatusInput.value = String(endpoint.status ?? 200);
 		responseModeSelect.value = endpoint.mode ?? 'json';
+		responseDelayInput.value = String(endpoint.delayMs ?? 0);
+		parseResponseDelay();
 		updateResponseConfigurationVisibility();
 		parseResponseStatus();
 		const serverText = JSON.stringify(endpoint.body ?? {}, null, '\t');
@@ -1020,14 +1059,14 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	 */
 	function stateSignature(state: ServerState): string {
 		const endpoints = (state.endpoints ?? []).map(e => ({
-			id: e.id, status: e.status, mode: e.mode, active: e.active, body: e.body
+			id: e.id, status: e.status, mode: e.mode, delayMs: e.delayMs, active: e.active, body: e.body
 		}));
 		return JSON.stringify({ stateFile: state.stateFile ?? '', endpoints });
 	}
 
 	function isInteractingWithEditor(): boolean {
 		const el = document.activeElement;
-		return el === editor || el === responseStatusInput || el === responseModeSelect || el === presetSelect;
+		return el === editor || el === responseStatusInput || el === responseModeSelect || el === responseDelayInput || el === presetSelect;
 	}
 
 	function discardDraftsFromOtherStateFile(state: ServerState): void {
@@ -1098,6 +1137,8 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		editor.value = drafts[activeId] ?? '{}';
 		responseStatusInput.value = String(endpoint.status ?? 200);
 		responseModeSelect.value = endpoint.mode ?? 'json';
+		responseDelayInput.value = String(endpoint.delayMs ?? 0);
+		parseResponseDelay();
 		updateResponseConfigurationVisibility();
 		parseResponseStatus();
 		parseEditor();
@@ -1421,9 +1462,10 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			item.className = 'log-row';
 			const endpoint = endpoints.find(candidate => candidate.path === entry.path);
 			const entryKey = `${entry.at}:${entry.method}:${entry.path}`;
-			const outcomeLabel = entry.outcome === 'mocked'
+			const outcomeLabel = (entry.outcome === 'mocked'
 				? 'Served from this server'
-				: entry.outcome === 'passthrough' ? 'Proxied to the real API' : 'Upstream request failed';
+				: entry.outcome === 'passthrough' ? 'Proxied to the real API' : 'Upstream request failed')
+				+ (entry.delayMs ? ` after a ${entry.delayMs} ms delay` : '');
 			let row: HTMLButtonElement | HTMLDivElement;
 			if (endpoint) {
 				row = document.createElement('button');
@@ -1452,6 +1494,13 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			route.textContent = `${entry.method} ${entry.path}`;
 
 			row.append(time, status, route);
+			if (entry.delayMs) {
+				const delay = document.createElement('span');
+				delay.className = 'log-delay';
+				delay.setAttribute('aria-hidden', 'true');
+				delay.textContent = `+${entry.delayMs} ms`;
+				row.appendChild(delay);
+			}
 			if (!endpoint) {
 				const outcome = document.createElement('span');
 				outcome.className = 'sr-only';
@@ -1522,6 +1571,13 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 				return;
 			}
 			void setResponseMode(endpoint, responseModeSelect.value as EndpointResponseMode);
+		});
+		responseDelayInput.addEventListener('input', () => parseResponseDelay());
+		responseDelayInput.addEventListener('change', () => {
+			const endpoint = activeEndpoint();
+			if (endpoint) {
+				void setResponseDelay(endpoint);
+			}
 		});
 		presetSelect.addEventListener('change', applyPreset);
 		$('copy-map').addEventListener('click', e => {
@@ -1619,7 +1675,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			selectSetupMethod('proxy');
 			// Fall back to the shared endpoint definitions so the GUI still shows
 			// what exists (read-only) rather than rendering a blank page.
-			endpoints = MOCK_POLICY_ENDPOINTS.map(def => ({ ...def, status: def.presets[0]?.status ?? 200, body: def.presets[0]?.body ?? {}, mode: 'json' }));
+			endpoints = MOCK_POLICY_ENDPOINTS.map(def => ({ ...def, status: def.presets[0]?.status ?? 200, body: def.presets[0]?.body ?? {}, mode: 'json', delayMs: 0 }));
 			renderTabs();
 			if (endpoints.length) {
 				selectEndpoint(endpoints[0].id);

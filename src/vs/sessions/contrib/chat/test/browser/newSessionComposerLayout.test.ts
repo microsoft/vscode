@@ -4,23 +4,109 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { isWeb } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationService } from '../../../../../platform/configuration/common/configurationService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { NullPolicyService } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { NewChatInputWidget } from '../../browser/newChatInput.js';
-import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayoutEnabled } from '../../browser/newChatWidget.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
+import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayoutEnabled, isSessionEnvironmentPickerEnabled, isSessionWorkspaceOptOutEnabled } from '../../browser/newChatWidget.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import '../../browser/chat.contribution.js';
 
 // Capture the registered schema before configuration tests reset the shared registry.
 const experimentalNewSessionComposerLayoutProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING];
+const environmentPickerProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[ENVIRONMENT_PICKER_SETTING];
+const environmentPickerManageRemotesProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING];
+const workspaceOptOutProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[WORKSPACE_OPT_OUT_SETTING];
 const newSessionComposerOptionsExpandedProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING];
 const agentsPickerInAttachContextMenuProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING];
+const newSessionWelcomePhrasesProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[NEW_SESSION_WELCOME_PHRASES_SETTING];
 
 suite('New session composer layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Environment picker is a default-on window setting without an experimental tag', () => {
+		assert.deepStrictEqual({
+			type: environmentPickerProperty.type,
+			default: environmentPickerProperty.default,
+			scope: environmentPickerProperty.scope,
+			tags: environmentPickerProperty.tags,
+			experiment: environmentPickerProperty.experiment,
+		}, { type: 'boolean', default: true, scope: ConfigurationScope.WINDOW, tags: ['onExP'], experiment: { mode: 'auto' } });
+	});
+
+	test('workspace opt-out is a default-off experiment-controlled window setting', () => {
+		assert.deepStrictEqual({
+			type: workspaceOptOutProperty.type,
+			default: workspaceOptOutProperty.default,
+			scope: workspaceOptOutProperty.scope,
+			tags: workspaceOptOutProperty.tags,
+			experiment: workspaceOptOutProperty.experiment,
+		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
+	});
+
+	test('Manage Remotes is a default-on experiment-controlled window setting', () => {
+		assert.deepStrictEqual({
+			type: environmentPickerManageRemotesProperty.type,
+			default: environmentPickerManageRemotesProperty.default,
+			scope: environmentPickerManageRemotesProperty.scope,
+			tags: environmentPickerManageRemotesProperty.tags,
+			experiment: environmentPickerManageRemotesProperty.experiment,
+		}, { type: 'boolean', default: true, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
+	});
+
+	test('workspace opt-out requires its own setting and both layout settings', () => {
+		const results: boolean[] = [];
+		for (const unifiedPicker of [false, true]) {
+			for (const experimentalLayout of [false, true]) {
+				for (const enabled of [undefined, false, true]) {
+					const configuration = new TestConfigurationService({
+						[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
+						[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
+						[WORKSPACE_OPT_OUT_SETTING]: enabled,
+					});
+					store.add(configuration.onDidChangeConfigurationEmitter);
+					results.push(isSessionWorkspaceOptOutEnabled(configuration));
+				}
+			}
+		}
+		assert.deepStrictEqual(results, [false, false, false, false, false, false, false, false, false, false, false, true]);
+	});
+
+	for (const unifiedPicker of [false, true]) {
+		for (const experimentalLayout of [false, true]) {
+			for (const environmentPicker of [undefined, false, true]) {
+				test(`Environment picker ${environmentPicker}, unified picker ${unifiedPicker}, layout ${experimentalLayout}`, () => {
+					const configurationService = new TestConfigurationService({
+						[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
+						[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
+						[ENVIRONMENT_PICKER_SETTING]: environmentPicker,
+					});
+					store.add(configurationService.onDidChangeConfigurationEmitter);
+					assert.deepStrictEqual({
+						environment: isSessionEnvironmentPickerEnabled(configurationService),
+						layout: isExperimentalSessionComposerLayoutEnabled(configurationService),
+					}, {
+						environment: !isWeb && unifiedPicker && experimentalLayout && environmentPicker === true,
+						layout: unifiedPicker && experimentalLayout,
+					});
+				});
+			}
+		}
+	}
 
 	test('can be configured in Agents settings', () => {
 		assert.deepStrictEqual({
@@ -83,6 +169,65 @@ suite('New session composer layout', () => {
 		]);
 	});
 
+	test('welcome phrases default on while retaining automatic experiments', () => {
+		assert.deepStrictEqual({
+			type: newSessionWelcomePhrasesProperty.type,
+			default: newSessionWelcomePhrasesProperty.default,
+			scope: newSessionWelcomePhrasesProperty.scope,
+			tags: newSessionWelcomePhrasesProperty.tags,
+			experiment: newSessionWelcomePhrasesProperty.experiment,
+		}, {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('welcome phrases respect explicit off and the persisted Hide choice', async () => {
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		if (!configurationRegistry.getConfigurationProperties()[NEW_SESSION_WELCOME_PHRASES_SETTING]) {
+			const configurationNode = { properties: { [NEW_SESSION_WELCOME_PHRASES_SETTING]: newSessionWelcomePhrasesProperty } };
+			configurationRegistry.registerConfiguration(configurationNode);
+			store.add(toDisposable(() => configurationRegistry.deregisterConfigurations([configurationNode])));
+		}
+		const logService = new NullLogService();
+		const fileService = store.add(new FileService(logService));
+		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const settings = URI.from({ scheme: Schemas.inMemory, path: '/settings.json' });
+		await fileService.writeFile(settings, VSBuffer.fromString('{}'));
+		const configurationService = store.add(new ConfigurationService(settings, fileService, new NullPolicyService(), logService));
+		await configurationService.initialize();
+		const defaultEnabled = areNewSessionWelcomePhrasesEnabled(configurationService);
+
+		await configurationService.updateValue(NEW_SESSION_WELCOME_PHRASES_SETTING, false, ConfigurationTarget.USER);
+		const explicitOff = areNewSessionWelcomePhrasesEnabled(configurationService);
+		await configurationService.updateValue(NEW_SESSION_WELCOME_PHRASES_SETTING, undefined, ConfigurationTarget.USER);
+		const resetEnabled = areNewSessionWelcomePhrasesEnabled(configurationService);
+
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		const hideCommand = CommandsRegistry.getCommand('workbench.action.sessions.hideWelcomeMessage');
+		assert.ok(hideCommand);
+		await instantiationService.invokeFunction(hideCommand.handler);
+		await configurationService.reloadConfiguration();
+
+		assert.deepStrictEqual({
+			defaultEnabled,
+			explicitOff,
+			resetEnabled,
+			hidden: areNewSessionWelcomePhrasesEnabled(configurationService),
+			userValue: configurationService.inspect<boolean>(NEW_SESSION_WELCOME_PHRASES_SETTING).userValue,
+		}, {
+			defaultEnabled: true,
+			explicitOff: false,
+			resetEnabled: true,
+			hidden: false,
+			userValue: false,
+		});
+	});
+
 	test('places repository controls in the workspace row and restores their home', () => {
 		const repositoryControlsHome = document.createElement('div');
 		const repositoryControls = document.createElement('div');
@@ -96,14 +241,12 @@ suite('New session composer layout', () => {
 		harnessPicker.textContent = 'Harness';
 		pickerRow.append(workspacePicker, harnessPicker);
 		let visibilityUpdates = 0;
-		let layouts = 0;
-		const harness = Object.assign(Object.create(NewChatInputWidget.prototype), {
+		const harness = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_repositoryControlsContainer: repositoryControls,
 			_repositoryControlsHome: repositoryControlsHome,
 			_updateBottomContainerVisibility: () => visibilityUpdates++,
-			_secondaryPickerResponsiveLayout: { layout: () => layouts++ },
 		});
-		const placeRepositoryControls = NewChatInputWidget.prototype.placeRepositoryControls as (this: typeof harness, container?: HTMLElement) => void;
+		const placeRepositoryControls = SharedChatInputComposer.prototype.placeRepositoryControls as (this: typeof harness, container?: HTMLElement) => void;
 
 		placeRepositoryControls.call(harness, pickerRow);
 		const experimentalOrder = Array.from(pickerRow.children, element => element.textContent);
@@ -114,13 +257,11 @@ suite('New session composer layout', () => {
 			restoredOrder: Array.from(pickerRow.children, element => element.textContent),
 			home: Array.from(repositoryControlsHome.children, element => element.textContent),
 			visibilityUpdates,
-			layouts,
 		}, {
 			experimentalOrder: ['Workspace', 'Repository', 'Harness'],
 			restoredOrder: ['Workspace', 'Harness'],
 			home: ['Repository'],
 			visibilityUpdates: 2,
-			layouts: 2,
 		});
 	});
 
@@ -143,14 +284,13 @@ suite('New session composer layout', () => {
 		root.append(repositoryControlsHome, pickerRow);
 		document.body.append(root);
 		store.add(toDisposable(() => root.remove()));
-		const harness = Object.assign(Object.create(NewChatInputWidget.prototype), {
+		const harness = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_repositoryControlsContainer: repositoryControls,
 			_repositoryControlsHome: repositoryControlsHome,
 			_updateBottomContainerVisibility: () => { },
-			_secondaryPickerResponsiveLayout: { layout: () => { } },
 		});
-		const placeRepositoryControls = NewChatInputWidget.prototype.placeRepositoryControls as (this: typeof harness, container?: HTMLElement) => void;
-		const navigateRepositoryControls = (NewChatInputWidget.prototype as unknown as {
+		const placeRepositoryControls = SharedChatInputComposer.prototype.placeRepositoryControls as (this: typeof harness, container?: HTMLElement) => void;
+		const navigateRepositoryControls = (SharedChatInputComposer.prototype as unknown as {
 			_navigateRepositionedRepositoryControls(this: typeof harness, event: KeyboardEvent): void;
 		})._navigateRepositionedRepositoryControls;
 		placeRepositoryControls.call(harness, pickerRow);

@@ -10,7 +10,7 @@ import { IGitHubRepository } from '../../common/types.js';
 import { GitHubApiClient } from '../githubApiClient.js';
 
 export class GitHubRepositoryFetcher {
-	constructor(readonly client: GitHubApiClient) { }
+	constructor(private readonly client: GitHubApiClient) { }
 
 	getRepositories(query: string, token: CancellationToken): Promise<readonly IGitHubRepository[]> {
 		return this.client.withClient(async (client, signal) => {
@@ -30,11 +30,6 @@ export class GitHubRepositoryFetcher {
 			});
 			return repositories.map(toGitHubRepository);
 		}, token);
-	}
-
-	getRepository(owner: string, repo: string, token?: CancellationToken): Promise<IGitHubRepository> {
-		return this.client.withClient(async (client, signal) =>
-			toGitHubRepository(await client.repositories.get({ owner, name: repo }, signal)), token);
 	}
 }
 

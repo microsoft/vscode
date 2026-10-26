@@ -238,7 +238,7 @@ class LoadMoreCommand {
 export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true, true);
 export const TimelineExcludeSources = new RawContextKey<string>('timelineExcludeSources', '[]', true);
 export const TimelineViewFocusedContext = new RawContextKey<boolean>('timelineFocused', true);
-export const TimelineWorkspaceContext = new RawContextKey<boolean>('timelineWorkspace', false, true);
+export const TimelineForWorkspaceContext = new RawContextKey<boolean>('timelineForWorkspace', false, localize('timelineForWorkspace', "Whether the Timeline view shows the workspace timeline instead of the timeline of a file or folder."));
 const TimelineCanCompareSelectionContext = new RawContextKey<boolean>('timelineCanCompareSelection', false);
 
 interface IPendingRequest extends IDisposable {
@@ -302,7 +302,7 @@ export class TimelinePane extends ViewPane {
 
 		this.followActiveEditorContext = TimelineFollowActiveEditorContext.bindTo(this.contextKeyService);
 		this.timelineExcludeSourcesContext = TimelineExcludeSources.bindTo(this.contextKeyService);
-		this.workspaceContext = TimelineWorkspaceContext.bindTo(this.contextKeyService);
+		this.workspaceContext = TimelineForWorkspaceContext.bindTo(this.contextKeyService);
 
 		const excludedSourcesString = storageService.get('timeline.excludeSources', StorageScope.PROFILE, '[]');
 		this.timelineExcludeSourcesContext.set(excludedSourcesString);
@@ -1492,12 +1492,12 @@ export class TimelinePaneCommands extends Disposable {
 			constructor() {
 				super({
 					id: 'timeline.showWorkspaceTimeline',
-					title: localize2('timeline.showWorkspaceTimeline', "Show Workspace Timeline"),
+					title: localize2('timeline.showWorkspaceTimeline', "Pin Workspace Timeline"),
 					category: localize2('timeline', "Timeline"),
 					menu: {
 						id: MenuId.TimelineTitle,
 						group: '1_workspace',
-						when: ContextKeyExpr.and(TimelineHasWorkspaceProviderContext, TimelineWorkspaceContext.toNegated())
+						when: ContextKeyExpr.and(TimelineHasWorkspaceProviderContext, TimelineForWorkspaceContext.toNegated())
 					}
 				});
 			}
@@ -1531,7 +1531,7 @@ export class TimelinePaneCommands extends Disposable {
 		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
 			command: {
 				id: 'timeline.toggleFollowActiveEditor',
-				title: localize2('timeline.toggleFollowActiveEditorCommand.follow', 'Pin the Current Timeline'),
+				title: localize2('timeline.toggleFollowActiveEditorCommand.follow', "Pin Current Timeline"),
 				icon: timelinePin,
 				category: localize2('timeline', "Timeline"),
 			},
@@ -1543,7 +1543,7 @@ export class TimelinePaneCommands extends Disposable {
 		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
 			command: {
 				id: 'timeline.toggleFollowActiveEditor',
-				title: localize2('timeline.toggleFollowActiveEditorCommand.unfollow', 'Unpin the Current Timeline'),
+				title: localize2('timeline.toggleFollowActiveEditorCommand.unfollow', "Unpin Current Timeline"),
 				icon: timelineUnpin,
 				category: localize2('timeline', "Timeline"),
 			},

@@ -11,6 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { type AgentProvider, AgentSession, type AuthenticateParams, type AuthenticateResult, type IAgent, type IAgentHostNetworkEndpoint, type IMcpNotification } from '../common/agent.js';
+import type { IAgentHostAuthenticationScope } from '../common/agentHostCredentials.js';
 import type { IAgentHostManagedSettingsDiagnostics } from '../common/agentService.js';
 import { IAgentHostAuthenticationController } from './agentHostAuthenticationService.js';
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
@@ -36,7 +37,7 @@ export interface IAgentHostProviderService {
 	getProviders(): readonly IAgent[];
 	associateSession(session: URI | string, provider: AgentProvider): void;
 	releaseSession(session: URI | string, expectedProvider?: AgentProvider): void;
-	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult>;
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 	getNetworkDiagnostics(): Promise<IAgentHostProviderNetworkDiagnostics>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -155,8 +156,8 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		this._sessionToProvider.delete(key);
 	}
 
-	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		return this._authenticationController.authenticate(params, this._providers.values());
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
+		return this._authenticationController.authenticate(params, this._providers.values(), scope);
 	}
 
 	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {

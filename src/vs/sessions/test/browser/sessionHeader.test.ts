@@ -40,14 +40,15 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly onDidChangeScreenReaderOptimized = Event.None;
 		override readonly onDidChangeReducedMotion = Event.None;
 		override isScreenReaderOptimized(): boolean { return false; }
+		override isMotionReduced(): boolean { return false; }
 	}());
 	const statusIconReads: boolean[] = [];
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
 		override isSessionPinned(): boolean { return false; }
-		override getStatusIcon(_status: SessionStatus, isRead: boolean): ThemeIcon {
+		override getStatusIcon(status: SessionStatus, isRead: boolean): ThemeIcon {
 			statusIconReads.push(isRead);
-			return ThemeIcon.fromId('circle');
+			return status === SessionStatus.NeedsInput ? Codicon.commentUnresolved : Codicon.circle;
 		}
 	}());
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -58,14 +59,14 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://main');
 		override readonly title = observableValue(this, 'Main Chat');
-		override readonly status = constObservable(mainChatStatus);
+		override readonly status = observableValue(this, mainChatStatus);
 		override readonly isRead = observableValue(this, true);
 		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: false, canDelete: false });
 	}();
 	const secondChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://second');
 		override readonly title = observableValue(this, 'Second Chat');
-		override readonly status = constObservable(SessionStatus.Completed);
+		override readonly status = observableValue(this, SessionStatus.Completed);
 		override readonly isRead = observableValue(this, true);
 		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: true, canDelete: true });
 	}();
@@ -75,7 +76,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly resource = URI.parse('test-session://session');
 		override readonly providerId = 'test';
 		override readonly title = observableValue(this, 'My Session');
-		override readonly status: IObservable<SessionStatus> = constObservable(SessionStatus.Completed);
+		override readonly status = observableValue<SessionStatus>(this, SessionStatus.Completed);
 		override readonly isRead = observableValue(this, true);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
@@ -489,6 +490,118 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
+	test('stops the spinner when its chat completes while a peer chat keeps the session in progress', () => {
+		const { store, instantiationService, session, mainChat, secondChat } = createHarness(disposables);
+		session.status.set(SessionStatus.InProgress, undefined);
+		mainChat.status.set(SessionStatus.InProgress, undefined);
+		secondChat.status.set(SessionStatus.InProgress, undefined);
+		const createChatHeader = (chat: IChat) => {
+			const header = store.add(instantiationService.createInstance(ChatHeader));
+			header.setChat({ session, chat: constObservable(chat), activate: () => { } });
+			return header;
+		};
+		const mainHeader = createChatHeader(mainChat);
+		const secondHeader = createChatHeader(secondChat);
+		const spinners = () => ({
+			main: mainHeader.element.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
+			second: secondHeader.element.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
+		});
+
+		const bothInProgress = spinners();
+		secondChat.status.set(SessionStatus.Completed, undefined);
+
+		assert.deepStrictEqual({ bothInProgress, secondCompleted: spinners() }, {
+			bothInProgress: { main: true, second: true },
+			secondCompleted: { main: true, second: false },
+		});
+	});
+
+	for (const kind of [ChatOriginKind.User, ChatOriginKind.Fork, ChatOriginKind.SideChat, ChatOriginKind.Tool]) {
+		test(`keeps session and pane header status independent of a ${kind} chat`, () => {
+			const { store, instantiationService, header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
+			const child = { ...secondChat, origin: { kind } };
+			session.chats.set([mainChat, child], undefined);
+			const createChatHeader = (chat: IChat) => {
+				const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
+				chatHeader.setChat({ session, chat: constObservable(chat), activate: () => { } });
+				return chatHeader;
+			};
+			const mainHeader = createChatHeader(mainChat);
+			const childHeader = createChatHeader(child);
+			const status = (target: SessionHeader | ChatHeader) => {
+				if (target.element.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])')) {
+					return SessionStatus.InProgress;
+				}
+				return target.element.querySelector('.codicon-comment-unresolved:not([data-icon-fading-out])')
+					? SessionStatus.NeedsInput : SessionStatus.Completed;
+			};
+			const snapshot = () => [header, mainHeader, childHeader].map(status);
+			const snapshots = [snapshot()];
+
+			child.status.set(SessionStatus.InProgress, undefined);
+			session.status.set(SessionStatus.InProgress, undefined);
+			snapshots.push(snapshot());
+			mainChat.status.set(SessionStatus.NeedsInput, undefined);
+			session.status.set(SessionStatus.NeedsInput, undefined);
+			snapshots.push(snapshot());
+			mainChat.status.set(SessionStatus.Completed, undefined);
+			session.status.set(SessionStatus.InProgress, undefined);
+			snapshots.push(snapshot());
+			child.status.set(SessionStatus.NeedsInput, undefined);
+			session.status.set(SessionStatus.NeedsInput, undefined);
+			snapshots.push(snapshot());
+			activeChat.set(child, undefined);
+			snapshots.push(snapshot());
+			activeChat.set(mainChat, undefined);
+			mainChat.status.set(SessionStatus.InProgress, undefined);
+			snapshots.push(snapshot());
+			mainChat.status.set(SessionStatus.Completed, undefined);
+			snapshots.push(snapshot());
+			child.status.set(SessionStatus.Completed, undefined);
+			session.status.set(SessionStatus.Completed, undefined);
+			snapshots.push(snapshot());
+
+			const completed = SessionStatus.Completed;
+			const working = SessionStatus.InProgress;
+			const waiting = SessionStatus.NeedsInput;
+			assert.deepStrictEqual(snapshots, [
+				[completed, completed, completed],
+				[completed, completed, working],
+				[waiting, waiting, working],
+				[completed, completed, working],
+				[completed, completed, waiting],
+				[waiting, completed, waiting],
+				[working, working, waiting],
+				[completed, completed, waiting],
+				[completed, completed, completed],
+			]);
+		});
+	}
+
+	for (const aggregateStatus of [SessionStatus.InProgress, SessionStatus.NeedsInput]) {
+		test(`does not inherit aggregate status ${aggregateStatus} or unread state when no chat is bound`, () => {
+			const { store, instantiationService, session, mainChat, statusIconReads } = createHarness(disposables);
+			const chat = observableValue<IChat | undefined>('headerChat', mainChat);
+			const bar = store.add(instantiationService.createInstance(SessionHeaderBar, undefined));
+			bar.setContext({ session, chat });
+			session.status.set(aggregateStatus, undefined);
+			session.isRead.set(false, undefined);
+			chat.set(undefined, undefined);
+
+			assert.deepStrictEqual({
+				title: bar.element.querySelector('.label-name')?.textContent,
+				inProgress: bar.element.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
+				needsInput: bar.element.querySelector('.codicon-comment-unresolved:not([data-icon-fading-out])') !== null,
+				isRead: statusIconReads.at(-1),
+			}, {
+				title: 'New Session',
+				inProgress: false,
+				needsInput: false,
+				isRead: true,
+			});
+		});
+	}
+
 	test('shows New Session for an untitled nested session', () => {
 		const { store, instantiationService, session, activeChat, secondChat } = createHarness(disposables);
 		secondChat.title.set('', undefined);
@@ -517,7 +630,7 @@ suite('Sessions - Headers', () => {
 							instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close', icon: Codicon.closeSmall }, undefined, menuOptions, undefined, undefined),
 						],
 					], [
-						'secondary/1_session',
+						'secondary/4_manage',
 						[
 							instantiationService.createInstance(MenuItemAction, { id: 'sessions.rename', title: 'Rename' }, undefined, menuOptions, undefined, undefined),
 						],

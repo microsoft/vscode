@@ -15,6 +15,7 @@ import { ChangesetKind } from '../common/changesetUri.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, SessionLifecycle, type ChangesetOperation, type SessionState } from '../common/state/sessionState.js';
 import { AgentHostMergeOperationHandler } from './agentHostMergeOperationHandler.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 export class AgentHostMergeOperationContribution extends Disposable implements IChangesetOperationContribution {
@@ -36,7 +37,7 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 			AgentHostMergeOperationHandler,
 			(sessionKey: string) => this._stateManager.getSessionState(sessionKey),
 			(sessionKey: string) => this._gitStateService.resolveSessionBaseBranchName(sessionKey),
-			(sessionKey: string) => this._onGitStateChanged(sessionKey),
+			(sessionKey: string, source?: IAgentHostCredentialSource) => this._onGitStateChanged(sessionKey, source),
 			(sessionKey: string, commit: string) => this._gitStateService.recordSessionMerge(sessionKey, commit),
 		);
 		store.add(registry.registerChangesetOperationHandler(AgentHostMergeOperationHandler.OPERATION_MERGE, handler));
@@ -88,8 +89,8 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 		return !!workingDirectory && !!project && !isEqual(URI.parse(workingDirectory), URI.parse(project));
 	}
 
-	private async _onGitStateChanged(sessionKey: string): Promise<void> {
+	private async _onGitStateChanged(sessionKey: string, source?: IAgentHostCredentialSource): Promise<void> {
 		this._registry?.onDidChangeOperations(sessionKey);
-		await this._registry?.refreshSessionGitState(sessionKey);
+		await this._registry?.refreshSessionGitState(sessionKey, source);
 	}
 }
