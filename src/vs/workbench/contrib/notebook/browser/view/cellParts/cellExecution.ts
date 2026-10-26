@@ -93,11 +93,13 @@ export class CellExecutionPart extends CellContentPart {
 				`[${internalMetadata.executionOrder}]` :
 				'[ ]';
 			this._executionOrderContent.innerText = executionOrderLabel;
+			this._executionOrderLabel.classList.remove('sticky-spinner');
 
 			// Call _updatePosition to refresh sticky status
 			this._updatePosition();
 		} else {
 			this._executionOrderContent.innerText = '';
+			this._executionOrderLabel.classList.remove('sticky-spinner');
 		}
 	}
 
@@ -156,7 +158,7 @@ export class CellExecutionPart extends CellContentPart {
 			);
 
 			if (scrollBottom <= editorBottom && cellIsRunning) {
-				const isAlreadyIcon = this._executionOrderContent.classList.contains('sticky-spinner');
+				const isAlreadyIcon = this._executionOrderLabel.classList.contains('sticky-spinner');
 				// Add a class when it's in sticky mode for special styling
 				if (!isAlreadyIcon) {
 					this._executionOrderLabel.classList.add('sticky-spinner');
