@@ -27,6 +27,11 @@ if (attempt <= Number(process.env.FAKE_AZ_FAILURES)) {
 	process.exit(1);
 }
 fs.writeFileSync(path.join(dir, 'package.zip'), 'ok');
+// simulates another build process publishing the same package meanwhile
+if (process.env.FAKE_AZ_BEFORE_EXIT) {
+	fs.mkdirSync(process.env.FAKE_AZ_BEFORE_EXIT, { recursive: true });
+	fs.writeFileSync(path.join(process.env.FAKE_AZ_BEFORE_EXIT, 'package.zip'), 'other');
+}
 `;
 
 const PKG = { feed: 'feed', name: 'electron', version: '1.0.0' };
@@ -58,6 +63,7 @@ suite('downloadFeedPackage', () => {
 		process.env.SYSTEM_TEAMPROJECT = saved.SYSTEM_TEAMPROJECT;
 		delete process.env.FAKE_AZ_COUNTER;
 		delete process.env.FAKE_AZ_FAILURES;
+		delete process.env.FAKE_AZ_BEFORE_EXIT;
 		rmSync(dir, { recursive: true, force: true });
 	});
 
@@ -79,7 +85,16 @@ suite('downloadFeedPackage', () => {
 		await assert.rejects(downloadFeedPackage(dir, 'cache', PKG, [0, 0]), /exited with code 1/);
 		assert.equal(readFileSync(counter, 'utf8'), '3');
 		assert.equal(existsSync(join(dir, '.build', 'cache', 'electron-1.0.0')), false);
-		assert.equal(existsSync(join(dir, '.build', 'cache', 'electron-1.0.0.download')), false);
+		assert.deepEqual(readdirSync(join(dir, '.build', 'cache')), []);
+	});
+
+	test('uses the package another process published while it downloaded', async () => {
+		process.env.FAKE_AZ_FAILURES = '0';
+		const cached = join(dir, '.build', 'cache', 'electron-1.0.0');
+		process.env.FAKE_AZ_BEFORE_EXIT = cached;
+		const file = await downloadFeedPackage(dir, 'cache', PKG, [0, 0]);
+		assert.equal(readFileSync(file, 'utf8'), 'other');
+		assert.deepEqual(readdirSync(join(dir, '.build', 'cache')), ['electron-1.0.0']);
 	});
 
 	test('downloads a package once for concurrent requests', async () => {

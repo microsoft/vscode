@@ -92,9 +92,11 @@ const pendingDownloads = new Map<string, Promise<string>>();
 async function downloadInto(dir: string, pkg: IFeedPackage, retryDelaysMs: number[]): Promise<string> {
 	if (!fs.existsSync(dir)) {
 		await ensureAzureDevOpsExtension();
-		// Download into a fresh directory per attempt and move it into place once
-		// complete, so a failed attempt never leaves a partial package in the cache.
-		const download = `${dir}.download`;
+		// Download into a directory unique to this process and move it into place
+		// once complete, so a failed attempt never leaves a partial package in the
+		// cache and another build process downloading the same package can't
+		// interfere with this one.
+		const download = `${dir}.download-${process.pid}`;
 		const clean = () => fs.promises.rm(download, { recursive: true, force: true });
 		await azExecFileWithRetries([
 			'artifacts', 'universal', 'download',
@@ -109,7 +111,15 @@ async function downloadInto(dir: string, pkg: IFeedPackage, retryDelaysMs: numbe
 			await clean();
 			throw err;
 		});
-		await fs.promises.rename(download, dir);
+		try {
+			await fs.promises.rename(download, dir);
+		} catch (err) {
+			// Another process published the same package first: use its copy.
+			if (!fs.existsSync(dir)) {
+				throw err;
+			}
+			await clean();
+		}
 	}
 	const [only] = await fs.promises.readdir(dir);
 	return path.join(dir, only);
