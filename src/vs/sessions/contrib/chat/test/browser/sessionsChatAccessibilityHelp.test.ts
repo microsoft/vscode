@@ -133,7 +133,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			nestedReadState: content.includes('change only the targeted nested sessions, not their parent'),
 			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
 			applicationFilter: content.includes('Enter or Space to open Filter Sessions with Created In focused.'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, applicationFilter: true });
+			moveToSession: content.includes('choose Move to Session..., then pick the destination session from the list'),
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, applicationFilter: true, moveToSession: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
