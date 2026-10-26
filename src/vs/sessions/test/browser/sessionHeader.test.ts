@@ -481,6 +481,34 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
+	test('showing the chrome of the window again does not apply it again', () => {
+		const { header } = createHarness(disposables);
+
+		header.setWindowChrome(true);
+		header.element.draggable = true;
+		header.setWindowChrome(true);
+
+		assert.strictEqual(header.element.draggable, true);
+	});
+
+	test('puts the overflow of the session actions after the chrome of the window', () => {
+		const { header } = createHarness(disposables);
+		const order = () => Array.from(header.element.querySelector('.chat-composite-bar-title-row')!.children)
+			.filter(child => child.classList.contains('chat-composite-bar-title-actions') || child.classList.contains('chat-composite-bar-window-chrome'))
+			.map(child => child.classList.contains('chat-composite-bar-title-actions') ? 'actions' : 'chrome');
+
+		const initial = order();
+		header.setWindowChrome(true);
+		const shown = order();
+		header.setWindowChrome(false);
+
+		assert.deepStrictEqual({ initial, shown, hidden: order() }, {
+			initial: ['actions', 'chrome'],
+			shown: ['chrome', 'actions'],
+			hidden: ['actions', 'chrome'],
+		});
+	});
+
 	test('shows the title of the active chat', () => {
 		const { header, activeChat, secondChat } = createHarness(disposables);
 		const title = () => header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')?.textContent;
@@ -707,6 +735,36 @@ suite('Sessions - Headers', () => {
 			});
 		} finally {
 			root.remove();
+		}
+	});
+
+	test('gives the header of a chat window the compact height when the layout density of its window is compact', () => {
+		const { header } = createHarness(disposables);
+		const container = header.element.parentElement!;
+		container.classList.add('agent-sessions-workbench', 'session-view');
+		container.style.setProperty('--vscode-spacing-size280', '28px');
+		container.style.setProperty('--vscode-spacing-size320', '32px');
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			const headerRow = header.element.querySelector<HTMLElement>('.chat-composite-bar-header')!;
+			const read = () => mainWindow.getComputedStyle(headerRow).height;
+			const mainWindowHeader = (() => {
+				container.classList.add('modern-ui-compact');
+				return read();
+			})();
+			header.setWindowChrome(true);
+			const compactChatWindowHeader = read();
+			container.classList.remove('modern-ui-compact');
+			const defaultChatWindowHeader = read();
+
+			assert.deepStrictEqual({ mainWindowHeader, compactChatWindowHeader, defaultChatWindowHeader }, {
+				mainWindowHeader: '32px',
+				compactChatWindowHeader: '28px',
+				defaultChatWindowHeader: '32px',
+			});
+		} finally {
+			container.remove();
 		}
 	});
 

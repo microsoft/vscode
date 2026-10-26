@@ -55,6 +55,13 @@ export class NativeTitlebarPart extends TitlebarPart {
 		super(id, targetWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
 
 		this.handleWindowsAlwaysOnTop(targetWindow.vscodeWindowId, contextKeyService);
+
+		// A chromeless title bar is not laid out, so a change of the density moves its header row without a layout.
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (this.isChromeless && e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
+				this.updateWindowControlsPosition();
+			}
+		}));
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
@@ -188,14 +195,25 @@ export class NativeTitlebarPart extends TitlebarPart {
 		}
 	}
 
+	private lastLayoutHeight = 0;
+
 	override layout(width: number, height: number): void {
 		super.layout(width, height);
+		this.lastLayoutHeight = height;
+		this.updateWindowControlsPosition();
+	}
 
+	protected override onDidChangeChromeless(): void {
+		this.updateWindowControlsPosition();
+	}
+
+	private updateWindowControlsPosition(): void {
 		if (useWindowControlsOverlay(this.configurationService)) {
 			const zoomFactor = getZoomFactor(getWindow(this.element));
 			// Mirror the default-density toolbar's optical padding in the native button center.
-			const opticalPadding = isMacintosh && this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) !== ModernUIDensity.Compact ? 2 : 0;
-			const newHeight = Math.round(height * zoomFactor + opticalPadding * (this.preventZoom ? 1 : zoomFactor));
+			const opticalPadding = isMacintosh && !this.isChromeless && !this.hostsSessionHeader && this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) !== ModernUIDensity.Compact ? 2 : 0;
+			const rowHeight = this.isChromeless ? this.windowControlsRowHeight : this.lastLayoutHeight;
+			const newHeight = Math.round(rowHeight * zoomFactor + opticalPadding * (this.preventZoom ? 1 : zoomFactor));
 			const horizontalInset = isMacintosh
 				? getMacOSWindowControlsPosition(Math.round(DEFAULT_CUSTOM_TITLEBAR_HEIGHT * (this.preventZoom ? 1 : zoomFactor)), this.environmentService.os.release)?.x
 				: undefined;
