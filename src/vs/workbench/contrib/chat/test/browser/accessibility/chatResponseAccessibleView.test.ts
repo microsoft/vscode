@@ -37,7 +37,7 @@ suite('ChatResponseAccessibleView', () => {
 			const item = upcastPartial<IChatResponseViewModel>({ response });
 
 			assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
-				{ partIndex: 0, text: `Allow add_issue_comment?\n${details}` },
+				{ partIndex: 0, text: `Allow add_issue_comment?\n${shape === 'string' ? details : details.replace(/\n\n/g, '\n')}` },
 			]);
 		});
 	}
@@ -52,7 +52,7 @@ suite('ChatResponseAccessibleView', () => {
 		const item = upcastPartial<IChatResponseViewModel>({ response });
 
 		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [{
-			partIndex: 0, text: 'Review proposed action\nServer: github\n\nadd_issue_comment\n\nReview (command:untrusted.run)',
+			partIndex: 0, text: 'Review proposed action\nServer: github\nadd_issue_comment\nReview',
 		}]);
 	});
 
