@@ -3,8 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.artifact-integration-pill.artifact-pill-selected .monaco-button.chat-pill-button {
+.artifact-integration-pill.artifact-pill-selected .monaco-button.chat-pill-button,
+.artifact-integration-group-pill.artifact-pill-selected .monaco-button.chat-pill-button {
 	border-color: var(--vscode-focusBorder);
+}
+
+/* A pinned artifact's Unpin button rides on the trailing padding of its last segment, like other pinned pills. */
+.chat-pill-item.artifact-integration-pill.chat-pill-segmented.has-promoted-action > .monaco-button.chat-pill-button {
+	padding-right: var(--vscode-spacing-size60);
+}
+
+.chat-pill-item.artifact-integration-pill.chat-pill-segmented.has-promoted-action .chat-pill-sections > .monaco-button.chat-pill-button:last-child {
+	padding-right: calc(var(--vscode-spacing-size40) + var(--vscode-spacing-size160) + var(--vscode-spacing-size20));
 }
 
 .artifact-details-context-view {

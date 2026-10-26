@@ -29,6 +29,7 @@ if /i "%~1"=="-f" (set "GREP_PATTERN=%~2"& shift & shift & goto parse_args)
 if /i "%~1"=="--runGlob" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--glob" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--runGrep" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
+if /i "%~1"=="--runList" (set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--suite" (set "SUITE_FILTER=%~2"& shift & shift & goto parse_args)
 if /i "%~1"=="--only-node-tests" (set ONLY_NODE_TESTS=1& shift & goto parse_args)
 if /i "%~1"=="--only-extension-host-tests" (set ONLY_EXTENSION_HOST_TESTS=1& shift & goto parse_args)
@@ -43,8 +44,9 @@ if defined SHOW_HELP (
 	echo ^(node.js integration tests + extension host tests^) are run.
 	echo Agent Host E2E suites are not included; run them with scripts\test-agent-host-e2e.bat.
 	echo.
-	echo --run and --runGlob select which node.js integration test files to load.
-	echo Extension host tests are skipped when these options are used.
+	echo --run and --runGlob select which node.js integration test files to load, and
+	echo --runList runs only the files that a list names. Extension host tests are
+	echo skipped when these options are used.
 	echo.
 	echo --grep filters test cases by name across all test runners. When used alone,
 	echo the pattern is applied to both node.js integration tests and all extension
@@ -60,6 +62,7 @@ if defined SHOW_HELP (
 	echo   --build                      use the out-build directory for node.js and JSON tests
 	echo   --run ^<file^>                  run tests from a specific file ^(src/ path^)
 	echo   --runGlob, --glob ^<pattern^>   select test files by path glob ^(e.g. '**\*.integrationTest.js'^)
+	echo   --runList ^<file^>              run only the test files listed in ^<file^>, one per line ^(src/ paths^)
 	echo   --grep, -g, -f ^<pattern^>      filter test cases by name ^(matched against test titles^)
 	echo   --suite ^<pattern^>             run only matching extension host test suites
 	echo                                 supports comma-separated list
@@ -95,7 +98,7 @@ if defined ONLY_NODE_TESTS if defined SUITE_FILTER (
 	exit /b 1
 )
 if defined ONLY_EXTENSION_HOST_TESTS if defined HAS_FILTER (
-	echo Error: --only-extension-host-tests cannot be combined with --run or --runGlob
+	echo Error: --only-extension-host-tests cannot be combined with --run, --runGlob or --runList
 	exit /b 1
 )
 
