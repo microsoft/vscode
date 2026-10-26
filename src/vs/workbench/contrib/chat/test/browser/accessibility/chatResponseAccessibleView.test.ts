@@ -27,6 +27,35 @@ import { TestStorageService } from '../../../../../test/common/workbenchTestServ
 suite('ChatResponseAccessibleView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const shape of ['string', 'markdown instance', 'markdown DTO'] as const) {
+		test(`includes exact confirmation request details in Accessible View (${shape})`, () => {
+			const details = 'Server: github-mcp-server\n\nTool: add_issue_comment\n\nArguments: {"body":"cloud-approval-10319 probe","issue_number":15}';
+			const markdown = '**Server:** github-mcp-server\n\n**Tool:** add_issue_comment\n\n**Arguments:** {"body":"cloud-approval-10319 probe","issue_number":15}';
+			const message = shape === 'string' ? details : shape === 'markdown instance' ? new MarkdownString(markdown) : { value: markdown, isTrusted: false };
+			const response = store.add(new Response([]));
+			response.updateContent({ kind: 'confirmation', title: 'Allow add_issue_comment?', message, data: { requestId: 'permission-1' }, buttons: ['Allow Once', 'Deny'] });
+			const item = upcastPartial<IChatResponseViewModel>({ response });
+
+			assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+				{ partIndex: 0, text: `Allow add_issue_comment?\n${details}` },
+			]);
+		});
+	}
+
+	test('keeps untrusted confirmation markdown as plain accessible text', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({
+			kind: 'confirmation', title: 'Review proposed action',
+			message: { value: '**Server:** github\n\n`add_issue_comment`\n\n[Review](command:untrusted.run)', isTrusted: false },
+			data: { requestId: 'permission-1' },
+		});
+		const item = upcastPartial<IChatResponseViewModel>({ response });
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [{
+			partIndex: 0, text: 'Review proposed action\nServer: github\n\nadd_issue_comment\n\nReview (command:untrusted.run)',
+		}]);
+	});
+
 	function createMcpToolInvocation(): ChatToolInvocation {
 		return new ChatToolInvocation({
 			invocationMessage: 'Read issue',

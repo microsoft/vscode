@@ -1243,6 +1243,17 @@ suite('ChatModel', () => {
 suite('Response', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const shape of ['string', 'markdown instance', 'markdown DTO'] as const) {
+		test(`preserves exact confirmation request text in response summaries (${shape})`, () => {
+			const details = 'Server: github-mcp-server\nTool: add_issue_comment\nArguments: {"body":"cloud-approval-10319 probe","issue_number":15}';
+			const message = shape === 'string' ? details : shape === 'markdown instance' ? new MarkdownString(details) : { value: details, isTrusted: false };
+			const response = store.add(new Response([]));
+			response.updateContent({ kind: 'confirmation', title: 'Allow add_issue_comment?', message, data: { requestId: 'permission-1' }, buttons: ['Allow Once', 'Deny'] });
+
+			assert.deepStrictEqual(response.toString(), `Allow add_issue_comment?\n${details}`);
+		});
+	}
+
 	test('notifies authentication completion without a mounted content part', () => {
 		const response = store.add(new Response([]));
 		const servers = observableValue<readonly IChatMcpAuthenticationRequiredServer[]>('servers', []);
