@@ -61,6 +61,7 @@ import {
 	IAgentCustomizationInstallationReview,
 	IAgentCustomizationMarketplaceSearchRequest,
 	IAgentCustomizationMarketplaceSearchResult,
+	type IAgentExtensionInventory,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
 	IAgentHostManagementService,
@@ -593,6 +594,22 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().uninstallPlugin(provider, request, session, chat);
 	}
 
+	listPluginInstallations(provider: string, session?: URI, chat?: URI) {
+		return this._getManagementService().listPluginInstallations(provider, session, chat);
+	}
+
+	setPluginEnabled(provider: string, plugin: string, enabled: boolean): Promise<void> {
+		return this._getManagementService().setPluginEnabled(provider, plugin, enabled);
+	}
+
+	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		return this._getManagementService().listAgentExtensions(session, chat);
+	}
+
+	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+		return this._getManagementService().setAgentExtensionEnabled(extensionId, enabled, session, chat);
+	}
+
 	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
 		return this._getManagementService().listSessionCanvases(session, chat);
 	}
@@ -752,6 +769,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().measureWorktreeDiskUsage(root, token);
 	}
 
+	sessionWorktreeCleanup(session: URI, retry: boolean) {
+		return this._requireClient().sessionWorktreeCleanup(session, retry);
+	}
+
 	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
 		return this._requireClient().resourceMkdir(params);
 	}
@@ -821,6 +842,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	getMissionControlEnvironmentId(): Promise<string | undefined> {
 		return this._getManagementService().getMissionControlEnvironmentId();
+	}
+
+	getMissionControlEnvironmentName(): Promise<string | undefined> {
+		return this._getManagementService().getMissionControlEnvironmentName();
 	}
 
 }

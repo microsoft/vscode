@@ -179,7 +179,7 @@ export class NewChatView extends AbstractChatView {
 	}
 
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
-		this._widget.layout(height, Math.max(0, width - 2 * this.contentInset));
+		this._widget.layout(height, width);
 	}
 
 	override focus(): void {
@@ -287,8 +287,8 @@ export class ChatView extends AbstractChatView {
 
 	override readonly kind: ChatViewKind = 'chat';
 
-	override get scrollDownButtonDomNode(): HTMLElement {
-		return this._widget.scrollDownButtonDomNode;
+	override get activityBarActions() {
+		return this._chatPills.activityBarActions;
 	}
 
 	private readonly _widget: ChatWidget;
@@ -1104,11 +1104,9 @@ export class ChatView extends AbstractChatView {
 		if (isHTMLElement(progressContainer)) {
 			progressContainer.style.top = `${widgetTop}px`;
 		}
-		const contentWidth = Math.max(0, width - 2 * this.contentInset);
-		this._comparisonResult.layout(contentWidth);
+		this._comparisonResult.layout(width);
 		size(this._widgetContainer, width, widgetHeight);
-		// Widget layout sizes embedded editors; its DOM viewport stays full-width for the scrollbar.
-		this._widget.layout(widgetHeight, contentWidth);
+		this._widget.layout(widgetHeight, width);
 		this._layoutStickyScrollBackground();
 	}
 

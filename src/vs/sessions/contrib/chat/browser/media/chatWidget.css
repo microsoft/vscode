@@ -690,11 +690,23 @@
 
 .experimental-new-session-composer .sessions-workspace-category-picker {
 	justify-content: flex-start;
-	gap: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size80) !important;
 }
 
 .experimental-new-session-composer .sessions-workspace-category-picker > .sessions-chat-session-type-picker {
 	margin-left: auto;
+}
+
+.experimental-new-session-composer .sessions-workspace-category-picker .new-chat-session-options-details,
+.experimental-new-session-composer .sessions-workspace-category-picker .new-chat-session-options-toggle {
+	margin-left: 0;
+}
+
+.experimental-new-session-composer .sessions-workspace-category-picker .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
 }
 
 .new-chat-repository-controls-host {
@@ -906,6 +918,7 @@
 	overflow: hidden;
 }
 
+.sessions-chat-picker-slot[hidden],
 .sessions-chat-picker-slot .action-label.hidden {
 	display: none;
 }

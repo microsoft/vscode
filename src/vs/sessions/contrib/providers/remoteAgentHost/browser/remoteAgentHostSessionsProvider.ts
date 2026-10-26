@@ -26,6 +26,7 @@ import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAge
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -56,6 +57,8 @@ import type { INestedChatFolderInfo, INestedChatWorkspace, ISendRequestOptions, 
 import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
+import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../chat/common/constants.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v5.';
@@ -104,6 +107,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
+	/** Overrides the stable host key for account-scoped picker preferences. */
+	readonly pickerVisibilityKey?: string;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 	/**
@@ -189,7 +194,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
+	readonly isAvailableInEnvironmentPicker?: IObservable<boolean>;
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
+	readonly showInEnvironmentPicker: () => void;
 	readonly removeLabel?: string;
 	readonly canRemove?: boolean;
 	readonly disconnectLabel?: string;
@@ -339,7 +346,17 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.autoConnect = config.autoConnect;
 		this.connectionLabels = config.connectionLabels;
 		this.hostDescription = config.hostDescription;
-		this.isVisibleInEnvironmentPicker = config.isVisibleInEnvironmentPicker;
+		const pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
+		const pickerKey = config.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(config.preferenceKey ?? config.address);
+		const manageRemotes = observableConfigValue(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, true, this._configurationService);
+		this.isAvailableInEnvironmentPicker = config.isVisibleInEnvironmentPicker ?? constObservable(true);
+		this.isVisibleInEnvironmentPicker = derived(this, reader =>
+			(!manageRemotes.read(reader) || !pickerVisibility.isHidden(pickerKey, reader)) && this.isAvailableInEnvironmentPicker?.read(reader) !== false);
+		this.showInEnvironmentPicker = () => {
+			if (manageRemotes.get()) {
+				pickerVisibility.setHidden(pickerKey, false);
+			}
+		};
 		this.removeLabel = config.removeLabel;
 		this.canRemove = config.canRemove;
 		this.disconnectLabel = config.disconnectLabel;
@@ -688,7 +705,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	protected override _onNewSessionAbandoned(sessionId: string, reason: 'discarded' | 'sendFailed' | 'providerDisposed'): void {
-		if (reason === 'sendFailed') {
+		if (reason === 'sendFailed' || this._getNewSession(sessionId)?.hasBeenUsed) {
 			return;
 		}
 		const handle = this._getDetachedWorktreeHandle(sessionId);
@@ -784,12 +801,13 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return !this._unpublished;
 	}
 
-	protected _adapterOptions() {
+	protected _adapterOptions(agentProvider: string) {
 		const typeIcon = this._workspaceTypeIcon;
 		return {
 			readOnly: this._readOnly,
 			allowOfflineDrafts: this._allowOfflineDrafts,
 			defaultChangesetKind: this._defaultChangesetKind,
+			useSessionTitleForDefaultChat: agentProvider === 'copilot',
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];
 				const uriForDescription = project?.uri ?? primary;

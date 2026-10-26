@@ -62,6 +62,7 @@ export interface IAutomationWorkspaceTarget {
 	readonly disabledReason?: string;
 	readonly pending?: boolean;
 	readonly isRepository?: boolean;
+	readonly isPrivateRepository?: boolean;
 }
 
 /** Catalogue completeness; only `ready` makes an empty snapshot authoritative. */
@@ -88,6 +89,9 @@ export type AutomationMutationGuard = () => void;
 
 /** The selected Automation authority cannot currently accept the operation. */
 export class AutomationUnavailableError extends Error { }
+
+/** Repository ownership is unavailable for the selected Automation target. */
+export class AutomationRepositoryOwnershipUnavailableError extends Error { }
 
 /** The provider may have accepted a mutation; reconcile its outcome before retrying. */
 export class AutomationMutationUncertainError extends Error { }

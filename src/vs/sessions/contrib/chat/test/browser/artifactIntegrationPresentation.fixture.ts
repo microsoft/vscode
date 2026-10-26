@@ -14,11 +14,12 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { ArtifactAutomationOption, ArtifactAvailability, ArtifactContributionSnapshot, ArtifactDetails, ArtifactRecord, ArtifactRun, ArtifactSectionPresentation, ArtifactSnapshot, artifactBindingId, IArtifactDetailsModel, IArtifactModel, isArtifactOptionEnabled } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactAutomationOption, ArtifactAvailability, ArtifactContributionSnapshot, ArtifactDetails, ArtifactGroupPresentation, ArtifactRecord, ArtifactRun, ArtifactSectionPresentation, ArtifactSnapshot, artifactBindingId, IArtifactDetailsModel, IArtifactModel, isArtifactOptionEnabled } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ContextMenuService } from '../../../../../platform/contextview/browser/contextMenuService.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -27,11 +28,12 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { QuickInputService } from '../../../../../platform/quickinput/browser/quickInputService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { chartsBlue, chartsForeground, chartsGreen, chartsPurple, chartsRed, chartsYellow } from '../../../../../platform/theme/common/colors/chartsColors.js';
+import { chartsBlue, chartsForeground, chartsGreen, chartsOrange, chartsPurple, chartsRed, chartsYellow } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { ChatPillsRow, ChatPillsWidget, IChatPillEntry, withChatPillHoverLabel } from '../../../../../workbench/browser/chatPills.js';
 import '../../../../../workbench/browser/media/style.css';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureDomCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ArtifactIntegrationPresentation } from '../../browser/artifactIntegrationPresentation.js';
+import { ArtifactIntegrationGroup, IArtifactIntegrationGroupMember } from '../../browser/artifactIntegrationGroup.js';
 import { ArtifactDetailsContextView } from '../../browser/artifactDetailsContextView.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -61,6 +63,13 @@ interface IArtifactFixtureOptions {
 	readonly longContent?: boolean;
 	readonly showListInfo?: number;
 	readonly openQuickPick?: boolean;
+	/** Renders these artifacts as one group pill instead of a single artifact pill. */
+	readonly group?: readonly IArtifactFixtureData[];
+	/** Index of a group artifact pinned into a pill of its own. */
+	readonly pinned?: number;
+	readonly openGroup?: boolean;
+	/** Index of the group row to open details for from the open group dropdown. */
+	readonly openGroupDetails?: number;
 }
 
 class FixtureArtifactModel implements IArtifactModel {
@@ -173,7 +182,7 @@ function section(id: string, label: string, icon: ThemeIcon, colorId: string, de
 	return { id, label, description, icon: { id: icon.id, colorId }, detailsId: id };
 }
 
-type PullRequestState = 'draft' | 'failing' | 'ready' | 'merged' | 'loading' | 'unavailable';
+type PullRequestState = 'draft' | 'failing' | 'ready' | 'merged' | 'closed' | 'loading' | 'unavailable';
 
 interface IPullRequestFixtureOptions {
 	readonly mainOnly?: boolean;
@@ -181,22 +190,35 @@ interface IPullRequestFixtureOptions {
 	readonly autoFix?: 'off' | 'on' | 'running' | 'paused';
 	/** Replaces the separate Mark Ready and Merge automation with one option that permits both actions. */
 	readonly sharedLanding?: boolean;
+	/** Offers row actions on failed checks and review comments. */
+	readonly itemActions?: boolean;
+	/** Distinguishes pull requests shown together in a group. */
+	readonly number?: number;
+	readonly title?: string;
 }
 
 function pullRequest(state: PullRequestState, options: IPullRequestFixtureOptions = {}): IArtifactFixtureData {
-	const { mainOnly, autoFix = 'off', sharedLanding } = options;
-	const artifactId = 'fixture-pull-request';
+	const { mainOnly, autoFix = 'off', sharedLanding, itemActions, number = 42 } = options;
+	const artifactId = number === 42 ? 'fixture-pull-request' : `fixture-pull-request-${number}`;
 	const integrationId = 'fixture.pullRequest';
-	const resource = 'https://github.example.test/contoso/editor/pull/42';
+	const resource = `https://github.example.test/contoso/editor/pull/${number}`;
 	const available = state !== 'loading' && state !== 'unavailable';
 	const availability: ArtifactAvailability = state === 'loading' ? { kind: 'loading' }
 		: state === 'unavailable' ? { kind: 'authenticationRequired', reason: 'Sign in to GitHub to see the state of this pull request.', observedAt }
 			: { kind: 'available', observedAt };
 	const labels: Record<PullRequestState, string> = {
-		draft: 'Draft', failing: 'Changes requested', ready: 'Ready to merge', merged: 'Merged', loading: 'Loading status', unavailable: 'Sign in required',
+		draft: 'Draft', failing: 'Changes requested', ready: 'Ready to merge', merged: 'Merged', closed: 'Closed', loading: 'Loading status', unavailable: 'Sign in required',
 	};
-	const mainIcon = state === 'draft' ? Codicon.gitPullRequestDraft : state === 'merged' ? Codicon.gitMerge : Codicon.gitPullRequest;
-	const mainColor = state === 'merged' ? chartsPurple : state === 'draft' || !available ? 'descriptionForeground' : chartsGreen;
+	const mainIcon = state === 'draft' ? Codicon.gitPullRequestDraft : state === 'merged' ? Codicon.gitPullRequestDone : state === 'closed' ? Codicon.gitPullRequestClosed : Codicon.gitPullRequest;
+	const mainColor = state === 'merged' ? chartsPurple : state === 'closed' ? chartsRed : state === 'draft' || !available ? 'descriptionForeground' : chartsGreen;
+	// Ranks the pull request in a group like the GitHub integration does.
+	const group: Partial<Record<PullRequestState, ArtifactGroupPresentation>> = {
+		failing: { icon: { id: Codicon.gitPullRequestError.id, colorId: chartsOrange }, priority: 6 },
+		ready: { icon: { id: Codicon.gitPullRequest.id, colorId: chartsGreen }, priority: 4 },
+		draft: { icon: { id: Codicon.gitPullRequestDraft.id, colorId: 'descriptionForeground' }, priority: 3 },
+		merged: { icon: { id: Codicon.gitPullRequestDone.id, colorId: chartsPurple }, priority: 2 },
+		closed: { icon: { id: Codicon.gitPullRequestClosed.id, colorId: chartsRed }, priority: 1 },
+	};
 	const sections: Record<PullRequestState, readonly ArtifactSectionPresentation[]> = {
 		draft: [section('checks', '0/6', Codicon.circleFilledCompact, chartsForeground, 'Checks queued; 0 of 6 passed'), section('reviews', '0', Codicon.commentDiscussion, chartsForeground, 'No review comments')],
 		failing: [
@@ -208,6 +230,7 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 			section('reviews', '0', Codicon.commentDiscussion, chartsGreen, 'All review comments resolved'),
 		],
 		merged: [section('checks', '6/6', Codicon.passFilledCompact, chartsGreen, 'All 6 checks passed')],
+		closed: [],
 		loading: [section('availability', 'Loading status', Codicon.sync, chartsForeground)],
 		unavailable: [],
 	};
@@ -222,7 +245,7 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 		] satisfies ArtifactAutomationOption[],
 	];
 	const contribution: ArtifactContributionSnapshot = {
-		integrationId, label: 'Pull request (demo)',
+		integrationId, label: 'Pull request (demo)', groupLabel: 'Pull Requests',
 		authentication: state === 'unavailable' ? { enabled: true } : undefined,
 		actions: [
 			{ id: 'markReady', label: 'Mark Ready', iconId: Codicon.gitPullRequest.id, kind: 'code' },
@@ -240,13 +263,14 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 		},
 		view: {
 			availability,
-			main: { label: '#42', description: `Pull request #42: ${labels[state]}`, icon: { id: mainIcon.id, colorId: mainColor }, detailsId: 'overview' },
+			main: { label: `#${number}`, description: `Pull request #${number}: ${labels[state]}`, icon: { id: mainIcon.id, colorId: mainColor }, detailsId: 'overview' },
+			...group[state] ? { group: group[state] } : {},
 			sections: mainOnly ? [] : sections[state],
 			lists: mainOnly || state === 'unavailable' ? [] : [
 				{ id: 'checks', label: 'Checks', detailsId: 'checks' },
 				{ id: 'reviews', label: 'Comments', detailsId: 'reviews' },
 			],
-			stateActions: state === 'merged' ? [] : [
+			stateActions: state === 'merged' || state === 'closed' ? [] : [
 				...state === 'draft' ? [{ id: 'markReady', enabled: true }] : [],
 				...state === 'failing' ? [{ id: 'fixChecks', enabled: true }, { id: 'addressComments', enabled: true }] : [],
 				...state !== 'draft' ? [{
@@ -256,8 +280,8 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 			],
 			generalActions: [{ id: 'refresh', enabled: available, disabledReason: available ? undefined : 'Waiting for a connection and authentication.' }],
 			automationAvailability: automationOptions.map(option => ({
-				id: option.id, available: available && state !== 'merged',
-				unavailableReason: state === 'merged' ? 'The pull request is already merged.' : state === 'loading' ? 'Waiting for the pull request status.' : state === 'unavailable' ? 'Sign in to run automation.' : undefined,
+				id: option.id, available: available && state !== 'merged' && state !== 'closed',
+				unavailableReason: state === 'merged' ? 'The pull request is already merged.' : state === 'closed' ? 'The pull request is closed.' : state === 'loading' ? 'Waiting for the pull request status.' : state === 'unavailable' ? 'Sign in to run automation.' : undefined,
 			})),
 		},
 	};
@@ -274,6 +298,7 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 				{ kind: 'automation', optionId: 'fixChecks' },
 				...state === 'failing' ? [{ kind: 'action' as const, actionId: 'fixChecks' }] : [],
 			],
+			itemActions: itemActions ? [{ id: 'rerunCheck', label: 'Rerun Check', iconId: Codicon.debugRerun.id }] : undefined,
 			items: available ? [
 				{ id: 'lint', label: 'Lint' },
 				{ id: 'linux', label: 'Linux tests' },
@@ -293,6 +318,7 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 					},
 					description: failed ? 'Failed: an unused import needs to be removed.' : running ? 'In progress' : queued ? 'Queued' : 'Passed',
 					resource: `${resource}/checks/${check.id}`,
+					...itemActions && failed ? { actions: ['rerunCheck'] } : {},
 				};
 			}) : [],
 			completeness: 'complete',
@@ -300,10 +326,11 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 		reviews: {
 			availability, title: `Comments (${state === 'failing' ? 2 : 0})`, description: 'Shows unresolved review comments from repository contributors with owner, member, or collaborator access, and from Copilot.',
 			links: [{ kind: 'automation', optionId: 'addressComments' }, ...state === 'failing' ? [{ kind: 'action' as const, actionId: 'addressComments' }] : []],
+			itemActions: itemActions ? [{ id: 'resolveThread', label: 'Resolve Comment', iconId: Codicon.check.id }] : undefined,
 			items: state === 'failing' ? [
 				{ id: 'focus', label: 'Please restore focus to the control that opened these details, including after live checks refresh or when switching between artifacts.', icon: { id: Codicon.commentDiscussion.id }, description: 'Reviewer - src/view.ts:42', resource: `${resource}#discussion-focus` },
 				{ id: 'coverage', label: 'Cover keyboard navigation', icon: { id: Codicon.commentDiscussion.id }, description: 'Add a regression test for switching between sections.', resource: `${resource}#discussion-coverage` },
-			] : [],
+			].map(item => itemActions ? { ...item, actions: ['resolveThread'] } : item) : [],
 			completeness: 'complete',
 		},
 		availability: { availability, title: 'Pull request status', description: 'The resource link remains available while integration status is unavailable.', links: [], items: [], completeness: 'complete' },
@@ -319,7 +346,7 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 		chat, dispatched: true, receipt: { kind: 'turn', turnId: `fixture-turn-${index + 1}` },
 	}));
 	return {
-		artifact: { id: artifactId, label: 'Preserve keyboard focus between chats', resource, origin: { chat } },
+		artifact: { id: artifactId, label: options.title ?? 'Preserve keyboard focus between chats', resource, origin: { chat } },
 		contribution, details, runs,
 	};
 }
@@ -555,6 +582,10 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 			}])),
 		};
 	}
+	if (options.group) {
+		await renderGroup(context, options, options.group, row, controller, instantiationService, previewOperation);
+		return;
+	}
 	const model = new FixtureArtifactModel(data);
 	const presentation = disposableStore.add(instantiationService.createInstance(ArtifactIntegrationPresentation, model, () => chat, controller));
 	const copyLink = disposableStore.add(new Action('fixture.copyLink', 'Copy Link', ThemeIcon.asClassName(Codicon.copy), true, async () => previewOperation('the link was not copied to your clipboard.')));
@@ -614,7 +645,65 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 	}
 }
 
-export async function renderArtifactDetails(context: ComponentFixtureContext, scenario: 'attention' | 'ready' | 'mixed' | 'narrow' | 'experiment' | 'delivery' | 'comments' | 'autopilotCollapsed' | 'autopilotExpanded' | 'narrowComments' | 'tabInfo' | 'deliveryRollouts' | 'titleHover' | 'tabFocus' | 'enumPolicy' | 'enumPolicyNarrow' | 'activitiesCollapsed' | 'activitiesExpanded' | 'activitiesNarrow'): Promise<void> {
+async function renderGroup(
+	context: ComponentFixtureContext,
+	options: IArtifactFixtureOptions,
+	items: readonly IArtifactFixtureData[],
+	row: ChatPillsRow,
+	controller: ArtifactDetailsContextView,
+	instantiationService: IInstantiationService,
+	previewOperation: (label: string) => void,
+): Promise<void> {
+	const { container, disposableStore } = context;
+	// Group rows are keyed by artifact, so repeated demo data gets distinct IDs.
+	const data = items.map((item, index) => ({ ...item, artifact: { ...item.artifact, id: `${item.artifact.id}#${index}` } }));
+	const action = (id: string, label: string, icon: ThemeIcon, hoverLabel: string, operation: string) =>
+		withChatPillHoverLabel(disposableStore.add(new Action(id, label, ThemeIcon.asClassName(icon), true, async () => previewOperation(operation))), hoverLabel);
+	const entries = data.map((item): IChatPillEntry => ({
+		id: item.artifact.id, label: item.artifact.label, icon: Codicon.link,
+		toolbarActions: [
+			...item.contribution.integrationId === 'fixture.pullRequest'
+				? [action(`fixture.openChanges.${item.artifact.id}`, 'Open Pull Request Changes', Codicon.diffMultiple, 'Open Changes', 'the pull request changes were not opened.')]
+				: [],
+			action(`fixture.copyLink.${item.artifact.id}`, 'Copy Link', Codicon.copy, 'Copy URL', 'the link was not copied to your clipboard.'),
+		],
+		promotedAction: action(`fixture.remove.${item.artifact.id}`, `Remove Artifact ${item.artifact.label} from Session`, Codicon.close, 'Remove Artifact', 'the artifact was not removed.'),
+		open: () => previewOperation('the resource was not opened.'),
+	}));
+	const presentations = data.map(item => disposableStore.add(instantiationService.createInstance(ArtifactIntegrationPresentation, new FixtureArtifactModel(item), () => chat, controller)));
+	const members: IArtifactIntegrationGroupMember[] = data.flatMap((item, index) => index === options.pinned ? [] : [{
+		presentation: presentations[index], entry: entries[index],
+		pinAction: action(`fixture.pin.${item.artifact.id}`, `Pin ${item.artifact.label}`, Codicon.pin, 'Pin', 'the artifact was not pinned.'),
+	}]);
+	const pinnedPill = options.pinned === undefined ? undefined : presentations[options.pinned].createPill(constObservable(action(
+		`fixture.unpin.${data[options.pinned].artifact.id}`, `Unpin ${data[options.pinned].artifact.label}`, Codicon.unpin, 'Unpin', 'the artifact was not unpinned.')));
+	const group = disposableStore.add(instantiationService.createInstance(ArtifactIntegrationGroup, 'fixture', constObservable(members), controller));
+	const pills = derived(reader => {
+		// Decorating gives each artifact's details the entry actions of its pill.
+		entries.forEach((entry, index) => presentations[index].decorate(entry, reader));
+		return [...pinnedPill ? [pinnedPill] : [], group.pill];
+	});
+	const widget = disposableStore.add(instantiationService.createInstance(ChatPillsWidget, { pills }, { ariaLabel: 'Artifact group preview' }));
+	row.content.appendChild(widget.element);
+	if (!options.openGroup && options.openGroupDetails === undefined) {
+		return;
+	}
+	const button = widget.element.querySelector<HTMLElement>('.artifact-integration-group-pill > .chat-pill-button');
+	if (!button) {
+		throw new Error('Expected a group pill.');
+	}
+	button.click();
+	await waitForFixtureDomCondition(container, () => !!container.querySelector('.artifact-group-dropdown .artifact-group-row'), disposableStore);
+	const rows = [...container.querySelectorAll<HTMLElement>('.artifact-group-row')];
+	if (options.openGroupDetails === undefined) {
+		rows[0]?.classList.add('hovered');
+		return;
+	}
+	rows[options.openGroupDetails]?.querySelector<HTMLElement>('.artifact-group-row-main')?.click();
+	await waitForFixtureDomCondition(container, () => !!container.querySelector('.artifact-integration-panel h2'), disposableStore);
+}
+
+export async function renderArtifactDetails(context: ComponentFixtureContext, scenario: 'attention' | 'ready' | 'mixed' | 'narrow' | 'experiment' | 'delivery' | 'comments' | 'autopilotCollapsed' | 'autopilotExpanded' | 'narrowComments' | 'deliveryRollouts' | 'titleHover' | 'tabFocus' | 'enumPolicy' | 'enumPolicyNarrow' | 'activitiesCollapsed' | 'activitiesExpanded' | 'activitiesNarrow'): Promise<void> {
 	let data = scenario === 'experiment' ? expExperiment() : pullRequest(scenario === 'ready' ? 'ready' : 'failing');
 	if (scenario === 'mixed') {
 		const contribution = data.contribution;
@@ -735,13 +824,6 @@ export async function renderArtifactDetails(context: ComponentFixtureContext, sc
 			disclosure.click();
 		}
 	}
-	if (scenario === 'tabInfo') {
-		const info = context.container.querySelectorAll<HTMLElement>('.artifact-list-tab-info')[1];
-		if (!info || info.hidden) {
-			throw new Error('Expected information for the inactive Comments tab.');
-		}
-		info.click();
-	}
 	if (scenario === 'titleHover') {
 		const title = context.container.querySelector('.artifact-details-title-link');
 		if (!title) {
@@ -750,13 +832,22 @@ export async function renderArtifactDetails(context: ComponentFixtureContext, sc
 		title.classList.add('hovered');
 	}
 	if (scenario === 'tabFocus') {
-		const tab = context.container.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+		const tab = context.container.querySelector<HTMLElement>('[role="tab"][tabindex="0"]');
 		if (!tab) {
-			throw new Error('Expected a selected list tab.');
+			throw new Error('Expected a keyboard-reachable list tab.');
 		}
 		tab.classList.add('synthetic-focus');
 		context.focus(tab);
 	}
+}
+
+function failingPullRequestGroup(): readonly IArtifactFixtureData[] {
+	return [
+		pullRequest('ready', { number: 101, title: 'Group artifact pills by integration' }),
+		pullRequest('failing', { number: 42, autoFix: 'on' }),
+		pullRequest('draft', { number: 103, title: 'Document grouped artifact pills' }),
+		pullRequest('merged', { number: 102, title: 'Add pull request group icons' }),
+	];
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/artifactIntegrations' }, {
@@ -776,6 +867,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/artifactIntegrations' 
 	PullRequestCommentsInformation: defineComponentFixture({ render: context => render(context, pullRequest('failing'), { openDetails: 'actions', showListInfo: 1 }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	PullRequestLongContent: defineComponentFixture({ render: context => render(context, pullRequest('failing'), { openDetails: 'actions', longContent: true }) }),
 	PullRequestNarrowLongContent: defineComponentFixture({ render: context => render(context, pullRequest('failing'), { openDetails: 'actions', width: 420, longContent: true }) }),
+	PullRequestCheckRowActions: defineComponentFixture({ render: context => render(context, pullRequest('failing', { itemActions: true }), { openDetails: 'checks' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	PullRequestCommentRowActions: defineComponentFixture({ render: context => render(context, pullRequest('failing', { itemActions: true }), { openDetails: 'reviews' }) }),
 	PullRequestFixRunning: defineComponentFixture({ render: context => render(context, pullRequest('failing', { autoFix: 'running' }), { openDetails: 'checks' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	PullRequestActions: defineComponentFixture({ render: context => render(context, pullRequest('ready'), { openDetails: 'actions' }) }),
 	PullRequestSharedAutomation: defineComponentFixture({ render: context => render(context, pullRequest('draft', { sharedLanding: true }), { openDetails: 'actions' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
@@ -789,4 +882,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/artifactIntegrations' 
 	ExPExperimentRunning: defineComponentFixture({ render: context => render(context, expExperiment()) }),
 	ExPExperimentStateDetails: defineComponentFixture({ render: context => render(context, expExperiment(), { openDetails: 'state' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	ExPExperimentIdentityDetails: defineComponentFixture({ render: context => render(context, expExperiment(), { openDetails: 'actions' }) }),
+	GroupOpenPullRequests: defineComponentFixture({ render: context => render(context, pullRequest('ready'), { group: [pullRequest('ready', { number: 101, title: 'Group artifact pills by integration' }), pullRequest('merged', { number: 102, title: 'Add pull request group icons' }), pullRequest('draft', { number: 103, title: 'Document grouped artifact pills' }), pullRequest('closed', { number: 104, title: 'Prototype a separate artifacts panel' })] }) }),
+	GroupDraftAndMergedPullRequests: defineComponentFixture({ render: context => render(context, pullRequest('draft'), { group: [pullRequest('merged', { number: 102, title: 'Add pull request group icons' }), pullRequest('draft', { number: 103, title: 'Document grouped artifact pills' }), pullRequest('closed', { number: 104, title: 'Prototype a separate artifacts panel' })] }) }),
+	GroupMergedPullRequests: defineComponentFixture({ render: context => render(context, pullRequest('merged'), { group: [pullRequest('merged', { number: 102, title: 'Add pull request group icons' }), pullRequest('merged', { number: 105, title: 'Share pin storage between pills' })] }) }),
+	GroupFailingPullRequests: defineComponentFixture({ render: context => render(context, pullRequest('failing'), { group: failingPullRequestGroup() }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	GroupDropdown: defineComponentFixture({ render: context => render(context, pullRequest('failing'), { group: failingPullRequestGroup(), openGroup: true }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	GroupDropdownCompact: defineComponentFixture({ render: context => render(context, pullRequest('failing'), { group: failingPullRequestGroup(), openGroup: true, compact: true }) }),
+	GroupRowDetails: defineComponentFixture({ render: context => render(context, pullRequest('failing'), { group: failingPullRequestGroup(), openGroupDetails: 1 }) }),
+	GroupPinned: defineComponentFixture({ render: context => render(context, pullRequest('failing'), { group: failingPullRequestGroup(), pinned: 1 }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	GroupExperimentsFallbackLabel: defineComponentFixture({ render: context => render(context, experiment(true), { group: [experiment(true), experiment(false)], openGroup: true }) }),
 });

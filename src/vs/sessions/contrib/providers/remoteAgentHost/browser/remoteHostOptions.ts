@@ -51,6 +51,38 @@ export async function removeRemoteHost(provider: IAgentHostSessionsProvider, rem
 	}
 }
 
+export async function renameRemoteHost(
+	provider: Pick<IAgentHostSessionsProvider, 'remoteAddress' | 'label' | 'setDisplayName'>,
+	quickInputService: IQuickInputService,
+	remoteAgentHostService: IRemoteAgentHostService,
+): Promise<void> {
+	const address = provider.remoteAddress;
+	if (!address) {
+		throw new Error(localize('workspacePicker.remoteUnavailable', "This remote is no longer available."));
+	}
+	const name = await quickInputService.input({
+		title: localize('workspacePicker.renameRemoteTitle', "Rename Remote Agent Host"),
+		prompt: localize('workspacePicker.renameRemotePrompt', "Enter a display name for this remote agent host in this client. Leave empty to use the default name."),
+		value: provider.label,
+		valueSelection: [0, provider.label.length],
+		ignoreFocusLost: true,
+	});
+	if (name !== undefined) {
+		try {
+			if (provider.setDisplayName) {
+				provider.setDisplayName(name);
+			} else {
+				remoteAgentHostService.setDisplayName(address, name);
+			}
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			throw new Error(localize('workspacePicker.renameRemoteFailed', "Failed to rename {0}: {1}", provider.label, error instanceof Error ? error.message : String(error)), { cause: error });
+		}
+	}
+}
+
 export function hasUpgradeReconnectStarted(status: RemoteAgentHostConnectionStatus): boolean {
 	return RemoteAgentHostConnectionStatus.isConnecting(status)
 		|| RemoteAgentHostConnectionStatus.isReconnecting(status)
@@ -229,7 +261,12 @@ export function getStatusLabel(status: RemoteAgentHostConnectionStatus): string 
 	}
 }
 
-export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string): string {
+export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string, lastConnectionError?: string): string {
+	if ((status.kind === 'connecting' || status.kind === 'reconnecting') && lastConnectionError) {
+		return address
+			? localize('workspacePicker.hoverRetryingAfterErrorAddr', "Retrying connection. Last error: {0}\n\nAddress: {1}", lastConnectionError, address)
+			: localize('workspacePicker.hoverRetryingAfterError', "Retrying connection. Last error: {0}", lastConnectionError);
+	}
 	switch (status.kind) {
 		case 'connected':
 			return address
@@ -244,6 +281,11 @@ export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?
 				? localize('workspacePicker.hoverReconnectingAddr', "The remote agent host connection dropped and is being restored automatically.\n\nAddress: {0}", address)
 				: localize('workspacePicker.hoverReconnecting', "The remote agent host connection dropped and is being restored automatically.");
 		case 'disconnected':
+			if (lastConnectionError) {
+				return address
+					? localize('workspacePicker.hoverDisconnectedErrorAddr', "Remote agent host is disconnected: {0}\n\nAddress: {1}", lastConnectionError, address)
+					: lastConnectionError;
+			}
 			return address
 				? localize('workspacePicker.hoverDisconnectedAddr', "Remote agent host is disconnected.\n\nAddress: {0}", address)
 				: localize('workspacePicker.hoverDisconnected', "Remote agent host is disconnected.");
@@ -548,24 +590,11 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 			}
 			break;
 		case 'rename': {
-			const name = await quickInputService.input({
-				title: localize('workspacePicker.renameRemoteTitle', "Rename Remote Agent Host"),
-				prompt: localize('workspacePicker.renameRemotePrompt', "Enter a display name for this remote agent host in this client. Leave empty to use the default name."),
-				value: provider.label,
-				valueSelection: [0, provider.label.length],
-				ignoreFocusLost: true,
-			});
-			if (name !== undefined) {
-				try {
-					if (provider.setDisplayName) {
-						provider.setDisplayName(name);
-					} else {
-						remoteAgentHostService.setDisplayName(address, name);
-					}
-				} catch (err) {
-					if (!isCancellationError(err)) {
-						notificationService.error(localize('workspacePicker.renameRemoteFailed', "Failed to rename {0}: {1}", provider.label, err instanceof Error ? err.message : String(err)));
-					}
+			try {
+				await renameRemoteHost(provider, quickInputService, remoteAgentHostService);
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					notificationService.error(error instanceof Error ? error.message : String(error));
 				}
 			}
 			break;

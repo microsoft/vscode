@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../base/browser/dom.js';
+import { $, append } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { IAction, toAction } from '../../../base/common/actions.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -37,11 +38,14 @@ import { IWorkbenchLayoutService } from '../../../workbench/services/layout/brow
 import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
+import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBar.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
@@ -310,6 +314,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 					: menu;
 			}
 		}());
+		instantiationService.stub(ISessionActivityBarActivityService, store.add(new SessionActivityBarActivityService()));
 	}
 	const sessionsService = new TestSessionsService();
 	const chatViewFactory = new TestChatViewFactory();
@@ -400,6 +405,22 @@ suite('Sessions - ChatGroupsView', () => {
 		const before = view['_mainChatResource'] !== undefined;
 		view.setSession(undefined, options);
 		assert.deepStrictEqual([before, view['_mainChatResource']], [true, undefined]);
+	});
+
+	test('clearing a chat group releases its activity action observation', async () => {
+		const { instantiationService, configurationService } = createHarness(disposables, true, true);
+		await configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
+		const group = disposables.add(instantiationService.createInstance(ChatGroupView));
+		let observations = 0;
+		const actions = derived<readonly IAction[]>(reader => {
+			observations++;
+			reader.store.add(toDisposable(() => observations--));
+			return [toAction({ id: 'test.chatAction', label: 'Chat Action', run: () => { } })];
+		});
+		group['_sessionActivityBar'].setChatActions(actions);
+		const before = observations;
+		group.setContext(undefined);
+		assert.deepStrictEqual({ before, after: observations }, { before: 1, after: 0 });
 	});
 
 	test('releases the main chat resource observable on disposal', () => {
@@ -621,7 +642,8 @@ suite('Sessions - ChatGroupsView', () => {
 		const main = createChat('main');
 		const child = createChat('child', SessionStatus.Completed, main.resource);
 		const session = new TestActiveSession([main, child]);
-		// Each group's position on screen, whether its Session Activity Bar is active, and the width left for its chat.
+		// Each group's position on screen, whether its Session Activity Bar is active, and the width left for its chat:
+		// every group keeps the strip's column at its right edge, active or not, so focusing another does not shift it.
 		const activityBars = () => {
 			const origin = view.element.getBoundingClientRect();
 			return [...view.element.querySelectorAll<HTMLElement>('.chat-group-view')]
@@ -629,7 +651,6 @@ suite('Sessions - ChatGroupsView', () => {
 					left: Math.round(group.getBoundingClientRect().left - origin.left),
 					active: !!group.querySelector(':scope > .session-activity-bar:not(.inactive)'),
 					chatWidth: group.querySelector<HTMLElement>('.chat-view')?.style.width,
-					contentInset: group.querySelector<HTMLElement>('.chat-view')?.style.getPropertyValue('--session-activity-bar-reserved-width'),
 					headerWidth: group.querySelector<HTMLElement>('.chat-group-view-bar')?.style.width,
 				}))
 				.sort((first, second) => first.left - second.left);
@@ -647,10 +668,10 @@ suite('Sessions - ChatGroupsView', () => {
 		const sessionInactive = activityBars();
 
 		assert.deepStrictEqual({ single, split, previousFocused, sessionInactive }, {
-			single: [{ left: 0, active: true, chatWidth: '1000px', contentInset: '30px', headerWidth: '1000px' }],
-			split: [{ left: 0, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: true, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
-			previousFocused: [{ left: 0, active: true, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
-			sessionInactive: [{ left: 0, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
+			single: [{ left: 0, active: true, chatWidth: '966px', headerWidth: '1000px' }],
+			split: [{ left: 0, active: false, chatWidth: '466px', headerWidth: '500px' }, { left: 500, active: true, chatWidth: '466px', headerWidth: '500px' }],
+			previousFocused: [{ left: 0, active: true, chatWidth: '466px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '466px', headerWidth: '500px' }],
+			sessionInactive: [{ left: 0, active: false, chatWidth: '466px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '466px', headerWidth: '500px' }],
 		});
 	});
 
@@ -664,7 +685,7 @@ suite('Sessions - ChatGroupsView', () => {
 			return {
 				kind: group.querySelector<HTMLElement>('.chat-view')?.dataset.kind,
 				activityBarShown: !!group.querySelector(':scope > .session-activity-bar:not(.inactive)'),
-				contentInset: group.querySelector<HTMLElement>('.chat-view')?.style.getPropertyValue('--session-activity-bar-reserved-width'),
+				chatWidth: group.querySelector<HTMLElement>('.chat-view')?.style.width,
 			};
 		};
 		view.setSession(session, options);
@@ -675,8 +696,39 @@ suite('Sessions - ChatGroupsView', () => {
 		const existingChat = state();
 
 		assert.deepStrictEqual({ newChat, existingChat }, {
-			newChat: { kind: 'newChatInSession', activityBarShown: true, contentInset: '30px' },
-			existingChat: { kind: 'chat', activityBarShown: true, contentInset: '30px' },
+			newChat: { kind: 'newChatInSession', activityBarShown: true, chatWidth: '966px' },
+			existingChat: { kind: 'chat', activityBarShown: true, chatWidth: '966px' },
+		});
+	});
+
+	test('docks the Session Activity Bar in a column of its own at the right edge, 2px from the chat and the edge, the chat and its scrollbar to its left, at either density', () => {
+		const results: Record<string, unknown> = {};
+		for (const density of ['default', 'compact'] as const) {
+			const store = disposables.add(new DisposableStore());
+			const { view, configurationService } = createHarness(store, true, true);
+			configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+			store.add(toDisposable(() => workbench.remove()));
+			workbench.classList.toggle('modern-ui-compact', density === 'compact');
+			for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
+				workbench.style.setProperty(`--vscode-${token}`, value);
+			}
+			workbench.appendChild(view.element);
+			view.setSession(new TestActiveSession([createChat('main')]), options);
+			view.layout(1000, 600, 0, 0);
+
+			const group = view.element.querySelector<HTMLElement>('.chat-group-view')!.getBoundingClientRect();
+			const strip = view.element.querySelector<HTMLElement>('.chat-group-view > .session-activity-bar:not(.inactive)')!.getBoundingClientRect();
+			// The chat view's scroll viewport, and so its scrollbar, spans the view's full width.
+			const chat = view.element.querySelector<HTMLElement>('.chat-view')!.getBoundingClientRect();
+			results[density] = { strip: strip.width, column: group.right - chat.right, gaps: { chat: strip.left - chat.right, edge: group.right - strip.right } };
+			store.dispose();
+		}
+
+		const geometry = { strip: 30, column: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, gaps: { chat: 2, edge: 2 } };
+		assert.deepStrictEqual(results, {
+			default: geometry,
+			compact: geometry,
 		});
 	});
 
@@ -719,6 +771,28 @@ suite('Sessions - ChatGroupsView', () => {
 				sashes: 1,
 			},
 		});
+	});
+
+	test('expands a collapsed group when its chat becomes active without taking focus', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		sessionsService.activeSession.set(session, undefined);
+		view.setSession(session, options);
+		view.layout(800, 600, 0, 0, 4);
+		view.splitChatToSide(secondary.resource);
+		await timeout(0);
+
+		const grid = view['_grid']!;
+		const [mainGroup, secondaryGroup] = view['_groups'].map(group => group.view);
+		const collapseTolerance = 8;
+		const isMainCollapsed = () => grid.getViewSize(mainGroup).width <= mainGroup.minimumWidth + collapseTolerance;
+		grid.resizeView(secondaryGroup, { width: 800, height: 600 });
+		const collapsed = isMainCollapsed();
+		await sessionsService.openChat(session, main.resource);
+
+		assert.deepStrictEqual({ collapsed, mainCollapsed: isMainCollapsed() }, { collapsed: true, mainCollapsed: false });
 	});
 
 	test('uses split-chat gaps in both presentations and removes them at zero-gap density', async () => {
@@ -2281,28 +2355,123 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('a failed live snapshot stays quiet until composition and retries content without another connection', async () => {
+	for (const interactivity of [ChatInteractivity.DraftOnly, ChatInteractivity.Full]) {
+		test(`a failed live snapshot reveals recovery on input and keeps progress visible through retries (${interactivity})`, async () => {
+			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const chat = createChat('main');
+			chat.interactivity.set(interactivity, undefined);
+			const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connected' });
+			view.setSession(session, options);
+			const current = chatViewFactory.views.at(-1)!;
+			current.hasVisibleTranscriptContent.set(true, undefined);
+			current.isInputBlocked.set(true, undefined);
+			let retries = 0;
+			let pending = new DeferredPromise<boolean>();
+			const failure: IChatSessionHistoryStatus = {
+				kind: 'live', message: 'Couldn\'t reopen this conversation.',
+				action: {
+					label: 'Retry', run: async () => {
+						retries++;
+						current.historyStatus.set({ kind: 'live', isLoading: true, message: 'Reopening conversation...' }, undefined);
+						const success = await pending.p;
+						transaction(tx => {
+							current.historyStatus.set(success ? undefined : failure, tx);
+							if (success) {
+								current.isInputBlocked.set(false, tx);
+								chat.interactivity.set(ChatInteractivity.Full, tx);
+							}
+						});
+					},
+				},
+			};
+			current.historyStatus.set(failure, undefined);
+			const quiet = readBanner(view).visible;
+			current.onInput?.();
+			const afterInput = readBanner(view);
+			const link = view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')!;
+			link.focus();
+			link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			link.click();
+			const reopening = {
+				banner: readBanner(view),
+				progressIcon: !!view.element.querySelector('.session-readonly-banner-icon .codicon-sync'),
+				announcement: view.element.querySelector('.session-readonly-banner-announcement')?.textContent,
+				blocked: current.isInputBlocked.get(),
+			};
+			await pending.complete(false);
+			await timeout(0);
+			current.onInput?.();
+			const failedAgain = readBanner(view);
+			pending = new DeferredPromise<boolean>();
+			view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')!.click();
+			await pending.complete(true);
+			await timeout(0);
+			assert.deepStrictEqual({
+				quiet, afterInput, reopening, failedAgain, ready: readBanner(view).visible,
+				blocked: current.isInputBlocked.get(), retries, connects: provider.connectCalls,
+			}, {
+				quiet: false, afterInput: { visible: true, message: failure.message, action: 'Retry' },
+				reopening: {
+					banner: { visible: true, message: 'Reopening conversation...', action: undefined },
+					progressIcon: true, announcement: 'Reopening conversation...', blocked: true,
+				},
+				failedAgain: { visible: true, message: failure.message, action: 'Retry' },
+				ready: false, blocked: false, retries: 2, connects: 0,
+			});
+		});
+	}
+
+	test('remembers composition on a connected blocked chat before its live load status arrives', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connected' });
+		view.setSession(session, options);
+		const current = chatViewFactory.views.at(-1)!;
+		current.hasVisibleTranscriptContent.set(true, undefined);
+		current.isInputBlocked.set(true, undefined);
+		current.onInput?.();
+		const beforeStatus = readBanner(view).visible;
+		current.historyStatus.set({
+			kind: 'live', message: 'Couldn\'t reopen this conversation.',
+			action: { label: 'Retry', run: async () => { } },
+		}, undefined);
+
+		assert.deepStrictEqual({ beforeStatus, failed: readBanner(view), connects: provider.connectCalls }, {
+			beforeStatus: false,
+			failed: { visible: true, message: 'Couldn\'t reopen this conversation.', action: 'Retry' },
+			connects: 0,
+		});
+	});
+
+	test('connection feedback hands off to conversation recovery after connecting', () => {
 		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
 		const provider = new TestAgentHostProvider();
 		sessionsProvidersService.provider = provider;
 		const chat = createChat('main');
 		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
-		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connected' });
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connecting' });
 		view.setSession(session, options);
 		const current = chatViewFactory.views.at(-1)!;
 		current.hasVisibleTranscriptContent.set(true, undefined);
-		let retries = 0;
-		current.historyStatus.set({
-			kind: 'live', message: 'Live content could not be loaded.',
-			action: { label: 'Retry', run: async () => { retries++; } },
-		}, undefined);
-		const quiet = readBanner(view).visible;
+		current.isInputBlocked.set(true, undefined);
 		current.onInput?.();
-		const afterInput = readBanner(view);
-		view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')!.click();
-		await timeout(0);
-		assert.deepStrictEqual({ quiet, afterInput, retries, connects: provider.connectCalls }, {
-			quiet: false, afterInput: { visible: true, message: 'Live content could not be loaded.', action: 'Retry' }, retries: 1, connects: 0,
+		const connecting = readBanner(view);
+		transaction(tx => {
+			session.remoteConnectionStatus?.set({ kind: 'connected' }, tx);
+			chat.interactivity.set(ChatInteractivity.Full, tx);
+			current.historyStatus.set({
+				kind: 'live', message: 'Couldn\'t reopen this conversation.',
+				action: { label: 'Retry', run: async () => { } },
+			}, tx);
+		});
+		assert.deepStrictEqual({ connecting, failed: readBanner(view), connects: provider.connectCalls }, {
+			connecting: { visible: true, message: 'Waiting for agent host connection...', action: undefined },
+			failed: { visible: true, message: 'Couldn\'t reopen this conversation.', action: 'Retry' },
+			connects: 0,
 		});
 	});
 

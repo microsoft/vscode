@@ -43,6 +43,7 @@ import * as files from '../../../platform/files/common/files.js';
 import { ResourceLabelFormatter } from '../../../platform/label/common/label.js';
 import { ILoggerOptions, ILoggerResource, LogLevel } from '../../../platform/log/common/log.js';
 import { IMarkerData } from '../../../platform/markers/common/markers.js';
+import { McpServerPolicyValues } from '../../../platform/mcp/common/allowedMcpServers.js';
 import { IProgressOptions, IProgressStep } from '../../../platform/progress/common/progress.js';
 import { NotificationTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
 import * as quickInput from '../../../platform/quickinput/common/quickInput.js';
@@ -2404,8 +2405,16 @@ export type ChatArtifactActionResultDto =
 	| Omit<Extract<ArtifactCodeResult, { readonly kind: 'completed' }>, 'result'>
 	| Extract<ArtifactCodeResult, { readonly kind: 'skipped' }>;
 
+export interface ChatArtifactIntegrationProviderMetadataDto {
+	readonly label: string;
+	readonly description?: string;
+	readonly groupLabel?: string;
+	readonly automationOptions: readonly ArtifactAutomationOption[];
+	readonly canSignIn: boolean;
+}
+
 export interface MainThreadChatArtifactIntegrationsShape extends IDisposable {
-	$registerProvider(handle: number, id: string, label: string, options: readonly ArtifactAutomationOption[], canSignIn: boolean, description?: string): void;
+	$registerProvider(handle: number, id: string, metadata: ChatArtifactIntegrationProviderMetadataDto): void;
 	$unregisterProvider(handle: number): void;
 	$onDidChangeProvider(handle: number): void;
 	$onDidChangeIntegration(handle: number, state: ChatArtifactIntegrationStateDto): void;
@@ -3463,6 +3472,51 @@ export interface ExtHostWindowShape {
 	$onDidChangeActiveNativeWindowHandle(handle: string | undefined): void;
 }
 
+/** Public error category of the proposed GitHub API; cancellation is reported separately. */
+export type GitHubErrorCodeDto = 'authentication' | 'authorization' | 'notFound' | 'validation' | 'rateLimit' | 'network' | 'timeout' | 'server' | 'invalidResponse' | 'disposed' | 'unknown';
+
+export interface IGitHubErrorDto {
+	readonly code: GitHubErrorCodeDto;
+	readonly message: string;
+	readonly status?: number;
+}
+
+/** Operation result; failures are values so their code and status survive RPC without response bodies. */
+export type GitHubResultDto<T> =
+	| { readonly kind: 'ok'; readonly value: T }
+	| { readonly kind: 'error'; readonly error: IGitHubErrorDto }
+	| { readonly kind: 'canceled' };
+
+export interface IGitHubGistFileDto {
+	readonly content: string;
+	readonly isBinary: boolean;
+	readonly truncated: boolean;
+}
+
+export interface IGitHubGistDto {
+	readonly id: string;
+	readonly htmlUrl: string;
+	readonly files: readonly IGitHubGistFileDto[];
+}
+
+export interface IGitHubCreateGistDto {
+	readonly public?: boolean;
+	readonly files: { readonly [fileName: string]: { readonly content: string } };
+}
+
+/**
+ * Client leases are identified by extension-host-generated handles so that a release can be sent for an
+ * acquisition whose reply was lost or cancelled. Releasing an unknown or already released handle is a no-op.
+ */
+export interface MainThreadGitHubShape extends IDisposable {
+	/** Binds a session of the `github` authentication provider (GitHub.com). */
+	$getClient(handle: number, extensionId: string, sessionId: string, token: CancellationToken): Promise<GitHubResultDto<void>>;
+	$getAnonymousClient(handle: number, extensionId: string, token: CancellationToken): Promise<GitHubResultDto<void>>;
+	$releaseClient(handle: number): void;
+	$getGist(handle: number, gistId: string, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>>;
+	$createGist(handle: number, gist: IGitHubCreateGistDto, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>>;
+}
+
 export type PowerSystemIdleState = 'active' | 'idle' | 'locked' | 'unknown';
 export type PowerThermalState = 'unknown' | 'nominal' | 'fair' | 'serious' | 'critical';
 export type PowerSaveBlockerType = 'prevent-app-suspension' | 'prevent-display-sleep';
@@ -3782,6 +3836,8 @@ export interface IStartMcpOptions {
 export interface ExtHostMcpShape {
 	$substituteVariables(workspaceFolder: UriComponents | undefined, value: McpServerLaunch.Serialized): Promise<McpServerLaunch.Serialized>;
 	$expandEnvironmentVariables(launch: McpServerLaunch.Serialized, expansion: McpServerEnvironmentVariableExpansion): Promise<McpServerLaunch.Serialized>;
+	/** Expands matcher strings on the executing host; the client must still enforce allow/deny rules using the returned values. */
+	$resolveMcpPolicyVariables(values: readonly string[]): Promise<McpServerPolicyValues>;
 	$resolveMcpLaunch(collectionId: string, label: string): Promise<McpServerLaunch.Serialized | undefined>;
 	$startMcp(id: number, opts: IStartMcpOptions): void;
 	$stopMcp(id: number): void;
@@ -4216,6 +4272,7 @@ export const MainContext = {
 	MainThreadTask: createProxyIdentifier<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createProxyIdentifier<MainThreadWindowShape>('MainThreadWindow'),
 	MainThreadPower: createProxyIdentifier<MainThreadPowerShape>('MainThreadPower'),
+	MainThreadGitHub: createProxyIdentifier<MainThreadGitHubShape>('MainThreadGitHub'),
 	MainThreadLabelService: createProxyIdentifier<MainThreadLabelServiceShape>('MainThreadLabelService'),
 	MainThreadNotebook: createProxyIdentifier<MainThreadNotebookShape>('MainThreadNotebook'),
 	MainThreadNotebookDocuments: createProxyIdentifier<MainThreadNotebookDocumentsShape>('MainThreadNotebookDocumentsShape'),

@@ -13,7 +13,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { Promises as FSPromises } from '../../../../base/node/pfs.js';
 import { CloudSandboxRequestError } from '../../common/cloudSandboxAgentHost.js';
 import { emitConnectionDiagnostic, getConnectionDiagnosticError, traceConnectionOperation, type ConnectionDiagnosticObserver, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
-import { parseRetryAfter } from '../../../github/common/client/headers.js';
+import { parseGitHubRequestId, parseRetryAfter } from '../../../github/common/client/headers.js';
 import { isRetryableMissionControlError, MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay, parseMissionControlError } from '../../../github/common/missionControl/missionControlError.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
 import { parseGroupName } from '../../common/webPubSub/groups.js';
@@ -198,13 +198,17 @@ export class MissionControlEnvironment extends Disposable {
 	}
 
 	get environmentId(): string | undefined { return this._environment?.id; }
+	get environmentName(): string { return this._options?.name ?? this._host.name; }
 	get isEnabled(): boolean { return this._options?.live === true; }
+	get isRepositoryMetadataEnabled(): boolean { return this._options?.disableRepositoryMetadata !== true; }
+
+	get cloneRoot(): string | undefined { return this._options?.cloneRoot; }
 
 	private _getIdentityApiBase(): string {
 		return this._host.getIdentityApiBase?.() ?? 'https://api.github.com';
 	}
 
-	private _createHeartbeat(status: 'online' | 'offline', capabilities?: IEnvironmentCapabilities, options = this._options): object {
+	private _createHeartbeat(status: 'online' | 'offline', capabilities?: IEnvironmentCapabilities, options = this._options): Record<string, unknown> {
 		return {
 			name: options?.name ?? this._host.name,
 			status,
@@ -213,7 +217,7 @@ export class MissionControlEnvironment extends Disposable {
 		};
 	}
 
-	private async _createRegistration(capabilities: IEnvironmentCapabilities, remoteControl: Record<string, unknown> | undefined): Promise<object> {
+	private async _createRegistration(capabilities: IEnvironmentCapabilities, remoteControl: Record<string, unknown> | undefined): Promise<Record<string, unknown>> {
 		return {
 			name: this._options?.name ?? this._host.name,
 			kind: 'user-local',
@@ -445,12 +449,12 @@ export class MissionControlEnvironment extends Disposable {
 		}
 	}
 
-	private async _request(path: string, body?: object, options = this._options): Promise<unknown> {
+	private async _request(path: string, body?: Record<string, unknown>, options = this._options): Promise<unknown> {
 		const operation = path.endsWith('/register') ? 'register' : path.endsWith('/heartbeat') ? 'heartbeat' : path.endsWith('/token') ? 'token' : 'signingKeys';
 		return traceConnectionOperation(this._host.onDiagnostic, operation, () => this._doRequest(path, body, options));
 	}
 
-	private async _doRequest(path: string, body: object | undefined, options: IMissionControlOptions | undefined): Promise<unknown> {
+	private async _doRequest(path: string, body: Record<string, unknown> | undefined, options: IMissionControlOptions | undefined): Promise<unknown> {
 		if (!options) {
 			throw new Error('Mission Control is disabled');
 		}
@@ -476,6 +480,12 @@ export class MissionControlEnvironment extends Disposable {
 					this._heartbeatNotBefore = Math.max(this._heartbeatNotBefore, now + delay);
 				}
 			}
+			const status = body?.status;
+			const advertisedStatus = status === 'online' || status === 'offline' ? status : 'unknown';
+			emitConnectionDiagnostic(this._host.onDiagnostic, {
+				operationId: '', phase: 'heartbeatResponse', timestamp: Date.now(), outcome: 'info',
+				detail: `environmentId=${path.split('/').at(-2)}; advertisedStatus=${advertisedStatus}; httpStatus=${response.status}; relayConnected=${!!this._server.value && !this._server.value.isClosed}; nextHeartbeatInMs=${Math.max(0, this._nextHeartbeatAt - Date.now())}; retryAfterMs=${Math.max(0, this._heartbeatNotBefore - Date.now())}; requestId=${parseGitHubRequestId(response.headers.get('x-github-request-id')) ?? 'none'}`,
+			});
 		}
 		if (!response.ok) {
 			const metadata = parseMissionControlError(await response.text().catch(() => undefined), response.headers.get('x-github-request-id'));

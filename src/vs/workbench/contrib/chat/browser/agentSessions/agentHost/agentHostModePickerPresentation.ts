@@ -22,6 +22,7 @@ import { SessionConfigPropertySchema } from '../../../../../../platform/agentHos
 import { ChatPermissionLevel } from '../../../common/constants.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { renderChatInputPickerSplit } from '../../widget/input/chatInputPickerActionItem.js';
+import { organizationDefaultLabel } from '../../widget/input/modelPicker/modelPickerBadges.js';
 
 export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = '@tag:chatPermissions';
 
@@ -91,11 +92,19 @@ export function getOfferedPermissionLevels(available: readonly ChatPermissionLev
 	return PERMISSION_LEVEL_ORDER.filter(level => available.includes(level) || unavailable.some(entry => entry.level === level));
 }
 
-export function getPermissionLevelBadge(level: string, disabled = false): { readonly badge?: string; readonly className?: string } {
-	return level === ChatPermissionLevel.Assisted && !disabled ? {
-		badge: localize('agentHostModePicker.new', "New"),
-		className: 'agent-host-assisted-permissions',
-	} : {};
+export function getPermissionLevelBadge(level: string, disabled = false, organizationDefault?: ChatPermissionLevel): Pick<IActionListItem<unknown>, 'badge' | 'className' | 'additionalBadges'> {
+	const additionalBadges = organizationDefault !== undefined && level === organizationDefault ? [{
+		label: organizationDefaultLabel,
+		className: 'agent-host-org-default-badge',
+		tooltip: localize('agentHostModePicker.organizationDefaultDescription', "Your organization sets this as the default for new sessions. You can choose other permissions for this session."),
+	}] : undefined;
+	return {
+		...(level === ChatPermissionLevel.Assisted && !disabled ? {
+			badge: localize('agentHostModePicker.new', "New"),
+			className: 'agent-host-assisted-permissions',
+		} : {}),
+		...(additionalBadges ? { additionalBadges } : {}),
+	};
 }
 
 export function getModePermissionsPickerOptions(openPermissions = false, initialFocusItemId?: string): IActionListOptions {
@@ -235,7 +244,7 @@ export function getModePickerAriaLabel(mode: string, permissions: IModePickerPer
 }
 
 export function getModePickerAccessibilityHelp(): string {
-	return localize('agentHostModePicker.accessibilityHelp', "When the experimental combined picker is enabled for a Copilot Agent Host session, Tab reaches separate Mode and Permissions buttons. Press Enter or Space on Mode to open the picker with Agent Mode expanded, or on Permissions to open it with Permissions expanded. Each section header shows its current selection, and the opened section initially focuses that selection. Press Enter or Space on a section header to expand or collapse it, or use Right Arrow to expand and Left Arrow to collapse. Hover or keyboard navigation moves the single row highlight without changing the selection until you activate a choice. Focus the Permissions header and press Tab to reach Configure Permissions, which opens the related settings. Use Up and Down Arrow to navigate and Enter to select a mode, permission level, or terminal sandboxing. Assisted permissions is experimental and evaluates risk before running tools. When Assisted permissions or Allow all is unavailable for a session, the option remains visible but cannot be selected, with a reason such as Disabled by policy. Its hover also explains the restriction. When the session's host requires terminal sandboxing, its sandbox toggle is checked and disabled. If your organization permits bypassing, a supported outside-sandbox permission prompt can offer Allow in this Session. After that action succeeds, you can use the toggle to enable sandboxing again. This restriction applies only to that session. Escape closes the picker and returns focus to the button that opened it.");
+	return localize('agentHostModePicker.accessibilityHelp', "When the experimental combined picker is enabled for a Copilot Agent Host session or a new Cloud session, Tab reaches separate Mode and Permissions buttons. Press Enter or Space on Mode to open the picker with Agent Mode expanded, or on Permissions to open it with Permissions expanded. Each section header shows its current selection, and the opened section initially focuses that selection. Press Enter or Space on a section header to expand or collapse it, or use Right Arrow to expand and Left Arrow to collapse. Hover or keyboard navigation moves the single row highlight without changing the selection until you activate a choice. Focus the Permissions header and press Tab to reach Configure Permissions, which opens the related settings. Use Up and Down Arrow to navigate and Enter to select a mode, permission level, or terminal sandboxing. Assisted permissions is experimental and evaluates risk before running tools. When Assisted permissions or Allow all is unavailable for a session, the option remains visible but cannot be selected, with a reason such as Disabled by policy. Its hover also explains the restriction. When the session's host requires terminal sandboxing, its sandbox toggle is checked and disabled. If your organization permits bypassing, a supported outside-sandbox permission prompt can offer Allow in this Session. After that action succeeds, you can use the toggle to enable sandboxing again. This restriction applies only to that session. Cloud draft choices are locked while the first request starts the session. Escape closes the picker and returns focus to the button that opened it.");
 }
 
 function getPermissionLevelStyle(level: ChatPermissionLevel): string | undefined {

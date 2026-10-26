@@ -7,24 +7,28 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { dirname, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport } from '../../../services/sessions/common/sessionsProvider.js';
 import { BranchPicker, IBranchPickerState } from './branchPicker.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { IComposerRepositoryControls } from './newChatComposerInput.js';
+import { WORKSPACE_PICKER_LIST_OPTIONS } from './sessionWorkspacePicker.js';
 
 // #region --- Model ---
 
@@ -58,20 +62,18 @@ export function getDefaultNestedChatFolder(support: INestedChatWorkspaceSupport)
 }
 
 /**
- * The folders offered for a nested chat. An agent that supports only one folder gets only the
- * session's own folder, or "No workspace" in a session without one: any other choice would be refused.
+ * The folders offered for a nested chat, like New Session: the session's own folder, recent folders and
+ * "No workspace". An agent that supports only one folder gets only the session's own folder, or
+ * "No workspace" in a session without one: any other choice would be refused. A session folder that no
+ * longer exists is not offered to an agent that can give the chat another folder.
  */
-export function getNestedChatFolderOptions(support: INestedChatWorkspaceSupport, sources: INestedChatFolderSources): INestedChatFolderOptions {
+export function getNestedChatFolderOptions(support: INestedChatWorkspaceSupport, sources: INestedChatFolderSources, sessionFolderMissing = false): INestedChatFolderOptions {
 	if (!support.multipleFolders) {
 		return { choices: [getDefaultNestedChatFolder(support)], browseActions: [], openFolder: false };
 	}
-	const folders: URI[] = [...support.sessionFolders];
-	if (support.sessionFolder && !folders.some(folder => isEqual(folder, support.sessionFolder))) {
-		folders.unshift(support.sessionFolder);
-	}
-	// Recent folders follow the session's own; a scratch folder of the session is never one of them.
-	const recent = sources.recentFolders.filter(folder => !folders.some(existing => isEqual(existing, folder))).slice(0, MAX_RECENT_FOLDERS);
-	const choices: NestedChatFolderChoice[] = [...folders, ...recent].map(folder => ({ kind: 'folder', folder }));
+	const sessionFolder = support.sessionFolder;
+	const recent = sources.recentFolders.filter(folder => !sessionFolder || !isEqual(folder, sessionFolder)).slice(0, MAX_RECENT_FOLDERS);
+	const choices: NestedChatFolderChoice[] = [...(sessionFolder && !sessionFolderMissing ? [sessionFolder] : []), ...recent].map(folder => ({ kind: 'folder', folder }));
 	choices.push({ kind: 'scratch' });
 	return { choices, browseActions: support.browseActions, openFolder: sources.canOpenLocalFolder };
 }
@@ -107,6 +109,14 @@ export function toNestedChatWorkspace(support: INestedChatWorkspaceSupport, choi
 
 // #region --- View ---
 
+/** How a folder reads in the folder picker, like a New Session workspace picker row. */
+export interface INestedChatFolderLabel {
+	/** The folder's name. */
+	readonly label: string;
+	/** Where the folder is, e.g. its parent folder. */
+	readonly description: string | undefined;
+}
+
 /** The provider operations the picker needs for the parent session. */
 export interface INestedChatWorkspaceHost {
 	readonly support: IObservable<INestedChatWorkspaceSupport | undefined>;
@@ -114,6 +124,13 @@ export interface INestedChatWorkspaceHost {
 	getBranches(folder: URI, token: CancellationTokenSource['token']): Promise<readonly string[]>;
 	/** Recent folders and whether a local folder dialog applies, read when the folder picker opens. */
 	getFolderSources(): INestedChatFolderSources;
+	/** How the session's provider labels a folder in New Session's workspace picker, if it does. */
+	describeFolder(folder: URI): INestedChatFolderLabel | undefined;
+	/**
+	 * Whether the folder is still there (a session folder whose worktree was deleted is not), or `undefined`
+	 * when that can't be told, e.g. the host is disconnected or `token` is cancelled. Never rejects.
+	 */
+	folderExists(folder: URI, token: CancellationTokenSource['token']): Promise<boolean | undefined>;
 	/** Shows a local folder dialog. */
 	openLocalFolder(): Promise<URI | undefined>;
 }
@@ -134,6 +151,10 @@ export class NestedChatWorkspaceControls extends Disposable {
 	private readonly _worktree = observableValue<boolean>(this, false);
 	private readonly _branch = observableValue<string | undefined>(this, undefined);
 	private readonly _folderInfo = observableValue<INestedChatFolderInfo | undefined>(this, undefined);
+	/** Whether the session's folder was found to no longer exist, so "No workspace" is preselected instead. */
+	private readonly _sessionFolderMissing = observableValue<boolean>(this, false);
+	/** Checks whether the preselected session folder still exists; settles once it is known or can't be told. */
+	private _folderCheck: Promise<void> | undefined;
 	private readonly _branches = observableValue<readonly string[] | 'loading' | 'error'>(this, []);
 	private readonly _resolve = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _folderRenderStore = this._register(new DisposableStore());
@@ -149,6 +170,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -173,9 +195,16 @@ export class NestedChatWorkspaceControls extends Disposable {
 		return support && folder ? toNestedChatWorkspace(support, folder, this._worktree.get(), this._folderInfo.get(), this._branch.get()) : undefined;
 	}
 
+	/** {@link getWorkspace} once a pending check of the session folder is done, so a chat never starts in a missing folder. */
+	async resolveWorkspace(): Promise<INestedChatWorkspace | undefined> {
+		await this._folderCheck;
+		return this.getWorkspace();
+	}
+
 	/** Back to the session's default, e.g. after the chat was sent. */
 	reset(): void {
 		const support = this._host.support.get();
+		this._sessionFolderMissing.set(false, undefined);
 		this._select(support ? getDefaultNestedChatFolder(support) : undefined);
 	}
 
@@ -195,6 +224,23 @@ export class NestedChatWorkspaceControls extends Disposable {
 		}
 		const cts = store.add(new CancellationTokenSource());
 		store.add(toDisposable(() => cts.dispose(true)));
+		const support = this._host.support.get();
+		if (support?.multipleFolders && isEqual(choice.folder, support.sessionFolder)) {
+			// A session folder that is gone (e.g. a deleted worktree) can't be worked in: start from "No workspace".
+			// Only a definite answer counts; when the host can't tell, the session folder is kept.
+			const check = this._host.folderExists(choice.folder, cts.token).then(exists => {
+				if (exists === false && !cts.token.isCancellationRequested) {
+					this._sessionFolderMissing.set(true, undefined);
+					this._select({ kind: 'scratch' });
+				}
+			}, onUnexpectedError);
+			this._folderCheck = check;
+			store.add(toDisposable(() => {
+				if (this._folderCheck === check) {
+					this._folderCheck = undefined;
+				}
+			}));
+		}
 		this._host.resolveFolder(choice.folder, cts.token).then(info => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -239,11 +285,13 @@ export class NestedChatWorkspaceControls extends Disposable {
 	 * Renders the folder picker into the options row of the composer, styled like the New Session
 	 * workspace picker.
 	 */
-	renderFolderPicker(row: HTMLElement): void {
+	renderFolderPicker(row: HTMLElement, hoverDelegate?: IHoverDelegate): void {
 		this._folderRenderStore.clear();
 		const slot = dom.append(row, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot.sessions-workspace-picker-trigger.nested-chat-folder-picker'));
 		this._folderRenderStore.add(toDisposable(() => slot.remove()));
 		const trigger = this._folderTrigger = dom.append(slot, dom.$('a.action-label.selected'));
+		let tooltip = '';
+		this._folderRenderStore.add(this._hoverService.setupManagedHover(hoverDelegate ?? this._folderRenderStore.add(createInstantHoverDelegate()), trigger, () => tooltip));
 		this._folderRenderStore.add(toDisposable(() => this._folderTrigger = undefined));
 		this._folderRenderStore.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
@@ -284,8 +332,12 @@ export class NestedChatWorkspaceControls extends Disposable {
 				chevron.setAttribute('aria-hidden', 'true');
 			}
 			trigger.tabIndex = canOpen ? 0 : -1;
+			// Says why "No workspace" is preselected when the session's folder is gone.
+			const missingNote = canOpen && folder.kind === 'scratch' && support.sessionFolder && this._sessionFolderMissing.read(reader)
+				? localize('nestedChat.folder.sessionFolderMissing', "The session's folder {0} no longer exists.", this._labelService.getUriBasenameLabel(support.sessionFolder))
+				: undefined;
 			if (canOpen) {
-				trigger.title = label;
+				tooltip = missingNote ? localize('nestedChat.folder.titleWithNote', "{0}. {1}", label, missingNote) : label;
 				trigger.setAttribute('role', 'button');
 				trigger.setAttribute('aria-haspopup', 'listbox');
 				trigger.setAttribute('aria-expanded', String(this._isOpen));
@@ -293,11 +345,16 @@ export class NestedChatWorkspaceControls extends Disposable {
 			} else {
 				// The only choice: plain text rather than a control, read with its visible label.
 				const staticLabel = localize('nestedChat.folder.staticAriaLabel', "Folder for the Nested Session, {0}", label);
-				trigger.title = staticLabel;
+				tooltip = staticLabel;
 				trigger.setAttribute('role', 'note');
 				trigger.setAttribute('aria-label', staticLabel);
 				trigger.removeAttribute('aria-haspopup');
 				trigger.removeAttribute('aria-expanded');
+			}
+			if (missingNote) {
+				trigger.setAttribute('aria-description', missingNote);
+			} else {
+				trigger.removeAttribute('aria-description');
 			}
 			slot.classList.toggle('disabled', !canOpen);
 		}));
@@ -313,13 +370,15 @@ export class NestedChatWorkspaceControls extends Disposable {
 	 * composer places like the New Session ones: in the options row or below the input. The isolation
 	 * picker is New Session's (Branch or New Worktree); the branch picker only applies to a worktree.
 	 */
-	renderRepositoryControls(container: HTMLElement): IComposerRepositoryControls {
+	renderRepositoryControls(container: HTMLElement, hoverDelegate?: IHoverDelegate): IComposerRepositoryControls {
 		const store = new DisposableStore();
 		const element = dom.append(container, dom.$('.nested-chat-repository-controls'));
 		store.add(toDisposable(() => element.remove()));
+		hoverDelegate ??= store.add(createInstantHoverDelegate());
 
 		const isolationPicker = store.add(this._instantiationService.createInstance(IsolationPicker, {
 			user: 'NestedChatIsolationPicker',
+			hoverDelegate,
 			onSelect: isolation => this._setWorktree(isolation === 'worktree'),
 		}));
 		isolationPicker.render(element);
@@ -329,6 +388,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 		const branchSlot = dom.append(element, dom.$('.nested-chat-branch-picker'));
 		const branchPicker = store.add(this._instantiationService.createInstance(BranchPicker, {
 			user: 'NestedChatBranchPicker',
+			hoverDelegate,
 			onSelectBranch: branch => this._branch.set(branch, undefined),
 			onRetry: () => this._loadBranches(),
 		}));
@@ -378,16 +438,16 @@ export class NestedChatWorkspaceControls extends Disposable {
 		if (!support.multipleFolders) {
 			return;
 		}
-		const options = getNestedChatFolderOptions(support, this._host.getFolderSources());
+		const options = getNestedChatFolderOptions(support, this._host.getFolderSources(), this._sessionFolderMissing.get());
 		const items: IActionListItem<FolderPickerItem>[] = options.choices.map(choice => ({
 			kind: ActionListItemKind.Action,
-			label: this._getFolderLabel(choice),
-			description: choice.kind === 'folder'
-				? this._labelService.getUriLabel(choice.folder, { relative: false })
-				: localize('nestedChat.noWorkspace.description', "Start without a backing workspace"),
+			...this._describeChoice(choice),
 			group: { title: '', icon: choice.kind === 'scratch' ? Codicon.circleSlash : Codicon.folder },
 			item: { kind: 'choice', choice, checked: isSameNestedChatFolder(choice, current) },
 		}));
+		if (options.browseActions.length || options.openFolder) {
+			items.push({ kind: ActionListItemKind.Separator, label: '' });
+		}
 		for (const action of options.browseActions) {
 			items.push({
 				kind: ActionListItemKind.Action,
@@ -434,7 +494,17 @@ export class NestedChatWorkspaceControls extends Disposable {
 		this._actionWidgetService.show('NestedChatFolderPicker', false, items, delegate, anchor, undefined, [], {
 			getAriaLabel: item => item.label ?? '',
 			getWidgetAriaLabel: () => localize('nestedChat.folderPicker.ariaLabel', "Nested Session Folder Picker"),
-		});
+		}, WORKSPACE_PICKER_LIST_OPTIONS);
+	}
+
+	private _describeChoice(choice: NestedChatFolderChoice): INestedChatFolderLabel {
+		if (choice.kind === 'scratch') {
+			return { label: this._getFolderLabel(choice), description: localize('nestedChat.noWorkspace.description', "Start without a backing workspace") };
+		}
+		return this._host.describeFolder(choice.folder) ?? {
+			label: this._getFolderLabel(choice),
+			description: this._labelService.getUriLabel(dirname(choice.folder), { relative: false }),
+		};
 	}
 }
 

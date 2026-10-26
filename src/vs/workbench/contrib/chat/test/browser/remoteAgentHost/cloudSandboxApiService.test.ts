@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { bufferToStream, newWriteableBufferStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -14,7 +15,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
-import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxClientToken, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxClientToken, type ICloudSandboxConnectionRequest, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { MessageKind, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, type StateAction } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
@@ -31,6 +32,10 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSandboxApiService.js';
 import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { EnvironmentsClient } from '../../../../../../platform/github/common/missionControl/environmentsClient.js';
+import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
 
 function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string> = {}): IRequestContext {
 	return {
@@ -65,6 +70,7 @@ interface ITestSetup {
 	readonly requestedUrls: string[];
 	readonly provisioningOutcomes: ProvisioningOutcome[];
 	readonly requestOutcomes: RequestOutcome[];
+	readonly lifecycleEvents: ITelemetryData[];
 	/** Peak number of task-detail fetches in flight at once during the run. */
 	readonly concurrency: { max: number; current: number };
 	changeAuthentication(kind?: 'sessions' | 'register' | 'unregister'): void;
@@ -125,6 +131,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	const requestedUrls: string[] = [];
 	const provisioningOutcomes: ProvisioningOutcome[] = [];
 	const requestOutcomes: RequestOutcome[] = [];
+	const lifecycleEvents: ITelemetryData[] = [];
 	const concurrency = { max: 0, current: 0 };
 	const remainingTaskRateLimits = new Map(options.rateLimitedTaskFetches ?? []);
 	let remainingListRateLimits = options.rateLimitedListPages ?? 0;
@@ -205,9 +212,11 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			return jsonResponse({ tasks: slice }, 200, { link, date: options.discoveryDate?.() ?? new Date().toUTCString() });
 		}
 	}());
+	let selectedSessions: readonly AuthenticationSession[] = [];
 	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 		override async getSessions(_providerId: string, scopes?: readonly string[]) {
-			return options.authenticationSessions ? options.authenticationSessions(scopes) : [{ accessToken: 'tok', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
+			selectedSessions = options.authenticationSessions ? await options.authenticationSessions(scopes) : [{ accessToken: 'tok', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
+			return selectedSessions;
 		}
 		override readonly onDidChangeSessions = authenticationChanges.event;
 		override readonly onDidRegisterAuthenticationProvider = providerRegistered.event;
@@ -216,6 +225,13 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
 	instantiationService.stub(ILogService, options.logService ?? new NullLogService());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
+		override readonly lifecycle = new CloudSandboxLifecycleTelemetry(new class extends mock<ITelemetryService>() {
+			override publicLog2(_eventName: string, data?: ITelemetryData): void {
+				if (data) {
+					lifecycleEvents.push(data);
+				}
+			}
+		}());
 		override reportRequest(...outcome: RequestOutcome): void {
 			requestOutcomes.push(outcome);
 		}
@@ -225,17 +241,18 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	}());
 	instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
 		override async acquireAccountApiClient(authorization: IGitHubAccountClient['authorization']): Promise<IGitHubAccountClient> {
-			assert.deepStrictEqual(authorization, {
-				providerId: 'github', sessionId: 's', accountId: 'a', scopes: [], authorizationServer: undefined,
-			});
+			const session = selectedSessions.find(session => session.id === authorization.sessionId && session.account.id === authorization.accountId);
+			assert.ok(session);
+			assert.strictEqual(authorization.providerId, 'github');
 			const provider = new class extends BufferedApiRequestProvider {
-				protected override async execute(request: Omit<ApiRequest, 'body'>, signal: AbortSignal): Promise<ApiResponse<string | undefined>> {
+				protected override async execute(request: Omit<ApiRequest, 'body'>, signal: AbortSignal, bodyText?: string): Promise<ApiResponse<string | undefined>> {
 					const lifetime = new DisposableStore();
 					try {
 						const token = CancellationToken.fromAbortSignal(signal, lifetime);
 						const context = await requests.request({
 							type: request.method, url: `https://api.github.com/cmc_internal/api/agents${request.path}`,
-							headers: { Authorization: 'test-token', 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID },
+							headers: { Authorization: `Bearer ${session.accessToken}`, 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID, ...(bodyText === undefined ? {} : { 'Content-Type': 'application/json' }) },
+							...(bodyText === undefined ? {} : { data: bodyText }),
 							callSite: request.options?.caller ?? 'test',
 						}, token);
 						const status = context.res.statusCode!;
@@ -251,6 +268,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			}();
 			return new class extends mock<IGitHubAccountClient>() {
 				override readonly tasks = new TasksClient(new MissionControlClient(provider));
+				override readonly environments = new EnvironmentsClient(new MissionControlClient(provider));
 				override dispose(): void { }
 			}();
 		}
@@ -261,6 +279,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		requestedUrls,
 		provisioningOutcomes,
 		requestOutcomes,
+		lifecycleEvents,
 		concurrency,
 		changeAuthentication: (kind = 'sessions') => {
 			if (kind === 'register') {
@@ -896,7 +915,7 @@ suite('CloudSandboxApiService session feed', () => {
 		{ url: 'wss://user:password@feed.example.test/' },
 		{ url: 'wss://feed.example.test/#secret' },
 		{ reconnect_after: new Date(0).toISOString() },
-		{ reconnect_after: new Date(Date.now() + 20 * 60_000).toISOString() },
+		{ get reconnect_after() { return new Date(Date.now() + 20 * 60_000).toISOString(); } },
 		{ frame_schema_version: 2 },
 		{ subprotocol: 'json.reliable.webpubsub.azure.v1' },
 		{ group: '' },
@@ -1253,6 +1272,32 @@ suite('CloudSandboxApiService connection credentials', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const request = { environmentId: 'env-1', sessionId: 'session-1' };
 
+	test('a mismatched reconnect response fails lifecycle telemetry on the requested connection', async () => {
+		const connectionId = generateUuid();
+		const otherConnectionId = generateUuid();
+		const { service, lifecycleEvents } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({ access_token: 'private', wps_endpoint: 'https://private.invalid', client_id: otherConnectionId, groups: {} }),
+		});
+		await assert.rejects(service.reconnect({ environmentId: generateUuid() }, connectionId, CancellationToken.None), /different client/);
+		assert.deepStrictEqual(lifecycleEvents.map(event => [event.phase, event.outcome, event.connectionId, event.failurePoint]), [
+			['credentials.refresh', 'started', connectionId, undefined],
+			['credentials.refresh', 'failed', connectionId, 'credentials.clientMismatch'],
+		]);
+	});
+
+	test('incomplete credentials identify the client failure branch without including the response', async () => {
+		const { service, lifecycleEvents } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({ access_token: 'private response' }),
+		});
+		await assert.rejects(service.connect({ environmentId: generateUuid() }, CancellationToken.None), /incomplete token/);
+		assert.deepStrictEqual({
+			failurePoint: lifecycleEvents.at(-1)?.failurePoint,
+			privateContent: JSON.stringify(lifecycleEvents).includes('private'),
+		}, { failurePoint: 'credentials.incompleteResponse', privateContent: false });
+	});
+
 	for (const failure of ['signed out', 'already cancelled', 'cancelled in flight', 'HTTP error', 'network error'] as const) {
 		test(`credential request accounting includes only issued requests when ${failure}`, async () => {
 			const progress: string[] = [];
@@ -1297,6 +1342,57 @@ suite('CloudSandboxApiService connection credentials', () => {
 				to_host: `${groupPrefix}.to-host`,
 			},
 		};
+	}
+
+	for (const action of ['connect', 'reconnect'] as const) {
+		for (const response of ['token', 'waking', 'httpError', 'incomplete', 'networkError', 'cancelled'] as const) {
+			test(`${action} excludes user-local lifecycle reporting for ${response} without changing requests or aggregates`, async () => {
+				const environmentId = generateUuid();
+				const sessionId = generateUuid();
+				const connectionId = generateUuid();
+				const observations = [];
+				for (const environmentKind of [undefined, 'user-local'] as const) {
+					const source = store.add(new CancellationTokenSource());
+					const progress: string[] = [];
+					const wire: { path: string; query: string; data: IRequestOptions['data'] }[] = [];
+					const { service, lifecycleEvents, requestOutcomes } = createService(store, {
+						tasks: [], repositories: new Map(),
+						onRequest: (url, _token, options) => {
+							wire.push({ path: url.pathname, query: url.search, data: options.data });
+							if (response === 'networkError') {
+								throw new Error('private-person@example.invalid request failed');
+							}
+							if (response === 'cancelled') {
+								source.cancel();
+								throw new CancellationError();
+							}
+							return response === 'token' ? jsonResponse(clientToken(connectionId))
+								: response === 'waking' ? jsonResponse({}, 202, { 'retry-after': '45' })
+									: response === 'httpError' ? jsonResponse({ message: 'private chat content' }, 403)
+										: jsonResponse({ access_token: 'private-token' });
+						},
+					});
+					const scopedRequest: ICloudSandboxConnectionRequest = { environmentId, sessionId, environmentKind, onRequest: event => progress.push(event) };
+					const pending = action === 'connect' ? service.connect(scopedRequest, source.token) : service.reconnect(scopedRequest, connectionId, source.token);
+					let result: 'token' | 'waking' | 'rejected';
+					if (response === 'token' || response === 'waking') {
+						result = (await pending).kind;
+					} else {
+						await assert.rejects(pending);
+						result = 'rejected';
+					}
+					observations.push({
+						result, wire, progress, requestOutcomes,
+						reported: lifecycleEvents.length > 0,
+						forbidden: /private|relay-token|relay\.example|environmentKind|user-local/.test(JSON.stringify(lifecycleEvents)),
+					});
+				}
+				assert.deepStrictEqual(observations, [
+					{ ...observations[0], reported: true, forbidden: false },
+					{ ...observations[0], reported: false, forbidden: false },
+				]);
+			});
+		}
 	}
 
 	test('allows thirty seconds for connection requests while keeping environment reads at ten seconds', async () => {
@@ -1908,6 +2004,69 @@ suite('CloudSandboxApiService history cache', () => {
 
 suite('Mission Control environment discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const statusCode of [204, 404]) {
+		test(`environment deletion accepts ${statusCode} and invalidates cached and in-flight discovery`, async () => {
+			const requests: IRequestOptions[] = [];
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<IRequestContext>();
+			let holdDiscovery = false;
+			const { service, requestOutcomes } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: (url, _token, options) => {
+					if (options.type === 'DELETE') {
+						requests.push(options);
+						return jsonResponse({}, statusCode);
+					}
+					if (url.pathname.endsWith('/agents/environments')) {
+						if (holdDiscovery) {
+							void started.complete();
+							return response.p;
+						}
+						return jsonResponse([{ id: 'host', kind: 'user-local', name: 'Host', status: 'offline' }]);
+					}
+					return undefined;
+				},
+			});
+			await service.listEnvironments(CancellationToken.None);
+			holdDiscovery = true;
+			const discovery = service.listEnvironments(CancellationToken.None, { refresh: true });
+			const rejected = assert.rejects(discovery, CancellationError);
+			await started.p;
+			const account = await service.getAccountKey();
+			assert.ok(account);
+			await service.deleteEnvironment('host/with spaces', CancellationToken.None, account);
+			await response.complete(jsonResponse([{ id: 'host', kind: 'user-local', name: 'Stale', status: 'offline' }]));
+			await rejected;
+			assert.deepStrictEqual({
+				requests: requests.map(request => {
+					assert.ok(request.url);
+					return { path: new URL(request.url).pathname, method: request.type, body: request.data };
+				}),
+				cached: service.getCachedEnvironments(),
+				deleteOutcomes: requestOutcomes.filter(([action]) => action === 'deleteEnvironment'),
+			}, {
+				requests: [{ path: '/agents/environments/host%2Fwith%20spaces', method: 'DELETE', body: undefined }],
+				cached: undefined,
+				deleteOutcomes: [['deleteEnvironment', statusCode === 204 ? 'succeeded' : 'clientError']],
+			});
+		});
+	}
+
+	for (const statusCode of [401, 403, 500]) {
+		test(`environment deletion surfaces HTTP ${statusCode} and preserves cached inventory`, async () => {
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: (_url, _token, options) => options.type === 'DELETE'
+					? jsonResponse({}, statusCode) : jsonResponse([{ id: 'host', kind: 'user-local', name: 'Host', status: 'offline' }]),
+			});
+			const before = await service.listEnvironments(CancellationToken.None);
+			const account = await service.getAccountKey();
+			assert.ok(account);
+			await assert.rejects(service.deleteEnvironment('host', CancellationToken.None, account), /environment delete failed/);
+			assert.deepStrictEqual(service.getCachedEnvironments(), before);
+		});
+	}
 
 	test('caches credential-free metadata and invalidates it when the account changes', async () => {
 		const { service, requestedUrls, changeAuthentication } = createService(store, {
@@ -3833,6 +3992,7 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 		}
 	}());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
+		override readonly lifecycle = new CloudSandboxLifecycleTelemetry(NullTelemetryService);
 		override reportRequest(): void { }
 		override reportProvisioningOutcome(): void { }
 	}());
@@ -4119,6 +4279,14 @@ suite('CloudSandboxApiService task ownership', () => {
 		{
 			name: 'task deletion',
 			run: (service: CloudSandboxApiService, accountKey: string) => service.deleteTask('task-owned', CancellationToken.None, accountKey),
+			response: {},
+			statusCode: 204,
+			method: 'DELETE',
+			body: undefined,
+		},
+		{
+			name: 'environment deletion',
+			run: (service: CloudSandboxApiService, accountKey: string) => service.deleteEnvironment('env-owned', CancellationToken.None, accountKey),
 			response: {},
 			statusCode: 204,
 			method: 'DELETE',
@@ -4584,6 +4752,53 @@ suite('CloudSandboxApiService reservation submission', () => {
 suite('CloudSandboxApiService session creation', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('binds creation lifecycle identity after the response and keeps reservation fallback distinct', async () => {
+		const environmentId = generateUuid();
+		const sessionId = generateUuid();
+		const taskId = generateUuid();
+		const reservedTaskId = generateUuid();
+		const serverRequestId = 'ABCD:1234:5678:9ABC:DEF01234';
+		const { service, lifecycleEvents } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({ id: taskId, claimed: false, sessions: [{ id: sessionId, environment_id: environmentId }] }, 201, { 'x-github-request-id': serverRequestId }),
+		});
+		await service.createSession({
+			reservedTaskId, prompt: 'private prompt', repoNwo: 'private/repository',
+			expectedAccountKey: JSON.stringify(['github', 'a']),
+		}, CancellationToken.None);
+		assert.deepStrictEqual({
+			events: lifecycleEvents.map(event => ({
+				outcome: event.outcome, environmentId: event.environmentId, sessionId: event.agentSessionId,
+				taskId: event.taskId, reservedTaskId: event.relatedTaskId, path: event.taskCreationPath, serverRequestId: event.serverRequestId,
+			})),
+			operations: new Set(lifecycleEvents.map(event => event.operationId)).size,
+			privateContent: JSON.stringify(lifecycleEvents).includes('private'),
+		}, {
+			events: [
+				{ outcome: 'started', environmentId: undefined, sessionId: undefined, taskId: undefined, reservedTaskId, path: 'reservationUnconfirmed', serverRequestId: undefined },
+				{ outcome: 'observed', environmentId: undefined, sessionId: undefined, taskId: undefined, reservedTaskId, path: 'reservationUnconfirmed', serverRequestId },
+				{ outcome: 'succeeded', environmentId, sessionId, taskId, reservedTaskId, path: 'reservationFallback', serverRequestId },
+			],
+			operations: 1, privateContent: false,
+		});
+	});
+
+	test('reports a pre-allocation failure without inventing environment or session IDs', async () => {
+		const { service, lifecycleEvents } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({ message: 'private refusal' }, 403, { 'x-github-request-id': 'ABCD:1234:5678:9ABC:DEF01234' }),
+		});
+		await assert.rejects(service.createSession({ prompt: 'private prompt' }, CancellationToken.None));
+		assert.deepStrictEqual({
+			events: lifecycleEvents.map(event => [event.outcome, event.environmentId, event.agentSessionId, event.statusCode]),
+			operations: new Set(lifecycleEvents.map(event => event.operationId)).size,
+			privateContent: JSON.stringify(lifecycleEvents).includes('private'),
+		}, {
+			events: [['started', undefined, undefined, undefined], ['failed', undefined, undefined, 403]],
+			operations: 1, privateContent: false,
+		});
+	});
 
 	for (const scenario of [
 		{ path: 'newEnvironment', request: {} },

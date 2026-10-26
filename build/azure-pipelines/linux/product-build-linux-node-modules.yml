@@ -65,6 +65,7 @@ jobs:
           path: .build/node_modules_cache
           cacheHitVar: NODE_MODULES_RESTORED
         displayName: Restore node_modules cache
+        retryCountOnTaskFailure: 2
 
       - script: |
           set -e

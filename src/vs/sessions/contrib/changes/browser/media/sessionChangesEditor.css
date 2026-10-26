@@ -11,6 +11,25 @@
 	color: var(--vscode-agentsPanel-foreground);
 }
 
+.session-changes-editor-body {
+	position: relative;
+}
+
+.session-changes-editor-empty-state {
+	position: absolute;
+	inset: 0;
+	align-items: center;
+	justify-content: center;
+}
+
+.session-changes-editor-empty-state:not([hidden]) {
+	display: flex;
+}
+
+.session-changes-editor-body.has-empty-state .multiDiffEditor .placeholder {
+	display: none;
+}
+
 .session-changes-file-stats {
 	display: inline-flex;
 	flex: 0 0 auto;

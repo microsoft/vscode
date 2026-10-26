@@ -16,8 +16,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -170,10 +172,12 @@ suite('SessionInputBanners', () => {
 			}
 		}();
 
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
 		const banners = store.add(new SessionInputBanners(
 			sessionsService,
 			sessionsProvidersService,
-			new TestConfigurationService(),
+			configuration,
 			gitHubService,
 			feedbackService,
 			commandService,
@@ -312,6 +316,25 @@ suite('SessionInputBanners', () => {
 			splitButtons: 0,
 			actions: ['Address Comments', 'Reveal'],
 		});
+		const artifactIntegrationBanners: ReturnType<typeof currentBanner>[] = [];
+		for (const enabled of [true, false]) {
+			await configuration.setUserConfiguration(ArtifactIntegrationsSettingId, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: setting => setting === ArtifactIntegrationsSettingId }));
+			artifactIntegrationBanners.push(currentBanner(banners));
+		}
+		assert.deepStrictEqual(artifactIntegrationBanners, [{
+			position: undefined,
+			reference: undefined,
+			text: '1 Agent Comment',
+			splitButtons: 0,
+			actions: ['Address Comments', 'Reveal'],
+		}, {
+			position: '3/3',
+			reference: 'Agent Review',
+			text: '1 Agent Comment',
+			splitButtons: 0,
+			actions: ['Address Comments', 'Reveal'],
+		}]);
 		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.next')?.click();
 
 		banners.domNode.querySelector<HTMLElement>('.session-input-banner-action.monaco-button-dropdown > .monaco-button')?.click();
