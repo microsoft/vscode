@@ -3342,6 +3342,80 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	async function seedOwnedWorktreeChat(contributions: ReturnType<typeof createBuiltInContributions>, branchName: string) {
+		const chat = buildChatUri(contributions.session, 'worktree-owner');
+		const worktreeDirectory = URI.file('/workspace/repository.worktrees/feature');
+		const handle = generateUuid();
+		contributions.stateManager.addChat(contributions.session, chat, creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)), {
+			title: 'Peer Chat',
+			origin: { kind: ChatOriginKind.User },
+			workingDirectories: [worktreeDirectory.toString()],
+		});
+		const ownWorktree = async () => {
+			await seedSessionAdditionalWorktrees(contributions.sessionDataService, URI.parse(contributions.session), [{
+				handle,
+				workingDirectory: worktreeDirectory.toString(),
+				repositoryRoot: URI.file('/workspace/repository').toString(),
+				chat,
+			}]);
+			contributions.worktree.metadata.set(detachedWorktreeRecordUri(handle).toString(), { branchName });
+		};
+		const liveParts: string[] = [];
+		disposables.add(contributions.stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChatResponsePart && envelope.action.part.kind === ResponsePartKind.Markdown) {
+				liveParts.push(envelope.action.part.content);
+			}
+		}));
+		const sendTurn = async (turnId: string) => {
+			contributions.stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Fix it', origin: { kind: MessageKind.User } },
+			});
+			await contributions.service.outgoingTurn({ session: contributions.session, chat, message: { text: 'Fix it', origin: { kind: MessageKind.User } }, turnId });
+		};
+		return { chat, liveParts, sendTurn, ownWorktree };
+	}
+
+	test('does not announce a worktree again for a chat it was handed over to', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const { chat, liveParts, sendTurn, ownWorktree } = await seedOwnedWorktreeChat(contributions, 'agents/feature');
+		await ownWorktree();
+		contributions.service.didHandOverWorktree(contributions.session, chat);
+
+		await sendTurn('after-hand-over');
+
+		assert.deepStrictEqual(liveParts, []);
+	});
+
+	test('restores the original worktree notice once for a chat it was handed over to', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const { chat, ownWorktree } = await seedOwnedWorktreeChat(contributions, 'agents/feature');
+		await ownWorktree();
+		contributions.service.didHandOverWorktree(contributions.session, chat);
+
+		const restored = await contributions.service.hydrateTurns(
+			{ session: contributions.session, chat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)) },
+			[hydrationTurn('first'), hydrationTurn('second')],
+		);
+
+		assert.deepStrictEqual(restored.map(turn => turn.responseParts.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content)), [[buildWorktreeAnnouncementText('agents/feature')], []]);
+	});
+
+	test('announces a new worktree once for a chat that already has turns', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const { chat, liveParts, sendTurn, ownWorktree } = await seedOwnedWorktreeChat(contributions, 'agents/isolated');
+		await sendTurn('turn-before-worktree');
+		contributions.stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-before-worktree', duration: 1 });
+		await ownWorktree();
+
+		await sendTurn('first-turn-in-worktree');
+		await sendTurn('second-turn-in-worktree');
+
+		assert.deepStrictEqual(liveParts, [buildWorktreeAnnouncementText('agents/isolated')]);
+	});
+
 	test('persists and restores agent-authored turn delegation through a provider turn id', async () => {
 		const contributions = createTurnDelegationContributions(disposables);
 		const delegation = {
