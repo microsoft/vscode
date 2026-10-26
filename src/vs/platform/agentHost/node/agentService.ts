@@ -8081,11 +8081,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			artifactsHold?.dispose();
 			artifactsHold = undefined;
-			if (handOver) {
+			// A chat that never started a turn hasn't announced its worktree yet: its first send does.
+			if (handOver && this._hasStartedTurn(this._stateManager.getChatState(chatKey))) {
 				this._chatContributions.didHandOverWorktree(targetKey, chatKey);
 			}
 			for (const transfer of worktreePlan.transfers) {
-				if (transfer.chat !== undefined) {
+				if (transfer.chat !== undefined && this._hasStartedTurn(this._stateManager.getChatState(transfer.chat))) {
 					this._chatContributions.didHandOverWorktree(targetKey, transfer.chat);
 				}
 			}
