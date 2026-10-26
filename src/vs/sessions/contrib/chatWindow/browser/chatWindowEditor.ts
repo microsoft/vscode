@@ -344,7 +344,7 @@ export class ChatWindowChatEditor extends EditorPane {
 		store.add(part.onDidChangeGroupMaximized(isMaximized => {
 			if (!isMaximized && maximized && !this._sizing) {
 				maximized = undefined;
-				state.showBoth();
+				state.onGroupUnmaximized();
 			}
 		}));
 

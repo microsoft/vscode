@@ -109,4 +109,15 @@ suite('ChatWindowState', () => {
 			otherKind: ChatWindowTerminalPosition.FullWidth,
 		});
 	});
+
+	test('keeps its layout when the part unmaximizes because a group was added, and shows both when the user shows the other group', () => {
+		const window = createState(disposables.add(new InMemoryStorageService()), false, true);
+		window.setLayout(ChatWindowLayout.ChatOnly);
+
+		window.keepLayoutWhile(() => window.onGroupUnmaximized());
+		const kept = window.layout.get();
+		window.onGroupUnmaximized();
+
+		assert.deepStrictEqual({ kept, afterwards: window.layout.get() !== ChatWindowLayout.ChatOnly }, { kept: ChatWindowLayout.ChatOnly, afterwards: true });
+	});
 });

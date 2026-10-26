@@ -590,7 +590,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				}
 				return;
 			}
-			const row = window.part.addGroup(window.chatGroup, GroupDirection.DOWN);
+			// Adding the row to a part that shows only the chat or only the editor unmaximizes it, which must not show both: the window keeps its layout.
+			const row = window.state.keepLayoutWhile(() => window.part.addGroup(window.chatGroup, GroupDirection.DOWN));
 			// Only terminals show there, in tabs.
 			row.lock(true);
 			const store = new DisposableStore();
@@ -630,7 +631,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			window.state.terminalGroup.set(undefined, undefined);
 			this._terminalRows.get(window)?.dispose();
 			this._terminalRows.delete(window);
-			window.part.removeGroup(group);
+			// Removing it unmaximizes the part as well, and the chat shows alone again once it is arranged without the row.
+			window.state.keepLayoutWhile(() => window.part.removeGroup(group));
 		}
 	}
 
