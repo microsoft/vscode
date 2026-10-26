@@ -15,7 +15,7 @@ import { AgentHostProtocolClient } from '../../../../../platform/agentHost/brows
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } from '../../../../../platform/agentHost/common/agent.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, WorkspaceRemoteAgentHostsSettingId, getEntryAddress, getWorkspaceRemoteAgentHostAddresses } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, getEntryAddress, getWorkspaceRemoteAgentHostAddresses } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -192,12 +192,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
 		this._register(this._remoteAgentHostService.onDidChangeDisplayName(() => this._reconcile()));
-		// A host may already be connected through the user setting when the workspace starts listing it.
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(WorkspaceRemoteAgentHostsSettingId)) {
-				this._reconcile();
-			}
-		}));
 		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this._authenticateAllConnections()));
 		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(() => this._authenticateAllConnections()));
 		this._register(this._authenticationService.onDidChangeSessions(event => {

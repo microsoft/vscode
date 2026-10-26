@@ -83,7 +83,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				},
 				required: ['address', 'name'],
 			},
-			markdownDescription: localize('chat.workspaceRemoteAgentHosts', "WebSocket remote agent hosts to connect to while this workspace is open, in addition to `#chat.remoteAgentHosts#`. Their agents become available in Chat. Only applies in trusted workspaces; connected hosts receive your GitHub credentials, so only list hosts you trust."),
+			markdownDescription: localize('chat.workspaceRemoteAgentHosts', "WebSocket remote agent hosts that editor windows connect to while this workspace is open. Their agents become available in Chat, and their sessions are listed there. Editor windows don't connect to the hosts in `#chat.remoteAgentHosts#`; those belong to the Agents window. Only applies in trusted workspaces; connected hosts receive your GitHub credentials, so only list hosts you trust."),
 			default: [],
 			scope: ConfigurationScope.WINDOW,
 			restricted: true,

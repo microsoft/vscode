@@ -133,8 +133,9 @@ export namespace RemoteAgentHostConnectionStatus {
 export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 
 /**
- * Configuration key for WebSocket remote agent hosts that a workspace connects to
- * in addition to {@link RemoteAgentHostsSettingId}. Only honored in trusted workspaces.
+ * Configuration key for the WebSocket remote agent hosts an editor window connects to
+ * while its workspace is open. Editor windows use it instead of {@link RemoteAgentHostsSettingId},
+ * which belongs to the Agents window. Only honored in trusted workspaces.
  */
 export const WorkspaceRemoteAgentHostsSettingId = 'chat.workspaceRemoteAgentHosts';
 
