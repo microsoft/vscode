@@ -216,6 +216,25 @@ export class ChatWindowState {
 		this.setLayout(this._lastSplitLayout.get());
 	}
 
+	private _keepingLayout = false;
+
+	/** Runs `fn`, which may unmaximize the part, for example by adding a group to it, without that showing both the editor and the chat. */
+	keepLayoutWhile<T>(fn: () => T): T {
+		this._keepingLayout = true;
+		try {
+			return fn();
+		} finally {
+			this._keepingLayout = false;
+		}
+	}
+
+	/** The part showed the group it hid again, which shows both, unless {@link keepLayoutWhile} caused it. */
+	onGroupUnmaximized(): void {
+		if (!this._keepingLayout) {
+			this.showBoth();
+		}
+	}
+
 	setInputOnly(inputOnly: boolean): void {
 		if (this.docked || this._inputOnly.get() === inputOnly) {
 			return;
