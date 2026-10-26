@@ -1099,12 +1099,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		}
 	});
 	const editingSessionProviders = new Map<string, IChatEditingSessionProvider>();
+	const createEditingSession = () => upcastPartial<IChatEditingSession>({ entries: constObservable([]), requestDisablement: constObservable([]), dispose: () => { } });
 	instantiationService.stub(IChatEditingService, {
 		registerEditingSessionProvider: (scheme: string, provider: IChatEditingSessionProvider) => {
 			editingSessionProviders.set(scheme, provider);
 			return toDisposable(() => editingSessionProviders.delete(scheme));
 		},
-		createEditingSession: () => upcastPartial<IChatEditingSession>({ entries: constObservable([]), requestDisablement: constObservable([]), dispose: () => { } }),
+		createEditingSession,
+		startOrContinueGlobalEditingSession: createEditingSession,
 	});
 	const textFileRetention = { active: 0 };
 	instantiationService.stub(ITextFileService, {
@@ -2006,9 +2008,6 @@ suite('AgentHostChatContribution', () => {
 						usage: undefined,
 					}],
 				},
-			});
-			instantiationService.stub(IChatEditingService, {
-				createEditingSession: () => upcastPartial<IChatEditingSession>({ entries: constObservable([]), requestDisablement: constObservable([]), dispose: () => { } }),
 			});
 			const createModel = (resource: URI) => disposables.add(instantiationService.createInstance(
 				ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true },
@@ -18287,6 +18286,36 @@ suite('AgentHostChatContribution', () => {
 	});
 
 	suite('keep and undo review', () => {
+		for (const initialLocation of [ChatAgentLocation.Chat, ChatAgentLocation.EditorInline]) {
+			test(`lazily created review preserves the chat location (${initialLocation})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { editingSessionProviders, sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables, {
+					configOverrides: { [ChatConfiguration.EditorWorkingSetEnabled]: true },
+				});
+				const sessionResource = URI.parse('agent-host-copilot:/new-lazy-review');
+				let editingSession: IChatEditingSession | undefined;
+				const globalFlags: (boolean | undefined)[] = [];
+				chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource,
+					initialLocation,
+					get editingSession() { return editingSession; },
+					getRequests: () => [],
+					getPendingRequests: () => [],
+					onDidChangePendingRequests: Event.None,
+					startEditingSession: global => {
+						globalFlags.push(global);
+						editingSession = disposables.add(editingSessionProviders.get('agent-host-copilot')!.createEditingSession(sessionResource, !!global));
+					},
+				}));
+				const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+				fire({ type: ActionType.ChatTurnComplete, endedAt: new Date(0).toISOString(), turnId } as ChatAction);
+				await turnPromise;
+				assert.deepStrictEqual({ globalFlags, reviewing: editingSession?.supportsKeepUndo.get() }, {
+					globalFlags: [initialLocation === ChatAgentLocation.Chat],
+					reviewing: initialLocation === ChatAgentLocation.Chat,
+				});
+			}));
+		}
+
 		for (const enabled of [true, false]) {
 			test(`reviews the edits of chats in the chat view and editors (working set enabled=${enabled})`, async () => {
 				const { editingSessionProviders, textFileRetention, sessionHandler, agentHostService } = createContribution(disposables, { configOverrides: { [ChatConfiguration.EditorWorkingSetEnabled]: enabled } });
@@ -19802,7 +19831,7 @@ suite('AgentHostChatContribution', () => {
 		test('a server-initiated steering request is undone with the checkpoint it follows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-steered-checkpoint' });
-			const controller = disposables.add(new AgentHostSnapshotController(sessionResource, 'local', undefined, new NullLogService(), disposables.add(new TestFileService())));
+			const controller = disposables.add(new AgentHostSnapshotController(sessionResource, 'local', undefined, new NullLogService(), disposables.add(new TestFileService()), new MockWorkingCopyService()));
 			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
 				sessionResource,
 				editingSession: controller,
