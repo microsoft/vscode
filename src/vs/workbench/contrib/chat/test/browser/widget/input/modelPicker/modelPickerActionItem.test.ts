@@ -487,7 +487,7 @@ suite('ModelPickerActionItem', () => {
 			};
 		};
 		const description = 'Copilot Fusion selects a single model or orchestrates multiple models to complete your task.';
-		const learnMore = '[Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)';
+		const learnMore = '[Learn more](https://aka.ms/vscode-copilot-fusion)';
 		assert.deepStrictEqual({ fusion: read(fusion), hydraFusionMax: read(hydraFusionMax) }, {
 			fusion: {
 				label: 'Copilot Fusion',
