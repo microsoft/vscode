@@ -474,7 +474,7 @@ export namespace ILanguageModelChatMetadata {
 	export const autoModelSelectionDocsUrl = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
 
 	/** Where Copilot Fusion's description links for more about it. */
-	export const fusionDocsUrl = 'https://aka.ms/vscode-copilot-fusion';
+	export const fusionDocsUrl = 'https://docs.github.com/en/early-access/copilot/hydrafusion';
 
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
