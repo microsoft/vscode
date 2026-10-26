@@ -35551,6 +35551,137 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			suite('read state across moves (follow-up to #344129)', () => {
+				/** Each session has its own database, as in production; the services share them and the provider's backings, as a host restart does. */
+				function createServices(): () => AgentService {
+					const sessionDataService = createPerSessionDataService().service;
+					const orchestratorDatabase = new AgentHostDatabase(':memory:');
+					const agent = disposables.add(new MovingAgent('copilot'));
+					return () => {
+						const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+							undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+						registerTestAgentProvider(service, agent);
+						getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+						return service;
+					};
+				}
+
+				/** Marks chats read or unread as clients do: a session is read once its last unread chat is. */
+				function markChatsRead(service: AgentService, read: readonly URI[], unread: readonly URI[]): void {
+					for (const chat of unread) {
+						getStateManager(service).dispatchServerAction(chat.toString(), { type: ActionType.ChatIsReadChanged, isRead: false });
+					}
+					for (const chat of read) {
+						getStateManager(service).dispatchServerAction(chat.toString(), { type: ActionType.ChatIsReadChanged, isRead: true });
+					}
+				}
+
+				/** Whether each session is read in a `listSessions` reply, which every client applies over its own read state. */
+				async function listedRead(service: AgentService, sessions: Record<string, URI>): Promise<Record<string, boolean>> {
+					const listed = getStateManager(service).prepareSessionSummariesForListing((await service.listSessions()).map(toListedSessionSummary));
+					return Object.fromEntries(Object.entries(sessions).map(([name, session]) => [name, isSessionStatusRead(listed.find(summary => summary.resource === session.toString())?.status)]));
+				}
+
+				/** Whether each session is listed read now, after a host restart and after the restarted host restores it. */
+				async function listedReadAcrossRestart(first: AgentService, createService: () => AgentService, sessions: Record<string, URI>) {
+					const moved = await listedRead(first, sessions);
+					await first.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(first).whenIdle(undefined);
+					const restarted = createService();
+					const afterRestart = await listedRead(restarted, sessions);
+					await getStateManager(restarted).whenMovedChatOriginsSettled();
+					for (const session of Object.values(sessions)) {
+						await restarted.restoreSession(session);
+					}
+					return { moved, afterRestart, restored: await listedRead(restarted, sessions) };
+				}
+
+				async function createSessionWithChats(service: AgentService, names: readonly string[]): Promise<{ readonly session: URI; readonly defaultChat: URI; readonly chats: readonly URI[] }> {
+					const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const chats = names.map(name => URI.parse(buildChatUri(session, name)));
+					for (const chat of chats) {
+						await service.createChat(session, chat);
+					}
+					await timeout(0);
+					return { session, defaultChat: URI.parse(buildDefaultChatUri(session)), chats };
+				}
+
+				test('moving the only unread chat to a read session makes the source read and the destination unread, also after a restart', async () => {
+					const createService = createServices();
+					const first = createService();
+					const source = await createSessionWithChats(first, ['stays', 'unread']);
+					const target = await createSessionWithChats(first, ['other']);
+					const [stays, unread] = source.chats;
+					markChatsRead(first, [source.defaultChat, stays, target.defaultChat, ...target.chats], [unread]);
+					const before = await listedRead(first, { source: source.session, target: target.session });
+
+					await first.moveChat(source.session, unread, { kind: 'session', session: target.session, after: undefined });
+
+					const expected = () => ({ source: true, target: false });
+					assert.deepStrictEqual({ before, ...await listedReadAcrossRestart(first, createService, { source: source.session, target: target.session }) }, {
+						before: { source: false, target: true },
+						moved: expected(),
+						afterRestart: expected(),
+						restored: expected(),
+					});
+				});
+
+				test('a session moved under a read session leaves it read only when its chat is read, also after a restart', async () => {
+					const createService = createServices();
+					const first = createService();
+					const target = await createSessionWithChats(first, ['other']);
+					const readSession = await createSessionWithChats(first, []);
+					const unreadSession = await createSessionWithChats(first, []);
+					markChatsRead(first, [target.defaultChat, ...target.chats, readSession.defaultChat], [unreadSession.defaultChat]);
+
+					await first.moveSession(readSession.session, target.session, undefined);
+					const afterReadSession = await listedRead(first, { target: target.session });
+					await first.moveSession(unreadSession.session, target.session, undefined);
+
+					assert.deepStrictEqual({ afterReadSession, ...await listedReadAcrossRestart(first, createService, { target: target.session }) }, {
+						afterReadSession: { target: true },
+						moved: { target: false },
+						afterRestart: { target: false },
+						restored: { target: false },
+					});
+				});
+
+				test('promoting the only unread chat makes the source read, also after a restart', async () => {
+					const createService = createServices();
+					const first = createService();
+					const source = await createSessionWithChats(first, ['stays', 'unread']);
+					const [stays, unread] = source.chats;
+					// A chat becomes its own session only once it has a turn.
+					completeTurn(first, unread);
+					markChatsRead(first, [source.defaultChat, stays], [unread]);
+					const before = await listedRead(first, { source: source.session });
+
+					await first.moveChat(source.session, unread, { kind: 'newSession' });
+
+					const expected = () => ({ source: true });
+					assert.deepStrictEqual({ before, ...await listedReadAcrossRestart(first, createService, { source: source.session }) }, {
+						before: { source: false },
+						moved: expected(),
+						afterRestart: expected(),
+						restored: expected(),
+					});
+				});
+
+				test('reordering the chats of a session marked unread keeps it unread, also after a restart', async () => {
+					const createService = createServices();
+					const first = createService();
+					const { session, defaultChat, chats } = await createSessionWithChats(first, ['first', 'second']);
+					markChatsRead(first, [defaultChat, ...chats], []);
+					// Marked unread as a whole, as Mark as Unread does: the chats of a multi-chat session stay read.
+					getStateManager(first).dispatchServerAction(session.toString(), { type: ActionType.SessionIsReadChanged, isRead: false });
+
+					await first.moveChat(session, chats[1], { kind: 'session', session, after: defaultChat });
+
+					const expected = () => ({ session: false });
+					assert.deepStrictEqual(await listedReadAcrossRestart(first, createService, { session }), { moved: expected(), afterRestart: expected(), restored: expected() });
+				});
+			});
+
 			test('a moved peer takes the pull requests it recorded along; those of the chats staying in the source stay', async () => {
 				const { service, source, target, peer } = await setupMove();
 				const sourceChat = buildDefaultChatUri(source);

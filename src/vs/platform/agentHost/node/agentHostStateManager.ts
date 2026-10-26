@@ -1807,7 +1807,8 @@ export class AgentHostStateManager extends Disposable {
 	 *
 	 * Owners are reassigned first, then `session/chatRemoved` (source), `session/chatAdded` and
 	 * `session/chatsReordered` (target) are dispatched and both summaries recomputed, all synchronously, so
-	 * nothing runs between a chat leaving the source and joining the target. A `session/chatRemoved` listener
+	 * nothing runs between a chat leaving the source and joining the target. Each session is then read exactly
+	 * when all its chats counting toward its read state are. A `session/chatRemoved` listener
 	 * tells a moved chat from a deleted one by {@link chatRemovalReason}.
 	 */
 	transferChats(source: URI, target: URI, chats: readonly URI[], after: URI | undefined): void {
@@ -1857,6 +1858,9 @@ export class AgentHostStateManager extends Disposable {
 		for (const session of [source, target]) {
 			this._applySessionAggregate(session, this._sessionStates.get(session)!.state.chats);
 		}
+		for (const session of [source, target]) {
+			this._synchronizeSessionReadWithChats(session);
+		}
 	}
 
 	/**
@@ -1864,12 +1868,14 @@ export class AgentHostStateManager extends Disposable {
 	 * `chats[0]` is its default chat (`summary.defaultChat`), followed by its descendants. Each chat keeps its state,
 	 * changesets, canvases and in-progress turn. The session is registered first, then owners are reassigned,
 	 * `session/chatRemoved` is dispatched on the source and the new session is announced with its catalog, all
-	 * synchronously, so nothing runs between the chats leaving the source and joining the new session.
+	 * synchronously, so nothing runs between the chats leaving the source and joining the new session. The source is
+	 * then read exactly when all its remaining chats counting toward its read state are.
 	 */
 	/**
 	 * Moves a session whose only chats are its default chat and that chat's private descendants under `target` (Block 4,
 	 * VS Code-internal): the chats become chats of `target` as {@link transferChats} makes them, the default chat with
 	 * the source's effective title, and the source session ends ({@link deleteSession}) while the moved chats live on.
+	 * `target` is then read exactly when all its chats counting toward its read state are.
 	 * The source announces no `session/chatRemoved`: it is removed as a whole. `movable` is whether `chats[0]`, a peer
 	 * of `target` now, may move: its `session/chatAdded` announces that, so it is never a transient non-movable peer.
 	 */
@@ -1926,6 +1932,7 @@ export class AgentHostStateManager extends Disposable {
 			}
 		}
 		this._applySessionAggregate(target, this._sessionStates.get(target)!.state.chats);
+		this._synchronizeSessionReadWithChats(target);
 		this.deleteSession(source);
 	}
 
@@ -1980,6 +1987,7 @@ export class AgentHostStateManager extends Disposable {
 		this._applySessionAggregate(target, summaries);
 		this._emitSessionAdded(this._toSummary(target, this._sessionStates.get(target)!));
 		this._applySessionAggregate(source, this._sessionStates.get(source)!.state.chats);
+		this._synchronizeSessionReadWithChats(source);
 	}
 
 	private _inTransfer(chats: readonly URI[], transfer: () => void): void {
@@ -1992,6 +2000,23 @@ export class AgentHostStateManager extends Disposable {
 			for (const chat of chats) {
 				this._chatsInTransfer.delete(chat);
 			}
+		}
+	}
+
+	/**
+	 * Marks `session` read exactly when all the chats counting toward its read state are, after a move changed its
+	 * chats. Dispatched like any other host read change, so subscribers see `session/isReadChanged` and it is persisted.
+	 */
+	private _synchronizeSessionReadWithChats(session: URI): void {
+		const state = this._sessionStates.get(session)?.state;
+		if (!state) {
+			return;
+		}
+		const isRead = state.chats
+			.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity))
+			.every(chat => isSessionStatusRead(chat.status));
+		if (isRead !== isSessionStatusRead(state.status)) {
+			this.dispatchServerAction(session, { type: ActionType.SessionIsReadChanged, isRead });
 		}
 	}
 
