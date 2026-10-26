@@ -16,6 +16,7 @@ import { Action, IAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { Event } from '../../../base/common/event.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../base/common/observable.js';
@@ -772,6 +773,7 @@ suite('ChatPills', () => {
 		container.style.setProperty('--vscode-spacing-size20', '2px');
 		container.style.setProperty('--vscode-spacing-size40', '4px');
 		container.style.setProperty('--vscode-spacing-size60', '6px');
+		container.style.setProperty('--vscode-spacing-size160', '16px');
 		mainWindow.document.body.appendChild(container);
 		disposables.add(toDisposable(() => container.remove()));
 		const row = disposables.add(new ChatPillsRow('ChatPills.responsiveTest', { compact }));
@@ -913,6 +915,158 @@ suite('ChatPills', () => {
 			scrolledBackToFirstPill: true,
 		});
 	});
+
+	for (const compact of [false, true, 'auto'] as const) {
+		test(`overflow fades follow scrolling and resizing in compact mode ${compact}`, () => {
+			const harness = createResponsiveRow(compact);
+			const fades = () => ({
+				left: harness.row.element.classList.contains('can-scroll-left'),
+				right: harness.row.element.classList.contains('can-scroll-right'),
+				masked: mainWindow.getComputedStyle(harness.row.content).maskImage !== 'none',
+			});
+			const initial = fades();
+			harness.resize(20);
+			const start = fades();
+			harness.row.content.scrollLeft = 10;
+			harness.row.scanDomNode();
+			const middle = fades();
+			harness.row.content.scrollLeft = harness.row.content.scrollWidth;
+			harness.row.scanDomNode();
+			const end = fades();
+			harness.resize(1000);
+
+			assert.deepStrictEqual({ initial, start, middle, end, resized: fades() }, {
+				initial: { left: false, right: false, masked: false },
+				start: { left: false, right: true, masked: true },
+				middle: { left: true, right: true, masked: true },
+				end: { left: true, right: false, masked: true },
+				resized: { left: false, right: false, masked: false },
+			});
+		});
+	}
+
+	test('overflow fades replace native scroll shadows', () => {
+		const harness = createResponsiveRow(false);
+		harness.resize(200);
+		harness.row.content.scrollLeft = 10;
+		harness.row.scanDomNode();
+
+		assert.deepStrictEqual({
+			left: harness.row.element.classList.contains('can-scroll-left'),
+			right: harness.row.element.classList.contains('can-scroll-right'),
+			masked: mainWindow.getComputedStyle(harness.row.content).maskImage !== 'none',
+			nativeShadows: harness.row.element.querySelectorAll(':scope > .shadow').length,
+		}, {
+			left: true,
+			right: true,
+			masked: true,
+			nativeShadows: 0,
+		});
+	});
+
+	test('overflow fades follow keyboard focus without changing accessible labels', async () => {
+		const harness = createResponsiveRow(false);
+		const buttons = harness.widget.getPillElements();
+		const labels = buttons.map(button => button.getAttribute('aria-label'));
+		harness.resize(200);
+		const scrolledToEnd = Event.toPromise(Event.filter(harness.row.onDidChangeLayout, () =>
+			harness.row.element.classList.contains('can-scroll-left') && !harness.row.element.classList.contains('can-scroll-right')));
+		buttons.at(-1)!.focus();
+		await scrolledToEnd;
+		const end = {
+			focused: mainWindow.document.activeElement === buttons.at(-1),
+			left: harness.row.element.classList.contains('can-scroll-left'),
+			right: harness.row.element.classList.contains('can-scroll-right'),
+			visible: buttons.at(-1)!.getBoundingClientRect().right <= harness.row.content.getBoundingClientRect().right + 1,
+		};
+		const scrolledToStart = Event.toPromise(Event.filter(harness.row.onDidChangeLayout, () =>
+			!harness.row.element.classList.contains('can-scroll-left') && harness.row.element.classList.contains('can-scroll-right')));
+		buttons[0].focus();
+		await scrolledToStart;
+
+		assert.deepStrictEqual({
+			end,
+			start: {
+				focused: mainWindow.document.activeElement === buttons[0],
+				left: harness.row.element.classList.contains('can-scroll-left'),
+				right: harness.row.element.classList.contains('can-scroll-right'),
+			},
+			labelsPreserved: buttons.every((button, index) => button.getAttribute('aria-label') === labels[index]),
+		}, {
+			end: { focused: true, left: true, right: false, visible: true },
+			start: { focused: true, left: false, right: true },
+			labelsPreserved: true,
+		});
+	});
+
+	test('overflow fades tolerate fractional scroll positions at either edge', () => {
+		const harness = createResponsiveRow(false);
+		harness.resize(200);
+		harness.row.content.scrollLeft = 0.5;
+		harness.row.scanDomNode();
+		const start = {
+			left: harness.row.element.classList.contains('can-scroll-left'),
+			right: harness.row.element.classList.contains('can-scroll-right'),
+		};
+		harness.row.content.scrollLeft = harness.row.content.scrollWidth - harness.row.content.clientWidth - 0.5;
+		harness.row.scanDomNode();
+
+		assert.deepStrictEqual({
+			start,
+			end: {
+				left: harness.row.element.classList.contains('can-scroll-left'),
+				right: harness.row.element.classList.contains('can-scroll-right'),
+			},
+		}, {
+			start: { left: false, right: true },
+			end: { left: true, right: false },
+		});
+	});
+
+	test('overflow fades clear when content is removed or the row has no width', () => {
+		const harness = createResponsiveRow(false);
+		harness.resize(60);
+		harness.pills.set([], undefined);
+		harness.row.layout();
+		const empty = harness.row.element.classList.contains('can-scroll-right');
+		harness.pills.set(harness.initialPills, undefined);
+		harness.row.layout();
+		const restored = harness.row.element.classList.contains('can-scroll-right');
+		harness.resize(0);
+
+		assert.deepStrictEqual({
+			empty,
+			restored,
+			zeroWidth: {
+				left: harness.row.element.classList.contains('can-scroll-left'),
+				right: harness.row.element.classList.contains('can-scroll-right'),
+			},
+		}, {
+			empty: false,
+			restored: true,
+			zeroWidth: { left: false, right: false },
+		});
+	});
+
+	for (const theme of ['hc-black', 'hc-light']) {
+		test(`overflow fades preserve contrast in ${theme}`, () => {
+			const harness = createResponsiveRow(false);
+			harness.resize(60);
+			harness.row.content.scrollLeft = 10;
+			harness.row.scanDomNode();
+			harness.row.element.parentElement!.classList.add(theme);
+
+			assert.deepStrictEqual({
+				left: harness.row.element.classList.contains('can-scroll-left'),
+				right: harness.row.element.classList.contains('can-scroll-right'),
+				mask: mainWindow.getComputedStyle(harness.row.content).maskImage,
+			}, {
+				left: true,
+				right: true,
+				mask: 'none',
+			});
+		});
+	}
 
 	for (const compact of [false, true]) {
 		test(`fixed compact mode ${compact} is unaffected by available width`, () => {
@@ -1280,9 +1434,19 @@ suite('ChatPills', () => {
 				summaryAriaLabel: count => `Show ${count} canvases`,
 				promotedActionIcon,
 			}));
-			const container = mainWindow.document.createElement('div');
-			mainWindow.document.body.appendChild(container);
-			store.add(toDisposable(() => container.remove()));
+			const pillsContainer = mainWindow.document.createElement('div');
+			pillsContainer.className = 'chat-pills';
+			const actionBar = mainWindow.document.createElement('div');
+			actionBar.className = 'monaco-action-bar';
+			const actionsContainer = mainWindow.document.createElement('ul');
+			actionsContainer.className = 'actions-container';
+			const container = mainWindow.document.createElement('li');
+			container.className = 'action-item';
+			actionsContainer.appendChild(container);
+			actionBar.appendChild(actionsContainer);
+			pillsContainer.appendChild(actionBar);
+			mainWindow.document.body.appendChild(pillsContainer);
+			store.add(toDisposable(() => pillsContainer.remove()));
 			viewItem.render(container);
 			return { container, hoverActions: () => getDropdownPillHoverOptions.call(viewItem)?.actions?.map(action => action.label) };
 		};
@@ -1303,17 +1467,30 @@ suite('ChatPills', () => {
 			pillHoverActions: hoverActions(),
 			compactGlyph: promoted.classList.contains('codicon-close-compact'),
 			reservesSpace: container.classList.contains('has-promoted-action'),
+			itemDisplay: mainWindow.getComputedStyle(container).display,
+			actionCentered: Math.abs(
+				promoted.getBoundingClientRect().top + promoted.getBoundingClientRect().height / 2
+				- (container.getBoundingClientRect().top + container.getBoundingClientRect().height / 2)
+			) <= 1,
 			keepsFocus: mouseDown.defaultPrevented,
 			clicked,
 			tapped,
 		};
-		const withoutIconSingle = { promoted: withoutIcon.container.querySelector('.chat-pill-promoted-action'), pillHoverActions: withoutIcon.hoverActions() };
+		const withoutIconSingle = {
+			promoted: withoutIcon.container.querySelector('.chat-pill-promoted-action'),
+			reservesSpace: withoutIcon.container.classList.contains('has-promoted-action'),
+			pillHoverActions: withoutIcon.hoverActions(),
+		};
 		sections.set([{ title: 'Canvases', entries: [entry, { id: 'other', label: 'Other', promotedAction, open: () => { } }] }], undefined);
+		const summarized = { shown: container.contains(promoted), reservesSpace: container.classList.contains('has-promoted-action') };
+		sections.set([{ title: 'Canvases', entries: [entry] }], undefined);
+		const restoredPromoted = container.querySelector('.chat-pill-promoted-action');
 
 		assert.deepStrictEqual({
 			single,
 			withoutIcon: withoutIconSingle,
-			summarized: { shown: container.contains(promoted), reservesSpace: container.classList.contains('has-promoted-action') },
+			summarized,
+			restoredPromotedRecreated: !!restoredPromoted && restoredPromoted !== promoted,
 		}, {
 			single: {
 				attributes: { role: 'button', tabIndex: '-1', ariaLabel: 'Close Canvas Preview' },
@@ -1321,12 +1498,15 @@ suite('ChatPills', () => {
 				pillHoverActions: undefined,
 				compactGlyph: true,
 				reservesSpace: true,
+				itemDisplay: 'flex',
+				actionCentered: true,
 				keepsFocus: true,
 				clicked: ['closed'],
 				tapped: ['closed'],
 			},
-			withoutIcon: { promoted: null, pillHoverActions: ['Close Canvas Preview'] },
+			withoutIcon: { promoted: null, reservesSpace: false, pillHoverActions: ['Close Canvas Preview'] },
 			summarized: { shown: false, reservesSpace: false },
+			restoredPromotedRecreated: true,
 		});
 	});
 });

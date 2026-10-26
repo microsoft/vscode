@@ -18,6 +18,7 @@ import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHos
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { readAgentToolFullReferenceName } from '../../../../../../platform/agentHost/common/meta/agentToolDefinitionMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -30,11 +31,11 @@ import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/m
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogger, ILoggerService, ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
-import { CopilotConnectorsError } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
-import { ICopilotConnectorsService } from '../../aiCustomization/copilotConnectorsService.js';
+import { CopilotConnectorsError, ICopilotConnectorsService } from '../../aiCustomization/copilotConnectorsService.js';
 import { AuthenticationSession } from '../../../../../services/authentication/common/authentication.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import type { IAgentFileToolInventoryEntry } from '../../../common/customizationHarnessService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
@@ -58,6 +59,7 @@ export interface IAgentHostCustomizationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomAgents: Event<void>;
 	readonly onDidChangeCustomizations: Event<void>;
+	getAgentFileToolInventory?(sessionResource: URI): readonly IAgentFileToolInventoryEntry[] | undefined;
 
 	getCustomAgents(sessionResource: URI): readonly AgentCustomization[];
 
@@ -136,6 +138,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomAgents = Event.None;
 	readonly onDidChangeCustomizations = Event.None;
+	getAgentFileToolInventory(_sessionResource: URI): readonly IAgentFileToolInventoryEntry[] | undefined {
+		return undefined;
+	}
 	getCustomAgents(_sessionResource: URI): readonly AgentCustomization[] {
 		return [];
 	}
@@ -1028,6 +1033,36 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		entry.readiness ??= this._awaitFirstSnapshot(entry.sub, entry.token);
 		await raceCancellation(entry.readiness, token);
 		return this._sessionStateSubscriptions.get(sessionResource) === entry && hasSessionSnapshot(entry.sub);
+	}
+
+	getAgentFileToolInventory(sessionResource: URI): readonly IAgentFileToolInventoryEntry[] | undefined {
+		const target = this._resolveSessionTarget(sessionResource);
+		const entry = target ? this._ensureSessionStateSubscription(sessionResource, target) : undefined;
+		const value = entry?.sub.value;
+		const state = value && !(value instanceof Error) ? value : entry?.sub.verifiedValue;
+		if (!state) {
+			return undefined;
+		}
+		const tools = new Map<string, IAgentFileToolInventoryEntry>();
+		for (const client of state.activeClients) {
+			for (const tool of client.tools) {
+				const referenceName = readAgentToolFullReferenceName(tool) ?? tool.name;
+				tools.set(referenceName, {
+					name: referenceName,
+					...(tool.description ? { description: tool.description } : {}),
+					availability: 'available',
+				});
+			}
+		}
+		for (const server of this.getMcpServers(sessionResource)) {
+			tools.set(`${server.name}/*`, {
+				name: `${server.name}/*`,
+				availability: !server.enabled
+					? 'disabled'
+					: server.status === McpServerStatus.Ready ? 'available' : 'unavailable',
+			});
+		}
+		return [...tools.values()];
 	}
 
 	getBackendChatResource(sessionResource: URI): URI | undefined {

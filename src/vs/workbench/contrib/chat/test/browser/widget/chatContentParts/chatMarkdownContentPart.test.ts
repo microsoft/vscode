@@ -424,6 +424,7 @@ suite('ChatMarkdownContentPart', () => {
 		const resource = toAgentHostUri(URI.file('/remote/my project/image.png'), 'sandbox');
 		let fileService: FileService;
 		let browserResources: BrowserResourceService;
+		let resolveImage: ((href: string) => string) | undefined;
 
 		function useFileService(service: FileService): void {
 			browserResources?.dispose();
@@ -434,12 +435,13 @@ suite('ChatMarkdownContentPart', () => {
 		}
 
 		setup(async () => {
+			resolveImage = undefined;
 			fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(AGENT_HOST_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
 			useFileService(fileService);
 			disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
 				provideChatSessionContent: async () => { throw new Error('Unexpected session resolution'); },
-				resolveChatResponseUri: (_resource, href, kind) => rewriteAgentHostLinkTarget(href, 'sandbox', undefined, kind === 'image' ? directory : undefined),
+				resolveChatResponseUri: (_resource, href, kind) => kind === 'image' && resolveImage ? resolveImage(href) : rewriteAgentHostLinkTarget(href, 'sandbox', undefined, kind === 'image' ? directory : undefined),
 			}));
 			await fileService.createFolder(toAgentHostUri(directory, 'sandbox'));
 			await fileService.writeFile(resource, imageBytes);
@@ -450,12 +452,24 @@ suite('ChatMarkdownContentPart', () => {
 			if (image.complete && image.naturalWidth > 0) {
 				return image;
 			}
+
 			const loaded = new DeferredPromise<void>();
 			disposables.add(addDisposableListener(image, 'load', () => loaded.complete()));
 			disposables.add(addDisposableListener(image, 'error', () => loaded.error(new Error('Image failed to decode'))));
 			await loaded.p;
 			return image;
 		}
+
+		test('renders a tool-result snapshot without reading the inaccessible sandbox file', async () => {
+			resolveImage = () => `data:image/png;base64,${encodeBase64(imageBytes)}`;
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const part = createMarkdownPart('![Screenshot](/tmp/unavailable.png)');
+			const image = await waitForImage(part);
+			assert.deepStrictEqual({
+				bytes: new Uint8Array(await (await fetch(image.src)).arrayBuffer()), alt: image.alt, reads: read.callCount,
+			}, { bytes: new Uint8Array(imageBytes.buffer), alt: 'Screenshot', reads: 0 });
+		});
 
 		for (const target of ['file:///remote/my%20project/image.png', '/remote/my%20project/image.png', './image.png', toAgentHostUri(URI.file('/remote/my project/image.png'), 'sandbox').toString()]) {
 			test(`loads ${target} through the owning file provider`, async () => {

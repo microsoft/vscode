@@ -12,7 +12,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, waitForState } from '../../../../../base/common/observable.js';
 import * as path from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
@@ -20,7 +20,7 @@ import { NullTelemetryServiceShape } from '../../../../telemetry/common/telemetr
 import { computeLocalModelConsentScope, deriveLocalModelReadiness, type ILocalModelConsent, type ILocalModelFamilyV1, type LocalModelPublicRegistryState } from '../../../common/localModel.js';
 import type { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import type { ILocalModelLiveConfig } from '../../../node/copilot/localModelBridge/localModelProvider.js';
-import { OPTIONAL_SPEC_FLAGS, REQUIRED_DRAFT_LLAMA_SERVER_FLAGS, REQUIRED_LLAMA_SERVER_FLAGS } from '../../../node/copilot/localModelBridge/shim/constants.js';
+import { OPTIONAL_SPEC_FLAGS, REQUIRED_DRAFT_LLAMA_SERVER_FLAGS, REQUIRED_LLAMA_SERVER_FLAGS, SERVER_HEALTH_POLL_MS } from '../../../node/copilot/localModelBridge/shim/constants.js';
 import { LocalModelDownloadError, type ILocalModelDownloadRequest, type ILocalModelDownloadResult } from '../../../node/copilot/localModelBridge/shim/downloader.js';
 import type { IGpuAdapter, IGpuMemoryProbeOutcome } from '../../../node/copilot/localModelBridge/shim/gpuMemoryProbe.js';
 import { buildSyntheticGguf, readGgufArchitectureFromFile, type GgufArchitectureRead, type IGgufModelMetadata } from '../../../node/copilot/localModelBridge/shim/gguf.js';
@@ -32,7 +32,7 @@ import { ServerSupervisor } from '../../../node/copilot/localModelBridge/shim/se
 import type { ILlamaDevice } from '../../../node/copilot/localModelBridge/shim/servingProfile.js';
 import { createNodeShimLocalModelProviderHost, ShimLocalModelProvider, type IShimCatalog, type IShimLocalModelProviderHost, type IShimRuntime } from '../../../node/copilot/localModelBridge/shim/shimLocalModelProvider.js';
 import { buildManifest, LocalModelStore } from '../../../node/copilot/localModelBridge/shim/store.js';
-import { createFakeLlamaFetch, FakeLlamaSpawner, FakeProcessControl, settle, waitFor, type IFakeLlamaServerOptions } from './fakeLlamaServer.js';
+import { createFakeLlamaFetch, FakeLlamaSpawner, FakeProcessControl, type IFakeLlamaServerOptions } from './fakeLlamaServer.js';
 import { FakeClock } from './fakeServingAccess.js';
 
 const MIB = 1024 * 1024;
@@ -146,6 +146,8 @@ class FakeCatalog implements IShimCatalog {
 
 class FakeDownloader {
 	readonly requests: ILocalModelDownloadRequest[] = [];
+	/** Completed in order as each download is requested. */
+	private readonly _requested: DeferredPromise<void>[] = [];
 	gate: DeferredPromise<void> | undefined;
 	/** Another window holds the family's download lock: the next download fails with `lockedElsewhere`. */
 	lockedElsewhere = false;
@@ -160,8 +162,18 @@ class FakeDownloader {
 		return true;
 	}
 
+	/** Resolves once `count` downloads have been requested. */
+	whenRequested(count: number): Promise<void> {
+		return this._request(count - 1).p;
+	}
+
+	private _request(index: number): DeferredPromise<void> {
+		return this._requested[index] ??= new DeferredPromise<void>();
+	}
+
 	async download(request: ILocalModelDownloadRequest): Promise<ILocalModelDownloadResult> {
 		this.requests.push(request);
+		this._request(this.requests.length - 1).complete();
 		if (this.lockedElsewhere) {
 			this.lockedElsewhere = false;
 			throw new LocalModelDownloadError('lockedElsewhere');
@@ -211,7 +223,8 @@ class FakeRuntime implements IShimRuntime {
 	readonly topologyKeys: (string | undefined)[] = [];
 	/** Holds the next `listDevices` call (one shot) until completed. */
 	listDevicesGate: DeferredPromise<void> | undefined;
-	listDevicesWaiting = false;
+	/** Completed once a `listDevices` call waits at {@link listDevicesGate}. */
+	readonly listDevicesHeld = new DeferredPromise<void>();
 
 	async resolve(options: { readonly topologyKey?: string }): Promise<ILlamaRuntimeResolution> {
 		this.topologyKeys.push(options.topologyKey);
@@ -240,9 +253,8 @@ class FakeRuntime implements IShimRuntime {
 		const gate = this.listDevicesGate;
 		if (gate) {
 			this.listDevicesGate = undefined;
-			this.listDevicesWaiting = true;
+			this.listDevicesHeld.complete();
 			await gate.p;
-			this.listDevicesWaiting = false;
 		}
 		return this.devices.map(device => ({ ...device }));
 	}
@@ -275,6 +287,17 @@ class FakeGpuProbe {
 	}
 }
 
+/** A supervisor that keeps its latest stop, so that a test can await the end of a stop the provider started. */
+class RecordingSupervisor extends ServerSupervisor {
+	lastStop: Promise<unknown> = Promise.resolve();
+
+	override stop(...args: Parameters<ServerSupervisor['stop']>): ReturnType<ServerSupervisor['stop']> {
+		const stop = super.stop(...args);
+		this.lastStop = stop;
+		return stop;
+	}
+}
+
 class RecordingTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
 	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
@@ -293,6 +316,7 @@ const proxyResolver: IAgentHostProxyResolver = {
 	getConfigurationValue: () => undefined,
 	resolveProxy: async () => undefined,
 	fetch: () => Promise.reject(new Error('no network in tests')),
+	createWebSocket: () => { throw new Error('no network in tests'); },
 };
 
 function liveConfig(overrides: Partial<ILocalModelLiveConfig> = {}): ILocalModelLiveConfig {
@@ -406,7 +430,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const prefix = `p${++harnessCount}`;
 		let ids = 0;
 		const fetch = createFakeLlamaFetch(spawner, clock, server);
-		const supervisors: ServerSupervisor[] = [];
+		const supervisors: RecordingSupervisor[] = [];
 		/** Every local file whose GGUF architecture the provider read. */
 		const architectureReadPaths: string[] = [];
 		const host: IShimLocalModelProviderHost = {
@@ -423,7 +447,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			runtime,
 			gpuProbe: gpu,
 			createSupervisor: log => {
-				const supervisor = new ServerSupervisor({
+				const supervisor = new RecordingSupervisor({
 					spawner, processControl: control, fetch, clock, log, telemetry,
 					modelsDir: path.join(persistent.home, 'azureml-models'), platform: 'win32', target: 'win32-arm64', homeDir: root, env: { PATH: 'C:\\Windows' },
 					allocatePort: async () => 41000 + spawner.processes.length, randomHex: bytes => 'cd'.repeat(bytes),
@@ -465,12 +489,47 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 
 	async function setUpAndWait(harness: Harness, model: ITestModel): Promise<void> {
 		await harness.provider.setUp(model.profile.familyId, consent(harness, model.profile.familyId), CancellationToken.None);
-		await waitFor(() => !!family(harness, model.profile.familyId)?.install && !family(harness, model.profile.familyId)?.operation);
+		await whenStatus(harness, () => !!family(harness, model.profile.familyId)?.install && !family(harness, model.profile.familyId)?.operation);
 	}
 
 	function activeReady(harness: Harness, familyId: string): boolean {
 		const active = harness.provider.status.get().active;
 		return active?.familyId === familyId && active.server === 'ready';
+	}
+
+	/** Resolves once `predicate` holds, checking it now and after each change of the provider's status. */
+	function whenStatus(harness: Harness, predicate: () => boolean): Promise<unknown> {
+		return waitForState(harness.provider.status, () => predicate());
+	}
+
+	/** Resolves once the user stop the provider started has run to its end: the server is stopped and loads are admitted again. */
+	async function whenStopped(harness: Harness): Promise<void> {
+		await harness.supervisor().lastStop;
+		await whenStatus(harness, () => harness.provider.status.get().active?.server === 'stopped');
+	}
+
+	/** Advances the clock by one health poll each time the loading server waits for one, until `predicate` holds. */
+	async function pollUntil(harness: Harness, predicate: () => boolean): Promise<void> {
+		let done = false;
+		const reached = whenStatus(harness, predicate).then(() => done = true);
+		while (!done) {
+			await Promise.race([reached, harness.clock.whenTimerDue(SERVER_HEALTH_POLL_MS)]);
+			if (!done) {
+				harness.clock.advance(SERVER_HEALTH_POLL_MS);
+			}
+		}
+	}
+
+	/** The provider's load in progress, if any (its private `_start`): settles once that load has started its server or given up. */
+	function pendingLoad(harness: Harness): Promise<unknown> {
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- A background load has no public completion signal.
+		return harness.provider['_start']?.promise.catch(() => undefined) ?? Promise.resolve();
+	}
+
+	/** The provider's swap in progress, if any (its private `_swap`): settles once that swap has loaded its model or ended. */
+	function pendingSwap(harness: Harness): Promise<void> {
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- A swap's end has no public completion signal.
+		return harness.provider['_swap']?.settled ?? Promise.resolve();
 	}
 
 	function offerFor(model: ITestModel) {
@@ -497,7 +556,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 	/** Sets `model` up and waits until it is the active model and ready. */
 	async function setUpActive(harness: Harness, model: ITestModel): Promise<void> {
 		await setUpAndWait(harness, model);
-		await waitFor(() => activeReady(harness, model.profile.familyId));
+		await whenStatus(harness, () => activeReady(harness, model.profile.familyId));
 	}
 
 	/** A started harness with MAI active and ready, and Example Coder installed. */
@@ -515,13 +574,12 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const first = createHarness({ persistent, runtime: options.runtime, downloader: Object.assign(new FakeDownloader(), { gate: new DeferredPromise<void>() }) });
 		await start(first);
 		await first.provider.setUp(familyId, consent(first, familyId), CancellationToken.None);
-		await waitFor(() => first.downloader.requests.length === 1);
+		await first.downloader.whenRequested(1);
 		const operationId = family(first, familyId)!.operation!.id;
 		if (options.cancel) {
 			first.provider.cancel(operationId);
 		}
 		first.provider.dispose();
-		await settle();
 		return operationId;
 	}
 
@@ -602,12 +660,12 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		await start(harness, liveConfig({ useInAuto: false }));
 		await setUpActive(harness, MAI);
 		await harness.provider.stop({ stopNow: true });
-		await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
+		await whenStopped(harness);
 		harness.provider.onAutoSessionStarted();
-		await settle();
+		await pendingLoad(harness);
 		const autoWhileOff = { server: harness.provider.status.get().active?.server, useInAuto: harness.provider.status.get().useInAuto, spawns: harness.spawner.processes.length };
 		harness.provider.updateLiveConfig(liveConfig({ useInAuto: true }));
-		await waitFor(() => activeReady(harness, MAI_ID));
+		await whenStatus(harness, () => activeReady(harness, MAI_ID));
 		assert.deepStrictEqual({ autoWhileOff, turnedOn: { useInAuto: harness.provider.status.get().useInAuto, spawns: harness.spawner.processes.length } }, {
 			autoWhileOff: { server: 'stopped', useInAuto: false, spawns: 1 },
 			turnedOn: { useInAuto: true, spawns: 2 },
@@ -620,14 +678,14 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		await setUpActive(harness, MAI);
 		harness.downloader.gate = new DeferredPromise<void>();
 		await harness.provider.setUp(EXAMPLE_ID, consent(harness, EXAMPLE_ID), CancellationToken.None);
-		await waitFor(() => family(harness, EXAMPLE_ID)?.operation?.phase === 'downloading');
+		await whenStatus(harness, () => family(harness, EXAMPLE_ID)?.operation?.phase === 'downloading');
 		const operationId = family(harness, EXAMPLE_ID)!.operation!.id;
 		harness.provider.cancel(operationId);
 		const cancelled = { operation: family(harness, EXAMPLE_ID)?.operation, maiReady: activeReady(harness, MAI_ID), stored: harness.persistent.storage.get('localModel.provider') as { operations: unknown[] } };
 		await harness.provider.resume(operationId);
-		await waitFor(() => harness.downloader.requests.length === 3);
+		await harness.downloader.whenRequested(3);
 		harness.downloader.gate.complete();
-		await waitFor(() => !!family(harness, EXAMPLE_ID)?.install && !family(harness, EXAMPLE_ID)?.operation);
+		await whenStatus(harness, () => !!family(harness, EXAMPLE_ID)?.install && !family(harness, EXAMPLE_ID)?.operation);
 		assert.deepStrictEqual({
 			cancelled: { operation: cancelled.operation, maiReady: cancelled.maiReady, records: (cancelled.stored.operations as { operationId: string; intent: string; resumeOnStartup: boolean; target: unknown }[]).map(record => ({ operationId: record.operationId, intent: record.intent, resumeOnStartup: record.resumeOnStartup, target: record.target })) },
 			requests: harness.downloader.requests.map(request => request.modelId.split('/models/')[1]),
@@ -653,14 +711,13 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		await start(first);
 		await first.provider.setUp(MAI_ID, consent(first, MAI_ID), CancellationToken.None);
 		await first.provider.setUp(EXAMPLE_ID, consent(first, EXAMPLE_ID), CancellationToken.None);
-		await waitFor(() => first.downloader.requests.length === 2);
+		await first.downloader.whenRequested(2);
 		first.provider.cancel(family(first, EXAMPLE_ID)!.operation!.id);
 		first.provider.dispose();
-		await settle();
 
 		const second = createHarness({ persistent });
 		await start(second);
-		await waitFor(() => activeReady(second, MAI_ID));
+		await whenStatus(second, () => activeReady(second, MAI_ID));
 		assert.deepStrictEqual({
 			resumed: second.downloader.requests.map(request => ({ asset: request.modelId.split('/models/')[1], autoResumed: request.autoResumed })),
 			example: family(second, EXAMPLE_ID)?.operation && { state: family(second, EXAMPLE_ID)!.operation!.state, pausedReason: family(second, EXAMPLE_ID)!.operation!.pausedReason, resumeOnStartup: family(second, EXAMPLE_ID)!.operation!.resumeOnStartup },
@@ -689,7 +746,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		};
 		await second.provider.resume(operation.id);
 		// Before the fix: the device check judged an unknown requirement, hid the model and dropped the setup.
-		await waitFor(() => !!family(second, EXAMPLE_ID)?.install || !family(second, EXAMPLE_ID)?.operation || family(second, EXAMPLE_ID)?.operation?.state === 'paused');
+		await whenStatus(second, () => !!family(second, EXAMPLE_ID)?.install || !family(second, EXAMPLE_ID)?.operation || family(second, EXAMPLE_ID)?.operation?.state === 'paused');
 		assert.deepStrictEqual({
 			before,
 			refreshedOnResume: second.catalog.refreshes > before.refreshes,
@@ -792,7 +849,6 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 
 		const second = createHarness({ persistent });
 		await start(second);
-		await settle();
 		second.provider.cancel(operationId);
 		assert.deepStrictEqual({
 			operations: second.provider.status.get().families.filter(candidate => candidate.operation).map(candidate => [candidate.familyId, candidate.operation!.kind]),
@@ -837,7 +893,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 				// An installed, active model loads on demand (the workbench's Start, or a request).
 				await harness.provider.start();
 			}
-			await waitFor(() => activeReady(harness, familyId));
+			await whenStatus(harness, () => activeReady(harness, familyId));
 			const active = harness.provider.status.get().active;
 			const result = {
 				drafts: harness.spawner.processes.map(child => child.arg('--device-draft') ?? null),
@@ -848,7 +904,6 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			// Quit. Disposing kills the server but releases its lock only later, so stop it first: the next start must find the lock free.
 			await harness.supervisor().stop('system');
 			harness.provider.dispose();
-			await settle();
 			return result;
 		};
 		const first = await run(1, true);
@@ -883,12 +938,12 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			}
 		}));
 		await Promise.all([harness.provider.makeActive(EXAMPLE_ID), harness.provider.makeActive(EXAMPLE_ID)]);
-		await waitFor(() => !!harness.provider.status.get().active?.drain);
-		harness.clock.advance(60 * 60_000);
-		await settle();
-		const afterAnHour = { active: harness.provider.status.get().active, phase: family(harness, EXAMPLE_ID)?.operation?.phase, usage: family(harness, MAI_ID)?.usage };
+		await whenStatus(harness, () => !!harness.provider.status.get().active?.drain);
+		// A drain timeout would be a timer on this clock: none runs in the hour.
+		const timersRun = harness.clock.advance(60 * 60_000);
+		const afterAnHour = { timersRun, active: harness.provider.status.get().active, phase: family(harness, EXAMPLE_ID)?.operation?.phase, usage: family(harness, MAI_ID)?.usage };
 		await harness.provider.stop({ stopNow: true });
-		await waitFor(() => activeReady(harness, EXAMPLE_ID) && !family(harness, EXAMPLE_ID)?.operation);
+		await whenStatus(harness, () => activeReady(harness, EXAMPLE_ID) && !family(harness, EXAMPLE_ID)?.operation);
 		lease.dispose();
 		assert.deepStrictEqual({
 			afterAnHour,
@@ -898,6 +953,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			serverEvents: harness.telemetry.names('localModel.server', 'event'),
 		}, {
 			afterAnHour: {
+				timersRun: 0,
 				active: { familyId: MAI_ID, contentId: MAI.resolved.contentId, servingGeneration: 1, server: 'stopping', profile: 'full-gpu', drain: { runningStreams: 1 }, swapTo: EXAMPLE_ID },
 				phase: 'draining',
 				usage: { runningStreams: 1, boundDirectChats: 0, liveAutoRoutes: 0 },
@@ -941,16 +997,15 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			}
 		}));
 		await harness.provider.setContextSize(bigId, 65_536);
-		await waitFor(() => !!harness.provider.status.get().active?.drain);
+		await whenStatus(harness, () => !!harness.provider.status.get().active?.drain);
 		const draining = { active: harness.provider.status.get().active, selected: family(harness, bigId)?.context?.tokens, row: row() };
 		harness.server.nCtx = 65_536;
 		// The running response finishes; the model loads again at the new size.
 		lease.dispose();
-		await waitFor(() => activeReady(harness, bigId) && !family(harness, bigId)?.operation);
+		await whenStatus(harness, () => activeReady(harness, bigId) && !family(harness, bigId)?.operation);
 
 		// The same size again: nothing to reload.
 		await harness.provider.setContextSize(bigId, 65_536);
-		await settle();
 
 		const gib = (bytes: number | undefined) => bytes === undefined ? undefined : Math.round(bytes / GIB * 1000) / 1000;
 		assert.deepStrictEqual({
@@ -1001,7 +1056,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const harness = createHarness({ models: [hybrid, plain], metadata: filePath => filePath.includes('Hybrid-Model') ? hybridMetadata : DEFAULT_METADATA, freeSystemMemoryBytes: () => freeSystemMemory });
 		const activate = async (model: ITestModel) => {
 			await harness.provider.makeActive(model.profile.familyId);
-			await waitFor(() => activeReady(harness, model.profile.familyId) && !family(harness, model.profile.familyId)?.operation);
+			await whenStatus(harness, () => activeReady(harness, model.profile.familyId) && !family(harness, model.profile.familyId)?.operation);
 		};
 		await start(harness);
 		await setUpActive(harness, hybrid);
@@ -1026,9 +1081,9 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const supervisor = harness.supervisor();
 		const lease = supervisor.acquireLease(supervisor.state.get().identity!)!;
 		await harness.provider.setContextSize(bigId, 262_144);
-		await waitFor(() => !!harness.provider.status.get().active?.drain);
+		await whenStatus(harness, () => !!harness.provider.status.get().active?.drain);
 		await harness.provider.stop({ stopNow: true });
-		await waitFor(() => activeReady(harness, bigId) && !family(harness, bigId)?.operation);
+		await whenStatus(harness, () => activeReady(harness, bigId) && !family(harness, bigId)?.operation);
 		lease.dispose();
 		assert.deepStrictEqual({ ctx: harness.spawner.processes.map(child => child.arg('--ctx-size')), serverEvents: harness.telemetry.names('localModel.server', 'event') }, {
 			ctx: ['131072', '262144'],
@@ -1052,19 +1107,14 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		let released = false;
 		harness.server.loading = process => process === harness.spawner.processes[1] && !released;
 		await harness.provider.update(bigId, undefined, CancellationToken.None);
-		await waitFor(() => family(harness, bigId)?.operation?.phase === 'loading' && harness.spawner.processes.length === 2);
+		await whenStatus(harness, () => family(harness, bigId)?.operation?.phase === 'loading' && harness.spawner.processes.length === 2);
 		await harness.provider.setContextSize(bigId, 65_536);
-		await settle();
 		const whileLoading = { operation: family(harness, bigId)?.operation?.kind, processes: harness.spawner.processes.length };
 		released = true;
-		const reloaded = () => harness.spawner.processes.length === 3 && activeReady(harness, bigId) && !family(harness, bigId)?.operation;
-		for (let polls = 0; polls < 50 && !reloaded(); polls++) {
-			// The loading server's health is polled on the fake clock.
-			harness.clock.advance(500);
-			await settle();
-		}
-		await waitFor(reloaded);
-		await settle();
+		// The loading server's health is polled on the fake clock.
+		await pollUntil(harness, () => harness.spawner.processes.length === 3 && activeReady(harness, bigId) && !family(harness, bigId)?.operation);
+		// A further reload would be a swap the reload's end started.
+		await pendingSwap(harness);
 		assert.deepStrictEqual({
 			whileLoading,
 			ctx: harness.spawner.processes.map(child => child.arg('--ctx-size')),
@@ -1088,11 +1138,11 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		await start(harness);
 		await setUpActive(harness, big);
 		await harness.provider.stop({ stopNow: false });
-		await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
+		await whenStopped(harness);
 		await harness.provider.setContextSize(bigId, 262_144);
 		const whileStopped = { operation: family(harness, bigId)?.operation, processes: harness.spawner.processes.length, rowContext: harness.provider.getModelRows()[0].maxContextWindow };
 		await harness.provider.start();
-		await waitFor(() => activeReady(harness, bigId));
+		await whenStatus(harness, () => activeReady(harness, bigId));
 		assert.deepStrictEqual({ whileStopped, ctx: harness.spawner.processes.map(child => child.arg('--ctx-size')) }, {
 			whileStopped: { operation: undefined, processes: 1, rowContext: 262_144 },
 			ctx: ['131072', '262144'],
@@ -1103,26 +1153,21 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const harness = createHarness({ server: { loading: true } });
 		await start(harness);
 		await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
-		await waitFor(() => harness.provider.status.get().active?.load?.step === 'loading');
+		await whenStatus(harness, () => harness.provider.status.get().active?.load?.step === 'loading');
 		const firstLoad = harness.provider.status.get().active?.load;
 		let warmingUp: unknown;
 		harness.server.onChatCompletion = () => warmingUp = harness.provider.status.get().active?.load?.step;
 		harness.server.loading = false;
-		const ready = () => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation;
-		for (let polls = 0; polls < 50 && !ready(); polls++) {
-			harness.clock.advance(500);
-			await settle();
-		}
-		await waitFor(ready);
+		await pollUntil(harness, () => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
 		const records = () => (harness.persistent.storage.get('localModel.provider') as { loadDurations: { durationMs: number }[] }).loadDurations;
 		const recorded = records()[0]?.durationMs;
 
 		await harness.provider.stop({ stopNow: false });
-		await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
+		await whenStopped(harness);
 		harness.server.loading = true;
 		harness.server.onChatCompletion = undefined;
 		await harness.provider.start();
-		await waitFor(() => harness.provider.status.get().active?.load?.step === 'loading');
+		await whenStatus(harness, () => harness.provider.status.get().active?.load?.step === 'loading');
 		const secondLoad = harness.provider.status.get().active?.load;
 		assert.deepStrictEqual({
 			first: { step: firstLoad?.step, startedAt: typeof firstLoad?.startedAt, expectedMs: firstLoad?.expectedMs },
@@ -1155,9 +1200,9 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			}
 		}));
 		await harness.provider.makeActive(EXAMPLE_ID);
-		await waitFor(() => harness.provider.status.get().active?.server === 'stopping');
+		await whenStatus(harness, () => harness.provider.status.get().active?.server === 'stopping');
 		const whileUnloading = { phase: family(harness, EXAMPLE_ID)?.operation?.phase, drain: harness.provider.status.get().active?.drain, exited: harness.spawner.processes[0].hasExited };
-		await waitFor(() => activeReady(harness, EXAMPLE_ID) && !family(harness, EXAMPLE_ID)?.operation);
+		await whenStatus(harness, () => activeReady(harness, EXAMPLE_ID) && !family(harness, EXAMPLE_ID)?.operation);
 		assert.deepStrictEqual({ whileUnloading, phases, swapTargets: [...swapTargets] }, {
 			whileUnloading: { phase: 'loading', drain: undefined, exited: false },
 			phases: ['loading'],
@@ -1170,7 +1215,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const harness = await createTwoInstalled();
 		harness.server.loading = process => process === harness.spawner.processes[1];
 		await harness.provider.makeActive(EXAMPLE_ID);
-		await waitFor(() => family(harness, EXAMPLE_ID)?.operation?.phase === 'loading' && harness.provider.status.get().active?.load?.step === 'loading');
+		await whenStatus(harness, () => family(harness, EXAMPLE_ID)?.operation?.phase === 'loading' && harness.provider.status.get().active?.load?.step === 'loading');
 		harness.spawner.processes[1].exitDelayMs = 50;
 		const swapId = family(harness, EXAMPLE_ID)!.operation!.id;
 		harness.provider.cancel(swapId);
@@ -1181,18 +1226,18 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const swapCancelled = { operation: family(harness, EXAMPLE_ID)?.operation, active: active(), exited: harness.spawner.processes[1].hasExited };
 		harness.provider.cancel(swapId);
 		harness.provider.cancel(swapId);
-		await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
+		await whenStatus(harness, () => harness.provider.status.get().active?.server === 'stopped');
 		const swapAfter = { active: active(), exited: harness.spawner.processes[1].hasExited, spawns: harness.spawner.processes.length };
 
 		// The first load of a setup: Cancel pauses it at once.
 		const setup = createHarness({ server: { loading: true }, persistent: createPersistent('setup-home') });
 		await start(setup);
 		await setup.provider.setUp(MAI_ID, consent(setup, MAI_ID), CancellationToken.None);
-		await waitFor(() => setup.provider.status.get().active?.load?.step === 'loading');
+		await whenStatus(setup, () => setup.provider.status.get().active?.load?.step === 'loading');
 		setup.spawner.processes[0].exitDelayMs = 50;
 		setup.provider.cancel(family(setup, MAI_ID)!.operation!.id);
 		const setupCancelled = { operation: family(setup, MAI_ID)?.operation?.state, server: setup.provider.status.get().active?.server, exited: setup.spawner.processes[0].hasExited };
-		await waitFor(() => setup.provider.status.get().active?.server === 'stopped');
+		await whenStatus(setup, () => setup.provider.status.get().active?.server === 'stopped');
 
 		assert.deepStrictEqual({ swapCancelled, swapAfter, setupCancelled }, {
 			swapCancelled: { operation: undefined, active: { familyId: EXAMPLE_ID, server: 'stopping', swapTo: undefined, load: undefined }, exited: false },
@@ -1212,7 +1257,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const harness = createHarness({ persistent, models: [MAI], metadata: filePath => filePath.toLowerCase().includes('example-coder') ? huge : DEFAULT_METADATA });
 		await start(harness);
 		await setUpAndWait(harness, MAI);
-		await waitFor(() => activeReady(harness, MAI_ID) && !!family(harness, EXAMPLE_ID)?.context && !!family(harness, other.profile.familyId)?.context);
+		await whenStatus(harness, () => activeReady(harness, MAI_ID) && !!family(harness, EXAMPLE_ID)?.context && !!family(harness, other.profile.familyId)?.context);
 		const view = (familyId: string) => {
 			const projected = family(harness, familyId);
 			return { installed: !!projected?.install, offered: !!projected?.offer, memoryWarning: projected?.memoryWarning };
@@ -1237,7 +1282,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const before = family(harness, MAI_ID);
 		const rowsBefore = harness.provider.getModelRows().length;
 		await harness.provider.remove(MAI_ID);
-		await waitFor(() => !family(harness, MAI_ID));
+		await whenStatus(harness, () => !family(harness, MAI_ID));
 		assert.deepStrictEqual({
 			before: { install: before?.install?.owned, offer: before?.offer, entry: before?.entry },
 			device: harness.provider.status.get().device,
@@ -1286,7 +1331,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const stageAOffer = family(harness, MAI_ID)?.offer?.fit;
 		runtime.devices = [{ ...N1X_VULKAN, totalBytes: 24 * GIB, freeBytes: 24 * GIB }];
 		await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
-		await waitFor(() => !family(harness, MAI_ID));
+		await whenStatus(harness, () => !family(harness, MAI_ID));
 		const hidden = { downloads: harness.downloader.requests.length, setup: harness.telemetry.events.filter(event => event.name === 'localModel.setup').map(event => `${event.data.outcome}:${event.data.errorCode}`) };
 
 		gpu.topologyKey = '10de:2e12@33.0';
@@ -1317,7 +1362,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		await fs.promises.writeFile(`${partial}.json`, JSON.stringify({ modelId: 'azureml://registries/azureml/models/MAI-Code-1.1-Flash/versions/1', totalBytes: primary.sizeBytes, sha256: primary.sha256, etag: primary.etag }));
 		await start(harness);
 		await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
-		await waitFor(() => !!family(harness, MAI_ID)?.install && !family(harness, MAI_ID)?.operation);
+		await whenStatus(harness, () => !!family(harness, MAI_ID)?.install && !family(harness, MAI_ID)?.operation);
 		const setupEvents = () => harness.telemetry.events.filter(event => event.name === 'localModel.setup').map(event => `${event.data.phase}:${event.data.outcome}:${event.data.errorCode}:${event.data.architecture}:${event.data.architectureSupport}`);
 		const downloaded = {
 			active: harness.provider.status.get().active,
@@ -1331,7 +1376,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		// A llama.cpp that knows the architecture is found: selecting the model loads it.
 		runtime.architectureSupport.set('qwen9', 'supported');
 		await harness.provider.makeActive(MAI_ID);
-		await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
+		await whenStatus(harness, () => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
 		assert.deepStrictEqual({ downloaded, spawns: harness.spawner.processes.length }, {
 			downloaded: {
 				active: undefined,
@@ -1359,7 +1404,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			const status = harness.provider.status.get();
 			const downloaded = { active: status.active, runtime: status.runtime, downloads: harness.downloader.requests.length, probes: [...runtime.architectureProbes], spawns: harness.spawner.processes.length };
 			await harness.provider.makeActive(MAI_ID).catch(() => undefined);
-			await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error');
+			await whenStatus(harness, () => family(harness, MAI_ID)?.operation?.state === 'error');
 			const failed = recovery(harness, MAI_ID);
 			const operation = family(harness, MAI_ID)!.operation!;
 			runtime.provide();
@@ -1369,7 +1414,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 				// As the detail page's Load does: Start, not the operation's Retry.
 				await harness.provider.start();
 			}
-			await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
+			await whenStatus(harness, () => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
 			return { offered: { offer: !!offered?.offer, entry: offered?.entry && { modelFilesPresent: offered.entry.modelFilesPresent } }, downloaded, error: operation.error, failed, recovered: recovery(harness, MAI_ID), spawns: harness.spawner.processes.length };
 		};
 		const directions = ['getLlamaCpp', 'openSettings', 'retry'];
@@ -1401,22 +1446,22 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const resolvesBefore = runtime.topologyKeys.length;
 		const stopped = async () => {
 			await harness.provider.stop({ stopNow: false });
-			await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
+			await whenStopped(harness);
 		};
 		await stopped();
 		runtime.binary = 'C:\\llama\\b12000\\llama-server.exe';
 		await harness.provider.start();
-		await waitFor(() => activeReady(harness, MAI_ID));
+		await whenStatus(harness, () => activeReady(harness, MAI_ID));
 		await stopped();
 		runtime.present = false;
 		await harness.provider.start();
-		await waitFor(() => harness.provider.status.get().active?.server === 'error');
+		await whenStatus(harness, () => harness.provider.status.get().active?.server === 'error');
 		const dangling = harness.provider.status.get().active?.error;
 		runtime.binary = 'C:\\llama\\b12100\\llama-server.exe';
 		runtime.provide();
 		// The Retry of a server error.
 		await harness.provider.start();
-		await waitFor(() => activeReady(harness, MAI_ID));
+		await whenStatus(harness, () => activeReady(harness, MAI_ID));
 		assert.deepStrictEqual({ spawned: harness.spawner.processes.map(child => child.file), dangling: dangling && [dangling.code, dangling.actions], resolves: runtime.topologyKeys.length - resolvesBefore }, {
 			spawned: [LLAMA_SERVER, 'C:\\llama\\b12000\\llama-server.exe', 'C:\\llama\\b12100\\llama-server.exe'],
 			dangling: ['runtimeNotFound', ['getLlamaCpp', 'openSettings', 'retry']],
@@ -1462,8 +1507,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			if (resume) {
 				await harness.provider.resume(String(record.operationId)).catch(() => undefined);
 			}
-			await waitFor(() => family(harness, EXAMPLE_ID)?.operation?.pausedReason === 'consentChanged' || (!!family(harness, EXAMPLE_ID)?.install && !family(harness, EXAMPLE_ID)?.operation));
-			await settle();
+			await whenStatus(harness, () => family(harness, EXAMPLE_ID)?.operation?.pausedReason === 'consentChanged' || (!!family(harness, EXAMPLE_ID)?.install && !family(harness, EXAMPLE_ID)?.operation));
 			const operation = family(harness, EXAMPLE_ID)?.operation;
 			return { operation: operation && { state: operation.state, pausedReason: operation.pausedReason }, downloads: harness.downloader.requests.length };
 		};
@@ -1490,18 +1534,20 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const turn = harness.provider.beginTurn('session-1');
 		await sendDirect(harness, MAI.profile.assetName, 'session-1');
 		await harness.provider.makeActive(EXAMPLE_ID);
-		await waitFor(() => !!harness.provider.status.get().active?.drain);
+		await whenStatus(harness, () => !!harness.provider.status.get().active?.drain);
+		const swap = pendingSwap(harness);
 		// The device probe now selects an AMD GPU.
 		harness.gpu.adapters = [{ id: '1002:150e', description: 'AMD Radeon 8060S Graphics', vendorId: 0x1002, capacityBytes: 96 * GIB, unifiedMemory: true }];
 		harness.gpu.topologyKey = '1002:150e@1.0';
 		harness.gpu.topologyChanged = true;
 		await harness.provider.refreshCatalog();
 		harness.provider.endTurn('session-1', turn);
-		await waitFor(() => harness.supervisor().state.get().server === 'stopped' && family(harness, EXAMPLE_ID) === undefined);
-		await settle(20);
+		// Once the drain ends the server stops, and the swap goes on to its load.
+		await swap;
 		await harness.provider.start().catch(() => undefined);
+		await pendingLoad(harness);
 		const direct = await sendDirect(harness, EXAMPLE.profile.assetName, 'session-2');
-		await settle(20);
+		await pendingLoad(harness);
 		const status = harness.provider.status.get();
 		assert.deepStrictEqual({
 			spawns: harness.spawner.processes.map(child => child.arg('--alias')),
@@ -1556,7 +1602,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		await fs.promises.writeFile(outside, Buffer.from(weights, 'latin1'));
 		await start(harness);
 		await harness.provider.setUp(EXAMPLE_ID, consent(harness, EXAMPLE_ID), CancellationToken.None);
-		await waitFor(() => family(harness, EXAMPLE_ID)?.operation?.state === 'error');
+		await whenStatus(harness, () => family(harness, EXAMPLE_ID)?.operation?.state === 'error');
 		assert.deepStrictEqual({
 			error: family(harness, EXAMPLE_ID)?.operation?.error?.code,
 			localReads: harness.architectureReadPaths,
@@ -1583,7 +1629,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			};
 			await start(harness);
 			await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
-			await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error');
+			await whenStatus(harness, () => family(harness, MAI_ID)?.operation?.state === 'error');
 			const status = harness.provider.status.get();
 			return {
 				operation: family(harness, MAI_ID)?.operation?.error,
@@ -1621,7 +1667,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 				second.catalog.models = [MAI, changed];
 			};
 			await act(second.provider, operationId);
-			await waitFor(() => family(second, EXAMPLE_ID)?.operation?.state === 'paused' || !!family(second, EXAMPLE_ID)?.install);
+			await whenStatus(second, () => family(second, EXAMPLE_ID)?.operation?.state === 'paused' || !!family(second, EXAMPLE_ID)?.install);
 			const operation = family(second, EXAMPLE_ID)?.operation;
 			return {
 				sameContent: changed.resolved.contentId === EXAMPLE.resolved.contentId,
@@ -1667,7 +1713,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		await start(harness);
 		const found = family(harness, familyId);
 		await harness.provider.setUp(familyId, consent(harness, familyId), CancellationToken.None);
-		await waitFor(() => activeReady(harness, familyId) && !family(harness, familyId)?.operation);
+		await whenStatus(harness, () => activeReady(harness, familyId) && !family(harness, familyId)?.operation);
 		const child = harness.spawner.processes[0];
 		assert.deepStrictEqual({
 			found: { entry: found?.entry, install: found?.install, offer: found?.offer, displayName: found?.displayName },
@@ -1690,12 +1736,12 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const harness = createHarness({ runtime });
 		await start(harness);
 		await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
-		await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error');
+		await whenStatus(harness, () => family(harness, MAI_ID)?.operation?.state === 'error');
 		const operation = family(harness, MAI_ID)!.operation!;
 		const busy = { code: operation.error?.code, actions: operation.error?.actions, active: harness.provider.status.get().active?.server, spawns: harness.spawner.processes.length };
 		runtime.devices = [N1X_VULKAN];
 		await harness.provider.retry(operation.id);
-		await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
+		await whenStatus(harness, () => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
 		assert.deepStrictEqual({ busy, spawns: harness.spawner.processes.length, serverEvents: harness.telemetry.names('localModel.server', 'event') }, {
 			busy: { code: 'memoryBusy', actions: ['retry'], active: 'error', spawns: 0 },
 			spawns: 1,
@@ -1741,7 +1787,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const turn = harness.provider.beginTurn('session-1');
 		const first = await sendDirect(harness, MAI.profile.assetName, 'session-1');
 		await harness.provider.makeActive(EXAMPLE_ID);
-		await waitFor(() => !!harness.provider.status.get().active?.drain);
+		await whenStatus(harness, () => !!harness.provider.status.get().active?.drain);
 		const draining = () => ({ active: harness.provider.status.get().active, phase: family(harness, EXAMPLE_ID)?.operation?.phase, usage: family(harness, MAI_ID)?.usage.runningStreams });
 		// The turn runs a tool between its requests: still one response.
 		const betweenRequests = draining();
@@ -1749,7 +1795,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const otherSession = await sendDirect(harness, MAI.profile.assetName, 'session-2');
 		const afterNext = draining();
 		harness.provider.endTurn('session-1', turn);
-		await waitFor(() => activeReady(harness, EXAMPLE_ID) && !family(harness, EXAMPLE_ID)?.operation);
+		await whenStatus(harness, () => activeReady(harness, EXAMPLE_ID) && !family(harness, EXAMPLE_ID)?.operation);
 		const drainingMai = { familyId: MAI_ID, contentId: MAI.resolved.contentId, servingGeneration: 1, server: 'stopping', profile: 'full-gpu', drain: { runningStreams: 1 }, swapTo: EXAMPLE_ID };
 		assert.deepStrictEqual({
 			first,
@@ -1786,14 +1832,14 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const turn = harness.provider.beginTurn('session-1');
 		const first = await sendDirect(harness, big.profile.assetName, 'session-1');
 		await harness.provider.setContextSize(bigId, 65_536);
-		await waitFor(() => !!harness.provider.status.get().active?.drain);
+		await whenStatus(harness, () => !!harness.provider.status.get().active?.drain);
 		const draining = () => ({ drain: harness.provider.status.get().active?.drain, phase: family(harness, bigId)?.operation?.phase });
 		const betweenRequests = draining();
 		const next = await sendDirect(harness, big.profile.assetName, 'session-1');
 		const afterNext = draining();
 		harness.server.nCtx = 65_536;
 		harness.provider.endTurn('session-1', turn);
-		await waitFor(() => activeReady(harness, bigId) && !family(harness, bigId)?.operation);
+		await whenStatus(harness, () => activeReady(harness, bigId) && !family(harness, bigId)?.operation);
 		assert.deepStrictEqual({
 			first,
 			betweenRequests,
@@ -1814,10 +1860,10 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		harness.provider.beginTurn('session-1');
 		await sendDirect(harness, MAI.profile.assetName, 'session-1');
 		await harness.provider.makeActive(EXAMPLE_ID);
-		await waitFor(() => !!harness.provider.status.get().active?.drain);
+		await whenStatus(harness, () => !!harness.provider.status.get().active?.drain);
 		const drain = harness.provider.status.get().active?.drain;
 		await harness.provider.stop({ stopNow: true });
-		await waitFor(() => activeReady(harness, EXAMPLE_ID) && !family(harness, EXAMPLE_ID)?.operation);
+		await whenStatus(harness, () => activeReady(harness, EXAMPLE_ID) && !family(harness, EXAMPLE_ID)?.operation);
 		assert.deepStrictEqual({
 			drain,
 			swapped: activeIdentity(harness),
@@ -1841,15 +1887,15 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const turn = harness.provider.beginTurn('session-1');
 		await sendDirect(harness, MAI.profile.assetName, 'session-1');
 		await harness.provider.makeActive(EXAMPLE_ID);
-		await waitFor(() => !!harness.provider.status.get().active?.drain);
+		await whenStatus(harness, () => !!harness.provider.status.get().active?.drain);
 		harness.provider.cancel(family(harness, EXAMPLE_ID)!.operation!.id);
 		const atCancel = { swapTo: harness.provider.status.get().active?.swapTo, incoming: family(harness, EXAMPLE_ID)?.operation };
-		await waitFor(() => activeReady(harness, MAI_ID));
+		await whenStatus(harness, () => activeReady(harness, MAI_ID));
 		const afterCancel = activeIdentity(harness);
 		const turnRequest = await sendDirect(harness, MAI.profile.assetName, 'session-1');
 		const otherSession = await sendDirect(harness, MAI.profile.assetName, 'session-2');
 		harness.provider.endTurn('session-1', turn);
-		await settle();
+		await pendingLoad(harness);
 		assert.deepStrictEqual({
 			atCancel,
 			afterCancel,
@@ -1945,11 +1991,12 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const supervisor = harness.supervisor();
 		const inFlight = supervisor.acquireLease(supervisor.state.get().identity!)!;
 		await harness.provider.update(MAI_ID, undefined, CancellationToken.None);
-		await waitFor(() => family(harness, MAI_ID)?.operation?.phase === 'draining');
-		harness.clock.advance(60 * 60_000);
-		await settle();
+		await whenStatus(harness, () => family(harness, MAI_ID)?.operation?.phase === 'draining' && !!harness.provider.status.get().active?.drain);
+		// A drain timeout would be a timer on this clock: none runs in the hour.
+		const timersRun = harness.clock.advance(60 * 60_000);
 		const readActiveVersion = async () => (JSON.parse(await fs.promises.readFile(path.join(familyDir, 'active.json'), 'utf8')) as { version: string }).version;
 		const whileDraining = {
+			timersRun,
 			phase: family(harness, MAI_ID)?.operation?.phase,
 			kind: family(harness, MAI_ID)?.operation?.kind,
 			active: activeIdentity(harness),
@@ -1957,8 +2004,8 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			versions: fs.readdirSync(familyDir).filter(name => /^\d+$/.test(name)).sort(),
 		};
 		inFlight.dispose();
-		await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
-		await waitFor(() => !fs.existsSync(path.join(familyDir, '1')));
+		// The update ends only after it pruned the old version.
+		await whenStatus(harness, () => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
 		const fellBack = await autoTurn(harness.provider, false);
 
 		assert.deepStrictEqual({
@@ -1980,7 +2027,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		}, {
 			localBefore: true,
 			offered: { contentId: mai2.resolved.contentId, downloadBytes: mai2.profile.downloadBytes },
-			whileDraining: { phase: 'draining', kind: 'update', active: { contentId: MAI.resolved.contentId, servingGeneration: 1, server: 'stopping' }, activeJson: '2', versions: ['1', '2'] },
+			whileDraining: { timersRun: 0, phase: 'draining', kind: 'update', active: { contentId: MAI.resolved.contentId, servingGeneration: 1, server: 'stopping' }, activeJson: '2', versions: ['1', '2'] },
 			after: {
 				active: { contentId: mai2.resolved.contentId, servingGeneration: 2, server: 'ready' },
 				install: { contentId: mai2.resolved.contentId, adopted: false, owned: true, modelId: 'vscode-on-device/MAI-Code-1.1-Flash' },
@@ -2017,7 +2064,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		await start(harness);
 		const listed = { mai: family(harness, MAI_ID)?.install, example: family(harness, EXAMPLE_ID)?.install };
 		await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
-		await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
+		await whenStatus(harness, () => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
 		assert.deepStrictEqual({
 			listed,
 			spawnedModel: harness.spawner.processes[0].arg('--model'),
@@ -2040,7 +2087,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const restarted = Object.assign(new FakeRuntime(), { tooOld: true });
 		const harness = createHarness({ persistent, runtime: restarted });
 		await start(harness);
-		await waitFor(() => !!family(harness, MAI_ID)?.install && !family(harness, MAI_ID)?.operation);
+		await whenStatus(harness, () => !!family(harness, MAI_ID)?.install && !family(harness, MAI_ID)?.operation);
 		assert.deepStrictEqual({
 			runtimeKeys: Object.keys(record).filter(key => key.startsWith('runtime')),
 			downloads: harness.downloader.requests.length,
@@ -2058,22 +2105,23 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 	test('a load still being prepared never overtakes a swap: the newly active model and its running response are untouched', async () => {
 		const harness = await createTwoInstalled();
 		await harness.provider.stop({ stopNow: false });
-		await waitFor(() => harness.provider.status.get().active?.server === 'stopped');
+		await whenStopped(harness);
 
 		// A load of MAI starts preparing (blocked in its device probe) ...
 		const preparing = new DeferredPromise<void>();
 		harness.runtime.listDevicesGate = preparing;
 		await harness.provider.start();
-		await waitFor(() => harness.runtime.listDevicesWaiting);
+		await harness.runtime.listDevicesHeld.p;
+		const staleLoad = pendingLoad(harness);
 		// ... while the user swaps to Example Coder, which loads and starts answering.
 		await harness.provider.makeActive(EXAMPLE_ID);
-		await waitFor(() => activeReady(harness, EXAMPLE_ID) && !family(harness, EXAMPLE_ID)?.operation);
+		await whenStatus(harness, () => activeReady(harness, EXAMPLE_ID) && !family(harness, EXAMPLE_ID)?.operation);
 		const supervisor = harness.supervisor();
 		const exampleIdentity = supervisor.state.get().identity!;
 		const response = supervisor.acquireLease(exampleIdentity)!;
 		// The stale preparation now completes.
 		preparing.complete();
-		await settle(20);
+		await staleLoad;
 		const exampleProcess = harness.spawner.processes.at(-1)!;
 		assert.deepStrictEqual({
 			active: activeIdentity(harness) && { ...activeIdentity(harness), familyId: harness.provider.status.get().active?.familyId },
@@ -2095,17 +2143,17 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const harness = createHarness({ server: { loading: true } });
 		await start(harness);
 		await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
-		await waitFor(() => family(harness, MAI_ID)?.operation?.phase === 'loading' && harness.spawner.processes.length === 1);
+		await whenStatus(harness, () => family(harness, MAI_ID)?.operation?.phase === 'loading' && harness.spawner.processes.length === 1);
 		const operationId = family(harness, MAI_ID)!.operation!.id;
 		harness.provider.cancel(operationId);
-		await waitFor(() => harness.spawner.processes[0].hasExited && harness.supervisor().state.get().server === 'stopped');
-		await settle();
+		await harness.spawner.processes[0].exited;
+		await waitForState(harness.supervisor().state, state => state.server === 'stopped');
 		const records = () => (harness.persistent.storage.get('localModel.provider') as { operations: { operationId: string; intent: string; resumeOnStartup: boolean }[] }).operations.map(record => ({ operationId: record.operationId, intent: record.intent, resumeOnStartup: record.resumeOnStartup }));
 		const cancelled = { operation: family(harness, MAI_ID)?.operation && { state: family(harness, MAI_ID)!.operation!.state, pausedReason: family(harness, MAI_ID)!.operation!.pausedReason }, installed: !!family(harness, MAI_ID)?.install, records: records() };
 
 		harness.server.loading = false;
 		await harness.provider.resume(operationId);
-		await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
+		await whenStatus(harness, () => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
 		assert.deepStrictEqual({ cancelled, records: records(), spawns: harness.spawner.processes.length, downloads: harness.downloader.requests.length }, {
 			cancelled: { operation: { state: 'paused', pausedReason: 'user' }, installed: true, records: [{ operationId, intent: 'pausedByUser', resumeOnStartup: false }] },
 			records: [],
@@ -2121,11 +2169,11 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			const first = createHarness({ persistent, server: { loading: true } });
 			await start(first);
 			await first.provider.setUp(MAI_ID, consent(first, MAI_ID), CancellationToken.None);
-			await waitFor(() => family(first, MAI_ID)?.operation?.phase === 'loading' && first.spawner.processes.length === 1);
+			await whenStatus(first, () => family(first, MAI_ID)?.operation?.phase === 'loading' && first.spawner.processes.length === 1);
 			first.provider.cancel(family(first, MAI_ID)!.operation!.id);
-			await waitFor(() => first.spawner.processes[0].hasExited && first.supervisor().state.get().server === 'stopped');
+			await first.spawner.processes[0].exited;
+			await waitForState(first.supervisor().state, state => state.server === 'stopped');
 			first.provider.dispose();
-			await settle();
 			const stored = persistent.storage.get('localModel.provider') as { operations: Record<string, unknown>[] };
 			const earlierScope = JSON.stringify([2, 'model', MAI_ID, ['azureml', false, MAI.profile.downloadBytes, MAI.profile.peakDiskBytes, null, null], null]);
 			persistent.storage.set('localModel.provider', { ...stored, operations: [{ ...stored.operations[0], offerScope: earlierScope, ...changes }] });
@@ -2137,7 +2185,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			if (resume) {
 				await harness.provider.resume(operation!.id);
 			}
-			await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
+			await whenStatus(harness, () => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
 			return { restored, downloads: harness.downloader.requests.length, records: (persistent.storage.get('localModel.provider') as { operations: unknown[] }).operations.length };
 		};
 		assert.deepStrictEqual({
@@ -2198,11 +2246,13 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		const preparing = new DeferredPromise<void>();
 		harness.runtime.listDevicesGate = preparing;
 		await harness.provider.makeActive(EXAMPLE_ID);
-		await waitFor(() => harness.runtime.listDevicesWaiting && family(harness, EXAMPLE_ID)?.operation?.phase === 'loading');
+		await harness.runtime.listDevicesHeld.p;
+		await whenStatus(harness, () => family(harness, EXAMPLE_ID)?.operation?.phase === 'loading');
+		const load = pendingLoad(harness);
 		harness.provider.cancel(family(harness, EXAMPLE_ID)!.operation!.id);
 		preparing.complete();
-		await waitFor(() => !family(harness, EXAMPLE_ID)?.operation);
-		await settle(20);
+		await whenStatus(harness, () => !family(harness, EXAMPLE_ID)?.operation);
+		await load;
 		assert.deepStrictEqual({
 			spawns: harness.spawner.processes.map(child => child.arg('--alias')),
 			server: harness.supervisor().state.get().server,
@@ -2221,11 +2271,11 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			const harness = createHarness({ downloader, persistent: createPersistent(`home-${lock}`) });
 			await start(harness);
 			await harness.provider.setUp(MAI_ID, consent(harness, MAI_ID), CancellationToken.None);
-			await waitFor(() => family(harness, MAI_ID)?.operation?.state === 'error');
+			await whenStatus(harness, () => family(harness, MAI_ID)?.operation?.state === 'error');
 			const failed = family(harness, MAI_ID)!.operation!;
 			const clearedBeforeRetry = downloader.cleared.length;
 			await harness.provider.retry(failed.id);
-			await waitFor(() => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
+			await whenStatus(harness, () => activeReady(harness, MAI_ID) && !family(harness, MAI_ID)?.operation);
 			return {
 				error: { code: failed.error?.code, actions: failed.error?.actions },
 				clearedBeforeRetry,

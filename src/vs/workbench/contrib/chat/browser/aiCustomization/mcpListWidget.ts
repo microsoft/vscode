@@ -1541,7 +1541,21 @@ export function getActiveSessionServerLifecycleAction(server: AgentHostMcpServer
 type AgentHostMcpServerEnablementScope = 'global' | 'workspace' | 'session';
 
 function isHostOwnedPluginMcpServer(server: AgentHostMcpServer): boolean {
-	return server.isPluginProvided === true && !server.isClientBundled;
+	return server.isPluginProvided === true && isHostOwnedMcpServer(server);
+}
+
+/**
+ * Whether the agent host owns the server's global decision because it discovered the server itself
+ * (for example from Copilot home), rather than receiving it in a client bundle. A same-named local
+ * server is then only a twin whose window-local enablement never reaches the host.
+ */
+function isHostOwnedMcpServer(server: AgentHostMcpServer): boolean {
+	return !server.isClientBundled;
+}
+
+/** Returns the local server whose enablement drives the row, or `undefined` when the agent host owns it. */
+function getLocalEnablementServerId(localServerId: string | undefined, activeSessionServer: AgentHostMcpServer | undefined): string | undefined {
+	return activeSessionServer && isHostOwnedMcpServer(activeSessionServer) ? undefined : localServerId;
 }
 
 const agentHostMcpServerEnablementActionInfo = {
@@ -1621,13 +1635,14 @@ export function setPrimaryMcpServerEnablement(
 		);
 		return;
 	}
-	if (localServerId) {
-		const current = mcpService.enablementModel.readEnabled(localServerId);
+	const localEnablementServerId = getLocalEnablementServerId(localServerId, activeSessionServer);
+	if (localEnablementServerId) {
+		const current = mcpService.enablementModel.readEnabled(localEnablementServerId);
 		const next = getToggledMcpEnablementState(current);
 		if (isContributionEnabled(next) !== enabled) {
-			throw new Error(`Unexpected MCP enablement transition for ${localServerId}.`);
+			throw new Error(`Unexpected MCP enablement transition for ${localEnablementServerId}.`);
 		}
-		mcpService.enablementModel.setEnabled(localServerId, next);
+		mcpService.enablementModel.setEnabled(localEnablementServerId, next);
 		return;
 	}
 	if (!activeSessionServer) {
@@ -1653,8 +1668,9 @@ export function isPrimaryMcpServerEnabled(
 	if (activeSessionServer && !activeSessionServer.enabled) {
 		return false;
 	}
-	if (localServerId) {
-		return isContributionEnabled(mcpService.enablementModel.readEnabled(localServerId));
+	const localEnablementServerId = getLocalEnablementServerId(localServerId, activeSessionServer);
+	if (localEnablementServerId) {
+		return isContributionEnabled(mcpService.enablementModel.readEnabled(localEnablementServerId));
 	}
 	if (activeSessionServer) {
 		return getCustomizationScopeEnablement(activeSessionServer).global;
@@ -1707,7 +1723,7 @@ export function getBuiltinMcpServerEnablementActions(mcpService: IMcpService, se
 	if (activeSessionServer === undefined) {
 		return getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench);
 	}
-	if (isHostOwnedPluginMcpServer(activeSessionServer)) {
+	if (isHostOwnedMcpServer(activeSessionServer)) {
 		return getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer);
 	}
 	return [
@@ -1771,16 +1787,18 @@ function isLocalMcpServerWorkspaceEnablementAction(action: IAction): boolean {
 export function getServerItemContextMenuActions(menuActionGroups: readonly (readonly IAction[])[], activeSessionServer: AgentHostMcpServer | undefined, activeSessionLifecycleAction: IAction | undefined, agentHostEnablementActions: readonly IAction[]): IAction[] {
 	const actions: IAction[] = [];
 	const hasActiveSession = activeSessionServer !== undefined;
+	// The host's actions replace every local enablement action when the local server is only a twin of a host-owned one.
+	const hideLocalEnablement = activeSessionServer !== undefined && isHostOwnedMcpServer(activeSessionServer);
 	let agentHostEnablementAdded = false;
 	if (activeSessionLifecycleAction) {
 		actions.push(activeSessionLifecycleAction, new Separator());
 	}
 	for (const menuActions of menuActionGroups) {
 		const visibleMenuActions = hasActiveSession
-			? menuActions.filter(action => !shouldHideLocalActionForActiveSessionServer(action))
+			? menuActions.filter(action => !shouldHideLocalActionForActiveSessionServer(action) && !(hideLocalEnablement && isLocalMcpServerEnablementAction(action)))
 			: menuActions;
 		actions.push(...visibleMenuActions);
-		if (hasActiveSession && menuActions.some(isLocalMcpServerEnablementAction)) {
+		if (hasActiveSession && !agentHostEnablementAdded && menuActions.some(isLocalMcpServerEnablementAction)) {
 			actions.push(...agentHostEnablementActions);
 			agentHostEnablementAdded = true;
 		}
@@ -2990,7 +3008,11 @@ export class McpListWidget extends Disposable {
 		add.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button', 'plugin-card-icon-button');
 		add.icon = Codicon.add;
 		this.firstCardFocusElement ??= add.element;
-		disposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration, workspaceFolder)));
+		disposables.add(add.onDidClick(() => this.addServer(workspaceFolder)));
+	}
+
+	addServer(workspaceFolder?: URI): Promise<void> {
+		return this.commandService.executeCommand(McpCommandIds.AddConfiguration, workspaceFolder);
 	}
 
 	private updateHeaderActions(): void {
@@ -3771,7 +3793,7 @@ export class McpListWidget extends Disposable {
 		const activeSessionServer = entry.activeSessionServer;
 		const activeSessionLifecycleAction = activeSessionServer !== undefined ? getActiveSessionServerLifecycleAction(activeSessionServer) : undefined;
 		const agentHostEnablementActions = activeSessionServer !== undefined
-			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, ['workspace', 'session'])
+			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, isHostOwnedMcpServer(activeSessionServer) ? ['global', 'workspace', 'session'] : ['workspace', 'session'])
 			: [];
 		for (const menuActions of groups) {
 			for (let index = 0; index < menuActions.length; index++) {

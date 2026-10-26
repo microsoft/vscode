@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IFileService } from '../../../files/common/files.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -15,7 +17,7 @@ import { IRequestContext, IRequestOptions } from '../../../../base/parts/request
 import { IRequestService } from '../../../request/common/request.js';
 import { IGalleryMcpServer, IMcpServerInput, McpGalleryResolveStatus } from '../../common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus, McpGalleryResourceType } from '../../common/mcpGalleryManifest.js';
-import { McpGalleryService, UnsupportedMcpGalleryPackageError } from '../../common/mcpGalleryService.js';
+import { McpGalleryInvalidCursorError, McpGalleryService, UnsupportedMcpGalleryPackageError } from '../../common/mcpGalleryService.js';
 import { CustomizationMarketplaceService } from '../../../customizationMarketplace/common/customizationMarketplaceService.js';
 import { McpGalleryMarketplaceProvider } from '../../../customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -108,12 +110,16 @@ class StatusRequestService implements IRequestService {
 	readonly onDidCompleteRequest = Event.None;
 	readonly requests: IRequestOptions[] = [];
 
-	constructor(private readonly statusCode: number, private readonly body: string | ((options: IRequestOptions) => string) = '') { }
+	constructor(
+		private readonly statusCode: number,
+		private readonly body: string | ((options: IRequestOptions) => string) = '',
+		private readonly headers: IRequestContext['res']['headers'] = {},
+	) { }
 
 	async request(options: IRequestOptions): Promise<IRequestContext> {
 		this.requests.push(options);
 		return {
-			res: { statusCode: this.statusCode, headers: {} },
+			res: { statusCode: this.statusCode, headers: this.headers },
 			stream: bufferToStream(VSBuffer.fromString(typeof this.body === 'string' ? this.body : this.body(options))),
 		};
 	}
@@ -167,10 +173,10 @@ suite('McpGalleryService - marketplace pages', () => {
 	});
 
 	for (const total of [undefined, 491]) {
-		test(`composes 100-item browse pages from 99-item registry pages with ${total === undefined ? 'unknown' : 'explicit'} totals`, async () => {
+		test(`preserves 100-item registry pages with ${total === undefined ? 'unknown' : 'explicit'} totals`, async () => {
 			const requests = new StatusRequestService(200, options => JSON.stringify({
-				servers: Array.from({ length: 99 }, (_, index) => serverDocumentData(`io.github.owner/server-${index}`, ['npm'])),
-				metadata: { count: 99, total, nextCursor: options.url?.includes('cursor=') ? undefined : 'next-page' },
+				servers: Array.from({ length: 100 }, (_, index) => serverDocumentData(`io.github.owner/server-${options.url?.includes('cursor=') ? index + 100 : index}`, ['npm'])),
+				metadata: { count: 100, total, nextCursor: options.url?.includes('cursor=') ? undefined : 'next-page' },
 			}));
 			const manifests = createManifestService(manifest);
 			const gallery = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), manifests));
@@ -193,12 +199,12 @@ suite('McpGalleryService - marketplace pages', () => {
 				sourceErrors: page.sourceErrors,
 				next: { items: next.items.length, total: next.total, cursor: next.nextCursor },
 			}, {
-				requests: [`${SERVERS_URL}?limit=99&version=latest`, `${SERVERS_URL}?limit=99&version=latest&cursor=next-page`],
+				requests: [`${SERVERS_URL}?limit=100&version=latest`, `${SERVERS_URL}?limit=100&version=latest&cursor=next-page`],
 				items: 100,
 				total,
 				hasNextCursor: true,
 				sourceErrors: undefined,
-				next: { items: 98, total, cursor: undefined },
+				next: { items: 100, total, cursor: undefined },
 			});
 		});
 	}
@@ -250,6 +256,94 @@ suite('McpGalleryService - marketplace pages', () => {
 		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /HTTP 503/);
 		const legacy = await service.query(undefined, CancellationToken.None);
 		assert.deepStrictEqual(legacy.firstPage, { items: [], hasMore: false });
+	});
+
+	test('classifies a registry-issued invalid continuation cursor', async () => {
+		const requests = new StatusRequestService(400, 'Invalid cursor parameter');
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+
+		await assert.rejects(
+			service.queryPage({ pageSize: 30, cursor: 'registry-cursor' }, CancellationToken.None),
+			error => error instanceof McpGalleryInvalidCursorError,
+		);
+	});
+
+	test('reports rate limits with a bounded retry delay and suppresses requests during the cooldown', async () => {
+		const requests = new StatusRequestService(429, '', { 'retry-after': '7200' });
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 3600 seconds/);
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 3600 seconds/);
+
+		assert.strictEqual(requests.requests.length, 1);
+	});
+
+	test('scopes rate-limit cooldowns to the gallery query endpoint', async () => {
+		const otherServersUrl = 'https://other-registry.test/servers';
+		const requestedUrls: string[] = [];
+		const requests = new class extends mock<IRequestService>() {
+			override async request(options: IRequestOptions): Promise<IRequestContext> {
+				requestedUrls.push(options.url ?? '');
+				const rateLimited = options.url?.startsWith(SERVERS_URL);
+				return {
+					res: { statusCode: rateLimited ? 429 : 200, headers: rateLimited ? { 'retry-after': '60' } : {} },
+					stream: bufferToStream(VSBuffer.fromString(rateLimited ? '' : JSON.stringify({
+						servers: [serverDocumentData('io.github.owner/server', ['npm'])],
+						metadata: { count: 1 },
+					}))),
+				};
+			}
+		}();
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+		const otherManifest: IMcpGalleryManifest = {
+			...manifest,
+			resources: [{ id: otherServersUrl, type: McpGalleryResourceType.McpServersQueryService }],
+		};
+
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 60 seconds/);
+		const healthy = await service.queryPage({ pageSize: 30 }, CancellationToken.None, otherManifest);
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 60 seconds/);
+
+		assert.deepStrictEqual({
+			requestedUrls,
+			healthy: healthy.items.map(item => item.name),
+		}, {
+			requestedUrls: [
+				`${SERVERS_URL}?limit=30&version=latest`,
+				`${otherServersUrl}?limit=30&version=latest`,
+			],
+			healthy: ['io.github.owner/server'],
+		});
+	});
+
+	test('keeps a live cooldown after an overlapping request succeeds', async () => {
+		const responses: DeferredPromise<IRequestContext>[] = [];
+		const requests = new class extends mock<IRequestService>() {
+			override request(): Promise<IRequestContext> {
+				const response = new DeferredPromise<IRequestContext>();
+				responses.push(response);
+				return response.p;
+			}
+		}();
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+		const rateLimited = service.queryPage({ pageSize: 30 }, CancellationToken.None, manifest);
+		const successful = service.queryPage({ pageSize: 30 }, CancellationToken.None, manifest);
+		await responses[0].complete({
+			res: { statusCode: 429, headers: { 'retry-after': '60' } },
+			stream: bufferToStream(VSBuffer.fromString('')),
+		});
+		await assert.rejects(rateLimited, /Try again in 60 seconds/);
+		await responses[1].complete({
+			res: { statusCode: 200, headers: {} },
+			stream: bufferToStream(VSBuffer.fromString(JSON.stringify({
+				servers: [serverDocumentData('io.github.owner/server', ['npm'])],
+				metadata: { count: 1 },
+			}))),
+		});
+		await successful;
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None, manifest), /Try again in 60 seconds/);
+
+		assert.strictEqual(responses.length, 2);
 	});
 
 	test('does not invent a zero total when older registry responses omit count', async () => {

@@ -17,7 +17,7 @@ import { ICustomizationMarketplaceInstallService } from '../common/customization
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { ContributionEnablementState, IEnablementModel, isContributionDisabled, isContributionEnabled } from '../common/enablement.js';
-import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { buildEnablementContextMenuGroup } from './enablementActions.js';
@@ -174,6 +174,7 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 				agentPluginService.enablementModel,
 				workspaceService,
 				'agentPlugin',
+				state => setAgentPluginEnablement(plugin, agentPluginService.enablementModel, state),
 			));
 		}
 
@@ -216,12 +217,16 @@ type AgentHostPluginEnablementTarget = {
  * Routes a plugin enablement change to the client that owns its global decision
  * or to the agent host for all other scopes.
  */
-export function setAgentHostPluginEnablement(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, plugin: AgentHostPluginEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): void {
+export async function setAgentHostPluginEnablement(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, plugin: AgentHostPluginEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): Promise<void> {
 	if (kind === CustomizationEnablementKind.Global && plugin.clientId !== undefined) {
 		if (agentPluginService === undefined) {
 			throw new Error('A client-published plugin requires its client enablement service');
 		}
-		agentPluginService.enablementModel.setEnabled(plugin.uri.toString(), enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
+		const installed = agentPluginService.plugins.get().find(candidate => candidate.uri.toString() === plugin.uri);
+		if (!installed) {
+			throw new Error(localize('pluginNotAvailable', "Plugin '{0}' is no longer available.", plugin.uri));
+		}
+		await setAgentPluginEnablement(installed, agentPluginService.enablementModel, enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
 		return;
 	}
 	agentHostCustomizations.setCustomizationEnablement(sessionResource, plugin.id, plugin.enablement, kind, enabled);
@@ -233,7 +238,7 @@ export function createAgentHostEnablePluginAction(agentHostCustomizations: IAgen
 		id: 'agentPlugin.agentHost.enableContainer',
 		label: localize('agentHostPluginEnableContainer', "Enable Plugin"),
 		run: () => {
-			setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, plugin, kind, true);
+			return setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, plugin, kind, true);
 		},
 	};
 }
@@ -246,7 +251,7 @@ function createAgentHostPluginEnablementAction(agentHostCustomizations: IAgentHo
 		id: `agentPlugin.agentHost.${enabled ? 'enable' : 'disable'}.${scope}`,
 		label,
 		run: () => {
-			setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, customization, kind, enabled);
+			return setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, customization, kind, enabled);
 		},
 	};
 }
@@ -380,16 +385,15 @@ export function createEnablePluginDropDown(
 	enablementModel: IEnablementModel,
 	workspaceContextService: IWorkspaceContextService,
 ): EnablementDropDownAction {
-	const key = plugin.uri.toString();
 	const hasWorkspace = workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 
 	const enable = new EnablementSubAction('agentPlugin.enable', localize('enable', "Enable"), 'extension-action label prominent',
 		isContributionDisabled(plugin.enablement.get()),
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.EnabledProfile); return Promise.resolve(); });
+		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.EnabledProfile));
 
 	const enableWorkspace = new EnablementSubAction('agentPlugin.enableForWorkspace', localize('enableForWorkspace', "Enable (Workspace)"), 'extension-action label',
 		isContributionDisabled(plugin.enablement.get()) && hasWorkspace,
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.EnabledWorkspace); return Promise.resolve(); });
+		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.EnabledWorkspace));
 
 	return new EnablementDropDownAction('agentPlugin.enableDropdown', [enable, enableWorkspace]);
 }
@@ -403,16 +407,15 @@ export function createDisablePluginDropDown(
 	enablementModel: IEnablementModel,
 	workspaceContextService: IWorkspaceContextService,
 ): EnablementDropDownAction {
-	const key = plugin.uri.toString();
 	const hasWorkspace = workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 
 	const disable = new EnablementSubAction('agentPlugin.disable', localize('disable', "Disable"), 'extension-action label disable',
 		isContributionEnabled(plugin.enablement.get()),
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.DisabledProfile); return Promise.resolve(); });
+		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.DisabledProfile));
 
 	const disableWorkspace = new EnablementSubAction('agentPlugin.disableForWorkspace', localize('disableForWorkspace', "Disable (Workspace)"), 'extension-action label disable',
 		isContributionEnabled(plugin.enablement.get()) && hasWorkspace,
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.DisabledWorkspace); return Promise.resolve(); });
+		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.DisabledWorkspace));
 
 	return new EnablementDropDownAction('agentPlugin.disableDropdown', [disable, disableWorkspace]);
 }

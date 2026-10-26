@@ -10,7 +10,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChat, ISession, ISessionChangeset, ISessionFileChange } from '../../common/session.js';
-import { ISessionChangesStats, MAX_CACHED_SESSION_CHANGES_STATS, readSessionChangesStats, SessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
+import { ISessionChangesStats, MAX_CACHED_SESSION_CHANGES_STATS, readLoadedChatChangesStats, readSessionChangesStats, SessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
 
 const stats = (files: number): ISessionChangesStats => ({ files, insertions: files * 10, deletions: files });
 
@@ -101,6 +101,42 @@ suite('readSessionChangesStats', () => {
 			reportedNone: { files: 0, insertions: 0, deletions: 0 },
 			summarized: { files: 5, insertions: 20, deletions: 7 },
 			fromMainChatChanges: { files: 1, insertions: 3, deletions: 1 },
+		});
+	});
+});
+
+suite('readLoadedChatChangesStats', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const change = { modifiedUri: URI.parse('test:///file.ts'), insertions: 3, deletions: 1 };
+
+	function stubChat(changes: readonly ISessionFileChange[], options: { loading?: boolean; summaryFiles?: number } = {}): IChat {
+		const changeset = upcastPartial<ISessionChangeset>({
+			id: 'branch',
+			isDefault: constObservable(true),
+			isLoadingChanges: constObservable(!!options.loading),
+			changes: constObservable(changes),
+		});
+		return upcastPartial<IChat>({
+			changes: constObservable(changes),
+			changesets: constObservable([changeset]),
+			changesSummary: options.summaryFiles === undefined ? undefined : constObservable({ files: options.summaryFiles, additions: 0, deletions: 0 }),
+		});
+	}
+
+	test('reports stats only once the chat file list is loaded', () => {
+		assert.deepStrictEqual({
+			loaded: readLoadedChatChangesStats(stubChat([change]), undefined),
+			noChanges: readLoadedChatChangesStats(stubChat([]), undefined),
+			noChangesConfirmedBySummary: readLoadedChatChangesStats(stubChat([], { summaryFiles: 0 }), undefined),
+			changesetLoading: readLoadedChatChangesStats(stubChat([], { loading: true }), undefined),
+			onlySummaryKnown: readLoadedChatChangesStats(stubChat([], { summaryFiles: 2 }), undefined),
+		}, {
+			loaded: { files: 1, insertions: 3, deletions: 1 },
+			noChanges: { files: 0, insertions: 0, deletions: 0 },
+			noChangesConfirmedBySummary: { files: 0, insertions: 0, deletions: 0 },
+			changesetLoading: undefined,
+			onlySummaryKnown: undefined,
 		});
 	});
 });

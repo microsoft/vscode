@@ -262,6 +262,26 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		return this._connector?.isAvailable(workspaceUri) ?? Promise.resolve(false);
 	}
 
+	getWorkspaces(): readonly { readonly workspaceUri: URI; readonly name: string }[] {
+		return [...this._storedConnections.values()].map(connection => ({
+			workspaceUri: URI.parse(connection.workspaceUri),
+			name: connection.name,
+		}));
+	}
+
+	addWorkspace(workspaceUri: URI, name: string): void {
+		this._ensureProvider(workspaceUri, name);
+		this._storeConnection(workspaceUri, name);
+		this._onDidChangeAvailability.fire();
+	}
+
+	async removeWorkspace(workspaceUri: URI): Promise<void> {
+		await this.disconnect(workspaceUri);
+		const key = getComparisonKey(workspaceUri);
+		this._removeStoredConnection(key);
+		this._removeProvider(key);
+	}
+
 	getSandboxSupported(workspaceUri: URI): boolean | undefined {
 		return this._knownSandboxSupport.get(getComparisonKey(workspaceUri));
 	}

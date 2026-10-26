@@ -25,4 +25,4 @@
 - [AHP interoperability](../../../../../../.github/instructions/agent-host-interoperability.instructions.md): native protocol fields take precedence over optional host extensions.
 - [Generation and pin updates](../../../../../../build/agentHost/README.md): regenerate Copilot D declarations; never edit generated types manually.
 - [Metadata compatibility tests](../../test/common/metadataCompatibility.test.ts): source-selection and malformed-data contracts.
-- [Wire-to-feature tests](../../../../workbench/contrib/chat/test/browser/agentSessions/agentHostChatContribution.test.ts), suite `metadata wire-to-feature`: verify feature wiring across JSON serialization, not just parser behavior.
+- [Wire-to-feature tests](../../../../workbench/contrib/chat/test/browser/agentSessions/agentHostChatContribution.test.ts), suite `wire-to-feature`: verify feature wiring across JSON serialization, not just parser behavior.
