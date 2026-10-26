@@ -22,7 +22,7 @@ Remote picker visibility combines provider availability with a machine/profile-l
 
 Accepting a remote folder through the Environments, SSH, Tunnel, or WSL subpicker clears that provider's hidden preference before selecting the workspace; cancellation does not. Existing drafts retain their selected environment and validate submission against provider availability and connection state, independently of the hidden preference.
 
-The `sessions.chat.experimental.environmentPickerManageRemotes` setting gates management entry points and application of hidden preferences. When disabled, provider visibility follows its original availability rules and saved preferences are neither applied nor cleared by selection. Changes apply live; re-enabling restores the saved preferences.
+The default-enabled `sessions.chat.experimental.environmentPickerManageRemotes` setting gates application of hidden preferences. Management entry points and suppression of redundant per-entry Manage menus additionally require the Environment picker and remote agent hosts to be enabled. When management is disabled, provider visibility follows its original availability rules and saved preferences are neither applied nor cleared by selection. Changes apply live; re-enabling restores the saved preferences.
 
 ## Registration
 

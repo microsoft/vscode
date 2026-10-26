@@ -26,6 +26,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../services/sessions/common/sessionsProvider.js';
 import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
+import { getNoWorkspaceChoicePresentation } from './noWorkspaceChoice.js';
 import { INestedChatFolderSources, isSameNestedChatWorkspace, NestedChatWorkspaceControls } from './nestedChatWorkspacePicker.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -146,6 +147,10 @@ export class NewChatInSessionWidget extends Disposable {
 			resolveFolder: (folder, token) => this._requireProvider().resolveNestedChatFolder(this._requireSession().sessionId, folder, token),
 			getBranches: (folder, token) => this._requireProvider().getNestedChatBranches(this._requireSession().sessionId, folder, '', token),
 			getFolderSources: () => this._getFolderSources(),
+			describeNoWorkspace: () => {
+				const session = this._session.get();
+				return getNoWorkspaceChoicePresentation(this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING), session && this.sessionsProvidersService.getProvider(session.providerId));
+			},
 			describeFolder: folder => {
 				const session = this._session.get();
 				const workspace = session && this.sessionsProvidersService.getProvider(session.providerId)?.resolveWorkspace(folder);

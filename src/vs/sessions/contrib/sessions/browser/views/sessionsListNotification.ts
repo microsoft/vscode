@@ -81,7 +81,7 @@ export class SessionsListNotification extends Disposable {
 	 * indeterminate progress bar instead of a countdown and is not announced: its result is.
 	 */
 	showProgress(notice: ISessionsListProgressNotice): void {
-		const { store, element, closeBar, dismiss } = this.createNotice(notice.message, false);
+		const { store, element, closeBar, dismiss } = this.createNotice(notice.message, false, true);
 		element.classList.add('in-progress');
 		this.setHelpHint(dismiss.focusElement);
 		this.accessibilityHelp = () => {
@@ -99,7 +99,7 @@ export class SessionsListNotification extends Disposable {
 	/** Shows a change or result for ten seconds, offering Undo when the notice can revert it. */
 	show(notice: ISessionsListNotice): void {
 		const { message } = notice;
-		const { store, element, closeBar, dismiss: dismissItem, progress } = this.createNotice(message, !!notice.warning);
+		const { store, element, closeBar, dismiss: dismissItem, progress } = this.createNotice(message, !!notice.warning, !!notice.undo);
 		let undoButton: Button | undefined;
 		if (notice.undo) {
 			undoButton = store.add(new Button(element, { ...defaultButtonStyles, secondary: true, small: true }));
@@ -110,7 +110,9 @@ export class SessionsListNotification extends Disposable {
 		}
 		this.setHelpHint(undoButton?.element ?? dismissItem.focusElement);
 		const duration = 10_000;
-		progress.style.animationDuration = `${duration}ms`;
+		if (progress) {
+			progress.style.animationDuration = `${duration}ms`;
+		}
 
 		let remaining = duration;
 		let started = Date.now();
@@ -129,7 +131,9 @@ export class SessionsListNotification extends Disposable {
 				started = Date.now();
 				dismiss.schedule(remaining);
 			}
-			progress.style.animationPlayState = paused ? 'paused' : 'running';
+			if (progress) {
+				progress.style.animationPlayState = paused ? 'paused' : 'running';
+			}
 		};
 		store.add(DOM.addDisposableListener(element, DOM.EventType.MOUSE_ENTER, () => { hovered = true; updateTimer(); }));
 		store.add(DOM.addDisposableListener(element, DOM.EventType.MOUSE_LEAVE, () => { hovered = false; updateTimer(); }));
@@ -174,7 +178,7 @@ export class SessionsListNotification extends Disposable {
 				{ type: AccessibleViewType.Help },
 				() => notice.undo
 					? localize('sessionsListNoticeHelp', "{0}\n{1}\nUse Tab and Shift+Tab to reach Undo and Dismiss. Press Enter or Space to activate them, or Escape to dismiss the notice.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open. The bar along the bottom shows the remaining time.", message, notice.help)
-					: localize('sessionsListResultNoticeHelp', "{0}\n{1}\nUse Tab and Shift+Tab to reach Dismiss. Press Enter or Space to activate it, or Escape to dismiss the notice.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open. The bar along the bottom shows the remaining time.", message, notice.help),
+					: localize('sessionsListResultNoticeHelp', "{0}\n{1}\nUse Tab and Shift+Tab to reach Dismiss. Press Enter or Space to activate it, or Escape to dismiss the notice.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open.", message, notice.help),
 				() => {
 					this.restoreFocusAfterHelp(store, element, activeElement, () => undoButton ? undoButton.focus() : closeBar.focus());
 					closeHelp();
@@ -193,8 +197,8 @@ export class SessionsListNotification extends Disposable {
 		}
 	}
 
-	/** Replaces the current notice by a new one showing `message`, with Dismiss and a progress bar. */
-	private createNotice(message: string, warning: boolean): { readonly store: DisposableStore; readonly element: HTMLElement; readonly closeBar: ActionBar; readonly dismiss: DismissActionViewItem; readonly progress: HTMLElement } {
+	/** Replaces the current notice by a new one showing `message`, with Dismiss and, when `showBar` is set, a progress bar. */
+	private createNotice(message: string, warning: boolean, showBar: boolean): { readonly store: DisposableStore; readonly element: HTMLElement; readonly closeBar: ActionBar; readonly dismiss: DismissActionViewItem; readonly progress: HTMLElement | undefined } {
 		this.notification.clear();
 		const store = this.notification.value = new DisposableStore();
 		const element = DOM.append(this.container, DOM.$('.sessions-list-notification'));
@@ -226,9 +230,12 @@ export class SessionsListNotification extends Disposable {
 				this.notification.clear();
 			}
 		}));
-		const progressClip = DOM.append(element, DOM.$('.sessions-list-notification-progress-clip'));
-		progressClip.setAttribute('aria-hidden', 'true');
-		const progress = DOM.append(progressClip, DOM.$('.sessions-list-notification-progress'));
+		let progress: HTMLElement | undefined;
+		if (showBar) {
+			const progressClip = DOM.append(element, DOM.$('.sessions-list-notification-progress-clip'));
+			progressClip.setAttribute('aria-hidden', 'true');
+			progress = DOM.append(progressClip, DOM.$('.sessions-list-notification-progress'));
+		}
 		return { store, element, closeBar, dismiss: dismiss!, progress };
 	}
 

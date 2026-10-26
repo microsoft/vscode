@@ -46,7 +46,7 @@ import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '..
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
 import { IWorkbenchGitHubService } from '../../../../workbench/services/github/common/githubService.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { SessionArtifactKind, isSessionArtifactVisibleInChat, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
@@ -107,7 +107,7 @@ function artifactValueKey(artifact: ISessionArtifact): string {
 	if (artifact.uri) {
 		return getChatImageResourceComparisonKey(artifact.uri);
 	}
-	return (artifact.link?.toString() ?? artifact.commitHash ?? artifact.id).toLowerCase();
+	return getSessionArtifactKey(artifact) ?? artifact.id;
 }
 
 /**
@@ -528,6 +528,7 @@ export class SessionArtifacts extends Disposable {
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 	/** Sections for the references pill: what the session points the user at. */
 	readonly referenceSections: IObservable<readonly IChatPillSection[]>;
+	/** Undecorated entries of the artifacts and references an integration presents; see {@link getPresentation}. */
 	readonly integratedEntries: IObservable<readonly IChatPillEntry[]>;
 
 	constructor(
@@ -561,10 +562,7 @@ export class SessionArtifacts extends Disposable {
 		const commitHoverCache = this._register(new ChatPillHoverCache());
 		const gitHubResolver = this._register(new GitHubResourceDetailsResolver(workbenchGitHubService, logService));
 		// The session publishes every chat's records; this surface shows only the focused chat's, like the GitHub pills.
-		const chatArtifacts = derived(this, reader => {
-			const focusedChat = chat.read(reader);
-			return (session.read(reader)?.artifacts?.read(reader) ?? []).filter(artifact => isSessionArtifactVisibleInChat(artifact, focusedChat));
-		});
+		const chatArtifacts = derived(this, reader => getChatSessionArtifacts(session.read(reader), chat.read(reader), reader));
 		this._register(autorun(reader => {
 			const current = session.read(reader);
 			const artifacts = chatArtifacts.read(reader);
@@ -720,7 +718,7 @@ export class SessionArtifacts extends Disposable {
 				}
 				const target = artifact.kind === SessionArtifactKind.Commit && artifact.link ? parseGitHubCommitTarget(artifact.link) : undefined;
 				const entry = toEntry(artifact, actions, this._labelService, target ? commitResolver.get(target).read(reader) : undefined);
-				return entry ? [this.decorateEntry(entry, reader)] : [];
+				return entry ? [entry] : [];
 			});
 		});
 
@@ -774,6 +772,10 @@ export class SessionArtifacts extends Disposable {
 
 	decorateEntry(entry: IChatPillEntry, reader: IReader): IChatPillEntry {
 		return this.presentations.read(reader).get(entry.id)?.decorate(entry, reader) ?? entry;
+	}
+
+	getPresentation(id: string, reader: IReader): ArtifactIntegrationPresentation | undefined {
+		return this.presentations.read(reader).get(id);
 	}
 
 	hasIntegration(id: string, reader: IReader): boolean {

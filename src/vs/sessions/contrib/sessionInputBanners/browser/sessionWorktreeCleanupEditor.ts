@@ -36,7 +36,7 @@ import { IEditorGroup } from '../../../../workbench/services/editor/common/edito
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { SessionWorktreeCleanupEditorFocusedContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, CLEANUP_THRESHOLD_BYTES, CLEANUP_THRESHOLD_WORKTREES, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService, SessionWorktreeCleanupState } from './sessionWorktreeCleanupService.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, CLEANUP_THRESHOLD_BYTES, CLEANUP_THRESHOLD_WORKTREES, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService, ISessionWorktreeMeasurementProgress, SessionWorktreeCleanupState } from './sessionWorktreeCleanupService.js';
 import { SessionWorktreeCleanupEditorInput } from './sessionWorktreeCleanupEditorInput.js';
 import './media/sessionWorktreeCleanupEditor.css';
 
@@ -73,6 +73,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private unavailableList: HTMLElement | undefined;
 	private summary: HTMLElement | undefined;
 	private summaryRow: HTMLElement | undefined;
+	private measurementProgress: HTMLElement | undefined;
 	private tableHeader: HTMLElement | undefined;
 	private emptyState: HTMLElement | undefined;
 	private emptyStateMessage: HTMLElement | undefined;
@@ -160,6 +161,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			this.renderRows();
 		}));
 
+		this.measurementProgress = dom.append(content, dom.$('p.session-worktree-cleanup-measurement-progress', { role: 'status', 'aria-live': 'polite' }));
+		dom.hide(this.measurementProgress);
 		const summaryRow = this.summaryRow = dom.append(content, dom.$('.session-worktree-cleanup-summary-row'));
 		this.summary = dom.append(summaryRow, dom.$('.session-worktree-cleanup-summary'));
 		this.cleanupButton = this.editorDisposables.add(new Button(summaryRow, defaultButtonStyles));
@@ -249,11 +252,23 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.loadToken = cancellation.token;
 		this.loadDisposables.add(toDisposable(() => cancellation.dispose(true)));
 		const seenDefaultSelection = new Set<string>();
+		let measurementProgress: ISessionWorktreeMeasurementProgress | undefined;
 		const update = (worktrees: readonly ISessionWorktree[]) => {
 			if (version !== this.renderVersion || !this.list || !this.summary) {
 				return;
 			}
 			this.worktrees = worktrees;
+			if (this.measurementProgress) {
+				const total = measurementProgress?.totalWorktrees ?? worktrees.reduce((count, worktree) => count + worktree.worktreeCount, 0);
+				const processed = measurementProgress?.scannedWorktrees ?? worktrees.reduce((count, worktree) => count + (worktree.isMeasuring ? 0 : worktree.worktreeCount), 0);
+				dom.setVisibility(total > 0, this.measurementProgress);
+				const progress = processed < total
+					? localize('sessionWorktreeCleanup.measurementProgress', "Measuring worktree storage: {0} of {1} worktrees processed.", processed, total)
+					: localize('sessionWorktreeCleanup.measurementComplete', "Worktree storage scan complete: {0} of {1} worktrees processed.", processed, total);
+				if (this.measurementProgress.textContent !== progress) {
+					this.measurementProgress.textContent = progress;
+				}
+			}
 			for (const id of this.cleaningSessionIds.keys()) {
 				if (!worktrees.some(worktree => worktree.session.sessionId === id)) {
 					this.cleaningSessionIds.delete(id);
@@ -286,7 +301,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			}
 		}, 100));
 		let publishedInitial = false;
-		const scheduleUpdate = (worktrees: readonly ISessionWorktree[]) => {
+		const scheduleUpdate = (worktrees: readonly ISessionWorktree[], progress?: ISessionWorktreeMeasurementProgress) => {
+			measurementProgress = progress ?? measurementProgress;
 			if (!publishedInitial) {
 				publishedInitial = true;
 				update(worktrees);
@@ -318,6 +334,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 		this.selectedSessionIds.clear();
 		this.emptyState?.classList.add('hidden');
+		if (this.measurementProgress) {
+			dom.hide(this.measurementProgress);
+		}
 		if (this.summary) {
 			dom.clearNode(this.summary);
 			dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, localize('sessionWorktreeCleanup.loading', "Measuring worktree storage...")));
@@ -332,6 +351,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			}
 		} catch (error) {
 			if (version === this.renderVersion && this.summary) {
+				if (this.measurementProgress) {
+					dom.hide(this.measurementProgress);
+				}
 				dom.clearNode(this.summary);
 				dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, isCancellationError(error)
 					? localize('sessionWorktreeCleanup.loadCanceled', "Worktree measurement canceled.")

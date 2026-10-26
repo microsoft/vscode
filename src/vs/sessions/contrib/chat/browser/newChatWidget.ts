@@ -36,6 +36,7 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPA
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { getNoWorkspaceDescription, getQuickChatProviderLabel, getRemoteQuickChatSelectedLabel } from './noWorkspaceChoice.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
@@ -1539,12 +1540,9 @@ export class NewChatWidget extends Disposable {
 		const activeProvider = activeProviderId ? quickChatProviders.find(provider => provider.id === activeProviderId) : undefined;
 		const submenuActions = providers.length > 1
 			? providers.map(provider => {
-				const label = provider.id === LOCAL_AGENT_HOST_PROVIDER_ID
-					? localize('newSessionWorkspacePicker.localQuickChat', "This Computer")
-					: provider.label;
 				const action = toAction({
 					id: `newSessionWorkspacePicker.quickChat.${provider.id}`,
-					label,
+					label: getQuickChatProviderLabel(provider),
 					checked: provider.id === activeProviderId,
 					run: () => {
 						if (isAvailable(provider) && provider.id !== activeProviderId) {
@@ -1556,10 +1554,10 @@ export class NewChatWidget extends Disposable {
 			})
 			: undefined;
 		return {
-			description: localize('newSessionWorkspacePicker.noWorkspaceDescription', "Start without a backing workspace"),
+			description: getNoWorkspaceDescription(),
 			isSelected: isWorkspacePickerQuickChat,
 			selectedLabel: activeProvider && activeProvider.id !== LOCAL_AGENT_HOST_PROVIDER_ID && !environment?.providerIds.includes(activeProvider.id)
-				? localize('newSessionWorkspacePicker.remoteQuickChat', "Chat [{0}]", activeProvider.label)
+				? getRemoteQuickChatSelectedLabel(activeProvider)
 				: undefined,
 			select: () => {
 				if (!isWorkspacePickerQuickChat) {

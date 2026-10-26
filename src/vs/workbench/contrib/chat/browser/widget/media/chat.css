@@ -1467,11 +1467,33 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background: var(--vscode-button-hoverBackground);
 }
 
-/* A host-provided label (for example "Run 3 Attempts") sits before the button. */
+/* A host-provided label (for example "Run 3 Attempts") shares the button surface. */
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button.labeled {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
+	padding-left: var(--vscode-spacing-size80);
+
+	&:not(.disabled) {
+		background-color: var(--vscode-button-background);
+		box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastBorder, transparent);
+
+		> .chat-submit-button-label {
+			color: var(--vscode-button-foreground);
+		}
+
+		> .action-label {
+			background: transparent;
+		}
+
+		&:is(:hover, .hovered, :focus-within) {
+			background-color: var(--vscode-button-hoverBackground);
+
+			> .action-label {
+				background: transparent;
+			}
+		}
+	}
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .chat-submit-button-label {
@@ -3385,7 +3407,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.interactive-session .chat-summary-list .monaco-list .monaco-list-row:hover {
+.interactive-session .chat-summary-list .monaco-list .monaco-list-row:hover:not(.selected):not(.focused) {
 	background-color: var(--vscode-list-hoverBackground) !important;
 }
 

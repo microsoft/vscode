@@ -44,7 +44,7 @@ import { SessionsArchiveActionsContribution } from '../../browser/views/sessions
 import { createListHarness, createSession, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
-import { PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
+import { MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {
@@ -674,7 +674,7 @@ suite('Sessions list context menus', () => {
 		}
 	});
 
-	test('a nested session\'s context menu knows whether the chat can move, for Promote to Session', () => {
+	test('a nested session\'s context menu knows whether the chat can move, for Move to New Session', () => {
 		const chat = (title: string) => upcastPartial<IChat>({
 			resource: URI.parse(`test-chat:/${title}`),
 			workspace: constObservable(undefined),
@@ -703,7 +703,63 @@ suite('Sessions list context menus', () => {
 		assert.deepStrictEqual({ movable: canMove('Movable'), fixed: canMove('Fixed') }, { movable: true, fixed: false });
 	});
 
-	test('Promote to Session moves a nested session into a new session without a dialog, explaining a refusal', async () => {
+	test('the Move to Session... commands show on a nested session and on a session, only when moving is enabled and there is a destination', () => {
+		const item = (menu: MenuId, id: string) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(candidate => candidate.command.id === id);
+		const describe = (menu: MenuId, id: string, enabled: Record<string, unknown>, destinationKey: string) => {
+			const found = item(menu, id);
+			const shownWhen = (values: Record<string, unknown>) => !!found?.when?.evaluate({ getValue: <T>(key: string) => values[key] as T });
+			return {
+				title: found && (typeof found.command.title === 'string' ? found.command.title : found.command.title.value),
+				group: found?.group,
+				order: found?.order,
+				enabled: shownWhen(enabled),
+				settingOff: shownWhen({ ...enabled, 'config.chat.agentHost.moveChats.enabled': false }),
+				aiDisabled: shownWhen({ ...enabled, [ChatContextKeys.enabled.key]: false }),
+				noDestination: shownWhen({ ...enabled, [destinationKey]: false }),
+			};
+		};
+		const base = { 'config.chat.agentHost.moveChats.enabled': true, [ChatContextKeys.enabled.key]: true };
+
+		assert.deepStrictEqual({
+			chat: describe(Menus.SessionChatItemContext, MOVE_CHAT_TO_SESSION_ACTION_ID, { ...base, 'sessionChatItem.canMove': true, 'sessionChatItem.hasMoveDestination': true }, 'sessionChatItem.hasMoveDestination'),
+			session: { ...describe(MenuId.SessionItemContextMenu, MOVE_SESSION_INTO_SESSION_ACTION_ID, { ...base, 'sessionItem.hasMoveDestination': true }, 'sessionItem.hasMoveDestination'), multiSelection: { shown: !!item(MenuId.SessionItemContextMenu, MOVE_SESSION_INTO_SESSION_ACTION_ID)?.when?.evaluate({ getValue: <T>(key: string) => ({ ...base, 'sessionItem.hasMoveDestination': true, 'sessionItem.isMultiSelection': true } as Record<string, unknown>)[key] as T }), enabled: !!item(MenuId.SessionItemContextMenu, MOVE_SESSION_INTO_SESSION_ACTION_ID)?.command.precondition?.evaluate({ getValue: <T>(key: string) => ({ 'sessionItem.isMultiSelection': true } as Record<string, unknown>)[key] as T }) } },
+		}, {
+			chat: { title: 'Move to Session...', group: '1_move', order: 2, enabled: true, settingOff: false, aiDisabled: false, noDestination: false },
+			session: { title: 'Move to Session...', group: '1_move', order: 1, enabled: true, settingOff: false, aiDisabled: false, noDestination: false, multiSelection: { shown: true, enabled: false } },
+		});
+	});
+
+	test('a nested session\'s context menu knows whether another session can take it', () => {
+		const chat = (title: string) => upcastPartial<IChat>({
+			resource: URI.parse(`test-chat:/${title}`),
+			workspace: constObservable(undefined),
+			title: constObservable(title),
+			updatedAt: constObservable(new Date()),
+			status: constObservable(SessionStatus.Completed),
+			description: constObservable(undefined),
+			interactivity: constObservable(ChatInteractivity.Full),
+			isArchived: constObservable(false),
+			isRead: constObservable(true),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		});
+		const [main, nested] = [chat('Main'), chat('Nested')];
+		const own: ISession = { ...createSession('Own').session, chats: constObservable([main, nested]), mainChat: constObservable(main) };
+		const other = createSession('Other').session;
+		const hasDestination = (sessions: ISession[]) => {
+			const list = createList(false, false, SessionsGrouping.Date, sessions, [{ id: 'test.action', run: () => { } }]);
+			list.managementService.canMoveChat = () => true;
+			const row = [...list.container.querySelectorAll<HTMLElement>('.session-chat-item')].find(item => item.querySelector('.session-chat-title')?.textContent === 'Nested')!;
+			dispatchContextMenu(row);
+			list.contextMenuService.delegate?.onHide?.(false);
+			return list.menuContextKeyService()?.getContextKeyValue('sessionChatItem.hasMoveDestination');
+		};
+
+		assert.deepStrictEqual({ withOther: hasDestination([own, { ...other, capabilities: constObservable({ ...other.capabilities.get(), supportsMultipleChats: true }) }]), alone: hasDestination([own]) }, { withOther: true, alone: false });
+	});
+
+	test('Move to New Session moves a nested session into a new session without a dialog, explaining a refusal', async () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionChatItemContext).filter(isIMenuItem).find(candidate => candidate.command.id === PROMOTE_CHAT_TO_SESSION_ACTION_ID);
 		const shownWhen = (values: Record<string, unknown>) => !!item?.when?.evaluate({ getValue: <T>(key: string) => values[key] as T });
 		const enabled = { 'config.chat.agentHost.moveChats.enabled': true, [ChatContextKeys.enabled.key]: true, 'sessionChatItem.canMove': true };
@@ -741,7 +797,7 @@ suite('Sessions list context menus', () => {
 		const promote = (chat: IChat) => harness.instantiationService.invokeFunction(CommandsRegistry.getCommand(PROMOTE_CHAT_TO_SESSION_ACTION_ID)!.handler, { session, chat });
 
 		const results = [await promote(peer)];
-		refusal = 'Send a message in this chat before moving it to its own session.';
+		refusal = 'Send a message in this chat before moving it.';
 		results.push(await promote(peer));
 		refusal = undefined;
 		results.push(await promote(main));
@@ -761,14 +817,14 @@ suite('Sessions list context menus', () => {
 			results,
 			events,
 		}, {
-			title: 'Promote to Session',
+			title: 'Move to New Session',
 			group: '1_move',
 			order: 1,
 			shown: { enabled: true, settingOff: false, aiDisabled: false, notMovable: false },
 			results: [true, false, false, false],
 			events: [
 				'move Peer -> newSession',
-				'warn: Could not move \'Peer\'. Send a message in this chat before moving it to its own session.',
+				'warn: Could not move \'Peer\'. Send a message in this chat before moving it.',
 				// The main chat and a disabled setting don't move.
 			],
 		});
