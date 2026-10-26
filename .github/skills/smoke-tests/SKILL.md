@@ -43,7 +43,7 @@ The runner exits non-zero if any test fails, so a `0` exit code means every sele
 
 ### Sharding in PR CI
 
-The GitHub PR workflows split the Electron smoke tests with a matrix (`shard: [1, 2]`) on the `<os>-electron-smoke-test-shards` jobs in `.github/workflows/pr.yml`, which pass `--shard` to the runner. They report as `Electron-Smoke (shard 1/2) / <OS>` and `Electron-Smoke (shard 2/2) / <OS>`. The `PR Gate` job (`pr-gate`) reports a single check for every job of the workflow and fails if any shard did not succeed. The shards are skipped, and the gate passes, when the pull request only changes paths the smoke tests cannot read (see `.github/actions/detect-changes/detect.ts`). To change the shard count, edit the matrix list. Near the top of each shard's `smoke-test-runner.log`, a `Running smoke test shard <index>/<total>` line lists the suites that shard ran.
+The GitHub PR workflows split the Electron smoke tests into shards: the `electron-smoke-1` and `electron-smoke-2` jobs of `.github/workflows/pr-linux-test.yml`, `pr-darwin-test.yml` and `pr-win32-test.yml` pass their `SMOKE_SHARD_INDEX`/`SMOKE_SHARD_TOTAL` env to the runner as `--shard`. They report as `<OS> / Electron-Smoke (shard 1/2)` and `<OS> / Electron-Smoke (shard 2/2)`. The `PR Gate` job (`pr-gate`) reports a single check for every job of the workflow and fails if any shard did not succeed. The shards are skipped, and the gate passes, when the pull request only changes paths the smoke tests cannot read (see `.github/actions/detect-changes/detect.ts`). To change the shard count, add or remove `electron-smoke-<index>` jobs in the three workflows, and update the shard numbers in the names and env of all of them. Near the top of each shard's `smoke-test-runner.log`, a `Running smoke test shard <index>/<total>` line lists the suites that shard ran.
 
 Some placement is coupled to the workflows, and `test/smoke/src/shard.ts` encodes it:
 
@@ -89,7 +89,7 @@ Bash (Linux/macOS):
 # TEMPORARY: loop the suite to reproduce a flaky failure. Remove before merge.
 # Replace <suite name> with the suite you're investigating (e.g. "Agents Window").
 - name: 🧪 Smoke test flakiness probe (TEMPORARY)
-  if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1 }}
+  if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1' }}
   timeout-minutes: 60
   run: |
     for i in $(seq 1 20); do
