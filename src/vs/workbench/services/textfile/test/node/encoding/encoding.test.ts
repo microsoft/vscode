@@ -535,5 +535,15 @@ suite('Encoding', () => {
 		}
 	});
 
+	// Renderers keep a global AMD `define` because they load scripts asynchronously, node.js does not need it
+	if (typeof document === 'undefined') {
+		test('loading the encoding libraries leaves no global AMD define behind in node.js', async function () {
+			// With a global AMD `define`, UMD packages that are imported later register with it instead of exporting
+			await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
+			await importAMDNodeModule<typeof import('jschardet')>('jschardet', 'dist/jschardet.min.js');
+			assert.strictEqual((globalThis as { define?: unknown }).define, undefined);
+		});
+	}
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
