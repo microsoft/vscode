@@ -366,6 +366,23 @@ suite('Artifact Integration Protocol', () => {
 		], [true, false, false, false, false, false, false, false, false, false, false, true, true]);
 	});
 
+	test('wire snapshots accept an integration group label and per-artifact group icon with a finite priority', () => {
+		const view = { availability: { kind: 'available' as const }, sections: [], stateActions: [], generalActions: [], automationAvailability: [] };
+		const contribution = { integrationId: 'test', label: 'Test', actions: [], options: [], view, configuration: { revision: 0, values: {}, generations: {}, disablements: {} } };
+		const snapshot = { ...model().snapshot.get(), mainIntegrationId: 'test', contributions: [contribution] };
+		const withContribution = (changes: object) => ({ ...snapshot, contributions: [{ ...contribution, ...changes }] });
+		const withGroup = (group: unknown) => withContribution({ view: { ...view, group } });
+		assert.deepStrictEqual([
+			isArtifactSnapshot(withContribution({ groupLabel: 'Tests', view: { ...view, group: { icon: { id: 'beaker', colorId: 'charts.green' }, priority: 2 } } })),
+			isArtifactSnapshot(withContribution({ groupLabel: '' })),
+			isArtifactSnapshot(withContribution({ groupLabel: 'Two\nlines' })),
+			isArtifactSnapshot(withGroup({ icon: { id: 'beaker' }, priority: Number.POSITIVE_INFINITY })),
+			isArtifactSnapshot(withGroup({ icon: { id: 'beaker' }, priority: '2' })),
+			isArtifactSnapshot(withGroup({ icon: { id: 'not an icon' }, priority: 1 })),
+			isArtifactSnapshot(withGroup({ priority: 1 })),
+		], [true, false, false, false, false, false, false]);
+	});
+
 	test('detail pages have an explicit bounded shape', () => {
 		const details = { title: 'Details', availability: { kind: 'available' }, completeness: 'partial', links: [], items: Array.from({ length: 200 }, (_, index) => ({ id: String(index), label: 'Item', icon: { id: 'link' }, resource: 'https://example.test' })) };
 		assert.deepStrictEqual([

@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { getArtifactDetailsDescription, getArtifactDetailsItemLabel, getArtifactThemeIcon } from '../../../../platform/artifactIntegrations/browser/artifactDetailsList.js';
-import { ArtifactActionView, ArtifactAvailability, ArtifactContributionSnapshot, ArtifactDetails, ArtifactDetailsItem, ArtifactItemActionDescriptor, ArtifactRun, ArtifactSnapshot, artifactBindingId, IArtifactDetailsModel, isArtifactRunSettled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionView, ArtifactAvailability, ArtifactContributionSnapshot, ArtifactDetails, ArtifactDetailsItem, ArtifactItemActionDescriptor, ArtifactRun, ArtifactSnapshot, artifactBindingId, getArtifactMainContribution, IArtifactDetailsModel, isArtifactRunSettled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getChatPillEntryToolbarActions } from '../../../../workbench/browser/chatPills.js';
@@ -127,7 +127,7 @@ export class ArtifactDetailsModel extends Disposable {
 		this.changed.read(reader);
 		const snapshot = this.presentation.snapshot.read(reader);
 		const details = new Map([...this.leases].map(([id, lease]) => [id, lease.value.read(reader)]));
-		const contribution = snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId);
+		const contribution = getArtifactMainContribution(snapshot);
 		const main = contribution?.view.main;
 		const mainDetails = main && contribution ? details.get(key(contribution.integrationId, main.detailsId)) : undefined;
 		const title = mainDetails?.title || snapshot.artifact.label;

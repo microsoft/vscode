@@ -19585,6 +19585,107 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(invocationTimings.length, 1, 'only the local invocation has a renderer timing origin');
 		}));
 
+		for (const reportedModel of [undefined, 'actual-model']) {
+			test(`server-initiated turn records its response model footer (reported model: ${reportedModel})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const languageModels = new Map<string, ILanguageModelChatMetadata>([
+					['agent-host-copilot:selected-model', upcastPartial<ILanguageModelChatMetadata>({ name: 'Selected Model' })],
+					['agent-host-copilot:actual-model', upcastPartial<ILanguageModelChatMetadata>({ name: 'Actual Model' })],
+				]);
+				const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables, { languageModels });
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/server-turn-model-footer' });
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+				const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+				const initialTurn = registered.impl.invoke(makeRequest({ message: 'Init', sessionResource }), () => { }, [], CancellationToken.None);
+				await timeout(10);
+				const dispatch = agentHostService.turnActions[0];
+				const initialAction = dispatch.action as ITurnStartedAction;
+				const session = dispatch.channel.toString();
+				agentHostService.fireAction({ channel: session, action: initialAction, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+				agentHostService.fireAction({ channel: session, action: { type: ActionType.ChatTurnComplete, duration: 0, turnId: initialAction.turnId }, serverSeq: 2, origin: undefined });
+				await initialTurn;
+
+				const serverTurnId = 'server-turn-footer';
+				const results: IChatAgentResult[] = [];
+				const response = upcastPartial<IChatResponseModel>({
+					get result() { return results.at(-1) ?? { metadata: { preserved: true } }; },
+					setResult: (result: IChatAgentResult) => { results.push(result); },
+				});
+				chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+					getRequests: () => [upcastPartial<IChatRequestModel>({ id: serverTurnId, response })],
+					startEditingSession: () => { },
+				}));
+				agentHostService.fireAction({
+					channel: session,
+					action: { type: ActionType.ChatTurnStarted, startedAt: '2025-01-01T00:00:00.000Z', turnId: serverTurnId, message: { text: 'Continue from another client', origin: { kind: MessageKind.User }, model: { id: 'selected-model' } } },
+					serverSeq: 3, origin: undefined,
+				});
+				await timeout(10);
+				if (reportedModel) {
+					agentHostService.fireAction({
+						channel: session, action: { type: ActionType.ChatUsage, turnId: serverTurnId, usage: { model: reportedModel } },
+						serverSeq: 4, origin: undefined,
+					});
+				}
+				agentHostService.fireAction({
+					channel: session, action: { type: ActionType.ChatTurnComplete, duration: 0, turnId: serverTurnId },
+					serverSeq: 5, origin: undefined,
+				});
+				await timeout(10);
+				assert.deepStrictEqual({ results, complete: chatSession.isCompleteObs?.get() }, {
+					results: [{ metadata: { preserved: true }, details: reportedModel ? 'Actual Model' : 'Selected Model' }],
+					complete: true,
+				});
+			}));
+		}
+
+		test('server-initiated peer turn without model evidence does not borrow the default chat model', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:other-chat-model', upcastPartial<ILanguageModelChatMetadata>({ name: 'Other Chat Model' })],
+			]);
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { languageModels });
+			const resource = URI.parse('agent-host-copilot:/peer-model-attribution');
+			const backend = AgentSession.uri('copilot', 'peer-model-attribution');
+			const defaultChat = buildDefaultChatUri(backend.toString());
+			const peerChat = buildChatUri(backend.toString(), 'peer');
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Session', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			};
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat,
+				chats: [createDefaultChatSummary(summary, defaultChat), createDefaultChatSummary(summary, peerChat)],
+				turns: [{
+					id: 'default-turn', state: TurnState.Complete, responseParts: [], usage: undefined,
+					message: { text: 'Default chat', origin: { kind: MessageKind.User }, model: { id: 'other-chat-model' } },
+				}],
+			});
+			disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			const peerResource = resource.with({ fragment: 'peer' });
+			const peerSession = disposables.add(await sessionHandler.provideChatSessionContent(peerResource, CancellationToken.None));
+			const results: IChatAgentResult[] = [];
+			const response = upcastPartial<IChatResponseModel>({
+				setResult: (result: IChatAgentResult) => { results.push(result); },
+			});
+			chatService.setSession(peerResource, upcastPartial<IChatModel>({
+				sessionResource: peerResource, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+				getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'peer-turn', response })],
+				startEditingSession: () => { },
+			}));
+			agentHostService.fireAction({
+				channel: peerChat, serverSeq: 1, origin: undefined,
+				action: { type: ActionType.ChatTurnStarted, turnId: 'peer-turn', startedAt: new Date(0).toISOString(), message: { text: 'Peer chat', origin: { kind: MessageKind.User } } },
+			});
+			await timeout(10);
+			agentHostService.fireAction({
+				channel: peerChat, serverSeq: 2, origin: undefined,
+				action: { type: ActionType.ChatTurnComplete, turnId: 'peer-turn', duration: 0 },
+			});
+			await timeout(10);
+			assert.deepStrictEqual({ results, complete: peerSession.isCompleteObs?.get() }, { results: [], complete: true });
+		}));
+
 		test('server-initiated turn records the model Auto routed to on the response result', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/server-turn-resolved-model' });

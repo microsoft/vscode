@@ -50,6 +50,7 @@ export class ExtHostChatArtifactIntegrations extends Disposable implements ExtHo
 		const key = `extension.${ExtensionIdentifier.toKey(extension.identifier)}.${id}`;
 		if (typeof id !== 'string' || !id.trim() || this.providerIds.has(key) || !isArtifactIntegrationLabel(provider.label)
 			|| (provider.description !== undefined && !isArtifactIntegrationDescription(provider.description))
+			|| (provider.groupLabel !== undefined && !isArtifactIntegrationLabel(provider.groupLabel))
 			|| typeof provider.match !== 'function' || typeof provider.createArtifactIntegration !== 'function') {
 			throw new Error(`Invalid or duplicate artifact integration provider: ${id}`);
 		}
@@ -72,7 +73,13 @@ export class ExtHostChatArtifactIntegrations extends Disposable implements ExtHo
 			}
 			this.proxy.$unregisterProvider(handle);
 		}));
-		this.proxy.$registerProvider(handle, key, provider.label, options, typeof provider.signIn === 'function', provider.description);
+		this.proxy.$registerProvider(handle, key, {
+			label: provider.label,
+			...(provider.description !== undefined ? { description: provider.description } : {}),
+			...(provider.groupLabel !== undefined ? { groupLabel: provider.groupLabel } : {}),
+			automationOptions: options,
+			canSignIn: typeof provider.signIn === 'function',
+		});
 		if (provider.onDidChange) {
 			store.add(provider.onDidChange(() => this.proxy.$onDidChangeProvider(handle)));
 		}
@@ -523,6 +530,7 @@ function convertState(state: vscode.ChatArtifactIntegrationState, actions: Reado
 	const view = {
 		availability: state.availability ?? { kind: 'available' as const },
 		main: state.main ? part(state.main) : undefined,
+		...(state.group ? { group: { icon: convertIcon(state.group.icon), priority: state.group.priority } } : {}),
 		sections: (state.sections ?? []).map(section => ({ ...part(section), id: section.id })),
 		lists: state.lists?.map(list => ({
 			id: list.id, label: list.label, detailsId: list.detailsId,
