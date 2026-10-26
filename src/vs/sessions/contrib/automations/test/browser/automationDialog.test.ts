@@ -917,6 +917,25 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
+	test('A duplicated Repository draft keeps Repository selected and saves it', async () => {
+		const dialog = openDialog({
+			initialValues: {
+				name: 'Review Copy', prompt: 'Review changes', ownership: 'repository', enabled: true,
+				schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
+				target: { kind: 'workspace', folderUri: REPOSITORY, providerId: 'cloud', sessionTypeId: 'cloud-agent', isolation: { kind: 'default' } },
+			},
+		}, cloudConfiguration());
+		const radios = dialog.container.querySelectorAll<HTMLElement>('.automation-owner [role="radio"]');
+		const checked = Array.from(radios, radio => [radio.textContent, radio.getAttribute('aria-checked')]);
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.ok(result?.kind === 'create');
+		assert.deepStrictEqual({ checked, ownership: result.value.ownership }, {
+			checked: [['Only me', 'false'], ['Repository', 'true']],
+			ownership: 'repository',
+		});
+	});
+
 	test('Owner is read-only on edit, including legacy Only me, and never enters the update', async () => {
 		for (const ownership of [undefined, 'repository'] as const) {
 			const existing: IAutomationDescriptor = {
