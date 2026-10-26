@@ -20,7 +20,7 @@ import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
+import { SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListStateMigrationContribution } from './views/sessionsList.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import { SessionsListToolsContribution } from './sessionsListTools.js';
 import './sessionDetailsAction.js';
@@ -185,6 +185,8 @@ registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBar
 registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionListActionsExperimentContribution.ID, SessionListActionsExperimentContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsMouseNavigationContribution.ID, SessionsMouseNavigationContribution, WorkbenchPhase.BlockRestore);
+// Before the sessions view restores the list from the migrated state.
+registerWorkbenchContribution2(SessionsListStateMigrationContribution.ID, SessionsListStateMigrationContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTelemetryContribution.ID, SessionsTelemetryContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsAccountTelemetryContribution.ID, SessionsAccountTelemetryContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsWindowNotifier.ID, SessionsWindowNotifier, WorkbenchPhase.AfterRestored);

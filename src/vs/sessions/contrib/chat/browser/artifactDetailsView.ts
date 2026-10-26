@@ -71,6 +71,7 @@ export interface IArtifactActivityViewData {
 
 export interface IArtifactActivitiesViewData {
 	readonly expanded: boolean;
+	readonly loading: boolean;
 	readonly items: readonly IArtifactActivityViewData[];
 	readonly summary: string;
 	readonly message: string;
@@ -94,6 +95,7 @@ export interface IArtifactDetailsViewData {
 	readonly titleDescription: string;
 	readonly description: string;
 	readonly message: string;
+	readonly loading: boolean;
 	readonly lists: readonly IArtifactListViewData[];
 	/** The expanded state list; `undefined` when all lists are collapsed. */
 	readonly selectedList: string | undefined;

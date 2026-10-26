@@ -30,9 +30,9 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/work
 import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { getNewSessionSources, getSessionListChats, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext } from './sessionsList.js';
+import { canStartNewSessionLike, getNewSessionSources, getSessionListChats, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext } from './sessionsList.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -571,7 +571,7 @@ registerAction2(class ToggleCompactSessionsViewAction extends Action2 {
 			toggled: SessionsViewCompactContext,
 			menu: [{
 				id: Menus.SidebarSessionsHeader,
-				group: 'view',
+				group: '1_view',
 				order: 0,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 			}]
@@ -640,7 +640,7 @@ registerAction2(class CollapseAllGroupsAction extends Action2 {
 			id: 'sessionsViewPane.collapseAllGroups',
 			title: localize2('collapseAllGroups', "Collapse All Groups"),
 			category: SessionsCategories.Sessions,
-			menu: [{ id: Menus.SidebarSessionsHeader, group: 'view', order: 1, when: ChatContextKeys.enabled }]
+			menu: [{ id: Menus.SidebarSessionsHeader, group: '1_view', order: 1, when: ChatContextKeys.enabled }]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
@@ -694,8 +694,11 @@ const SessionGroupingSectionContext = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'environment'),
 );
 
-/** Opens a new session that starts in the workspace and environment of `session`. */
-async function openNewSessionLike(accessor: ServicesAccessor, session: ISession): Promise<void> {
+/**
+ * Opens a new session that starts in the workspace and environment of `session`, or in the
+ * composer's own choice of workspace without one.
+ */
+async function openNewSessionLike(accessor: ServicesAccessor, session: ISession | undefined): Promise<void> {
 	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 	const commandService = accessor.get(ICommandService);
@@ -703,9 +706,9 @@ async function openNewSessionLike(accessor: ServicesAccessor, session: ISession)
 	accessor.get(INewSessionComposerService).notifyUserWorkspaceSelection();
 	await sessionsService.openNewSession();
 
-	const folderUri = session.workspace.get()?.folders[0]?.root;
+	const folderUri = session?.workspace.get()?.folders[0]?.root;
 	const newSession = sessionsService.activeSession.get();
-	if (folderUri) {
+	if (session && folderUri) {
 		sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(folderUri, { providerId: session.providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
 	}
 
@@ -754,11 +757,12 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 			return;
 		}
 		// Sections spanning workspaces start like their most recently created available session.
-		const session = context.repository || context.environment
+		const source = context.repository || context.environment
 			? getNewSessionSources(context.sessions, accessor.get(ISessionsProvidersService))
 				.reduce<ISession | undefined>((latest, { session }) => !latest || session.createdAt.getTime() > latest.createdAt.getTime() ? session : latest, undefined)
 			: undefined;
-		return openNewSessionLike(accessor, session ?? context.sessions[0]);
+		// A section without one, such as one of only cloud sandbox sessions, falls back to a session it can start like, if any.
+		return openNewSessionLike(accessor, source ?? context.sessions.find(canStartNewSessionLike));
 	}
 });
 
@@ -945,7 +949,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 	constructor(private readonly wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).archiveAll;
 		super({
-			id: 'sessionsView.markAllInGroupAsDone',
+			id: ARCHIVE_SESSION_GROUP_COMMAND_ID,
 			title: action.title,
 			icon: action.icon,
 			menu: [{
@@ -1469,7 +1473,7 @@ registerAction2(class OpenParentSessionAction extends Action2 {
 	}
 });
 
-/** Moves a nested chat up or down among its session's chats in the Sessions list, through its provider, which owns their order. */
+/** Moves a nested chat up or down among its session's chats in the Sessions list, through its provider, which owns their order. Only offered when sorting by creation, as the list shows that order. */
 abstract class BaseMoveSessionListChatAction extends Action2 {
 	constructor(private readonly direction: 'up' | 'down') {
 		super({
@@ -1479,13 +1483,13 @@ abstract class BaseMoveSessionListChatAction extends Action2 {
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | (direction === 'up' ? KeyCode.UpArrow : KeyCode.DownArrow),
 				weight: KeybindingWeight.SessionsContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListFocusedChatItemContext, direction === 'up' ? SessionChatItemCanMoveUpContext : SessionChatItemCanMoveDownContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListFocusedChatItemContext, ContextKeyExpr.equals(SessionsViewSortingContext.key, SessionsSorting.Created), direction === 'up' ? SessionChatItemCanMoveUpContext : SessionChatItemCanMoveDownContext),
 			},
 			menu: [{
 				id: Menus.SessionChatItemContext,
 				group: '2_order',
 				order: direction === 'up' ? 1 : 2,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, direction === 'up' ? SessionChatItemCanMoveUpContext : SessionChatItemCanMoveDownContext),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(SessionsViewSortingContext.key, SessionsSorting.Created), direction === 'up' ? SessionChatItemCanMoveUpContext : SessionChatItemCanMoveDownContext),
 			}],
 		});
 	}

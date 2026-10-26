@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { MovedText } from './linesDiffComputer.js';
 import { DetailedLineRangeMapping } from './rangeMapping.js';
+import { LinesDiffValidity } from './verifyLinesDiff.js';
 import { ITextModel } from '../model.js';
 
 /**
@@ -74,6 +75,12 @@ export interface IDocumentDiff {
 	 * The original line ranges and the modified line ranges must be disjoint (but can be touching).
 	 */
 	readonly moves: readonly MovedText[];
+
+	/**
+	 * Whether applying the changes to the original reproduces the modified text.
+	 * Only set if verification was requested, which happens for a sample of diffs.
+	 */
+	readonly validity?: LinesDiffValidity;
 }
 
 

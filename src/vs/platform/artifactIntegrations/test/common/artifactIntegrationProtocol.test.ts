@@ -64,10 +64,14 @@ suite('Artifact Integration Protocol', () => {
 		const artifact = { ...f.snapshot.get().artifact, origin: { chat: 'vendor-chat://original?thread=opaque' } };
 		f.snapshot.set({ ...f.snapshot.get(), session: 'vendor-session://opaque', artifact }, undefined);
 		const notices: ArtifactAutomationNotice[] = [];
+		const changes = [{ integrationId: 'integration', optionId: 'analysis', label: 'Analysis', kind: 'enabled' as const, details: ['Analyses the artifact.'] }];
 		const server = store.add(new ArtifactIntegrationServer(f.access, async notice => { notices.push(notice); }));
 		const request = {
 			kind: 'notice' as const, subscription: 'notice',
-			notice: { kind: 'enabled' as const, content: 'Analysis enabled', iconId: 'beaker', session: 'wrong-session', artifact: { origin: { chat: 'wrong-chat' } } },
+			notice: {
+				kind: 'enabled' as const, content: 'Analysis enabled', iconId: 'beaker', session: 'wrong-session', artifact: { origin: { chat: 'wrong-chat' } },
+				changes, enabledRules: [{ integrationId: 'integration', labels: ['Analysis'] }],
+			},
 		};
 		await assert.rejects(server.request(request), /subscription not found/);
 		await server.request({ kind: 'acquire', subscription: 'notice', session: 'vendor-session://opaque', artifactId: 'artifact' });
@@ -75,7 +79,7 @@ suite('Artifact Integration Protocol', () => {
 		await server.request({ kind: 'release', subscription: 'notice' });
 		await assert.rejects(server.request(request), /subscription not found/);
 		assert.deepStrictEqual({ notices, counts: f.counts() }, {
-			notices: [{ session: 'vendor-session://opaque', artifact, kind: 'enabled', content: 'Analysis enabled', iconId: 'beaker' }],
+			notices: [{ session: 'vendor-session://opaque', artifact, kind: 'enabled', content: 'Analysis enabled', iconId: 'beaker', changes, enabledRules: [{ integrationId: 'integration', labels: ['Analysis'] }] }],
 			counts: { references: 0, detailReferences: 0 },
 		});
 	});
@@ -84,13 +88,23 @@ suite('Artifact Integration Protocol', () => {
 		const f = model();
 		const server = store.add(new ArtifactIntegrationServer(f.access));
 		const request = { kind: 'notice' as const, subscription: 'notice', notice: { kind: 'enabled' as const, content: 'Enabled' } };
+		const change = { integrationId: 'integration', optionId: 'fix', label: 'Fix', kind: 'enabled', details: ['Fixes failures.'] };
+		const enabledRules = [{ integrationId: 'integration', labels: ['Fix'] }];
 		await assert.rejects(server.request(request), /does not support/);
 		assert.deepStrictEqual([
 			isArtifactIntegrationRequest(request),
 			isArtifactIntegrationRequest({ ...request, notice: { kind: 'sent', content: 'Unsupported' } }),
 			isArtifactIntegrationRequest({ ...request, notice: { kind: 'enabled', content: '' } }),
 			isArtifactIntegrationRequest({ ...request, notice: { kind: 'enabled', content: 'Enabled', iconId: 'invalid icon' } }),
-		], [true, false, false, false]);
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [change], enabledRules } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [change] } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, enabledRules } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [], enabledRules: [] } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [{ ...change, kind: 'sent' }], enabledRules } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [{ ...change, details: [1] }], enabledRules } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [change, change], enabledRules } }),
+			isArtifactIntegrationRequest({ ...request, notice: { ...request.notice, changes: [change], enabledRules: [{ integrationId: 'other', labels: [] }] } }),
+		], [true, false, false, false, true, false, false, false, false, false, false, false]);
 	});
 
 	test('an update arriving before the acquire response is not overwritten by the older response', async () => {
