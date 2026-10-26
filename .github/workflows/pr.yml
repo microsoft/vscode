@@ -757,17 +757,43 @@ jobs:
         run: npm run test:completions-core
 
   # GitHub neither expands the matrix of a job that its if: skips nor evaluates the expressions in
-  # the name of a skipped job, so the name does not reference the matrix: GitHub appends the matrix
-  # values to it when the job runs, as in "chat-lib tests (ubuntu-latest)".
-  chat-lib-tests:
-    name: chat-lib tests
+  # the name of a skipped job, so each platform has its own job with a fixed name instead of a
+  # matrix over the operating systems.
+  chat-lib-linux-tests:
+    name: chat-lib - Test (Linux)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test chat-lib
+        uses: ./.github/actions/test-chat-lib
+
+  chat-lib-macos-tests:
+    name: chat-lib - Test (macOS)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test chat-lib
+        uses: ./.github/actions/test-chat-lib
+
+  chat-lib-windows-tests:
+    name: chat-lib - Test (Windows)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    runs-on: windows-latest
     timeout-minutes: 30
     permissions:
       contents: read
@@ -802,7 +828,9 @@ jobs:
       - copilot-check-telemetry
       - copilot-linux-tests
       - copilot-windows-tests
-      - chat-lib-tests
+      - chat-lib-linux-tests
+      - chat-lib-macos-tests
+      - chat-lib-windows-tests
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     steps:

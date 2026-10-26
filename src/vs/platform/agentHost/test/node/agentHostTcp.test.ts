@@ -19,7 +19,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../workspace/common/workspaceTrust.js';
 // This loopback integration test exercises the renderer client and native host together.
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
@@ -167,10 +166,7 @@ suite('AHP windowed TCP', function () {
 				override readonly onDidChangeTrustedFolders = Event.None;
 				override readonly onDidChangeTrust = Event.None;
 				override getTrustedUris(): URI[] { return []; }
-			}(), new class extends mock<IWorkspaceTrustRequestService>() { }(), new class extends mock<IDefaultAccountService>() {
-				override readonly policyData = null;
-				override readonly onDidChangePolicyData = Event.None;
-			}()));
+			}(), new class extends mock<IWorkspaceTrustRequestService>() { }()));
 		await client.connect();
 		return {
 			client, log, get wire() { return wire; }, port: address.port, newTransport: transport,
