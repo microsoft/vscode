@@ -36,7 +36,22 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
 3. **Point the extension at your local package**
 
-   **A. Use a `file:` dependency for a durable local setup**
+   **A. Override the webview build without changing installed dependencies**
+
+   Set `VSCODE_MARKDOWN_EDITOR_PATH` to the built local package directory in the shell running extension build/watch and manifest-generation commands:
+
+   ```powershell
+   $env:VSCODE_MARKDOWN_EDITOR_PATH = 'D:\src\vscode-packages\vscode-team-tools\packages\markdown-editor'
+   npm run watch-markdown-editor
+   ```
+
+   This overrides esbuild resolution for the package and all its exported subpaths, including CSS. Command contribution generation uses the same package selection. The watcher follows the selected package directory, including built output and source assets, but excludes its `node_modules` and `.git` directories. The build prints the selected real directory as `Markdown editor package override: ...`; `node_modules` still contains the installed dependency. No symlink, dependency-manifest edit, or lockfile edit is needed. Relative paths resolve against the build process's working directory. Invalid overrides fail explicitly instead of falling back to the installed package. Unset the variable to use the installed dependency (`Remove-Item Env:VSCODE_MARKDOWN_EDITOR_PATH` in PowerShell).
+
+   This is a build-time override: standalone TypeScript checks and other tools still resolve types from the installed dependency. Use a dependency link instead if those tools must also consume unpublished local type changes. Generated command contributions may still update tracked manifests when the package's commands change.
+
+   Run the override regression tests with `node --test ./scripts/markdownEditorPackage.test.mts` from this extension directory.
+
+   **B. Use a `file:` dependency for a durable local setup**
 
    Set the dependency in `extensions/markdown-language-features/package.json` to:
 
@@ -46,7 +61,7 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    Then run `npm install` in `extensions/markdown-language-features`. This updates `package.json` and `package-lock.json`, creates a local link, and survives later `npm install` runs. This is development-only; restore the dependency to a published version before submitting changes that should consume a release.
 
-   **B. Use `npm link` for a temporary setup**
+   **C. Use `npm link` for a temporary setup**
 
    In `vscode-packages/vscode-team-tools/packages/markdown-editor`, run:
 
@@ -80,12 +95,42 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `npm run build-markdown-editor` and `npm run watch-markdown-editor` regenerate them while preserving manual entries. Run `npm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
 
+### Embedded code-block editor presentation
+
+`markdown.codeBlockEditorProviders` contributions and export-API resolve results
+accept optional `presentation: { resizable, fullWidth, fullView, minHeight }`.
+The Markdown editor owns these controls, including for static/uncooperative
+pages. Resolve-result properties override contribution defaults; explicit
+provider properties override guest-advertised preferences. Keep the contribution
+schema, descriptor validation, RPC schema, equality checks, and static/export-API
+paths in sync when extending this contract.
+
+Undefined resolve-result properties inherit the contribution defaults; explicit `false` still overrides them. The extension consumes the published `@vscode/markdown-editor` package, which implements the controls and mode notifications.
+
+The implementation and interaction fixtures live in the local Markdown editor
+package. See its README's **Embedded editor presentation** section for the
+optional mode-notification messages and sizing precedence.
+
 ### Active block highlighting
 
 `markdown.editor.highlightActiveBlock` controls the rich editor's active-block
 background and glow, and defaults to enabled. Resource-specific changes are sent
 to the renderer without reloading the document or changing source-marker visibility.
 The webview reserves symmetric scrollbar gutters so the document remains centered.
+
+### Mermaid presentation
+
+Built-in Mermaid diagrams use the same iframe provider and host-owned resize,
+full-width, and full-view controls as contributed editors. The guest consumes
+source updates through `WebEditorClient`, renders errors visibly, and preserves
+the iframe across presentation changes. A contributed matching `mermaid` provider
+takes precedence over the built-in renderer. The Mermaid bundle loads lazily.
+Run `node --test scripts/mermaid.browser.test.mts` from this extension directory
+to verify rendering, live updates, error recovery, and presentation controls.
+
+### Rich editor diagnostics
+
+Built-in Markdown pull diagnostics use the language client's custom-editor tab tracking (provided by `vscode-languageclient` 9.0.1). A Markdown document opened only in the rich editor must receive diagnostics without a companion text-editor tab. Keep `diagnosticPullOptions.onTabs` and `onChange` enabled. When validating client upgrades, enable `markdown.validate.enabled`, open a broken link only in the rich editor, and verify that fixing it clears the diagnostic. The renderer continues to consume the existing VS Code diagnostic collections; no separate diagnostic provider is needed.
 
 ### Outline and breadcrumbs
 

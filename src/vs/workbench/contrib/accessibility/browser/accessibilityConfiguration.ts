@@ -49,11 +49,13 @@ export const enum ViewDimUnfocusedOpacityProperties {
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
+	MultiDiffEditorFileList = 'accessibility.verbosity.multiDiffEditorFileList',
 	MergeEditor = 'accessibility.verbosity.mergeEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	CustomizationMigrations = 'accessibility.verbosity.customizationMigrations',
 	McpServerConfiguration = 'accessibility.verbosity.mcpServerConfiguration',
 	CustomizationDiscovery = 'accessibility.verbosity.customizationDiscovery',
+	Remotes = 'accessibility.verbosity.remotes',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	TerminalInlineChat = 'accessibility.verbosity.terminalChat',
 	TerminalChatOutput = 'accessibility.verbosity.terminalChatOutput',
@@ -76,11 +78,14 @@ export const enum AccessibilityVerbositySettingId {
 	SessionWorktreeCleanup = 'accessibility.verbosity.sessionWorktreeCleanup',
 	NewSessionWelcome = 'accessibility.verbosity.newSessionWelcome',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
+	EmptyFileEditorSearch = 'accessibility.verbosity.emptyFileEditorSearch',
 	SessionsListNotification = 'accessibility.verbosity.sessionsListNotification',
+	SessionsGetStarted = 'accessibility.verbosity.sessionsGetStarted',
 	SessionCanvas = 'accessibility.verbosity.sessionCanvas',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
 	Automations = 'accessibility.verbosity.automations',
+	AgentsWindowExtensions = 'accessibility.verbosity.agentsWindowExtensions',
 	ConnectionDiagnostics = 'accessibility.verbosity.connectionDiagnostics',
 	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
 	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements'
@@ -152,6 +157,10 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.diffEditor.description', 'Provide information about how to navigate changes in the diff editor when it is focused.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.MultiDiffEditorFileList]: {
+			description: localize('verbosity.multiDiffEditorFileList.description', 'Provide information about how to navigate the changed files list in the multi diff editor when it is focused.'),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.Chat]: {
 			description: localize('verbosity.chat.description', 'Provide information about how to access the chat help menu when the chat input is focused.'),
 			...baseVerbosityProperty
@@ -166,6 +175,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.CustomizationDiscovery]: {
 			description: localize('verbosity.customizationDiscovery.description', "Provide information about how to access accessibility help when discovering customizations."),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Remotes]: {
+			description: localize('verbosity.remotes.description', "Provide information about how to access accessibility help when managing remotes."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.InlineChat]: {
@@ -198,6 +211,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.EmptyEditorHint]: {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.EmptyFileEditorSearch]: {
+			description: localize('verbosity.emptyFileEditorSearch', 'Provide information about how to use file search in the empty Files editor.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.ReplEditor]: {
@@ -257,6 +274,10 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.sessionsListNotification', "Provide information about how to access accessibility help for the Undo notice in the sessions list."),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.SessionsGetStarted]: {
+			description: localize('verbosity.sessionsGetStarted', "Provide information about how to access accessibility help for the Get Started checklist in the Sessions view."),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.SessionCanvas]: {
 			description: localize('verbosity.sessionCanvas', 'Provide information about how to access canvas accessibility help when a canvas is focused.'),
 			...baseVerbosityProperty
@@ -271,6 +292,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Automations]: {
 			description: localize('verbosity.automations', 'Provide information about how to use Automations management views, including keyboard navigation and how to inspect scheduled runs.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.AgentsWindowExtensions]: {
+			description: localize('verbosity.agentsWindowExtensions', "Provide information about how to access accessibility help when managing which extensions run in the Agents window."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.ConnectionDiagnostics]: {

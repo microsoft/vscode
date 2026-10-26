@@ -781,7 +781,7 @@ suite('Model picker destinations', () => {
 				oneChanged: getModelConfigSummary(model, createConfigurationAccess({ contextSize: 1000000 })),
 				noSchema: getModelConfigSummary(gpt, createConfigurationAccess()),
 			},
-			{ defaults: 'Medium · 264K', explicitDefaults: 'Medium · 264K', bothChanged: 'Extra high · 1M', oneChanged: 'Medium · 1M', noSchema: '132K' },
+			{ defaults: 'Medium · 264K', explicitDefaults: 'Medium · 264K', bothChanged: 'Extra high · 1M', oneChanged: 'Medium · 1M', noSchema: 'Max 132K' },
 		);
 	});
 
@@ -806,6 +806,28 @@ suite('Model picker destinations', () => {
 			description: 'Effort Level: Extra high, Context: 264K',
 			providerDefault: 'medium',
 		});
+
+	});
+
+	test('read-only option descriptions identify the managed value for screen readers', () => {
+		const model = createConfigurableModel();
+		const schema = model.metadata.configurationSchema!;
+		const access: IModelConfigurationAccess = {
+			...createConfigurationAccess(),
+			getModelConfigurationSchema: () => ({
+				properties: {
+					...schema.properties,
+					reasoningEffort: { ...schema.properties!.reasoningEffort, default: 'xhigh', readOnly: true },
+				},
+			}),
+		};
+		assert.deepStrictEqual({
+			summary: getModelConfigSummary(model, access),
+			description: getModelConfigDescription(model, access),
+		}, {
+			summary: 'Extra high · 264K',
+			description: 'Effort Level: Extra high, managed by the agent host, Context: 264K',
+		});
 	});
 
 	test('unknown settings and routing models never invent effective values', () => {
@@ -829,7 +851,7 @@ suite('Model picker destinations', () => {
 			auto: getModelConfigSummary(createModel('auto', 'Auto'), createConfigurationAccess()),
 			hydra: getModelConfigSummary(createModel('hydrafusion', 'HydraFusion', { modelGroupId: 'copilotcli' }), createConfigurationAccess()),
 			missing: getModelConfigSummary(undefined, createConfigurationAccess()),
-		}, { unresolved: undefined, stale: undefined, auto: undefined, hydra: undefined, missing: undefined });
+		}, { unresolved: 'Model default', stale: undefined, auto: undefined, hydra: undefined, missing: undefined });
 	});
 
 	test('effort-only and context-only models summarize the available settings', () => {
@@ -842,6 +864,6 @@ suite('Model picker destinations', () => {
 		assert.deepStrictEqual({
 			effort: summarize(['reasoningEffort']),
 			context: summarize(['contextSize']),
-		}, { effort: 'Medium · 132K', context: '264K' });
+		}, { effort: 'Medium · Max 132K', context: '264K' });
 	});
 });

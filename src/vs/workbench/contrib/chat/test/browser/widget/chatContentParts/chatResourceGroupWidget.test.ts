@@ -13,11 +13,14 @@ import { ResourceMap } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { dirname } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -25,6 +28,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IWebWorkerService } from '../../../../../../../platform/webWorker/browser/webWorkerService.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatResourceGroupWidget } from '../../../../browser/widget/chatContentParts/chatResourceGroupWidget.js';
 import { getGeneratedImageResultParts } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
@@ -129,10 +133,10 @@ suite('ChatResourceGroupWidget', () => {
 		});
 	}
 
-	function render(parts: IChatCollapsibleIODataPart[], inline = true, animateImageReveal = false, imageDimensions?: ResourceMap<dom.IDimension>): ChatResourceGroupWidget {
+	function render(parts: IChatCollapsibleIODataPart[], inline = true, animateImageReveal = false, imageDimensions?: ResourceMap<dom.IDimension>, revealSize?: number): ChatResourceGroupWidget {
 		const host = dom.append(mainWindow.document.body, dom.$(animateImageReveal ? '.chat-image-generation-single' : 'div'));
 		const container = dom.append(host, dom.$(inline ? '.chat-generated-image-result' : 'div'));
-		const imageReveal = animateImageReveal ? { container: host } : undefined;
+		const imageReveal = animateImageReveal ? { container: host, size: revealSize } : undefined;
 		const widget = store.add(instantiationService.createInstance(ChatResourceGroupWidget, parts, inline ? { imagePresentation: 'inline', showImageInHover: false, imageReveal, imageDimensions } : undefined));
 		container.appendChild(widget.domNode);
 		store.add(toDisposable(() => host.remove()));
@@ -149,6 +153,25 @@ suite('ChatResourceGroupWidget', () => {
 		}());
 		instantiationService.stub(IFileService, fileService);
 		return { content, fileService };
+	}
+
+	/** Resolves with the first element in `container` that matches `selector`, waiting for the DOM mutation that adds it. */
+	function waitForElement<T extends Element>(container: HTMLElement, selector: string): Promise<T> {
+		const existing = container.querySelector<T>(selector);
+		if (existing) {
+			return Promise.resolve(existing);
+		}
+		return new Promise(resolve => {
+			const observer = new MutationObserver(() => {
+				const element = container.querySelector<T>(selector);
+				if (element) {
+					observer.disconnect();
+					resolve(element);
+				}
+			});
+			observer.observe(container, { childList: true, subtree: true });
+			store.add(toDisposable(() => observer.disconnect()));
+		});
 	}
 
 	function snapshot(widget: ChatResourceGroupWidget) {
@@ -314,6 +337,7 @@ suite('ChatResourceGroupWidget', () => {
 		const container = widget.domNode.parentElement!;
 		container.classList.add('interactive-session');
 		container.style.setProperty('--vscode-strokeThickness', '1px');
+		container.style.setProperty('--chat-generated-image-max-height', '300px');
 		const reveal = widget.domNode.querySelector('.chat-image-reveal')!;
 		const image = reveal.querySelector<HTMLImageElement>('img')!;
 		const initial = { pending: reveal.classList.contains('pending'), busy: snapshot(widget).busy, hasSource: !!image.getAttribute('src'), width: reveal.getBoundingClientRect().width };
@@ -324,7 +348,7 @@ suite('ChatResourceGroupWidget', () => {
 			initial,
 			loaded: { pending: reveal.classList.contains('pending'), busy: snapshot(widget).busy, sameImage: reveal.querySelector('img') === image },
 		}, {
-			initial: { pending: true, busy: 'true', hasSource: false, width: 320 },
+			initial: { pending: true, busy: 'true', hasSource: false, width: 200 },
 			loaded: { pending: false, busy: 'false', sameImage: true },
 		});
 	});
@@ -357,7 +381,7 @@ suite('ChatResourceGroupWidget', () => {
 			await frame();
 			await frame();
 			const waiting = bandState();
-			const waitingHeight = reveal.getBoundingClientRect().height;
+			const waitingBounds = reveal.getBoundingClientRect();
 			const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 400, height: 240 });
 			const context = canvas.getContext('2d')!;
 			context.fillStyle = '#4682b4';
@@ -375,17 +399,69 @@ suite('ChatResourceGroupWidget', () => {
 			}
 			assert.deepStrictEqual({
 				waiting,
-				waitingHeight,
+				waitingSquare: Math.round(waitingBounds.width) === Math.round(waitingBounds.height),
 				sameField: reveal.querySelector('.chat-image-loading-glyphs') === field,
 				expansion: states,
 			}, {
 				waiting: { visible: true, painted: true },
-				waitingHeight: 50,
+				waitingSquare: true,
 				sameField: true,
 				expansion: Array.from({ length: 4 }, () => ({ visible: true, painted: true })),
 			});
 		});
 	}
+
+	test('a pending glyph square narrows with the chat while referenced image bytes load, so the image only grows from it', async () => {
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced(): boolean { return false; }
+		}());
+		const { content } = deferImageRead();
+		// The loader measured 200px where it loaded, in a 760px chat.
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png' }], true, true, undefined, 200);
+		const gallery = widget.domNode.parentElement!;
+		gallery.style.setProperty('--chat-generated-image-max-height', '300px');
+		const host = gallery.parentElement!;
+		const reveal = widget.domNode.querySelector<HTMLElement>('.chat-image-reveal')!;
+		const size = () => {
+			const bounds = reveal.getBoundingClientRect();
+			return [bounds.width, bounds.height];
+		};
+		host.style.width = '760px';
+		const wide = size();
+		host.style.width = '240px';
+		const narrow = size();
+		const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 600, height: 400 });
+		const context = canvas.getContext('2d')!;
+		context.fillStyle = '#4682b4';
+		context.fillRect(0, 0, canvas.width, canvas.height);
+		await content.complete(decodeBase64(canvas.toDataURL('image/png').split(',')[1]));
+		await retry(async () => assert.ok(reveal.classList.contains('revealing')), 20, 50);
+		const clock = reveal.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!.getAnimations()[0];
+		assert.ok(clock);
+		clock.pause();
+		const frames = [];
+		for (const fraction of [0, 1]) {
+			clock.currentTime = Number(clock.effect?.getTiming().duration) * fraction;
+			await new Promise<void>(resolve => store.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			frames.push(size());
+		}
+
+		// The square narrows to two thirds of the width beside the save action, 140px give or take the engine's rounding, which is the shortest edge any image shape is shown at, so this 240x160 image only grows from it.
+		const [narrowSize] = narrow;
+		assert.deepStrictEqual({
+			wide,
+			narrowSquare: narrow[0] === narrow[1],
+			narrowToShortestEdge: Math.abs(narrowSize - 140) <= 1,
+			revealStartsFromSquare: frames[0][0] === narrowSize && frames[0][1] === narrowSize,
+			revealEnd: frames[1],
+		}, {
+			wide: [200, 200],
+			narrowSquare: true,
+			narrowToShortestEdge: true,
+			revealStartsFromSquare: true,
+			revealEnd: [240, 160],
+		});
+	});
 
 	test('an image read failure removes the glyph band and keeps the error visible', async () => {
 		const { content } = deferImageRead();
@@ -471,16 +547,79 @@ suite('ChatResourceGroupWidget', () => {
 	test('ordinary tool resources keep their deferred attachment thumbnails', async () => {
 		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', base64Value: imageData }], false);
 		const initial = snapshot(widget);
-		await retry(async () => {
-			const image = widget.domNode.querySelector<HTMLImageElement>('img');
-			assert.ok(image?.complete && image.naturalWidth > 0);
-		}, 20, 50);
+		// The thumbnail replaces the placeholder only after a decode delay and an asynchronous canvas
+		// encode whose duration depends on renderer load, so wait for it instead of polling on a budget.
+		const image = await waitForElement<HTMLImageElement>(widget.domNode, 'img.chat-attached-context-pill-image');
+		await image.decode();
 
 		assert.deepStrictEqual({
 			initialFilePills: initial.filePills,
 			initialImages: initial.images,
 			finalImages: snapshot(widget).images,
+			decoded: image.naturalWidth > 0,
 			hoverImages: imageHovers.flatMap(hover => [...hover.querySelectorAll('img')]).length,
-		}, { initialFilePills: 1, initialImages: 0, finalImages: 1, hoverImages: 1 });
+		}, { initialFilePills: 1, initialImages: 0, finalImages: 1, decoded: true, hoverImages: 1 });
+	});
+
+	for (const inline of [false, true]) {
+		test(`${inline ? 'selected generated-image previews' : 'tool result thumbnails'} keep one image copy menu`, async () => {
+			const menus: Parameters<IContextMenuService['showContextMenu']>[0][] = [];
+			const clipboard = new TestClipboardService();
+			instantiationService.stub(IClipboardService, clipboard);
+			instantiationService.stub(IWebWorkerService, new class extends mock<IWebWorkerService>() {
+				override createWorkerClient(): never {
+					throw new Error('No worker in this test');
+				}
+			}());
+			instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+				showContextMenu: delegate => { menus.push(delegate); }
+			}));
+			const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', base64Value: imageData }], inline);
+			const image = await waitForElement<HTMLImageElement>(widget.domNode, 'img.chat-attached-context-pill-image');
+			await image.decode();
+			image.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			await timeout(0);
+			assert.deepStrictEqual(menus.map(menu => menu.getActions?.().map(action => action.label)), [['Copy Image', 'Copy Image Path']]);
+			await menus[0].getActions!()[0].run();
+			const bytes = clipboard.writtenImage!;
+			const bitmap = await createImageBitmap(new Blob([bytes as Uint8Array<ArrayBuffer>]));
+			try {
+				assert.deepStrictEqual([bitmap.width, bitmap.height], [1, 1]);
+			} finally {
+				bitmap.close();
+			}
+		});
+	}
+
+	test('closing a detached hover image menu returns focus to its owning tool attachment', async () => {
+		let menu: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			showContextMenu: delegate => { menu = delegate; }
+		}));
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', base64Value: imageData }], false);
+		await waitForElement(widget.domNode, 'img.chat-attached-context-pill-image');
+		const hover = imageHovers[0];
+		store.add(toDisposable(() => hover.remove()));
+		mainWindow.document.body.appendChild(hover);
+		const image = hover.querySelector('img')!;
+		image.focus();
+		image.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'ContextMenu', bubbles: true, cancelable: true }));
+		await timeout(0);
+		assert.ok(menu);
+		hover.remove();
+		menu.onHide?.(true);
+		assert.strictEqual(mainWindow.document.activeElement, widget.domNode.querySelector('.chat-attached-context-attachment'));
+	});
+
+	test('non-image tool results retain their resource save menu', async () => {
+		const menus: Parameters<IContextMenuService['showContextMenu']>[0][] = [];
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			showContextMenu: delegate => { menus.push(delegate); }
+		}));
+		const part: IChatCollapsibleIODataPart = { kind: 'data', uri: URI.file('/output/result.txt'), mimeType: 'text/plain' };
+		const widget = render([part], false);
+		widget.domNode.querySelector('.chat-attached-context-attachment')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		await timeout(0);
+		assert.deepStrictEqual(menus.filter(menu => !menu.getActions).map(menu => menu.getActionsContext?.()), [{ parts: [part] }]);
 	});
 });

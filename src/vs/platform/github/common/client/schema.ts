@@ -38,6 +38,13 @@ export namespace parse {
 		return value;
 	}
 
+	/** Reads a full lowercase hexadecimal Git SHA-1 or SHA-256 object ID. */
+	export const sha = refine(
+		string,
+		value => (value.length === 40 || value.length === 64) && !/[^a-f0-9]/.test(value),
+		'Expected a 40- or 64-character lowercase hexadecimal Git SHA',
+	);
+
 	const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 	/** Reads an RFC 3339 date-time string without changing its representation. */
@@ -63,6 +70,14 @@ export namespace parse {
 		return value;
 	}
 
+	/** Reads a finite nonnegative number, including fractional values. */
+	export function nonNegativeNumber(value: unknown): number {
+		if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+			throw new SchemaError('Expected a nonnegative number');
+		}
+		return value;
+	}
+
 	/** Reads a safe integer, including negative values. */
 	export function integer(value: unknown): number {
 		if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
@@ -84,31 +99,57 @@ export namespace parse {
 	/** Reads a nonnegative safe integer. */
 	export const nonNegativeInteger = range(0, Number.MAX_SAFE_INTEGER);
 
-	/** Parses every array element without dropping malformed entries. */
+	/** Reads a positive safe integer. */
+	export const positiveInteger = range(1, Number.MAX_SAFE_INTEGER);
+
+	/** Parses array elements, reusing the input unless an element changes. */
 	export function arrayOf<T>(parser: Parser<T>): Parser<T[]> {
 		return value => {
 			if (!Array.isArray(value)) {
 				throw new SchemaError('Expected an array');
 			}
-			return value.map((entry, index) => parseAt(entry, parser, index));
+			const array = value as unknown[];
+			let result: unknown[] | undefined;
+			for (let index = 0, length = array.length; index < length; index++) {
+				const entry = array[index];
+				const parsed = parseAt(entry, parser, index);
+				if (!Object.is(parsed, entry)) {
+					result ??= array.slice();
+					result[index] = parsed;
+				}
+			}
+			return (result ?? array) as T[];
 		};
 	}
 
 	/** Reads an array containing only strings. */
 	export const strings = arrayOf(string);
 
-	/** Builds a reusable object parser that omits unknown and undefined properties. */
+	/** Validates declared fields while retaining extra fields and reusing unchanged plain objects. */
 	export function object<T extends object>(schema: ObjectSchema<T>): Parser<T> {
+		return createObjectParser(schema, false);
+	}
+
+	/** Creates a fresh object containing only defined schema fields; nested values follow their own parsers. */
+	export function copyObject<T extends object>(schema: ObjectSchema<T>): Parser<T> {
+		return createObjectParser(schema, true);
+	}
+
+	function createObjectParser<T extends object>(schema: ObjectSchema<T>, copy: boolean): Parser<T> {
 		const keys = Object.keys(schema) as (keyof T & string)[];
 		return value => {
 			if (typeof value !== 'object' || value === null || Array.isArray(value)) {
 				throw new SchemaError('Expected an object');
 			}
 			const record = value as Record<string, unknown>;
-			const result: Record<string, unknown> = {};
+			let result: Record<string, unknown> = copy ? {} : Object.getPrototypeOf(record) === Object.prototype ? record : copyRecord(record);
 			for (const key of keys) {
-				const property = parseAt(Object.hasOwn(record, key) ? record[key] : undefined, schema[key], key);
-				if (property !== undefined) {
+				const entry = Object.hasOwn(record, key) ? record[key] : undefined;
+				const property = parseAt(entry, schema[key], key);
+				if (copy ? property !== undefined : !Object.is(property, entry)) {
+					if (result === record) {
+						result = copyRecord(record);
+					}
 					defineEntry(result, key, property);
 				}
 			}
@@ -116,18 +157,25 @@ export namespace parse {
 		};
 	}
 
-	/** Parses an object whose keys are supplied by the service. */
+	/** Parses service-supplied own values, reusing unchanged plain objects. */
 	export function dictionary<T>(parser: Parser<T>): Parser<Record<string, T>> {
 		return value => {
 			if (typeof value !== 'object' || value === null || Array.isArray(value)) {
 				throw new SchemaError('Expected a record');
 			}
 			const record = value as Record<string, unknown>;
-			const result: Record<string, T> = {};
-			for (const key of Object.keys(record)) {
-				defineEntry(result, key, parseAt(record[key], parser, key));
+			let result = Object.getPrototypeOf(record) === Object.prototype ? record : copyRecord(record);
+			for (const key of Object.getOwnPropertyNames(record)) {
+				const entry = record[key];
+				const property = parseAt(entry, parser, key);
+				if (!Object.is(property, entry)) {
+					if (result === record) {
+						result = copyRecord(record);
+					}
+					defineEntry(result, key, property);
+				}
 			}
-			return result;
+			return result as Record<string, T>;
 		};
 	}
 
@@ -166,7 +214,17 @@ export namespace parse {
 		return record as JsonObject;
 	}
 
-	/** Reads a declared string, numeric, or boolean literal. */
+	/** Reads one exact string, numeric, or boolean literal. */
+	export function exact<const T extends string | number | boolean>(expected: T): Parser<T> {
+		return value => {
+			if (value !== expected) {
+				throw new SchemaError('Expected a supported value');
+			}
+			return expected;
+		};
+	}
+
+	/** Reads one of the declared string, numeric, or boolean literals. */
 	export function oneOf<const T extends string | number | boolean>(...values: readonly T[]): Parser<T> {
 		const allowed = new Set<unknown>(values);
 		return value => {
@@ -197,8 +255,11 @@ export namespace parse {
 	}
 
 	/** Allows an omitted property without collapsing an explicit null. */
-	export function optional<T>(parser: Parser<T>): Parser<T | undefined> {
-		return value => value === undefined ? undefined : parser(value);
+	export function optional<T>(parser: Parser<T>): Parser<T | undefined>;
+	/** Uses the supplied default only for an omitted property. */
+	export function optional<T>(parser: Parser<T>, defaultValue: NoInfer<T>): Parser<T>;
+	export function optional<T>(parser: Parser<T>, defaultValue?: T): Parser<T | undefined> {
+		return value => value === undefined ? defaultValue : parser(value);
 	}
 
 	/** Allows an explicit null without accepting a missing property. */
@@ -239,6 +300,17 @@ export namespace parse {
 			}
 		}
 		return value as readonly JsonValue[];
+	}
+
+	/** Copies own fields, including non-enumerable values, into a plain object. */
+	function copyRecord(record: Record<string, unknown>): Record<string, unknown> {
+		const result = { ...record };
+		for (const key of Object.getOwnPropertyNames(record)) {
+			if (!Object.hasOwn(result, key)) {
+				defineEntry(result, key, record[key]);
+			}
+		}
+		return result;
 	}
 
 	/** Assigns an own property, defining `__proto__` as data instead of changing the prototype. */

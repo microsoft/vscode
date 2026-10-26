@@ -29,6 +29,11 @@ export class TestContextViewService extends mock<IContextViewService>() {
 		return this.current?.container;
 	}
 
+	/** The open context view's delegate, for checking where it asks to be placed. */
+	get delegate(): IContextViewDelegate | undefined {
+		return this.current?.delegate;
+	}
+
 	override showContextView(delegate: IContextViewDelegate): IOpenContextView {
 		this.hideContextView();
 		const container = append(mainWindow.document.body, $('.test-context-view'));

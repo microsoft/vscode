@@ -15,7 +15,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '.
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISubmenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ICommandHandler, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { ExplorerFolderContext } from '../../files/common/files.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -97,7 +96,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 		title: OpenTimelineAction.LABEL,
 		icon: timelineOpenIcon
 	},
-	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext)
+	when: ContextKeyExpr.and(ResourceContextKey.HasResource, TimelineHasProviderContext)
 }));
 
 const timelineFilter = registerIcon('timeline-filter', Codicon.filter, localize('timelineFilter', 'Icon for the filter timeline action.'));

@@ -12,8 +12,6 @@ import {
 	PullRequestFragment,
 	PullRequestInlineComment,
 	PullRequestMergeability,
-	PullRequestParticipant,
-	PullRequestParticipants,
 	PullRequestRef,
 	PullRequestReview,
 	PullRequestReviewThread,
@@ -26,16 +24,18 @@ import { arrayProperty, asObject, booleanProperty, idProperty, nextLink, normali
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
 import { PullRequestRequestPlanner } from './pullRequestRequestPlanner.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
+
+/** How long an idle check suite of an app other than GitHub Actions is awaited before it is considered not to report. */
+const idleCheckSuiteGracePeriod = 10 * 1000;
 
 export type PullRequestFragmentResult =
 	| { readonly fragment: 'core'; readonly value: PullRequestCore; readonly complete: true }
 	| { readonly fragment: 'topLevelComments'; readonly value: readonly PullRequestComment[]; readonly complete: true }
 	| { readonly fragment: 'submittedReviews'; readonly value: readonly PullRequestReview[]; readonly complete: true }
-	| { readonly fragment: 'inlineComments'; readonly value: readonly PullRequestInlineComment[]; readonly complete: true }
 	| { readonly fragment: 'reviewThreads'; readonly value: readonly PullRequestReviewThread[]; readonly complete: boolean; readonly headSha: string }
 	| { readonly fragment: 'checks'; readonly value: PullRequestChecks; readonly complete: boolean; readonly headSha: string }
-	| { readonly fragment: 'mergeability'; readonly value: PullRequestMergeability; readonly complete: boolean; readonly headSha: string }
-	| { readonly fragment: 'participants'; readonly value: PullRequestParticipants; readonly complete: true };
+	| { readonly fragment: 'mergeability'; readonly value: PullRequestMergeability; readonly complete: boolean; readonly headSha: string };
 
 export interface IPullRequestQuery {
 	promote(signal: AbortSignal, priority: PullRequestSubscriptionOptions['priority']): void;
@@ -120,7 +120,7 @@ const expectedCheckSuitesQuery = `query AgentHostPullRequestExpectedCheckSuites(
 			... on Commit {
 				oid
 				checkSuites(first: 100, after: $after) {
-					nodes { id status conclusion app { name slug } checkRuns(first: 1) { totalCount } }
+					nodes { id status conclusion createdAt app { name slug } checkRuns(first: 1) { totalCount } }
 					pageInfo { hasNextPage endCursor }
 				}
 			}
@@ -155,6 +155,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		private readonly _capabilities: IGitHubCapabilities,
 		private readonly _endpoint: IGitHubEndpointProvider,
 		private readonly _logService?: ILogService,
+		private readonly _clock: Pick<IRequestScheduler, 'now'> = systemRequestScheduler,
 	) { }
 
 	promote(signal: AbortSignal, priority: PullRequestSubscriptionOptions['priority']): void {
@@ -170,7 +171,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		signal: AbortSignal,
 	): Promise<PullRequestFragmentResult> {
 		const capabilities = needsCapabilities(fragment)
-			? await this._capabilities.getCapabilities(credential, undefined, signal)
+			? await this._capabilities.getCapabilities(credential, signal)
 			: restCapabilities;
 		const plan = this._planner.plan(fragment, options.priority, capabilities);
 		switch (fragment) {
@@ -188,13 +189,6 @@ export class PullRequestQueryService implements IPullRequestQuery {
 					fragment,
 					value: (await this._fetchRestArray(ref, credential, `pulls/${ref.number}/reviews?per_page=100`, signal, plan.priority))
 						.map(item => toReview(item, options.conversation?.includeBodies === true)),
-					complete: true,
-				};
-			case 'inlineComments':
-				return {
-					fragment,
-					value: (await this._fetchRestArray(ref, credential, `pulls/${ref.number}/comments?per_page=100`, signal, plan.priority))
-						.map(item => toInlineComment(item, options.conversation?.includeBodies === true)),
 					complete: true,
 				};
 			case 'reviewThreads':
@@ -257,12 +251,6 @@ export class PullRequestQueryService implements IPullRequestQuery {
 					headSha: mergeability.headSha,
 				};
 			}
-			case 'participants':
-				return {
-					fragment,
-					value: await this._fetchParticipants(ref, core, credential, signal, plan.priority),
-					complete: true,
-				};
 		}
 	}
 
@@ -528,13 +516,18 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				priority,
 				{ caller: 'github.pullRequestQuery' },
 			);
-			throwGraphQLErrors(response.errors);
+			throwGraphQLErrors(response.errors.filter(error => !isRefusedCheckSuiteApp(error)));
 			const commit = objectAt(response.data, 'repository', 'object');
 			if (requiredString(commit, 'oid') !== headSha) {
 				throw new GitHubRequestError('GitHub expected check suites were for an old pull request head', 'unknown');
 			}
 			const connection = objectProperty(commit, 'checkSuites');
-			suites.push(...arrayProperty(connection, 'nodes').map(toCheckSuite));
+			for (const node of arrayProperty(connection, 'nodes')) {
+				const suite = toExpectedCheckSuite(node, this._clock.now());
+				if (suite) {
+					suites.push(suite);
+				}
+			}
 			const pageInfo = pageInfoFrom(connection);
 			if (!pageInfo.hasNextPage) {
 				return suites;
@@ -669,36 +662,6 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		};
 	}
 
-	private async _fetchParticipants(
-		ref: PullRequestRef,
-		core: PullRequestCore | undefined,
-		credential: GitHubCredential,
-		signal: AbortSignal,
-		priority: import('./types.js').RequestPriority,
-	): Promise<PullRequestParticipants> {
-		const values = await this._fetchRestArray(ref, credential, `issues/${ref.number}/timeline?per_page=100`, signal, priority);
-		const participants = new Map<string, { actor: PullRequestParticipant; roles: Set<'author' | 'commenter' | 'reviewer'> }>();
-		if (core?.author) {
-			addParticipant(participants, core.author, 'author');
-		}
-		for (const value of values) {
-			const item = asObject(value, 'GitHub timeline event was malformed');
-			const actor = toActor(optionalObjectProperty(item, 'actor') ?? optionalObjectProperty(item, 'user'));
-			if (actor) {
-				addParticipant(participants, actor, 'commenter');
-			}
-			const reviewer = toActor(optionalObjectProperty(item, 'requested_reviewer'));
-			if (reviewer) {
-				addParticipant(participants, reviewer, 'reviewer');
-			}
-		}
-		return {
-			participants: [...participants.values()]
-				.map(({ actor, roles }) => ({ ...actor, roles: [...roles].sort() }))
-				.sort((left, right) => left.login.localeCompare(right.login)),
-		};
-	}
-
 	private _restUrl(ref: PullRequestRef, route: string): string {
 		return `${this._endpoint.getApiBaseUri()}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/${route}`;
 	}
@@ -707,7 +670,6 @@ export class PullRequestQueryService implements IPullRequestQuery {
 const restCapabilities: GitHubHostCapabilities = {
 	graphql: false,
 	mergeQueue: false,
-	internalMergeStatus: false,
 	reviewThreads: false,
 	checkContextRequiredness: false,
 };
@@ -786,21 +748,6 @@ function toReview(value: unknown, includeBody: boolean): PullRequestReview {
 	};
 }
 
-function toInlineComment(value: unknown, includeBody: boolean): PullRequestInlineComment {
-	const item = asObject(value, 'GitHub pull request inline comment was malformed');
-	return {
-		...toComment(value, includeBody),
-		reviewId: idProperty(item, 'pull_request_review_id'),
-		replyToId: idProperty(item, 'in_reply_to_id'),
-		path: stringProperty(item, 'path'),
-		line: numberProperty(item, 'line'),
-		originalLine: numberProperty(item, 'original_line'),
-		side: stringProperty(item, 'side'),
-		commitId: stringProperty(item, 'commit_id'),
-		originalCommitId: stringProperty(item, 'original_commit_id'),
-	};
-}
-
 function toGraphQLInlineComment(value: unknown, includeBody: boolean, diffSide: string | undefined): PullRequestInlineComment {
 	const item = asObject(value, 'GitHub review-thread comment was malformed');
 	const commit = optionalObjectProperty(item, 'commit');
@@ -874,16 +821,39 @@ function toRestStatus(value: unknown): PullRequestCheck {
 	};
 }
 
-function toCheckSuite(value: unknown): PullRequestCheckSuite {
+/**
+ * GitHub withholds the app of some suites, including GitHub Actions ones, from a token without SSO access to the organization,
+ * while still returning the suite itself. The app is only a label, so such a suite stays usable without it.
+ */
+function isRefusedCheckSuiteApp(error: GitHubGraphQLError): boolean {
+	const path = error.path;
+	return error.type?.toUpperCase() === 'FORBIDDEN' && path?.length === 6 && path[0] === 'repository' && path[1] === 'object'
+		&& path[2] === 'checkSuites' && path[3] === 'nodes' && typeof path[4] === 'number' && path[5] === 'app';
+}
+
+/**
+ * GitHub queues a suite for every installed checks app on each push, and an app that does not report on the commit leaves
+ * it queued without check runs indefinitely. A third-party CI app that will report can also take a moment to create its
+ * runs, so an idle suite stays expected until the grace period after its creation passes. Only GitHub Actions creates a
+ * suite for a triggered workflow, so its suites and those whose app or creation time is unknown always stay expected.
+ */
+function toExpectedCheckSuite(value: unknown, now: number): PullRequestCheckSuite | undefined {
 	const item = asObject(value, 'GitHub check suite was malformed');
+	const id = requiredId(item, 'id');
 	const app = optionalObjectProperty(item, 'app');
-	const checkRuns = objectProperty(item, 'checkRuns');
+	const slug = app && stringProperty(app, 'slug');
+	const status = normalizedEnumProperty(item, 'status');
+	const checkRunsReported = (numberProperty(objectProperty(item, 'checkRuns'), 'totalCount') ?? 0) > 0;
+	const createdAt = Date.parse(stringProperty(item, 'createdAt') ?? '');
+	if (!checkRunsReported && status === 'QUEUED' && slug && slug !== 'github-actions' && now - createdAt >= idleCheckSuiteGracePeriod) {
+		return undefined;
+	}
 	return {
-		id: requiredId(item, 'id'),
-		name: app ? stringProperty(app, 'name') ?? stringProperty(app, 'slug') ?? 'unknown' : 'unknown',
-		status: normalizedEnumProperty(item, 'status'),
+		id,
+		name: app ? stringProperty(app, 'name') ?? slug ?? 'unknown' : 'unknown',
+		status,
 		conclusion: normalizedEnumProperty(item, 'conclusion'),
-		checkRunsReported: (numberProperty(checkRuns, 'totalCount') ?? 0) > 0,
+		checkRunsReported,
 	};
 }
 
@@ -905,20 +875,6 @@ function toActor(value: object | undefined, association?: string): { readonly id
 		login,
 		...(association ? { association } : {}),
 	};
-}
-
-function addParticipant(
-	participants: Map<string, { actor: PullRequestParticipant; roles: Set<'author' | 'commenter' | 'reviewer'> }>,
-	actor: { readonly id?: string; readonly login: string },
-	role: 'author' | 'commenter' | 'reviewer',
-): void {
-	const key = actor.id ?? actor.login.toLowerCase();
-	let participant = participants.get(key);
-	if (!participant) {
-		participant = { actor: { ...actor, roles: [] }, roles: new Set() };
-		participants.set(key, participant);
-	}
-	participant.roles.add(role);
 }
 
 function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {

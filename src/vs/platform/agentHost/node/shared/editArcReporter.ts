@@ -44,6 +44,10 @@ export interface IEditArcReporterLaunchParams {
 	readonly afterText: string;
 	readonly initialEdit: IArcTextEdit;
 	readonly modelId?: string;
+	/** The committed Auto tier, when the edit was produced under Auto. */
+	readonly autoTier?: string;
+	/** The HydraFusion model that routed the edit, when known. */
+	readonly fusionModel?: string;
 	readonly toolName?: string;
 	readonly mode?: string;
 	readonly completionTime: number;
@@ -334,6 +338,8 @@ class EditArcReporter extends Disposable {
 			editSessionId: AgentSession.id(sessionUri),
 			requestId: this._params.turnId,
 			modelId: this._params.modelId,
+			...(this._params.autoTier !== undefined ? { autoTier: this._params.autoTier } : {}),
+			...(this._params.fusionModel !== undefined ? { fusionModel: this._params.fusionModel } : {}),
 			languageId: undefined,
 			mode: this._params.mode,
 			uniqueEditId: this._uniqueEditId,

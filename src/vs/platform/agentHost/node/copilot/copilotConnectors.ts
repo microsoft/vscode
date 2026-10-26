@@ -9,6 +9,22 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { ILogService } from '../../../log/common/log.js';
 
+/** One Connector-owned runtime MCP server. */
+export interface ICopilotConnectorServer {
+	/** Canonical Connector name, used for targeted reconciliation. */
+	readonly connectorName: string;
+	/** Catalog display name, falling back to {@link connectorName}. */
+	readonly displayName: string;
+}
+
+/** The Connector-owned runtime servers of one SDK session and whether the account must authorize Connectors. */
+export interface ICopilotConnectorServers {
+	/** Keyed by runtime server ID, which is also the MCP server name. */
+	readonly servers: ReadonlyMap<string, ICopilotConnectorServer>;
+	/** The runtime reports that the session account lacks the Connector authorization scope. */
+	readonly authorizationRequired: boolean;
+}
+
 /** Uses this SDK session's account handle; a failed attempt retains current state for publication and retry. */
 export async function reconcileCopilotConnectors(
 	session: CopilotSession,
@@ -20,7 +36,7 @@ export async function reconcileCopilotConnectors(
 		readonly token?: CancellationToken;
 		readonly onReconcileRequested?: (rpc: Promise<ConnectorStatus>) => void;
 	} = {},
-): Promise<{ readonly reconciled: boolean; readonly displayNames?: ReadonlyMap<string, string> }> {
+): Promise<{ readonly reconciled: boolean; readonly connectorServers?: ICopilotConnectorServers }> {
 	const { forceConnectorName, canReconcile = () => true, token = CancellationToken.None } = options;
 	let status: ConnectorStatus;
 	let reconciled = false;
@@ -59,7 +75,7 @@ export async function reconcileCopilotConnectors(
 				&& (server.status === 'stopped' || server.status === 'not_configured' || server.status === 'disabled')
 			)) {
 				logService.info(`[Copilot:${session.sessionId}] Deferring Connector MCP reconciliation to preserve stopped or disabled servers`);
-				return { reconciled, displayNames: connectorDisplayNames(current) };
+				return { reconciled, connectorServers: copilotConnectorServers(current) };
 			}
 		}
 		const reconcile = session.rpc.connectors.reconcile({
@@ -91,11 +107,17 @@ export async function reconcileCopilotConnectors(
 	}
 	return {
 		reconciled,
-		displayNames: connectorDisplayNames(status),
+		connectorServers: copilotConnectorServers(status),
 	};
 }
 
-function connectorDisplayNames(status: ConnectorStatus): ReadonlyMap<string, string> {
+function copilotConnectorServers(status: ConnectorStatus): ICopilotConnectorServers {
 	const names = new Map(status.catalog?.connectors.map(connector => [connector.name, connector.displayName.trim() || connector.name]));
-	return new Map(status.runtimeServers.map(server => [server.runtimeServerId, names.get(server.connectorName) ?? server.connectorName]));
+	return {
+		servers: new Map(status.runtimeServers.map(server => [server.runtimeServerId, {
+			connectorName: server.connectorName,
+			displayName: names.get(server.connectorName) ?? server.connectorName,
+		}])),
+		authorizationRequired: status.authorizationRequirement !== undefined,
+	};
 }

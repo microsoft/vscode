@@ -22,7 +22,7 @@ import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness
 import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
-import { createTestDirectory } from '../harness/testDirectories.js';
+import { createTestDirectory, ownCodexProtectedDirectories } from '../harness/testDirectories.js';
 import { newTestChatUri } from '../../hostDefaultChats.js';
 
 const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
@@ -378,12 +378,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 	async function createPersistenceSession(prefix: string): Promise<{ sessionUri: string; chatUri: string; workspace: string }> {
 		const workspace = createTestDirectory(join(tmpdir(), `ahp-history-${prefix}-`));
 		tempDirs.push(workspace);
-		// Keep Codex's protected mount directories stable across sibling-chat startup (KNOWN_ISSUES.md).
-		if (config.provider === 'codex' && context.isLinux) {
-			for (const directory of ['.git', '.agents', '.codex']) {
-				fs.mkdirSync(join(workspace, directory));
-			}
-		}
+		ownCodexProtectedDirectories(workspace, config.provider, context.isLinux);
 		const sessionUri = await createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, URI.file(workspace));
 		return { sessionUri, chatUri: defaultChatChannel(sessionUri), workspace };
 	}

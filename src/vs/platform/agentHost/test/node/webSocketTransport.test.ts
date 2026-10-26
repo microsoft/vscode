@@ -12,6 +12,8 @@ import { connectionTokenQueryName } from '../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { WebSocketProtocolServer } from '../../node/webSocketTransport.js';
+import { isAuthenticatedAgentHostTransport } from '../../node/agentHostTransportAuthentication.js';
+import { getProtocolMessageSize } from '../../common/state/sessionTransport.js';
 
 suite('WebSocketProtocolServer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,9 +32,23 @@ suite('WebSocketProtocolServer', () => {
 		const transport = Event.toPromise(server.onConnection);
 		const socket = await connect(`ws://127.0.0.1:${server.boundPort}/?${connectionTokenQueryName}=valid+token`);
 		store.add(toDisposable(() => socket.close()));
-		store.add(await transport);
+		const accepted = store.add(await transport);
 
 		assert.deepStrictEqual(validatedTokens, ['valid token']);
+		assert.strictEqual(isAuthenticatedAgentHostTransport(accepted), true);
+		const message = Event.toPromise(accepted.onMessage);
+		const text = '{ "jsonrpc":"2.0", "method":"tcp/data", "params": { "channel":"ahp-tcp:/test", "data":"\\u005aA==" } }';
+		socket.send(text);
+		assert.strictEqual(getProtocolMessageSize(await message), text.length * 2);
+	});
+
+	test('does not grant host-network access to an unauthenticated WebSocket', async () => {
+		const server = store.add(await WebSocketProtocolServer.create({ port: 0 }, new NullLogService()));
+		await server.whenListening;
+		const transport = Event.toPromise(server.onConnection);
+		const socket = await connect(`ws://127.0.0.1:${server.boundPort}/`);
+		store.add(toDisposable(() => socket.close()));
+		assert.strictEqual(isAuthenticatedAgentHostTransport(store.add(await transport)), false);
 	});
 
 	test('rejects a malformed request URL without stopping the server', async () => {

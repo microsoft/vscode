@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ThrottledDelayer } from '../../../../base/common/async.js';
-import { structuralEquals } from '../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, IReader, observableFromEvent, observableSignal, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -18,7 +15,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { canvasOwnerKey, compareCanvasDefinitions, getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContext, ICanvasDefinition, ICanvasOwner, ICanvasReference, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../common/canvas.js';
+import { canvasOwnerKey, getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContext, ICanvasDefinition, ICanvasOwner, ICanvasReference, ICanvasService, isCanvasOwner } from '../common/canvas.js';
+import { CanvasDefinitionStore } from '../common/canvasDefinitionStore.js';
 
 export const OPEN_EDITOR_CANVAS_COMMAND_ID = 'workbench.action.chat.openCanvas';
 export const REOPEN_EDITOR_CANVAS_COMMAND_ID = 'workbench.action.chat.reopenCanvas';
@@ -73,19 +71,13 @@ export function registerEditorCanvasActions(
 	const store = new DisposableStore();
 	const registrations = store.add(new DisposableMap<string, CanvasMenuActionRegistration>());
 	const submenuRegistration = store.add(new MutableDisposable<IDisposable>());
-	const currentContext = observableValue<ICanvasContext | undefined>(store, undefined);
-	const availableDefinitions = observableValueOpts<readonly ICanvasDefinition[]>({ owner: store, equalsFn: structuralEquals }, []);
 	const widgetStateChanged = observableSignal(store);
-	const definitionRefreshDelayer = store.add(new ThrottledDelayer<void>(0));
 	const widgets = observableFromEvent(
 		store,
 		Event.any(widgetService.onDidAddWidget, widgetService.onDidRemoveWidget),
 		() => widgetService.getAllWidgets().slice(),
 	);
-	let requestSequence = 0;
-	let commandSequence = 0;
-
-	store.add(autorun(reader => {
+	const currentContext = derived<ICanvasContext | undefined>(store, reader => {
 		const currentWidgets = widgets.read(reader);
 		for (const widget of currentWidgets) {
 			if (isChatViewWidget(widget)) {
@@ -93,31 +85,18 @@ export function registerEditorCanvasActions(
 			}
 		}
 		widgetStateChanged.read(reader);
-		const context = canvasService.enabled.read(reader) ? getChatViewCanvasContext(currentWidgets, reader) : undefined;
+		return canvasService.enabled.read(reader) ? getChatViewCanvasContext(currentWidgets, reader) : undefined;
+	});
+	const availableDefinitions = store.add(new CanvasDefinitionStore(reader => {
+		const context = currentContext.read(reader);
 		const definitionProvider = context?.definitionProvider;
-		if (definitionProvider) {
-			observableSignalFromEvent(reader.store, definitionProvider.onDidChangeDefinitions).read(reader);
+		if (!context || !definitionProvider) {
+			return undefined;
 		}
-		const previousContext = currentContext.read(undefined);
-		const request = ++requestSequence;
-		if (context !== previousContext) {
-			definitionRefreshDelayer.cancel();
-		}
-		transaction(tx => {
-			currentContext.set(context, tx);
-			if (context !== previousContext) {
-				availableDefinitions.set([], tx);
-			}
-		});
-		if (definitionProvider) {
-			void definitionRefreshDelayer.trigger(() => loadAvailableDefinitions(context, definitionProvider, request))
-				.catch(error => {
-					if (!isCancellationError(error)) {
-						logService.error('[EditorCanvasActions] Failed to schedule registered canvas refresh', error);
-					}
-				});
-		}
-	}));
+		observableSignalFromEvent(reader.store, definitionProvider.onDidChangeDefinitions).read(reader);
+		return { owner: context.owner, listCanvases: () => definitionProvider.listCanvases() };
+	}, '[EditorCanvasActions]', logService)).definitions;
+	let commandSequence = 0;
 
 	store.add(autorun(reader => {
 		const context = currentContext.read(reader);
@@ -186,35 +165,6 @@ export function registerEditorCanvasActions(
 			})
 			: undefined;
 	}));
-
-	async function loadAvailableDefinitions(context: ICanvasContext, definitionProvider: NonNullable<ICanvasContext['definitionProvider']>, request: number): Promise<void> {
-		if (!isCurrentDefinitionsRequest(context, definitionProvider, request)) {
-			return;
-		}
-		try {
-			const definitions = await definitionProvider.listCanvases();
-			if (!isCurrentDefinitionsRequest(context, definitionProvider, request)) {
-				return;
-			}
-			availableDefinitions.set(
-				definitions.filter(isOpenableExtensionCanvasDefinition).sort(compareCanvasDefinitions),
-				undefined,
-			);
-		} catch (error) {
-			if (!isCurrentDefinitionsRequest(context, definitionProvider, request)) {
-				return;
-			}
-			logService.error('[EditorCanvasActions] Failed to list registered canvases', error);
-		}
-	}
-
-	function isCurrentDefinitionsRequest(context: ICanvasContext, definitionProvider: NonNullable<ICanvasContext['definitionProvider']>, request: number): boolean {
-		return !store.isDisposed
-			&& request === requestSequence
-			&& currentContext.get() === context
-			&& context.definitionProvider === definitionProvider
-			&& canvasService.enabled.get();
-	}
 
 	async function openCanvasDefinition(owner: ICanvasOwner, canvas: ICanvasDefinition, label: string): Promise<void> {
 		const context = currentContext.get();

@@ -14,7 +14,8 @@
  *
  * The border is drawn with `box-sizing: border-box` so it sits inside the area
  * the grid already allocates to the editor part — no margin is added, avoiding a
- * relayout. `overflow: hidden` clips the editor content to the rounded corners.
+ * relayout. Compact editors omit the left border at a shared seam.
+ * `overflow: hidden` clips the editor content to the rounded corners.
  * The floating editor window part (`.modal-editor-part`) is excluded.
  *
  * All rules are gated behind the `.modern-ui` class, which the
@@ -33,6 +34,10 @@
 
 .monaco-workbench.modern-ui.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	border-radius: 0;
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact > .monaco-grid-view .part.editor:not(.modal-editor-part):not(.floating-editor-outer-left) {
+	border-left-width: 0;
 }
 
 /*

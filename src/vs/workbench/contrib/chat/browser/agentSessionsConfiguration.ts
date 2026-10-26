@@ -6,6 +6,8 @@
 import * as nls from '../../../../nls.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { AgentHostActiveAgentTitleGenerationSettingId, AgentHostDeferredTitleGenerationSettingId, AgentHostTitleGenerationSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { migrateLegacyImageGenerationSetting } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { migrateLegacyTitleGenerationSettings } from '../../../../platform/agentHost/common/titleGenerationConfiguration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
@@ -43,7 +45,7 @@ export const agentsWindowHandoffConfigurationProperties = {
 	[ChatConfiguration.OpenInAgentsWindowTransferDraft]: {
 		type: 'boolean',
 		description: nls.localize('chat.openInAgentsWindow.transferDraft', "Copy the prompt and attachments from a new chat when explicitly opening the new-session view in the Agents Window. Existing drafts in the Agents Window are preserved."),
-		default: product.quality === 'insider',
+		default: true,
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},
@@ -113,7 +115,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: nls.localize('sessions.chat.unifiedWorkspacePicker.enabled', "Controls whether the Agents Window uses the unified workspace picker, which combines GitHub and remote workspaces, provides search, and, when supported, allows creating sessions with no workspace."),
-			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays]: {
@@ -122,7 +123,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 0,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview', AGENT_SESSION_CLEANUP_SETTINGS_TAG],
-			markdownDescription: nls.localize('autoMarkAsDoneMergedSessions.description', "Controls the number of inactive days before agent sessions with a merged pull request are automatically marked as done. Marking a session as done safely removes its eligible worktree. Permanent deletion is controlled separately by {0}. Set to 0 to disable automatically marking sessions as done. The recommended value is 15.", '`#chat.agentSessions.autoDeleteMarkedAsDoneMergedSessionsAfterDays#`'),
+			markdownDescription: nls.localize('autoMarkAsDoneMergedSessions.description', "After a session with a merged pull request has been inactive for this many days, mark it as Done. Eligible worktrees are safely removed. Set to 0 to disable automatic marking."),
 			agentHost: { key: AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey },
 		},
 		[ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays]: {
@@ -131,7 +132,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 0,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview', AGENT_SESSION_CLEANUP_SETTINGS_TAG],
-			markdownDescription: nls.localize('autoDeleteMarkedAsDoneMergedSessions.description', "Controls the number of days after being automatically marked as done before agent sessions with a merged pull request are permanently deleted. Retained eligible worktrees are safely removed before deletion. Automatically marking sessions as done is controlled separately by {0}. Set to 0 to disable permanent deletion. The recommended value is 15.", '`#chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays#`'),
+			markdownDescription: nls.localize('autoDeleteMarkedAsDoneMergedSessions.description', "After a session with a merged pull request is automatically marked Done, wait this many additional days, then permanently delete the session. Eligible retained worktrees are safely removed first. Set to 0 to disable permanent deletion."),
 			agentHost: { key: AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey },
 		},
 	},
@@ -178,3 +179,16 @@ for (const key of [AgentHostDeferredTitleGenerationSettingId, AgentHostActiveAge
 		},
 	}]);
 }
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([{
+	key: CopilotImageGenerationEnabledSettingId,
+	includeApplication: true,
+	migrateFn: (value, accessor) => {
+		const pairs: ConfigurationKeyValuePairs = [[CopilotImageGenerationEnabledSettingId, { value: undefined }]];
+		const model = migrateLegacyImageGenerationSetting(value);
+		if (model !== undefined && accessor(CopilotImageGenerationModelSettingId) === undefined) {
+			pairs.push([CopilotImageGenerationModelSettingId, { value: model }]);
+		}
+		return pairs;
+	},
+}]);

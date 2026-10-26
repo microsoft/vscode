@@ -17,8 +17,9 @@ import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, isDefaultCh
 import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_LINK_SCHEME, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IChatRequestOriginService } from '../../../common/chatRequestOrigin.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -63,7 +64,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 	) {
 		super();
 		this._register(openerService.registerOpener({
-			open: async resource => this._open(resource),
+			open: async (resource, options) => this._open(resource, options),
 		}));
 		this._register(requestOriginService.registerOpener({
 			open: async origin => origin.sourceSessionResource.scheme === AGENT_HOST_SESSION_LINK_SCHEME
@@ -117,14 +118,18 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		return (await findChatSessionItem(this._chatSessionsService, chatSessionType, clientResource, token))?.item;
 	}
 
-	private async _open(resource: URI | string): Promise<boolean> {
+	private async _open(resource: URI | string, options?: OpenOptions): Promise<boolean> {
 		const linkedResource = await this._resolveClientSessionResource(resource, CancellationToken.None);
 		if (!linkedResource) {
 			return false;
 		}
 		const clientResource = await this._withoutDefaultChatFragment(linkedResource);
 		await this._chatSessionsService.activateChatSessionItemProvider(getChatSessionType(clientResource));
-		const widget = await this._chatWidgetService.openSession(clientResource, ChatViewPaneTarget, { revealIfOpened: true });
+		const openToSide = options?.openToSide === true;
+		const widget = await this._chatWidgetService.openSession(clientResource, openToSide ? SIDE_GROUP : ChatViewPaneTarget, {
+			...options?.editorOptions,
+			revealIfOpened: !openToSide
+		});
 		return !!widget;
 	}
 

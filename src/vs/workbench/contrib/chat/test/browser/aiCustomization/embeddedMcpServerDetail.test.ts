@@ -32,7 +32,10 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { IEditableMcpServerConfiguration, IMcpWorkbenchService, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 import { McpResourceFormat } from '../../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { EmbeddedMcpServerDetail, IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
-import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, ICustomizationMcpServerCompatibility } from '../../../common/customizationHarnessService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 suite('EmbeddedMcpServerDetail', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,7 +43,7 @@ suite('EmbeddedMcpServerDetail', () => {
 	const definition = '{ "command": "memory-server", "args": [] }';
 	const content = `{\n\t"mcpServers": {\n\t\t"local-memory": ${definition},\n\t\t"other": { "command": "other-server" }\n\t}\n}`;
 
-	function createDetail(editable?: (source: URI, name: string) => IEditableMcpServerConfiguration | undefined) {
+	function createDetail(editable?: (source: URI, name: string) => IEditableMcpServerConfiguration | undefined, compatibility?: readonly ICustomizationMcpServerCompatibility[]) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const reads: { uri: URI; result: DeferredPromise<IFileContent> }[] = [];
 		const executedCommands: unknown[][] = [];
@@ -66,10 +69,21 @@ suite('EmbeddedMcpServerDetail', () => {
 			onChange: Event.None,
 			resolveEditableMcpServerConfiguration: async (source, name) => editable?.(source, name),
 		});
+		const harness = compatibility
+			? {
+				...createVSCodeHarnessDescriptor(),
+				mcpServerCompatibilityProvider: {
+					acquire: () => ({ servers: constObservable(compatibility), isResolved: constObservable(true), dispose: () => { } }),
+				},
+			}
+			: createVSCodeHarnessDescriptor();
+		if (compatibility) {
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatCustomizationsMigrationEnabled]: true }));
+		}
 		instantiationService.stub(ICustomizationHarnessService, {
 			activeSessionResource: constObservable(URI.parse('copilot:/session')),
-			availableHarnesses: constObservable([createVSCodeHarnessDescriptor()]),
-			getActiveDescriptor: () => createVSCodeHarnessDescriptor(),
+			availableHarnesses: constObservable([harness]),
+			getActiveDescriptor: () => harness,
 		});
 		instantiationService.stubInstance(CodeEditorWidget, {
 			setModel: value => {
@@ -237,6 +251,48 @@ suite('EmbeddedMcpServerDetail', () => {
 			unexplained: { message: 'No definition is available for this MCP server.', link: undefined, ariaLabel: undefined, editorVisible: false },
 			withDefinition: { message: 'No definition is available for this MCP server.', link: undefined, ariaLabel: undefined, editorVisible: true },
 			executedCommands: [['workbench.action.openSettings', '@id:chat.agentHost.githubMcpServer.enabled']],
+		});
+	});
+
+	test('says a server needs to be migrated manually in its compatibility card, or in the migration card when it is supported', () => {
+		const reason = 'The client secret is stored in VS Code.';
+		const render = (compatibility: ICustomizationMcpServerCompatibility, manualReviewReason: string) => {
+			const { detail, input } = createDetail(undefined, [compatibility]);
+			const serverInput = { ...input, compatibilityId: compatibility.id };
+			detail.setInput(serverInput);
+			detail.setManualReviewReason(manualReviewReason);
+			return { detail, input: serverInput };
+		};
+		const read = (detail: EmbeddedMcpServerDetail) => [...detail.element.querySelectorAll<HTMLElement>('.mcp-detail-diagnostic-section')]
+			.filter(section => section.style.display !== 'none')
+			.map(section => ({
+				summary: section.querySelector('.mcp-detail-diagnostic-summary')!.textContent,
+				messages: [...section.querySelectorAll('.mcp-detail-diagnostic-message, .mcp-detail-diagnostic-list > li, .mcp-detail-migration-description')].map(message => message.textContent),
+			}));
+
+		const { detail: partial, input } = render({ id: 'memory', kind: 'partiallySupported', details: ['OAuth client configuration is ignored.'] }, reason);
+		const partiallySupported = read(partial);
+		partial.updateInput({ ...input, label: 'Renamed' });
+		const afterUpdate = read(partial);
+		partial.setMigratable(true);
+		const migratable = read(partial);
+		partial.setMigratable(false);
+		partial.setManualReviewReason(undefined);
+		const cleared = read(partial);
+		const unsupported = read(render({ id: 'memory', kind: 'unsupported', details: ['Copilot cannot start this server.'] }, 'Copilot cannot start this server.').detail);
+		const supported = read(render({ id: 'memory', kind: 'supported' }, reason).detail);
+
+		const partialCard = { summary: 'Partially supported by Local', messages: ['OAuth client configuration is ignored.', `This server needs to be migrated manually. ${reason}`] };
+		assert.deepStrictEqual({ partiallySupported, afterUpdate, migratable, cleared, unsupported, supported }, {
+			partiallySupported: [partialCard],
+			afterUpdate: [partialCard],
+			migratable: [
+				{ summary: 'Partially supported by Local', messages: ['OAuth client configuration is ignored.'] },
+				{ summary: 'Migrate MCP Server', messages: ['This MCP server needs to be migrated to keep working.'] },
+			],
+			cleared: [{ summary: 'Partially supported by Local', messages: ['OAuth client configuration is ignored.'] }],
+			unsupported: [{ summary: 'Not supported by Local', messages: ['Copilot cannot start this server.', 'This server needs to be migrated manually.'] }],
+			supported: [{ summary: 'Migrate MCP Server', messages: [`This server needs to be migrated manually. ${reason}`] }],
 		});
 	});
 

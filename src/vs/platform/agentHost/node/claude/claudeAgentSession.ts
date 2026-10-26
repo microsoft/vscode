@@ -19,7 +19,6 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
-import type { ChatUriFormat } from '../../common/agentHostChatMinting.js';
 import { AgentSignal, IAgentSessionProjectInfo, type IAgentChatOwnerRef } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -86,8 +85,6 @@ export interface IMaterializeContext {
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly onElicitation: OnElicitation;
 	readonly isResume: boolean;
-	/** Format of the subagent chat ids minted for this chat's session. */
-	readonly subagentChatUriFormat: ChatUriFormat;
 	/**
 	 * Host-supplied concrete persistence/config resource for this materialize
 	 * operation. Used transiently; the session never derives it from URI shape.
@@ -691,7 +688,6 @@ export class ClaudeAgentSession extends Disposable {
 				this.sessionId,
 				this._chatChannelUri,
 				this._owner,
-				ctx.subagentChatUriFormat,
 				ctx.resource,
 				warm,
 				this.abortController,
@@ -777,7 +773,7 @@ export class ClaudeAgentSession extends Disposable {
 						permissionMode: liveMode,
 						canUseTool: ctx.canUseTool,
 						onElicitation: ctx.onElicitation,
-						isResume: true,
+						isResume: ctx.isResume || pipeline.isResumed,
 						resumeSessionAt: this._pendingResumeSessionAt,
 						mcpServers: rebuildMcp,
 						deniedMcpServers: rebuildDeniedMcpServers,
@@ -792,7 +788,7 @@ export class ClaudeAgentSession extends Disposable {
 					rebuildTransport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
 				);
-				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild agent=${rebuildOptions.agent ?? '(none)'}`);
+				this._logService.info(`[Claude] session ${this.sessionId}: rebuild isResume=${!!rebuildOptions.resume} agent=${rebuildOptions.agent ?? '(none)'}`);
 				rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
 				// Rebuild succeeded with the anchor applied — clear it so it
 				// isn't re-applied. A throw above keeps it staged (handled in the

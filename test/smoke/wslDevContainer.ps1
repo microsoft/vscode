@@ -12,6 +12,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
+Import-Module (Join-Path $PSScriptRoot '..\..\build\azure-pipelines\common\wsl.psm1') -Force
 $wsl = Join-Path $env:SystemRoot 'System32\wsl.exe'
 $workspace = if ($CI -eq 'AzureDevOps') { $env:BUILD_SOURCESDIRECTORY } else { $env:GITHUB_WORKSPACE }
 $runId = if ($CI -eq 'AzureDevOps') { $env:BUILD_BUILDID } else { $env:GITHUB_RUN_ID }
@@ -35,24 +36,26 @@ function Write-SmokeOutput([string] $Name, [string] $Value) {
 	}
 }
 
-function Invoke-Wsl([string] $Command) {
+function Invoke-Wsl([string] $Command, [int] $TimeoutSeconds = 300) {
 	$Command = $Command -replace "`r`n", "`n"
-	& $wsl --distribution $Distribution --user root --exec /bin/bash -euc $Command
-	if ($LASTEXITCODE -ne 0) {
-		throw "WSL smoke command failed with exit code $LASTEXITCODE."
+	$result = Invoke-WslExe -ArgumentList @('--distribution', $Distribution, '--user', 'root', '--exec', '/bin/bash', '-euc', $Command) -TimeoutSeconds $TimeoutSeconds -Stream
+	if ($result.TimedOut) {
+		throw "WSL smoke command timed out after $TimeoutSeconds seconds."
 	}
+	if ($result.ExitCode -ne 0) {
+		throw "WSL smoke command failed with exit code $($result.ExitCode)."
+	}
+}
+
+function Format-WslResult($Result) {
+	if ($Result.TimedOut) { 'timed out' } else { "exit code $($Result.ExitCode)" }
 }
 
 function Save-Download([string] $Url, [string] $Destination) {
-	curl.exe --fail --location --retry 5 --retry-max-time 120 --connect-timeout 30 --max-time 180 --output $Destination $Url
+	curl.exe --fail --location --retry 5 --retry-all-errors --retry-max-time 120 --connect-timeout 30 --max-time 180 --output $Destination $Url
 	if ($LASTEXITCODE -ne 0) {
 		throw "Download failed with exit code ${LASTEXITCODE}: $Url"
 	}
-}
-
-function Test-KernelPackageSignature([string] $Path) {
-	$signature = Get-AuthenticodeSignature -LiteralPath $Path
-	return $signature.Status -eq 'Valid' -and $signature.SignerCertificate.Subject -match 'CN=Microsoft Corporation,'
 }
 
 function Write-DiagnosticSection([string] $Name, [scriptblock] $Action) {
@@ -68,25 +71,23 @@ function Write-DiagnosticSection([string] $Name, [scriptblock] $Action) {
 function Write-WslDiagnostics([datetime] $ImportStartTime, [string] $InstallPath) {
 	'=== WSL diagnostics after failed import ==='
 	"Import started (UTC): $($ImportStartTime.ToUniversalTime().ToString('o'))"
+	# After a hang, wsl.exe may not respond at all, so every call here has a short timeout.
 	Write-DiagnosticSection 'Windows and WSL versions' {
 		Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber
 		"wsl.exe file version: $((Get-Item -LiteralPath $wsl).VersionInfo.FileVersion)"
-		$output = & $wsl --version 2>&1
-		$exitCode = $LASTEXITCODE
-		$output | Select-Object -First 20 | ForEach-Object { "$_" -replace "`0", '' }
-		"wsl --version exit code: $exitCode"
+		$result = Invoke-WslExe -ArgumentList '--version' -TimeoutSeconds 30
+		$result.Output.TrimEnd()
+		"wsl --version: $(Format-WslResult $result)"
 	}
 	Write-DiagnosticSection 'wsl --status' {
-		$output = & $wsl --status 2>&1
-		$exitCode = $LASTEXITCODE
-		$output | ForEach-Object { "$_" -replace "`0", '' }
-		"Exit code: $exitCode"
+		$result = Invoke-WslExe -ArgumentList '--status' -TimeoutSeconds 30
+		$result.Output.TrimEnd()
+		"Result: $(Format-WslResult $result)"
 	}
 	Write-DiagnosticSection 'wsl --list --verbose' {
-		$output = & $wsl --list --verbose 2>&1
-		$exitCode = $LASTEXITCODE
-		$output | ForEach-Object { "$_" -replace "`0", '' }
-		"Exit code: $exitCode"
+		$result = Invoke-WslExe -ArgumentList '--list', '--verbose' -TimeoutSeconds 30
+		$result.Output.TrimEnd()
+		"Result: $(Format-WslResult $result)"
 	}
 	Write-DiagnosticSection 'Partial import files' {
 		$files = @(Get-ChildItem -LiteralPath $InstallPath -Force)
@@ -155,18 +156,20 @@ if ($Operation -eq 'Cleanup') {
 	}
 	try {
 		Get-NetFirewallRule -Name $Distribution -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-		$registered = & $wsl --list --quiet
-		$listExitCode = $LASTEXITCODE
-		$names = @($registered | ForEach-Object { ($_ -replace "`0", '').Trim() })
-		if ($listExitCode -ne 0 -or $names -contains $Distribution) {
+		$registered = Invoke-WslExe -ArgumentList '--list', '--quiet' -TimeoutSeconds 60
+		if ($registered.TimedOut) {
+			throw "WSL is not responding; leaving $Distribution and its files intact."
+		}
+		$names = @($registered.Output -split "`r?`n" | ForEach-Object { $_.Trim() })
+		if ($registered.ExitCode -ne 0 -or $names -contains $Distribution) {
 			$logDirectory = Join-Path $workspace '.build\logs\wsl-dev-container'
 			New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
-			& $wsl --distribution $Distribution --user root --exec /bin/sh -c 'docker info; cat /var/log/docker.log 2>/dev/null' |
+			(Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--user', 'root', '--exec', '/bin/sh', '-c', 'docker info; cat /var/log/docker.log 2>/dev/null' -TimeoutSeconds 60).Output |
 				Out-File -FilePath (Join-Path $logDirectory 'docker.log') -Encoding utf8
-			& $wsl --terminate $Distribution
-			& $wsl --unregister $Distribution
-			if ($LASTEXITCODE -ne 0) {
-				throw "Failed to unregister $Distribution; leaving its files intact."
+			Invoke-WslExe -ArgumentList '--terminate', $Distribution -TimeoutSeconds 60 | Out-Null
+			$unregister = Invoke-WslExe -ArgumentList '--unregister', $Distribution -TimeoutSeconds 120
+			if ($unregister.ExitCode -ne 0) {
+				throw "Failed to unregister $Distribution ($(Format-WslResult $unregister)); leaving its files intact."
 			}
 		}
 		Remove-Item -LiteralPath $Root -Recurse -Force
@@ -179,48 +182,14 @@ if ($Operation -eq 'Cleanup') {
 if (-not (Test-Path -LiteralPath $wsl)) {
 	throw 'WSL is unavailable. This job requires WSL and VirtualMachinePlatform enabled without a pending reboot.'
 }
+$installerCache = if ($env:WSL_INSTALLER_CACHE_DIR) { $env:WSL_INSTALLER_CACHE_DIR } else { Join-Path $workspace '.build\wsl-installer' }
+Install-Wsl -CacheDirectory $installerCache
+
 $Distribution = "vscode-wsl-smoke-$runId-$runAttempt-$([guid]::NewGuid().ToString('N'))"
 $Root = Join-Path $workspace ".build\$Distribution"
 New-Item -ItemType Directory -Path $Root | Out-Null
 Write-SmokeOutput 'root' $Root
 Write-SmokeOutput 'distro' $Distribution
-
-$kernelPackage = Join-Path $Root 'wsl_update_x64.msi'
-$kernelCachePath = $env:WSL_KERNEL_CACHE_PATH
-$usedKernelCache = $false
-if ($kernelCachePath -and (Test-Path -LiteralPath $kernelCachePath -PathType Leaf)) {
-	if (Test-KernelPackageSignature $kernelCachePath) {
-		Copy-Item -LiteralPath $kernelCachePath -Destination $kernelPackage
-		$usedKernelCache = $true
-		Write-Host 'Using verified cached WSL2 kernel installer.'
-	} else {
-		Write-Warning 'Cached WSL2 kernel installer has an invalid Microsoft signature; downloading a fresh copy.'
-	}
-}
-if (-not $usedKernelCache) {
-	Save-Download 'https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi' $kernelPackage
-}
-if (-not (Test-KernelPackageSignature $kernelPackage)) {
-	throw 'The WSL2 kernel package does not have a valid Microsoft signature.'
-}
-if (-not $usedKernelCache) {
-	if ($kernelCachePath) {
-		New-Item -ItemType Directory -Force -Path (Split-Path -Parent $kernelCachePath) | Out-Null
-		Copy-Item -LiteralPath $kernelPackage -Destination $kernelCachePath -Force
-	}
-}
-if ($usedKernelCache -and $env:WSL_KERNEL_CACHE_RESULT -ne 'true') {
-	$refreshPath = Join-Path (Split-Path -Parent $kernelCachePath) "wsl_update_x64.$([guid]::NewGuid().ToString('N')).msi"
-	$refreshJob = Start-ThreadJob -ArgumentList $refreshPath, ${function:Save-Download} -ScriptBlock {
-		param([string] $Destination, [scriptblock] $Download)
-		& $Download 'https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi' $Destination
-	}
-}
-$installer = Start-Process msiexec.exe -ArgumentList @('/i', "`"$kernelPackage`"", '/qn', '/norestart') -Wait -PassThru
-Write-Host "WSL2 kernel installer exit code: $($installer.ExitCode)"
-if ($installer.ExitCode -ne 0) {
-	throw "WSL2 kernel installation failed or requires a reboot (exit code $($installer.ExitCode)). No reboot will be attempted."
-}
 
 $archive = Join-Path $Root 'ubuntu-rootfs.tar.gz'
 Save-Download 'https://cloud-images.ubuntu.com/wsl/jammy/20250318/ubuntu-jammy-wsl-amd64-ubuntu22.04lts.rootfs.tar.gz' $archive
@@ -229,35 +198,37 @@ if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '1483cc5c1dc
 }
 $install = Join-Path $Root 'distro'
 New-Item -ItemType Directory -Path $install | Out-Null
-# The hosted WSL2 utility VM sometimes stops right after boot, failing the import with -1, so retry.
+# The WSL2 utility VM sometimes stops right after boot or hangs, failing or blocking the import, so the import has
+# a timeout (a healthy one takes about 15 seconds) and is retried on a fresh utility VM.
 $maxImportAttempts = 3
+$importTimeoutSeconds = 120
 for ($importAttempt = 1; ; $importAttempt++) {
 	$importStartTime = Get-Date
-	$importOutput = & $wsl --import $Distribution $install $archive --version 2 2>&1
-	$importExitCode = $LASTEXITCODE
-	if ($importExitCode -eq 0) {
+	$import = Invoke-WslExe -ArgumentList '--import', $Distribution, $install, $archive, '--version', '2' -TimeoutSeconds $importTimeoutSeconds
+	if ($import.ExitCode -eq 0) {
 		break
 	}
+	$importResult = Format-WslResult $import
 	$logDirectory = Join-Path $workspace '.build\logs\wsl-dev-container'
 	New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
 	$diagnosticsPath = Join-Path $logDirectory "import-$Distribution-attempt-$importAttempt.log"
-	@("Import attempt: $importAttempt of $maxImportAttempts", "WSL2 kernel installer exit code: $($installer.ExitCode)", "Import exit code: $importExitCode", 'Import output:') + @($importOutput | ForEach-Object { "$_" -replace "`0", '' }) |
+	@("Import attempt: $importAttempt of $maxImportAttempts", "Import result: $importResult", 'Import output:', $import.Output) |
 		Tee-Object -FilePath $diagnosticsPath
 	Write-WslDiagnostics $importStartTime $install | Tee-Object -FilePath $diagnosticsPath -Append
 	if ($importAttempt -ge $maxImportAttempts) {
-		throw "Explicit WSL2 import failed with exit code $importExitCode after $importAttempt attempts. WSL1 is not supported by this test."
+		throw "Explicit WSL2 import failed ($importResult) after $importAttempt attempts. WSL1 is not supported by this test."
 	}
-	Write-Warning "Explicit WSL2 import attempt $importAttempt failed with exit code $importExitCode. Resetting WSL before retrying."
+	Write-Warning "Explicit WSL2 import attempt $importAttempt failed ($importResult). Resetting WSL before retrying."
 	# Drop any partial registration and stop the utility VM before starting again from an empty directory.
-	& $wsl --unregister $Distribution 2>&1 | ForEach-Object { Write-Host ("$_" -replace "`0", '') }
-	& $wsl --shutdown 2>&1 | ForEach-Object { Write-Host ("$_" -replace "`0", '') }
-	Write-Host "wsl --shutdown exit code: $LASTEXITCODE"
+	Write-Host (Invoke-WslExe -ArgumentList '--unregister', $Distribution -TimeoutSeconds 60).Output
+	$shutdown = Invoke-WslExe -ArgumentList '--shutdown', '--force' -TimeoutSeconds 60
+	Write-Host "$($shutdown.Output)wsl --shutdown --force: $(Format-WslResult $shutdown)"
 	Remove-Item -LiteralPath $install -Recurse -Force
 	New-Item -ItemType Directory -Path $install | Out-Null
 	Start-Sleep -Seconds (10 * $importAttempt)
 }
-$importOutput | ForEach-Object { Write-Host ("$_" -replace "`0", '') }
-Invoke-Wsl 'uname -a; cat /etc/os-release'
+Write-Host $import.Output
+Invoke-Wsl 'uname -a; cat /etc/os-release' 120
 
 # The frontend is built from this PR; the unchanged backend uses a pinned published server.
 $serverCommit = '046944034292b5479b4e9a50ad1a508033ffb64f'
@@ -270,8 +241,9 @@ Save-Download $metadata.url $serverArchive
 if ((Get-FileHash -LiteralPath $serverArchive -Algorithm SHA256).Hash -ne $metadata.sha256hash) {
 	throw 'Linux server SHA256 mismatch.'
 }
-$linuxArchive = (& $wsl --distribution $Distribution --exec wslpath -u $serverArchive).Trim()
-if ($LASTEXITCODE -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/_.-]+$') {
+$wslPath = Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--exec', 'wslpath', '-u', $serverArchive
+$linuxArchive = $wslPath.Output.Trim()
+if ($wslPath.ExitCode -ne 0 -or $linuxArchive -notmatch '^/mnt/[a-z]/[a-zA-Z0-9/_.-]+$') {
 	throw 'Cannot safely resolve the Linux server archive path.'
 }
 Invoke-Wsl @"
@@ -286,11 +258,10 @@ useradd --create-home --shell /bin/bash vscode-smoke
 usermod -aG docker vscode-smoke
 printf '[user]\ndefault=vscode-smoke\n' > /etc/wsl.conf
 "@
-& $wsl --terminate $Distribution
-if ($LASTEXITCODE -ne 0) {
+if ((Invoke-WslExe -ArgumentList '--terminate', $Distribution).ExitCode -ne 0) {
 	throw 'Failed to restart the owned distribution to apply its non-root default user.'
 }
-# The inbox WSL2 kernel lacks the nftables matches needed by Docker's bridge.
+# Docker's default nftables backend needs matches that older WSL2 kernels lack; legacy iptables works with all of them.
 Invoke-Wsl @"
 update-alternatives --set iptables /usr/sbin/iptables-legacy
 update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
@@ -311,39 +282,17 @@ docker run --rm --mount type=bind,source=/tmp/vscode-smoke-bind-check,target=/ch
 rm /tmp/vscode-smoke-bind-check/marker
 rmdir /tmp/vscode-smoke-bind-check
 "@
-& $wsl --distribution $Distribution --exec /bin/sh -ec 'test "$(id -u)" -ne 0; docker info --format "{{.OSType}}"'
-if ($LASTEXITCODE -ne 0) {
+if ((Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--exec', '/bin/sh', '-ec', 'test "$(id -u)" -ne 0; docker info --format "{{.OSType}}"' -Stream).ExitCode -ne 0) {
 	throw 'The default WSL smoke user cannot access Docker.'
 }
-$addresses = & $wsl --distribution $Distribution --exec hostname -I
-if ($LASTEXITCODE -ne 0) {
+$addresses = Invoke-WslExe -ArgumentList '--distribution', $Distribution, '--exec', 'hostname', '-I'
+if ($addresses.ExitCode -ne 0) {
 	throw 'Cannot determine the WSL guest address for mock-server access.'
 }
-$guestAddress = ($addresses.Trim() -split '\s+')[0]
+$guestAddress = ($addresses.Output.Trim() -split '\s+')[0]
 if ($guestAddress -notmatch '^\d+\.\d+\.\d+\.\d+$') {
 	throw "Unexpected WSL guest address: $guestAddress"
 }
 New-NetFirewallRule -Name $Distribution -DisplayName $Distribution -Direction Inbound -Action Allow -Protocol TCP -RemoteAddress $guestAddress | Out-Null
 Write-SmokeOutput 'serverPath' '/opt/vscode-smoke-server'
 Write-Host "WSL Docker is ready in $Distribution with Linux server $serverCommit."
-if ($refreshJob) {
-	try {
-		Receive-Job -Job $refreshJob -Wait -ErrorAction Stop | Out-Host
-		if (-not (Test-KernelPackageSignature $refreshPath)) {
-			throw 'The refreshed WSL2 kernel package does not have a valid Microsoft signature.'
-		}
-		if ((Get-FileHash -LiteralPath $refreshPath -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $kernelCachePath -Algorithm SHA256).Hash) {
-			[IO.File]::Move($refreshPath, $kernelCachePath, $true)
-			Write-Host 'Updated the WSL2 kernel installer cache for the next build.'
-		} else {
-			Write-Host 'The cached WSL2 kernel installer is current.'
-		}
-	} catch {
-		Write-Warning "Unable to refresh the cached WSL2 kernel installer: $_"
-	} finally {
-		Remove-Job -Job $refreshJob -Force
-		if (Test-Path -LiteralPath $refreshPath) {
-			Remove-Item -LiteralPath $refreshPath -Force
-		}
-	}
-}

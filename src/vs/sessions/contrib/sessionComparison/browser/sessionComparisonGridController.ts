@@ -71,7 +71,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 				hideInactiveInputs.read(reader)
 				&& !screenReaderOptimized.read(reader)
 				&& visibleSessions.length > 2
-				&& this._isAttemptComparisonGrid(visibleSessions, comparisons),
+				&& comparison !== undefined,
 			);
 			if (!this._comparisonGridActive && this._isolatedJudgeSessionId
 				&& (visibleSessions.length !== 1
@@ -179,14 +179,6 @@ export class SessionComparisonGridController extends Disposable implements IWork
 
 	private _isComparisonGrid(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): boolean {
 		return this._getComparisonForVisibleSessions(visibleSessions, comparisons) !== undefined;
-	}
-
-	private _isAttemptComparisonGrid(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): boolean {
-		const comparison = this._getComparisonForVisibleSessions(visibleSessions, comparisons);
-		return !!comparison && visibleSessions.every(session => comparison.participants.some(participant =>
-			participant.role === SessionComparisonParticipantRole.Attempt
-			&& participant.sessionResource
-			&& isEqual(participant.sessionResource, session!.resource)));
 	}
 
 	private _getJudgeSessionId(session: IActiveSession | undefined, visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): string | undefined {

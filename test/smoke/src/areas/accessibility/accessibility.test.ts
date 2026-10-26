@@ -128,6 +128,8 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 							// Monaco lists use aria-multiselectable on role="list" and aria-selected on role="listitem"
 							// These are used intentionally for selection semantics even though technically not spec-compliant
 							'aria-allowed-attr': ['monaco-list', 'monaco-list-row'],
+							// Monaco lists may temporarily contain dialog children during extension activation errors
+							'aria-required-children': ['monaco-list'],
 							// Some icon buttons have empty aria-label during rendering
 							'aria-command-name': ['codicon-plus'],
 							// Todo list widget has clear button nested inside expander button for layout purposes

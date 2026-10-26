@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import type { SessionEvent, ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@github/copilot-sdk';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -14,14 +14,15 @@ import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, persistSdkToolResultResources, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
-import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
-import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { fusionMainPassTestData as mainPass, fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
+import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildMcpResourceUri, buildToolResultResourceUri, parseMcpResourceUri, parseToolResultResourceUri } from '../../common/mcpResourceUri.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { ISessionDatabase, MAX_TOOL_RESULT_RESOURCE_BYTES } from '../../common/sessionDataService.js';
 import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 
 function mapSessionEvents(session: URI, db: ISessionDatabase | undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
 	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, options);
@@ -129,6 +130,97 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
+	test('restores Fusion after review cancellation with distinct workflow and agent-loop turn IDs', async () => {
+		const events: SessionEvent[] = [
+			event('user.message', { content: 'First request', turnId: '0' }, { id: 'user-1' }),
+			event('session.fusion_resolved', fusion.resolved, { id: 'route-1', parentId: 'user-1' }),
+			event('abort', { reason: 'user_initiated' }, { id: 'abort-1', parentId: 'route-1' }),
+		];
+		for (const index of [2, 3]) {
+			const next = fusionTurnData(index);
+			events.push(
+				event('session.fusion_resolved', { ...next.resolved, turnId: `${next.resolved.fusionId}:turn` }, { id: `route-${index}` }),
+				event('session.info', { infoType: 'test', message: 'Preparing' }, { id: `info-${index}`, parentId: `route-${index}` }),
+				event('user.message', { content: `Request ${index}`, turnId: '0' }, { id: `user-${index}`, parentId: `info-${index}` }),
+				event('assistant.fusion_phase_completed', next.phaseCompleted),
+				event('assistant.turn_start', { turnId: '0' }),
+				event('assistant.message', { messageId: `answer-${index}`, content: `Answer ${index}` }),
+				event('session.fusion_completed', { ...next.completed, turnId: `${next.resolved.fusionId}:turn` }),
+				event('session.idle', {}),
+			);
+		}
+		const { turns } = await mapSessionEvents(session, undefined, events);
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+			{ id: 'user-1', parts: ['selected', 'cancelled'] },
+			{ id: 'user-2', parts: ['selected', 'succeeded', 'Answer 2'] },
+			{ id: 'user-3', parts: ['selected', 'succeeded', 'Answer 3'] },
+		]);
+	});
+
+	test('Fusion ancestry stops at a preparation error before the user echo', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, [
+			event('user.message', { content: 'Cancelled request', turnId: '0' }, { id: 'user-1' }),
+			event('abort', { reason: 'user_initiated' }, { id: 'abort' }),
+			event('session.fusion_resolved', { ...fusion.resolved, turnId: 'workflow-turn' }, { id: 'route', parentId: 'abort' }),
+			event('session.error', { errorType: 'preparation', message: 'Preparation failed' }, { id: 'error', parentId: 'route' }),
+			event('user.message', { content: 'Next request', turnId: '1' }, { id: 'user-2', parentId: 'error' }),
+			event('assistant.message', { messageId: 'answer', content: 'Next answer' }),
+		]);
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+			{ id: 'user-1', parts: [] },
+			{ id: 'user-2', parts: ['Next answer'] },
+		]);
+	});
+
+	test('Fusion ancestry keeps a new route through a late old resolution', async () => {
+		const first = event('session.fusion_resolved', { ...fusion.resolved, turnId: 'workflow-old' }, { id: 'route-old' });
+		const next = fusionTurnData(2);
+		const { turns } = await mapSessionEvents(session, undefined, [
+			event('user.message', { content: 'Cancelled request', turnId: '0' }, { id: 'user-1' }),
+			first,
+			event('abort', { reason: 'user_initiated' }, { id: 'abort' }),
+			event('session.fusion_resolved', next.resolved, { id: 'route-new', parentId: 'abort' }),
+			event('session.fusion_resolved', first.data, { id: 'late-old', parentId: 'route-new' }),
+			event('session.info', { infoType: 'test', message: 'Preparing' }, { id: 'info', parentId: 'late-old' }),
+			event('user.message', { content: 'Next request', turnId: '0' }, { id: 'user-2', parentId: 'info' }),
+			event('assistant.fusion_phase_completed', next.phaseCompleted),
+			event('session.fusion_completed', next.completed),
+			event('assistant.message', { messageId: 'answer', content: 'Next answer' }),
+		]);
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+			{ id: 'user-1', parts: ['selected', 'cancelled'] },
+			{ id: 'user-2', parts: ['selected', 'succeeded', 'Next answer'] },
+		]);
+	});
+
+	for (const routing of ['after-user', 'before-user', 'after-cancellation'] as const) {
+		test(`keeps Fusion progress on its owning request across steering (${routing})`, async () => {
+			const resolution = event('session.fusion_resolved', { ...fusion.resolved, turnId: 'workflow-turn' }, {
+				id: 'route', parentId: routing === 'after-user' ? 'user-1' : null,
+			});
+			const { turns } = await mapSessionEvents(session, undefined, [
+				...(routing === 'after-cancellation' ? [
+					event('user.message', { content: 'Cancelled request', turnId: '0' }, { id: 'cancelled-user' }),
+					event('abort', { reason: 'user_initiated' }),
+				] : []),
+				...(routing !== 'after-user' ? [resolution] : []),
+				event('user.message', { content: 'First request', turnId: '0' }, {
+					id: 'user-1', parentId: routing !== 'after-user' ? 'route' : null,
+				}),
+				...(routing === 'after-user' ? [resolution] : []),
+				event('assistant.fusion_phase_completed', fusion.phaseCompleted, { id: 'phase', parentId: 'route' }),
+				event('user.message', { content: 'Steering request', turnId: '1' }, { id: 'user-2', parentId: 'phase' }),
+				event('session.fusion_completed', { ...fusion.completed, turnId: 'workflow-turn' }),
+				event('assistant.message', { messageId: 'answer-2', content: 'Steering answer' }),
+			]);
+			assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+				...(routing === 'after-cancellation' ? [{ id: 'cancelled-user', parts: [] }] : []),
+				{ id: 'user-1', parts: ['selected', 'succeeded'] },
+				{ id: 'user-2', parts: ['Steering answer'] },
+			]);
+		});
+	}
+
 	test('restores committed Fusion phase tools and intermediate text under the phase tile', async () => {
 		const committed = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
 		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
@@ -184,6 +276,60 @@ suite('mapSessionEvents — history replay', () => {
 			});
 		});
 	}
+
+	test('restores main pass tools, text, and task_complete summary in the main chat', async () => {
+		const committed = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'single', commitId: 'commit-1' };
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
+			event('user.message', { content: 'Start the app.' }),
+			event('session.fusion_resolved', { ...fusion.resolved, pattern: 'single' }),
+			event('assistant.fusion_phase_completed', mainPass.phaseCompleted),
+			event('assistant.message', { messageId: 'm1', content: 'Starting the server', toolRequests: [{ toolCallId: 'tc-bash', name: 'bash', arguments: {} }], fusion: committed }),
+			event('tool.execution_start', { toolCallId: 'tc-bash', toolName: 'bash', arguments: { command: 'ls' }, fusion: committed }),
+			event('tool.execution_complete', { toolCallId: 'tc-bash', success: true, result: { content: 'a.ts' }, fusion: committed }),
+			event('assistant.message', { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-complete', name: 'task_complete', arguments: {} }], fusion: committed }),
+			event('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'The app is running' }, fusion: committed }),
+			event('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'Done' }, fusion: committed }),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		assert.deepStrictEqual({
+			root: turns[0].responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? part.toolCall.toolCallId : part.kind === ResponsePartKind.Markdown ? part.content : part.kind),
+			state: turns[0].state,
+			phaseTurns: subagentTurnsByToolCallId.has('fusion:fusion-1:phase-1'),
+		}, {
+			root: [ResponsePartKind.SystemNotification, 'Starting the server', 'tc-bash', '\n\n**Task completed:**\n\nThe app is running'],
+			state: TurnState.Complete,
+			phaseTurns: false,
+		});
+	});
+
+	for (const failed of [false, true]) {
+		test(`restores a fix-up task_complete summary in its phase chat${failed ? ' but not after a root error' : ' and the main chat'}`, async () => {
+			const committed = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
+				event('user.message', { content: 'Fix the parser.' }),
+				event('session.fusion_resolved', fusion.resolved),
+				event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+				event('assistant.message', { messageId: 'm1', content: '', toolRequests: [{ toolCallId: 'tc-complete', name: 'task_complete', arguments: {} }], fusion: committed }),
+				event('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'Fixed the parser' }, fusion: committed }),
+				...(failed ? [event('session.error', { errorType: 'requestFailed', message: 'Failed' })] : []),
+				event('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'Done' }, fusion: committed }),
+			]);
+			const markdown = (parts: readonly ResponsePart[] | undefined) => (parts ?? []).flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content] : []);
+			const phase = turns[0].responseParts.find((part): part is ToolCallResponsePart => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'fusion:fusion-1:phase-1');
+			assert.deepStrictEqual({
+				root: markdown(turns[0].responseParts),
+				phaseChat: markdown(subagentTurnsByToolCallId.get('fusion:fusion-1:phase-1')?.[0]?.responseParts),
+				linked: phase?.toolCall.status === ToolCallStatus.Completed && !!phase.toolCall.content?.some(item => item.type === ToolResultContentType.Subagent),
+				error: !!getErrorResponsePart(turns[0]),
+			}, {
+				root: failed ? [] : ['\n\n**Task completed:**\n\nFixed the parser'],
+				phaseChat: ['\n\n**Task completed:**\n\nFixed the parser'],
+				linked: true,
+				error: failed,
+			});
+		});
+	}
+
 
 	test('restores a review phase critique into its phase chat', async () => {
 		const critic = { ...fusion.phaseCompleted, phaseId: 'critic', phaseKind: 'critic', role: 'critic', conversationScope: 'review' } as const;
@@ -640,7 +786,7 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
-	test('restores Auto model resolution as usage metadata', async () => {
+	test('restores Auto model resolution as usage metadata without routing diagnostics', async () => {
 		const autoModeResolved = {
 			chosenModel: 'claude-opus-4.8',
 			reasoningBucket: 'high',
@@ -655,7 +801,7 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'assistant.message', data: { messageId: 'm1', content: 'First response.' } },
 			// The runtime resolves Auto while building settings, before it persists
 			// the user message for the turn that will use the chosen model.
-			{ type: 'session.auto_mode_resolved', data: autoModeResolved },
+			{ type: 'session.auto_mode_resolved', data: { ...autoModeResolved, routingMethod: 'binary', availableModels: ['claude-opus-4.8', 'claude-sonnet-4.6', 'gpt-5.5'], routerLatencyMs: 25, fallback: false } },
 			{ type: 'user.message', id: 'turn-auto', data: { interactionId: 'm1', content: 'Solve this problem' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Done.' } },
 		];
@@ -1308,6 +1454,45 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
+	test('restores successive image batches at SDK round boundaries without intervening text', async () => {
+		const events: ISessionEvent[] = [{ type: 'user.message', data: { content: 'Generate fifteen images.' } }];
+		for (const [round, count] of [5, 5, 6].entries()) {
+			const turnId = `sdk-${round}`;
+			const toolRequests = Array.from({ length: count }, (_, index) => ({ toolCallId: `image-${round}-${index}`, name: 'image_generation' }));
+			events.push(
+				{ type: 'assistant.turn_start', data: { turnId } },
+				{ type: 'assistant.message', data: { turnId, messageId: `message-${round}`, content: '', toolRequests } },
+			);
+			for (const request of toolRequests) {
+				events.push(
+					{ type: 'tool.execution_start', data: { turnId, toolCallId: request.toolCallId, toolName: request.name } },
+					{ type: 'tool.execution_complete', data: { toolCallId: request.toolCallId, success: true } },
+				);
+			}
+			events.push(
+				{ type: 'assistant.turn_end', data: { turnId: 'different-sdk-round' } },
+				{ type: 'assistant.turn_end', data: { turnId } },
+			);
+		}
+		events.push(
+			{ type: 'assistant.turn_start', data: { turnId: 'non-image-round' } },
+			{ type: 'tool.execution_start', data: { turnId: 'non-image-round', toolCallId: 'read', toolName: 'view' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'read', success: true } },
+			{ type: 'assistant.turn_end', data: { turnId: 'non-image-round' } },
+		);
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		let imageCount = 0;
+		const boundaries: number[] = [];
+		for (const part of turns[0].responseParts) {
+			if (part.kind === ResponsePartKind.ToolCall && part.toolCall.toolName === 'image_generation') {
+				imageCount++;
+			} else if (part.kind === ResponsePartKind.SystemNotification && readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.ResponseRoundEnded) {
+				boundaries.push(imageCount);
+			}
+		}
+		assert.deepStrictEqual({ turns: turns.length, imageCount, boundaries }, { turns: 1, imageCount: 16, boundaries: [5, 10, 16] });
+	});
+
 	test('restores image function tools before the final answer', async () => {
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
 			{ type: 'user.message', data: { content: 'Draw a puppy.' } },
@@ -1537,6 +1722,27 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	for (const success of [false, true]) {
+		test(`restores image usage independently of result success (${success})`, async () => {
+			const usage = { requestId: 'charged-image', inputTokens: 21, outputTokens: 196, copilotUsage: { totalNanoAiu: 598_500_000 } };
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Generate an image.' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'image', toolName: 'image_generation' } },
+				{
+					type: 'tool.execution_complete',
+					data: {
+						toolCallId: 'image', success,
+						toolUsage: { ...usage, model: 'image-model' },
+						...(success ? { result: { content: 'Generated image.' } } : { error: { message: 'Image decoding failed.' } }),
+					},
+				},
+			]));
+			const part = turns[0].responseParts[0];
+			assert.ok(part.kind === ResponsePartKind.ToolCall);
+			assert.deepStrictEqual(part.toolCall._meta?.['vscode.imageGeneration'], { requestedModel: { id: 'image-model' }, usage });
+		});
+	}
+
 	test('maps SDK shell_exit full output to terminal completion on replay', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
@@ -1682,6 +1888,143 @@ suite('mapSessionEvents — history replay', () => {
 				label: 'example.ts',
 			}],
 		});
+	});
+
+	test('restores blob attachments with base64, data URLs, and unencoded legacy text without throwing', async () => {
+		const encodedText = encodeBase64(VSBuffer.fromString('Repository name: vscode\nOwner: microsoft'));
+		const controlCharacterText = 'a\x1Fb\x00c\x1Ed';
+		const events: ISessionEvent[] = [
+			{
+				type: 'user.message',
+				data: {
+					interactionId: 'm1',
+					content: 'inspect attachments',
+					attachments: [
+						{
+							type: 'blob',
+							mimeType: 'text/plain; x-vscode-display-kind=workspace',
+							displayName: 'microsoft/vscode',
+							data: encodedText,
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'raw-space',
+							data: 'Repository name: vscode',
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'raw-colon',
+							data: 'https://github.com/microsoft/vscode',
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'data-url-b64',
+							data: `data:text/plain;base64,${encodedText}`,
+						},
+						...['README', 'a=b', '=', '==', 'abcd='].map(data => ({
+							type: 'blob' as const,
+							mimeType: 'text/plain',
+							displayName: `raw-${data}`,
+							data,
+						})),
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'bom-and-ansi',
+							data: encodeBase64(VSBuffer.fromString('\uFEFF\x1b[31mred\x1b[0m')),
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'control-characters',
+							data: encodeBase64(VSBuffer.fromString(controlCharacterText)),
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'data-url-control-characters',
+							data: `data:text/plain;base64,${encodeBase64(VSBuffer.fromString(controlCharacterText))}`,
+						},
+						{
+							type: 'blob',
+							mimeType: 'image/png',
+							displayName: 'screenshot.png',
+							data: 'data:image/png;base64,iVBORw0KGgo=\r\n',
+						},
+						...[['wrapped.bin', 'AAEC\r\nAwQ='], ['raw-not-base64.bin', 'not base64'], ['raw-spaced.bin', 'abcd efgh']].map(([displayName, data]) => ({
+							type: 'blob' as const,
+							mimeType: 'application/octet-stream',
+							displayName,
+							data,
+						})),
+					],
+				},
+			},
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'done' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns[0].message.attachments, [
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'microsoft/vscode',
+				modelRepresentation: 'Repository name: vscode\nOwner: microsoft',
+				displayKind: 'workspace',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'raw-space',
+				modelRepresentation: 'Repository name: vscode',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'raw-colon',
+				modelRepresentation: 'https://github.com/microsoft/vscode',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'data-url-b64',
+				modelRepresentation: 'Repository name: vscode\nOwner: microsoft',
+			},
+			...['README', 'a=b', '=', '==', 'abcd='].map(data => ({
+				type: MessageAttachmentKind.Simple,
+				label: `raw-${data}`,
+				modelRepresentation: data,
+			})),
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'bom-and-ansi',
+				modelRepresentation: '\uFEFF\x1b[31mred\x1b[0m',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'control-characters',
+				modelRepresentation: controlCharacterText,
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'data-url-control-characters',
+				modelRepresentation: controlCharacterText,
+			},
+			{
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: 'screenshot.png',
+				data: 'iVBORw0KGgo=',
+				contentType: 'image/png',
+				displayKind: 'image',
+			},
+			...[['wrapped.bin', 'AAECAwQ='], ['raw-not-base64.bin', 'not base64'], ['raw-spaced.bin', 'abcd efgh']].map(([label, data]) => ({
+				type: MessageAttachmentKind.EmbeddedResource,
+				label,
+				data,
+				contentType: 'application/octet-stream',
+				displayKind: undefined,
+			})),
+		]);
 	});
 
 	test('seeds the model from session.start selectedModel when no launch model is supplied', async () => {
@@ -1872,6 +2215,168 @@ suite('mapSessionEvents — history replay', () => {
 			parts: [{ kind: ResponsePartKind.Markdown, content: 'No new instructions.' }],
 		}]);
 	});
+
+	for (const hasPreviousTurn of [false, true]) {
+		test(`restores user-invoked skills in the following request (${hasPreviousTurn ? 'follow-up' : 'first'} turn)`, async () => {
+			const previousEvents: ISessionEvent[] = hasPreviousTurn ? [
+				{ type: 'user.message', id: 'previous-user', data: { content: 'Previous request' } },
+				{ type: 'assistant.message', data: { content: 'Previous response' } },
+			] : [];
+			const events: ISessionEvent[] = [
+				...previousEvents,
+				{ type: 'skill.invoked', id: 'user-skill', data: { name: 'publish', path: '/skills/publish/SKILL.md', content: '', trigger: 'user-invoked' } },
+				{ type: 'skill.invoked', id: 'second-user-skill', data: { name: 'review', path: '/skills/review/SKILL.md', content: '', trigger: 'user-invoked' } },
+				{ type: 'user.message', id: 'user-event', timestamp: '2026-10-16T18:58:31.354Z', data: { content: '/publish the SDK' } },
+				{ type: 'assistant.message', data: { content: 'Publishing the SDK' } },
+				{ type: 'skill.invoked', id: 'agent-skill', data: { name: 'test', path: '/skills/test/SKILL.md', content: '', trigger: 'agent-invoked' } },
+				{ type: 'assistant.message', data: { content: 'Published' } },
+			];
+
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+			assert.deepStrictEqual(turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				startedAt: turn.startedAt,
+				state: turn.state,
+				parts: turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall
+					? { kind: part.kind, toolCallId: part.toolCall.toolCallId }
+					: partKinds([part])[0]),
+			})), [
+				...(hasPreviousTurn ? [{
+					id: 'previous-user',
+					message: 'Previous request',
+					startedAt: undefined,
+					state: TurnState.Complete,
+					parts: [{ kind: ResponsePartKind.Markdown, content: 'Previous response' }],
+				}] : []),
+				{
+					id: 'user-event',
+					message: '/publish the SDK',
+					startedAt: '2026-10-16T18:58:31.354Z',
+					state: TurnState.Complete,
+					parts: [
+						{ kind: ResponsePartKind.ToolCall, toolCallId: 'synth-skill-user-skill' },
+						{ kind: ResponsePartKind.ToolCall, toolCallId: 'synth-skill-second-user-skill' },
+						{ kind: ResponsePartKind.Markdown, content: 'Publishing the SDK' },
+						{ kind: ResponsePartKind.ToolCall, toolCallId: 'synth-skill-agent-skill' },
+						{ kind: ResponsePartKind.Markdown, content: 'Published' },
+					],
+				},
+			]);
+		});
+	}
+
+	test('restores the worktree announcement below the first request with a pre-request skill', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'skill.invoked', id: 'user-skill', data: { name: 'publish', path: '/skills/publish/SKILL.md', content: '', trigger: 'user-invoked' } },
+			{ type: 'user.message', id: 'user-event', data: { content: '/publish the SDK' } },
+			{ type: 'assistant.message', data: { content: 'Published' } },
+		]));
+		const restored = prependAnnouncementToFirstTurn(turns, 'Created isolated worktree\n\n');
+
+		assert.deepStrictEqual(restored.map(turn => ({
+			id: turn.id,
+			message: turn.message.text,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'user-event',
+			message: '/publish the SDK',
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'Created isolated worktree\n\n' },
+				{ kind: ResponsePartKind.ToolCall },
+				{ kind: ResponsePartKind.Markdown, content: 'Published' },
+			],
+		}]);
+	});
+
+	test('restores an initial skill without trigger metadata in the following request', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'skill.invoked', id: 'legacy-skill', data: { name: 'publish', path: '/skills/publish/SKILL.md', content: '' } },
+			{ type: 'user.message', id: 'user-event', data: { content: '/publish the SDK' } },
+			{ type: 'assistant.message', data: { content: 'Published' } },
+		]));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			message: turn.message.text,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'user-event',
+			message: '/publish the SDK',
+			parts: [
+				{ kind: ResponsePartKind.ToolCall },
+				{ kind: ResponsePartKind.Markdown, content: 'Published' },
+			],
+		}]);
+	});
+
+	test('preserves a skill invocation when history has no user message', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'skill.invoked', id: 'user-skill', data: { name: 'publish', path: '/skills/publish/SKILL.md', content: '', trigger: 'user-invoked' } },
+		]));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			message: turn.message.text,
+			state: turn.state,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			message: '',
+			state: TurnState.Cancelled,
+			parts: [{ kind: ResponsePartKind.ToolCall }],
+		}]);
+	});
+
+	for (const boundary of ['abort', 'session.error'] as const) {
+		for (const hasPreviousTurn of [false, true]) {
+			for (const hasReplacementRequest of [false, true]) {
+				test(`preserves a pending skill at ${boundary} (previous: ${hasPreviousTurn}, replacement: ${hasReplacementRequest})`, async () => {
+					const previousEvents: ISessionEvent[] = hasPreviousTurn ? [
+						{ type: 'user.message', id: 'previous-user', data: { content: 'Previous request' } },
+						{ type: 'assistant.message', data: { content: 'Previous response' } },
+					] : [];
+					const replacementEvents: ISessionEvent[] = hasReplacementRequest ? [
+						{ type: 'user.message', id: 'replacement-user', data: { content: 'Explain this file' } },
+						{ type: 'assistant.message', data: { content: 'File explanation' } },
+					] : [];
+					const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+						...previousEvents,
+						{ type: 'skill.invoked', id: 'user-skill', data: { name: 'publish', path: '/skills/publish/SKILL.md', content: '', trigger: 'user-invoked' } },
+						boundary === 'abort'
+							? { type: 'abort', data: { reason: 'user requested' } }
+							: { type: 'session.error', data: { errorType: 'requestFailed', message: 'Skill request failed' } },
+						...replacementEvents,
+					]));
+
+					assert.deepStrictEqual(turns.map(turn => ({
+						message: turn.message.text,
+						state: turn.state,
+						parts: turn.responseParts.map(part => part.kind),
+						error: getTurnError(turn)?.message,
+					})), [
+						...(hasPreviousTurn ? [{
+							message: 'Previous request',
+							state: TurnState.Complete,
+							parts: [ResponsePartKind.Markdown],
+							error: undefined,
+						}] : []),
+						{
+							message: '',
+							state: boundary === 'abort' ? TurnState.Cancelled : TurnState.Error,
+							parts: boundary === 'abort' ? [ResponsePartKind.ToolCall] : [ResponsePartKind.ToolCall, ResponsePartKind.Error],
+							error: boundary === 'abort' ? undefined : 'Skill request failed',
+						},
+						...(hasReplacementRequest ? [{
+							message: 'Explain this file',
+							state: TurnState.Complete,
+							parts: [ResponsePartKind.Markdown],
+							error: undefined,
+						}] : []),
+					]);
+				});
+			}
+		}
+	}
 
 	test('synthetic user messages do not start a new turn', async () => {
 		const events: ISessionEvent[] = [
@@ -2178,12 +2683,99 @@ suite('mapSessionEvents — subagent routing', () => {
 		const subagentTurns = subagentTurnsByToolCallId.get('tc-task');
 		assert.ok(subagentTurns, 'Expected subagent turns for tc-task');
 		assert.strictEqual(subagentTurns!.length, 1);
-		assert.strictEqual(subagentTurns![0].message.text, 'Inspect the implementation.');
+		assert.deepStrictEqual(subagentTurns![0].message, {
+			text: 'Inspect the implementation.',
+			origin: { kind: MessageKind.Tool },
+		});
 		assert.deepStrictEqual(partKinds(subagentTurns![0].responseParts), [
 			{ kind: ResponsePartKind.ToolCall },
 			{ kind: ResponsePartKind.Markdown, content: 'Subagent is done.' },
 		]);
 	});
+
+	test('preserves user origin for explicit follow-ups after the worker seed turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'Delegate a task' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { prompt: 'Seed prompt' } } },
+			{ type: 'subagent.started', agentId: 'worker', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore' } },
+			{ type: 'user.message', agentId: 'worker', data: { interactionId: 'seed', content: 'Seed prompt' } },
+			{ type: 'assistant.message', agentId: 'worker', data: { messageId: 'first', content: 'Initial answer' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+			{ type: 'user.message', agentId: 'worker', data: { interactionId: 'follow-up', content: 'Explicit follow-up' } },
+			{ type: 'assistant.message', agentId: 'worker', data: { messageId: 'second', content: 'Follow-up answer' } },
+		];
+		const { subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		assert.deepStrictEqual(subagentTurnsByToolCallId.get('task')?.map(turn => turn.message), [
+			{ text: 'Seed prompt', origin: { kind: MessageKind.Tool } },
+			{ text: 'Explicit follow-up', origin: { kind: MessageKind.User } },
+		]);
+	});
+
+	for (const source of [undefined, 'user', 'agent-parent', 'agent-sibling']) {
+		test(`restores separate forwarded subagent messages and responses (source=${source})`, async () => {
+			const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Delegate a task' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { prompt: 'Seed prompt' } } },
+				{ type: 'subagent.started', agentId: 'worker', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore' } },
+				{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Seed prompt' } },
+				{ type: 'assistant.message', agentId: 'worker', data: { content: 'Initial answer' } },
+				{ type: 'user.message', agentId: 'worker', data: { messageId: 'followup-1', content: 'Follow up', source } },
+				{ type: 'user.message', agentId: 'worker', data: { messageId: 'followup-2', content: 'Follow up', source } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Hidden skill instructions', source: 'skill-testing' } },
+				{ type: 'tool.execution_start', agentId: 'worker', data: { toolCallId: 'child-tool', toolName: 'bash', arguments: { command: 'npm test' } } },
+				{ type: 'tool.execution_complete', agentId: 'worker', data: { toolCallId: 'child-tool', success: true } },
+				{ type: 'assistant.message', agentId: 'worker', data: { content: 'Follow-up answer' } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Next steps', source } },
+				{ type: 'assistant.message', data: { content: 'Parent answer' } },
+			]));
+
+			assert.deepStrictEqual({
+				parent: turns.map(turn => ({ message: turn.message.text, parts: partKinds(turn.responseParts) })),
+				child: subagentTurnsByToolCallId.get('task')?.map(turn => ({ message: turn.message, parts: partKinds(turn.responseParts) })),
+			}, {
+				parent: [{
+					message: 'Delegate a task',
+					parts: [{ kind: ResponsePartKind.ToolCall }, { kind: ResponsePartKind.Markdown, content: 'Parent answer' }],
+				}],
+				child: [
+					{ message: { text: 'Seed prompt', origin: { kind: MessageKind.Tool } }, parts: [{ kind: ResponsePartKind.Markdown, content: 'Initial answer' }] },
+					{ message: { text: 'Follow up', origin: { kind: MessageKind.User } }, parts: [] },
+					{ message: { text: 'Follow up', origin: { kind: MessageKind.User } }, parts: [{ kind: ResponsePartKind.ToolCall }, { kind: ResponsePartKind.Markdown, content: 'Follow-up answer' }] },
+					{ message: { text: 'Next steps', origin: { kind: MessageKind.User } }, parts: [] },
+				],
+			});
+		});
+	}
+
+	for (const responseBeforeLaunchCompletes of [false, true]) {
+		test(`keeps the background subagent seed and response together (responseBeforeLaunchCompletes=${responseBeforeLaunchCompletes})`, async () => {
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { content: 'Delegate a task' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { prompt: 'Seed prompt', mode: 'background' } } },
+				{ type: 'subagent.started', agentId: 'worker', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore' } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Seed prompt', source: 'agent-parent' } },
+			];
+			if (responseBeforeLaunchCompletes) {
+				events.push({ type: 'assistant.message', agentId: 'worker', data: { content: 'Working' } });
+			}
+			events.push(
+				{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+				{ type: 'assistant.message', agentId: 'worker', data: { content: 'Initial answer' } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Follow up', source: 'agent-parent' } },
+				{ type: 'assistant.message', agentId: 'worker', data: { content: 'Follow-up answer' } },
+			);
+			const { subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			assert.deepStrictEqual(subagentTurnsByToolCallId.get('task')?.map(turn => ({ message: turn.message, parts: partKinds(turn.responseParts) })), [
+				{
+					message: { text: 'Seed prompt', origin: { kind: MessageKind.Tool } },
+					parts: [...(responseBeforeLaunchCompletes ? [{ kind: ResponsePartKind.Markdown, content: 'Working' }] : []), { kind: ResponsePartKind.Markdown, content: 'Initial answer' }],
+				},
+				{ message: { text: 'Follow up', origin: { kind: MessageKind.User } }, parts: [{ kind: ResponsePartKind.Markdown, content: 'Follow-up answer' }] },
+			]);
+		});
+	}
 
 	test('reconstructs subagent content when legacy completion precedes subagent start', async () => {
 		const events: ISessionEvent[] = [

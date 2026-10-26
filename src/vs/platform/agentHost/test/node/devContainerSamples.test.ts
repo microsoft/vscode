@@ -8,13 +8,20 @@ import { createHash } from 'crypto';
 import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
 import { join } from '../../../../base/common/path.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { GitHubService } from '../../../github/common/githubService.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { IGitHubAnonymousClient } from '../../../github/common/anonymous/anonymous.js';
+import { IContentClient } from '../../../github/common/content/content.js';
+import { IGitHubService } from '../../../github/common/githubService.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { IRequestService } from '../../../request/common/request.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { devContainerSamples, devContainerSampleUri, findDevContainerSample, getDevContainerSampleUrl } from '../../common/devContainerSamples.js';
+import { DevContainerAgentHostMainService } from '../../node/devContainerAgentHostService.js';
 import { getDevContainerSampleLabels, getDevContainerSampleVolumeName, parseDevContainerSampleConfiguration, prepareDevContainerSample } from '../../node/devContainerSamples.js';
 import { devContainerSandboxRunArgs } from '../../node/devContainerSandbox.js';
 
@@ -89,31 +96,32 @@ suite('Dev Container samples', () => {
 
 	test('clones before lifecycle hooks and reuses cached configuration and volumes', async () => {
 		const calls: string[] = [];
-		const fetchedUrls: string[] = [];
 		const cloneUsesLowercaseUrl: boolean[] = [];
 		const cloneUsesPinnedCommit: boolean[] = [];
 		const volumeName = getDevContainerSampleVolumeName(sample, []);
 		const config = { image: 'sample-image', postCreateCommand: 'npm install' };
-		const service = store.add(new GitHubService({
-			credentialProvider: { onDidChange: Event.None, getToken: () => { throw new Error('Samples must remain anonymous'); } },
-			fetch: async input => {
-				const url = String(input);
-				fetchedUrls.push(url);
-				calls.push(url.includes('/commits/') ? 'commit' : 'config');
-				return new Response(JSON.stringify(url.includes('/commits/') ? { sha: commit } : config));
-			},
-		}, new NullLogService(), NullTelemetryService));
+		const leases = { acquired: 0, released: 0 };
+		const service = new class extends mock<IGitHubService>() {
+			override acquireAnonymousClient() {
+				leases.acquired++;
+				return upcastPartial<IGitHubAnonymousClient>({
+					content: upcastPartial<IContentClient>({
+						resolveRef: async ({ owner, repo }, ref) => {
+							calls.push(`resolve ${owner}/${repo}@${ref}`);
+							return commit;
+						},
+						getRawFile: async ({ owner, repo }, commitSha, path) => {
+							calls.push(`read ${owner}/${repo}@${commitSha}/${path}`);
+							return JSON.stringify(config);
+						},
+					}),
+					dispose: () => { leases.released++; },
+				});
+			}
+		}();
 		let existing = false;
-		const commands: Parameters<typeof prepareDevContainerSample>[2] = {
+		const commands: Omit<Parameters<typeof prepareDevContainerSample>[2], 'readSource'> = {
 			onContainerStarted: id => calls.push(`started ${id}`),
-			readSource: async () => {
-				const client = store.add(service.acquireAnonymousClient());
-				try {
-					return await client.object.getFile('microsoft', folder, '.devcontainer/devcontainer.json', CancellationToken.None);
-				} finally {
-					client.dispose();
-				}
-			},
 			docker: async args => {
 				let stdout: string;
 				if (args[0] === 'volume') {
@@ -143,21 +151,40 @@ suite('Dev Container samples', () => {
 				};
 			},
 		};
-		const first = await prepareDevContainerSample(sample, cacheDirectory, commands);
+		const configuration = new TestConfigurationService({});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const host = store.add(new class extends DevContainerAgentHostMainService {
+			prepareSample() {
+				return this._prepareSample('sample', sample, CancellationToken.None, commands.onContainerStarted);
+			}
+			protected override _runDocker(args: readonly string[]) {
+				return commands.docker(args);
+			}
+			protected override _runDevContainer(_connectionId: string, args: readonly string[]) {
+				return commands.devcontainer(args);
+			}
+		}(
+			new NullLogService(), new class extends mock<IProductService>() { }(), NullTelemetryService,
+			configuration, new class extends mock<INativeEnvironmentService>() { override readonly userDataPath = cacheDirectory; }(),
+			new class extends mock<IRequestService>() { }(), service,
+		));
+		const first = await host.prepareSample();
 		existing = true;
-		const second = await prepareDevContainerSample(sample, cacheDirectory, commands);
+		const second = await host.prepareSample();
+		const sampleDirectory = join(cacheDirectory, 'devContainerSamples', sample.id);
 		assert.deepStrictEqual({
 			calls,
-			fetchedUrls,
+			leases,
 			cloneUsesLowercaseUrl,
 			cloneUsesPinnedCommit,
 			sameIdentity: first.repository.volumeName === second.repository.volumeName,
-			source: JSON.parse(await readFile(join(cacheDirectory, 'source.json'), 'utf8')),
-			config: JSON.parse(await readFile(join(cacheDirectory, 'devcontainer.json'), 'utf8')),
+			source: JSON.parse(await readFile(join(sampleDirectory, 'source.json'), 'utf8')),
+			config: JSON.parse(await readFile(join(sampleDirectory, 'devcontainer.json'), 'utf8')),
 		}, {
-			calls: ['commit', 'config', 'volume ls', 'volume create', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks',
+			calls: [`resolve microsoft/${folder}@HEAD`, `read microsoft/${folder}@${commit}/.devcontainer/devcontainer.json`,
+				'volume ls', 'volume create', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks',
 				'volume ls', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks'],
-			fetchedUrls: [`https://api.github.com/repos/microsoft/${folder}/commits/HEAD`, `https://raw.githubusercontent.com/microsoft/${folder}/${commit}/.devcontainer/devcontainer.json`],
+			leases: { acquired: 1, released: 1 },
 			cloneUsesLowercaseUrl: [true, true],
 			cloneUsesPinnedCommit: [true, true],
 			sameIdentity: true,

@@ -5,7 +5,7 @@
 
 import { addDisposableListener, EventHelper, EventType, getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { AnchorAxisAlignment } from '../../../base/browser/ui/contextview/contextview.js';
+import { AnchorAlignment, AnchorAxisAlignment } from '../../../base/browser/ui/contextview/contextview.js';
 import { Menu } from '../../../base/browser/ui/menu/menu.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { IAction, IActionRunner } from '../../../base/common/actions.js';
@@ -25,12 +25,18 @@ export interface ISubmenuFlyoutOptions {
 	readonly openKeys: readonly KeyCode[];
 	/** Keys inside the flyout that close it and return focus to the anchor, in addition to Escape. */
 	readonly closeKeys: readonly KeyCode[];
+	/**
+	 * The side the flyout prefers: {@link AnchorAlignment.LEFT} (the default) opens it to the anchor's
+	 * right and {@link AnchorAlignment.RIGHT} to its left. It flips when the preferred side has no room.
+	 */
+	readonly anchorAlignment?: AnchorAlignment;
 }
 
 /**
  * Shows a submenu beside an entry like a menu's own submenus: it opens after a short
  * hover, stays open while the pointer moves into it, and supports the keyboard. The
- * context view places it on whichever side of the anchor has room.
+ * context view places it on the preferred side of the anchor, or the other side when
+ * the preferred one has no room.
  */
 export class SubmenuFlyout extends Disposable {
 
@@ -97,6 +103,7 @@ export class SubmenuFlyout extends Disposable {
 		const view = this.contextViewService.showContextView({
 			getAnchor: () => anchor,
 			anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
+			anchorAlignment: this.options.anchorAlignment,
 			canRelayout: false,
 			render: container => {
 				flyoutContainer = container;

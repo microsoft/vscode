@@ -17,6 +17,7 @@ import type { AhpNotification } from '../../../../common/state/sessionProtocol.j
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, type StringOrMarkdown, type ToolCallContributor } from '../../../../common/state/sessionState.js';
 import { withAgentHostE2ESnapshotDiagnostics } from './agentHostE2EDiagnostics.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { agentModelConfigurationReportKey } from '../../../../common/agentModelConfiguration.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dump(obj: unknown, opts?: { lineWidth?: number; noRefs?: boolean }): string };
@@ -152,6 +153,12 @@ export class AhpSnapshotRecorder {
 					const action = params?.action as StateAction | undefined;
 					if (action) {
 						if (options.ignoredActionTypes?.includes(action.type)) {
+							continue;
+						}
+						// Asynchronous model readbacks are checked as state, not as conversation-event ordering.
+						if (direction === 's2c' && !params?.origin && !params?.rejectionReason
+							&& action.type === ActionType.SessionConfigChanged && !action.replace
+							&& Object.keys(action.config).length === 1 && Object.hasOwn(action.config, agentModelConfigurationReportKey)) {
 							continue;
 						}
 						if (action.type === ActionType.SessionCustomizationUpdated) {

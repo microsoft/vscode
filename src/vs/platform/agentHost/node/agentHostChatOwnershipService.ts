@@ -99,6 +99,15 @@ export interface IAgentHostChatOwnershipService {
 	trackRestore(restore: Promise<unknown>): void;
 }
 
+/** Mints the canonical subagent chat URI from the current owner and recorded spawn edges. */
+export function mintSubagentChatUri(chatOwnership: IAgentHostChatOwnershipService, session: ProtocolURI, issuingChat: ProtocolURI, toolCallId: string): ProtocolURI {
+	let root = issuingChat;
+	for (let parent = chatOwnership.getChatParent(root); parent !== undefined && parent !== root; parent = chatOwnership.getChatParent(root)) {
+		root = parent;
+	}
+	return subagentChatUri(chatUriFormatOf(chatOwnership.getDefaultChat(session)), session, root, toolCallId);
+}
+
 export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipService {
 	declare readonly _serviceBrand: undefined;
 

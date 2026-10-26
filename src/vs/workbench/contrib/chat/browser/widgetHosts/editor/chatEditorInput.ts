@@ -67,6 +67,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return this.modelRef.value?.object;
 	}
 
+	/** Whether this input holds the chat model it resolved, e.g. because it was shown before. */
+	get hasResolvedModel(): boolean {
+		return !!this.model;
+	}
+
 	static getNewEditorUri(): URI {
 		return ChatEditorUri.getNewEditorUri();
 	}

@@ -50,6 +50,7 @@ interface IAutomationToolOutput {
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationDescriptor['cloudTrigger'];
 	readonly target:
 	| {
 		readonly kind: 'workspace';
@@ -849,6 +850,9 @@ The change uses the current tool-approval policy. When approval is required, the
 		}
 
 		const schedule = parseSchedule(input, existing?.schedule, !existing);
+		if (schedule && existing?.cloudTrigger && existing.schedule.interval === 'custom') {
+			throw new AutomationToolInputError('Edit event triggers in the automation dialog or on GitHub. Omit schedule when editing other fields.');
+		}
 		const currentTarget = this.getCurrentSessionTarget(sessionResource);
 		const target = parseTarget(input, existing, currentTarget);
 		const modelId = readOptionalNullableNonEmptyString(input, 'modelId');
@@ -1169,6 +1173,7 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 		name: automation.name,
 		prompt: automation.prompt,
 		schedule: automation.schedule,
+		...(automation.cloudTrigger ? { cloudTrigger: automation.cloudTrigger } : {}),
 		target,
 		...(automation.sessionTemplate
 			? { sessionTemplate: automation.sessionTemplate }

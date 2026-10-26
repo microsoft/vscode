@@ -258,6 +258,54 @@ suite('TabbedActionListWidget', () => {
 		});
 	});
 
+	test('a disabled tab bar action explains why and does not run', () => {
+		const setupManagedHover = sinon.spy(NullHoverService.setupManagedHover);
+		const hoverService: IHoverService = { ...NullHoverService, setupManagedHover };
+		const { widget } = createWidget(disposables, true, undefined, hoverService);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		document.body.style.setProperty('--vscode-toolbar-hoverBackground', 'rgb(1, 2, 3)');
+		disposables.add({ dispose: () => { anchor.remove(); document.body.style.removeProperty('--vscode-toolbar-hoverBackground'); } });
+		let runs = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'add', icon: Codicon.add, tooltip: 'Add Models...', checked: true, disabledReason: 'Not supported here', run: () => runs++ },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', checked: true, run: () => { } },
+			],
+			createActionList: () => ({ items: [] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const button = document.querySelector<HTMLElement>('[data-id="add"]')!;
+		button.click();
+		assert.deepStrictEqual({
+			label: button.getAttribute('aria-label'),
+			disabled: button.getAttribute('aria-disabled'),
+			description: button.getAttribute('aria-description'),
+			nativeTitle: button.getAttribute('title'),
+			managedHovers: setupManagedHover.getCalls().map(call => ({ action: call.args[1].dataset.id, content: call.args[2] })),
+			disabledClass: button.classList.contains('disabled'),
+			iconOpacity: mainWindow.getComputedStyle(button.querySelector('.codicon')!).opacity,
+			checkedBackground: mainWindow.getComputedStyle(button).backgroundColor,
+			enabledCheckedBackground: mainWindow.getComputedStyle(document.querySelector<HTMLElement>('[data-id="search"]')!).backgroundColor,
+			runs,
+		}, {
+			label: 'Add Models...',
+			disabled: 'true',
+			description: 'Not supported here',
+			nativeTitle: null,
+			managedHovers: [{ action: 'add', content: 'Not supported here' }],
+			disabledClass: true,
+			iconOpacity: '0.4',
+			checkedBackground: 'rgba(0, 0, 0, 0)',
+			enabledCheckedBackground: 'rgb(1, 2, 3)',
+			runs: 0,
+		});
+	});
+
 	test('Escape from a Details radio dismisses the entire popup, including retained search', async () => {
 		const { widget, input, selected } = createSearchableWidget(disposables, ['first match', 'second match']);
 		let radio: Radio | undefined;
@@ -420,6 +468,70 @@ suite('TabbedActionListWidget', () => {
 			tabsBeforeShortcut: [],
 			nextTab: true,
 			tabChanges: ['Remote'],
+		});
+		widget.hide();
+	});
+
+	test('Left collapses and Right expands a collapsible section like a tree', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const toggles: boolean[] = [];
+		const requested: string[] = [];
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [
+					action('promoted'),
+					{ ...action('other-models'), section: 'other', isSectionToggle: true },
+					...['a', 'b'].map(id => ({ ...action(id), section: 'other' })),
+				],
+				listOptions: { collapsedByDefault: new Set(['other']), onDidToggleSection: (_, collapsed) => toggles.push(collapsed) },
+			}),
+			openItemDetails: item => {
+				requested.push(item.item!.id);
+				return false;
+			},
+			delegate: { onSelect: () => assert.fail('Arrows must not select'), onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement();
+		const list = popup.querySelector<HTMLElement>('.monaco-list')!;
+		const press = (key: 'ArrowLeft' | 'ArrowRight' | 'ArrowDown') => {
+			const event = new KeyboardEvent('keydown', { key, keyCode: key === 'ArrowLeft' ? 37 : key === 'ArrowRight' ? 39 : 40, bubbles: true, cancelable: true });
+			list.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		// Count rows through aria-setsize: the list is virtualized, so a small viewport renders only some of them.
+		const state = () => {
+			const focusedRow = popup.querySelector('.monaco-list-row.focused');
+			return {
+				visibleRows: focusedRow?.getAttribute('aria-setsize'),
+				focused: focusedRow?.querySelector('.title')?.textContent,
+				expanded: popup.querySelector('.monaco-list-row[aria-expanded]')?.getAttribute('aria-expanded'),
+			};
+		};
+		const leftOnUnsectioned = press('ArrowLeft');
+		press('ArrowDown');
+		const leftOnCollapsed = press('ArrowLeft');
+		const expand = press('ArrowRight');
+		const afterExpand = state();
+		const rightOnExpanded = press('ArrowRight');
+		press('ArrowDown');
+		const rightOnChild = press('ArrowRight');
+		const collapseFromChild = press('ArrowLeft');
+		const afterCollapse = state();
+		assert.deepStrictEqual({ leftOnUnsectioned, leftOnCollapsed, expand, afterExpand, rightOnExpanded, rightOnChild, collapseFromChild, afterCollapse, toggles, requested }, {
+			leftOnUnsectioned: false,
+			leftOnCollapsed: false,
+			expand: true,
+			afterExpand: { visibleRows: '4', focused: 'other-models', expanded: 'true' },
+			rightOnExpanded: false,
+			rightOnChild: false,
+			collapseFromChild: true,
+			afterCollapse: { visibleRows: '2', focused: 'other-models', expanded: 'false' },
+			toggles: [false, true],
+			requested: ['a'],
 		});
 		widget.hide();
 	});
@@ -926,6 +1038,84 @@ suite('TabbedActionListWidget', () => {
 			widget.hide();
 		});
 	}
+
+	test('a size-preserving refresh keeps the popup height and skips re-measuring the sizing tab', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		anchor.style.cssText = 'position: fixed; top: 600px; width: 120px; height: 20px;';
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		let itemCount = 3;
+		let sizingBuilds = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			sizingTab: 'Local',
+			width: 300,
+			createActionList: (_tab, forSizing) => {
+				if (forSizing) {
+					sizingBuilds++;
+				}
+				return { items: Array.from({ length: itemCount }, (_, index) => action(`item-${index}`)), listOptions: { anchorPosition: AnchorPosition.ABOVE } };
+			},
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement().querySelector<HTMLElement>('.action-widget')!;
+		const initialHeight = popup.offsetHeight;
+		const initialBuilds = sizingBuilds;
+		itemCount = 8;
+		widget.refreshActiveList({ preserveSize: true });
+		const preserved = { sameHeight: popup.offsetHeight === initialHeight, sizingBuilds: sizingBuilds - initialBuilds };
+		widget.refreshActiveList();
+		assert.deepStrictEqual({ preserved, remeasured: { grew: popup.offsetHeight > initialHeight, sizingBuilds: sizingBuilds - initialBuilds } }, {
+			preserved: { sameHeight: true, sizingBuilds: 0 },
+			remeasured: { grew: true, sizingBuilds: 1 },
+		});
+	});
+
+	test('a refresh deferred while details are open keeps its size-preserving request', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		anchor.style.cssText = 'position: fixed; top: 600px; width: 120px; height: 20px;';
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		let itemCount = 3;
+		let sizingBuilds = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			sizingTab: 'Local',
+			width: 300,
+			createActionList: (_tab, forSizing) => {
+				if (forSizing) {
+					sizingBuilds++;
+				}
+				return { items: Array.from({ length: itemCount }, (_, index) => action(`item-${index}`)), listOptions: { anchorPosition: AnchorPosition.ABOVE } };
+			},
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement().querySelector<HTMLElement>('.action-widget')!;
+		const initialHeight = popup.offsetHeight;
+		const refreshWhileDetailsOpen = (options?: { preserveSize: boolean; preserveScrollPosition: boolean }) => {
+			widget.showDetails({ label: 'Details', backLabel: 'Back', render: container => { container.textContent = 'Details'; return { dispose: () => { } }; } });
+			itemCount++;
+			widget.refreshActiveList(options);
+			const builds = sizingBuilds;
+			widget.hideDetails();
+			return { sameHeight: popup.offsetHeight === initialHeight, sizingBuilds: sizingBuilds - builds };
+		};
+		assert.deepStrictEqual({
+			preserved: refreshWhileDetailsOpen({ preserveSize: true, preserveScrollPosition: true }),
+			remeasured: refreshWhileDetailsOpen(),
+		}, {
+			preserved: { sameHeight: true, sizingBuilds: 0 },
+			remeasured: { sameHeight: false, sizingBuilds: 1 },
+		});
+	});
 
 	test('refresh keeps the popup open when rebuilding removes the focused card control', async () => {
 		const { widget, contextView } = createWidget(disposables);

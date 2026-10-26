@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -14,7 +14,7 @@ import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChan
 import { ListSessionsResult, SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { ChangesetContentChangedAction, SessionAddedParams, SessionSummaryChangedParams } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { ROOT_STATE_URI, type SessionState } from '../../../common/state/sessionState.js';
+import { ChangesetStatus, ROOT_STATE_URI, type ChangesetState, type SessionState } from '../../../common/state/sessionState.js';
 import { defaultChatChannel } from '../hostDefaultChats.js';
 import {
 	dispatchTurnStarted,
@@ -86,7 +86,38 @@ const hasGit = (() => {
 		}
 	});
 
-	test('terminal-driven file edit lands in Branch and Session Changes', async function () {
+	/** Reads a changeset once any in-flight computation has settled. */
+	async function settledChangeset(channel: string): Promise<ChangesetState> {
+		const isPending = (status: ChangesetStatus) => status === ChangesetStatus.Computing || status === ChangesetStatus.Recomputing;
+		let snapshot = (await client.call<SubscribeResult>('subscribe', { channel })).snapshot!;
+		while (isPending((snapshot.state as ChangesetState).status)) {
+			const fromSeq = snapshot.fromSeq;
+			await client.waitForNotification(n =>
+				isActionNotification(n, 'changeset/statusChanged')
+				&& getActionEnvelope(n).channel === channel
+				&& getActionEnvelope(n).serverSeq > fromSeq
+				&& !isPending((getActionEnvelope(n).action as { readonly status: ChangesetStatus }).status),
+				getAgentHostE2ETestTimeout(10_000, 30_000),
+			);
+			snapshot = (await client.call<SubscribeResult>('subscribe', { channel })).snapshot!;
+		}
+		return snapshot.state as ChangesetState;
+	}
+
+	/** Waits until the chat that runs `turnId` completes it. */
+	async function waitForTurnComplete(turnId: string): Promise<void> {
+		await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnComplete')
+			&& (getActionEnvelope(n).action as { readonly turnId?: string }).turnId === turnId,
+			getAgentHostE2ETestTimeout(10_000, 30_000),
+		);
+	}
+
+	const changesetFileNames = (state: ChangesetState) => state.files.map(file => (file.edit.after?.uri ?? file.edit.before?.uri)?.split('/').pop());
+
+	// Session Changes come only from tracked file-tool edits, so a terminal-driven
+	// edit reaches Branch Changes through Git but never Session Changes.
+	test('terminal-driven file edit lands in Branch Changes but not Session Changes', async function () {
 		this.timeout(getAgentHostE2ETestTimeout(15_000, 90_000));
 
 		// Create a session whose working directory is the tmp git repo.
@@ -112,9 +143,10 @@ const hasGit = (() => {
 
 		// Fire a turn that runs the `terminal-edit:<path>` mock prompt. The mock
 		// agent writes the file via fs.writeFile (no ToolResultFileEditContent),
-		// so the diff must come from the git-driven path.
+		// so only the git-driven Branch Changes can see it.
 		const editedFile = join(tmpRoot, 'from-terminal.txt');
 		dispatchTurnStarted(client, sessionUri, 'turn-1', `terminal-edit:${editedFile}`, 1);
+		await waitForTurnComplete('turn-1');
 
 		// Wait for a `changeset/contentChanged` action whose file list
 		// includes the edited file. On macOS, git's `--show-toplevel`
@@ -122,38 +154,27 @@ const hasGit = (() => {
 		// prefix; match by basename.
 		const fileUri = (edit: ChangesetContentChangedAction['files'][number]['edit']) =>
 			edit.after?.uri ?? edit.before?.uri;
-		const matchesEditedFile = (action: ChangesetContentChangedAction) =>
-			action.files.some(f => {
+		const notification = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'changeset/contentChanged') || getActionEnvelope(n).channel !== branchChangesetUri) {
+				return false;
+			}
+			return (getActionEnvelope(n).action as ChangesetContentChangedAction).files.some(f => {
 				const u = fileUri(f.edit);
 				return typeof u === 'string' && u.endsWith('/from-terminal.txt');
 			});
-		const waitForEditedFile = async (changeset: string) => {
-			const notification = await client.waitForNotification(n => {
-				if (!isActionNotification(n, 'changeset/contentChanged') || getActionEnvelope(n).channel !== changeset) {
-					return false;
-				}
-				return matchesEditedFile(getActionEnvelope(n).action as ChangesetContentChangedAction);
-			}, getAgentHostE2ETestTimeout(10_000, 30_000));
-			const action = getActionEnvelope(notification).action as ChangesetContentChangedAction;
-			return action.files.find(f => {
-				const u = fileUri(f.edit);
-				return typeof u === 'string' && u.endsWith('/from-terminal.txt');
-			});
-		};
-		const [branchFile, sessionFile] = await Promise.all([
-			waitForEditedFile(branchChangesetUri),
-			waitForEditedFile(sessionChangesetUri),
-		]);
+		}, getAgentHostE2ETestTimeout(10_000, 30_000));
+		const branchFile = (getActionEnvelope(notification).action as ChangesetContentChangedAction).files.find(f => fileUri(f.edit)?.endsWith('/from-terminal.txt'));
+		const sessionChangeset = await settledChangeset(sessionChangesetUri);
 		assert.deepStrictEqual({
 			branch: { before: branchFile?.edit.before, hasAfter: !!branchFile?.edit.after },
-			session: { before: sessionFile?.edit.before, hasAfter: !!sessionFile?.edit.after },
+			session: { status: sessionChangeset.status, files: changesetFileNames(sessionChangeset) },
 		}, {
 			branch: { before: undefined, hasAfter: true },
-			session: { before: undefined, hasAfter: true },
+			session: { status: ChangesetStatus.Ready, files: [] },
 		});
 	});
 
-	test('folder summary matches Session Changes and excludes pre-existing working-tree changes', async function () {
+	test('folder summary follows Session Changes and excludes terminal edits and pre-existing working-tree changes', async function () {
 		this.timeout(getAgentHostE2ETestTimeout(15_000, 90_000));
 		writeFileSync(join(tmpRoot, 'pre-existing.txt'), 'pre-existing change\n');
 		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-folder-summary' });
@@ -164,37 +185,24 @@ const hasGit = (() => {
 		});
 		const changeset = `${session}/changeset/session`;
 		await client.call('subscribe', { channel: session });
+		await client.call('subscribe', { channel: defaultChatChannel(session) });
 		await client.call('subscribe', { channel: changeset });
 		client.clearReceived();
 
-		dispatchTurnStarted(client, session, 'turn-folder-summary', `terminal-edit:${join(tmpRoot, 'session-edit.txt')}`, 1);
-		const content = await client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged')
-			&& getActionEnvelope(n).channel === changeset
-			&& (getActionEnvelope(n).action as ChangesetContentChangedAction).files.some(file => file.edit.after?.uri.endsWith('/session-edit.txt')),
-			getAgentHostE2ETestTimeout(10_000, 30_000),
-		);
-		const files = (getActionEnvelope(content).action as ChangesetContentChangedAction).files;
-		const summary = await client.waitForNotification(n =>
-			n.method === 'root/sessionSummaryChanged'
-			&& (n.params as SessionSummaryChangedParams).session === session
-			&& (n.params as SessionSummaryChangedParams).changes.changes?.files === 1,
-		);
+		const editedFile = join(tmpRoot, 'session-edit.txt');
+		dispatchTurnStarted(client, session, 'turn-folder-summary', `terminal-edit:${editedFile}`, 1);
+		await waitForTurnComplete('turn-folder-summary');
+		const sessionChangeset = await settledChangeset(changeset);
 		const listed = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
-		const changes = {
-			additions: files[0].edit.diff?.added ?? 0,
-			deletions: files[0].edit.diff?.removed ?? 0,
-			files: 1,
-		};
 
 		assert.deepStrictEqual({
-			files: files.map(file => file.edit.after?.uri.split('/').pop()),
-			changes: (summary.params as SessionSummaryChangedParams).changes.changes,
-			listedChanges: listed.items.find(item => item.resource === session)?.changes,
+			edited: readFileSync(editedFile, 'utf8'),
+			session: { status: sessionChangeset.status, files: changesetFileNames(sessionChangeset) },
+			listedFiles: listed.items.find(item => item.resource === session)?.changes?.files ?? 0,
 		}, {
-			files: ['session-edit.txt'],
-			changes,
-			listedChanges: changes,
+			edited: 'edited-from-terminal\n',
+			session: { status: ChangesetStatus.Ready, files: [] },
+			listedFiles: 0,
 		});
 	});
 
@@ -234,19 +242,14 @@ const hasGit = (() => {
 		client.clearReceived();
 
 		dispatchTurnStarted(client, session, 'turn-worktree-summary', `terminal-edit:${join(worktree, 'session-edit.txt')}`, 1);
-		const waitForEditedFiles = async (changeset: string) => {
-			const notification = await client.waitForNotification(n =>
-				isActionNotification(n, 'changeset/contentChanged')
-				&& getActionEnvelope(n).channel === changeset
-				&& (getActionEnvelope(n).action as ChangesetContentChangedAction).files.some(file => file.edit.after?.uri.endsWith('/session-edit.txt')),
-				getAgentHostE2ETestTimeout(10_000, 30_000),
-			);
-			return (getActionEnvelope(notification).action as ChangesetContentChangedAction).files;
-		};
-		const [branchFiles, sessionFiles] = await Promise.all([
-			waitForEditedFiles(branchChangeset),
-			waitForEditedFiles(sessionChangeset),
-		]);
+		const branchNotification = await client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/contentChanged')
+			&& getActionEnvelope(n).channel === branchChangeset
+			&& (getActionEnvelope(n).action as ChangesetContentChangedAction).files.some(file => file.edit.after?.uri.endsWith('/session-edit.txt')),
+			getAgentHostE2ETestTimeout(10_000, 30_000),
+		);
+		const branchFiles = (getActionEnvelope(branchNotification).action as ChangesetContentChangedAction).files;
+		const sessionChangesetState = await settledChangeset(sessionChangeset);
 		const fileStats = (files: ChangesetContentChangedAction['files']) => files.map(file => ({
 			name: (file.edit.after?.uri ?? file.edit.before?.uri)?.split('/').pop(),
 			additions: file.edit.diff?.added,
@@ -254,14 +257,14 @@ const hasGit = (() => {
 		})).sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
 		assert.deepStrictEqual({
 			branch: fileStats(branchFiles),
-			session: fileStats(sessionFiles),
+			session: changesetFileNames(sessionChangesetState),
 		}, {
 			branch: [
 				{ name: 'committed.txt', additions: 2, deletions: 0 },
 				{ name: 'seed.txt', additions: 3, deletions: 1 },
 				{ name: 'session-edit.txt', additions: 1, deletions: 0 },
 			],
-			session: [{ name: 'session-edit.txt', additions: 1, deletions: 0 }],
+			session: [],
 		});
 
 		const changes = branchFiles.reduce((total, file) => ({

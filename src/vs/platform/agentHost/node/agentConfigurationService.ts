@@ -18,14 +18,17 @@ import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHos
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
+import { chatMoveRootConfigSchema } from '../common/agentHostChatMove.js';
 import { automationRootConfigSchema } from '../common/automationConfig.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { ChatOriginKind, isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { ChatOriginKind, isAhpChatChannel, parseSubagentSessionUri, readSessionWorkspaceless, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { applyChatConfigLayers, filterChatConfigValues, splitChatConfigPatch } from '../common/sessionConfigProperties.js';
+import { inheritedChatFolders } from './agentChatContext.js';
+import { getSessionSummarySources } from './agentHostChatsInUse.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { type ISessionSandboxPolicy, readSessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
@@ -50,8 +53,18 @@ export function getEffectiveWorkingDirectory(stateManager: AgentHostStateManager
 }
 
 export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManager, session: ProtocolURI): string[] | undefined {
-	const own = stateManager.getSessionState(session)?.workingDirectories;
+	const state = stateManager.getSessionState(session);
+	const own = state?.workingDirectories;
 	if (own !== undefined) {
+		// A chat without folders of its own works in its session's, never in another chat's scratch folder.
+		if (isAhpChatChannel(session) && stateManager.getChatState(session)?.workingDirectories === undefined) {
+			// A chat whose state isn't hydrated yet (after a restart) still has its own recorded folders in its catalog summary.
+			const recorded = state?.chats.find(chat => chat.resource === session)?.workingDirectories;
+			if (recorded?.length) {
+				return [...recorded];
+			}
+			return [...inheritedChatFolders(stateManager, own, readSessionWorkspaceless(state?._meta))];
+		}
 		return own;
 	}
 	const parentInfo = parseSubagentSessionUri(session);
@@ -59,6 +72,31 @@ export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManag
 		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories;
 	}
 	return undefined;
+}
+
+/**
+ * Returns the working directories covered by a session's cumulative Session
+ * Changes: the session's own followed by those of the chats in use
+ * ({@link getSessionSummarySources}), without duplicates.
+ */
+export function getSessionSummaryWorkingDirectories(stateManager: AgentHostStateManager, session: ProtocolURI): readonly ProtocolURI[] | undefined {
+	const state = stateManager.getSessionState(session);
+	if (!state) {
+		return undefined;
+	}
+
+	const workingDirectories: ProtocolURI[] = [];
+	const seen = new Set<ProtocolURI>();
+	for (const owner of [session, ...getSessionSummarySources(stateManager, session, stateManager.getDefaultChat(session))]) {
+		for (const workingDirectory of getEffectiveWorkingDirectories(stateManager, owner) ?? []) {
+			if (!seen.has(workingDirectory)) {
+				seen.add(workingDirectory);
+				workingDirectories.push(workingDirectory);
+			}
+		}
+	}
+
+	return workingDirectories.length ? workingDirectories : undefined;
 }
 
 export interface IAgentSessionConfigurationChangeEvent {
@@ -219,6 +257,8 @@ export interface IAgentConfigurationService {
 	getSessionSandboxEnabled(session: ProtocolURI): boolean | undefined;
 	/** The last enablement a chat's runtime applied successfully, if known. */
 	getChatSandboxEnabled(target: IAgentChatConfigurationTarget): boolean | undefined;
+	/** The sessions and storages whose attachment snapshots the chat may read (see `AgentHostStateManager.getChatAttachmentScopes`). */
+	getChatAttachmentScopes(target: IAgentChatConfigurationTarget): readonly ProtocolURI[];
 	/** Records the enablement a chat's runtime applied, with an optional error for the client that requested it. */
 	setChatSandboxEnabled(target: IAgentChatConfigurationTarget, enabled: boolean, error?: ISessionSandboxState['error']): void;
 	/**
@@ -310,11 +350,12 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const sandboxSchema = sandboxConfigSchema.toProtocol();
 		const copilotCliSchema = copilotCliConfigSchema.toProtocol();
 		const agentMergeSchema = agentMergeRootConfigSchema.toProtocol();
+		const chatMoveSchema = chatMoveRootConfigSchema.toProtocol();
 		const automationSchema = automationRootConfigSchema.toProtocol();
 		this._stateManager.rootState.config = {
 			schema: {
 				type: 'object',
-				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties, ...automationSchema.properties },
+				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties, ...chatMoveSchema.properties, ...automationSchema.properties },
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
@@ -676,6 +717,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		return selection === 'on' ? true : selection === 'off' ? false : undefined;
 	}
 
+	getChatAttachmentScopes(target: IAgentChatConfigurationTarget): readonly ProtocolURI[] {
+		return [...new Set([target.session, ...this._stateManager.getChatAttachmentScopes(target.chat) ?? []])];
+	}
+
 	getChatSandboxEnabled(target: IAgentChatConfigurationTarget): boolean | undefined {
 		return this._readChatSandboxState(target)?.enabled;
 	}
@@ -910,6 +955,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				...sandboxConfigSchema.validateOrDefault(parsed, {}),
 				...copilotCliConfigSchema.validateOrDefault(parsed, {}),
 				...agentMergeRootConfigSchema.validateOrDefault(parsed, {}),
+				...chatMoveRootConfigSchema.validateOrDefault(parsed, {}),
 				...automationRootConfigSchema.validateOrDefault(parsed, {}),
 				...agentHostProxyConfigSchema.validateOrDefault(parsed, {}),
 			};

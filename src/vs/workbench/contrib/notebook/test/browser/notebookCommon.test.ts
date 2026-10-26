@@ -4,15 +4,72 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../../base/common/mime.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { CellKind, CellUri, diff, MimeTypeDisplayOrder, NotebookWorkingCopyTypeIdentifier } from '../../common/notebookCommon.js';
+import { CellKind, CellUri, compressOutputItemStreams, diff, MimeTypeDisplayOrder, NotebookWorkingCopyTypeIdentifier } from '../../common/notebookCommon.js';
 import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from '../../common/notebookRange.js';
 import { setupInstantiationService, TestCell } from './testNotebookEditor.js';
+
+suite('Notebook stream compression', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const cases: [input: string, expected: string, didCompression: boolean][] = [
+		['', '', false],
+		['plain\ntext', 'plain\ntext', false],
+		['abcdef\rxy', 'xycdef', true],
+		['abcdef\rxy\rz', 'zycdef', true],
+		['xy\rlonger\rz', 'zonger', true],
+		['abc\r', 'abc\r', false],
+		['abc\r\r', 'abc', true],
+		['abc\r\r\r', 'abc', true],
+		['abcdef\rxy\r', 'xycdef\r', true],
+		['abc\r\n', 'abc\n', true],
+		['abc\r\r\n', 'abc\n', true],
+		['abc\rx\ndef\ry', 'xbc\nyef', true],
+		['abc\u2028def\rx\u2029ghi\ry', 'abc\u2028xef\u2029yhi', true],
+		['\u6f22\u5b57\rX', 'X\u5b57', true],
+		['\ud83d\ude00xyz\rA', 'A\ufffdxyz', true],
+		['abc\b\bX\rY', 'YX', true],
+		['a\n\b', 'a\n\b', false],
+		['abc\r\bX', 'abcX', true],
+		['$$\r\r', '$', true],
+		['abc\r$xy', 'abc\r$xy', false],
+		['abc\r$xy\nq\rr', '$xy\nr', true],
+		['price $5\nabcdef\rxy', 'price $5\nxycdef', true],
+	];
+
+	test('preserves overwrite, line-ending, backspace, Unicode and dollar semantics', () => {
+		assert.deepStrictEqual(cases.map(([input]) => {
+			const result = compressOutputItemStreams([VSBuffer.fromString(input).buffer]);
+			return { text: result.data.toString(), didCompression: result.didCompression };
+		}), cases.map(([, text, didCompression]) => ({ text, didCompression })));
+	});
+
+	test('preserves normalization when input is split across byte buffers', () => {
+		for (const [input, text, didCompression] of cases) {
+			const bytes = VSBuffer.fromString(input).buffer;
+			const results = Array.from({ length: bytes.length + 1 }, (_, index) => {
+				const result = compressOutputItemStreams([bytes.subarray(0, index), bytes.subarray(index)]);
+				return { text: result.data.toString(), didCompression: result.didCompression };
+			});
+			assert.deepStrictEqual(results, results.map(() => ({ text, didCompression })), JSON.stringify(input));
+		}
+	});
+
+	test('combines thousands of carriage-return segments on one line', () => {
+		const input = `abcdefghijklmnop${'\r01234567\rxy\rz'.repeat(4000)}\n`;
+		const result = compressOutputItemStreams([VSBuffer.fromString(input).buffer]);
+		assert.deepStrictEqual({ text: result.data.toString(), didCompression: result.didCompression }, {
+			text: 'zy234567ijklmnop\n',
+			didCompression: true,
+		});
+	});
+});
 
 suite('NotebookCommon', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -10,10 +10,10 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
-import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeSessionState, agentMergeGateFragments } from '../../common/agentMerge.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import type { IAgent } from '../../common/agent.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -21,18 +21,22 @@ import { constObservable, observableValue } from '../../../../base/common/observ
 import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChatOriginKind, SessionStatus, buildChatUri, buildDefaultChatUri, createErrorResponsePart, MessageKind, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { createTestGitHubService } from './testGitHubService.js';
 import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
-import { PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
-import { PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
-import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
+import { PullRequestSnapshot, PullRequestSubscription, firstCredentialFailure } from '../../../github/common/githubPullRequestService.js';
+import { PullRequestMutationApi, PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
+import { isSamlEnforcementError } from '../../../github/common/githubTransport.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
-import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError } from '../../node/agentMergeController.js';
+import { AgentMergeController } from '../../node/agentMergeController.js';
+import type { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
@@ -189,6 +193,29 @@ suite('AgentMergeController', () => {
 		});
 	});
 
+	test('artifact integrations do not inherit Agent Merge elevated permissions', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		setSchemaWithoutChatProperties(stateManager, session);
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default',
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const values = () => {
+			const config = configurationService.getSessionConfigValues(session);
+			return [config?.[SessionConfigKey.Mode], config?.[SessionConfigKey.AutoApprove], readAgentMergeSessionState(config)?.enabled];
+		};
+		const before = values();
+		configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: true });
+		const integrations = values();
+		configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: false });
+		assert.deepStrictEqual({ before, integrations, restored: values() }, {
+			before: ['autopilot', 'assisted', true],
+			integrations: ['interactive', 'default', true],
+			restored: ['autopilot', 'assisted', true],
+		});
+	});
+
 	test('tool enablement preserves autonomous configuration injection and restoration', async () => {
 		const { stateManager, configurationService, controller, session } = createControllerHarness(disposables);
 		const tools = disposables.add(new AgentMergeTools(
@@ -314,6 +341,91 @@ suite('AgentMergeController', () => {
 			oneRemaining: { mode: 'autopilot', autoApprove: 'assisted' },
 			restored: { mode: 'interactive', autoApprove: 'default' },
 		});
+	});
+
+	test('same-chat native re-enablement refreshes the monitor sponsor only after the active turn settles', () => {
+		const principal = { apiOrigin: 'https://api.github.com', userId: '1' };
+		const first: IAgentHostCredentialSource = { principal, getCredential: request => ({ resource: request.resource, token: 'first', revision: 1, expiresAt: undefined }) };
+		const second: IAgentHostCredentialSource = { principal, getCredential: request => ({ resource: request.resource, token: 'second', revision: 1, expiresAt: undefined }) };
+		let selected = first;
+		const captures: string[] = [];
+		const gitHubService = createTestGitHubService();
+		gitHubService.getAgentMergeCredentialSource = () => selected;
+		gitHubService.captureSessionCredentialSource = (_chat, source) => {
+			const captured = source ?? selected;
+			captures.push(captured.getCredential({ resource: principal.apiOrigin })!.token);
+			return captured;
+		};
+		const { stateManager, configurationService, session } = createControllerHarness(disposables, undefined, Event.None, gitHubService);
+		const chat = buildDefaultChatUri(session);
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'running', startedAt: new Date().toISOString(),
+			message: { text: 'Already admitted', origin: { kind: MessageKind.User } },
+		});
+		selected = second;
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: false } },
+		});
+		const busyCaptures = [...captures];
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'running', duration: 1 });
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: true } },
+		});
+		assert.deepStrictEqual({ busyCaptures, captures }, { busyCaptures: ['first'], captures: ['first', 'second'] });
+	});
+
+	test('failed configuration sponsorship leaves configuration and the previous binding unchanged', () => {
+		const principal = { apiOrigin: 'https://api.github.com', userId: '1' };
+		const first: IAgentHostCredentialSource = { principal, getCredential: request => ({ resource: request.resource, token: 'first', revision: 1, expiresAt: undefined }) };
+		let selected: IAgentHostCredentialSource | undefined = first;
+		const gitHubService = createTestGitHubService();
+		gitHubService.getAgentMergeCredentialSource = () => selected;
+		gitHubService.getAgentMergeCredentialBinding = () => selected;
+		gitHubService.bindAgentMergeCredentialSource = (_session, _chat, source) => { selected = source; };
+		gitHubService.captureSessionCredentialSource = (_chat, source) => source
+			? captureCredentialSource(source, [{ resource: principal.apiOrigin }])
+			: undefined;
+		const { stateManager, configurationService, controller, session } = createControllerHarness(disposables, undefined, Event.None, gitHubService);
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const missing: IAgentHostCredentialSource = { principal, getCredential: () => { throw new Error('Connection ended'); } };
+		let dispatched = false;
+		assert.throws(() => controller.dispatchConfigurationWithCredentials(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		}, missing, () => { dispatched = true; }), /Connection ended/);
+		assert.deepStrictEqual({
+			dispatched,
+			unchanged: selected === first,
+			enabled: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.enabled,
+		}, { dispatched: false, unchanged: true, enabled: undefined });
+	});
+
+	test('failed configuration sponsorship restores an absent explicit binding rather than pinning the execution default', () => {
+		const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+		const principal = { apiOrigin: 'https://api.github.com', userId: '1' };
+		const source = (token: string): IAgentHostCredentialSource => ({
+			principal, getCredential: request => ({ resource: request.resource, token, revision: 1, expiresAt: undefined }),
+		});
+		const first = source('first');
+		const second = source('second');
+		const gitHubService = createTestGitHubService();
+		gitHubService.getAgentMergeCredentialBinding = chat => authentication.getSessionCredentialSource(chat, 'agentMerge');
+		gitHubService.getAgentMergeCredentialSource = chat => gitHubService.getAgentMergeCredentialBinding(chat) ?? authentication.getSessionCredentialSource(chat);
+		gitHubService.bindAgentMergeCredentialSource = (session, chat, source) => authentication.bindSessionCredentials(session, source, chat, 'agentMerge');
+		gitHubService.captureSessionCredentialSource = (_chat, source) => source ? captureCredentialSource(source, [{ resource: principal.apiOrigin }]) : undefined;
+		const { stateManager, controller, session } = createControllerHarness(disposables, undefined, Event.None, gitHubService);
+		const chat = buildDefaultChatUri(session);
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		authentication.bindSessionCredentials(session, first, chat);
+		assert.throws(() => controller.dispatchConfigurationWithCredentials(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		}, second, () => { throw new Error('Configuration rejected'); }), /Configuration rejected/);
+		authentication.bindSessionCredentials(session, second, chat);
+		assert.deepStrictEqual({
+			explicit: gitHubService.getAgentMergeCredentialBinding(chat),
+			effectiveToken: gitHubService.getAgentMergeCredentialSource(chat)?.getCredential({ resource: principal.apiOrigin })?.token,
+		}, { explicit: undefined, effectiveToken: 'second' });
 	});
 
 	test('elevates a multi-root chat for any of its folders, and session-wide for a folder no chat has', () => {
@@ -455,6 +567,11 @@ suite('AgentMergeController', () => {
 		const otherKey = getWorkingDirectoryKey(OTHER_REPOSITORY);
 		const started = new DeferredPromise<void>();
 		const startTurns: { readonly chat: string; readonly prompt: string }[] = [];
+		const source: IAgentHostCredentialSource = {
+			principal: { apiOrigin: 'https://api.github.com', userId: '1' },
+			getCredential: request => ({ resource: request.resource, token: 'captured-repair-token', revision: 1, expiresAt: undefined }),
+		};
+		const turnSources: (IAgentHostCredentialSource | undefined)[] = [];
 		const notices: { readonly chat: string; readonly kind: AgentSystemNotificationKind }[] = [];
 		const snapshot = repairSnapshot();
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
@@ -468,8 +585,9 @@ suite('AgentMergeController', () => {
 		}();
 		disposables.add(new AgentMergeController(
 			{
-				startTurn: (chat, _turnId, prompt) => {
+				startTurn: (chat, _turnId, prompt, credentials) => {
 					startTurns.push({ chat, prompt });
+					turnSources.push(credentials);
 					started.complete();
 					return true;
 				},
@@ -497,7 +615,7 @@ suite('AgentMergeController', () => {
 						};
 					}
 				}();
-			}()),
+			}(), Event.None, {}, source),
 			disposables.add(new AgentHostGitHubEndpointService(configurationService, logService)),
 			createProviderService(() => ({})),
 			logService,
@@ -524,9 +642,11 @@ suite('AgentMergeController', () => {
 		assert.deepStrictEqual({
 			startTurns: startTurns.map(turn => ({ chat: turn.chat, hasPrompt: turn.prompt.includes('Build') })),
 			notices,
+			turnSources: turnSources.map(source => source?.getCredential({ resource: 'https://api.github.com' })?.token),
 		}, {
 			startTurns: [{ chat: peerChat, hasPrompt: true }],
 			notices: [{ chat: peerChat, kind: AgentSystemNotificationKind.AgentMergeEnabled }],
+			turnSources: ['captured-repair-token'],
 		});
 	});
 
@@ -547,16 +667,36 @@ suite('AgentMergeController', () => {
 		});
 	});
 
+	test('artifact integration mode stops only Agent Merge work and preserves the saved opt-in', async () => {
+		const h = createPeerRepairHarness(disposables);
+		const humanChat = buildDefaultChatUri(h.session);
+		h.stateManager.dispatchServerAction(humanChat, {
+			type: ActionType.ChatTurnStarted, turnId: 'human-turn', startedAt: new Date().toISOString(),
+			message: { text: 'Keep working', origin: { kind: MessageKind.User } },
+		});
+		await h.start();
+		h.configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: true });
+		const paused = { enabled: h.controller.isEnabled(), context: h.controller.getTurnContext(h.peerChat) };
+		await assert.rejects(h.controller.setEnabled(h.peerChat, true), /disabled/);
+		h.configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: false });
+		assert.deepStrictEqual({
+			paused, resumed: h.controller.isEnabled(), cancelled: h.cancelledTurns,
+			humanTurn: h.stateManager.getChatState(humanChat)?.activeTurn?.id,
+			preference: h.configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled),
+			optIn: readAgentMergeFolderState(h.configurationService.getSessionConfigValues(h.session), h.otherKey, getWorkingDirectoryKey(REPOSITORY))?.enabled,
+		}, { paused: { enabled: false, context: undefined }, resumed: true, cancelled: [h.peerChat], humanTurn: 'human-turn', preference: true, optIn: true });
+	});
+
 	suite('pending review handoff', () => {
 		const pendingNotice = 'Agent Merge was disabled for this folder because a review reply is unpublished in your pending GitHub review. Handle the pending review on GitHub, then enable Agent Merge again to resume.';
 
 		function createReviewReplyHarness() {
 			const initial = repairSnapshot();
-			const replies: Parameters<IPullRequestMutations['replyAndResolveThread']>[] = [];
-			const mutations = new class extends mock<IPullRequestMutations>() {
+			const replies: Parameters<PullRequestMutationApi['replyAndResolveThread']>[] = [];
+			const mutations = new class extends mock<PullRequestMutationApi>() {
 				outcome: 'pending' | 'succeeded' | 'reconciled' | 'indeterminate' = 'pending';
 				beforeReply: (() => Promise<void>) | undefined;
-				override async replyAndResolveThread(...args: Parameters<IPullRequestMutations['replyAndResolveThread']>): Promise<PullRequestReplyAndResolveResult> {
+				override async replyAndResolveThread(...args: Parameters<PullRequestMutationApi['replyAndResolveThread']>): Promise<PullRequestReplyAndResolveResult> {
 					replies.push(args);
 					await this.beforeReply?.();
 					const published = this.outcome === 'succeeded' || this.outcome === 'reconciled';
@@ -870,6 +1010,31 @@ suite('AgentMergeController', () => {
 		} finally {
 			h.controller.dispose();
 		}
+	}));
+
+	test('requests authentication rather than logging an error when isolated monitoring has no sponsor', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const gitHubService = createTestGitHubService();
+		gitHubService.captureSessionCredentialSource = () => {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The monitor sponsor must authenticate');
+		};
+		gitHubService.acquireRepositoryClient = (_signal, source) => {
+			source?.getCredential({ resource: 'https://api.github.com/repos' });
+			throw new Error('An unavailable source cannot acquire a repository client');
+		};
+		const h = createControllerHarness(disposables, repairSnapshot(), Event.None, gitHubService);
+		const authenticationRequests: string[] = [];
+		disposables.add(h.stateManager.onDidEmitNotification(notification => {
+			if (notification.type === 'auth/required') {
+				authenticationRequests.push(notification.type);
+			}
+		}));
+		h.stateManager.setSessionMeta(h.session, withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature' }), REPOSITORY, {
+			pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature',
+		}));
+		h.configurationService.updateSessionConfig(h.session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		assert.deepStrictEqual({ authenticationRequests, errors: h.errors }, { authenticationRequests: ['auth/required'], errors: [] });
 	}));
 
 	test('rechecks peer folder options after attachment without blocking on another chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1686,7 +1851,7 @@ suite('AgentMergeController', () => {
 		}));
 	}
 
-	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, snapshot?: PullRequestSnapshot, onDidChangeRepositoryClient: Event<void> = Event.None): {
+	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, snapshot?: PullRequestSnapshot, onDidChangeRepositoryClient: Event<void> = Event.None, githubService?: IAgentHostGitHubService): {
 		readonly stateManager: AgentHostStateManager;
 		readonly configurationService: AgentConfigurationService;
 		readonly gitService: IAgentHostGitService;
@@ -1731,7 +1896,7 @@ suite('AgentMergeController', () => {
 			configurationService,
 			gitStateService,
 			gitService,
-			createTestGitHubService(new class extends mock<IGitHubClient>() {
+			githubService ?? createTestGitHubService(new class extends mock<IGitHubClient>() {
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
 					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
 						assert.ok(snapshot);
@@ -1773,7 +1938,7 @@ suite('AgentMergeController', () => {
 	 * for that folder and owned by `owningChat` (the peer chat by default). The
 	 * pull request has a failing check, so the controller starts a repair turn.
 	 */
-	function createPeerRepairHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, owningChat?: (stateManager: AgentHostStateManager) => string, initialSnapshot = repairSnapshot(), mutations?: IPullRequestMutations) {
+	function createPeerRepairHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, owningChat?: (stateManager: AgentHostStateManager) => string, initialSnapshot = repairSnapshot(), mutations?: PullRequestMutationApi, beforeCredential?: () => Promise<void>) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -1819,9 +1984,10 @@ suite('AgentMergeController', () => {
 			gitStateService,
 			gitService,
 			createTestGitHubService(new class extends mock<IGitHubClient>() {
-				override readonly mutations = mutations ?? new class extends mock<IPullRequestMutations>() { }();
+				override readonly mutations = mutations ?? new class extends mock<PullRequestMutationApi>() { }();
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
 					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
+						await beforeCredential?.();
 						return { account: snapshot.get().ref, token: 'test-token', generation: 1, signal };
 					}
 				}();
@@ -1854,6 +2020,146 @@ suite('AgentMergeController', () => {
 		return { stateManager, configurationService, gitService, gitStateService, controller, session, peerChat, otherKey, startTurns, turnStart, cancelledTurns, notices, snapshot, refreshes, start };
 	}
 
+	suite('moving the chat that runs Agent Merge', () => {
+		/**
+		 * Moves the harness's peer chat into a new session as the host publishes a move: its folder's monitoring moves
+		 * first, then the chat, then each session's Agent Merge. With `conflict`, the new session already runs Agent
+		 * Merge for the pull request, so the peer's stays off.
+		 */
+		function movePeer(h: ReturnType<typeof createPeerRepairHarness>, conflict = false): string {
+			const target = `copilot:/agent-merge-controller-${++sessionCounter}`;
+			h.stateManager.createSession(summary(target));
+			h.stateManager.setSessionConfig(target, { schema: platformSessionSchema.toProtocol(), values: {} });
+			h.stateManager.setSessionMeta(target, withFolderGitHubState(undefined, h.otherKey, { pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature-tools' }));
+			h.stateManager.dispatchServerAction(target, { type: ActionType.SessionReady });
+			const values = h.configurationService.getSessionConfigValues(h.session) ?? {};
+			const transfer = h.controller.transferFolders(h.session, target, conflict ? [] : [h.otherKey], conflict ? [{ folderKey: h.otherKey, chat: h.peerChat }] : []);
+			h.stateManager.transferChats(h.session, target, [h.peerChat], undefined);
+			if (!conflict) {
+				h.configurationService.updateSessionConfig(target, {
+					[SessionConfigKey.AgentMergeFolders]: values[SessionConfigKey.AgentMergeFolders],
+					[SessionConfigKey.AgentMergeControllerFolders]: values[SessionConfigKey.AgentMergeControllerFolders],
+				});
+			}
+			h.configurationService.updateSessionConfig(h.session, {
+				[SessionConfigKey.AgentMergeFolders]: { [h.otherKey]: { enabled: false } },
+				[SessionConfigKey.AgentMergeControllerFolders]: {},
+			});
+			transfer.dispose();
+			return target;
+		}
+
+		test('a repair turn keeps running in the session its chat moved to and ends there, without another one starting', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createPeerRepairHarness(disposables);
+			await h.start();
+			const noticesBefore = h.notices.length;
+			const target = movePeer(h);
+			await timeout(0);
+			const moved = { session: h.controller.getTurnContext(h.peerChat)?.session === target, cancelled: [...h.cancelledTurns], notices: h.notices.slice(noticesBefore) };
+
+			const turnId = h.stateManager.getChatState(h.peerChat)!.activeTurn!.id;
+			const refreshesBefore = h.refreshes.count;
+			h.stateManager.dispatchServerAction(h.peerChat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+			await timeout(1000);
+
+			assert.deepStrictEqual({
+				moved,
+				ended: h.controller.getTurnContext(h.peerChat),
+				// Its end is handled where it runs now, which looks at the pull request again.
+				refreshedAfterTurn: h.refreshes.count > refreshesBefore,
+				starts: h.startTurns,
+				target: readAgentMergeFolderState(h.configurationService.getSessionConfigValues(target), h.otherKey, getWorkingDirectoryKey(REPOSITORY))?.lastPromptFingerprint !== undefined,
+				source: readAgentMergeFolderState(h.configurationService.getSessionConfigValues(h.session), h.otherKey, getWorkingDirectoryKey(REPOSITORY)),
+			}, {
+				moved: { session: true, cancelled: [], notices: [] },
+				ended: undefined,
+				refreshedAfterTurn: true,
+				starts: [h.peerChat],
+				target: true,
+				source: { enabled: false },
+			});
+		}));
+
+		test('a repair turn whose end is being handled when its chat moves is handled in the session the chat moved to', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createPeerRepairHarness(disposables);
+			await h.start();
+			const turnId = h.stateManager.getChatState(h.peerChat)!.activeTurn!.id;
+			const refreshesBefore = h.refreshes.count;
+			h.stateManager.dispatchServerAction(h.peerChat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+			const target = movePeer(h);
+			await timeout(1000);
+			const refreshedAfterTurn = h.refreshes.count > refreshesBefore;
+			// The pull request now conflicts: the next repair runs, in the session the chat moved to.
+			const conflicting = repairSnapshot();
+			h.snapshot.set({ ...conflicting, mergeability: { ...conflicting.mergeability, value: { ...conflicting.mergeability.value!, mergeable: 'CONFLICTING', mergeStateStatus: 'DIRTY' } } }, undefined);
+			// Past the debounce of pull request changes.
+			await timeout(60_000);
+
+			assert.deepStrictEqual({
+				refreshedAfterTurn,
+				starts: h.startTurns,
+				nextRepairIn: h.controller.getTurnContext(h.peerChat)?.session === target,
+				cancelled: h.cancelledTurns,
+			}, {
+				refreshedAfterTurn: true,
+				starts: [h.peerChat, h.peerChat],
+				nextRepairIn: true,
+				cancelled: [],
+			});
+		}));
+
+		test('an evaluation running when its chat moves stops, and the next one runs in the session the chat moved to', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gate = new DeferredPromise<void>();
+			const requested = new DeferredPromise<void>();
+			const credentialRequests = { count: 0 };
+			const h = createPeerRepairHarness(disposables, undefined, undefined, undefined, () => {
+				if (++credentialRequests.count > 1) {
+					return Promise.resolve();
+				}
+				requested.complete();
+				return gate.p;
+			});
+			const started = h.start();
+			await requested.p;
+			const target = movePeer(h);
+			await timeout(60_000);
+			// The next evaluation waits for the one still running for the source.
+			const requestsWhileRunning = credentialRequests.count;
+			gate.complete();
+			await started;
+
+			assert.deepStrictEqual({
+				requestsWhileRunning,
+				starts: h.startTurns,
+				session: h.controller.getTurnContext(h.peerChat)?.session === target,
+				cancelled: h.cancelledTurns,
+			}, {
+				requestsWhileRunning: 1,
+				starts: [h.peerChat],
+				session: true,
+				cancelled: [],
+			});
+		}));
+
+		test('a moved chat whose new session already runs Agent Merge for its pull request stops its repair and is told why', async () => {
+			const h = createPeerRepairHarness(disposables);
+			await h.start();
+			const noticesBefore = h.notices.length;
+			movePeer(h, true);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				cancelled: h.cancelledTurns,
+				context: h.controller.getTurnContext(h.peerChat),
+				notices: h.notices.slice(noticesBefore),
+			}, {
+				cancelled: [h.peerChat],
+				context: undefined,
+				notices: [{ chat: h.peerChat, kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off for this chat: another chat in this session already runs it for this pull request.' }],
+			});
+		});
+	});
+
 
 	for (const state of ['merged', 'closed'] as const) {
 		test(`announces a ${state} pull request when monitoring stops`, async () => {
@@ -1873,11 +2179,9 @@ suite('AgentMergeController', () => {
 				},
 				topLevelComments: { status: 'missing', complete: false },
 				submittedReviews: { status: 'missing', complete: false },
-				inlineComments: { status: 'missing', complete: false },
 				reviewThreads: { status: 'missing', complete: false },
 				checks: { status: 'missing', complete: false },
 				mergeability: { status: 'missing', complete: false },
-				participants: { status: 'missing', complete: false },
 			};
 			const { stateManager, configurationService, session, notices } = createControllerHarness(disposables, snapshot);
 			stateManager.setSessionMeta(session, withSessionGitHubState(
@@ -2176,12 +2480,12 @@ suite('AgentMergeController', () => {
 		assert.deepStrictEqual({
 			// Only the first refresh of a subscription throws; every later failure is
 			// recorded here, which is the state the SAML scenario actually reaches.
-			refused: firstCredentialFailure(snapshot({ checks: { status: 'error', complete: false, error: { kind: 'authorization', statusCode: 200, message: saml } } })),
-			signedOut: firstCredentialFailure(snapshot({ core: { status: 'error', complete: false, error: { kind: 'authentication', message: 'Bad credentials' } } }))?.id,
+			refused: firstCredentialFailure(snapshot({ checks: { status: 'error', complete: false, error: { kind: 'authorization', statusCode: 200, message: saml } } }), agentMergeGateFragments),
+			signedOut: firstCredentialFailure(snapshot({ core: { status: 'error', complete: false, error: { kind: 'authentication', message: 'Bad credentials' } } }), agentMergeGateFragments)?.id,
 			// A failure the user cannot fix by authorizing must not prompt.
-			serverError: firstCredentialFailure(snapshot({ checks: { status: 'error', complete: false, error: { kind: 'server', message: 'boom' } } })),
-			stillLoading: firstCredentialFailure(snapshot({ mergeability: { status: 'loading', complete: false } })),
-			healthy: firstCredentialFailure(snapshot({})),
+			serverError: firstCredentialFailure(snapshot({ checks: { status: 'error', complete: false, error: { kind: 'server', message: 'boom' } } }), agentMergeGateFragments),
+			stillLoading: firstCredentialFailure(snapshot({ mergeability: { status: 'loading', complete: false } }), agentMergeGateFragments),
+			healthy: firstCredentialFailure(snapshot({}), agentMergeGateFragments),
 			saml: isSamlEnforcementError(saml),
 			notSaml: isSamlEnforcementError('Bad credentials'),
 		}, {
@@ -2223,7 +2527,6 @@ function repairSnapshot(): PullRequestSnapshot {
 		},
 		topLevelComments: { status: 'ready', complete: true, value: [] },
 		submittedReviews: { status: 'ready', complete: true, value: [] },
-		inlineComments: { status: 'missing', complete: false },
 		reviewThreads: { status: 'ready', complete: true, headSha: 'head', value: [] },
 		checks: {
 			status: 'ready',
@@ -2255,7 +2558,6 @@ function repairSnapshot(): PullRequestSnapshot {
 				queueRequirementKnown: true,
 			},
 		},
-		participants: { status: 'missing', complete: false },
 	};
 }
 

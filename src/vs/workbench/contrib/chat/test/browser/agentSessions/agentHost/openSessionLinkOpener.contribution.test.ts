@@ -19,15 +19,71 @@ import { IAgentSubscription } from '../../../../../../../platform/agentHost/comm
 import { ChatSummary, SessionState } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILinkPresentationProvider, ILinkPresentationProviderRegistration, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IOpener, IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { SIDE_GROUP } from '../../../../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { AgentHostOpenSessionLinkOpenerContribution } from '../../../../browser/agentSessions/agentHost/openSessionLinkOpener.contribution.js';
 import { ISessionSummaryHoverService } from '../../../../browser/agentSessions/sessionSummaryHoverService.js';
-import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
+import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
 import { ChatRequestOriginKind, ChatRequestOriginService } from '../../../../common/chatRequestOrigin.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../../common/chatSessionsService.js';
 
 suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const chatId of [undefined, 'peer-chat']) {
+		for (const openToSide of [undefined, false, true]) {
+			test(`opens ${chatId ? 'peer chat' : 'session'} links with openToSide=${openToSide} in the requested location`, async () => {
+				let opener: IOpener | undefined;
+				const opened: Parameters<IChatWidgetService['openSession']>[] = [];
+				const backend = URI.parse('ahp-session:/session');
+				const client = URI.parse('agent-host-copilotcli:/session');
+				store.add(new AgentHostOpenSessionLinkOpenerContribution(
+					new class extends mock<IOpenerService>() {
+						override registerOpener(value: IOpener): IDisposable { opener = value; return Disposable.None; }
+					}(),
+					new class extends mock<IChatWidgetService>() {
+						override async openSession(...args: Parameters<IChatWidgetService['openSession']>): Promise<IChatWidget | undefined> {
+							opened.push(args);
+							return new class extends mock<IChatWidget>() { };
+						}
+					}(),
+					new class extends mock<IChatSessionsService>() {
+						override async activateChatSessionItemProvider(): Promise<void> { }
+					}(),
+					store.add(new ChatRequestOriginService()),
+					new class extends mock<ILinkPresentationService>() {
+						override registerLinkPresentationProvider(): IDisposable { return Disposable.None; }
+					}(),
+					new NullLogService(),
+					new class extends mock<ISessionSummaryHoverService>() {
+						override registerProvider(): IDisposable { return Disposable.None; }
+					}(),
+					new class extends mock<IPathService>() { }(),
+					new class extends mock<IAgentHostConnectionsService>() {
+						override findSessionResource(): URI | undefined { return client; }
+						override resolveSessionResource() { return undefined; }
+					}(),
+				));
+
+				assert.ok(opener);
+				const result = await opener.open(URI.parse(buildOpenSessionLinkUri(backend, chatId, undefined, 'local')), {
+					openToSide,
+					editorOptions: { pinned: true, preserveFocus: true, revealIfOpened: true }
+				});
+				assert.deepStrictEqual({
+					result,
+					opened: opened.map(([resource, target, options]) => ({ resource: resource.toString(), target, options }))
+				}, {
+					result: true,
+					opened: [{
+						resource: client.with({ fragment: chatId ?? '' }).toString(),
+						target: openToSide ? SIDE_GROUP : ChatViewPaneTarget,
+						options: { pinned: true, preserveFocus: true, revealIfOpened: !openToSide }
+					}]
+				});
+			});
+		}
+	}
 
 	test('scoped standard links discover only their owning connection despite a colliding ambient ID', async () => {
 		const backend = URI.parse('ahp-session:/shared');

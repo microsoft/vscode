@@ -11,18 +11,17 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING, DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AutomationDialogService } from './automationDialogService.js';
 import { AutomationRunner } from './automationRunner.js';
 import { ProviderAutomationService } from './providerAutomationService.js';
 import { AutomationToolsContribution } from './automationTools.js';
-import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../../../platform/agentHost/common/automationConfig.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../../../platform/agentHost/common/automationConfig.js';
 
 const initialProvidersSettled = observableFromPromise(
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored.then(() => true)
@@ -39,30 +38,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.MACHINE,
-			tags: ['experimental', 'advanced'],
-			description: localize('chat.automations.cloud.enabled', "Enables managing user-owned cloud automations in known private GitHub repositories. Disabling this setting does not stop schedules already running on GitHub."),
+			description: localize('chat.automations.cloud.enabled', "Enables managing Only me and Repository cloud automations in known GitHub repositories that support automation management. Disabling this setting does not stop schedules already running on GitHub."),
+			tags: ['preview'],
 			experiment: { mode: 'auto' },
 		},
 		[CHAT_AUTOMATIONS_ENABLED_SETTING]: {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.MACHINE,
-			tags: ['experimental', 'advanced'],
 			description: localize('chat.automations.enabled', "Enables the Automations feature: scheduling agent sessions to run on a cadence. When disabled, the Automations entry in the Customizations sidebar, the Automations section in the Customizations editor, and the Automation option in the new-session composer are hidden, and scheduled automations are not dispatched."),
 			experiment: { mode: 'auto' },
 			agentHost: { key: AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY },
-		},
-		[CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING]: {
-			type: 'number',
-			default: DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES,
-			minimum: 1,
-			scope: ConfigurationScope.MACHINE,
-			tags: ['experimental', 'advanced'],
-			description: localize('chat.automations.runTimeoutMinutes', "Maximum number of minutes an automation run is allowed to take before it is ended. Prevents a single hung run from permanently blocking subsequent runs."),
-			included: product.quality !== 'stable',
-			agentHost: { key: AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY },
 		},
 	},
 });
