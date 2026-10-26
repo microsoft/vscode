@@ -279,6 +279,25 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 	}
 
+	private _gridRightInset = 0;
+
+	/**
+	 * Lays the groups out in the width of the part less `inset` (px) on the right, leaving a column beside all of them,
+	 * their tabs included, such as for a strip that runs the full height of the part. `0` (default) gives the groups
+	 * the full width.
+	 */
+	setGridRightInset(inset: number): void {
+		const next = Math.max(0, Math.round(inset));
+		if (next === this._gridRightInset) {
+			return;
+		}
+
+		this._gridRightInset = next;
+		if (this._contentDimension) {
+			this.doLayout(this._contentDimension);
+		}
+	}
+
 	private _groupGap = 0;
 	private groupGapApplied = false;
 
@@ -1711,7 +1730,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this._contentDimension = dimension;
 
 		// Layout Grid
-		this.centeredLayoutWidget.layout(this._contentDimension.width, this._contentDimension.height, top, left);
+		this.centeredLayoutWidget.layout(Math.max(0, this._contentDimension.width - this._gridRightInset), this._contentDimension.height, top, left);
 		this.applyGroupGap(); // edges can change with the grid, such as when it is replaced by a state
 
 		// Event

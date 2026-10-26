@@ -70,7 +70,7 @@ import { IContextKey, IContextKeyService } from '../../platform/contextkey/commo
 import { CustomViewVisibleContext, EditorMaximizedContext, IsPhoneLayoutContext, DesktopLayoutContext } from '../common/contextkeys.js';
 import { SessionsLayoutPolicy } from './layoutPolicy.js';
 import { ChatLayoutPresentation } from '../common/chatLayout.js';
-import { AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_STACKED_CLASS } from './parts/agentsPartCard.js';
+import { AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_STACKED_CLASS, AGENTS_STACKED_SIDE_PANE_COLUMN_CLASS, AGENTS_STACKED_SIDE_PANE_COLUMN_WIDTH_PROPERTY } from './parts/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { getMobileViewportDimension, IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
@@ -253,6 +253,16 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
  */
 export interface IDockedEditorLayout {
 	handleDockedEditorPartLayout(nodeWidth: number): void;
+
+	/**
+	 * Keeps a column of `width` free at the right of the side pane stacked above the Sessions Part and of the Sessions
+	 * Part, beside both, such as for the Session Activity Bar; `0` gives it back. The Sessions Part is laid out again;
+	 * the side pane, which asks for the column, lays itself out.
+	 */
+	setStackedSidePaneColumnWidth(width: number): void;
+
+	/** Called by the Sessions Part once laid out while it keeps that column, for the side pane to lay the column out beside it. */
+	handleSessionsPartLayout(): void;
 
 	/**
 	 * Fired when the side pane (the docked editor part and/or the auxiliary-bar
@@ -3023,6 +3033,30 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.storageService.store(Workbench._SIDE_PANE_ARRANGEMENT_KEY, arrangement, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		this._onDidChangeSidePaneArrangement.fire(arrangement);
 	}
+
+	private _stackedSidePaneColumnWidth = 0;
+
+	setStackedSidePaneColumnWidth(width: number): void {
+		const next = Math.max(0, Math.round(width));
+		if (next === this._stackedSidePaneColumnWidth) {
+			return;
+		}
+		this._stackedSidePaneColumnWidth = next;
+		this.mainContainer.style.setProperty(AGENTS_STACKED_SIDE_PANE_COLUMN_WIDTH_PROPERTY, `${next}px`);
+		this.mainContainer.classList.toggle(AGENTS_STACKED_SIDE_PANE_COLUMN_CLASS, next > 0);
+		// Its allocation in the grid does not change, so the grid does not lay it out again.
+		const sessionsPart = this.parts.get(Parts.SESSIONS_PART);
+		if (sessionsPart?.dimension && sessionsPart.contentPosition) {
+			sessionsPart.layout(sessionsPart.dimension.width, sessionsPart.dimension.height, sessionsPart.contentPosition.top, sessionsPart.contentPosition.left);
+		}
+	}
+
+	handleSessionsPartLayout(): void {
+		this._onSessionsPartLayout();
+	}
+
+	/** See {@link handleSessionsPartLayout}. */
+	protected _onSessionsPartLayout(): void { }
 
 	/** Whether the side pane is stacked above the Sessions Part rather than beside it. */
 	protected _isSidePaneStacked(): boolean {

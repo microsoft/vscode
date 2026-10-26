@@ -12,6 +12,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { decodeKeybinding, ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { OS } from '../../../base/common/platform.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
@@ -465,3 +466,50 @@ suite('Sessions - Desktop editor part empty group', () => {
 		assert.deepStrictEqual({ ran, ariaDisabled: entry('Browser').getAttribute('aria-disabled') }, { ran: [], ariaDisabled: 'true' });
 	});
 });
+
+suite('Sessions - Desktop editor part Session Activity Bar host', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	interface IHostHarness {
+		readonly host: HTMLElement;
+		readonly height: ISettableObservable<number>;
+	}
+
+	function layoutHost(stackedColumn: boolean, compact: boolean): IHostHarness {
+		const layout = Reflect.get(DesktopMainEditorPart.prototype, '_layoutSessionActivityBarHost') as (this: object) => void;
+		const partElement = mainWindow.document.createElement('div');
+		const gridRoot = mainWindow.document.createElement('div');
+		const host = append(stackedColumn ? gridRoot : partElement, $('.session-activity-bar-editor-host'));
+		const height = observableValue('height', 0);
+		const harness = Object.assign(Object.create(DesktopMainEditorPart.prototype), {
+			element: partElement,
+			_sessionActivityBarHost: host,
+			_sessionActivityBarHostActive: constObservable(true),
+			_sessionActivityBarOccupancy: { occupied: constObservable(true) },
+			_sessionActivityBarStackedColumn: constObservable(stackedColumn),
+			_sessionActivityBarHostHeight: height,
+			// Where the grid laid out the editor part, and the Sessions Part stacked below it.
+			_gridAllocation: { width: 800, height: 300, top: 40, left: 260 },
+			agentWorkbenchLayoutService: { isModernUICompact: () => compact, getSize: () => ({ width: 800, height: 420 }) },
+		});
+		Object.defineProperty(harness, 'contentDimension', { value: { width: 798, height: 298 } });
+		Object.defineProperty(harness, 'activeGroup', { value: { titleHeight: { offset: 35 } } });
+		layout.call(harness);
+		return { host, height };
+	}
+
+	test('stacked, runs the strip in a column at the right of the editor and the Sessions Part below it, from below the tabs to the bottom of both, at either density', () => {
+		const geometry = ({ host, height }: IHostHarness) => ({ left: host.style.left, top: host.style.top, height: host.style.height, area: height.get() });
+
+		assert.deepStrictEqual({ stacked: geometry(layoutHost(true, false)), compact: geometry(layoutHost(true, true)), editorOnly: geometry(layoutHost(false, false)) }, {
+			// 260 + 800 - 34; below the 1px card border and the 35px tabs; down to the inside of the Sessions Part's bottom border.
+			stacked: { left: '1026px', top: '76px', height: '683px', area: 683 },
+			// No card borders.
+			compact: { left: '1026px', top: '75px', height: '685px', area: 685 },
+			// With the chat hidden, at the right edge of the editor, below its tabs, as before.
+			editorOnly: { left: '', top: '35px', height: '263px', area: 263 },
+		});
+	});
+});
+

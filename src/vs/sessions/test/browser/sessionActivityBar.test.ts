@@ -486,7 +486,7 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('shows the strip of the active chat in an active external host, every chat still keeping its column empty, and beside the chat otherwise', () => {
+	test('shows the strip of the active chat in an active external host, which keeps the column outside every chat, and beside the chat otherwise', () => {
 		const { createDocked, setEnabled, root } = createActivityBar(store, [changes]);
 		const hostElement = append(root, $('.external-host'));
 		const active = observableValue('active', false);
@@ -519,9 +519,9 @@ suite('Sessions - Session Activity Bar', () => {
 
 		assert.deepStrictEqual({ inactiveHost, activeHost, disabled, focusMoved, hostGone }, {
 			inactiveHost: { first: 'chat', second: 'chat', reserved: [SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SESSION_ACTIVITY_BAR_COLUMN_WIDTH], occupied: false },
-			activeHost: { first: 'host', second: 'chat', reserved: [SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SESSION_ACTIVITY_BAR_COLUMN_WIDTH], occupied: true },
+			activeHost: { first: 'host', second: 'chat', reserved: [0, 0], occupied: true },
 			disabled: false,
-			focusMoved: { first: 'chat', second: 'host', reserved: [SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SESSION_ACTIVITY_BAR_COLUMN_WIDTH], occupied: true },
+			focusMoved: { first: 'chat', second: 'host', reserved: [0, 0], occupied: true },
 			hostGone: { first: 'chat', second: 'chat', reserved: [SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SESSION_ACTIVITY_BAR_COLUMN_WIDTH], occupied: false },
 		});
 	});
@@ -640,14 +640,24 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('reserves room beside the chat whether or not the view is active, unless disabled or in the phone layout', () => {
+	test('reserves room beside the chat whether or not the view is active, unless disabled, in the phone layout, or the strip shows in a host outside the chat', () => {
 		const { createDocked, setEnabled, root, layoutMainContainer } = createActivityBar(store, [changes]);
+		const hostActive = observableValue('hostActive', false);
+		store.add(registerSessionActivityBarExternalHost(root, { element: append(root, $('.external-host')), active: hostActive, height: constObservable(500), setOccupied: () => { } }));
 		const docked = createDocked();
+		docked.layout(0, 600);
 		const reserved = () => docked.reservedWidth.get();
 
 		const inactive = reserved();
 		docked.setActive(true);
 		const active = reserved();
+		// Stacked below the editor, or hidden: the host keeps the column, outside the chat, for both views.
+		hostActive.set(true, undefined);
+		const hostedOutside = reserved();
+		docked.setActive(false);
+		const hostedOutsideInactive = reserved();
+		hostActive.set(false, undefined);
+		const hostInactive = reserved();
 		setEnabled(false);
 		const disabled = reserved();
 		setEnabled(true);
@@ -655,9 +665,12 @@ suite('Sessions - Session Activity Bar', () => {
 		layoutMainContainer();
 		const phoneLayout = reserved();
 
-		assert.deepStrictEqual({ inactive, active, disabled, phoneLayout }, {
+		assert.deepStrictEqual({ inactive, active, hostedOutside, hostedOutsideInactive, hostInactive, disabled, phoneLayout }, {
 			inactive: SESSION_ACTIVITY_BAR_COLUMN_WIDTH,
 			active: SESSION_ACTIVITY_BAR_COLUMN_WIDTH,
+			hostedOutside: 0,
+			hostedOutsideInactive: 0,
+			hostInactive: SESSION_ACTIVITY_BAR_COLUMN_WIDTH,
 			disabled: 0,
 			phoneLayout: 0,
 		});

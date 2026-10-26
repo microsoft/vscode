@@ -249,7 +249,8 @@ export function registerSessionActivityBarExternalHost(scope: HTMLElement, host:
 	});
 }
 
-function findExternalHost(element: HTMLElement): ISessionActivityBarExternalHost | undefined {
+/** The host registered for the nearest scope among `element` and its ancestors, which the strip of a chat in it shows in. */
+export function findSessionActivityBarExternalHost(element: HTMLElement): ISessionActivityBarExternalHost | undefined {
 	for (let candidate: HTMLElement | null = element; candidate; candidate = candidate.parentElement) {
 		const host = externalHosts.get(candidate);
 		if (host) {
@@ -290,7 +291,8 @@ export class ChatViewSessionActivityBar extends Disposable {
 	/**
 	 * The width of the column hosts keep at the right of the chat for the strip, the chat laid out to its left:
 	 * {@link SESSION_ACTIVITY_BAR_COLUMN_WIDTH}. Reserved in every chat view while the strip is enabled, not only the
-	 * active one, so focusing another chat does not shift its content.
+	 * active one, so focusing another chat does not shift its content; not while the strip shows in a host outside the
+	 * chat, which keeps the column for it beside the chat or the chat is hidden.
 	 */
 	readonly reservedWidth: IObservable<number>;
 
@@ -340,10 +342,8 @@ export class ChatViewSessionActivityBar extends Disposable {
 		this._register(this.registerDragListeners(dragHandle));
 
 		const phoneLayout = observableFromEvent(this, layoutService.onDidLayoutMainContainer, () => isPhoneLayout(layoutService));
-		// Also while the strip shows outside the chat, such as at the edge of the editor stacked above it: the chat keeps its
-		// right column empty, so that what floats at the corner of the window, such as the Chatpad launcher, does not
-		// cover the input's toolbar, and its content does not shift as the strip moves.
-		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
+		// Stacked below the editor, the column runs beside both, outside the chat.
+		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) && !this.externalHost.read(reader)?.active.read(reader) ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
 
 		this._register(autorun(reader => {
 			activityBar.itemCount.read(reader);
@@ -388,7 +388,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 			}
 			return;
 		}
-		const host = findExternalHost(this.container);
+		const host = findSessionActivityBarExternalHost(this.container);
 		if (host !== this.externalHost.get()) {
 			this.externalHost.set(host, undefined);
 		}
