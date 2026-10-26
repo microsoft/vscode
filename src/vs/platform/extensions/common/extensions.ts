@@ -301,9 +301,9 @@ export const EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY = 'extensions.experiment
 export const EXTENSIONS_AGENTS_WINDOW_MANAGEMENT = 'extensions.experimental.agentsWindowManagement';
 
 /**
- * Enables extensions in the Agents window automatically when they contribute something useful there and nothing
- * that relies on features the Agents window lacks. Users can still disable them. Requires
- * {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}.
+ * Enables extensions in the Agents window automatically. When `true`, enables extensions that contribute something
+ * useful there and nothing that relies on features the Agents window lacks. When an array of extension identifiers,
+ * enables only the listed extensions. Users can still disable them. Requires {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}.
  */
 export const EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE = 'extensions.experimental.agentsWindowAutoEnable';
 

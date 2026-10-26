@@ -9,7 +9,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, ExtensionUntrustedWorkspaceSupportType, IExtensionContributions, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, ExtensionUntrustedWorkspaceSupportType, IExtensionContributions, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -243,6 +243,40 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 			},
 			builtin: false,
 			suggestedContributions: ['mcpServerDefinitionProviders'],
+		});
+	});
+
+	test('enables useful extensions automatically when the setting is true, and only listed extensions when it is a list', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.configuredUnsupported': false });
+		testObject = createTestObject();
+		const extension = (name: string, contributes: Record<string, unknown>, properties: Partial<IExtensionManifest> = {}) =>
+			getExtensionManifest({ name, main: './out/extension.js', contributes: contributes as IExtensionContributions, ...properties });
+		const manifests = [
+			extension('tools', { languageModelTools: [{}] }),
+			extension('toolsWithViews', { languageModelTools: [{}], views: { explorer: [{}] } }),
+			extension('commandsOnly', { commands: [{}] }),
+			extension('declaredUnsupported', { languageModelTools: [{}] }, { capabilities: { agentsWindow: { supported: false } } }),
+			extension('configuredUnsupported', { languageModelTools: [{}] }),
+			getExtensionManifest({ name: 'supported', contributes: { grammars: [{ language: 'a' }] } }),
+		];
+		const shouldAutoEnable = async (value: unknown, isBuiltin?: boolean) => {
+			await testConfigurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, value);
+			return manifests.filter(manifest => testObject.shouldAutoEnableOnSessionsWindow(manifest, isBuiltin)).map(manifest => manifest.name);
+		};
+		const list = ['PUB.toolsWithViews', 'pub.commandsOnly', 'pub.declaredUnsupported', 'pub.configuredUnsupported', 'pub.supported', 42];
+
+		assert.deepStrictEqual({
+			disabled: await shouldAutoEnable(false),
+			enabled: await shouldAutoEnable(true),
+			listed: await shouldAutoEnable(list),
+			listedBuiltin: await shouldAutoEnable(list, true),
+			empty: await shouldAutoEnable([]),
+		}, {
+			disabled: [],
+			enabled: ['tools'],
+			listed: ['toolsWithViews', 'commandsOnly'],
+			listedBuiltin: [],
+			empty: [],
 		});
 	});
 
