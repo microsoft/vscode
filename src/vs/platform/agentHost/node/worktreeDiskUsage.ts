@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { promises as fs, type BigIntStats, type Dir } from 'fs';
+import * as nodeFs from 'fs';
+import { createRequire } from 'module';
 import { Limiter, Promises } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorCode } from '../../../base/common/errors.js';
@@ -23,9 +25,15 @@ interface ILinkedFileUsage {
 	measuredLinks: bigint;
 }
 
+// In Electron runtimes, use the ASAR-unaware `original-fs` so .asar files in repositories
+// are measured as normal files rather than being parsed as application packages.
+const origFs = typeof process !== 'undefined' && process.versions?.electron
+	? (createRequire(import.meta.url)('original-fs') as typeof nodeFs)
+	: undefined;
+
 const nodeFileSystem: IWorktreeFileSystem = {
-	lstat: path => fs.lstat(path, { bigint: true }),
-	opendir: fs.opendir,
+	lstat: path => (origFs?.promises.lstat ?? fs.lstat)(path, { bigint: true }),
+	opendir: path => (origFs?.promises.opendir ?? fs.opendir)(path),
 };
 
 export const IAgentHostWorktreeDiskUsageService = createDecorator<IAgentHostWorktreeDiskUsageService>('agentHostWorktreeDiskUsageService');

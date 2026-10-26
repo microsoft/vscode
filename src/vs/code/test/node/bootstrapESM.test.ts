@@ -39,9 +39,16 @@ const { createPackage, uncache } = nodeRequire('asar') as {
 		reentrantHookPath = join(fixtureDirectory, 'reentrant-hook.mjs');
 		await writeFile(join(fixtureDirectory, 'required-esm.mjs'), `
 			import fs from 'fs';
+			import nodeFs from 'node:fs';
+			import * as fsPromises from 'fs/promises';
+			import * as nodeFsPromises from 'node:fs/promises';
 			import originalFs from 'original-fs';
+			import * as originalFsPromises from 'original-fs/promises';
 
-			export const usesOriginalFs = fs === originalFs;
+			export const usesOriginalFs = fs === originalFs &&
+				nodeFs === originalFs &&
+				fsPromises.lstat === originalFsPromises.lstat &&
+				nodeFsPromises.lstat === originalFsPromises.lstat;
 		`);
 		await writeFile(reentrantHookPath, `
 			import { createRequire, registerHooks } from 'node:module';
@@ -60,7 +67,11 @@ const { createPackage, uncache } = nodeRequire('asar') as {
 		`);
 		await writeFile(fixturePath, `
 			import fs from 'fs';
+			import nodeFs from 'node:fs';
+			import * as fsPromises from 'fs/promises';
+			import * as nodeFsPromises from 'node:fs/promises';
 			import originalFs from 'original-fs';
+			import * as originalFsPromises from 'original-fs/promises';
 			import { createRequire } from 'node:module';
 
 			const require = createRequire(import.meta.url);
@@ -70,7 +81,7 @@ const { createPackage, uncache } = nodeRequire('asar') as {
 
 			process.stdout.write(JSON.stringify({
 				commonJSUsesOriginalFs: commonJSFs === commonJSOriginalFs,
-				esmUsesOriginalFs: fs === originalFs,
+				esmUsesOriginalFs: fs === originalFs && nodeFs === originalFs && fsPromises.lstat === originalFsPromises.lstat && nodeFsPromises.lstat === originalFsPromises.lstat,
 				requiredESMUsesOriginalFs: requiredESM.usesOriginalFs
 			}));
 		`);

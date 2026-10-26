@@ -18,7 +18,7 @@ globalThis._VSCODE_PACKAGE_JSON = { ...pkg };
 globalThis._VSCODE_FILE_ROOT = import.meta.dirname;
 
 // Install a hook to ESM module resolution that
-// 1) maps 'fs' to 'original-fs' (the ASAR-unaware Node.js `fs`), and
+// 1) maps 'fs', 'node:fs', 'fs/promises', and 'node:fs/promises' to the ASAR-unaware Node.js `original-fs`, and
 // 2) resolves bare module specifiers into our `node_modules.asar` archive.
 //
 // The archive keeps the same top-level layout as `node_modules`
@@ -118,12 +118,21 @@ function enableASARSupport(): void {
 			if (isCommonJS) {
 				return nextResolve(specifier, context);
 			}
-			if (specifier === 'fs') {
-				trace?.(`map "fs" -> node:original-fs (from ${context.parentURL})`);
+			if (specifier === 'fs' || specifier === 'node:fs') {
+				trace?.(`map "${specifier}" -> node:original-fs (from ${context.parentURL})`);
 				return {
 					format: 'builtin',
 					shortCircuit: true,
 					url: 'node:original-fs'
+				};
+			}
+
+			if (specifier === 'fs/promises' || specifier === 'node:fs/promises') {
+				trace?.(`map "${specifier}" -> node:original-fs/promises (from ${context.parentURL})`);
+				return {
+					format: 'builtin',
+					shortCircuit: true,
+					url: 'node:original-fs/promises'
 				};
 			}
 
