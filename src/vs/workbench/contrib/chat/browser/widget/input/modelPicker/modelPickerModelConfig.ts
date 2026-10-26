@@ -124,8 +124,9 @@ export function getModelConfigProperty(
 }
 
 /**
- * Presents a scope that offers no Copilot Fusion effort level, such as inline chat, where the
- * host always runs Fusion at its fast tier. Only the picker's view of the schema changes: values
+ * Presents inline chat's scope, where a host that pins Copilot Fusion's tier there (it advertises
+ * {@link ILanguageModelChatMetadata.autoModelFusionInlineChatTier}) offers no effort level. A Fusion
+ * whose host pins none keeps its effort level. Only the picker's view of the schema changes: values
  * still read, write, and persist through `configurationAccess` unchanged.
  */
 export function withoutFusionEffortLevel(
@@ -137,7 +138,7 @@ export function withoutFusionEffortLevel(
 		getModelConfigurationSchema: modelId => {
 			const metadata = lookupModel(modelId);
 			const schema = configurationAccess.getModelConfigurationSchema?.(modelId) ?? metadata?.configurationSchema;
-			if (!metadata?.autoModelFusion || !schema?.properties) {
+			if (!metadata?.autoModelFusion || metadata.autoModelFusionInlineChatTier === undefined || !schema?.properties) {
 				return schema;
 			}
 			return { ...schema, properties: Object.fromEntries(Object.entries(schema.properties).filter(([, property]) => property.group !== MODEL_CONFIG_GROUP_EFFORT)) };

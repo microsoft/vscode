@@ -1626,7 +1626,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getSessionType: () => this.modelTargetSessionType,
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
-			// Inline chat, editor or terminal, always runs Copilot Fusion at its fast tier, so it offers no effort level.
+			// Inline chat, editor or terminal, offers no Copilot Fusion effort level while the host pins Fusion's tier there.
 			modelConfiguration: this.location === ChatAgentLocation.EditorInline || this.location === ChatAgentLocation.Terminal
 				? withoutFusionEffortLevel(this._modelConfigStore, modelId => this.languageModelsService.lookupLanguageModel(modelId))
 				: this._modelConfigStore,

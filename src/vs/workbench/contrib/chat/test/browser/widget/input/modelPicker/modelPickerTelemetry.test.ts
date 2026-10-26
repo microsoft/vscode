@@ -544,12 +544,12 @@ suite('ModelPickerTelemetry', () => {
 		});
 	});
 
-	test('where Fusion offers no effort level, as in inline chat, a chat on a HydraFusion level moves to Fusion without one', async () => {
+	test('in inline chat, where the host pins Fusion\'s tier, a chat on a HydraFusion level moves to Fusion without one', async () => {
 		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' } });
 		const fusion = {
 			...autoModel,
 			metadata: {
-				...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: true,
+				...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: true, autoModelFusionInlineChatTier: 'fast',
 				configurationSchema: {
 					properties: {
 						tier: { type: 'string' as const, group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' },

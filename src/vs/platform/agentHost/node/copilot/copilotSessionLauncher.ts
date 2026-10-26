@@ -423,6 +423,9 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
 
+/** How the chat surface that created a chat's owning session scopes its runtime. */
+export type CopilotChatSurface = Pick<ICopilotSessionLaunchBase, 'hasScopedEditSurface' | 'isInlineChatSurface'>;
+
 /**
  * The trust a created SDK session grants its working directory, forwarding
  * VS Code's Workspace Trust to the Copilot runtime so it loads the folder's
@@ -677,17 +680,27 @@ function toFusionTier(tier: string, logService: ILogService, sessionId: string):
  */
 const InlineChatFusionAutoTier = 'fast';
 
+/**
+ * The tier inline chat runs Copilot Fusion at, or `undefined` when Auto is not presented as Fusion or the
+ * provider does not accept the tier. Advertised on Fusion's model, so clients hide its effort level in
+ * inline chat only while the host pins it.
+ */
+export function getInlineChatFusionAutoTier(): string | undefined {
+	return isAutoAdvertisedAsFusion() && isSupportedAutoModeTier(InlineChatFusionAutoTier) ? InlineChatFusionAutoTier : undefined;
+}
+
 /** Fusion's tier for inline chat, or `undefined` when the model is not Fusion or the provider does not accept the tier. */
 function resolveInlineChatFusionAutoTier(model: ModelSelection | undefined, logService: ILogService, sessionId: string): string | undefined {
 	if (!isAutoModel(model?.id) || !isAutoAdvertisedAsFusion()) {
 		return undefined;
 	}
-	if (!isSupportedAutoModeTier(InlineChatFusionAutoTier)) {
+	const tier = getInlineChatFusionAutoTier();
+	if (tier === undefined) {
 		logService.warn(`[Copilot:${sessionId}] Not pinning inline chat to Fusion's '${InlineChatFusionAutoTier}' tier, which the provider does not accept; expected one of [${getSupportedAutoModeTiers().join(', ')}]`);
 		return undefined;
 	}
-	logService.info(`[Copilot:${sessionId}] Using Fusion's '${InlineChatFusionAutoTier}' tier for inline chat`);
-	return InlineChatFusionAutoTier;
+	logService.info(`[Copilot:${sessionId}] Using Fusion's '${tier}' tier for inline chat`);
+	return tier;
 }
 
 /**

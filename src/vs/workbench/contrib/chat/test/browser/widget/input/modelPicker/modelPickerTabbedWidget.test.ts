@@ -1703,25 +1703,37 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual(autoTiers(result.popup), ['Standard', 'High']);
 	});
 
-	test('where Fusion offers no effort level, as in inline chat, it shows no level, offers none, and offers no HydraFusion', () => {
-		const fusion = createFusionModel();
-		const available = [...models, fusion, createHydraFusionModel(), createHydraFusionMaxModel()];
-		const values = new Map<string, IStringDictionary<unknown>>([[fusion.identifier, { tier: 'hydrafusion' }]]);
-		const access = withoutFusionEffortLevel({
-			getModelConfiguration: id => values.get(id),
-			getModelConfigurationActions: () => [],
-			setModelConfiguration: async (id, next) => { values.set(id, { ...values.get(id), ...next }); },
-		}, id => available.find(model => model.identifier === id)?.metadata);
-		const result = createPicker({ models: available, access, selectedModelId: models[0].identifier });
-		const fusionRow = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === copilotFusionName)!;
-		const row = { readout: fusionRow.querySelector('.action-label')?.textContent, ariaLabel: fusionRow.getAttribute('aria-label') };
-		const rows = listRows(result.popup);
-		openDetails(result.popup, copilotFusionName);
-		assert.deepStrictEqual({ rows, row, tiers: autoTiers(result.popup), saved: values.get(fusion.identifier) }, {
-			rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'],
-			row: { readout: 'Details', ariaLabel: 'Copilot Fusion, 10% discount, Picks or combines the best models for your task' },
-			tiers: [],
-			saved: { tier: 'hydrafusion' },
+	test('in inline chat, Fusion whose host pins its tier there shows no effort level, offers none, and offers no HydraFusion; otherwise it keeps them', () => {
+		const open = (inlineChatTier: string | undefined) => {
+			const base = createFusionModel();
+			const fusion = { ...base, metadata: { ...base.metadata, autoModelFusionInlineChatTier: inlineChatTier } };
+			const available = [...models, fusion, createHydraFusionModel(), createHydraFusionMaxModel()];
+			const values = new Map<string, IStringDictionary<unknown>>([[fusion.identifier, { tier: 'hydrafusion' }]]);
+			const access = withoutFusionEffortLevel({
+				getModelConfiguration: id => values.get(id),
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async (id, next) => { values.set(id, { ...values.get(id), ...next }); },
+			}, id => available.find(model => model.identifier === id)?.metadata);
+			const result = createPicker({ models: available, access, selectedModelId: models[0].identifier });
+			const fusionRow = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === copilotFusionName)!;
+			const row = { readout: fusionRow.querySelector('.action-label')?.textContent, ariaLabel: fusionRow.getAttribute('aria-label') };
+			const rows = listRows(result.popup);
+			openDetails(result.popup, copilotFusionName);
+			return { rows, row, tiers: autoTiers(result.popup), saved: values.get(fusion.identifier) };
+		};
+		assert.deepStrictEqual({ pinned: open('fast'), notPinned: open(undefined) }, {
+			pinned: {
+				rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'],
+				row: { readout: 'Details', ariaLabel: 'Copilot Fusion, 10% discount, Picks or combines the best models for your task' },
+				tiers: [],
+				saved: { tier: 'hydrafusion' },
+			},
+			notPinned: {
+				rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'],
+				row: { readout: 'High', ariaLabel: 'Copilot Fusion, 10% discount, Picks or combines the best models for your task, Effort Level: High' },
+				tiers: ['Standard', 'High', 'Max'],
+				saved: { tier: 'hydrafusion' },
+			},
 		});
 	});
 
