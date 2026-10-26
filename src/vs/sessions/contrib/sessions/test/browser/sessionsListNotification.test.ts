@@ -190,6 +190,48 @@ suite('Sessions - List notification', () => {
 		assert.strictEqual(test.element(), null);
 	}));
 
+	test('only a notice with Undo shows the countdown, since it counts down the time left to Undo', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const test = setup();
+		const countdown = () => !!test.container.querySelector('.sessions-list-notification-progress-clip');
+		const result = { undo: false, result: false, warning: false, progress: false };
+		test.notification.show({ message: 'Moved', help: 'Help.', undo: async () => { } });
+		result.undo = countdown();
+		test.notification.show({ message: 'Moved back', help: 'Help.' });
+		result.result = countdown();
+		test.notification.show({ message: 'Refused', help: 'Help.', warning: true });
+		result.warning = countdown();
+		test.notification.showProgress({ message: 'Moving', help: 'Help.' });
+		result.progress = countdown();
+		assert.deepStrictEqual(result, { undo: true, result: false, warning: false, progress: true });
+	}));
+
+	test('a notice without Undo still disappears after ten seconds and its help does not mention the countdown bar', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const test = setup();
+		test.notification.show({ message: 'Moved back', help: 'Help.' });
+		const help = store.add(test.notification.getAccessibilityHelp()!);
+		const mentionsBar = help.provideContent().includes('bar');
+		// onClose would focus Dismiss, which pauses the countdown while the document has focus (browser tests)
+		help.dispose();
+		await timeout(10000);
+		assert.deepStrictEqual({ mentionsBar, shown: !!test.element() }, { mentionsBar: false, shown: false });
+	}));
+
+	test('a long message wraps to at most two lines instead of being cut off, and its full text stays in the label', () => {
+		const test = setup();
+		test.container.style.width = '240px';
+		test.container.style.position = 'relative';
+		const message = 'Promoted \'A very long session title that does not fit in one line\' to a new session';
+		test.notification.show(notice(message));
+		const label = test.container.querySelector<HTMLElement>('.sessions-list-notification-label')!;
+		const style = mainWindow.getComputedStyle(label);
+		assert.deepStrictEqual({
+			text: label.textContent,
+			whiteSpace: style.whiteSpace,
+			textOverflow: style.textOverflow,
+			lineClamp: style.getPropertyValue('-webkit-line-clamp'),
+		}, { text: message, whiteSpace: 'normal', textOverflow: 'ellipsis', lineClamp: '2' });
+	});
+
 	test('accessibility help describes the change and what Undo restores', () => {
 		const test = setup();
 		test.notification.show(notice('Filters reset'));
@@ -293,7 +335,7 @@ suite('Sessions - List notification', () => {
 		assert.deepStrictEqual({ progress, result, heard, visibleBeforeExpiry, expired: !test.element() }, {
 			progress: { message: 'Moving \'Fix tests\'...', inProgress: true, warning: false, undo: false, dismiss: true, duration: '' },
 			// A result without Undo only reports, for ten seconds.
-			result: { message: 'Moved \'Fix tests\' into \'Release\'', inProgress: false, warning: false, undo: false, dismiss: true, duration: '10000ms' },
+			result: { message: 'Moved \'Fix tests\' into \'Release\'', inProgress: false, warning: false, undo: false, dismiss: true, duration: undefined },
 			heard: ['status: Moved \'Fix tests\' into \'Release\''],
 			visibleBeforeExpiry: true,
 			expired: true,
@@ -306,7 +348,7 @@ suite('Sessions - List notification', () => {
 			test.notification.show({ message: 'Could not move \'Fix tests\'. The session is archived.', help: 'Refused.', warning: true });
 		});
 		assert.deepStrictEqual({ notice: describeNotice(test), heard }, {
-			notice: { message: 'Could not move \'Fix tests\'. The session is archived.', inProgress: false, warning: true, undo: false, dismiss: true, duration: '10000ms' },
+			notice: { message: 'Could not move \'Fix tests\'. The session is archived.', inProgress: false, warning: true, undo: false, dismiss: true, duration: undefined },
 			heard: ['alert: Could not move \'Fix tests\'. The session is archived.'],
 		});
 		test.notification.dispose();
@@ -326,7 +368,7 @@ suite('Sessions - List notification', () => {
 		assert.deepStrictEqual({ progress, result: describeNotice(test), errors: test.errors }, {
 			progress: { message: 'Moving \'Fix tests\' back...', inProgress: true, warning: false, undo: false, dismiss: true, duration: '' },
 			// Not dismissed by the Undo that showed it.
-			result: { message: 'Moved \'Fix tests\' back', inProgress: false, warning: false, undo: false, dismiss: true, duration: '10000ms' },
+			result: { message: 'Moved \'Fix tests\' back', inProgress: false, warning: false, undo: false, dismiss: true, duration: undefined },
 			errors: [],
 		});
 		test.notification.dispose();

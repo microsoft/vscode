@@ -344,7 +344,7 @@ suite('SessionEnvironmentPicker', () => {
 						...providers.map(provider => ({ label: provider.label, separator: false })),
 						{ label: '', separator: true },
 						{ label: 'Connect via SSH...', separator: false },
-						...(showManage ? [{ label: '', separator: true }, { label: 'Manage...', separator: false }] : []),
+						...(showManage ? [{ label: '', separator: true }, { label: 'Manage Remote Environments...', separator: false }] : []),
 					],
 					hideDefaultKeybindingTooltip: true,
 					remoteSubmenus: [
@@ -364,7 +364,7 @@ suite('SessionEnvironmentPicker', () => {
 				await configuration.setUserConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, !manageEnabled);
 				trigger.click();
 				assert.deepStrictEqual({
-					visibleAfterSettingChange: menu.some(item => item.label === 'Manage...'),
+					visibleAfterSettingChange: menu.some(item => item.label === 'Manage Remote Environments...'),
 					sshSubmenu: submenus[1], environmentSubmenu: submenus[4], websocketSubmenu: submenus[6],
 					triggers: telemetry.triggers,
 				}, {
@@ -383,7 +383,7 @@ suite('SessionEnvironmentPicker', () => {
 					};
 					await configuration.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, false);
 					const pickerDisabled = environmentSubmenu();
-					const manageWithoutPicker = menu.some(item => item.label === 'Manage...');
+					const manageWithoutPicker = menu.some(item => item.label === 'Manage Remote Environments...');
 					await configuration.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, true);
 					const pickerReenabled = environmentSubmenu();
 					hosts.set(hosts.get().map(host => ({ ...host, status: 'offline' })), undefined);
