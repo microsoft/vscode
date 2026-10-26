@@ -106,7 +106,10 @@ export function createClientArtifactRuntime(
 					throw new Error(localize('artifactNoticeUnavailable', "The agent host cannot receive this artifact automation notice."));
 				}
 				const result = await transport.request({
-					kind: 'notice', subscription, notice: { kind: notice.kind, content: notice.content, iconId: notice.iconId },
+					kind: 'notice', subscription, notice: {
+						kind: notice.kind, content: notice.content, iconId: notice.iconId,
+						...(notice.changes && notice.enabledRules ? { changes: notice.changes, enabledRules: notice.enabledRules } : {}),
+					},
 				});
 				if (result.kind !== 'ok') {
 					throw new Error('Invalid artifact automation notice acknowledgement');

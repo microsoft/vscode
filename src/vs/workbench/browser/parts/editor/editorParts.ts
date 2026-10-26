@@ -980,11 +980,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 
 		// Ensure we only bind to the same context key once per group
-		let groupScopedContextKeys = this.scopedContextKeys.get(group.id);
-		if (groupScopedContextKeys?.group !== group) {
-			groupScopedContextKeys = { group, keys: new Map<string, IContextKey<ContextKeyValue>>() };
-			this.scopedContextKeys.set(group.id, groupScopedContextKeys);
-		}
+		const groupScopedContextKeys = this.ensureScopedContextKeys(group);
 		let scopedContextKey = groupScopedContextKeys.keys.get(contextKey.key);
 		if (!scopedContextKey) {
 			scopedContextKey = contextKey.bindTo(group.scopedContextKeyService);
@@ -1009,6 +1005,19 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 				scopedContextKey.reset();
 			},
 		};
+	}
+
+	private ensureScopedContextKeys(group: IEditorGroupView): { readonly group: IEditorGroupView; readonly keys: Map<string, IContextKey<ContextKeyValue>> } {
+		let groupScopedContextKeys = this.scopedContextKeys.get(group.id);
+		if (groupScopedContextKeys?.group !== group) {
+			groupScopedContextKeys = { group, keys: new Map<string, IContextKey<ContextKeyValue>>() };
+			this.scopedContextKeys.set(group.id, groupScopedContextKeys);
+
+			// Provider bindings of a replaced owner point to its disposed scope
+			this.registeredContextKeys.delete(group.id);
+		}
+
+		return groupScopedContextKeys;
 	}
 
 	private readonly contextKeyProviders = new Map<string, IEditorGroupContextKeyProvider<ContextKeyValue>>();
@@ -1063,7 +1072,8 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// If the providers context key has not yet been bound
 		// to the group, do so now.
 
-		let groupRegisteredContextKeys = this.scopedContextKeys.get(group.id)?.group === group ? this.registeredContextKeys.get(group.id) : undefined;
+		this.ensureScopedContextKeys(group);
+		let groupRegisteredContextKeys = this.registeredContextKeys.get(group.id);
 		if (!groupRegisteredContextKeys) {
 			groupRegisteredContextKeys = new Map<string, IContextKey>();
 			this.registeredContextKeys.set(group.id, groupRegisteredContextKeys);

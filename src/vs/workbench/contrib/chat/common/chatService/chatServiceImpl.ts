@@ -1310,7 +1310,7 @@ export class ChatService extends Disposable implements IChatService {
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			let progressDeferredForServerRequest = false;
 			if (providedSession.onDidStartServerRequest) {
-				const handleServerRequest = ({ id, prompt, metadata, variableData, modelId, modelConfiguration, timestamp, isSystemInitiated, requestSource, artifactRequest, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }: IChatSessionServerRequest) => {
+				const handleServerRequest = ({ id, prompt, metadata, variableData, modelId, modelConfiguration, timestamp, isSystemInitiated, requestSource, artifactRequest, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, replacesRequestId, origin }: IChatSessionServerRequest) => {
 					if (resume) {
 						const request = model.getRequests().find(request => request.id === id);
 						if (!request?.response) {
@@ -1326,6 +1326,12 @@ export class ChatService extends Disposable implements IChatService {
 					// Complete any in-flight request
 					if (streamingRequest?.response && !streamingRequest.response.isComplete) {
 						completeStreamingResponse(true);
+					}
+					// Requests are applied in order, so a replaced request that arrived just before is already in the model.
+					const replaced = replacesRequestId === undefined ? undefined : model.getRequests().find(request => request.id === replacesRequestId);
+					if (replaced?.response?.isComplete) {
+						// A replaced request without usage did not bill anything, so the session cost stays valid.
+						model.removeRequest(replaced.id, replaced.response.usage ? ChatRequestRemovalReason.Removal : ChatRequestRemovalReason.Replacement);
 					}
 
 					// Create a new request in the model

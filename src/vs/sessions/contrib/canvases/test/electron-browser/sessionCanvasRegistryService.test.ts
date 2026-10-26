@@ -189,6 +189,46 @@ suite('SessionCanvasRegistryService', () => {
 		});
 	});
 
+	test('activity bar does not change its menus when the canvases re-emit unchanged', async () => {
+		const harness = createHarness([{
+			canvasId: 'plan', extensionId: 'user:plan', extensionSource: 'user',
+			displayName: 'Plan', description: 'A plan canvas.', requiresInput: false,
+		}]);
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 1);
+		const canvas: ISessionCanvas = {
+			resource: URI.parse('agent-host-canvas:/session/triage'), instanceId: 'triage',
+			title: 'Daily Triage', source: URI.parse('https://example.com/triage'),
+		};
+		store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, harness.contextService));
+		let changes = 0;
+		store.add(MenuRegistry.onDidChangeMenu(e => {
+			if (e.has(Menus.SessionActivityBar) || e.has(Menus.SessionsEditorTabsBarAddTab)) {
+				changes++;
+			}
+		}));
+		const changesFor = async (canvases: readonly ISessionCanvas[]) => {
+			await timeout(0);
+			const before = changes;
+			harness.canvases.set(canvases, undefined);
+			await timeout(0);
+			return changes - before;
+		};
+
+		assert.deepStrictEqual({
+			emptyAgain: await changesFor([]),
+			added: await changesFor([canvas]),
+			sameCanvasAgain: await changesFor([{ ...canvas }]),
+			renamed: await changesFor([{ ...canvas, title: 'Renamed' }]),
+			renamedAgain: await changesFor([{ ...canvas, title: 'Renamed' }]),
+		}, {
+			emptyAgain: 0,
+			added: 1,
+			sameCanvasAgain: 0,
+			renamed: 1,
+			renamedAgain: 0,
+		});
+	});
+
 	test('activity bar tracks live canvas membership, titles, active chat, enablement and disposal', () => {
 		const harness = createHarness([]);
 		const first: ISessionCanvas = {
