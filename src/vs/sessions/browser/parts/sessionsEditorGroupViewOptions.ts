@@ -15,6 +15,7 @@ export function getSessionsEditorGroupViewOptions(): IEditorGroupViewOptions {
 	return {
 		menuIds: {
 			headerPrimary: Menus.SessionsEditorHeaderPrimary,
+			headerSecondary: Menus.SessionsEditorHeaderSecondary,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
 			editorActions: Menus.SessionsEditorTitle,
 			tabsBarContext: Menus.SessionsEditorTabsBarContext,

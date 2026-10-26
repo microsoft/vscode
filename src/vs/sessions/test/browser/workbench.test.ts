@@ -2298,7 +2298,7 @@ suite('Sessions - Workbench', () => {
 			showHeader: true,
 			useModernUITabs: true,
 			headerPrimary: Menus.SessionsEditorHeaderPrimary,
-			headerSecondary: undefined,
+			headerSecondary: Menus.SessionsEditorHeaderSecondary,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
 		});
 	});

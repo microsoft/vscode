@@ -245,7 +245,7 @@ const desktopTextEditorTitleVisible = ContextKeyExpr.and(
 	MainEditorAreaVisibleContext
 );
 
-function wordWrapToggled(settingId: string) {
+export function wordWrapToggled(settingId: string) {
 	return ContextKeyExpr.or(
 		ContextKeyExpr.equals(`config.${settingId}`, 'on'),
 		ContextKeyExpr.and(
@@ -283,7 +283,7 @@ class ToggleSessionsEditorWordWrapAction extends Action2 {
 	}
 }
 
-class ToggleSessionsDiffEditorWordWrapAction extends Action2 {
+export class ToggleSessionsDiffEditorWordWrapAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.toggleDiffEditorWordWrap';
 
 	constructor() {
