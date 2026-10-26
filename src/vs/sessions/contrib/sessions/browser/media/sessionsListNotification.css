@@ -26,8 +26,11 @@
 	flex: 1;
 	min-width: 0;
 	overflow: hidden;
+	overflow-wrap: anywhere;
 	text-overflow: ellipsis;
-	white-space: nowrap;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 }
 
 .sessions-list-notification > .monaco-button {
@@ -73,4 +76,25 @@
 @keyframes sessions-list-notification-countdown {
 	from { width: 100%; }
 	to { width: 0; }
+}
+
+.sessions-list-notification > .sessions-list-notification-icon {
+	flex-shrink: 0;
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+/* An operation in progress: the bar sweeps until its result replaces the notice. */
+.sessions-list-notification.in-progress .sessions-list-notification-progress {
+	width: 30%;
+	animation: sessions-list-notification-indeterminate 1.5s ease-in-out infinite;
+}
+
+.monaco-workbench.monaco-reduce-motion .sessions-list-notification.in-progress .sessions-list-notification-progress {
+	width: 100%;
+	animation: none;
+}
+
+@keyframes sessions-list-notification-indeterminate {
+	from { transform: translateX(-100%); }
+	to { transform: translateX(340%); }
 }

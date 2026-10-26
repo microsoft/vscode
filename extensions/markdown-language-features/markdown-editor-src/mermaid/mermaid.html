@@ -1,0 +1,23 @@
+<!---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+---------------------------------------------------------------------------------------------->
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:;">
+	<style>
+		html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; }
+		body { color: var(--vscode-editor-foreground, CanvasText); font-family: var(--vscode-font-family, system-ui); }
+		main { width: 100%; height: 100%; overflow: auto; display: flex; align-items: center; justify-content: center; }
+		main > svg { display: block; width: 100%; height: 100%; max-width: 100% !important; }
+		pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; }
+	</style>
+</head>
+<body>
+	<main aria-label="Mermaid diagram" aria-busy="true"></main>
+	<script src="./mermaidGuest.ts"></script>
+</body>
+</html>

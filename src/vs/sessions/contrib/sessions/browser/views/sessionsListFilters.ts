@@ -9,7 +9,7 @@ import { IReader } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { getSessionApplication } from '../../../../common/sessionApplication.js';
+import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 
 export type SessionFilter =
@@ -26,12 +26,25 @@ export function sessionFilterKey(filter: SessionFilter): string {
 	return JSON.stringify(filter.kind === 'application' ? [filter.kind, filter.environment, filter.id] : [filter.kind, filter.id]);
 }
 
-export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], reader?: IReader): ISessionFilterOption[] {
-	const options: ISessionFilterOption[] = [
-		{ filter: { kind: 'harness', id: 'copilot' }, label: localize('harness.copilot', "Copilot"), group: '1_harnesses' },
-		{ filter: { kind: 'harness', id: 'claude' }, label: localize('harness.claude', "Claude"), group: '1_harnesses' },
-		{ filter: { kind: 'harness', id: 'codex' }, label: localize('harness.codex', "Codex"), group: '1_harnesses' },
-	];
+/** Orders environments as the Environment filter lists them: this computer, the cloud, then remote hosts by name. */
+export function compareSessionEnvironments(a: ISessionEnvironment, b: ISessionEnvironment): number {
+	const rank = (id: string) => id === 'local' ? 0 : id === 'cloud' ? 1 : 2;
+	return rank(a.id) - rank(b.id) || a.label.localeCompare(b.label) || a.id.localeCompare(b.id);
+}
+
+/**
+ * Sessions list state that Reset Filters returns to its default. Reset Filters
+ * captures every such state before resetting it, so that undoing the reset
+ * restores the list exactly as it was.
+ */
+export interface ISessionsListResettableState {
+	/** Captures the current state and returns a function that restores it. */
+	capture(): () => void;
+	/** Returns the state to its default. */
+	reset(): void;
+}
+
+export function getSessionEnvironments(environments: readonly ISessionEnvironment[]): ISessionEnvironment[] {
 	const byId = new Map<string, ISessionEnvironment>([
 		['local', { id: 'local', label: localize('environment.local', "This Computer") }],
 		['cloud', { id: 'cloud', label: localize('environment.cloud', "Cloud") }],
@@ -39,10 +52,16 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 	for (const environment of environments) {
 		byId.set(environment.id, environment);
 	}
-	const ordered = [...byId.values()].sort((a, b) => {
-		const rank = (id: string) => id === 'local' ? 0 : id === 'cloud' ? 1 : 2;
-		return rank(a.id) - rank(b.id) || a.label.localeCompare(b.label) || a.id.localeCompare(b.id);
-	});
+	return [...byId.values()].sort(compareSessionEnvironments);
+}
+
+export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], reader?: IReader): ISessionFilterOption[] {
+	const options: ISessionFilterOption[] = [
+		{ filter: { kind: 'harness', id: 'copilot' }, label: localize('harness.copilot', "Copilot"), group: '1_harnesses' },
+		{ filter: { kind: 'harness', id: 'claude' }, label: localize('harness.claude', "Claude"), group: '1_harnesses' },
+		{ filter: { kind: 'harness', id: 'codex' }, label: localize('harness.codex', "Codex"), group: '1_harnesses' },
+	];
+	const ordered = getSessionEnvironments(environments);
 	for (const environment of ordered) {
 		if (environment.isConnected?.read(reader) !== false) {
 			options.push({ filter: { kind: 'environment', id: environment.id }, label: environment.label, group: '2_environments' });
@@ -54,7 +73,9 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 		for (const session of sessions) {
 			if (session.environment === environment.id && !session.isAutomation?.read(reader)) {
 				const application = session.application.read(reader);
-				applications.set(application.id, application.label);
+				if (application.id !== UNKNOWN_SESSION_APPLICATION_ID) {
+					applications.set(application.id, application.label);
+				}
 			}
 		}
 		if (applications.size > 0 || environment.isConnected?.read(reader) !== false) {
@@ -71,7 +92,7 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 	return options;
 }
 
-export class SessionsListFilters extends Disposable {
+export class SessionsListFilters extends Disposable implements ISessionsListResettableState {
 	private static readonly STORAGE_KEY = 'sessionsListControl.filters';
 	private readonly excluded: Map<string, boolean>;
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -108,19 +129,39 @@ export class SessionsListFilters extends Disposable {
 
 	setExcluded(filter: SessionFilter, excluded: boolean): void {
 		this.excluded.set(sessionFilterKey(filter), excluded);
-		this.storageService.store(SessionsListFilters.STORAGE_KEY, JSON.stringify([...this.excluded]), StorageScope.PROFILE, StorageTarget.USER);
-		this._onDidChange.fire();
+		this.save();
 	}
 
 	matches(session: Pick<ISession, 'harness' | 'environment' | 'application'>): boolean {
+		const application = session.application.get();
 		return !this.isExcluded({ kind: 'harness', id: session.harness })
 			&& !this.isExcluded({ kind: 'environment', id: session.environment })
-			&& !this.isExcluded({ kind: 'application', environment: session.environment, id: session.application.get().id });
+			&& (application.id === UNKNOWN_SESSION_APPLICATION_ID
+				|| !this.isExcluded({ kind: 'application', environment: session.environment, id: application.id }));
+	}
+
+	capture(): () => void {
+		const excluded = [...this.excluded];
+		return () => {
+			this.excluded.clear();
+			for (const [key, value] of excluded) {
+				this.excluded.set(key, value);
+			}
+			this.save();
+		};
 	}
 
 	reset(): void {
 		this.excluded.clear();
-		this.storageService.remove(SessionsListFilters.STORAGE_KEY, StorageScope.PROFILE);
+		this.save();
+	}
+
+	private save(): void {
+		if (this.excluded.size === 0) {
+			this.storageService.remove(SessionsListFilters.STORAGE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(SessionsListFilters.STORAGE_KEY, JSON.stringify([...this.excluded]), StorageScope.PROFILE, StorageTarget.USER);
+		}
 		this._onDidChange.fire();
 	}
 }

@@ -12,11 +12,13 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, partitionInstalledPluginItemsByScope, PluginListWidget, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot, shouldShowLegacyPluginMarketplace, shouldShowPluginTree } from '../../../browser/aiCustomization/pluginListWidget.js';
+import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, installedPluginMatchesQuery, installedPluginToItem, isCurrentPluginMarketplaceRequest, partitionInstalledPluginItemsByScope, PluginListWidget, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot, shouldShowLegacyPluginMarketplace, shouldShowPluginTree } from '../../../browser/aiCustomization/pluginListWidget.js';
 import { AgentPluginItemKind, IInstalledPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
+import { IMarketplacePlugin } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
 suite('pluginListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,7 +49,7 @@ suite('pluginListWidget', () => {
 		]);
 	});
 
-	test('renders the effective state when an enablement write is rejected', () => {
+	test('renders the effective state when an enablement write is rejected', async () => {
 		const model: IEnablementModel = {
 			readEnabled: () => ContributionEnablementState.DisabledProfile,
 			readProfileEnabled: () => false,
@@ -56,7 +58,9 @@ suite('pluginListWidget', () => {
 		};
 
 		assert.strictEqual(
-			setPluginEnablementAndReadEffective(model, 'plugin', ContributionEnablementState.EnabledProfile),
+			await setPluginEnablementAndReadEffective(model, new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file('/plugins/plugin');
+			}(), ContributionEnablementState.EnabledProfile),
 			ContributionEnablementState.DisabledProfile,
 		);
 	});
@@ -244,6 +248,33 @@ suite('pluginListWidget', () => {
 		};
 
 		assert.strictEqual(getInstalledPluginMetadata(item), '2 skills • 1 command');
+	});
+
+	test('shows installed plugin locations in place of marketplace descriptions', () => {
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(uri: URI): string {
+				return uri.path.replace('/home/dev', '~');
+			}
+		}();
+		const createPlugin = (uri: URI, fromMarketplace?: Pick<IMarketplacePlugin, 'description' | 'marketplace'>) => new class extends mock<IAgentPlugin>() {
+			override readonly uri = uri;
+			override readonly label = uri.path.substring(uri.path.lastIndexOf('/') + 1);
+			override readonly fromMarketplace = fromMarketplace as IMarketplacePlugin | undefined;
+		}();
+		const items = [
+			installedPluginToItem(createPlugin(URI.file('/home/dev/.copilot/installed-plugins/local/example')), labelService),
+			installedPluginToItem(createPlugin(URI.file('/home/dev/.vscode/agent-plugins/github.com/example/figma'), { description: 'Design system workflows\nSecond line', marketplace: 'copilot' }), labelService),
+		];
+
+		assert.deepStrictEqual(items.map(item => ({
+			name: item.name,
+			location: item.location,
+			matchesLocation: installedPluginMatchesQuery(item, 'agent-plugins'),
+			matchesDescription: installedPluginMatchesQuery(item, 'design system'),
+		})), [
+			{ name: 'example', location: '~/.copilot/installed-plugins/local', matchesLocation: false, matchesDescription: false },
+			{ name: 'figma', location: '~/.vscode/agent-plugins/github.com/example', matchesLocation: true, matchesDescription: true },
+		]);
 	});
 
 	test('treats an empty marketplace snapshot as loaded', () => {

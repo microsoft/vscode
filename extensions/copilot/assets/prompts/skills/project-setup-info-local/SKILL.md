@@ -86,7 +86,7 @@ A Model Context Protocol (MCP) server project. This project supports multiple pr
    - mcp-server-name: The name of the MCP server. Create a unique name that reflects what this MCP server does.
    - command-to-run: The command to run to start the MCP server. This is the command you would use to run the project you just created.
    - list-of-args: The arguments to pass to the command. This is the list of arguments you would use to run the project you just created.
-5. Install any required VS Code extensions based on the chosen language (e.g., Python extension for Python projects).
+5. Recommend any required VS Code extensions based on the chosen language (e.g., Python extension for Python projects) by adding their IDs to the "recommendations" array in `.vscode/extensions.json`. Do not install extensions yourself.
 6. Inform the user that they can now debug this MCP server using VS Code.
 
 ## python-script
@@ -97,15 +97,8 @@ Required extensions: `ms-python.python`, `ms-python.vscode-python-envs`
 
 ### Rules
 
-1. Call the tool `copilot_runVscodeCommand` to correctly create a new Python script project in VS Code. Call the command with the following arguments.
-   Note that "python-script" and "true" are constants while "New Project Name" and "/path/to/new/project" are placeholders for the project name and path respectively.
-   ```json
-   {
-     "name": "python-envs.createNewProjectFromTemplate",
-     "commandId": "python-envs.createNewProjectFromTemplate",
-     "args": ["python-script", "true", "New Project Name", "/path/to/new/project"]
-   }
-   ```
+1. Create a single Python script (for example, `main.py`) in the project folder with a `main()` entry point guarded by `if __name__ == "__main__":`.
+2. Add a `.gitignore` for Python and, if the project has dependencies, a `requirements.txt`.
 
 ## python-package
 
@@ -115,13 +108,7 @@ Required extensions: `ms-python.python`, `ms-python.vscode-python-envs`
 
 ### Rules
 
-1. Call the tool `run_vscode_command` to correctly create a new Python package project in VS Code. Call the command with the following arguments.
-   Note that "python-package" and "true" are constants while "New Package Name" and "/path/to/new/project" are placeholders for the package name and path respectively.
-   ```json
-   {
-     "name": "python-envs.createNewProjectFromTemplate",
-     "commandId": "python-envs.createNewProjectFromTemplate",
-     "args": ["python-package", "true", "New Package Name", "/path/to/new/project"]
-   }
-   ```
+1. Create a `pyproject.toml` that declares the package name, version, and build backend.
+2. Create the package in `src/<package_name>/__init__.py` and a `tests/` folder with an initial test.
+3. Add a `.gitignore` for Python and a `README.md` that explains how to install the package in editable mode (`pip install -e .`).
 

@@ -23,6 +23,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, ISessionGitState, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostAcceptChangesOperationContribution } from '../../node/agentHostAcceptChangesOperationProvider.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostDiscardChangesOperationContribution } from '../../node/agentHostDiscardChangesOperationProvider.js';
@@ -257,13 +258,14 @@ const sampleOperations: readonly ChangesetOperation[] = [
 suite('AgentHostChangesetOperationService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(stateManager: AgentHostStateManager, configurationService: IAgentConfigurationService = new TestConfigurationService(undefined), gitStateService: IAgentHostGitStateService = new TestGitStateService()): AgentHostChangesetOperationService {
+	function createService(stateManager: AgentHostStateManager, configurationService: IAgentConfigurationService = new TestConfigurationService(undefined), gitStateService: IAgentHostGitStateService = new TestGitStateService(), fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator())): AgentHostChangesetOperationService {
 		return disposables.add(new AgentHostChangesetOperationService(
 			stateManager,
 			gitStateService,
 			disposables.add(new AgentHostChangesetSubscriptionService()),
 			configurationService,
 			createTestChatOwnershipService(stateManager),
+			fileEditCoordinator,
 		));
 	}
 
@@ -446,6 +448,7 @@ suite('AgentHostChangesetOperationService', () => {
 			subscriptions,
 			new TestConfigurationService(['file:///a']),
 			createTestChatOwnershipService(stateManager),
+			disposables.add(new AgentHostFileEditCoordinator()),
 		));
 		const contribution = new RecordingOperationsContribution(sampleOperations);
 		disposables.add(service.registerContribution(contribution));
@@ -540,7 +543,7 @@ suite('AgentHostChangesetOperationService', () => {
 			const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 			subscriptions.addSubscription(sessionKey, sessionKey);
 			subscriptions.addSubscription(sessionKey, changesetUri);
-			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a']), createTestChatOwnershipService(stateManager)));
+			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a']), createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
 			disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
 			const channels: string[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
@@ -574,7 +577,7 @@ suite('AgentHostChangesetOperationService', () => {
 		stateManager.registerChangeset(changesetUri);
 		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 		subscriptions.addSubscription(folderOwner, changesetUri);
-		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(workingDirectories), createTestChatOwnershipService(stateManager)));
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(workingDirectories), createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
 
 		service.updateOperations(sessionKey, undefined, sampleGitState);
@@ -600,7 +603,7 @@ suite('AgentHostChangesetOperationService', () => {
 		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 		subscriptions.addSubscription(folderOwner, changesetUri);
 		const gitStateService = new TestGitStateService(new Map([[defaultChat, sampleGitState]]));
-		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(workingDirectories), createTestChatOwnershipService(stateManager)));
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(workingDirectories), createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
 		const registryCapture = new RegistryCaptureContribution();
 		disposables.add(service.registerContribution(registryCapture));
@@ -625,7 +628,7 @@ suite('AgentHostChangesetOperationService', () => {
 		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 		subscriptions.addSubscription(sessionKey, changesetUri);
 		const gitStateService = new TestGitStateService(new Map([[sessionKey, sampleGitState]]));
-		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(['file:///workspace']), createTestChatOwnershipService(stateManager)));
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(['file:///workspace']), createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
 		const operations: readonly ChangesetOperation[] = [
 			{ id: PREPARE_PULL_REQUEST_OPERATION_ID, label: 'Create Pull Request', group: 'pull-request', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
 			{ id: AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, label: 'Merge Changes', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
@@ -819,7 +822,7 @@ suite('AgentHostChangesetOperationService', () => {
 			const sessionUri = buildSessionChangesetUri(sessionKey);
 			stateManager.registerChangeset(sessionUri);
 			subscriptions.addSubscription(sessionKey, sessionUri);
-			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a']), createTestChatOwnershipService(stateManager)));
+			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a']), createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
 			// Only the advertising half of the contribution is under test; its handler needs file services.
 			const discard = disposables.add(new AgentHostDiscardChangesOperationContribution(stateManager, new (mock<IInstantiationService>())()));
 			disposables.add(service.registerContribution({ registerHandlers: () => Disposable.None, getOperations: context => discard.getOperations(context), dispose: () => { } }));
@@ -857,12 +860,13 @@ suite('AgentHostChangesetOperationService', () => {
 		});
 	});
 
-	test('offers only Accept Changes and Discard Changes on the Working Set, with or without Git state, and disables them while a turn runs', () => {
+	test('offers only Accept Changes and Discard Changes on the Working Set, with or without Git state, and keeps them while a turn runs as far as the provider allows', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
 		const chat = buildDefaultChatUri(sessionKey);
 		stateManager.createSession({ resource: sessionKey, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: chat });
-		const service = createService(stateManager);
+		const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+		const service = createService(stateManager, undefined, undefined, fileEditCoordinator);
 		// Only the advertising halves of the contributions are under test; their handlers need more services.
 		const accept = disposables.add(new AgentHostAcceptChangesOperationContribution(new (mock<IInstantiationService>())()));
 		const discard = disposables.add(new AgentHostDiscardChangesOperationContribution(stateManager, new (mock<IInstantiationService>())()));
@@ -876,14 +880,21 @@ suite('AgentHostChangesetOperationService', () => {
 
 		const idle = { withGit: describe(workingSet, sampleGitState), withoutGit: describe(workingSet, undefined), session: describe(buildSessionChangesetUri(sessionKey), sampleGitState) };
 		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date(0).toISOString(), message: { text: 'hi', origin: { kind: MessageKind.User } } });
+		const whileTurnRuns = { workingSet: describe(workingSet, sampleGitState), session: describe(buildSessionChangesetUri(sessionKey), sampleGitState) };
+		// The provider's edit tool calls wait for discards of their files, so its files' changes can be undone too.
+		disposables.add(fileEditCoordinator.registerCoordinatedProvider('copilot'));
 
-		assert.deepStrictEqual({ idle, whileTurnRuns: describe(workingSet, sampleGitState) }, {
+		assert.deepStrictEqual({ idle, whileTurnRuns, whileCoordinatedTurnRuns: describe(workingSet, sampleGitState) }, {
 			idle: {
 				withGit: ['accept-changes:idle', 'discard-changes:idle'],
 				withoutGit: ['accept-changes:idle', 'discard-changes:idle'],
 				session: ['discard-changes:idle', `${testOperationId}:idle`],
 			},
-			whileTurnRuns: ['accept-changes:disabled', 'discard-changes:disabled'],
+			whileTurnRuns: {
+				workingSet: ['accept-changes:idle', 'discard-changes:disabled'],
+				session: ['discard-changes:disabled', `${testOperationId}:disabled`],
+			},
+			whileCoordinatedTurnRuns: ['accept-changes:idle', 'discard-changes:idle'],
 		});
 	});
 

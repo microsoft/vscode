@@ -497,7 +497,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 			for (const part of item.parts) {
 				yield;
 				if (this._lastRequest) {
-					this._model.acceptResponseProgress(this._lastRequest, part);
+					this._model.acceptResponseProgress(this._lastRequest, part, false, true /* restored */);
 				}
 			}
 			if (item.parts.length === 0 && (item.details || item.errorDetails || typeof item.elapsedMs === 'number')) {
@@ -549,6 +549,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 			item.modelConfiguration,
 			item.metadata,
 			insertion,
+			item.artifactRequest,
 		);
 		return this._lastRequest;
 	}

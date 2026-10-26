@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { resolvePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatRequestVariableEntry, IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -13,7 +14,7 @@ import { ChatResponseResource, IChatProgressResponseContent } from '../../common
 import { IChatRequestViewModel, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { IChatContentInlineReference, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../common/chatService/chatService.js';
 import { IToolResultInputOutputDetails } from '../../common/tools/languageModelToolsService.js';
-import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromToolInvocationMessages, getChatImageResourceComparisonKey, getToolResultImageResources } from '../../common/chatImageExtraction.js';
+import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromToolInvocationMessages, getChatImageResourceComparisonKey, getChatMarkdownImageId, getToolResultImageResources } from '../../common/chatImageExtraction.js';
 
 function makeToolInvocation(overrides: Partial<IChatToolInvocationSerialized> = {}): IChatToolInvocationSerialized {
 	return {
@@ -353,6 +354,78 @@ suite('extractImagesFromChatResponse', () => {
 		assert.strictEqual(result.images[0].id, 'call_first_0');
 		assert.strictEqual(result.images[1].name, 'middle.png');
 		assert.strictEqual(result.images[2].id, 'call_last_0');
+	});
+
+	test('lazily extracts the local file images that response Markdown shows, in document order', async () => {
+		const markdown: IChatProgressResponseContent = {
+			kind: 'markdownContent',
+			content: new MarkdownString([
+				'| Dark | Light |',
+				'| --- | --- |',
+				'| ![](/shots/dark.png) | ![Light theme](/shots/light.png) |',
+				'',
+				'`![](/shots/code.png)` ![](https://example.com/remote.png) ![Sized](/shots/sized.png|width=200) ![](/shots/notes.txt) ![](file://server/share/unc.png) ![](./relative.png) ![](file:///shots/explicit.jpg)',
+			].join('\n')),
+		};
+		const response = makeResponse([markdown]);
+		const resolvedSessions: string[] = [];
+		const result = await extractImagesFromChatResponse(response, () => Promise.reject(new Error('Markdown images load lazily')), (sessionResource, href) => {
+			resolvedSessions.push(sessionResource.toString());
+			return href.startsWith('/') ? URI.file(href).toString() : href;
+		});
+
+		assert.deepStrictEqual({
+			images: result.images.map(({ uri, name, mimeType, data, caption }) => ({ uri: uri.toString(), name, mimeType, data, caption })),
+			resolvedSessions: [...new Set(resolvedSessions)],
+		}, {
+			images: [
+				{ uri: 'file:///shots/dark.png', name: 'dark.png', mimeType: 'image/png', data: undefined, caption: undefined },
+				{ uri: 'file:///shots/light.png', name: 'light.png', mimeType: 'image/png', data: undefined, caption: 'Light theme' },
+				{ uri: 'file:///shots/sized.png', name: 'sized.png', mimeType: 'image/png', data: undefined, caption: 'Sized' },
+				{ uri: 'file:///shots/explicit.jpg', name: 'explicit.jpg', mimeType: 'image/jpg', data: undefined, caption: undefined },
+			],
+			resolvedSessions: [response.sessionResource.toString()],
+		});
+	});
+
+	test('extracts images from the Markdown that renders when a code block URI splits a fence', async () => {
+		const response = makeResponse([
+			{ kind: 'markdownContent', content: new MarkdownString('```ts\n') },
+			{ kind: 'codeblockUri', uri: URI.file('/src/sample.ts') },
+			{ kind: 'markdownContent', content: new MarkdownString('const sample = \'![](file:///shots/code.png)\';\n```\n\n![](file:///shots/before.png) ') },
+			makeInlineReference(URI.file('/shots/middle.png'), 'middle.png'),
+			{ kind: 'markdownContent', content: new MarkdownString(' ![](file:///shots/after.png)') },
+		]);
+		const result = await extractImagesFromChatResponse(response, fakeReadFile);
+
+		assert.deepStrictEqual(
+			result.images.map(image => ({ uri: image.uri.toString(), carouselId: image.carouselId })),
+			[
+				{ uri: 'file:///shots/before.png', carouselId: getChatMarkdownImageId(response.id, URI.file('/shots/before.png')) },
+				{ uri: 'file:///shots/middle.png', carouselId: undefined },
+				{ uri: 'file:///shots/after.png', carouselId: getChatMarkdownImageId(response.id, URI.file('/shots/after.png')) },
+			],
+		);
+	});
+
+	test('resolves Markdown images against their base URI and URI mappings like the renderer', async () => {
+		const relative = new MarkdownString('![](images/relative.png)');
+		relative.baseUri = URI.file('/workspace/README.md');
+		const networkBase = new MarkdownString('![](images/network.png)');
+		networkBase.baseUri = URI.file('//server/share/README.md');
+		const local = 'file:///workspace/mapped.png';
+		const mapped = new MarkdownString(`![](${local})`);
+		mapped.uris = { [local]: URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png') };
+		const moved = new MarkdownString(`![](${local})`);
+		moved.uris = { [local]: URI.parse('vscode-remote://ssh-remote+host/elsewhere/mapped.png') };
+		const response = makeResponse([mapped, relative, moved, networkBase].map(content => ({ kind: 'markdownContent' as const, content })));
+		const result = await extractImagesFromChatResponse(response, () => Promise.reject(new Error('Markdown images load lazily')));
+
+		assert.deepStrictEqual(result.images.map(image => image.uri.toString()), [
+			URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png').toString(),
+			// Like the renderer, resolution adds the current drive on Windows.
+			resolvePath(URI.file('/workspace'), 'images/relative.png').toString(),
+		]);
 	});
 
 	test('collection id combines sessionResource and response id', async () => {

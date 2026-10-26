@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -21,12 +22,13 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
-import { IQuickInputService, NO_KEY_MODS } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickSeparator, NO_KEY_MODS } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IQuickChatService } from '../../../chat/browser/chat.js';
+import { IExternalUriOpenerService, ILinkHandler } from '../../../externalUriOpener/common/externalUriOpenerService.js';
 import { AnythingQuickAccessProvider, IAnythingQuickPickItem } from '../../browser/anythingQuickAccess.js';
 import { IAnythingQuickAccessProviderRunOptions } from '../../common/search.js';
 
@@ -44,6 +46,7 @@ suite('AnythingQuickAccess - links', () => {
 	let sourceGroup: IEditorGroup;
 	let otherGroup: IEditorGroup;
 	let allowActiveGroupAccess: boolean;
+	let linkHandlers: ILinkHandler[];
 
 	class TestAnythingQuickAccessProvider extends AnythingQuickAccessProvider {
 		getPicks(filter: string, options?: IAnythingQuickAccessProviderRunOptions) {
@@ -64,6 +67,7 @@ suite('AnythingQuickAccess - links', () => {
 		handled = true;
 		openError = undefined;
 		allowActiveGroupAccess = true;
+		linkHandlers = [];
 		sourceGroup = new class extends mock<IEditorGroup>() { override readonly id = 1; };
 		otherGroup = new class extends mock<IEditorGroup>() { override readonly id = 2; };
 		activeGroup = sourceGroup;
@@ -80,6 +84,9 @@ suite('AnythingQuickAccess - links', () => {
 				activeGroup = id === sourceGroup.id ? sourceGroup : otherGroup;
 				return activeGroup;
 			}
+		});
+		instantiationService.stub(IExternalUriOpenerService, {
+			getLinkHandlers: async () => linkHandlers,
 		});
 		instantiationService.stub(IOpenerService, {
 			open: async (resource, options) => {
@@ -109,13 +116,72 @@ suite('AnythingQuickAccess - links', () => {
 		provider = store.add(instantiationService.createInstance(TestAnythingQuickAccessProvider));
 	});
 
-	function getLinkPick(filter: string): IAnythingQuickPickItem {
-		const picks = provider.getPicks(filter);
-		assert.ok(Array.isArray(picks));
-		assert.strictEqual(picks.length, 1);
-		const pick: IAnythingQuickPickItem = picks[0];
-		return pick;
+	// Side opening uses the Alt modifier, labeled per platform
+	const openToSideTooltip = `Open to the Side (${OS === OperatingSystem.Macintosh ? '⌥Enter' : 'Alt+Enter'})`;
+
+	async function getLinkPicks(filter: string): Promise<(IAnythingQuickPickItem | IQuickPickSeparator)[]> {
+		return getLinkPicksWith(filter);
 	}
+
+	async function getLinkPicksWith(filter: string, options?: IAnythingQuickAccessProviderRunOptions): Promise<(IAnythingQuickPickItem | IQuickPickSeparator)[]> {
+		const picks = await provider.getPicks(filter, options);
+		assert.ok(Array.isArray(picks));
+		return picks;
+	}
+
+	async function getLinkPick(filter: string): Promise<IAnythingQuickPickItem> {
+		const picks = await getLinkPicks(filter);
+		assert.strictEqual(picks.length, 1);
+		assert.ok(picks[0].type !== 'separator');
+		return picks[0];
+	}
+
+	function linkHandler(id: string, isDefault: boolean, calls: unknown[]): ILinkHandler {
+		return {
+			id,
+			label: `Label ${id}`,
+			isDefault,
+			open: async options => {
+				calls.push({ open: id, options });
+				return true;
+			},
+		};
+	}
+
+	test('lists the link handlers with the default first and opens the picked one', async () => {
+		const calls: unknown[] = [];
+		linkHandlers = [linkHandler('preview', true, calls), linkHandler('browser', false, calls)];
+		const picks = await getLinkPicks('https://example.com/a?q=a%26b');
+		const [, defaultPick, otherPick] = picks as IAnythingQuickPickItem[];
+		await defaultPick.accept?.(NO_KEY_MODS, { inBackground: false });
+		await otherPick.accept?.({ ...NO_KEY_MODS, alt: true }, { inBackground: false });
+		const sideAction = await otherPick.trigger?.(0, NO_KEY_MODS);
+		const openOptions = (openToSide: boolean) => ({ fromUserGesture: true, openToSide, editorOptions: { preserveFocus: false, pinned: false } });
+
+		assert.deepStrictEqual({
+			picks: picks.map(pick => pick.type === 'separator' ? { separator: pick.label } : { label: pick.label, description: pick.description, buttons: pick.buttons?.map(button => button.tooltip) }),
+			opened,
+			calls,
+			activatedGroups,
+			sideAction,
+			filtered: (await getLinkPicksWith('https://example.com/a?q=a%26b', { filter: pick => !!pick.label?.includes('browser') })).map(pick => pick.label),
+		}, {
+			picks: [
+				{ separator: 'open link' },
+				{ label: '$(link-external) Label preview', description: 'Default', buttons: [openToSideTooltip] },
+				{ label: '$(link-external) Label browser', description: undefined, buttons: [openToSideTooltip] },
+			],
+			opened: [],
+			calls: [
+				{ open: 'preview', options: openOptions(false) },
+				{ open: 'browser', options: openOptions(true) },
+				{ open: 'browser', options: openOptions(true) },
+			],
+			activatedGroups: [1, 1],
+			sideAction: TriggerAction.CLOSE_PICKER,
+			filtered: ['$(link-external) Label browser'],
+		});
+	});
 
 	for (const link of [
 		'https://github.com/microsoft/vscode/pull/123?view=files#diff-123',
@@ -126,7 +192,7 @@ suite('AnythingQuickAccess - links', () => {
 		'custom-editor://session/123'
 	]) {
 		test(`opens through shared handlers without changing the link: ${link}`, async () => {
-			const pick = getLinkPick(link);
+			const pick = await getLinkPick(link);
 			await pick.accept?.(NO_KEY_MODS, { inBackground: false });
 			assert.deepStrictEqual(opened, [{
 				resource: link,
@@ -141,13 +207,12 @@ suite('AnythingQuickAccess - links', () => {
 	}
 
 	test('Alt+Enter opens beside the originating group even after the active group changes', async () => {
-		const pick = getLinkPick('https://example.com');
+		const pick = await getLinkPick('https://example.com');
 		activeGroup = otherGroup;
 		await pick.accept?.({ ...NO_KEY_MODS, alt: true }, { inBackground: false });
 		assert.deepStrictEqual({
 			activatedGroups,
 			options: opened[0].options,
-			hint: pick.detail,
 			button: pick.buttons?.[0].tooltip
 		}, {
 			activatedGroups: [1],
@@ -157,13 +222,12 @@ suite('AnythingQuickAccess - links', () => {
 				openToSide: true,
 				editorOptions: { preserveFocus: false, pinned: false }
 			},
-			hint: 'Hold Alt while accepting to open to the side.',
-			button: 'Open to the Side'
+			button: openToSideTooltip
 		});
 	});
 
 	test('side button uses shared handlers and closes the picker', async () => {
-		const pick = getLinkPick('https://example.com');
+		const pick = await getLinkPick('https://example.com');
 		const action = await pick.trigger?.(0, NO_KEY_MODS);
 		assert.deepStrictEqual({ action, side: opened[0].options?.openToSide }, {
 			action: TriggerAction.CLOSE_PICKER,
@@ -171,8 +235,17 @@ suite('AnythingQuickAccess - links', () => {
 		});
 	});
 
-	test('renders the link icon inline rather than applying icon font classes to the row', () => {
-		const pick = getLinkPick('https://example.com');
+	test('side button follows the configured side-by-side direction', async () => {
+		await configurationService.setUserConfiguration('workbench', {
+			editor: { enablePreview: true, enablePreviewFromQuickOpen: true, openSideBySideDirection: 'down' }
+		});
+		provider = store.add(instantiationService.createInstance(TestAnythingQuickAccessProvider));
+		const pick = await getLinkPick('https://example.com');
+		assert.strictEqual(pick.buttons?.[0].tooltip, openToSideTooltip.replace('Side', 'Bottom'));
+	});
+
+	test('renders the link icon inline rather than applying icon font classes to the row', async () => {
+		const pick = await getLinkPick('https://example.com');
 		assert.deepStrictEqual({ label: pick.label, iconClasses: pick.iconClasses }, {
 			label: '$(link-external) Open Link',
 			iconClasses: undefined
@@ -191,7 +264,7 @@ suite('AnythingQuickAccess - links', () => {
 		instantiationService.stub(IOpenerService, openerService);
 		provider = store.add(instantiationService.createInstance(TestAnythingQuickAccessProvider));
 		const link = 'https://github.com/microsoft/vscode/pull/123?view=files#diff-123';
-		await getLinkPick(link).accept?.({ ...NO_KEY_MODS, alt: true }, { inBackground: false });
+		await (await getLinkPick(link)).accept?.({ ...NO_KEY_MODS, alt: true }, { inBackground: false });
 		assert.deepStrictEqual(targets, [{
 			href: link,
 			sourceUri: URI.parse(link).toString(),
@@ -203,7 +276,7 @@ suite('AnythingQuickAccess - links', () => {
 		await configurationService.setUserConfiguration('workbench', {
 			editor: { enablePreview: false, enablePreviewFromQuickOpen: true, openSideBySideDirection: 'right' }
 		});
-		await getLinkPick('https://example.com').accept?.({ ...NO_KEY_MODS, ctrlCmd: true }, { inBackground: false });
+		await (await getLinkPick('https://example.com')).accept?.({ ...NO_KEY_MODS, ctrlCmd: true }, { inBackground: false });
 		assert.deepStrictEqual(opened[0].options, {
 			fromUserGesture: true,
 			allowContributedOpeners: true,
@@ -213,7 +286,7 @@ suite('AnythingQuickAccess - links', () => {
 	});
 
 	test('background acceptance preserves focus and pins the editor', async () => {
-		await getLinkPick('https://example.com').accept?.(NO_KEY_MODS, { inBackground: true });
+		await (await getLinkPick('https://example.com')).accept?.(NO_KEY_MODS, { inBackground: true });
 		assert.deepStrictEqual(opened[0].options?.editorOptions, { preserveFocus: true, pinned: true });
 	});
 
@@ -225,8 +298,8 @@ suite('AnythingQuickAccess - links', () => {
 	}
 
 	for (const link of ['https://', 'https:///path', 'https://[invalid', 'https://example.com/not a link', 'command://run', 'javascript://run', 'data://payload', `${Schemas.internal}://target`]) {
-		test(`reports an invalid or disallowed link without an open action: ${link}`, () => {
-			const pick = getLinkPick(link);
+		test(`reports an invalid or disallowed link without an open action: ${link}`, async () => {
+			const pick = await getLinkPick(link);
 			assert.deepStrictEqual({ label: pick.label, accept: pick.accept, trigger: pick.trigger }, {
 				label: 'Invalid Link',
 				accept: undefined,
@@ -235,8 +308,8 @@ suite('AnythingQuickAccess - links', () => {
 		});
 	}
 
-	test('respects caller filtering', () => {
-		assert.deepStrictEqual(provider.getPicks('https://example.com', { filter: () => false }), []);
+	test('respects caller filtering', async () => {
+		assert.deepStrictEqual(await provider.getPicks('https://example.com', { filter: () => false }), []);
 	});
 
 	test('file-only and delegated pickers do not offer link actions', async () => {
@@ -256,9 +329,9 @@ suite('AnythingQuickAccess - links', () => {
 		['readme.md', 'readme.md']
 	]) {
 		for (const link of ['https://example.com', 'https://']) {
-			test(`refreshes file picks after ${before} -> ${link} -> ${after}`, () => {
+			test(`refreshes file picks after ${before} -> ${link} -> ${after}`, async () => {
 				provider.getPicks(before);
-				getLinkPick(link);
+				await getLinkPick(link);
 				const picks = provider.getPicks(after);
 				assert.notStrictEqual(picks, null);
 				assert.ok(!Array.isArray(picks), 'Returning to a file query must replace the link pick');
@@ -267,9 +340,9 @@ suite('AnythingQuickAccess - links', () => {
 		}
 	}
 
-	test('refreshes file picks after a link was filtered out', () => {
+	test('refreshes file picks after a link was filtered out', async () => {
 		provider.getPicks('readme.md');
-		assert.deepStrictEqual(provider.getPicks('https://example.com', { filter: () => false }), []);
+		assert.deepStrictEqual(await provider.getPicks('https://example.com', { filter: () => false }), []);
 		assert.notStrictEqual(provider.getPicks('readme.md:12'), null);
 	});
 
@@ -296,13 +369,13 @@ suite('AnythingQuickAccess - links', () => {
 
 	test('reports unhandled links', async () => {
 		handled = false;
-		await getLinkPick('unsupported://target').accept?.(NO_KEY_MODS, { inBackground: false });
+		await (await getLinkPick('unsupported://target')).accept?.(NO_KEY_MODS, { inBackground: false });
 		assert.deepStrictEqual(notifications, ['The link could not be opened. It may be unsupported or opening it was canceled.']);
 	});
 
 	test('reports opener errors', async () => {
 		openError = new Error('Failed to open link');
-		await getLinkPick('https://example.com').accept?.(NO_KEY_MODS, { inBackground: false });
+		await (await getLinkPick('https://example.com')).accept?.(NO_KEY_MODS, { inBackground: false });
 		assert.deepStrictEqual(notifications, [openError]);
 	});
 
@@ -312,7 +385,7 @@ suite('AnythingQuickAccess - links', () => {
 		picker.value = 'https://example.com';
 		store.add(provider.provide(picker, CancellationToken.None));
 		activeGroup = otherGroup;
-		const pick = getLinkPick('https://example.com/another');
+		const pick = await getLinkPick('https://example.com/another');
 		await pick.accept?.({ ...NO_KEY_MODS, alt: true }, { inBackground: false });
 		assert.deepStrictEqual(activatedGroups, [1]);
 	});

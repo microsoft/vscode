@@ -6,15 +6,16 @@
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import type { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ChatMoveConfigKey, chatMoveRootConfigSchema, isChatMovable, isChatStructurallyMovable, type IChatMoveStructuralEligibility } from '../common/agentHostChatMove.js';
 import type { ISessionStateChange, ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { readAgentMergeFolderStates } from '../common/agentMerge.js';
 import { readSessionMovable, withSessionMovable } from '../common/meta/agentHostSessionMoveMeta.js';
 import { ActionType, type StateAction } from '../common/state/sessionActions.js';
 import { ChatOriginKind, isSessionStatusArchived, readSessionWorkspaceless, type ChatSummary, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import type { IAgentConfigurationService } from './agentConfigurationService.js';
+import { inheritedChatFolders } from './agentChatContext.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 import { AdditionalWorktreeUsers } from './agentHostWorktreeCoOwnership.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, type ISessionAdditionalWorktree, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
@@ -47,10 +48,10 @@ interface ISourceSessionContext {
 	readonly folders: readonly string[];
 	/** The additional worktrees the session records, each with the chat it was created for. */
 	readonly additionalWorktrees: readonly ISessionAdditionalWorktree[];
-	/** Chats that run Agent Merge for a folder of the session. */
-	readonly agentMergeChats: ReadonlySet<string>;
 	/** The session's chats by resource. */
 	readonly summaries: Map<ProtocolURI, ChatSummary>;
+	/** The chats working in each scratch folder of the session (by working directory key), built on first use. */
+	scratchFolderUsers: Map<string, Set<ProtocolURI>> | undefined;
 	/** The session's chats by the chat whose tool call spawned them. */
 	readonly children: Map<ProtocolURI, ProtocolURI[]>;
 	/** The chats using each additional worktree recorded for a chat, built on first use (see {@link AdditionalWorktreeUsers}). */
@@ -80,12 +81,35 @@ function subtreeOf(children: ReadonlyMap<ProtocolURI, readonly ProtocolURI[]>, c
 /** Session actions after which a session's chats may become movable or not. */
 const SESSION_INPUT_ACTIONS: ReadonlySet<StateAction['type']> = new Set([
 	ActionType.SessionIsArchivedChanged,
-	ActionType.SessionConfigChanged,
 	ActionType.SessionMetaChanged,
 	ActionType.SessionWorkingDirectorySet,
 	ActionType.SessionWorkingDirectoryRemoved,
 	ActionType.SessionWorkingDirectoryReplaced,
 ]);
+
+/** The folders a chat without folders of its own works in (see {@link inheritedChatFolders}). */
+function ownFolders(stateManager: AgentHostStateManager, context: ISourceSessionContext): readonly string[] {
+	return inheritedChatFolders(stateManager, context.folders, context.workspaceless);
+}
+
+/** Whether `folder` is recorded as a scratch folder, or is the default scratch folder (the primary one) of a workspace-less session. */
+function isScratchFolder(stateManager: AgentHostStateManager, context: ISourceSessionContext, folder: string): boolean {
+	return stateManager.isScratchFolder(folder) || (context.workspaceless && context.folders[0] !== undefined && isEqual(URI.parse(context.folders[0]), URI.parse(folder)));
+}
+
+function addScratchFolderUser(users: Map<string, Set<ProtocolURI>>, context: ISourceSessionContext, chat: ProtocolURI, folders: readonly string[], stateManager: AgentHostStateManager): void {
+	for (const folder of folders) {
+		if (isScratchFolder(stateManager, context, folder)) {
+			const key = getWorkingDirectoryKey(folder);
+			const set = users.get(key);
+			if (set) {
+				set.add(chat);
+			} else {
+				users.set(key, new Set([chat]));
+			}
+		}
+	}
+}
 
 const EMPTY_WORKTREE_USERS = new AdditionalWorktreeUsers([]);
 
@@ -172,17 +196,33 @@ export class AgentHostChatMovability extends Disposable {
 				this.updateSession(envelope.channel);
 			} else if (action.type === ActionType.SessionChatAdded || action.type === ActionType.SessionChatRemoved) {
 				this._registrationPass = undefined;
+				// A chat joining or leaving a scratch folder's users changes whether the chats sharing it may move (Q11).
+				if (this._hasScratchFolder(envelope.channel)) {
+					this._updateSessionChats(envelope.channel);
+				}
 				this._schedule(undefined, envelope.channel);
 			} else if (SESSION_INPUT_ACTIONS.has(action.type)) {
 				this._registrationPass = undefined;
 				this._updateSessionChats(envelope.channel);
 			} else if (action.type === ActionType.SessionChatUpdated && action.changes.workingDirectories !== undefined) {
 				this._registrationPass = undefined;
-				this.update(action.chat);
+				// A chat starting or ceasing to use a scratch folder changes whether the chats sharing it may move (Q11).
+				if (this._hasScratchFolder(envelope.channel)) {
+					this._updateSessionChats(envelope.channel);
+				} else {
+					this.update(action.chat);
+				}
+			} else if (action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatTruncated || action.type === ActionType.ChatTurnsLoaded) {
+				this._registrationPass = undefined;
+				this.update(envelope.channel);
 			} else if (action.type === ActionType.ChatWorkingDirectorySet || action.type === ActionType.ChatWorkingDirectoryRemoved) {
 				this._registrationPass = undefined;
 				this.update(envelope.channel);
 			}
+		}));
+		this._register(_stateManager.onDidResolveChatState(chat => {
+			this._registrationPass = undefined;
+			this.update(chat);
 		}));
 		this._register(_sources.conversions.onDidChangePending(chat => {
 			this._registrationPass = undefined;
@@ -266,19 +306,57 @@ export class AgentHostChatMovability extends Disposable {
 		}
 		// A chat without folders of its own works in its current owner's; a move to `owner` pins those (`_movedChatFolders`).
 		const folders = this._stateManager.getChatState(chat)?.workingDirectories ?? summary.workingDirectories
-			?? (current === owner ? context.folders : currentContext.folders);
+			?? ownFolders(this._stateManager, current === owner ? context : currentContext);
 		const subtree = subtreeOf(currentContext.children, chat);
 		return isChatMovable({
 			...structural,
 			sessionArchived: context.archived,
-			workspaceless: context.workspaceless || folders.length === 0,
+			workspaceless: folders.length === 0 || this._sharesScratchFolder(currentContext, subtree, folders),
 			converting: context.quarantined || [...subtree].some(candidate => this._sources.conversions.isPending(candidate)),
 			// Worktrees are shared by moves (Block 5): only a chat's own one that a staying chat also uses keeps it (D2).
 			// Asked for another owner, this checks that owner's list, so it may miss D2; `planWorktreeMove` refuses it.
 			worktreeFolder: this._worktreeUsers(context, currentContext).sharedOwnOf(subtree, folders) !== undefined,
-			agentMergeOwner: [...subtree].some(candidate => context.agentMergeChats.has(candidate)),
 			legacyCatalog: context.legacyCatalog,
+			// A chat whose state isn't loaded was restored, so it has a conversation; a move reads its state and checks again.
+			notStarted: this._isNotStarted(chat),
 		});
+	}
+
+	private _isNotStarted(chat: ProtocolURI): boolean {
+		const state = this._stateManager.getChatState(chat);
+		return !!state && state.turns.length === 0 && state.activeTurn === undefined;
+	}
+
+	/**
+	 * Whether a folder `folders` holds that is scratch (recorded as one, or the default scratch folder of a workspace-less
+	 * session) is also used by a chat that stays in the source session (Q11): such a chat can't move alone. Read from
+	 * summaries only, so it works for sessions whose chats aren't open.
+	 */
+	private _sharesScratchFolder(chats: ISourceSessionContext, subtree: ReadonlySet<ProtocolURI>, folders: readonly string[]): boolean {
+		const scratch = folders.filter(folder => isScratchFolder(this._stateManager, chats, folder));
+		if (!scratch.length) {
+			return false;
+		}
+		const users = this._scratchFolderUsers(chats);
+		return scratch.some(folder => {
+			for (const user of users.get(getWorkingDirectoryKey(folder)) ?? []) {
+				if (!subtree.has(user)) {
+					return true;
+				}
+			}
+			return false;
+		});
+	}
+
+	private _scratchFolderUsers(context: ISourceSessionContext): Map<string, Set<ProtocolURI>> {
+		if (!context.scratchFolderUsers) {
+			const users = new Map<string, Set<ProtocolURI>>();
+			for (const summary of context.summaries.values()) {
+				addScratchFolderUser(users, context, summary.resource, summary.workingDirectories ?? ownFolders(this._stateManager, context), this._stateManager);
+			}
+			context.scratchFolderUsers = users;
+		}
+		return context.scratchFolderUsers;
 	}
 
 	/** The summary of `chat` that `session` lists: from the pass's index of the session's chats, or found for a lone call. */
@@ -332,6 +410,9 @@ export class AgentHostChatMovability extends Disposable {
 					siblings.push(chat);
 				}
 			}
+			if (context.scratchFolderUsers) {
+				addScratchFolderUser(context.scratchFolderUsers, context, chat, summary.workingDirectories ?? ownFolders(this._stateManager, context), this._stateManager);
+			}
 			if (context.worktreeUsers && summary.origin?.kind !== ChatOriginKind.Tool) {
 				context.worktreeUsers.addChat(chat, summary.workingDirectories ?? context.folders);
 			}
@@ -384,12 +465,6 @@ export class AgentHostChatMovability extends Disposable {
 				siblings.push(chat.resource);
 			}
 		}
-		const agentMergeChats = new Set<string>();
-		for (const folder of readAgentMergeFolderStates(state.config?.values, folders[0] === undefined ? undefined : getWorkingDirectoryKey(folders[0])).values()) {
-			if (folder.enabled && folder.chat !== undefined) {
-				agentMergeChats.add(folder.chat);
-			}
-		}
 		return {
 			archived: isSessionStatusArchived(state.status),
 			workspaceless: readSessionWorkspaceless(state._meta),
@@ -398,11 +473,26 @@ export class AgentHostChatMovability extends Disposable {
 			legacyCatalog: this._sources.catalogs.isParked(session) && snapshot?.authority !== 2,
 			folders,
 			additionalWorktrees: parseSessionAdditionalWorktrees(snapshot?.values.get(ADDITIONAL_WORKTREES_METADATA_KEY)),
-			agentMergeChats,
 			summaries: summaries ?? new Map(state.chats.map(chat => [chat.resource, chat])),
+			scratchFolderUsers: undefined,
 			children,
 			worktreeUsers: undefined,
 		};
+	}
+
+	/** Whether `chat` of `owner` uses a scratch folder that a chat staying in `owner` also uses (Q11), from summaries only. */
+	sharesScratchFolder(chat: ProtocolURI, owner: ProtocolURI, folders: readonly string[]): boolean {
+		const context = this._context(owner, undefined);
+		return !!context && this._sharesScratchFolder(context, subtreeOf(context.children, chat), folders);
+	}
+
+	/**
+	 * Whether a chat of `session` may share a scratch folder with another (Q11): the session is workspace-less, or one of
+	 * its folders, which hold every folder of its chats, is a recorded scratch folder (a moved-in or scratch chat's).
+	 */
+	private _hasScratchFolder(session: ProtocolURI): boolean {
+		return readSessionWorkspaceless(this._stateManager.getSessionState(session)?._meta)
+			|| (this._stateManager.getSessionSummary(session)?.workingDirectories ?? []).some(folder => this._stateManager.isScratchFolder(folder));
 	}
 
 	/** Publishes whether `session` can move under another session; written only when it changes. */

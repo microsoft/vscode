@@ -326,6 +326,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
 		"fusion_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier correlating HydraFusion route, phase, and turn events." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent host turn that owns the HydraFusion workflow, for joining with agentHost.turnCompleted. Absent when the host had not yet attributed the workflow to a turn, which can happen for a route event; other events with the same fusion_id carry it." },
 		"synthetic_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Synthetic HydraFusion model selected for the turn." },
 		"policy": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion routing policy selected for the turn." },
 		"route_source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Source that produced the HydraFusion route." },
@@ -373,6 +374,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
 		"fusion_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier correlating HydraFusion route, phase, and turn events." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent host turn that owns the HydraFusion workflow, for joining with agentHost.turnCompleted. Absent when the host had not yet attributed the workflow to a turn, which can happen for a route event; other events with the same fusion_id carry it." },
 		"phase_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier of the constituent phase within a HydraFusion turn." },
 		"phase_kind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Kind of constituent phase executed by HydraFusion." },
 		"role": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Logical role performed by the constituent phase." },
@@ -401,6 +403,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
 		"fusion_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier correlating HydraFusion route, phase, and turn events." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent host turn that owns the HydraFusion workflow, for joining with agentHost.turnCompleted. Absent when the host had not yet attributed the workflow to a turn, which can happen for a route event; other events with the same fusion_id carry it." },
 		"synthetic_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Synthetic HydraFusion model used for the turn." },
 		"pattern": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion execution pattern used for the turn." },
 		"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Aggregate completion outcome of the HydraFusion turn." },
@@ -417,6 +420,11 @@ type ModelCallTurnCorrelatedClassification = {
 		"duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Aggregate wall-clock duration of the HydraFusion turn in milliseconds.", "isMeasurement": true }
 	}
 */
+
+/** The HydraFusion route, phase, and turn events, which carry the `fusion_id` of a workflow owned by a host turn. */
+export function isHydraFusionTelemetryKind(kind: string): boolean {
+	return kind === 'hydrafusion_route' || kind === 'hydrafusion_phase' || kind === 'hydrafusion_turn';
+}
 
 /**
  * Re-emits GitHub-shaped telemetry events forwarded by the Copilot CLI runtime
@@ -484,6 +492,13 @@ export class CopilotGitHubTelemetryForwarder {
 			const knownCounters = [data.promptTokenCount, data.completionTokens, data.promptCacheTokenCount]
 				.filter(value => typeof value === 'number' && Number.isFinite(value) && value >= 0).length;
 			data.usageStatus = knownCounters === 3 ? 'known' : knownCounters > 0 ? 'partial' : 'notReported';
+			if (agentHostTurnId) {
+				data.turnId = agentHostTurnId;
+			} else {
+				delete data.turnId;
+			}
+		} else if (isHydraFusionTelemetryKind(event.kind)) {
+			// The workflow's owning host turn, so these rows join to agent host turn telemetry.
 			if (agentHostTurnId) {
 				data.turnId = agentHostTurnId;
 			} else {

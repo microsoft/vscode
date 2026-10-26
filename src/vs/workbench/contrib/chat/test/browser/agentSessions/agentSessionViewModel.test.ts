@@ -26,6 +26,8 @@ import { ILifecycleService } from '../../../../../services/lifecycle/common/life
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../browser/copilotCliEventsUri.js';
+import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 
 class StaticChatSessionItemController implements IChatSessionItemController {
 	readonly onDidChangeChatSessionItems = Event.None;
@@ -1816,6 +1818,67 @@ suite('AgentSessions', () => {
 				assert.strictEqual(viewModel.sessions[0].isArchived(), false);
 			});
 		});
+
+		suite('migrated Copilot CLI sessions', () => {
+
+			const legacyUri = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/sess-1' });
+			const twinUri = URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: '/sess-1' });
+
+			function pinnedRows(): { resource: string; pinned: boolean }[] {
+				return viewModel.sessions.map(session => ({ resource: session.resource.toString(), pinned: session.isPinned() }));
+			}
+
+			async function pinLegacyThenMigrate(): Promise<void> {
+				mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_EH_SCHEME, new StaticChatSessionItemController([makeItem(legacyUri)]));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setPinned(true);
+
+				// Migrated: the agent host lists the twin and the legacy row is deduped away.
+				mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, new StaticChatSessionItemController([makeItem(twinUri)]));
+				await viewModel.resolve(undefined);
+			}
+
+			test('copies the pin to the agent-host twin and keeps it on the legacy row', async () => {
+				return runWithFakedTimers({}, async () => {
+					await pinLegacyThenMigrate();
+					const migrated = pinnedRows();
+
+					// Migration turned off again: the twin is gone and the legacy row is listed.
+					mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, new StaticChatSessionItemController([]));
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual({ migrated, reverted: pinnedRows() }, {
+						migrated: [{ resource: twinUri.toString(), pinned: true }],
+						reverted: [{ resource: legacyUri.toString(), pinned: true }],
+					});
+				});
+			});
+
+			test('a pin change on the twin wins over the legacy pin', async () => {
+				return runWithFakedTimers({}, async () => {
+					await pinLegacyThenMigrate();
+					viewModel.sessions[0].setPinned(false);
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual(pinnedRows(), [{ resource: twinUri.toString(), pinned: false }]);
+				});
+			});
+
+			test('a peer chat of the twin does not inherit the legacy pin', async () => {
+				return runWithFakedTimers({}, async () => {
+					await pinLegacyThenMigrate();
+					const peerUri = twinUri.with({ fragment: 'new-peer' });
+					mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, new StaticChatSessionItemController([makeItem(twinUri), makeItem(peerUri)]));
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual(pinnedRows(), [
+						{ resource: twinUri.toString(), pinned: true },
+						{ resource: peerUri.toString(), pinned: false },
+					]);
+				});
+			});
+		});
 	});
 
 	suite('AgentSessionsViewModel - Session Read State', () => {
@@ -2429,6 +2492,109 @@ suite('AgentSessions', () => {
 				await viewModel.resolve(undefined);
 
 				assert.deepStrictEqual(controller.mutations, []);
+			});
+		});
+
+		test('hands a migrated Copilot CLI session\'s legacy read state to the agent host', async () => {
+			return runWithFakedTimers({}, async () => {
+				const legacyRead = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/read' });
+				const legacyUnread = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/unread' });
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_EH_SCHEME, new StaticChatSessionItemController([
+					{ resource: legacyRead, label: 'Read', timing: sessionTiming },
+					{ resource: legacyUnread, label: 'Unread', timing: sessionTiming },
+				])));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions.find(session => isEqual(session.resource, legacyRead))!.setRead(true);
+				viewModel.sessions.find(session => isEqual(session.resource, legacyUnread))!.setRead(false);
+
+				// The agent host lists both twins as unread before they are opened.
+				const controller = new ReadOwningController(['/read', '/unread'].map(path => ({
+					resource: URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path }),
+					label: path,
+					timing: sessionTiming,
+					isRead: false,
+				})));
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, controller));
+				await viewModel.resolve(undefined);
+				await viewModel.resolve(undefined); // pick up the provider echo
+
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					twins: viewModel.sessions.map(session => ({ resource: session.resource.toString(), isRead: session.isRead() })),
+				}, {
+					mutations: [{ resource: `${COPILOT_CLI_LOCAL_AH_SCHEME}:/read`, isRead: true }],
+					twins: [
+						{ resource: `${COPILOT_CLI_LOCAL_AH_SCHEME}:/read`, isRead: true },
+						{ resource: `${COPILOT_CLI_LOCAL_AH_SCHEME}:/unread`, isRead: false },
+					],
+				});
+			});
+		});
+
+		test('keeps a migrated Copilot CLI session\'s read state locally until it is opened, because the host drops read toggles', async () => {
+			return runWithFakedTimers({}, async () => {
+				/** Mirrors the real host: read toggles on an un-opened adoptable row are dropped. */
+				class DroppingController extends ReadOwningController {
+					override setChatSessionItemRead(resource: URI, isRead: boolean): void {
+						const item = this.items.find(candidate => isEqual(candidate.resource, resource));
+						if (item?.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true) {
+							this.mutations.push({ resource: resource.toString(), isRead });
+							return;
+						}
+						super.setChatSessionItemRead(resource, isRead);
+					}
+				}
+				const legacy = (path: string) => URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path });
+				const twin = (path: string) => URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path });
+				// Earlier window: the user marked /unread unread and read /read in the legacy list.
+				instantiationService.get(IStorageService).store('agentSessions.state.cache', JSON.stringify([
+					{ resource: legacy('/unread').toString(), read: -1 },
+					{ resource: legacy('/read').toString(), read: Date.UTC(2026, 1 /* February */, 3) },
+				]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				// The host announces both un-opened twins: /unread with its default read, /read as unread.
+				const adoptable = { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true };
+				const controller = new DroppingController([
+					{ resource: twin('/unread'), label: 'Unread', timing: sessionTiming, isRead: true, metadata: adoptable },
+					{ resource: twin('/read'), label: 'Read', timing: sessionTiming, isRead: false, metadata: adoptable },
+				]);
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, controller));
+				const rows = () => viewModel.sessions.map(session => ({ resource: session.resource.toString(), isRead: session.isRead() }));
+
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				const initial = rows();
+
+				// A later toggle is kept locally too.
+				viewModel.sessions.find(session => isEqual(session.resource, twin('/unread')))!.setRead(true);
+				const afterMarkRead = rows();
+				const mutationsBeforeOpen = [...controller.mutations];
+
+				// Opening adopts: the host owns read state from then on, and the
+				// one-shot hand-off now promotes the legacy read date.
+				controller.setItems([
+					{ resource: twin('/unread'), label: 'Unread', timing: sessionTiming, isRead: true },
+					{ resource: twin('/read'), label: 'Read', timing: sessionTiming, isRead: false },
+				]);
+				await viewModel.resolve(undefined);
+				await viewModel.resolve(undefined); // pick up the provider echo
+
+				assert.deepStrictEqual({ initial, afterMarkRead, mutationsBeforeOpen, afterOpen: rows(), mutationsAfterOpen: controller.mutations.slice(mutationsBeforeOpen.length) }, {
+					initial: [
+						{ resource: twin('/unread').toString(), isRead: false },
+						{ resource: twin('/read').toString(), isRead: true },
+					],
+					afterMarkRead: [
+						{ resource: twin('/unread').toString(), isRead: true },
+						{ resource: twin('/read').toString(), isRead: true },
+					],
+					mutationsBeforeOpen: [],
+					afterOpen: [
+						{ resource: twin('/unread').toString(), isRead: true },
+						{ resource: twin('/read').toString(), isRead: true },
+					],
+					mutationsAfterOpen: [{ resource: twin('/read').toString(), isRead: true }],
+				});
 			});
 		});
 

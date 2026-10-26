@@ -50,7 +50,8 @@ export function getConnectionTelemetryError(error: IConnectionDiagnosticError | 
 			category = 'connectionClosed';
 		} else if (current.code === 'ENOTFOUND' || current.code === 'EAI_AGAIN') {
 			category = 'dns';
-		} else if (current.code === 'CERT_HAS_EXPIRED' || current.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || current.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' || current.code === 'ERR_TLS_CERT_ALTNAME_INVALID') {
+		} else if (current.code === 'CERT_HAS_EXPIRED' || current.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || current.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' || current.code === 'ERR_TLS_CERT_ALTNAME_INVALID'
+			|| current.code === 'SELF_SIGNED_CERT_IN_CHAIN' || current.code === 'UNABLE_TO_GET_ISSUER_CERT' || current.code === 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY' || current.code === 'CERT_UNTRUSTED') {
 			category = 'tls';
 		} else if (current.code === 'ECONNRESET' || current.code === 'ECONNREFUSED' || current.code === 'ENETUNREACH' || current.code === 'EHOSTUNREACH' || current.code === 'EPIPE' || current.code === 'UND_ERR_SOCKET') {
 			category = 'network';

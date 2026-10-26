@@ -34,6 +34,7 @@ import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } 
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostFileEditRevert } from '../../node/agentHostFileEditRevert.js';
 import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 import { isAuthRequiredError, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
@@ -467,6 +468,7 @@ suite('AgentHostGitStateService', () => {
 			discardFileService,
 			new NullLogService(), h.stateManager,
 			createNoopChangesetService(),
+			new InProcessDiffComputeService(), disposables.add(new AgentHostFileEditCoordinator()),
 		);
 		const result = await handler.invoke({
 			channel,
@@ -1189,7 +1191,7 @@ suite('AgentHostGitStateService', () => {
 			mainFolder: h.service.getGitHubState(SESSION),
 			peerFolder: h.service.getGitHubState(peer),
 		}, {
-			artifacts: [{ chat: peer, type: SessionArtifactType.PullRequest, label: 'Feature PR', isArtifact: true, link: url, isGitHub: true }],
+			artifacts: [{ chat: peer, type: SessionArtifactType.PullRequest, label: 'Feature PR', isArtifact: true, link: url, isGitHub: true, origin: { chat: peer } }],
 			mainFolder: { owner: 'contoso', repo: 'main' },
 			peerFolder: {
 				owner: 'microsoft', repo: 'vscode',
@@ -1852,7 +1854,7 @@ suite('AgentHostGitStateService', () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const calls: { owner: string; repo: string; branch: string; headOwner: string | undefined }[] = [];
 			const query = new class extends mock<IPullRequestsClient>() {
-				override async list({ owner, name: repo }: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
+				override async list({ owner, repo }: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
 					const head = options?.query?.head;
 					assert.ok(head);
 					const separator = head.indexOf(':');
