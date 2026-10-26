@@ -111,6 +111,45 @@ suite('SessionComparisonModelSelection', () => {
 		});
 	});
 
+	test('comparison description explains the available workflow before opening setup', () => {
+		const reviewAvailable = observableValue('reviewAvailable', true);
+		const selection = store.add(createModelSelection(constObservable(true), undefined, undefined, reviewAvailable));
+		const withReview = selection.description.get();
+		reviewAvailable.set(false, undefined);
+		const withoutReview = selection.description.get();
+		selection.start();
+		assert.deepStrictEqual({ withReview, withoutReview, setupDescription: selection.state.get()?.description }, {
+			withReview: 'Select two or more models to run one prompt in parallel. Compare results or have them judged and combined.',
+			withoutReview: 'Select two or more models to run one prompt in parallel and compare their responses side by side.',
+			setupDescription: withoutReview,
+		});
+	});
+
+	test('comparison navigation labels describe the configuration step', () => {
+		const selection = store.add(createModelSelection(constObservable(true)));
+		selection.start();
+		selectAttempts(selection, 'model-0', 'model-1');
+		const attempts = selection.state.get();
+		selection.next();
+		const judgeBeforeSelection = selection.state.get();
+		selection.select('judge-model');
+		const judge = selection.state.get();
+		selection.next();
+		const synthesizer = selection.state.get();
+
+		assert.deepStrictEqual({
+			attempts: { backLabel: attempts?.backLabel, nextLabel: attempts?.nextLabel },
+			judgeBeforeSelection: { backLabel: judgeBeforeSelection?.backLabel, nextLabel: judgeBeforeSelection?.nextLabel },
+			judge: { backLabel: judge?.backLabel, nextLabel: judge?.nextLabel },
+			synthesizer: { backLabel: synthesizer?.backLabel, nextLabel: synthesizer?.nextLabel },
+		}, {
+			attempts: { backLabel: 'Configure Judge', nextLabel: 'Configure Judge' },
+			judgeBeforeSelection: { backLabel: 'Configure Attempts', nextLabel: 'Configure Synthesis' },
+			judge: { backLabel: 'Configure Attempts', nextLabel: 'Configure Synthesis' },
+			synthesizer: { backLabel: 'Configure Judge', nextLabel: 'Configure Synthesis' },
+		});
+	});
+
 	test('multiple models run once each, up to ten', () => {
 		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();

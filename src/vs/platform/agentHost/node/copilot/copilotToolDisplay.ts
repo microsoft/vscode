@@ -20,6 +20,7 @@ import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxP
 import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
+import { COMPUTER_USE_ACTIVATION_TOOL_NAME } from './copilotComputerUseActivationTool.js';
 
 // =============================================================================
 // Copilot CLI built-in tool interfaces
@@ -433,10 +434,13 @@ const SEARCH_TOOL_NAMES: ReadonlySet<string> = new Set([
  * synthesizes a tool-start/complete pair from that event so the UI can
  * render a clickable file link instead of just the skill name. See
  * {@link synthesizeSkillToolCall}.
+ *
+ * The Computer Use activation tool is hidden because its card is what the user sees.
  */
 const HIDDEN_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.ReportIntent,
 	CopilotToolName.Skill,
+	COMPUTER_USE_ACTIVATION_TOOL_NAME,
 ]);
 
 /**

@@ -19,6 +19,7 @@ import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { createSessionViewTestServices, createTestActiveSession } from './sessionViewTestUtils.js';
@@ -30,6 +31,7 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { Menus } from '../../browser/menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
+import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 
 suite('Sessions - Session View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -119,6 +121,42 @@ suite('Sessions - Session View', () => {
 				toolbar: blocked,
 				cleaned: true,
 				hiddenAfterCreation: hasDraft,
+			});
+		});
+	}
+
+	for (const preserve of [false, true]) {
+		test(`clearing a draft respects composer preservation (preserve: ${preserve})`, () => {
+			const store = disposables.add(new DisposableStore());
+			const { instantiationService } = createSessionViewTestServices(store);
+			const createdViews: TestNewSessionView[] = [];
+			instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+				override createNewChatView(): AbstractChatView {
+					const view = new class extends TestNewSessionView {
+						override get preserveOnSessionClear(): boolean { return preserve; }
+					}();
+					createdViews.push(view);
+					return view;
+				}
+			}());
+			const host = store.add(instantiationService.createInstance(SessionView));
+			host.openSession(createTestActiveSession('draft', false), {});
+			const composer = createdViews[0];
+			composer.element.textContent = 'Keep this prompt';
+			const observer = new MutationObserver(() => { });
+			store.add(toDisposable(() => observer.disconnect()));
+			observer.observe(host.element, { childList: true, subtree: true });
+			host.openSession(undefined, {});
+			assert.deepStrictEqual({
+				viewCount: createdViews.length,
+				disposed: composer.disposed,
+				detached: observer.takeRecords().some(record => Array.from(record.removedNodes).includes(composer.element)),
+				prompt: createdViews[createdViews.length - 1].element.textContent,
+			}, {
+				viewCount: preserve ? 1 : 2,
+				disposed: !preserve,
+				detached: !preserve,
+				prompt: preserve ? 'Keep this prompt' : '',
 			});
 		});
 	}
@@ -677,6 +715,55 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
+	test('does not recreate a chat view when preparation ends during disposal', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createSessionViewTestServices(store);
+		const requestInProgress = observableValue('requestInProgress', true);
+		const session = createTestActiveSession('draft', true, { isNewSessionRequestInProgress: requestInProgress });
+		const createdViews: TestNewSessionView[] = [];
+		const requestedKinds: ChatViewKind[] = [];
+
+		class PreparingChatView extends TestNewSessionView {
+			override dispose(): void {
+				super.dispose();
+				if (this.kind === 'chat') {
+					requestInProgress.set(false, undefined);
+				}
+			}
+		}
+
+		const createView = (kind: ChatViewKind, scopedInstantiationService: IInstantiationService | undefined) => {
+			assert.ok(scopedInstantiationService);
+			requestedKinds.push(kind);
+			const view = scopedInstantiationService.createInstance(PreparingChatView, kind);
+			createdViews.push(view);
+			return view;
+		};
+		instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+			override createChatView(scopedInstantiationService?: IInstantiationService): AbstractChatView {
+				return createView('chat', scopedInstantiationService);
+			}
+			override createNewChatView(isNewChatInSession: boolean, _options: IChatViewOptions, scopedInstantiationService?: IInstantiationService): AbstractChatView {
+				return createView(isNewChatInSession ? 'newChatInSession' : 'newSession', scopedInstantiationService);
+			}
+		}());
+		const view = store.add(instantiationService.createInstance(SessionView));
+		view.openSession(session, {});
+		session.isCreated.set(false, undefined);
+
+		view.dispose();
+
+		assert.deepStrictEqual({
+			requestedKinds,
+			disposed: createdViews.map(view => view.disposed),
+			requestInProgress: requestInProgress.get(),
+		}, {
+			requestedKinds: ['newChatInSession', 'chat'],
+			disposed: [true, true],
+			requestInProgress: false,
+		});
+	});
+
 	test('clearing a draft normally replaces the composer unless it requests in-place reuse', () => {
 		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
 		const view = disposables.add(instantiationService.createInstance(SessionView));
@@ -748,11 +835,11 @@ suite('Sessions - Session View', () => {
 					: menu;
 			}
 		}());
+		instantiationService.stub(ISessionActivityBarActivityService, store.add(new SessionActivityBarActivityService()));
 		const { configurationService, chatViews } = createSessionViewTestServices(store, instantiationService);
 		configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
 		const chatLayout = () => ({
 			width: chatViews.at(-1)?.layouts.at(-1)?.width,
-			contentInset: chatViews.at(-1)?.element.style.getPropertyValue('--session-activity-bar-reserved-width'),
 			headerWidth: view.element.querySelector<HTMLElement>('.session-view-centered-content')?.style.width,
 		});
 		const session = createTestActiveSession('draft', false);
@@ -773,9 +860,10 @@ suite('Sessions - Session View', () => {
 		const inactiveSession = { ...activityBars(), chatLayout: chatLayout() };
 
 		assert.deepStrictEqual({ draft, created, inactiveSession }, {
-			draft: { standalone: true, group: false, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
-			created: { standalone: false, group: true, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
-			inactiveSession: { standalone: false, group: false, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
+			// The chat to the left of the strip's column; the header spans the full width.
+			draft: { standalone: true, group: false, chatLayout: { width: 966, headerWidth: '1000px' } },
+			created: { standalone: false, group: true, chatLayout: { width: 966, headerWidth: '1000px' } },
+			inactiveSession: { standalone: false, group: false, chatLayout: { width: 966, headerWidth: '1000px' } },
 		});
 	});
 

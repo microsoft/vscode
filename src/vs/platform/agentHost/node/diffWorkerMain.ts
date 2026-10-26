@@ -5,12 +5,14 @@
 
 import { parentPort } from 'worker_threads';
 import { IArcTextReplacement } from '../../../base/common/editArcTracker.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 import { DefaultLinesDiffComputer } from '../../../editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import type { ILinesDiffComputerOptions } from '../../../editor/common/diff/linesDiffComputer.js';
 import type { RangeMapping } from '../../../editor/common/diff/rangeMapping.js';
 import type { IDetailedDiffResult, IDiffCountResult, IDiffHunk, IDiffHunksResult } from '../common/diffComputeService.js';
 
 export function computeDiffCounts(originalText: string, modifiedText: string, timeoutMs: number): IDiffCountResult {
+	const stopwatch = StopWatch.create();
 	const originalLines = originalText.split(/\r\n|\r|\n/);
 	const modifiedLines = modifiedText.split(/\r\n|\r|\n/);
 	const diffComputer = new DefaultLinesDiffComputer();
@@ -30,7 +32,7 @@ export function computeDiffCounts(originalText: string, modifiedText: string, ti
 
 	const originalLineStarts = getLineStarts(originalText);
 	const modifiedLineStarts = getLineStarts(modifiedText);
-	const changes = result.changes.flatMap(change => {
+	const toChanges = (diff: typeof result) => diff.changes.flatMap(change => {
 		const rangeMappings = change.innerChanges ?? [change.toRangeMapping2(originalLines, modifiedLines)];
 		return rangeMappings.map(mapping => ({
 			startOffset: getOffset(mapping.originalRange, originalLineStarts, false),
@@ -41,7 +43,26 @@ export function computeDiffCounts(originalText: string, modifiedText: string, ti
 			),
 		}));
 	});
-	return { added, removed, changes };
+	let changes = toChanges(result);
+	let hitTimeout = result.hitTimeout;
+	let offset = 0;
+	const reconstructed: string[] = [];
+	for (const change of changes) {
+		reconstructed.push(originalText.substring(offset, change.startOffset), change.newText);
+		offset = change.endOffsetExclusive;
+	}
+	reconstructed.push(originalText.substring(offset));
+	if (reconstructed.join('') !== modifiedText) {
+		// Only repeat the diff when whitespace ignored by the line counts is needed for attribution.
+		const characterResult = diffComputer.computeDiff(originalLines, modifiedLines, {
+			...options,
+			ignoreTrimWhitespace: false,
+			maxComputationTimeMs: timeoutMs === 0 ? 0 : Math.max(1, timeoutMs - stopwatch.elapsed()),
+		});
+		changes = toChanges(characterResult);
+		hitTimeout = characterResult.hitTimeout;
+	}
+	return { added, removed, changes, hitTimeout };
 }
 
 function getLineStarts(content: string): number[] {

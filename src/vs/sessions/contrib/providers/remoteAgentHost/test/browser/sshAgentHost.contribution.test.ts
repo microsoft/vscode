@@ -12,7 +12,8 @@ import { IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../.
 import { SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { categorizeSSHConnectError } from '../../../../../common/sessionsTelemetry.js';
 import { ManagedReconnectState } from '../../browser/managedReconnectAgentHostContribution.js';
-import { disconnectSSHEntry, shouldPauseSSHReconnectAfterFailure, sshConnectionKey } from '../../browser/sshAgentHost.contribution.js';
+import { shouldPauseSSHReconnectAfterFailure } from '../../browser/sshAgentHost.contribution.js';
+import { disconnectSSHEntry, sshConnectionKey } from '../../browser/remoteHostOptions.js';
 
 suite('SSH reconnect state', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

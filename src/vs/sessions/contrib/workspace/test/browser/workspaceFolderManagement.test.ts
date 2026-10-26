@@ -12,7 +12,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkspaceEditingService } from '../../../../../workbench/services/workspaces/common/workspaceEditing.js';
@@ -191,7 +191,10 @@ suite('WorkspaceFolderManagementContribution', () => {
 		};
 		const folderLabel = new class extends mock<IWorkspaceFolderLabelService>() {
 			label = 'label';
-			override getWorkspaceFolderLabel(): string { return this.label; }
+			// Mirrors the real service: the verbose label appends the branch name.
+			override getWorkspaceFolderLabel(_folder: IWorkspaceFolder, verbose?: boolean): string {
+				return verbose ? `${this.label} (branch)` : this.label;
+			}
 		};
 
 		const contribution = disposables.add(new WorkspaceFolderManagementContribution(
@@ -302,11 +305,11 @@ suite('WorkspaceFolderManagementContribution', () => {
 		const { activeSession, workspaceEditing, folderLabel } = createContribution();
 		const folder = worktreeFolder('/repo', '/repo.worktrees/session');
 
-		folderLabel.label = 'repo (main)';
+		folderLabel.label = 'session';
 		activeSession.set(makeActiveSession('a', makeWorkspace(folder, false)), undefined);
 		await settle();
 
-		folderLabel.label = 'repo (session-branch)';
+		folderLabel.label = 'repo';
 		activeSession.set(makeActiveSession('a', makeWorkspace(folder, false)), undefined);
 		await settle();
 
@@ -314,8 +317,8 @@ suite('WorkspaceFolderManagementContribution', () => {
 			added: workspaceEditing.addFoldersCalls,
 			updated: workspaceEditing.updateFoldersCalls,
 		}, {
-			added: [[{ uri: folder.workingDirectory, name: 'repo (main)' }]],
-			updated: [[{ uri: folder.workingDirectory, name: 'repo (session-branch)' }]],
+			added: [[{ uri: folder.workingDirectory, name: 'session' }]],
+			updated: [[{ uri: folder.workingDirectory, name: 'repo' }]],
 		});
 	});
 

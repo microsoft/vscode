@@ -254,6 +254,24 @@
             }
         },
         {
+            "key": "chat.agentHost.githubEnvironments.enabled",
+            "name": "ChatAgentHostGitHubEnvironments",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "githubEnvironments.enabled.policy",
+                    "value": "Controls whether this machine can be shared as a GitHub environment and connect to other shared machines through Mission Control."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
             "key": "chat.agentHost.otel.captureContent",
             "name": "CopilotOtelCaptureContent",
             "category": "InteractiveSession",
@@ -524,6 +542,42 @@
             }
         },
         {
+            "key": "chat.customizations.copilotConnectors.enabled",
+            "name": "ChatCopilotConnectors",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "chat.customizations.copilotConnectors.enabled",
+                    "value": "Enables Copilot connectors in the unified marketplace and exposes connected connector MCP servers in Chat Customizations and Copilot agent sessions."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
+            "key": "chat.customizations.marketplace.enabled",
+            "name": "ChatCustomizationMarketplace",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "chat.customizations.marketplace.enabled",
+                    "value": "Shows Browse instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
             "key": "chat.customizations.strictPluginOnlyCustomization",
             "name": "ChatStrictPluginOnlyCustomization",
             "category": "InteractiveSession",
@@ -539,6 +593,27 @@
             "included": false,
             "agentHost": {
                 "status": "partial"
+            }
+        },
+        {
+            "key": "chat.defaultConfiguration",
+            "name": "ChatDefaultConfiguration",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "chat.defaultConfiguration.policy",
+                    "value": "Sets the default configuration for new agent sessions, as a JSON object with an optional \"mode\" (\"interactive\", \"plan\", or \"autopilot\") and \"approvals\" (\"manual\", \"assisted\", or \"allowAll\"). Users can still change them for each session."
+                }
+            },
+            "type": "object",
+            "default": {
+                "mode": "interactive",
+                "approvals": "manual"
+            },
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
             }
         },
         {

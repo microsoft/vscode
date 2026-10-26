@@ -67,10 +67,21 @@ export const DynamicAutoTiersFeatureFlag = 'DYNAMIC_AUTO_TIERS';
 
 /** Only populated in the agent host process. */
 let advertisedAutoModeTiers: ReadonlySet<string> | undefined;
+let advertisedAsFusion = false;
 
-/** `undefined` means no provider metadata, so the built-in tiers apply; `[]` accepts nothing. */
-export function setAdvertisedAutoModeTiers(tiers: Iterable<string> | undefined): void {
+/**
+ * `undefined` means no provider metadata, so the built-in tiers apply; `[]` accepts nothing. `fusion` records
+ * whether the provider's tiers present Auto as Fusion.
+ */
+export function setAdvertisedAutoModeTiers(tiers: Iterable<string> | undefined, fusion = false): void {
 	advertisedAutoModeTiers = tiers ? new Set(tiers) : undefined;
+	// No runnable tiers can't present Auto as Fusion.
+	advertisedAsFusion = fusion && !!advertisedAutoModeTiers?.size;
+}
+
+/** Whether the provider's advertised tiers present Auto as Fusion. */
+export function isAutoAdvertisedAsFusion(): boolean {
+	return advertisedAsFusion;
 }
 
 export function isSupportedAutoModeTier(value: unknown): value is string {
@@ -106,15 +117,10 @@ export function getAutoModeTierLabel(tier: string): string {
 	}
 }
 
-export function isFusionNamedAutoModeTier(tier: string): boolean {
-	return tier === 'balance' || tier === 'intelligence' || tier === 'hydrafusion' || tier === 'hydrafusion-max';
-}
-
-/** Localized picker label for a routing profile when Auto is presented as Fusion, which names the runtime's balance tier Standard, its intelligence or HydraFusion tier High, and HydraFusion Max Max. */
+/** Localized picker label for a routing profile when Auto is presented as Copilot Fusion, which names the balance tier Standard, HydraFusion High, and HydraFusion Max Max. */
 export function getFusionAutoModeTierLabel(tier: string): string {
 	switch (tier) {
 		case 'balance': return localize('autoModeTier.fusionStandard', "Standard");
-		case 'intelligence':
 		case 'hydrafusion': return localize('autoModeTier.fusionHigh', "High");
 		case 'hydrafusion-max': return localize('autoModeTier.fusionMax', "Max");
 		default: return getAutoModeTierLabel(tier);

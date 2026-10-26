@@ -153,6 +153,8 @@ A VS Code host can also move a session whose default chat is its only chat under
 
 The provider moves individual chats with AHP `moveChat` through `canMoveChat` and `moveChat`: only a chat whose `ChatSummary.movable` the host set can be a source, and the destination (a position in its own session, another session of the provider, or a new session) is resolved to host resources from the provider's recorded sessions and chats, never from client URIs. A host refusal (`AgentChatMoveRefusal`) rejects with a user-facing explanation instead of the host's diagnostic message.
 
+Workspace-less sessions are not excluded from moves or from nested chats. The host lists the internal scratch folders of a session (the workspace-less primary and each nested chat's own folder, including one moved into a workspace session) in the summary's `_meta['vscode.scratchFolders']`. The provider reads it once per `_meta` change and never shows a scratch folder or uses one as a root: session and chat workspaces, the Changes scope roots and workspace trust leave them out, and a chat with a folder of its own in a quick chat gets a workspace of that folder. A host without the key keeps the earlier presentation. A workspace-less refusal is explained from summaries: a chat sharing its scratch folder with another chat of its session, or a chat without a folder.
+
 ## Draft and send lifecycle
 
 `NewSession` represents an untitled draft before the backend session is committed.
@@ -263,6 +265,8 @@ The local provider owns local runtime availability and local workspace access. R
 - per-host routing identity.
 
 Behavior shared by both belongs in the base provider. Connection policy stays in the remote contribution.
+
+Worktree disk usage is persisted by the owning host in the existing `agent-host.db` metadata, not in the client's session-list cache. Measurements may carry the exact advertised backend session identity so the host can reuse sizes while its persisted session and co-owner revisions are unchanged and all owners are idle. Recorded co-owners share matching measurements. Opening or refreshing cleanup measures new, changed, or active worktrees; active sessions are not excluded from the results. While any owner is running or waiting for input, the host invalidates saved sizes and measures on request without saving an unstable estimate. Activity is checked again before saving an idle measurement. Cache hits check that the worktree still exists with the same device, inode, and creation time; hosts conservatively measure without caching when the filesystem cannot supply a creation time. Removed or recreated folders never reuse the previous checkout's size. Automatic storage hints use the same database-backed path on existing activation and session-change triggers, with checks throttled to once an hour; there is no recurring hourly timer or per-turn measurement loop. Explicit cleanup requests bypass that background throttle. The session identity is optional on the existing measurement extension, preserving uncached behavior for older clients and hosts.
 
 ## Testing
 

@@ -147,7 +147,7 @@ suite('embeddedAgentPluginDetail', () => {
 		]);
 	});
 
-	test('uses the fetched README URI as the Markdown base URI', async () => {
+	test('uses the source README URI as the Markdown base URI', async () => {
 		const requestService = new StatusRequestService(200, '[Guide](./docs/guide.md)');
 		const readme = await loadPluginReadme(
 			createMarketplaceItem(URI.parse('https://github.com/owner/repo/blob/main/plugins/example/README.md')),
@@ -161,7 +161,7 @@ suite('embeddedAgentPluginDetail', () => {
 			requests: requestService.requests,
 		}, {
 			content: '[Guide](./docs/guide.md)',
-			baseUri: 'https://raw.githubusercontent.com/owner/repo/main/plugins/example/README.md',
+			baseUri: 'https://github.com/owner/repo/blob/main/plugins/example/README.md',
 			requests: ['https://raw.githubusercontent.com/owner/repo/main/plugins/example/README.md'],
 		});
 	});

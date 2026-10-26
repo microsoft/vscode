@@ -19,7 +19,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService, type ResolverResult } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import type { IChatUserInteractionTiming } from '../../../../platform/otel/common/chatUserInteraction.js';
-import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
 import type { AgentChatMoveDestination } from '../../../../platform/agentHost/common/agentHostChatMove.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
@@ -216,6 +216,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.initializeResult ?? constObservable(undefined);
 	}
 
+	get supportsConversationImport(): boolean {
+		return this._protocolClient?.supportsConversationImport ?? false;
+	}
+
 	get sandboxCertificateInstallationSupported(): IObservable<boolean> {
 		return this._protocolClient?.sandboxCertificateInstallationSupported ?? constObservable(false);
 	}
@@ -375,6 +379,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	refreshSubscription(resource: URI): Promise<void> {
 		return this._requireClient().refreshSubscription(resource);
+	}
+
+	setChatWorkspace(chat: URI, workspace: IAgentCreateChatWorkspace): Promise<void> {
+		return this._requireClient().setChatWorkspace(chat, workspace);
 	}
 
 	disposeChat(chat: URI): Promise<void> {

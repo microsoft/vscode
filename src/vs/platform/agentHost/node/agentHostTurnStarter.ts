@@ -139,7 +139,10 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 	const isEphemeralSession = stateManager.isEphemeralSession(request.session);
 	const messageOriginKind = getMessageOriginTelemetryKind(request.message, isEphemeralSession);
 	telemetryReporter.userMessageSent(agent.id, request.clientId, request.clientContext, request.chat, request.session, request.turnId, state, request.source, request.message, isEphemeralSession, stateManager.getChatParent(request.chat) !== undefined);
-	const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, request.chat, createAgentChatContext(stateManager, authenticationService, request.session, request.chat, stateManager.resolveChatStorageResource(request.session, request.chat), sessionStateStore.peek(URI.parse(request.session))), configurationService.getChatConfigState({ session: request.session, chat: request.chat }), request.message.model?.id);
+	const { model, modelTelemetryKind, modelSelectionKind, autoTier, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, request.chat, createAgentChatContext(stateManager, authenticationService, request.session, request.chat, stateManager.resolveChatStorageResource(request.session, request.chat), sessionStateStore.peek(URI.parse(request.session))), configurationService.getChatConfigState({ session: request.session, chat: request.chat }), request.message.model);
 	turnTracker.turnStarted(agent, request.chat, request.session, request.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, request.clientContext, request.clientId, undefined, undefined, messageOriginKind, undefined, undefined, stateManager.getChatParent(request.chat) !== undefined ? 'task' : undefined);
+	if (autoTier !== undefined) {
+		turnTracker.updateFusionTelemetry(request.chat, request.turnId, { autoTier });
+	}
 	return { agent };
 }

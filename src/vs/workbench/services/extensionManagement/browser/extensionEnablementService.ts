@@ -12,7 +12,7 @@ import { areSameExtensions, BetterMergeId, getExtensionDependencies, isMalicious
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { ExtensionType, IExtension, IExtensionManifest, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionType, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, IExtension, IExtensionManifest, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -61,9 +61,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	private readonly _completionsExtensionId: string | undefined;
 	private readonly _chatExtensionId: string | undefined;
 	private _extensionUnificationEnabled: boolean;
-
-	// Sessions window allow-list (lowercased extension ids)
-	private readonly _sessionsWindowAllowedExtensions: ReadonlySet<string>;
 
 	private _maliciousExtensionsCache: ReadonlyArray<MaliciousExtensionInfo> | undefined;
 
@@ -116,7 +113,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		// Extension unification
 		this._completionsExtensionId = productService.defaultChatAgent?.extensionId.toLowerCase();
 		this._chatExtensionId = productService.defaultChatAgent?.chatExtensionId.toLowerCase();
-		this._sessionsWindowAllowedExtensions = new Set<string>((productService.sessionsWindowAllowedExtensions ?? []).map(id => id.toLowerCase()));
 		const unificationExtensions = [this._completionsExtensionId, this._chatExtensionId].filter(id => !!id);
 
 		// Disabling extension unification should immediately disable the unified extension flow
@@ -133,6 +129,13 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				if (!extensionUnificationEnabled) {
 					this._extensionUnificationEnabled = false;
 					this._onEnablementChanged.fire(this.extensionsManager.extensions.filter(ext => unificationExtensions.includes(ext.identifier.id.toLowerCase())));
+				}
+			}
+			if (this.environmentService.isSessionsWindow && (e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT) || e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE))) {
+				// Start or stop the extensions whose state depends on Agents window management, and the extensions that depend on them.
+				const affected = this._withDependents(this.extensionsManager.extensions.filter(ext => !ext.isBuiltin && !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(ext.manifest, ext.isBuiltin)));
+				if (affected.length) {
+					this._onEnablementChanged.fire(affected);
 				}
 			}
 		}));
@@ -496,8 +499,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			enablementState = EnablementState.DisabledByExtensionKind;
 		}
 
-		else if (this._isDisabledBySessionsWindow(extension)) {
-			enablementState = EnablementState.DisabledByEnvironment;
+		else if (this._isDisabledBySessionsWindow(extension, enablementState)) {
+			enablementState = this._getSessionsWindowDisabledState(extension, enablementState);
 		}
 
 		else if (isEnabled && this._isDisabledByExtensionDependency(extension, extensions, workspaceType, computedEnablementStates)) {
@@ -667,13 +670,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		return this._extensionUnificationEnabled && identifier.id.toLowerCase() === this._completionsExtensionId;
 	}
 
-	private _isDisabledBySessionsWindow(extension: IExtension): boolean {
+	private _isDisabledBySessionsWindow(extension: IExtension, userEnablementState: EnablementState): boolean {
 		if (!this.environmentService.isSessionsWindow) {
-			return false;
-		}
-
-		// Allow-listed extensions are always enabled in the sessions window.
-		if (this._sessionsWindowAllowedExtensions.has(extension.identifier.id.toLowerCase())) {
 			return false;
 		}
 
@@ -681,7 +679,51 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 
+		if (!extension.isBuiltin && this._isSessionsWindowManagementEnabled()) {
+			// The sessions window has a dedicated workspace, so enabling an extension for it opts that extension into the sessions window only.
+			if (userEnablementState === EnablementState.EnabledWorkspace) {
+				return false;
+			}
+			// Extensions that users haven't enabled or disabled for the sessions window are enabled there automatically when they could be useful or are listed.
+			if (userEnablementState === EnablementState.EnabledGlobally && this.extensionManifestPropertiesService.shouldAutoEnableOnSessionsWindow(extension.manifest)) {
+				return false;
+			}
+		}
+
 		return !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.manifest, extension.isBuiltin);
+	}
+
+	/**
+	 * Built-in extensions that do not support the sessions window are curated by the product and cannot be enabled there.
+	 * Other extensions are disabled for the sessions window workspace by default, which lets users enable them for it,
+	 * unless sessions window extension management is turned off.
+	 */
+	private _getSessionsWindowDisabledState(extension: IExtension, userEnablementState: EnablementState): EnablementState {
+		if (extension.isBuiltin || !this._isSessionsWindowManagementEnabled()) {
+			return EnablementState.DisabledByEnvironment;
+		}
+		return this.isEnabledEnablementState(userEnablementState) ? EnablementState.DisabledWorkspace : userEnablementState;
+	}
+
+	private _isSessionsWindowManagementEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT) === true;
+	}
+
+	/**
+	 * Returns the given extensions and the installed extensions that depend on them, directly or transitively, as
+	 * their {@link EnablementState.DisabledByExtensionDependency} state follows the state of their dependencies.
+	 */
+	private _withDependents(extensions: IExtension[]): IExtension[] {
+		const result = [...extensions];
+		for (let i = 0; i < result.length; i++) {
+			const extension = result[i];
+			for (const dependent of this.extensionsManager.extensions) {
+				if (!result.includes(dependent) && dependent.manifest.extensionDependencies?.some(id => areSameExtensions({ id }, extension.identifier))) {
+					result.push(dependent);
+				}
+			}
+		}
+		return result;
 	}
 
 	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {

@@ -6,14 +6,19 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { StringReplacement } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { computeStringDiff } from '../../../../../editor/common/services/editorWebWorker.js';
+import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
+import { createTextBuffer } from '../../../../../editor/common/model/textModel.js';
+import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
+import { ModelService } from '../../../../../editor/common/services/modelService.js';
 import { EditSources, EditSuggestionId, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
+import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -44,6 +49,7 @@ suite('Edit Source Tracking Windows', () => {
 		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('alpha'), 'beta', chatEdit('request-2')));
 		await timeout(1500);
 		context.branch.set('feature', undefined);
+		await timeout(10);
 
 		assert.deepStrictEqual(context.details.map(event => ({
 			trigger: event.trigger,
@@ -86,6 +92,7 @@ suite('Edit Source Tracking Windows', () => {
 		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('alpha'), 'beta', chatEdit('request-2')));
 		await timeout(1500);
 		context.headHash.set('hash-2', undefined);
+		await timeout(10);
 
 		assert.deepStrictEqual(context.details.map(event => ({
 			trigger: event.trigger,
@@ -111,6 +118,7 @@ suite('Edit Source Tracking Windows', () => {
 		}
 		await timeout(10);
 		context.headHash.set('hash-2', undefined);
+		await timeout(10);
 
 		assert.deepStrictEqual({
 			count: context.details.length,
@@ -381,6 +389,307 @@ suite('Edit Source Tracking Windows', () => {
 
 		context.disposables.dispose();
 	}));
+
+	for (const scenario of ['separated hunks', 'user revert', 'later disjoint edits'] as const) {
+		test(`counts only changed characters in both focus windows: ${scenario}`, () => runWithFakedTimers({}, async () => {
+			const visible = observableValue('visible', true);
+			const correlation = new TestExternalEditCorrelation();
+			const initial = Array.from({ length: 120 }, (_, i) => `const value${i + 1} = "old";`).join('\n');
+			const context = setup(visible, {
+				createCorrelation: () => correlation,
+				prepareFlush: async () => undefined,
+			}, false, initial);
+			try {
+				await timeout(10);
+				const userText = '// user note\n';
+				context.document.applyEdit(StringEditWithReason.replace(
+					OffsetRange.emptyAt(initial.indexOf('const value50')),
+					userText,
+					EditSources.cursor({ kind: 'type' }),
+				));
+				await timeout(10);
+
+				const before = context.document.value.get().value;
+				const after = before
+					.replace('value10 = "old"', `value10 = "${'A'.repeat(100)}"`)
+					.replace('value100 = "old"', `value100 = "${'Z'.repeat(100)}"`);
+				context.document.applyEdit(diskReloadEdit(before, after));
+				await timeout(10);
+				correlation.resolve(EditSources.agentHostChatApplyEdits({
+					modelId: 'gpt-5', sessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli',
+				}));
+
+				if (scenario === 'user revert') {
+					context.document.applyEdit(StringEditWithReason.replace(
+						context.document.findRange('A'.repeat(100)), 'old', EditSources.cursor({ kind: 'type' }),
+					));
+				} else if (scenario === 'later disjoint edits') {
+					const next = after
+						.replace('value30 = "old"', `value30 = "${'B'.repeat(100)}"`)
+						.replace('value85 = "old"', `value85 = "${'Y'.repeat(100)}"`);
+					context.document.applyEdit(diskReloadEdit(after, next));
+				}
+				await timeout(10);
+				visible.set(false, undefined);
+				await timeout(10);
+
+				const inserted = scenario === 'later disjoint edits' ? 400 : 200;
+				const retained = scenario === 'user revert' ? 100 : inserted;
+				const userRetained = userText.length + (scenario === 'user revert' ? 3 : 0);
+				assert.deepStrictEqual({
+					details: context.allDetails.filter(event => event.mode !== 'longterm').map(event => ({
+						mode: event.mode,
+						source: event.sourceKey.startsWith('source:Chat.applyEdits') ? 'agent' : 'user',
+						inserted: event.deltaModifiedCount,
+						retained: event.modifiedCount,
+					})).sort((a, b) => `${a.mode}:${a.source}`.localeCompare(`${b.mode}:${b.source}`)),
+					stats: context.allStats.filter(event => event.mode !== 'longterm').map(event => ({
+						mode: event.mode,
+						agent: event.agentHostModifiedCount,
+						external: event.externalModifiedCount,
+						total: event.totalModifiedCharacters,
+					})).sort((a, b) => a.mode.localeCompare(b.mode)),
+				}, {
+					details: ['10minFocusWindow', '20minFocusWindow'].flatMap(mode => [
+						{ mode, source: 'agent', inserted, retained },
+						{ mode, source: 'user', inserted: userRetained, retained: userRetained },
+					]),
+					stats: ['10minFocusWindow', '20minFocusWindow'].map(mode => ({
+						mode, agent: retained, external: 0, total: retained + userRetained,
+					})),
+				});
+			} finally {
+				context.disposables.dispose();
+			}
+		}));
+	}
+
+	test('preserves user attribution between suppressed longterm reload hunks', () => runWithFakedTimers({}, async () => {
+		const correlation = new TestExternalEditCorrelation();
+		const committedTotals: number[] = [];
+		const context = setup(undefined, {
+			createCorrelation: () => correlation,
+			prepareFlush: async () => ({
+				flushToken: 'flush-1',
+				agentModifiedCount: 6,
+				commit: async total => { committedTotals.push(total); },
+			}),
+		}, false, 'aaa\nmiddle\nzzz');
+		try {
+			await timeout(10);
+			context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(4), '// user\n', EditSources.cursor({ kind: 'type' })));
+			await timeout(10);
+			const before = context.document.value.get().value;
+			context.document.applyEdit(diskReloadEdit(before, before.replace('aaa', 'AAA').replace('zzz', 'ZZZ')));
+			await timeout(10);
+			correlation.resolve(EditSources.agentHostChatApplyEdits({
+				modelId: 'gpt-5', sessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli',
+			}));
+			context.headHash.set('hash-2', undefined);
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				details: context.details.map(event => ({
+					source: event.sourceKey,
+					inserted: event.deltaModifiedCount,
+					retained: event.modifiedCount,
+					total: event.totalModifiedCount,
+				})),
+				stats: context.stats.map(event => ({
+					agent: event.agentHostModifiedCount,
+					external: event.externalModifiedCount,
+					total: event.totalModifiedCharacters,
+				})),
+				committedTotals,
+			}, {
+				details: [{ source: 'source:cursor-kind:type', inserted: 8, retained: 8, total: 14 }],
+				stats: [{ agent: 6, external: 0, total: 14 }],
+				committedTotals: [14],
+			});
+		} finally {
+			context.disposables.dispose();
+		}
+	}));
+
+	for (const isCoarse of [false, true]) {
+		test(`reports coarse diff usage in both focus windows and resets the counter (${isCoarse})`, () => runWithFakedTimers({}, async () => {
+			const visible = observableValue('visible', true);
+			const correlation = new TestExternalEditCorrelation();
+			correlation.resolve(EditSources.agentHostChatApplyEdits({
+				modelId: 'model', sessionId: 'session', requestId: 'turn', harness: 'copilotcli',
+			}));
+			const context = setup(visible, {
+				createCorrelation: () => correlation,
+				prepareFlush: async () => undefined,
+			}, false, 'aaa\nmiddle\nzzz', async (before, after) => ({
+				...await computeStringDiffWithMetadata(before, after, { maxComputationTimeMs: 500 }, 'advanced'),
+				isCoarse,
+			}));
+			try {
+				await timeout(10);
+				context.document.applyEdit(diskReloadEdit('aaa\nmiddle\nzzz', 'AAA\nmiddle\nZZZ'));
+				await timeout(10);
+				context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(4), 'user', EditSources.cursor({ kind: 'type' })));
+				await timeout(10);
+				visible.set(false, undefined);
+				await timeout(10);
+				const details = context.allDetails.filter(e => e.mode !== 'longterm').map(e => e.coarseDiffCount);
+				const stats = context.allStats.filter(e => e.mode !== 'longterm').map(e => e.coarseDiffCount);
+				visible.set(true, undefined);
+				context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(8), 'later', EditSources.cursor({ kind: 'type' })));
+				await timeout(10);
+				visible.set(false, undefined);
+				await timeout(10);
+
+				assert.deepStrictEqual({
+					details, stats,
+					nextStats: context.allStats.filter(e => e.mode !== 'longterm').slice(2).map(e => e.coarseDiffCount),
+				}, {
+					details: Array(4).fill(isCoarse ? 1 : 0),
+					stats: Array(2).fill(isCoarse ? 1 : 0),
+					nextStats: [0, 0],
+				});
+			} finally {
+				context.disposables.dispose();
+				await timeout(10);
+			}
+		}));
+	}
+
+	for (const hostCount of [undefined, 0, 2]) {
+		test(`combines longterm coarse counts without treating older hosts as precise (${hostCount})`, () => runWithFakedTimers({}, async () => {
+			const context = setup(undefined, {
+				createCorrelation: () => new TestExternalEditCorrelation(),
+				prepareFlush: async () => ({
+					flushToken: 'flush', agentModifiedCount: 3, coarseDiffCount: hostCount,
+					commit: async () => { },
+				}),
+			}, false, 'hello', async (before, after) => ({
+				...await computeStringDiffWithMetadata(before, after, { maxComputationTimeMs: 500 }, 'advanced'),
+				isCoarse: true,
+			}));
+			try {
+				await timeout(10);
+				context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(0), 'user', EditSources.cursor({ kind: 'type' })));
+				await timeout(10);
+				context.document.applyEdit(diskReloadEdit('userhello', 'userworld'));
+				await timeout(10);
+				context.headHash.set('next', undefined);
+				await timeout(10);
+				assert.deepStrictEqual({
+					details: context.allDetails.filter(e => e.mode === 'longterm').map(e => e.coarseDiffCount),
+					stats: context.stats.map(e => e.coarseDiffCount),
+				}, {
+					details: [hostCount === undefined ? undefined : hostCount + 1, hostCount === undefined ? undefined : hostCount + 1],
+					stats: [hostCount === undefined ? undefined : hostCount + 1],
+				});
+			} finally {
+				context.disposables.dispose();
+				await timeout(10);
+			}
+		}));
+	}
+
+	for (const boundary of ['hidden', 'closed', 'hash', 'branch', '10hours', '10minFocusWindow', '20minFocusWindow'] as const) {
+		test(`drains pending reload and user edits at the ${boundary} boundary without including later edits`, () => runWithFakedTimers({}, async () => {
+			const visible = observableValue('visible', true);
+			const diffStarted = new DeferredPromise<void>();
+			const releaseDiff = new DeferredPromise<void>();
+			let firstDiff = true;
+			const correlation = new TestExternalEditCorrelation();
+			correlation.resolve(EditSources.agentHostChatApplyEdits({
+				modelId: 'gpt-5', sessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli',
+			}));
+			const context = setup(visible, {
+				createCorrelation: () => correlation,
+				prepareFlush: async () => ({
+					flushToken: 'flush-boundary',
+					agentModifiedCount: 6,
+					commit: async () => { },
+				}),
+			}, false, 'aaa\nmiddle\nzzz', async (original, modified) => {
+				if (firstDiff) {
+					firstDiff = false;
+					diffStarted.complete();
+					await releaseDiff.p;
+				}
+				return computeStringDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced');
+			});
+			try {
+				await timeout(10);
+				context.document.applyEdit(diskReloadEdit('aaa\nmiddle\nzzz', 'AAA\nmiddle\nZZZ'));
+				await diffStarted.p;
+				context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(4), 'U1', EditSources.cursor({ kind: 'type' })));
+
+				if (boundary === 'hidden') {
+					visible.set(false, undefined);
+				} else if (boundary === 'closed') {
+					context.document.dispose();
+				} else if (boundary === 'hash') {
+					context.headHash.set('hash-2', undefined);
+				} else if (boundary === 'branch') {
+					context.branch.set('feature', undefined);
+				} else if (boundary === '10hours') {
+					await timeout(10 * 60 * 60 * 1000);
+				} else {
+					context.fireFocusTimer(boundary === '10minFocusWindow' ? 10 * 60 * 1000 : 20 * 60 * 1000);
+				}
+				if (boundary !== 'closed') {
+					if (boundary === 'hidden') {
+						visible.set(true, undefined);
+					}
+					context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(6), 'LATER', EditSources.cursor({ kind: 'type' })));
+				}
+				releaseDiff.complete();
+				await timeout(10);
+
+				const modes = boundary === 'hash' || boundary === 'branch' || boundary === '10hours'
+					? ['longterm']
+					: boundary === 'closed'
+						? ['10minFocusWindow', '20minFocusWindow', 'longterm']
+						: boundary === 'hidden'
+							? ['10minFocusWindow', '20minFocusWindow']
+							: [boundary];
+				const relevantDetails = () => context.allDetails.filter(event => modes.includes(event.mode));
+				const outgoing = relevantDetails().map(event => ({
+					mode: event.mode,
+					source: event.sourceKey.startsWith('source:Chat.applyEdits') ? 'agent' : 'user',
+					inserted: event.deltaModifiedCount,
+					retained: event.modifiedCount,
+				})).sort((a, b) => `${a.mode}:${a.source}`.localeCompare(`${b.mode}:${b.source}`));
+				const expectedOutgoing = modes.flatMap(mode => [
+					...(mode === 'longterm' ? [] : [{ mode, source: 'agent', inserted: 6, retained: 6 }]),
+					{ mode, source: 'user', inserted: 2, retained: 2 },
+				]);
+
+				const previousCount = relevantDetails().length;
+				if (boundary !== 'closed') {
+					if (modes[0] === 'longterm') {
+						context.headHash.set('hash-3', undefined);
+					} else {
+						visible.set(false, undefined);
+					}
+					await timeout(10);
+				}
+				const next = relevantDetails().slice(previousCount).map(event => ({
+					mode: event.mode,
+					source: event.sourceKey,
+					inserted: event.deltaModifiedCount,
+					retained: event.modifiedCount,
+				})).sort((a, b) => a.mode.localeCompare(b.mode));
+				assert.deepStrictEqual({ outgoing, next }, {
+					outgoing: expectedOutgoing,
+					next: boundary === 'closed' ? [] : modes.map(mode => ({
+						mode, source: 'source:cursor-kind:type', inserted: 5, retained: 5,
+					})),
+				});
+			} finally {
+				releaseDiff.complete();
+				context.disposables.dispose();
+				await timeout(10);
+			}
+		}));
+	}
 
 	test('drains a late Agent Host marker before focus-window emission', () => runWithFakedTimers({}, async () => {
 		const visible = observableValue('visible', true);
@@ -1070,6 +1379,8 @@ function setup(
 	visible: ISettableObservable<boolean> = observableValue('visible', true),
 	markerService?: IAgentHostEditMarkerService,
 	dirty = false,
+	initialValue = 'hello',
+	computeDiff: DiffService['computeDiff'] = async (original, modified) => computeStringDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced'),
 ) {
 	const disposables = new DisposableStore();
 	const headHash = observableValue('headHash', 'hash-1');
@@ -1081,6 +1392,7 @@ function setup(
 	} satisfies IScmRepoAdapter;
 	const details: Array<{ sourceKey: string; trigger: string; requestId: string | undefined; statsUuid: string; modifiedCount: number; deltaModifiedCount: number; totalModifiedCount: number }> = [];
 	const allDetails: Array<{
+		coarseDiffCount?: number;
 		mode: string;
 		sourceKey: string;
 		sourceKeyCleaned: string;
@@ -1099,6 +1411,7 @@ function setup(
 		totalModifiedCount: number;
 	}> = [];
 	const stats: Array<{
+		coarseDiffCount?: number;
 		statsUuid: string;
 		otherAIModifiedCount: number;
 		agentHostModifiedCount: number;
@@ -1127,7 +1440,7 @@ function setup(
 			}
 		},
 	});
-	instantiationService.stubInstance(DiffService, { computeDiff: async (original, modified) => computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced') });
+	instantiationService.stubInstance(DiffService, { computeDiff });
 	instantiationService.stubInstance(ScmAdapter, { getRepo: () => repo });
 	instantiationService.stubInstance(UriVisibilityProvider, { isVisible: (_uri, reader) => visible.read(reader) });
 	instantiationService.stub(IRandomService, {
@@ -1135,13 +1448,19 @@ function setup(
 		generateUuid: () => `stats-${++uuid}`,
 		generatePrefixedUuid: namespace => `${namespace}-${++uuid}`,
 	});
+	const focusTimers = new Map<number, Set<() => void>>();
 	instantiationService.stub(IUserAttentionService, {
 		_serviceBrand: undefined,
 		isVsCodeFocused: constObservable(true),
 		isUserActive: constObservable(true),
 		hasUserAttention: constObservable(true),
 		totalFocusTimeMs: 0,
-		fireAfterGivenFocusTimePassed: () => Disposable.None,
+		fireAfterGivenFocusTimePassed: (duration, callback) => {
+			const callbacks = focusTimers.get(duration) ?? new Set();
+			focusTimers.set(duration, callbacks);
+			callbacks.add(callback);
+			return { dispose: () => { callbacks.delete(callback); } };
+		},
 	});
 	instantiationService.stub(ITextFileService, { isDirty: () => dirty });
 	instantiationService.stub(IAiEditTelemetryService, {
@@ -1157,11 +1476,33 @@ function setup(
 	const impl = disposables.add(new EditSourceTrackingImpl(constObservable(true), annotatedDocuments, markerService, instantiationService));
 	const document = disposables.add(workspace.createDocument({
 		uri: URI.file('C:\\repo\\file.ts'),
-		initialValue: 'hello',
+		initialValue,
 		languageId: 'typescript',
 	}));
 
-	return { disposables, document, details, stats, allDetails, allStats, headHash, branch, impl };
+	return {
+		disposables, document, details, stats, allDetails, allStats, headHash, branch, impl, fireFocusTimer: (duration: number) => {
+			for (const callback of Array.from(focusTimers.get(duration) ?? [])) {
+				callback();
+			}
+		}
+	};
+}
+
+function diskReloadEdit(before: string, after: string): StringEditWithReason {
+	const store = new DisposableStore();
+	try {
+		const model = store.add(createTextModel(before));
+		const buffer = createTextBuffer(after, DefaultEndOfLine.LF);
+		store.add(buffer.disposable);
+		const replacements = ModelService._computeEdits(model, buffer.textBuffer).map(edit => StringReplacement.replace(new OffsetRange(
+			model.getOffsetAt({ lineNumber: edit.range.startLineNumber, column: edit.range.startColumn }),
+			model.getOffsetAt({ lineNumber: edit.range.endLineNumber, column: edit.range.endColumn }),
+		), edit.text ?? ''));
+		return new StringEditWithReason(replacements, EditSources.reloadFromDisk());
+	} finally {
+		store.dispose();
+	}
 }
 
 function chatEdit(requestId: string) {

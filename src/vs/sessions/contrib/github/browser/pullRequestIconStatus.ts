@@ -100,10 +100,15 @@ export function computePullRequestRefPresentation(reader: IReaderWithStore, gitH
 	const prModelRef = reader.store.add(gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 	const livePullRequest = prModelRef.object.pullRequest.read(reader);
 	if (!livePullRequest) {
+		const cached = iconCache.getEntry(prLink);
+		const cachedState = cached?.pullRequest;
+		const state = pullRequest.state === GitHubPullRequestState.Merged ? GitHubPullRequestState.Merged : cachedState?.state;
 		return {
-			icon: iconCache.get(prLink) ?? pullRequest.icon ?? fallbackIcon,
+			icon: state === GitHubPullRequestState.Merged
+				? computePullRequestIcon(GitHubPullRequestState.Merged)
+				: cached?.icon ?? (cachedState ? computePullRequestIcon(getPullRequestDisplayState(cachedState.state, cachedState.isDraft)) : pullRequest.icon ?? fallbackIcon),
 			title: pullRequest.title,
-			liveState: undefined,
+			liveState: state,
 		};
 	}
 

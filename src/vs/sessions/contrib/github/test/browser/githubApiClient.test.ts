@@ -23,6 +23,7 @@ suite('GitHubApiClient', () => {
 	function setupClient() {
 		const changed = store.add(new Emitter<IDefaultAccount | null>());
 		const invalidated = store.add(new Emitter<void>());
+		const defaultClientChanged = store.add(new Emitter<void>());
 		const provider = { id: 'github', name: 'GitHub', enterprise: false };
 		let account: IDefaultAccount | null = upcastPartial<IDefaultAccount>({ sessionId: 'selected', accountName: 'octocat', authenticationProvider: provider });
 		let available = true;
@@ -39,6 +40,7 @@ suite('GitHubApiClient', () => {
 			dispose: () => { releases++; },
 		});
 		const workbench = new class extends mock<IWorkbenchGitHubService>() {
+			override readonly onDidChangeDefaultClient = defaultClientChanged.event;
 			override async acquireDefaultAccountApiClient(signal: AbortSignal): Promise<IGitHubAccountClient> {
 				signals.push(signal);
 				void acquired.complete();
@@ -65,16 +67,18 @@ suite('GitHubApiClient', () => {
 				available = true;
 				account = upcastPartial<IDefaultAccount>({ sessionId: 'repository', authenticationProvider: provider });
 				changed.fire(account);
+				defaultClientChanged.fire();
 				return account;
 			}
 		}();
 		const client = store.add(new GitHubApiClient(workbench, defaults));
 		return {
-			client, facade, signals, signIns, invalidated, acquired,
+			client, facade, signals, signIns, invalidated, acquired, defaultClientChanged,
 			get releases() { return releases; },
 			changeAccount: () => {
 				account = upcastPartial<IDefaultAccount>({ sessionId: 'other', authenticationProvider: provider });
 				changed.fire(account);
+				defaultClientChanged.fire();
 			},
 			repeatAccount: () => changed.fire(account),
 			setAvailable: (value: boolean) => { available = value; },
@@ -198,6 +202,21 @@ suite('GitHubApiClient', () => {
 		await gate.complete();
 		await Promise.resolve();
 		assert.strictEqual(setup.releases, 1);
+	});
+
+	test('default grant changes cancel pending acquisition before an account client exists', async () => {
+		const setup = setupClient();
+		const gate = new DeferredPromise<void>();
+		setup.delayAcquisition(gate.p);
+		const rejected = assert.rejects(setup.client.withClient(async () => assert.fail('No stale request expected')), isCancellationError);
+		await setup.acquired.p;
+		setup.defaultClientChanged.fire();
+		await rejected;
+		await gate.complete();
+		await setup.client.withClient(async () => undefined);
+		assert.deepStrictEqual({ generation: setup.client.generation, acquisitions: setup.signals.length, releases: setup.releases }, {
+			generation: 1, acquisitions: 2, releases: 1,
+		});
 	});
 
 	test('reports the selected Enterprise host without substituting public endpoints', () => {

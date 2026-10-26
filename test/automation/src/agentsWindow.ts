@@ -12,7 +12,8 @@ const AGENTS_WORKBENCH = '.agent-sessions-workbench';
 const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
-const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger > .action-label`;
+const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger .action-label`;
+const ENVIRONMENT_PICKER = `${NEW_SESSION_VIEW} [aria-label^="Choose Environment,"]`;
 const WORKSPACE_PICKER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action';
 const WORKSPACE_PICKER_DEV_CONTAINER_ROW = `${WORKSPACE_PICKER_ROW}:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"]):not([aria-label="Chat"])`;
 const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';
@@ -293,12 +294,16 @@ export class AgentsWindow {
 		await widget.locator('.quick-input-progress[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 30_000 });
 		await input.press('Enter');
 		await widget.waitFor({ state: 'hidden', timeout: 30_000 });
-		await page.locator(WORKSPACE_PICKER).filter({ hasText: hostName }).waitFor({ timeout: 30_000 });
+		const environmentPicker = page.locator(ENVIRONMENT_PICKER);
+		const picker = await environmentPicker.isVisible() ? environmentPicker : page.locator(WORKSPACE_PICKER);
+		await picker.filter({ hasText: hostName }).waitFor({ timeout: 30_000 });
 	}
 
 	async selectDevContainer(workspaceLabel?: string): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const picker = page.locator(WORKSPACE_PICKER).first();
+		const environmentPicker = page.locator(ENVIRONMENT_PICKER);
+		const usesEnvironmentPicker = await environmentPicker.isVisible();
+		const picker = usesEnvironmentPicker ? environmentPicker : page.locator(WORKSPACE_PICKER).first();
 		const devContainerRow = page.locator(WORKSPACE_PICKER_SUBMENU_ROW, { hasText: 'Use Dev Container' }).first();
 		const recentDevContainerRow = page.locator(WORKSPACE_PICKER_ROW).filter({
 			has: page.locator('.title', { hasText: / Dev Container$/ }),
@@ -312,29 +317,35 @@ export class AgentsWindow {
 			}
 			try {
 				await picker.click();
-				if (workspaceLabel) {
-					const remoteRow = page.locator('.action-widget .sessions-new-chat-picker-list .monaco-list-row.action[aria-label="Remote"]');
-					if (await remoteRow.isVisible()) {
-						await remoteRow.locator('.action-list-submenu-indicator.has-submenu').click();
+				if (usesEnvironmentPicker) {
+					const container = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('Dev Container', { exact: true }) });
+					await container.waitFor({ state: 'visible', timeout: 5_000 });
+					await container.click();
+				} else {
+					if (workspaceLabel) {
+						const remoteRow = page.locator('.action-widget .sessions-new-chat-picker-list .monaco-list-row.action[aria-label="Remote"]');
+						if (await remoteRow.isVisible()) {
+							await remoteRow.locator('.action-list-submenu-indicator.has-submenu').click();
+						}
 					}
-				}
-				const workspaceRow = workspaceLabel
-					? page.locator('.action-widget .monaco-list-row.action, .action-list-submenu-panel .monaco-list-row.action').filter({ has: page.getByText(workspaceLabel, { exact: true }) }).first()
-					: page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
-				try {
-					await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
-					await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
-					await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
-					await devContainerRow.click();
-				} catch (error) {
-					if (workspaceLabel || !await recentDevContainerRow.isVisible()) {
-						throw error;
+					const workspaceRow = workspaceLabel
+						? page.locator('.action-widget .monaco-list-row.action, .action-list-submenu-panel .monaco-list-row.action').filter({ has: page.getByText(workspaceLabel, { exact: true }) }).first()
+						: page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
+					try {
+						await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
+						await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
+						await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
+						await devContainerRow.click();
+					} catch (error) {
+						if (workspaceLabel || !await recentDevContainerRow.isVisible()) {
+							throw error;
+						}
+						await recentDevContainerRow.click();
 					}
-					await recentDevContainerRow.click();
 				}
 				await page.waitForFunction(
 					selector => document.querySelector(selector)?.textContent?.includes('Dev Container') === true,
-					WORKSPACE_PICKER,
+					usesEnvironmentPicker ? ENVIRONMENT_PICKER : WORKSPACE_PICKER,
 					{ timeout: 15_000 },
 				);
 				return;
@@ -346,7 +357,27 @@ export class AgentsWindow {
 				await new Promise(resolve => setTimeout(resolve, 500));
 			}
 		}
-		throw new Error(`Timed out selecting Use Dev Container from the workspace picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+		throw new Error(`Timed out selecting Dev Container. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	private async selectLocalEnvironment(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const cloudEnvironment = page.locator(ENVIRONMENT_PICKER).filter({ hasText: /^Cloud$/ });
+		const deadline = Date.now() + 60_000;
+		while (await cloudEnvironment.isVisible()) {
+			await cloudEnvironment.click();
+			const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
+			if (await localEnvironment.isVisible()) {
+				await localEnvironment.click();
+				await page.locator(ENVIRONMENT_PICKER).filter({ hasText: 'This Computer' }).waitFor();
+				return;
+			}
+			await page.keyboard.press('Escape');
+			if (Date.now() >= deadline) {
+				throw new Error('Timed out waiting for This Computer in the Environment picker');
+			}
+			await new Promise(resolve => setTimeout(resolve, 500));
+		}
 	}
 
 	private async isSessionTypeSelected(label: string): Promise<boolean> {
@@ -374,6 +405,7 @@ export class AgentsWindow {
 	 * absent) instead of relying on {@link selectSessionType} throwing.
 	 */
 	async isSessionTypeAvailable(label: string, timeoutMs: number = 30_000): Promise<boolean> {
+		await this.selectLocalEnvironment();
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
 		if (await this.isSessionTypeSelected(label)) {
@@ -436,6 +468,9 @@ export class AgentsWindow {
 	 * the requested label to appear before committing.
 	 */
 	async selectSessionType(label: string, options?: { providerLabel?: string }): Promise<void> {
+		if (!options?.providerLabel) {
+			await this.selectLocalEnvironment();
+		}
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
 		if (await this.isSessionTypeSelected(label) && (!options?.providerLabel || await this.isSessionTypePickerDisabled())) {

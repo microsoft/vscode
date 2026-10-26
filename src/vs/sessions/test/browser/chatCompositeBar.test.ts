@@ -18,6 +18,8 @@ import { isLinux } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -31,8 +33,9 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts
 import { Menus } from '../../browser/menus.js';
 import { getSessionChatDragData, isSessionChatDrag } from '../../browser/dnd.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
-import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
@@ -179,7 +182,7 @@ interface IChatCompositeBarHarness {
 	readonly showSessionActions: ISettableObservable<boolean>;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly sessionSupportsRename?: boolean }): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly sessionSupportsRename?: boolean; readonly accessibilityService?: IAccessibilityService }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
@@ -201,6 +204,12 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(IContextMenuService, contextMenuService);
+	instantiationService.stub(IAccessibilityService, options?.accessibilityService ?? new class extends TestAccessibilityService {
+		override isMotionReduced(): boolean { return false; }
+	}());
+	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
+		override getStatusIcon() { return Codicon.sessionInProgress; }
+	}());
 	const keybindingService = instantiationService.get(IKeybindingService);
 	const lookupKeybinding = keybindingService.lookupKeybinding.bind(keybindingService);
 	keybindingService.lookupKeybinding = commandId => commandId === RENAME_CHAT_COMMAND_ID
@@ -991,6 +1000,97 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
+	for (const connected of [true, false]) {
+		for (const readOnly of [false, true]) {
+			test(`shares the leading status slot without replacing close controls (connected: ${connected}, read-only: ${readOnly})`, () => {
+				const harness = createHarness(disposables);
+				const root = attachConnectedBar(harness);
+				root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				const status = observableValue('chat.status', SessionStatus.InProgress);
+				const isRead = observableValue('chat.isRead', true);
+				const interactivity = constObservable(readOnly ? ChatInteractivity.ReadOnly : ChatInteractivity.Full);
+				const chat = { ...harness.session.chats.get()[1], status, isRead, interactivity };
+				harness.chats.set([harness.session.mainChat.get(), chat], undefined);
+				const tab = harness.bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')[1];
+				const snapshot = () => {
+					const indicator = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!;
+					const label = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!;
+					return {
+						indicatorBeforeTitle: mainWindow.getComputedStyle(indicator).display !== 'none' && indicator.getBoundingClientRect().right <= label.getBoundingClientRect().left,
+						pixelSpinner: tab.querySelectorAll('.monaco-pixel-spinner').length,
+						rotatingSpinner: tab.querySelectorAll('.codicon-loading').length,
+						indicatorDisplay: mainWindow.getComputedStyle(indicator).display,
+						closeAction: tab.querySelector('.chat-composite-bar-tab-actions .action-label') !== null,
+						ariaLabel: tab.getAttribute('aria-label'),
+					};
+				};
+				const progress = snapshot();
+				status.set(SessionStatus.NeedsInput, undefined);
+				const needsInput = snapshot();
+				transaction(tx => {
+					status.set(SessionStatus.Completed, tx);
+					isRead.set(false, tx);
+				});
+				const unread = snapshot();
+				harness.activeChatResource.set(chat.resource.toString(), undefined);
+				const active = snapshot();
+
+				const lock = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-lock')!;
+				const indicator = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!;
+				const label = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!;
+				assert.deepStrictEqual({ progress, needsInput, unread, active, lockDisplay: mainWindow.getComputedStyle(lock).display, leadingOrder: indicator.nextElementSibling === lock && lock.nextElementSibling === label, decorative: indicator.getAttribute('aria-hidden') }, {
+					progress: { indicatorBeforeTitle: true, pixelSpinner: 1, rotatingSpinner: 0, indicatorDisplay: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: In Progress' },
+					needsInput: { indicatorBeforeTitle: true, pixelSpinner: 0, rotatingSpinner: 0, indicatorDisplay: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Attention Needed' },
+					unread: { indicatorBeforeTitle: true, pixelSpinner: 0, rotatingSpinner: 0, indicatorDisplay: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, unread' },
+					active: { indicatorBeforeTitle: false, pixelSpinner: 0, rotatingSpinner: 0, indicatorDisplay: 'none', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, unread' },
+					lockDisplay: readOnly ? 'flex' : 'none',
+					leadingOrder: true,
+					decorative: 'true',
+				});
+			});
+		}
+	}
+
+	test('updates tab progress for reduced motion without restarting it on read changes', () => {
+		let reducedMotion = false;
+		const onDidChangeReducedMotion = disposables.add(new Emitter<void>());
+		const accessibilityService = new class extends TestAccessibilityService {
+			override readonly onDidChangeReducedMotion = onDidChangeReducedMotion.event;
+			override isMotionReduced(): boolean { return reducedMotion; }
+		}();
+		const harness = createHarness(disposables, { accessibilityService });
+		attachConnectedBar(harness);
+		const isRead = observableValue('chat.isRead', true);
+		const chat = { ...harness.session.mainChat.get(), status: constObservable(SessionStatus.InProgress), isRead };
+		harness.chats.set([chat], undefined);
+		const tab = harness.bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab')!;
+		const indicator = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!;
+		const label = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!;
+		const initialSpinner = tab.querySelector('.monaco-pixel-spinner');
+		isRead.set(false, undefined);
+		const preservedSpinner = initialSpinner !== null && tab.querySelector('.monaco-pixel-spinner') === initialSpinner;
+		reducedMotion = true;
+		onDidChangeReducedMotion.fire();
+		const reduced = {
+			pixelSpinner: tab.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
+			staticIcon: tab.querySelector('.chat-composite-bar-tab-indicator-icon .codicon-session-in-progress:not([data-icon-fading-out])') !== null,
+			indicatorDisplay: mainWindow.getComputedStyle(indicator).display,
+			indicatorBeforeTitle: indicator.getBoundingClientRect().width > 0 && indicator.getBoundingClientRect().right <= label.getBoundingClientRect().left,
+		};
+		reducedMotion = false;
+		onDidChangeReducedMotion.fire();
+
+		assert.deepStrictEqual({
+			preservedSpinner,
+			reduced,
+			restoredSpinner: tab.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
+		}, {
+			preservedSpinner: true,
+			reduced: { pixelSpinner: false, staticIcon: true, indicatorDisplay: 'flex', indicatorBeforeTitle: true },
+			restoredSpinner: true,
+		});
+	});
+
 	test('arrow, Home, and End keys move focus and activate chat tabs', () => {
 		const { bar, container, sessionsService, tabs } = createHarness(disposables);
 		mainWindow.document.body.appendChild(container);
@@ -1076,9 +1176,30 @@ suite('Sessions - ChatCompositeBar', () => {
 				labels: actions.map(action => action instanceof Separator ? 'separator' : action.label),
 				commandCalls: commandService.calls,
 			}, {
-				labels: ['Rename...'],
+				labels: ['Mark as Unread', 'separator', 'Rename...'],
 				commandCalls: [{ commandId: RENAME_SESSION_COMMAND_ID, args: [session] }],
 			});
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('runs the shared Close and read state commands from chat tab menus', async () => {
+		const { commandService, container, contextMenuService, session, tabs } = createHarness(disposables);
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			const run = async (tab: HTMLElement, id: string) => {
+				tab.dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
+				await contextMenuService.delegate?.getActions().find(action => action.id === id)?.run();
+			};
+			await run(tabs[0], MARK_SESSION_UNREAD_COMMAND_ID);
+			await run(tabs[1], CLOSE_CHAT_COMMAND_ID);
+
+			assert.deepStrictEqual(commandService.calls, [
+				{ commandId: MARK_SESSION_UNREAD_COMMAND_ID, args: [{ session, chat: session.visibleChatTabs.get()[0] }] },
+				{ commandId: CLOSE_CHAT_COMMAND_ID, args: [session, session.visibleChatTabs.get()[1]] },
+			]);
 		} finally {
 			container.remove();
 		}
@@ -1098,15 +1219,15 @@ suite('Sessions - ChatCompositeBar', () => {
 				main: menuLabels(tabs[0]),
 				secondary: menuLabels(tabs[1]),
 			}, {
-				main: [],
-				secondary: ['Rename...', 'separator', 'Delete Chat'],
+				main: ['Mark as Unread'],
+				secondary: ['Close', 'separator', 'Rename...', 'Delete...'],
 			});
 		} finally {
 			container.remove();
 		}
 	});
 
-	test('shows Copy Link at the bottom of the chat tab context menu', () => {
+	test('shows Copy Link between the state and manage actions of the chat tab context menu', () => {
 		const { container, contextMenuService, tabs } = createHarness(disposables, { isAgentHost: true });
 		mainWindow.document.body.appendChild(container);
 
@@ -1114,18 +1235,19 @@ suite('Sessions - ChatCompositeBar', () => {
 			tabs[1].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
 
 			assert.deepStrictEqual(contextMenuService.delegate?.getActions().map(action => action instanceof Separator ? 'separator' : action.label), [
-				'Rename...',
-				'separator',
-				'Delete Chat',
+				'Close',
 				'separator',
 				'Copy Link',
+				'separator',
+				'Rename...',
+				'Delete...',
 			]);
 		} finally {
 			container.remove();
 		}
 	});
 
-	test('groups Rename with archive or restore for manageable chat tabs', async () => {
+	test('separates archive or restore from Rename and Delete in chat tab menus', async () => {
 		const snapshots: { archived: boolean; actionId: string | undefined; menuIds: readonly string[]; commandIds: readonly string[] }[] = [];
 		for (const archived of [false, true]) {
 			const { commandService, container, contextMenuService, tabs } = createHarness(disposables, { secondaryArchived: archived, secondaryCanArchive: true });
@@ -1151,13 +1273,13 @@ suite('Sessions - ChatCompositeBar', () => {
 			{
 				archived: false,
 				actionId: ARCHIVE_CHAT_COMMAND_ID,
-				menuIds: [RENAME_CHAT_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, 'separator', 'sessionCompositeBar.deleteChat'],
+				menuIds: [CLOSE_CHAT_COMMAND_ID, 'separator', ARCHIVE_CHAT_COMMAND_ID, 'separator', RENAME_CHAT_COMMAND_ID, 'sessionCompositeBar.deleteChat'],
 				commandIds: [ARCHIVE_CHAT_COMMAND_ID],
 			},
 			{
 				archived: true,
 				actionId: UNARCHIVE_CHAT_COMMAND_ID,
-				menuIds: [RENAME_CHAT_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, 'separator', 'sessionCompositeBar.deleteChat'],
+				menuIds: [CLOSE_CHAT_COMMAND_ID, 'separator', UNARCHIVE_CHAT_COMMAND_ID, 'separator', RENAME_CHAT_COMMAND_ID, 'sessionCompositeBar.deleteChat'],
 				commandIds: [UNARCHIVE_CHAT_COMMAND_ID],
 			},
 		]);

@@ -93,6 +93,56 @@ const rules: readonly IChangeRule[] = [
 	},
 ];
 
+/**
+ * Core test jobs that run unless every changed path is one the tests cannot read. Any other path,
+ * including a new kind of file, runs the jobs.
+ */
+interface ICoreTestRule {
+	/** Name of the action output that reports whether the jobs need to run. */
+	readonly output: string;
+	/** Whether the jobs cannot be affected by a change to the path. */
+	readonly canSkip: (path: string) => boolean;
+}
+
+/** Markdown outside the sources, tests and extensions, which use Markdown files as test inputs. */
+function isDocumentation(path: string): boolean {
+	return path.endsWith('.md') && !/^(src|test|extensions)\//.test(path);
+}
+
+/** The Rust crates, which the core test jobs neither build nor run. */
+function isRustCrate(path: string): boolean {
+	return path.startsWith('cli/') || path.startsWith('copilot_shim/');
+}
+
+/**
+ * Built-in extensions whose files the core unit tests read: the component fixtures load the themes and
+ * these grammars. build/lib/test/detectChanges.test.ts fails when a test starts reading another extension.
+ */
+const extensionsReadByUnitTests = new Set(['css', 'html', 'javascript', 'json', 'typescript-basics']);
+
+function isExtensionNotReadByUnitTests(path: string): boolean {
+	const name = /^extensions\/([^/]+)\//.exec(path)?.[1];
+	return name !== undefined && !name.startsWith('theme-') && !extensionsReadByUnitTests.has(name);
+}
+
+const coreTestRules: readonly ICoreTestRule[] = [
+	{
+		// Electron, node.js and browser unit tests load only the core sources and their test fixtures.
+		output: 'unit-tests',
+		canSkip: path => isDocumentation(path) || isRustCrate(path) || isExtensionNotReadByUnitTests(path),
+	},
+	{
+		// The browser integration and smoke tests do not load the Copilot extension.
+		output: 'browser-integration',
+		canSkip: path => isDocumentation(path) || isRustCrate(path) || path.startsWith('extensions/copilot/'),
+	},
+	{
+		// The Electron integration, Electron smoke and remote tests exercise the built-in extensions.
+		output: 'product-tests',
+		canSkip: path => isDocumentation(path) || isRustCrate(path),
+	},
+];
+
 function matchesAny(path: string, patterns: readonly string[]): boolean {
 	return patterns.some(pattern => pattern.endsWith('/') ? path.startsWith(pattern) : path === pattern);
 }
@@ -131,6 +181,19 @@ export async function detectChanges(github: IGitHub, context: IContext, core: IC
 		const reason = paths === undefined ? 'changed files unavailable'
 			: changedPath !== undefined ? `changed ${changedPath}`
 				: 'no relevant changes';
+
+		core.info(`${rule.output}: ${affected ? 'run' : 'skip'} (${reason})`);
+		core.setOutput(rule.output, affected ? 'true' : 'false');
+	}
+
+	for (const rule of coreTestRules) {
+		const changedPath = paths?.find(path => !rule.canSkip(path));
+		// An empty file list carries no evidence that the checks are unaffected.
+		const affected = paths === undefined || paths.length === 0 || changedPath !== undefined;
+		const reason = paths === undefined ? 'changed files unavailable'
+			: paths.length === 0 ? 'no changed files reported'
+				: changedPath !== undefined ? `changed ${changedPath}`
+					: 'only changes the tests cannot read';
 
 		core.info(`${rule.output}: ${affected ? 'run' : 'skip'} (${reason})`);
 		core.setOutput(rule.output, affected ? 'true' : 'false');
