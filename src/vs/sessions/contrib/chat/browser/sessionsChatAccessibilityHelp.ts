@@ -109,7 +109,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			if (configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 				logSettingExperimentTrigger(accessor.get(ITelemetryService), ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 				if (configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)) {
-					content.push(localize('sessionsChat.environmentPicker.manage', "Choose Manage at the bottom of the Environment picker to open the Remote Environments dialog. This does not change your selected environment. Hosts not listed in Remote Environments, including configured WebSocket hosts, keep their per-entry Manage submenu."));
+					content.push(localize('sessionsChat.environmentPicker.manage', "Choose Manage Remote Environments at the bottom of the Environment picker to open the Remote Environments dialog. This does not change your selected environment. Hosts not listed in Remote Environments, including configured WebSocket hosts, keep their per-entry Manage submenu."));
 				}
 			}
 		}
