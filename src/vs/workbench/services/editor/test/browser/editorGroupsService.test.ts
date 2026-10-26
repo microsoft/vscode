@@ -2521,8 +2521,11 @@ suite('EditorGroupsService', () => {
 		part.activateGroup(group3);
 		const afterHidden = part.hasMaximizedGroup();
 
-		// Once the maximized view was exited, the group no longer counts as kept visible
-		part.toggleMaximizeGroup(group1);
+		// Once the maximized view was exited, the group no longer counts as kept visible: it is
+		// hidden by a plain maximize, and activating it exits that
+		const exitedBeforePlainMaximize = !part.hasMaximizedGroup();
+		part.arrangeGroups(GroupsArrangement.MAXIMIZE, group1);
+		const plainMaximized = part.hasMaximizedGroup();
 		part.activateGroup(group2);
 		const afterPlainMaximize = part.hasMaximizedGroup();
 
@@ -2533,10 +2536,12 @@ suite('EditorGroupsService', () => {
 		part.maximizeGroup(group1, []);
 		part.activateGroup(group3);
 
-		assert.deepStrictEqual({ atMinimum, keptVisible, afterHidden, afterPlainMaximize, afterRemove, afterNoneKept: part.hasMaximizedGroup() }, {
+		assert.deepStrictEqual({ atMinimum, keptVisible, afterHidden, exitedBeforePlainMaximize, plainMaximized, afterPlainMaximize, afterRemove, afterNoneKept: part.hasMaximizedGroup() }, {
 			atMinimum: true,
 			keptVisible: true,
 			afterHidden: false,
+			exitedBeforePlainMaximize: true,
+			plainMaximized: true,
 			afterPlainMaximize: false,
 			afterRemove: false,
 			afterNoneKept: false,
