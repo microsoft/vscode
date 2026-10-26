@@ -10,6 +10,7 @@ import { IManagedHoverContentOrFactory } from '../../../../../base/browser/ui/ho
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -31,6 +32,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
+import { getNoWorkspaceChoicePresentation } from '../../browser/noWorkspaceChoice.js';
 import { INestedChatWorkspaceHost, NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
 
 suite('Sessions - New Nested Session composer', () => {
@@ -51,10 +53,10 @@ suite('Sessions - New Nested Session composer', () => {
 	}
 
 	/** Picks the list entry whose label matches, the way a user does in the action widget. */
-	function createControls(value: IObservable<INestedChatWorkspaceSupport | undefined>, folderInfo: INestedChatFolderInfo = git, host: Partial<Pick<INestedChatWorkspaceHost, 'describeFolder' | 'folderExists'>> & { recentFolders?: readonly URI[] } = {}) {
+	function createControls(value: IObservable<INestedChatWorkspaceSupport | undefined>, folderInfo: INestedChatFolderInfo = git, host: Partial<Pick<INestedChatWorkspaceHost, 'describeFolder' | 'describeNoWorkspace' | 'folderExists'>> & { recentFolders?: readonly URI[] } = {}) {
 		let pick: string | undefined;
 		const shown: string[][] = [];
-		const lists: { rows: string[]; options: { className: string | undefined; inlineDescription: boolean | undefined } }[] = [];
+		const lists: { rows: string[]; icons: (string | undefined)[]; options: { className: string | undefined; inlineDescription: boolean | undefined } }[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		const hoverDelegate: IHoverDelegate = { placement: 'element', delay: 500, showHover: () => undefined };
 		const hovers = new Map<HTMLElement, { delegate: IHoverDelegate; content: IManagedHoverContentOrFactory }>();
@@ -66,6 +68,7 @@ suite('Sessions - New Nested Session composer', () => {
 				shown.push(items.map(item => item.label ?? ''));
 				lists.push({
 					rows: items.map(item => item.kind === ActionListItemKind.Separator ? '---' : `${item.label}${item.description ? ` · ${item.description}` : ''}`),
+					icons: items.map(item => item.group?.icon?.id),
 					options: { className: listOptions?.className, inlineDescription: listOptions?.inlineDescription },
 				});
 				const item = items.find(candidate => candidate.label === pick);
@@ -100,6 +103,7 @@ suite('Sessions - New Nested Session composer', () => {
 			resolveFolder: async () => folderInfo,
 			getBranches: async () => ['main', 'release'],
 			getFolderSources: () => ({ recentFolders: host.recentFolders ?? [URI.file('/recent')], canOpenLocalFolder: true }),
+			describeNoWorkspace: host.describeNoWorkspace ?? (() => getNoWorkspaceChoicePresentation(false, undefined)),
 			describeFolder: host.describeFolder ?? (() => undefined),
 			folderExists: host.folderExists ?? (async () => true),
 			openLocalFolder: async () => URI.file('/opened'),
@@ -172,21 +176,40 @@ suite('Sessions - New Nested Session composer', () => {
 			singleFolder: { ...singleFolder.state(), items: singleFolder.shown[0] },
 			oldHostOrCloud: { visible: oldHostOrCloud.state().visible, worktreeOffered: oldHostOrCloud.state().worktreeOffered, petPlatforms: oldHostOrCloud.state().petPlatforms },
 		}, {
-			ws: { visible: true, folder: 'repo', canPickFolder: true, worktreeOffered: true, petPlatforms: 1, items: ['repo', 'recent', 'No Workspace', '', 'Browse...', 'Open Folder...'] },
-			wl: { visible: true, folder: 'No Workspace', canPickFolder: true, worktreeOffered: false, petPlatforms: 1, items: ['recent', 'No Workspace', '', 'Browse...', 'Open Folder...'] },
+			ws: { visible: true, folder: 'repo', canPickFolder: true, worktreeOffered: true, petPlatforms: 1, items: ['repo', 'recent', 'No workspace', '', 'Browse...', 'Open Folder...'] },
+			wl: { visible: true, folder: 'No workspace', canPickFolder: true, worktreeOffered: false, petPlatforms: 1, items: ['recent', 'No workspace', '', 'Browse...', 'Open Folder...'] },
 			singleFolder: { visible: true, folder: 'repo', canPickFolder: false, worktreeOffered: true, petPlatforms: 1, items: undefined },
 			oldHostOrCloud: { visible: false, worktreeOffered: false, petPlatforms: 0 },
 		});
 	});
 
-	test('lists the session folder, recent folders and No Workspace like New Session', async () => {
+	test('lists the session folder, recent folders and No workspace like New Session', async () => {
 		const recentFolders = ['a', 'repo', 'b', 'c', 'd', 'e', 'f'].map(name => URI.file(`/work/${name}`));
 		const h = createControls(constObservable(support(URI.file('/work/repo'))), git, { recentFolders, describeFolder: folder => folder.path === '/work/a' ? { label: 'a [host]', description: '/work' } : undefined });
 		await h.pickFolder('nothing');
 		assert.deepStrictEqual(h.lists, [{
-			rows: ['repo · /work', 'a [host] · /work', 'b · /work', 'c · /work', 'd · /work', 'e · /work', 'No Workspace · Start without a backing workspace', '---', 'Browse...', 'Open Folder...'],
+			icons: ['folder', 'folder', 'folder', 'folder', 'folder', 'folder', 'comment-discussion', undefined, 'folder-opened', 'folder-opened'],
+			rows: ['repo · /work', 'a [host] · /work', 'b · /work', 'c · /work', 'd · /work', 'e · /work', 'No workspace · Start without a backing workspace', '---', 'Browse...', 'Open Folder...'],
 			options: { className: 'sessions-new-chat-picker-list', inlineDescription: true },
 		}]);
+	});
+
+	test('presents No workspace the way New Session does for the session\'s provider', async () => {
+		const present = async (unified: boolean, provider: { id: string; label: string; icon: ThemeIcon } | undefined) => {
+			const h = createControls(constObservable(support(URI.file('/work/repo'))), git, { describeNoWorkspace: () => getNoWorkspaceChoicePresentation(unified, provider) });
+			await h.pickFolder('nothing');
+			const row = h.lists[0].rows.findIndex(candidate => candidate.endsWith('Start without a backing workspace'));
+			return { row: h.lists[0].rows[row], icon: h.lists[0].icons[row] };
+		};
+		assert.deepStrictEqual({
+			standard: await present(false, undefined),
+			local: await present(true, { id: 'local-agent-host', label: 'Local', icon: Codicon.deviceDesktop }),
+			remote: await present(true, { id: 'remote-agent-host-dev', label: 'Dev Box', icon: Codicon.remote }),
+		}, {
+			standard: { row: 'No workspace · Start without a backing workspace', icon: Codicon.commentDiscussion.id },
+			local: { row: 'This Computer · Start without a backing workspace', icon: Codicon.deviceDesktop.id },
+			remote: { row: 'Chat [Dev Box] · Start without a backing workspace', icon: Codicon.remote.id },
+		});
 	});
 
 	test('a session folder that no longer exists is neither preselected nor offered, and the trigger says why', async () => {
@@ -202,12 +225,12 @@ suite('Sessions - New Nested Session composer', () => {
 			singleFolder: await describe(singleFolder),
 		}, {
 			missing: {
-				folder: 'No Workspace',
+				folder: 'No workspace',
 				title: '',
-				tooltip: 'No Workspace. The session\'s folder repo no longer exists.',
+				tooltip: 'No workspace. The session\'s folder repo no longer exists.',
 				description: 'The session\'s folder repo no longer exists.',
 				workspace: { kind: 'scratch' },
-				items: ['recent', 'No Workspace', '', 'Browse...', 'Open Folder...'],
+				items: ['recent', 'No workspace', '', 'Browse...', 'Open Folder...'],
 			},
 			cannotTell: { folder: 'repo', title: '', tooltip: 'repo', description: null, workspace: undefined },
 			singleFolder: { folder: 'repo', title: '', tooltip: 'Folder for the Nested Session, repo', description: null, workspace: undefined },
@@ -256,7 +279,7 @@ suite('Sessions - New Nested Session composer', () => {
 		const value = observableValue<INestedChatWorkspaceSupport | undefined>('support', support(repo));
 		const h = createControls(value, git, { recentFolders: [other] });
 		const before = h.controls.getWorkspace();
-		await h.pickFolder('No Workspace');
+		await h.pickFolder('No workspace');
 		const scratch = { workspace: h.controls.getWorkspace(), worktreeOffered: h.state().worktreeOffered };
 		await h.pickFolder('other');
 		const otherFolder = h.controls.getWorkspace();
@@ -271,7 +294,7 @@ suite('Sessions - New Nested Session composer', () => {
 			otherFolder: { kind: 'folder', folder: other, isolation: 'folder' },
 			afterFolderUpdate: { kind: 'folder', folder: other, isolation: 'folder' },
 			afterSessionChange: undefined,
-			label: 'No Workspace',
+			label: 'No workspace',
 		});
 	});
 
@@ -323,6 +346,7 @@ suite('Sessions - New Nested Session composer', () => {
 			resolveFolder: async () => { resolves++; return git; },
 			getBranches: async () => [],
 			getFolderSources: () => ({ recentFolders: [], canOpenLocalFolder: false }),
+			describeNoWorkspace: () => getNoWorkspaceChoicePresentation(false, undefined),
 			describeFolder: () => undefined,
 			folderExists: async () => true,
 			openLocalFolder: async () => undefined,

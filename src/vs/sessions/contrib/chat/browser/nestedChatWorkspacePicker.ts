@@ -26,6 +26,7 @@ import { ISessionWorkspaceBrowseAction } from '../../../services/sessions/common
 import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport } from '../../../services/sessions/common/sessionsProvider.js';
 import { BranchPicker, IBranchPickerState } from './branchPicker.js';
 import { IsolationPicker } from './isolationPicker.js';
+import { INoWorkspaceChoicePresentation } from './noWorkspaceChoice.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { IComposerRepositoryControls } from './newChatComposerInput.js';
 import { WORKSPACE_PICKER_LIST_OPTIONS } from './sessionWorkspacePicker.js';
@@ -109,9 +110,9 @@ export function toNestedChatWorkspace(support: INestedChatWorkspaceSupport, choi
  * How a folder choice is marked in the picker: the folder's icon, and the note naming it the session's own worktree.
  * Only the session folder of a session that runs in a git worktree is marked.
  */
-export function getNestedChatFolderMark(support: INestedChatWorkspaceSupport, choice: NestedChatFolderChoice): { readonly icon: ThemeIcon; readonly worktreeNote: string | undefined } {
+export function getNestedChatFolderMark(support: INestedChatWorkspaceSupport, choice: NestedChatFolderChoice, noWorkspaceIcon: ThemeIcon): { readonly icon: ThemeIcon; readonly worktreeNote: string | undefined } {
 	if (choice.kind === 'scratch') {
-		return { icon: Codicon.circleSlash, worktreeNote: undefined };
+		return { icon: noWorkspaceIcon, worktreeNote: undefined };
 	}
 	const worktree = support.sessionFolderWorktree;
 	if (!worktree || !support.sessionFolder || !isEqual(choice.folder, support.sessionFolder)) {
@@ -144,6 +145,8 @@ export interface INestedChatWorkspaceHost {
 	getBranches(folder: URI, token: CancellationTokenSource['token']): Promise<readonly string[]>;
 	/** Recent folders and whether a local folder dialog applies, read when the folder picker opens. */
 	getFolderSources(): INestedChatFolderSources;
+	/** How New Session's workspace picker presents choosing no workspace for the session's provider. */
+	describeNoWorkspace(): INoWorkspaceChoicePresentation;
 	/** How the session's provider labels a folder in New Session's workspace picker, if it does. */
 	describeFolder(folder: URI): INestedChatFolderLabel | undefined;
 	/**
@@ -338,7 +341,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 			// More than one folder can be picked exactly when the agent gives a chat a folder of its own.
 			const canOpen = support.multipleFolders;
 			dom.clearNode(trigger);
-			const mark = getNestedChatFolderMark(support, folder);
+			const mark = getNestedChatFolderMark(support, folder, this._host.describeNoWorkspace().icon);
 			dom.append(trigger, renderIcon(mark.icon)).setAttribute('aria-hidden', 'true');
 			const folderLabel = this._getFolderLabel(folder);
 			dom.append(trigger, dom.$('span.sessions-chat-dropdown-label')).textContent = folderLabel;
@@ -442,7 +445,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 
 	private _getFolderLabel(choice: NestedChatFolderChoice): string {
 		return choice.kind === 'scratch'
-			? localize('nestedChat.noWorkspace', "No Workspace")
+			? this._host.describeNoWorkspace().label
 			: this._labelService.getUriBasenameLabel(choice.folder);
 	}
 
@@ -459,7 +462,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 		const items: IActionListItem<FolderPickerItem>[] = options.choices.map(choice => ({
 			kind: ActionListItemKind.Action,
 			...this._describeChoice(support, choice),
-			group: { title: '', icon: getNestedChatFolderMark(support, choice).icon },
+			group: { title: '', icon: getNestedChatFolderMark(support, choice, this._host.describeNoWorkspace().icon).icon },
 			item: { kind: 'choice', choice, checked: isSameNestedChatFolder(choice, current) },
 		}));
 		if (options.browseActions.length || options.openFolder) {
@@ -516,13 +519,13 @@ export class NestedChatWorkspaceControls extends Disposable {
 
 	private _describeChoice(support: INestedChatWorkspaceSupport, choice: NestedChatFolderChoice): INestedChatFolderLabel {
 		if (choice.kind === 'scratch') {
-			return { label: this._getFolderLabel(choice), description: localize('nestedChat.noWorkspace.description', "Start without a backing workspace") };
+			return { label: this._getFolderLabel(choice), description: this._host.describeNoWorkspace().description };
 		}
 		const described = this._host.describeFolder(choice.folder) ?? {
 			label: this._getFolderLabel(choice),
 			description: this._labelService.getUriLabel(dirname(choice.folder), { relative: false }),
 		};
-		const worktreeNote = getNestedChatFolderMark(support, choice).worktreeNote;
+		const worktreeNote = getNestedChatFolderMark(support, choice, this._host.describeNoWorkspace().icon).worktreeNote;
 		return worktreeNote ? { label: described.label, description: worktreeNote } : described;
 	}
 }

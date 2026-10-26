@@ -51,7 +51,7 @@ suite('NestedChatWorkspacePicker', () => {
 		const worktreeSupport: INestedChatWorkspaceSupport = { ...support(repo, true), sessionFolderWorktree: { branch: 'agents/fix', repositoryLabel: 'project' } };
 		const unnamedBranchSupport: INestedChatWorkspaceSupport = { ...worktreeSupport, sessionFolderWorktree: { branch: undefined, repositoryLabel: undefined } };
 		const mark = (value: INestedChatWorkspaceSupport, choice: NestedChatFolderChoice) => {
-			const { icon, worktreeNote } = getNestedChatFolderMark(value, choice);
+			const { icon, worktreeNote } = getNestedChatFolderMark(value, choice, Codicon.commentDiscussion);
 			return { icon: icon.id, worktreeNote };
 		};
 		assert.deepStrictEqual({
@@ -64,7 +64,7 @@ suite('NestedChatWorkspacePicker', () => {
 			sessionWorktree: { icon: Codicon.worktreeCompact.id, worktreeNote: 'Session worktree · agents/fix' },
 			sessionWorktreeWithoutBranch: { icon: Codicon.worktreeCompact.id, worktreeNote: 'Session worktree' },
 			otherFolderOfWorktreeSession: { icon: Codicon.folder.id, worktreeNote: undefined },
-			scratchOfWorktreeSession: { icon: Codicon.circleSlash.id, worktreeNote: undefined },
+			scratchOfWorktreeSession: { icon: Codicon.commentDiscussion.id, worktreeNote: undefined },
 			plainSessionFolder: { icon: Codicon.folder.id, worktreeNote: undefined },
 		});
 	});
