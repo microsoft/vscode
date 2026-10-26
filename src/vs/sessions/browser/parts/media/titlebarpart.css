@@ -240,6 +240,11 @@
 	-webkit-app-region: drag;
 }
 
+/* Chat windows that show their chrome in the session header have no title bar. */
+.monaco-workbench .part.titlebar.chromeless {
+	display: none;
+}
+
 /* ---- Phone Layout: Minimal Titlebar ---- */
 
 /* On phone, ensure the titlebar left is visible (it holds the hamburger area)
@@ -272,4 +277,20 @@
 /* Ensure safe area padding on top for notch */
 .agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container {
 	padding-top: env(safe-area-inset-top);
+}
+
+/* A title bar that hosts the session header of a chat window shows it in place of its own content. */
+.monaco-workbench .part.titlebar.hosts-session-header > :not(.session-header-host) {
+	display: none;
+}
+
+.monaco-workbench .part.titlebar:not(.hosts-session-header) > .session-header-host {
+	display: none;
+}
+
+.monaco-workbench .part.titlebar > .session-header-host {
+	height: 100%;
+	flex: 1 1 auto;
+	min-width: 0;
+	-webkit-app-region: drag;
 }

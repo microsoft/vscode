@@ -109,6 +109,8 @@ export const Menus = {
 	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),
 	/** The canvases that chat windows offer in their Add Tab lists, each entry scoped to the window it belongs to. */
 	ChatWindowAddTabCanvas: new MenuId('SessionsChatWindowAddTabCanvas'),
+	/** The canvases that chat windows offer in their Session Activity Bar, each entry scoped to the window it belongs to. */
+	ChatWindowActivityBarCanvas: new MenuId('SessionsChatWindowActivityBarCanvas'),
 	EmptyFileEditorActions: new MenuId('SessionsEmptyFileEditorActions'),
 	EmptySearchEditorActions: new MenuId('SessionsEmptySearchEditorActions'),
 	EmptyBrowserEditorActions: new MenuId('SessionsEmptyBrowserEditorActions'),

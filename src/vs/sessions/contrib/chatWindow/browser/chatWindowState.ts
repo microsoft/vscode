@@ -10,6 +10,9 @@ import { ChatWindowTerminalPosition, IChatWindowKind } from '../../../services/c
 import { SessionLayoutMode, SessionSplitLayout } from '../../../common/sessionLayoutMode.js';
 import { IRememberedLayoutMode } from '../../../services/layoutMode/common/sessionLayoutModeService.js';
 
+/** How the session header of a chat window takes the place of its title bar; see {@link ChatWindowState.headerChrome}. */
+export type ChatWindowHeaderChrome = 'none' | 'replace' | 'host';
+
 /**
  * The defaults of a kind of chat window, kept in the profile: what its chat windows were last left as, which a new one
  * of the kind opens with.
@@ -115,6 +118,14 @@ export class ChatWindowState {
 
 	/** The layouts it can show; see {@link IChatWindow.layouts}. */
 	readonly layouts: readonly SessionLayoutMode[];
+
+	/**
+	 * Whether the session header of the chat shows the chrome of the window, as its top row: in place of the window's title bar (`replace`),
+	 * or moved into it above the editor area (`host`).
+	 */
+	readonly headerChrome = observableValue<ChatWindowHeaderChrome>(this, 'none');
+	/** The element of the window's top row that can host the session header, for {@link headerChrome} `host`. */
+	readonly headerHost = observableValue<HTMLElement | undefined>(this, undefined);
 
 	/** The group of the terminal row across the bottom of the window, while it shows; see {@link IChatWindow.terminalGroup}. */
 	readonly terminalGroup = observableValue<IEditorGroup | undefined>(this, undefined);

@@ -235,8 +235,6 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 
 	private static COUNTER = 1;
 
-	get height() { return this.minimumHeight; }
-
 	constructor(
 		readonly container: HTMLElement,
 		private readonly mainTitlebar: TitlebarPart,
