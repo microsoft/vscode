@@ -675,7 +675,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { contextMenu: { group: 'hotfixes' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The context menu of the Hotfixes subgroup is open, offering Mark All as Read, Create Subgroup, Rename..., and Delete Group.'],
+		expectedVisualDescriptions: ['The context menu of the Hotfixes subgroup is open, offering New Session, then Mark All as Read and Archive All, then Create Subgroup, then Change Icon..., Change Color..., Rename..., and Delete Group.'],
 	}),
 	SessionsList_NestedGroups_DragIntoGroup: defineSessionsListFixture({
 		sessions: NESTED_GROUP_SESSIONS,
