@@ -29,19 +29,20 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
+import { ChatRequestTurn2, ChatResponseConfirmationPart, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
 import { CopilotCloudSessionsProvider, ExternalSessionsMode, filterCloudSessions, formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, getRecentInternalActivityCutoff, ICloudSessionVisibilityOptions, normalizeInitialSessionOptions, parseGitHubContextUrl, readExternalSessionsMode, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, SHOW_EXTERNAL_SESSIONS_SETTING, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { CloudTaskOwnership } from '../cloudTaskOwnership';
 import { TaskApiBackend, TaskApiError, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
-import { CloudSessionData } from '../../vscode/cloudAgentBackend';
+import { CloudAgentBackend, CloudSessionData } from '../../vscode/cloudAgentBackend';
 import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
 import { IPullRequestFileChangesService } from '../pullRequestFileChangesService';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
 import { MockOctoKitService } from '../../../agents/vscode-node/test/mockOctoKitService';
 import { MockChatResponseStream } from '../../../test/node/testHelpers';
+import { TaskTurnStreamer } from '../taskTurnStreamer';
 
 vi.mock('vscode', async () => {
 	const actual = await import('../../../../vscodeTypes');
@@ -371,6 +372,7 @@ describe('cloud session visibility', () => {
 			configurationService = store.add(new InMemoryConfigurationService(store.add(new DefaultsOnlyConfigurationService())));
 			await configurationService.setNonExtensionConfig(SHOW_EXTERNAL_SESSIONS_SETTING, 'last30Days');
 			extensionContext = new class extends mock<IVSCodeExtensionContext>() {
+				override readonly workspaceState = new MockExtensionContext().workspaceState;
 				override readonly globalState = {
 					...new MockExtensionContext().globalState,
 					setKeysForSync: () => { },
@@ -414,6 +416,27 @@ describe('cloud session visibility', () => {
 				configurationService,
 			));
 		}
+
+		it('native permission confirmation does not enter delegation or mark delegation seen', async () => {
+			vi.spyOn(TaskApiBackend.prototype, 'fetchTaskContent').mockResolvedValue(undefined);
+			createProvider();
+			const handler = vi.mocked(vscode.chat.createChatParticipant).mock.calls.at(-1)![1];
+			const resource = getCloudSessionResources('task-1', undefined).resource;
+			const stream = new MockChatResponseStream();
+			await handler(
+				{ prompt: 'Allow Once: "Allow tool?"', sessionResource: resource, acceptedConfirmationData: [{ kind: 'cloudAutomationPermission', taskId: 'task-1', requestId: 'prompt-1', sessionId: 's-0', eventId: 'permission-1' }] } as vscode.ChatRequest,
+				{ history: [], chatSessionContext: { chatSessionItem: { resource, label: 'automation', metadata: { isAutomation: true } }, isUntitled: false } } as unknown as vscode.ChatContext,
+				stream,
+				CancellationToken.None,
+			);
+			expect({
+				delegationSeen: extensionContext.workspaceState.keys().some(key => key.endsWith('seenDelegationPromptBefore')),
+				output: stream.output,
+			}).toEqual({
+				delegationSeen: false,
+				output: ['Could not verify the pending cloud permission. Refresh the session before responding.'],
+			});
+		});
 
 		it('uses the shared workbench repository picker and preserves repository, clone, and cancellation results', async () => {
 			createProvider();
@@ -1116,6 +1139,44 @@ function makeTask(sessions: Array<{ state: string; prompt?: string }> = [], task
 	} as unknown as AgentTaskGetResponse;
 }
 
+function automationPermissionTask(): AgentTaskGetResponse {
+	const task = makeTask([{ state: 'waiting_for_user', prompt: 'Probe' }], 'waiting_for_user');
+	return { ...task, automation_id: 'automation-1', remote_steerable: true, sessions: task.sessions.map(session => ({ ...session, remote_steerable: true })) };
+}
+
+function permissionEvents(): AgentTaskSessionEvent[] {
+	return [
+		evt('session.start', { sessionId: 's-0' }, { id: 'start-1' }),
+		evt('permission.requested', {
+			requestId: 'prompt-1',
+			permissionRequest: { kind: 'mcp', toolCallId: 'tool-1', serverName: 'github-mcp-server', toolName: 'github-mcp-server-add_issue_comment', args: { body: 'cloud-approval-10319 probe', issue_number: 13 } },
+		}, { id: 'permission-1', parentId: 'start-1' }),
+	];
+}
+
+describe('TaskTurnStreamer automation permissions', () => {
+	it('returns locally for an already seeded pending request without remotely aborting', async () => {
+		const events = permissionEvents();
+		const task = automationPermissionTask();
+		const backend = new class extends mock<CloudAgentBackend>() {
+			override fetchTaskContent = vi.fn(async () => ({ task, turns: [] }));
+			override fetchTaskEvents = vi.fn(async () => events);
+			override sendFollowUpToTask = vi.fn(async () => true);
+		}();
+		const parts: vscode.ExtendedChatResponsePart[] = [];
+		const stream = new MockChatResponseStream(part => parts.push(part));
+		const cts = new vscode.CancellationTokenSource();
+		const timer = setTimeout(() => cts.cancel(), 50);
+		try {
+			await new TaskTurnStreamer(backend, new ChatSessionContentBuilder('copilot-cloud-agent', new TestGitService(), new TestLogService()), new TestLogService(), 1).stream(stream, task.id, { mode: 'current', seedEventIds: new Set(events.map(event => event.id)) }, cts.token);
+			expect({ cancelled: cts.token.isCancellationRequested, confirmations: parts.filter(part => part instanceof ChatResponseConfirmationPart).length, steers: backend.sendFollowUpToTask.mock.calls.length }).toEqual({ cancelled: false, confirmations: 1, steers: 0 });
+		} finally {
+			clearTimeout(timer);
+			cts.dispose();
+		}
+	});
+});
+
 /** Summarise a chat history into a comparable shape: turn kind + content snippets. */
 function summarise(history: ReadonlyArray<vscode.ChatRequestTurn | ChatResponseTurn2>): unknown {
 	return history.map(turn => {
@@ -1143,6 +1204,26 @@ function summarise(history: ReadonlyArray<vscode.ChatRequestTurn | ChatResponseT
 describe('ChatSessionContentBuilder Task API history', () => {
 	const newBuilder = () =>
 		new ChatSessionContentBuilder('copilot-cloud-agent', new TestGitService(), new TestLogService());
+
+	it('restores an automation permission even when bootstrap transcript content is suppressed', async () => {
+		const task = automationPermissionTask();
+		const events = permissionEvents();
+		const history = await newBuilder().buildTaskHistory(task, events, undefined, Promise.resolve([]));
+		const confirmations = history.flatMap(turn => turn instanceof ChatResponseTurn2 ? turn.response.filter(part => part instanceof ChatResponseConfirmationPart) : []);
+		expect(confirmations.map(part => ({ title: part.title, data: part.data, buttons: part.buttons }))).toEqual([{
+			title: 'Allow github-mcp-server-add_issue_comment?',
+			data: { kind: 'cloudAutomationPermission', taskId: 'task-1', sessionId: 's-0', requestId: 'prompt-1', eventId: 'permission-1' },
+			buttons: ['Allow Once', 'Deny'],
+		}]);
+	});
+
+	it('does not restore an externally completed permission or enable ordinary cloud approvals', async () => {
+		const results = await Promise.all([
+			newBuilder().buildTaskHistory(automationPermissionTask(), [...permissionEvents(), evt('permission.completed', { requestId: 'prompt-1', result: { kind: 'approved' } })], undefined, Promise.resolve([])),
+			newBuilder().buildTaskHistory(makeTask([{ state: 'waiting_for_user' }], 'waiting_for_user'), permissionEvents(), undefined, Promise.resolve([])),
+		]);
+		expect(results.map(history => history.flatMap(turn => turn instanceof ChatResponseTurn2 ? turn.response.filter(part => part instanceof ChatResponseConfirmationPart) : []).length)).toEqual([0, 0]);
+	});
 
 	it('suppresses bootstrap events before the first user-authored message and splits turns at user-authored boundaries', async () => {
 		const events: AgentTaskSessionEvent[] = [
@@ -1389,6 +1470,20 @@ class FakeTaskApiClient implements ITaskApiClient {
 }
 
 describe('TaskApiBackend', () => {
+	it('requires complete permission events on the decision path while preserving lenient rendering', async () => {
+		const client = new FakeTaskApiClient();
+		const page = Array.from({ length: 100 }, (_, index) => evt('assistant.turn_start', { turnId: `${index}` }));
+		vi.spyOn(client, 'getTaskEvents').mockImplementation(async (_taskId, options) => {
+			if (options?.page === 2) {
+				throw new Error('page two unavailable');
+			}
+			return { events: page, total: 101 };
+		});
+		const backend = new TaskApiBackend(client, new RecordingLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+		expect((await backend.fetchTaskEvents('task-1')).length).toBe(100);
+		await expect(backend.fetchTaskEvents('task-1', { requireComplete: true })).rejects.toThrow('page two unavailable');
+	});
+
 	it.each([['completed', '2026-04-01T00:00:00Z'], ['idle', undefined], ['failed', undefined], ['timed_out', undefined], ['cancelled', undefined]] as const)('lists and resolves %s with the same completion time', async (state, completedAt) => {
 		const task = { ...makeTask([], state), updated_at: '2026-04-01T00:00:00Z', agent_collaborators: [{ slug: 'copilot-developer' }] };
 		const client = new FakeTaskApiClient({ globalTasks: [task] });
