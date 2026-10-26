@@ -29,19 +29,20 @@ interface IFixtureExtension {
 	readonly runtimeState?: ExtensionRuntimeState;
 	/** Whether the extension is suggested when suggestions are shown. */
 	readonly suggested?: boolean;
+	readonly contributes?: Record<string, unknown>;
 }
 
 const fixtureExtensions: readonly IFixtureExtension[] = [
 	{ name: 'one-dark', displayName: 'One Dark Pro', publisher: 'binaryify', description: 'Atom\'s iconic One Dark theme for Visual Studio Code', supported: true, enablementState: EnablementState.EnabledGlobally },
 	{ name: 'material-icons', displayName: 'Material Icon Theme', publisher: 'Philipp Kief', description: 'Material Design Icons for Visual Studio Code', supported: true, enablementState: EnablementState.DisabledWorkspace },
-	{ name: 'python', displayName: 'Python', publisher: 'Microsoft', description: 'Python language support with extension access points for IntelliSense, debugging, and more.', supported: false, enablementState: EnablementState.EnabledWorkspace, runtimeState: { action: ExtensionRuntimeActionType.RestartExtensions, reason: 'Please restart extensions to enable this extension.' }, suggested: true },
+	{ name: 'python', displayName: 'Python', publisher: 'Microsoft', description: 'Python language support with extension access points for IntelliSense, debugging, and more.', supported: false, enablementState: EnablementState.EnabledWorkspace, runtimeState: { action: ExtensionRuntimeActionType.RestartExtensions, reason: 'Please restart extensions to enable this extension.' }, suggested: true, contributes: { debuggers: [{}], languageModelTools: [{}], languageModelToolSets: [{}] } },
 	{ name: 'eslint', displayName: 'ESLint', publisher: 'Microsoft', description: 'Integrates ESLint JavaScript into VS Code.', supported: false, enablementState: EnablementState.DisabledWorkspace },
-	{ name: 'gitlens', displayName: 'GitLens — Git supercharged', publisher: 'GitKraken', description: 'Supercharge Git within VS Code — Visualize code authorship at a glance via Git blame annotations and CodeLens.', supported: false, enablementState: EnablementState.DisabledWorkspace, suggested: true },
+	{ name: 'gitlens', displayName: 'GitLens — Git supercharged', publisher: 'GitKraken', description: 'Supercharge Git within VS Code — Visualize code authorship at a glance via Git blame annotations and CodeLens.', supported: false, enablementState: EnablementState.DisabledWorkspace, suggested: true, contributes: { viewsContainers: { activitybar: [{}] }, views: { gitlens: [{}] }, walkthroughs: [{}], mcpServerDefinitionProviders: [{}], languageModelTools: [{}], chatSkills: [{}] } },
 	{ name: 'prettier', displayName: 'Prettier - Code formatter', publisher: 'Prettier', description: 'Code formatter using prettier', supported: false, enablementState: EnablementState.DisabledGlobally },
 ];
 
 function toExtension(extension: IFixtureExtension): IExtension {
-	const manifest = { name: extension.name, publisher: 'fixture', version: '1.0.0', engines: { vscode: '*' } } satisfies IExtensionManifest;
+	const manifest: IExtensionManifest = { name: extension.name, publisher: 'fixture', version: '1.0.0', engines: { vscode: '*' }, contributes: extension.contributes as IExtensionManifest['contributes'] };
 	return new class extends mock<IExtension>() {
 		override readonly identifier = { id: `fixture.${extension.name}` };
 		override readonly name = extension.name;
@@ -106,10 +107,12 @@ function renderWidget(ctx: ComponentFixtureContext, options: { readonly extensio
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	AgentsWindowExtensions: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The GitLens and Python rows show a small warning icon right after the publisher name. No other row shows a warning icon, and the warning icon is not dimmed on the disabled GitLens row.'],
 		render: ctx => renderWidget(ctx, { extensions: fixtureExtensions }),
 	}),
 	AgentsWindowExtensionsSuggested: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In the AI Features group, GitLens shows the tags Tools, MCP Servers, and Skills, and Python shows a single Tools tag, each after the publisher and warning icon. Rows in the Supported and Other Extensions groups show no tags.'],
 		render: ctx => renderWidget(ctx, { extensions: fixtureExtensions, showSuggestions: true }),
 	}),
 	AgentsWindowExtensionsNarrow: defineComponentFixture({

@@ -16,7 +16,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceTrustEnablementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService, getSessionsWindowSuggestedContributions } from '../../common/extensionManifestPropertiesService.js';
+import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService, getSessionsWindowMissingFeatures, getSessionsWindowSuggestedContributions, SessionsWindowMissingFeature } from '../../common/extensionManifestPropertiesService.js';
 import { TestProductService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
@@ -123,7 +123,6 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 	});
 
 	teardown(() => {
-		testObject.dispose();
 		disposables.dispose();
 	});
 
@@ -249,9 +248,10 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 		const manifests = [
 			extension('tools', { languageModelTools: [{}] }),
 			extension('mcp', { commands: [{}], mcpServerDefinitionProviders: [{}] }),
-			extension('markdownPlugin', { 'markdown.markdownItPlugins': true }),
+			extension('skills', { chatSkills: [{}] }),
+			extension('languageFeaturesOnly', { grammars: [{}], 'markdown.markdownItPlugins': true }),
 			extension('toolsWithViews', { languageModelTools: [{}], views: { explorer: [{}] } }),
-			extension('grammarWithDebugger', { grammars: [{}], debuggers: [{}] }),
+			extension('promptsWithDebugger', { chatPromptFiles: [{}], debuggers: [{}] }),
 			extension('toolsWithStatusBarItem', { languageModelTools: [{}], statusBarItems: { item: {} } }),
 			extension('commandsOnly', { commands: [{}] }),
 			extension('noTools', { languageModelTools: [] }),
@@ -268,9 +268,10 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 			user: {
 				tools: true,
 				mcp: true,
-				markdownPlugin: true,
+				skills: true,
+				languageFeaturesOnly: false,
 				toolsWithViews: false,
-				grammarWithDebugger: false,
+				promptsWithDebugger: false,
 				toolsWithStatusBarItem: false,
 				commandsOnly: false,
 				noTools: false,
@@ -280,6 +281,22 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 			},
 			builtin: false,
 			suggestedContributions: ['mcpServerDefinitionProviders'],
+		});
+	});
+
+	test('lists the features that the sessions window lacks and that contributions rely on', () => {
+		const features = (contributes: Record<string, unknown>) => getSessionsWindowMissingFeatures(getExtensionManifest({ contributes: contributes as IExtensionContributions }));
+
+		assert.deepStrictEqual({
+			none: features({ languageModelTools: [{}], commands: [{}] }),
+			empty: features({ views: {}, debuggers: [] }),
+			views: features({ viewsWelcome: [{}], viewsContainers: { activitybar: [{}] }, views: { explorer: [{}] } }),
+			all: features({ walkthroughs: [{}], statusBarItems: { item: {} }, breakpoints: [{}], views: { explorer: [{}] } }),
+		}, {
+			none: [],
+			empty: [],
+			views: [SessionsWindowMissingFeature.Views],
+			all: [SessionsWindowMissingFeature.Views, SessionsWindowMissingFeature.Debugging, SessionsWindowMissingFeature.StatusBar, SessionsWindowMissingFeature.Walkthroughs],
 		});
 	});
 });
