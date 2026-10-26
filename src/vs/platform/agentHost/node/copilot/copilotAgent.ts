@@ -3077,7 +3077,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async installPlugin(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
 		const liveSession = this._findPluginOperationSession(session, chat);
 		if (liveSession) {
-			await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'installPlugin', () => liveSession.installPlugin(request.source));
+			const targetSessionId = liveSession.sessionId;
+			await this._queueChat(targetSessionId, targetSessionId, 'installPlugin', () => {
+				const currentSession = this._findPluginOperationSession(session, chat);
+				if (!currentSession || currentSession.isDisposed || currentSession.sessionId !== targetSessionId) {
+					throw new Error(localize('copilot.pluginInstallTargetUnavailable', "The selected chat stopped or was replaced before the plugin could be installed."));
+				}
+				return currentSession.installPlugin(request.source);
+			});
 			return;
 		}
 		await this._retryAfterClosedConnection('installPlugin', client => client.rpc.plugins.install({ source: request.source }));
@@ -3133,8 +3140,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async removePluginMarketplace(session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult> {
 		const liveSession = this._findPluginOperationSession(session, chat);
+		const targetSessionId = liveSession?.sessionId;
 		const result = liveSession
-			? await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'removePluginMarketplace', () => liveSession.removePluginMarketplace(name, force))
+			? await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'removePluginMarketplace', () => {
+				const currentSession = this._findPluginOperationSession(session, chat);
+				if (!currentSession || currentSession.isDisposed || currentSession.sessionId !== targetSessionId) {
+					throw new Error(localize('copilot.pluginMarketplaceRemoveTargetUnavailable', "The selected chat stopped or was replaced before the plugin marketplace could be removed."));
+				}
+				return currentSession.removePluginMarketplace(name, force);
+			})
 			: await this._retryAfterClosedConnection('removePluginMarketplace', client => client.rpc.plugins.marketplaces.remove({ name, force }));
 		return {
 			removed: result.removed,

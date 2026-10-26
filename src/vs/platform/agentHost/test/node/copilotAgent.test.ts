@@ -2701,6 +2701,74 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	for (const operation of ['installPlugin', 'removePluginMarketplace'] as const) {
+		for (const target of ['same backing', 'different backing', 'missing', 'disposed'] as const) {
+			test(`${operation} re-resolves its queued plugin target with ${target}`, async () => {
+				const client = new TestCopilotClient([]);
+				const agent = createTestAgent(disposables, { copilotClient: client });
+				const session = AgentSession.uri('copilotcli', 'plugin-queue-session');
+				const chat = URI.parse(buildChatUri(session, 'peer'));
+				const sdkSessionId = 'plugin-queue-backing';
+				const calls: unknown[] = [];
+				const original = {
+					isDisposed: false,
+					dispose() { this.isDisposed = true; },
+					installPlugin: async () => { calls.push('original install'); },
+					removePluginMarketplace: async () => { calls.push('original removal'); return { removed: true }; },
+				};
+				setPeerChatStub(agent, chat, original, sdkSessionId);
+				const queued = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				const internals = agent as unknown as {
+					_queueChat<T>(lifetimeId: string, chatKey: string, operation: string, task: (enterUnboundedPhase: () => void) => Promise<T>): Promise<T>;
+				};
+				internals._queueChat = async (_lifetimeId, _chatKey, _operation, task) => {
+					queued.complete();
+					await release.p;
+					return task(() => { });
+				};
+				try {
+					const mutation = operation === 'installPlugin'
+						? agent.installPlugin({ source: 'plugin@marketplace' }, session, chat)
+						: agent.removePluginMarketplace(session, 'marketplace', true, chat);
+					await queued.p;
+					(agent as unknown as { _chatEntriesBySdkId: { deleteAndDispose(key: string): void } })._chatEntriesBySdkId.deleteAndDispose(sdkSessionId);
+					if (target !== 'missing') {
+						setPeerChatStub(agent, chat, {
+							isDisposed: target === 'disposed',
+							installPlugin: async (source: string) => { calls.push(['install', source]); },
+							removePluginMarketplace: async (name: string, force?: boolean) => {
+								calls.push(['remove', name, force]);
+								return { removed: true, dependentPlugins: ['plugin'] };
+							},
+						}, target === 'different backing' ? 'replacement-plugin-backing' : sdkSessionId);
+					}
+					const completion = target === 'same backing'
+						? mutation
+						: assert.rejects(mutation, /The selected chat stopped or was replaced/);
+					release.complete();
+					const result = await completion;
+					assert.deepStrictEqual({
+						originalDisposed: original.isDisposed,
+						calls,
+						result,
+						globalInstalls: client.pluginInstallRequests,
+						globalRemovals: client.pluginMarketplaceRemoveRequests,
+					}, {
+						originalDisposed: true,
+						calls: target === 'same backing' ? [operation === 'installPlugin' ? ['install', 'plugin@marketplace'] : ['remove', 'marketplace', true]] : [],
+						result: target === 'same backing' && operation === 'removePluginMarketplace' ? { removed: true, dependentPlugins: ['plugin'] } : undefined,
+						globalInstalls: [],
+						globalRemovals: [],
+					});
+				} finally {
+					release.complete();
+					await disposeAgent(agent);
+				}
+			});
+		}
+	}
+
 	test('prefers a live session for plugin marketplace operations', async () => {
 		const client = new TestCopilotClient([]);
 		const session = URI.parse('agent-host-copilotcli:/marketplace-session');
