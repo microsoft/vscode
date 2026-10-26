@@ -15,6 +15,8 @@ If the user only wants to apply an existing image, change its layout, use Codico
 
 Discover `setChatBackground` and an image-generation tool before generating an image. Follow their supported inputs and limits. If either is unavailable or disabled, explain the limitation rather than spending generation credits on a background you cannot apply or claiming success.
 
+Also discover `screenshotWindow`, which captures the window so you can check the applied background. Without it you can still apply a background, but you cannot visually verify it.
+
 The built-in skill and appearance tools require `chat.agentSessions.appearanceTools.enabled`. If the user has disabled them, respect that choice; do not enable the setting unless asked. Existing backgrounds and manual background controls are unaffected.
 
 Use the user's request to guide generation. Ask for clarification only when a missing choice materially affects the result; do not require the user to choose a recipe.
@@ -60,6 +62,16 @@ An opaque image placed in a corner can reveal a rectangular patch if its ground 
 
 Confirm that `setChatBackground` succeeded before saying the image was applied. If it fails, report the error and fix the specific input or file problem rather than silently choosing a different design. Keep the reported previous background and layout available for undo.
 
-When a screenshot or preview of the application is available, evaluate the applied result with chat content, not only the generated image preview: does the requested subject still read, does the image fit its surroundings, and can the conversation remain easy to follow? Consider both populated and empty chats. If you cannot inspect the rendered result, say so rather than claiming it was visually verified.
+After `setChatBackground` succeeds, call `screenshotWindow` to see the result as the user sees it. Call it after `setChatBackground` returns, not in parallel with it. Judge the screenshot with the surrounding interface and chat content, not only the generated image:
+- Does the requested subject still read in the margins and gaps around chat cards and the composer?
+- Does the image fit its surroundings, without visible seams, a rectangular patch, unintended bright highlights, or a pasted-on look?
+- Does the conversation remain easy to read and follow?
+- Do motifs have the intended size? The screenshot is downscaled. Compare image sizes with the reported window size in CSS pixels, because `repeat`, `center`, and the edge or corner layouts display an image at its original pixel size.
 
-Briefly tell the user what was applied and its layout. Mention when high contrast prevents it from being visible.
+If the result misses the request or hurts readability, make a targeted fix and check again: change the layout, resize the tile, or regenerate with a prompt that addresses the specific problem. Keep revisions to a couple of rounds unless the user asks for more, then present the best result and any remaining concerns. Do not abandon the user's requested subject, style, or colors to make the result quieter; explain the trade-off instead.
+
+The screenshot shows only what the window displays now, which may be a different or empty chat at the current width. Do not navigate or rearrange the interface to capture other states; reason about how the background works in populated and empty chats and at other widths. Use the screenshot only to judge the background, and do not report or act on unrelated content it shows.
+
+If `screenshotWindow` is unavailable or fails, or a high contrast theme hides the background, say that the result was not visually verified rather than claiming it was.
+
+Briefly tell the user what was applied, its layout, and whether you checked it in a screenshot. Mention when high contrast prevents it from being visible.

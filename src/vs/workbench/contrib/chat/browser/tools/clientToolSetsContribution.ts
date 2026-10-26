@@ -11,6 +11,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { browserChatToolReferenceNames } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { ScreenshotWindowToolReferenceName } from './screenshotWindowTool.js';
 
 /**
  * Describes a tool set whose membership is resolved dynamically from a list of tool reference names.
@@ -123,6 +124,7 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 			detail: localize('clientToolSet.vscode.detail', "Navigate code, manage extensions, and run built-in VS Code commands."),
 			members: [
 				...(workspaceService.isSessionsWindow ? [] : ['runTests', 'testFailure', 'rename', 'usages']),
+				ScreenshotWindowToolReferenceName,
 				'toolSearch',
 			],
 		}));

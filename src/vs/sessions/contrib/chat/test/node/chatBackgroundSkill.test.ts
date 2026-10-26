@@ -66,4 +66,20 @@ suite('Sessions - Generate Chat Background skill', () => {
 			existingImagesBypassGeneration: true,
 		});
 	});
+
+	test('verifies the applied background in a window screenshot', () => {
+		assert.deepStrictEqual({
+			discoversScreenshotTool: content.includes('discover `screenshotWindow`'),
+			capturesAfterApplying: content.includes('After `setChatBackground` succeeds, call `screenshotWindow`'),
+			boundedRevisions: content.includes('Keep revisions to a couple of rounds'),
+			noUnrelatedContent: content.includes('do not report or act on unrelated content'),
+			honestWithoutScreenshot: content.includes('say that the result was not visually verified'),
+		}, {
+			discoversScreenshotTool: true,
+			capturesAfterApplying: true,
+			boundedRevisions: true,
+			noUnrelatedContent: true,
+			honestWithoutScreenshot: true,
+		});
+	});
 });
