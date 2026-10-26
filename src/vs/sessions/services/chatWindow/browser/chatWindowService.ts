@@ -247,6 +247,9 @@ export const CHAT_WINDOWS_ENABLED_SETTING = 'sessions.chatWindows.enabled';
 
 export const ChatWindowContext = new RawContextKey<string>('sessions.chatWindow', '', localize('chatWindow', "The kind of the chat window, or empty outside chat windows."));
 
+/** Whether the chat window shows a session header, which takes the place of its title bar. Not set outside chat windows. */
+export const ChatWindowHasSessionHeaderContext = new RawContextKey<boolean>('sessions.chatWindowHasSessionHeader', false, localize('chatWindowHasSessionHeader', "Whether the chat window shows a session header in place of its title bar."));
+
 /** Whether the chat window is docked in the main window, rather than in a window of its own. */
 export const ChatWindowDockableContext = new RawContextKey<boolean>('sessions.chatWindowDockable', false, localize('chatWindowDockable', "Whether the chat window can dock in the main window."));
 
