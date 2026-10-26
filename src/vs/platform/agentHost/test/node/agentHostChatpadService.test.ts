@@ -10,7 +10,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { etag, FileSystemProviderCapabilities, type ICreateFileOptions, type IFileContent, type IFileStatWithMetadata, type IReadFileOptions } from '../../../files/common/files.js';
+import { etag, FileSystemProviderCapabilities, type ICreateFileOptions, type IFileStatWithPartialMetadata, type IFileContent, type IFileStatWithMetadata, type IReadFileOptions } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -20,14 +20,22 @@ import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 /** A file service that can fail creating files, and can run another writer while a read is in flight. */
 class TestFileService extends FileService {
 	failCreate = false;
+	stats = 0;
+	creates = 0;
 	/** Runs after each read, which then returns what it read with an older timestamp, as another writer would leave it. */
 	whileReading: (() => Promise<void>) | undefined;
 
 	override async createFile(resource: URI, bufferOrReadableOrStream?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+		this.creates++;
 		if (this.failCreate) {
 			throw new Error('The disk is full.');
 		}
 		return super.createFile(resource, bufferOrReadableOrStream, options);
+	}
+
+	override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
+		this.stats++;
+		return super.stat(resource);
 	}
 
 	override async readFile(resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
@@ -254,5 +262,44 @@ suite('AgentHostChatpadService', () => {
 		const claimed = await Promise.all([service.claim(first, sessions), service.claim(second, sessions)]);
 
 		assert.deepStrictEqual({ claimed, session: service.session }, { claimed: [true, false], session: first.toString() });
+	});
+
+	test('checks an existing note with one stat, and forgets a removed Chatpad chat so later calls look nothing up', async () => {
+		const { service, fileService, existing, sessions } = createService();
+		let lookups = 0;
+		let removed = false;
+		const counted: IAgentHostChatpadSessions = {
+			find: async session => {
+				lookups++;
+				return removed ? 'removed' : sessions.find(session);
+			},
+		};
+		await service.claim(first, counted);
+		existing.add(first.toString());
+
+		fileService.stats = 0;
+		fileService.creates = 0;
+		await service.getChatpad(counted);
+		const existingNote = { stats: fileService.stats, creates: fileService.creates };
+		lookups = 0;
+		existing.clear();
+		const unavailable = await service.getChatpad(counted);
+		const keptWhileUnavailable = service.session;
+		removed = true;
+		const afterRemoval = await service.getChatpad(counted);
+		const lookupsUntilRemoved = lookups;
+		lookups = 0;
+		const later = [await service.getChatpad(counted), await service.append('lost', counted).then(() => 'appended', () => 'failed')];
+
+		assert.deepStrictEqual({ existingNote, unavailable, keptWhileUnavailable, afterRemoval, lookupsUntilRemoved, session: service.session, later, laterLookups: lookups }, {
+			existingNote: { stats: 1, creates: 0 },
+			unavailable: undefined,
+			keptWhileUnavailable: first.toString(),
+			afterRemoval: undefined,
+			lookupsUntilRemoved: 2,
+			session: undefined,
+			later: [undefined, 'failed'],
+			laterLookups: 0,
+		});
 	});
 });
