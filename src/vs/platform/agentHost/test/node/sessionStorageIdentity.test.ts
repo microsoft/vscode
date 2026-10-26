@@ -86,9 +86,9 @@ suite('Session storage identity compatibility', () => {
 		const revision = (await db.getWorktreeDiskUsageRevision(session, worktree))!;
 		await db.writeWorktreeDiskUsage(session, worktree, revision, 1234);
 		assert.deepStrictEqual({
-			runtime: await db.readWorktreeDiskUsage(session, worktree, revision),
-			storage: await db.raw.readWorktreeDiskUsage(db.identity.toStorage(session), worktree, revision),
-		}, { runtime: 1234, storage: 1234 });
+			runtime: await db.readWorktreeDiskUsage(session, worktree),
+			storage: await db.raw.readWorktreeDiskUsage(db.identity.toStorage(session), worktree),
+		}, { runtime: { revision, sizeBytes: 1234, stale: false }, storage: { revision, sizeBytes: 1234, stale: false } });
 	});
 
 	test('maps only registered local identities and preserves chat IDs and arbitrary text', () => {

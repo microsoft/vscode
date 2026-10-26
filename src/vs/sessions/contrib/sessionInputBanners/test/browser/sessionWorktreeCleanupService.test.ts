@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -41,6 +41,67 @@ suite('SessionWorktreeCleanupService', () => {
 		updatedAt.set(new Date(), undefined);
 		const worktrees = await service.getWorktrees(0);
 		assert.deepStrictEqual({ unchangedScans, scans, size: worktrees[0].sizeBytes }, { unchangedScans: 1, scans: 2, size: 2 });
+	});
+
+	test('checks automatic storage hints hourly instead of measuring on session changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const hour = 60 * 60 * 1000;
+		const updatedAt = observableValue('updatedAt', oldDate());
+		const changed = upcastPartial<ISession>({ ...createSession('changed', oldDate()), updatedAt });
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionsChangeEvent>());
+		const requests: string[] = [];
+		const service = disposables.add(createService(
+			[changed, createSession('unchanged', oldDate())], true,
+			session => { requests.push(session.sessionId); return 6 * ByteSize.GB; },
+			undefined, undefined, undefined, undefined, undefined, undefined, onDidChangeSessions.event,
+		));
+		try {
+			await service.activate();
+			updatedAt.set(new Date(), undefined);
+			onDidChangeSessions.fire({ added: [], removed: [], changed: [changed] });
+			await timeout(10_000);
+			await service.activate();
+			const beforeHour = [...requests];
+			await timeout(hour - 10_000);
+			await service.activate();
+			const firstHour = [...requests];
+			await timeout(hour);
+			await service.activate();
+			assert.deepStrictEqual({ beforeHour, firstHour, secondHour: requests }, {
+				beforeHour: ['changed', 'unchanged'],
+				firstHour: ['changed', 'unchanged', 'changed', 'unchanged'],
+				secondHour: ['changed', 'unchanged', 'changed', 'unchanged', 'changed', 'unchanged'],
+			});
+		} finally {
+			service.dispose();
+		}
+	}));
+
+	test('opening cleanup refreshes changed sessions before the next automatic hint check', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const updatedAt = observableValue('updatedAt', oldDate());
+		const session = upcastPartial<ISession>({ ...createSession('changed', oldDate()), updatedAt });
+		let requests = 0;
+		const service = disposables.add(createService([session], true, () => ++requests));
+		try {
+			await service.activate();
+			updatedAt.set(new Date(), undefined);
+			const worktrees = await service.getWorktrees(0);
+			assert.deepStrictEqual({ requests, size: worktrees[0].sizeBytes }, { requests: 2, size: 2 });
+		} finally {
+			service.dispose();
+		}
+	}));
+
+	test('does not repeatedly restart measurement while an existing session keeps changing', async () => {
+		const updatedAt = observableValue('updatedAt', oldDate());
+		const session = upcastPartial<ISession>({ ...createSession('changed', oldDate()), updatedAt });
+		let requests = 0;
+		const service = disposables.add(createService([session], true, () => {
+			updatedAt.set(new Date(updatedAt.get().getTime() + 1), undefined);
+			return ++requests;
+		}));
+		const first = await service.getWorktrees(0, () => { });
+		const second = await service.getWorktrees(0, () => { });
+		assert.deepStrictEqual({ requests, sizes: [first[0].sizeBytes, second[0].sizeBytes] }, { requests: 2, sizes: [1, 2] });
 	});
 
 	test('uses the existing cleanup suggestion for low disk space with a recent worktree', async () => {
