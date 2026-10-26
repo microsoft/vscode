@@ -273,10 +273,12 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 
 	private _stickyModelFromOutlineElement(outlineElement: OutlineElement, previousStartLine: number): StickyElement {
 		const children: StickyElement[] = [];
+
 		for (const child of outlineElement.children.values()) {
-			if (child.symbol.selectionRange.startLineNumber !== child.symbol.range.endLineNumber) {
+			if (child.symbol.selectionRange.startLineNumber === child.symbol.range.endLineNumber) {
 				continue;
 			}
+
 			const childStartLine = child.symbol.selectionRange.startLineNumber;
 
 			if (childStartLine !== previousStartLine) {
@@ -284,13 +286,18 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 			} else if (child.children.size > 0) {
 				for (const subchild of child.children.values()) {
 					if (subchild.symbol.selectionRange.startLineNumber !== subchild.symbol.range.endLineNumber) {
-					children.push(this._stickyModelFromOutlineElement(subchild, subchild.symbol.selectionRange.startLineNumber));
+						children.push(this._stickyModelFromOutlineElement(subchild, subchild.symbol.selectionRange.startLineNumber));
 					}
 				}
 			}
 		}
+
 		children.sort((child1, child2) => this._comparator(child1.range!, child2.range!));
-		const range = new StickyRange(outlineElement.symbol.selectionRange.startLineNumber, outlineElement.symbol.range.endLineNumber);
+		const range = new StickyRange(
+			outlineElement.symbol.selectionRange.startLineNumber,
+			outlineElement.symbol.range.endLineNumber
+		);
+
 		return new StickyElement(range, children, undefined);
 	}
 
