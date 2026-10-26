@@ -274,10 +274,6 @@ function isCanvasMarketplaceResource(resource: ICustomizationMarketplaceResource
 	return getCatalogType(resource) === 'plugin' && resource.compatibilityTags?.some(tag => tag === 'canvas' || tag === 'canvas-only') === true;
 }
 
-function isCanvasOnlyMarketplaceResource(resource: ICustomizationMarketplaceResource): boolean {
-	return getCatalogType(resource) === 'plugin' && resource.compatibilityTags?.includes('canvas-only') === true;
-}
-
 function getSectionForCatalogType(type: 'skill' | 'mcp' | 'plugin'): AICustomizationManagementSection {
 	switch (type) {
 		case 'skill': return AICustomizationManagementSection.Skills;
@@ -1582,7 +1578,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 		return type === 'skill' && this.query.types.has('skill')
 			|| type === 'mcp' && this.query.types.has('mcp')
-			|| type === 'plugin' && this.query.types.has('plugin') && (!resource || !isCanvasOnlyMarketplaceResource(resource))
+			|| type === 'plugin' && this.query.types.has('plugin')
 			|| resource !== undefined && this.query.types.has('canvas') && isCanvasMarketplaceResource(resource);
 	}
 

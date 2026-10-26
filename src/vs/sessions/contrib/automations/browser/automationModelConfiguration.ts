@@ -60,21 +60,25 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 	}
 
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
-		if (!isAutomationModelConfiguration(values)) {
+		if (!isAutomationModelConfiguration(values, true)) {
 			throw new Error('Automation model configuration must contain only JSON primitive values.');
 		}
 		assertModelConfigurationWritable(values, this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema);
 		this.getModelConfiguration(modelId);
 		const ownKeys = this.ownKeys.get(modelId) ?? new Set<string>();
-		for (const key of Object.keys(values)) {
-			ownKeys.add(key);
+		for (const [key, value] of Object.entries(values)) {
+			if (value === undefined) {
+				ownKeys.delete(key);
+			} else {
+				ownKeys.add(key);
+			}
 		}
 		this.ownKeys.set(modelId, ownKeys);
-		this.preferences.set(modelId, deepClone({
+		this.preferences.set(modelId, deepClone(Object.fromEntries(Object.entries({
 			...this.preferences.get(modelId), ...values,
 			...(Object.hasOwn(values, 'tier') && this.languageModelsService.lookupLanguageModel(modelId)?.id === 'auto'
 				? { [AutoTierSourceConfigKey]: 'explicit' } : {}),
-		}));
+		}).filter(([, value]) => value !== undefined))));
 		this._onDidChange.fire(modelId);
 		// Only an explicit picker change updates the defaults shared with ordinary New Session.
 		await this.languageModelsService.setModelConfiguration(modelId, values);

@@ -1980,6 +1980,25 @@ suite('LanguageModels - Duplicate configuration-only groups', () => {
 		assert.deepStrictEqual(service.getModelConfiguration(modelId, false), { thinkingLevel: 'medium', contextSize: 272000 });
 	});
 
+	test('undefined resets remove shared overrides even when host defaults are tracked explicitly', async () => {
+		configurationDefaultKeys = ['thinkingLevel', 'contextSize'];
+		modelChanges.fire();
+		await service.selectLanguageModels({ vendor });
+		await service.setModelConfiguration(modelId, { thinkingLevel: undefined, contextSize: undefined });
+		assert.deepStrictEqual({
+			cached: service.getModelConfiguration(modelId, false),
+			effective: service.getModelConfiguration(modelId),
+			groups,
+		}, {
+			cached: undefined,
+			effective: { thinkingLevel: 'medium', contextSize: 272000 },
+			groups: [
+				{ vendor, name: 'Copilot CLI', settings: { other: { thinkingLevel: 'high' } } },
+				{ vendor: 'other-vendor', name: 'Other', settings: { 'test-model': { thinkingLevel: 'high' } } },
+			],
+		});
+	});
+
 	test('locked host defaults override saved preferences without replacing them', async () => {
 		configurationDefaultKeys = ['thinkingLevel', 'contextSize'];
 		thinkingLevelPolicy = { default: 'high', readOnly: true };
