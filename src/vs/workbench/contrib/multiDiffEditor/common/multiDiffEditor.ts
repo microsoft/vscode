@@ -141,6 +141,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			],
 			default: defaultMultiDiffEditorExperimentalVariant,
 			description: localize('multiDiffEditor.experimental.variant', "Controls the experimental variant of the multi diff editor."),
+			agentsWindow: { default: 'cards' },
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },

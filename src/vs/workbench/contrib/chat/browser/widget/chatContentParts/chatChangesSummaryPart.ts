@@ -55,11 +55,8 @@ export function getChatFileChangeLineCounts(added: number, removed: number): str
 
 /** Options controlling how {@link renderChangesSummaryFileList} renders each row. */
 export interface IChangesSummaryFileListOptions {
-	/**
-	 * Opens the changed file itself, as the editing session's working set does,
-	 * instead of its diff. A deleted file opens its content before the deletion.
-	 */
-	readonly openFile?: boolean;
+	/** Opens a session-owned live review instead of the response's immutable comparison. */
+	readonly openEditor?: (diff: IEditSessionEntryDiff, inDiffEditor: boolean, options: IEditorOptions, sideBySide: boolean) => void;
 	readonly ariaLabel?: string;
 	/**
 	 * Provides the actions shown in a per-row action bar (right-aligned). Return
@@ -86,17 +83,17 @@ export interface IChangesSummaryFileList extends IDisposable {
  * Opens the diff of a file's change, or the multi-diff editor with the absent
  * side empty when the change created or deleted the file.
  */
-export function openChatFileChangeDiff(editorService: IEditorService, diff: IEditSessionEntryDiff, options?: IEditorOptions): void {
+export function openChatFileChangeDiff(editorService: IEditorService, diff: IEditSessionEntryDiff, options?: IEditorOptions, sideBySide = false): void {
 	const editorResource = toChatFileChangeEditorResource(diff);
 	if (!editorResource.original.resource || !editorResource.modified.resource) {
-		openChatFileChanges(editorService, localize('chat.fileChanges', "File Changes"), [diff]);
+		openChatFileChanges(editorService, localize('chat.fileChanges', "File Changes"), [diff], sideBySide, options);
 		return;
 	}
 	editorService.openEditor({
 		original: editorResource.original,
 		modified: editorResource.modified,
 		options,
-	});
+	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
 /**
@@ -127,17 +124,14 @@ export function renderChangesSummaryFileList(
 			return;
 		}
 
-		if (options?.openFile) {
-			editorService.openEditor({
-				resource: diff.isDeleted ? diff.originalURI : diff.modifiedURI,
-				options: item.editorOptions,
-			}, item.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-			return;
-		}
-
 		const altKey = (dom.isMouseEvent(item.browserEvent) || dom.isKeyboardEvent(item.browserEvent)) && item.browserEvent.altKey;
 		const openInDiffEditorByDefault = configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
 		const openInDiffEditor = diff.isDeleted || (altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault);
+
+		if (options?.openEditor) {
+			options.openEditor(diff, openInDiffEditor, item.editorOptions, item.sideBySide);
+			return;
+		}
 
 		if (!openInDiffEditor) {
 			const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI);

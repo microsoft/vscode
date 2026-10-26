@@ -13,6 +13,7 @@ import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../.
 // bootstrap heavy workbench contributions and leak disposables from
 // KeybindingsRegistry in this lightweight test context.
 import { RunScriptContribution, RunScriptDropdownMenuId, WindowScopedCache } from '../../browser/runScriptAction.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -23,6 +24,12 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -64,10 +71,9 @@ suite('RunScriptContribution', () => {
 		assert.deepStrictEqual(disposed, ['a', 'b']);
 	});
 
-	test('the dropdown\'s configure actions are registered once, statically: switching between sessions with different tasks leaves every menu alone', () => {
+	test('the dropdown\'s configure actions are registered once, statically: switching between sessions with different tasks leaves every menu alone', async () => {
 		const store = new DisposableStore();
-		const workspace = (workingDirectory: URI | undefined) => ({ folders: [{ root: URI.file('/r'), workingDirectory }] });
-		const makeSession = (workingDirectory: URI | undefined) => ({ activeChat: constObservable({ workspace: constObservable(workspace(workingDirectory)) }) }) as unknown as IActiveSession;
+		const makeSession = (workingDirectory: URI | undefined) => ({ activeChat: constObservable({ workspace: constObservable({ folders: [{ root: URI.file('/r'), workingDirectory }] }) }) }) as unknown as IActiveSession;
 		const withTasks = makeSession(URI.file('/r'));
 		const withoutTasks = makeSession(undefined);
 		const active = observableValue<IActiveSession | undefined>('active', withTasks);
@@ -83,6 +89,12 @@ suite('RunScriptContribution', () => {
 			override getPinnedBrowser() { return constObservable(false); }
 		});
 		instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() { override register() { return toDisposable(() => { }); } });
+		instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() { });
+		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() { });
+		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() { });
+		instantiationService.stub(ITelemetryService, new class extends mock<ITelemetryService>() { });
+		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
 		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() { override windows = constObservable([]); });
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { });
 		instantiationService.stub(IContextKeyService, contextKeyService);
@@ -91,12 +103,13 @@ suite('RunScriptContribution', () => {
 		const dropdownItems = () => MenuRegistry.getMenuItems(RunScriptDropdownMenuId).filter(isIMenuItem).map(item => ({ id: item.command.id, group: item.group, order: item.order, when: item.when?.serialize() }));
 
 		store.add(instantiationService.createInstance(RunScriptContribution));
+		await timeout(0);
 		const initialChanges = menuChanges.length;
 		const before = dropdownItems();
 		active.set(withoutTasks, undefined);
 		active.set(withTasks, undefined);
 		active.set(withoutTasks, undefined);
-		active.set(withTasks, undefined);
+		await timeout(0);
 
 		assert.deepStrictEqual({ items: before, same: dropdownItems(), menuChangesAfterSwitching: menuChanges.length - initialChanges }, {
 			items: [
