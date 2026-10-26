@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceBrowseSectionsProgress, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceBrowseSectionsProgress, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcesChangeEvent, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -138,7 +138,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; onProgress: CustomizationMarketplaceQueryProgressCallback | undefined; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
 		let browseSectionsProgress: Parameters<NonNullable<ICustomizationMarketplaceService['getBrowseSections']>>[2];
 		const installs: { identifier: string; origin: CustomizationMarketplaceInstallOrigin | undefined; result: DeferredPromise<void> }[] = [];
-		const marketplaceChanges = store.add(new Emitter<void>());
+		const marketplaceChanges = store.add(new Emitter<ICustomizationMarketplaceSourcesChangeEvent>());
 		const recoveryActions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction>();
 		const deletions: DeferredPromise<void>[] = [];
 		const commands: { id: string; args: readonly unknown[] }[] = [];
@@ -2764,7 +2764,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({ items: [resource('blocked', { sourceId: configuredMarketplaceSourceId })] });
 		await timeout(0);
-		fixture.marketplaceChanges.fire();
+		fixture.marketplaceChanges.fire({});
 		await timeout(0);
 		await fixture.requests[1].result.complete({ items: [] });
 		assert.deepStrictEqual({
@@ -2782,7 +2782,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			nextCursor: { token: 'old-cursor' },
 		});
 		await timeout(0);
-		fixture.marketplaceChanges.fire();
+		fixture.marketplaceChanges.fire({});
 		await timeout(0);
 		const resetRequest = fixture.requests.at(-1)!;
 		const beforeNewResults = {
@@ -2834,7 +2834,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				selection: list.getSelection(),
 				busy: fixture.container.querySelector('.customization-discovery-results')!.getAttribute('aria-busy'),
 			});
-			fixture.marketplaceChanges.fire();
+			fixture.marketplaceChanges.fire({});
 			await waitForRequestCount(fixture.requests, 2);
 			snapshot();
 			fixture.requests[1].onProgress?.({
@@ -2859,7 +2859,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		const fixture = createPage([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({ items: [resource('public')] });
-		fixture.marketplaceChanges.fire();
+		fixture.marketplaceChanges.fire({});
 		await timeout(0);
 		await fixture.requests[1].result.complete({ items: [] });
 		assert.deepStrictEqual({
@@ -2872,7 +2872,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		const fixture = createPage(['other']);
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({ items: [resource('old-item', { sourceId: 'other' })] });
-		fixture.marketplaceChanges.fire();
+		fixture.marketplaceChanges.fire({});
 		await fixture.configuration.setUserConfiguration(otherSourceUrlSetting, 'https://new.registry.test');
 		fixture.configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 			override affectsConfiguration(section: string): boolean { return section === otherSourceUrlSetting; }
@@ -3443,7 +3443,7 @@ suite('AICustomizationDiscoveryPage', () => {
 
 		const refreshedPreviews = new DeferredPromise<readonly ICustomizationMarketplaceResource[]>();
 		previews.other = refreshedPreviews.p;
-		fixture.marketplaceChanges.fire();
+		fixture.marketplaceChanges.fire({});
 		await waitForRequestCount(fixture.requests, 2);
 		await fixture.requests[1].result.complete({ items: [] });
 		await timeout(0);
@@ -3570,6 +3570,68 @@ suite('AICustomizationDiscoveryPage', () => {
 			},
 		});
 		await fixture.requests[2].result.complete({ items: [resource('source-24', { sourceId: 'other' })] });
+	});
+
+	async function loadScrolledSourceResults(fixture: ReturnType<typeof createPage>) {
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+		await fixture.selectSource('other');
+		const sourceResources = (start: number, count: number) => Array.from({ length: count }, (_, index) => resource(`source-${start + index}`, { sourceId: 'other', mediaType: CustomizationMarketplaceMediaType.McpServer }));
+		await fixture.requests[1].result.complete({ items: sourceResources(0, 24), nextCursor: { token: 'page-2' } });
+		await timeout(0);
+		const listElement = fixture.container.querySelector<HTMLElement>('.customization-discovery-results .monaco-list')!;
+		listElement.focus();
+		listElement.dispatchEvent(new FocusEvent('focus'));
+		const list = fixture.listService.lastFocusedList;
+		assert.ok(list instanceof WorkbenchList);
+		list.scrollTop = list.scrollHeight;
+		await waitForRequestCount(fixture.requests, 3);
+		await fixture.requests[2].result.complete({ items: sourceResources(24, 10) });
+		await timeout(0);
+		list.scrollTop = 1300;
+		const row = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-content')]
+			.find(row => row.querySelector('.customization-discovery-result-name')?.textContent === 'source-30')!;
+		return { list, row, sourceResources, state: () => ({ length: list.length, scrollTop: list.scrollTop, rowRetained: row.isConnected }) };
+	}
+
+	test('source changes outside the selected source keep its loaded results without reloading', async () => {
+		const fixture = createPage(['other']);
+		const { state } = await loadScrolledSourceResults(fixture);
+		const before = state();
+		fixture.marketplaceChanges.fire({ sourceIds: ['unrelated'] });
+		await timeout(10);
+
+		assert.deepStrictEqual({ state: state(), requests: fixture.requests.length }, { state: before, requests: 3 });
+	});
+
+	test('background refreshes restore loaded results and scroll position in one update', async () => {
+		const fixture = createPage(['other']);
+		const { state, sourceResources } = await loadScrolledSourceResults(fixture);
+		const before = state();
+		fixture.marketplaceChanges.fire({ sourceIds: ['other'] });
+		await waitForRequestCount(fixture.requests, 4);
+		fixture.requests[3].onProgress?.({ page: { items: sourceResources(0, 5) }, completedSourceIds: [], cachedSourceIds: [], totalSourceCount: 1 });
+		const afterPartialProgress = state();
+		await fixture.requests[3].result.complete({ items: sourceResources(0, 24), nextCursor: { token: 'refreshed-page-2' }, sourceErrors: [{ sourceId: 'other', message: 'Refresh warning' }] });
+		await waitForRequestCount(fixture.requests, 5);
+		const whileRestoringDepth = state();
+		await fixture.requests[4].result.complete({ items: sourceResources(24, 10), nextCursor: { token: 'refreshed-page-3' }, sourceErrors: [{ sourceId: 'unrelated', message: 'Unrelated warning' }] });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			afterPartialProgress,
+			whileRestoringDepth,
+			after: state(),
+			cursors: fixture.requests.slice(3).map(request => request.options.cursor),
+			firstPageErrorReported: fixture.prompts.some(([, message]) => String(message).includes('Refresh warning')),
+		}, {
+			afterPartialProgress: before,
+			whileRestoringDepth: before,
+			after: before,
+			cursors: [undefined, { token: 'refreshed-page-2' }],
+			firstPageErrorReported: true,
+		});
 	});
 
 	test('selected-source Browse replaces progressive snapshots with native final order', async () => {
