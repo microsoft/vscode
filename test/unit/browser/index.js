@@ -115,8 +115,9 @@ try {
 	console.error(/** @type {Error} */ (error).message);
 	process.exit(1);
 }
-const runInParallel = workerCount > 1 && !args.run && !args.runList && !args.runGlob && !args.grep && !isDebug;
-if (workerCount > 1 && !runInParallel) {
+const workersApply = args.workers !== undefined && !args.run && !args.runList && !args.runGlob && !args.grep && !isDebug;
+const runInParallel = workersApply && workerCount > 1;
+if (workerCount > 1 && !workersApply) {
 	console.log('Running in a single browser, because --workers only applies when all test files run without --grep or --debug');
 }
 
@@ -950,8 +951,8 @@ testModules.then(async modules => {
 	let didFail = false;
 
 	try {
-		// The workers of a browser already use the CPUs, so browsers run one at a time with them
-		if (args.sequential || runInParallel) {
+		// The workers of a browser already use the CPUs, so browsers run one at a time with them, also when the cap allows only one
+		if (args.sequential || workersApply) {
 			for (const browser of browsers) {
 				const [browserType, browserChannel] = browser.split('-');
 				messages.push(await runTestsWithReruns(modules, browserType, browserChannel));
