@@ -390,6 +390,7 @@ suite('CustomizationMigrationService', () => {
 		const harnessService = new TestCustomizationHarnessService();
 		const createProvider = (onDidChange: Event<void>): ICustomizationMarketplaceManagementProvider => ({
 			onDidChange,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [],
 			add: async (_sessionResource, source) => ({ name: source, source, isDefault: false, managed: false, available: true }),
 			queryMarketplace: async () => ({ items: [], total: 0 }),
@@ -570,6 +571,7 @@ suite('CustomizationMigrationService', () => {
 		}];
 		harnessService.marketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => providerMarketplaces,
 			add: async (_sessionResource, source) => {
 				addedSources.push(source);
@@ -672,6 +674,7 @@ suite('CustomizationMigrationService', () => {
 		const harnessService = new TestCustomizationHarnessService();
 		harnessService.marketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => {
 				listCalls++;
 				throw new Error('Marketplace inventory unavailable');
