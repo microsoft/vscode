@@ -1712,18 +1712,27 @@ suite('GitHub pull request artifact integration', () => {
 		}, { refused: ['failed', false, refusal], retried: ['completed', false], mutations: ['merge'] });
 	}));
 
-	for (const queue of [false, true]) {
-		test(`an uncertain ${queue ? 'merge queue entry stays uncertain' : 'direct merge reconciles as not executed'} while the pull request remains open`, () => run(async store => {
+	for (const scenario of ['direct merge', 'enqueue', 'unrecorded operation'] as const) {
+		test(`reconciliation rules out an uncertain Merge action only for a recorded direct merge (${scenario})`, () => run(async store => {
 			const base = createPullRequestArtifactSnapshot();
-			const f = await fixture(store, { ...base, mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeQueueRequired: queue } } });
+			const queued = { ...base, mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeQueueRequired: true } } };
+			const f = await fixture(store, scenario === 'enqueue' ? queued : base);
 			let failures = 1;
-			f.onMerge(async () => {
+			const fail = async () => {
 				if (failures-- > 0) {
 					throw new GitHubRequestError('GitHub API request failed', 'network');
 				}
-			});
+			};
+			// An unrecorded run fails before it records its operation, like a checkpoint written by an older version.
+			if (scenario === 'unrecorded operation') {
+				f.onPrepareMerge(fail);
+			} else {
+				f.onMerge(fail);
+			}
 			const uncertain = await f.invoke('merge');
 			await f.service.whenIdle();
+			// The entry can leave the queue and the requirement can be removed before reconciliation.
+			f.snapshot.set(base, undefined);
 			await f.model.reconcile(uncertain.id);
 			const retried = await f.model.invoke(gitHubPullRequestArtifactIntegrationId, 'merge', f.chat, 'retry');
 			await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === retried.id && (run.state === 'blocked' || isArtifactRunSettled(run))));
@@ -1733,8 +1742,8 @@ suite('GitHub pull request artifact integration', () => {
 				mutations: f.mutations,
 			}, {
 				uncertain: ['interrupted', true],
-				runs: queue ? [['interrupted', true], ['blocked', false]] : [['interrupted', false], ['completed', false]],
-				mutations: queue ? [] : ['merge'],
+				runs: scenario === 'direct merge' ? [['interrupted', false], ['completed', false]] : [['interrupted', true], ['blocked', false]],
+				mutations: scenario === 'direct merge' ? ['merge'] : [],
 			});
 		}));
 	}
