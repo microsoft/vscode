@@ -162,16 +162,6 @@ function setCopilotBuiltinGitHubMcpEnvironment(env: Record<string, string | unde
 	}
 }
 
-/** Keeps tgrep disabled in control, or permits the SDK's size-gated feature flag in treatment. */
-function setCopilotTgrepEnvironment(env: Record<string, string | undefined>, enabled: boolean): void {
-	deleteEnvironmentVariable(env, 'USE_TGREP');
-	if (enabled) {
-		deleteEnvironmentVariable(env, 'USE_BUILTIN_RIPGREP');
-	} else {
-		env['USE_TGREP'] = 'false';
-	}
-}
-
 function addCopilotFeatureFlag(env: Record<string, string | undefined>, flag: string): void {
 	const enabledFlags = env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'];
 	const flags = new Set((enabledFlags ?? '').split(',').map(f => f.trim()).filter(Boolean));
@@ -1528,10 +1518,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ClaudeAdvisor) === true;
 	}
 
-	private _isTgrepEnabled(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Tgrep) === true;
-	}
-
 	private _isExecutionSubagentEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ExecutionSubagent) === true;
 	}
@@ -1835,7 +1821,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return new CopilotAgentStartupConfig(
 			this._isRubberDuckEnabled(),
 			this._isClaudeAdvisorEnabled(),
-			this._isTgrepEnabled(),
 			this._isHydraFusionEnabled(),
 			this._isHydraFusionV2Enabled(),
 			this._isHydraFusionMultiRootEnabled(),
@@ -4236,10 +4221,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				delete env['RUBBER_DUCK_AGENT'];
 			}
 
-			setCopilotTgrepEnvironment(env, startupConfig.tgrep);
-			if (startupConfig.tgrep) {
-				this._logService.info('[Copilot] Enabled repository-size-gated tgrep indexed search');
-			}
+			// Let the SDK's TGREP feature flag select indexed search for eligible repositories.
+			deleteEnvironmentVariable(env, 'USE_TGREP');
+			deleteEnvironmentVariable(env, 'USE_BUILTIN_RIPGREP');
+			this._logService.info('[Copilot] Enabled repository-size-gated tgrep indexed search');
 
 			// Keep the SDK wrapper and native module paired within the bundled platform
 			// package. Only the runtime executable can be explicitly overridden.
