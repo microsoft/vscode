@@ -82,6 +82,8 @@ export type INestedChatWorkspace =
 export interface INestedChatWorkspaceSupport {
 	/** The session's own folder (its default chat's primary folder, excluding scratch folders); `undefined` for a workspace-less session. */
 	readonly sessionFolder: URI | undefined;
+	/** When the session folder is the session's own git worktree, its branch and repository label; `undefined` otherwise. */
+	readonly sessionFolderWorktree: { readonly branch: string | undefined; readonly repositoryLabel: string | undefined } | undefined;
 	/** Whether the agent gives a chat its own folder (agent capability `multipleWorkingDirectories`). */
 	readonly multipleFolders: boolean;
 	/** Folder browse actions of this provider (same host), for "Browse…". */

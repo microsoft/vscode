@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -21,12 +21,12 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport } from '../../../services/sessions/common/sessionsProvider.js';
 import { BranchPicker, IBranchPickerState } from './branchPicker.js';
 import { IsolationPicker } from './isolationPicker.js';
+import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { IComposerRepositoryControls } from './newChatComposerInput.js';
 import { WORKSPACE_PICKER_LIST_OPTIONS } from './sessionWorkspacePicker.js';
 
@@ -105,6 +105,26 @@ export function toNestedChatWorkspace(support: INestedChatWorkspaceSupport, choi
 	return isSameNestedChatFolder(choice, getDefaultNestedChatFolder(support)) ? undefined : { kind: 'folder', folder: choice.folder, isolation: 'folder' };
 }
 
+/**
+ * How a folder choice is marked in the picker: the folder's icon, and the note naming it the session's own worktree.
+ * Only the session folder of a session that runs in a git worktree is marked.
+ */
+export function getNestedChatFolderMark(support: INestedChatWorkspaceSupport, choice: NestedChatFolderChoice): { readonly icon: ThemeIcon; readonly worktreeNote: string | undefined } {
+	if (choice.kind === 'scratch') {
+		return { icon: Codicon.circleSlash, worktreeNote: undefined };
+	}
+	const worktree = support.sessionFolderWorktree;
+	if (!worktree || !support.sessionFolder || !isEqual(choice.folder, support.sessionFolder)) {
+		return { icon: Codicon.folder, worktreeNote: undefined };
+	}
+	return {
+		icon: Codicon.worktreeCompact,
+		worktreeNote: worktree.branch
+			? localize('nestedChat.folder.sessionWorktreeBranch', "Session worktree · {0}", worktree.branch)
+			: localize('nestedChat.folder.sessionWorktree', "Session worktree"),
+	};
+}
+
 // #endregion
 
 // #region --- View ---
@@ -159,6 +179,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 	private readonly _resolve = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _folderRenderStore = this._register(new DisposableStore());
 	private _folderTrigger: HTMLElement | undefined;
+	private _folderSlot: HTMLElement | undefined;
 	private _isOpen = false;
 	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
 	readonly onDidChangeChatPetPlatform: Event<void> = this._onDidChangeChatPetPlatform.event;
@@ -170,7 +191,6 @@ export class NestedChatWorkspaceControls extends Disposable {
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
-		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -289,22 +309,17 @@ export class NestedChatWorkspaceControls extends Disposable {
 		this._folderRenderStore.clear();
 		const slot = dom.append(row, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot.sessions-workspace-picker-trigger.nested-chat-folder-picker'));
 		this._folderRenderStore.add(toDisposable(() => slot.remove()));
-		const trigger = this._folderTrigger = dom.append(slot, dom.$('a.action-label.selected'));
 		let tooltip = '';
-		this._folderRenderStore.add(this._hoverService.setupManagedHover(hoverDelegate ?? this._folderRenderStore.add(createInstantHoverDelegate()), trigger, () => tooltip));
-		this._folderRenderStore.add(toDisposable(() => this._folderTrigger = undefined));
-		this._folderRenderStore.add(Gesture.addTarget(trigger));
-		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
-			this._folderRenderStore.add(dom.addDisposableListener(trigger, eventType, e => {
-				dom.EventHelper.stop(e, true);
-				this._showFolderPicker(trigger);
-			}));
-		}
-		this._folderRenderStore.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				dom.EventHelper.stop(e, true);
-				this._showFolderPicker(trigger);
-			}
+		// Hosted like New Session's pickers: in a toolbar that provides the activation, keyboard and hover.
+		const { trigger } = createSessionPickerToolbar(this._folderRenderStore, slot, this._instantiationService,
+			'sessions.nestedChatFolderPicker', localize('nestedChat.folder.pickerAction', "Pick Folder for the Nested Session"),
+			() => this._showFolderPicker(this._folderTrigger!), hoverDelegate ?? this._folderRenderStore.add(createInstantHoverDelegate()), () => tooltip);
+		this._folderTrigger = trigger;
+		trigger.classList.add('selected');
+		this._folderSlot = slot;
+		this._folderRenderStore.add(toDisposable(() => {
+			this._folderTrigger = undefined;
+			this._folderSlot = undefined;
 		}));
 		const platformObserver = this._folderRenderStore.add(new dom.DisposableResizeObserver(
 			'NestedChatWorkspaceControls.chatPetPlatform',
@@ -323,9 +338,11 @@ export class NestedChatWorkspaceControls extends Disposable {
 			// More than one folder can be picked exactly when the agent gives a chat a folder of its own.
 			const canOpen = support.multipleFolders;
 			dom.clearNode(trigger);
-			dom.append(trigger, renderIcon(folder.kind === 'scratch' ? Codicon.circleSlash : Codicon.folder)).setAttribute('aria-hidden', 'true');
-			const label = this._getFolderLabel(folder);
-			dom.append(trigger, dom.$('span.sessions-chat-dropdown-label')).textContent = label;
+			const mark = getNestedChatFolderMark(support, folder);
+			dom.append(trigger, renderIcon(mark.icon)).setAttribute('aria-hidden', 'true');
+			const folderLabel = this._getFolderLabel(folder);
+			dom.append(trigger, dom.$('span.sessions-chat-dropdown-label')).textContent = folderLabel;
+			const label = mark.worktreeNote ? localize('nestedChat.folder.labelWithWorktree', "{0}, {1}", folderLabel, mark.worktreeNote) : folderLabel;
 			if (canOpen) {
 				const chevron = dom.append(trigger, renderIcon(Codicon.chevronDownCompact));
 				chevron.classList.add('sessions-chat-dropdown-chevron');
@@ -362,7 +379,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 
 	/** Elements the chat pet can stand on, like the New Session workspace picker. */
 	getChatPetPlatformElements(): readonly HTMLElement[] {
-		return this._folderTrigger?.parentElement?.hidden === false ? [this._folderTrigger] : [];
+		return this._folderTrigger && this._folderSlot?.hidden === false ? [this._folderTrigger] : [];
 	}
 
 	/**
@@ -441,8 +458,8 @@ export class NestedChatWorkspaceControls extends Disposable {
 		const options = getNestedChatFolderOptions(support, this._host.getFolderSources(), this._sessionFolderMissing.get());
 		const items: IActionListItem<FolderPickerItem>[] = options.choices.map(choice => ({
 			kind: ActionListItemKind.Action,
-			...this._describeChoice(choice),
-			group: { title: '', icon: choice.kind === 'scratch' ? Codicon.circleSlash : Codicon.folder },
+			...this._describeChoice(support, choice),
+			group: { title: '', icon: getNestedChatFolderMark(support, choice).icon },
 			item: { kind: 'choice', choice, checked: isSameNestedChatFolder(choice, current) },
 		}));
 		if (options.browseActions.length || options.openFolder) {
@@ -497,14 +514,16 @@ export class NestedChatWorkspaceControls extends Disposable {
 		}, WORKSPACE_PICKER_LIST_OPTIONS);
 	}
 
-	private _describeChoice(choice: NestedChatFolderChoice): INestedChatFolderLabel {
+	private _describeChoice(support: INestedChatWorkspaceSupport, choice: NestedChatFolderChoice): INestedChatFolderLabel {
 		if (choice.kind === 'scratch') {
 			return { label: this._getFolderLabel(choice), description: localize('nestedChat.noWorkspace.description', "Start without a backing workspace") };
 		}
-		return this._host.describeFolder(choice.folder) ?? {
+		const described = this._host.describeFolder(choice.folder) ?? {
 			label: this._getFolderLabel(choice),
 			description: this._labelService.getUriLabel(dirname(choice.folder), { relative: false }),
 		};
+		const worktreeNote = getNestedChatFolderMark(support, choice).worktreeNote;
+		return worktreeNote ? { label: described.label, description: worktreeNote } : described;
 	}
 }
 

@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IManagedHoverContentOrFactory } from '../../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
+import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -20,6 +22,11 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOp
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -37,6 +44,7 @@ suite('Sessions - New Nested Session composer', () => {
 	function support(sessionFolder: URI | undefined, multipleFolders = true): INestedChatWorkspaceSupport {
 		return {
 			sessionFolder,
+			sessionFolderWorktree: undefined,
 			multipleFolders,
 			browseActions: [{ label: 'Browse...', icon: Codicon.folderOpened, providerId: 'p', run: async () => undefined }],
 		};
@@ -66,17 +74,27 @@ suite('Sessions - New Nested Session composer', () => {
 				}
 			},
 		} as Partial<IActionWidgetService>);
+		instantiationService.stub(IMenuService, { getMenuActions: () => [] });
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IKeybindingService, new MockKeybindingService());
+		instantiationService.stub(ICommandService, {});
 		instantiationService.stub(ILabelService, {
 			getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '',
 			getUriLabel: (uri: URI) => uri.path,
 		} as Partial<ILabelService>);
-		instantiationService.stub(IHoverService, {
+		const hoverService: Partial<IHoverService> = {
 			setupDelayedHover: () => toDisposable(() => { }),
 			setupManagedHover: (delegate, target, content) => {
 				hovers.set(target, { delegate, content });
 				return { dispose: () => hovers.delete(target), show: () => { }, hide: () => { }, update: () => { } };
 			},
-		} as Partial<IHoverService>);
+		};
+		instantiationService.stub(IHoverService, hoverService);
+		// Toolbar items set up their hovers through the base layer delegate.
+		// A test may create several controls: the latest takes over the stub.
+		(getBaseLayerHoverDelegate().setupManagedHover as Partial<sinon.SinonStub>).restore?.();
+		const setupManagedHover = sinon.stub(getBaseLayerHoverDelegate(), 'setupManagedHover').callsFake((delegate, target, content) => hoverService.setupManagedHover!(delegate, target, content));
+		store.add(toDisposable(() => setupManagedHover.restore()));
 		const controls = store.add(instantiationService.createInstance(NestedChatWorkspaceControls, {
 			support: value,
 			resolveFolder: async () => folderInfo,
@@ -94,8 +112,10 @@ suite('Sessions - New Nested Session composer', () => {
 		return {
 			controls, shown, lists, trigger,
 			tooltip() {
-				const content = hovers.get(trigger())?.content;
-				return typeof content === 'function' ? content() : content;
+				const content = hovers.get(trigger().closest<HTMLElement>('.action-item')!)?.content;
+				const resolved = typeof content === 'function' ? content() : content;
+				const markdown = resolved && typeof resolved === 'object' ? Reflect.get(resolved, 'markdown') : undefined;
+				return typeof markdown === 'function' ? markdown() : resolved;
 			},
 			hoverPresentation() {
 				return Array.from(hovers, ([target, hover]) => ({
@@ -117,7 +137,7 @@ suite('Sessions - New Nested Session composer', () => {
 			state() {
 				const repository = repositoryContainer.querySelector<HTMLElement>('.nested-chat-repository-controls')!;
 				return {
-					visible: !trigger().parentElement!.hidden,
+					visible: !row.querySelector<HTMLElement>('.nested-chat-folder-picker')!.hidden,
 					folder: trigger().textContent,
 					canPickFolder: trigger().tabIndex === 0,
 					worktreeOffered: !repository.hidden && repositoryControls.visible.get(),
@@ -175,11 +195,11 @@ suite('Sessions - New Nested Session composer', () => {
 		const singleFolder = createControls(constObservable(support(repo, false)), git, { folderExists: async () => false });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		await missing.pickFolder('nothing');
-		const describe = (h: ReturnType<typeof createControls>) => ({ folder: h.state().folder, title: h.trigger().title, tooltip: h.tooltip(), description: h.trigger().getAttribute('aria-description'), workspace: h.controls.getWorkspace() });
+		const describe = async (h: ReturnType<typeof createControls>) => ({ folder: h.state().folder, title: h.trigger().title, tooltip: await h.tooltip(), description: h.trigger().getAttribute('aria-description'), workspace: h.controls.getWorkspace() });
 		assert.deepStrictEqual({
-			missing: { ...describe(missing), items: missing.shown[0] },
-			cannotTell: describe(cannotTell),
-			singleFolder: describe(singleFolder),
+			missing: { ...await describe(missing), items: missing.shown[0] },
+			cannotTell: await describe(cannotTell),
+			singleFolder: await describe(singleFolder),
 		}, {
 			missing: {
 				folder: 'No Workspace',
