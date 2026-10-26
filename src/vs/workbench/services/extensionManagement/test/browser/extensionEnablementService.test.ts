@@ -1388,8 +1388,8 @@ suite('ExtensionEnablementService Test', () => {
 		const tools = aLocalExtension2('pub.tools', { main: 'main.js', contributes: someContributions({ languageModelTools: [{}] }) });
 		const toolsWithViews = aLocalExtension2('pub.toolsWithViews', { main: 'main.js', contributes: someContributions({ languageModelTools: [{}], views: { explorer: [{}] } }) });
 		const commandsOnly = aLocalExtension2('pub.commandsOnly', { main: 'main.js', contributes: someContributions({ commands: [{}] }) });
-		const disabledByUser = aLocalExtension2('pub.disabledByUser', { main: 'main.js', contributes: someContributions({ grammars: [{}] }) });
-		const disabledGlobally = aLocalExtension2('pub.disabledGlobally', { main: 'main.js', contributes: someContributions({ grammars: [{}] }) });
+		const disabledByUser = aLocalExtension2('pub.disabledByUser', { main: 'main.js', contributes: someContributions({ chatSkills: [{}] }) });
+		const disabledGlobally = aLocalExtension2('pub.disabledGlobally', { main: 'main.js', contributes: someContributions({ chatSkills: [{}] }) });
 		const builtinTools = aLocalExtension2('pub.builtinTools', { main: 'main.js', contributes: someContributions({ languageModelTools: [{}], views: { explorer: [{}] } }) }, { type: ExtensionType.System });
 		await testObject.setEnablement([disabledByUser], EnablementState.DisabledWorkspace);
 		await testObject.setEnablement([disabledGlobally], EnablementState.DisabledGlobally);
@@ -1414,7 +1414,7 @@ suite('ExtensionEnablementService Test', () => {
 		await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, true);
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
 		const tools = aLocalExtension2('pub.tools', { main: 'main.js', contributes: someContributions({ languageModelTools: [{}] }) });
-		const enabledByUser = aLocalExtension2('pub.enabledByUser', { main: 'main.js', contributes: someContributions({ grammars: [{}] }) });
+		const enabledByUser = aLocalExtension2('pub.enabledByUser', { main: 'main.js', contributes: someContributions({ chatSkills: [{}] }) });
 		installed.push(tools, enabledByUser);
 		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
 		await testObject.waitUntilInitialized();
