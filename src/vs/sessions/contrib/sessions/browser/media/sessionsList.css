@@ -857,6 +857,15 @@
 	&::after {
 		left: calc(var(--vscode-spacing-size360) + var(--vscode-spacing-size80));
 	}
+
+	> .session-comparison-chat-connector {
+		position: absolute;
+		top: 0;
+		bottom: calc(-1 * var(--vscode-spacing-size20));
+		left: var(--vscode-spacing-size200);
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
+		pointer-events: none;
+	}
 }
 
 .session-chat-item {
@@ -1545,6 +1554,10 @@
 		top: var(--vscode-spacing-size320);
 	}
 
+	.monaco-list-row[aria-expanded="true"] .session-item[data-session-group-connector]::after {
+		left: var(--vscode-spacing-size200);
+	}
+
 	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie).collapsible {
 		opacity: 1;
 		pointer-events: auto;
@@ -1562,6 +1575,11 @@
 		--session-chat-base-height: 44px;
 		padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 		font-size: var(--vscode-fontSize-body1);
+
+		&.session-comparison-chat::before,
+		&.session-comparison-chat::after {
+			left: var(--vscode-spacing-size200);
+		}
 	}
 
 	.session-chat-item.standalone {

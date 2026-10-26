@@ -6083,6 +6083,39 @@ suite('Sessions - SessionsList', () => {
 				})));
 			});
 
+			test(`continues the comparison trunk through an expanded middle participant's chats (${mode})`, () => {
+				const { attempt1, container, harness, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, undefined, false, presentation);
+				const nested = buildTestSession({ id: 'nested-middle', chats: [{ id: 'one', title: 'First chat' }, { id: 'two', title: 'Last chat' }] });
+				const session: ISession = {
+					...attempt1.session,
+					chats: nested.session.chats,
+					mainChat: nested.session.mainChat,
+					capabilities: nested.session.capabilities,
+				};
+				harness.managementService.sessions = harness.managementService.sessions.map(candidate => candidate === attempt1.session ? session : candidate);
+				list.refresh();
+				list.layout(600, 400);
+				list.setItemCollapsed({ session: session.resource }, false);
+				list.setFocusedItem({ session: session.resource });
+				const chats = [...container.querySelectorAll<HTMLElement>('.session-comparison-chat')];
+
+				assert.deepStrictEqual(chats.map(chat => {
+					const trunk = chat.querySelector<HTMLElement>('.session-comparison-chat-connector');
+					const style = trunk && mainWindow.getComputedStyle(trunk);
+					return {
+						title: chat.querySelector('.session-chat-title')?.textContent,
+						left: style?.left,
+						top: style?.top,
+						bottom: style?.bottom,
+						border: style?.borderLeftWidth,
+						pointerEvents: style?.pointerEvents,
+						decorative: trunk?.getAttribute('aria-hidden'),
+					};
+				}), ['First chat', 'Last chat'].map(title => ({
+					title, left: '20px', top: '0px', bottom: '-2px', border: '1px', pointerEvents: 'none', decorative: 'true',
+				})));
+			});
+
 			test(`keeps an expanded participant's incoming connector separate from its chat guide (${mode})`, () => {
 				const { attempt2, judge, container, harness, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, undefined, false, presentation);
 				const nested = buildTestSession({ id: 'nested-attempt', title: 'Attempt', chats: [{ id: 'peer', title: 'Nested chat' }] });
@@ -6112,8 +6145,25 @@ suite('Sessions - SessionsList', () => {
 				const focused = appearance();
 				list.setFocusedItem({ session: judge.session.resource });
 
+				const chat = container.querySelector<HTMLElement>('.session-comparison-chat')!;
+				const chatIcon = chat.querySelector<HTMLElement>('.session-chat-icon')!;
+				const elbow = mainWindow.getComputedStyle(chat, '::after');
+				const chatIconLeft = chatIcon.getBoundingClientRect().left - chat.getBoundingClientRect().left;
+				assert.deepStrictEqual({
+					outgoingGuide: mainWindow.getComputedStyle(participant, '::after').left,
+					chatTrunk: mainWindow.getComputedStyle(chat, '::before').left,
+					chatElbow: elbow.left,
+					guideBeforeIcon: parseFloat(elbow.left) + parseFloat(elbow.width) <= chatIconLeft,
+					outerTrunk: chat.querySelector('.session-comparison-chat-connector'),
+				}, {
+					outgoingGuide: presentation.phone ? '20px' : '44px',
+					chatTrunk: presentation.phone ? '20px' : '44px',
+					chatElbow: presentation.phone ? '20px' : '44px',
+					guideBeforeIcon: true,
+					outerTrunk: null,
+				});
+
 				if (!presentation.phone) {
-					const chat = container.querySelector<HTMLElement>('.session-comparison-chat')!;
 					const row = participant.closest<HTMLElement>('.monaco-list-row')!;
 					const twistie = row.querySelector<HTMLElement>('.session-comparison-attempt-twistie')!;
 					const icon = participant.querySelector<HTMLElement>('.session-icon')!;
