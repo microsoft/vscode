@@ -69,7 +69,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				instantiation.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 				const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 				assert.deepStrictEqual({
-					describesManage: content.includes('Choose Manage at the bottom of the Environment picker'),
+					describesManage: content.includes('Choose Manage Remote Environments at the bottom of the Environment picker'),
 					describesWebSocketManagement: content.includes('configured WebSocket hosts, keep their per-entry Manage submenu'),
 					triggers: telemetry.triggers.filter(name => name === `config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`),
 				}, {
