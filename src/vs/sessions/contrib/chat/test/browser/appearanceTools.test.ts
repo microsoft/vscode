@@ -105,7 +105,7 @@ suite('Sessions - Appearance tools', () => {
 		return { service, configuration, context, instantiationService, setEnabled, snapshot };
 	}
 
-	test('is advanced, experiment-controlled, and enabled by default', () => {
+	test('is advanced, experiment-controlled, and disabled by default', () => {
 		assert.deepStrictEqual({
 			type: appearanceToolsProperty.type,
 			default: appearanceToolsProperty.default,
@@ -114,7 +114,7 @@ suite('Sessions - Appearance tools', () => {
 			experiment: appearanceToolsProperty.experiment,
 		}, {
 			type: 'boolean',
-			default: true,
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			advanced: true,
 			experiment: { mode: 'auto' },
