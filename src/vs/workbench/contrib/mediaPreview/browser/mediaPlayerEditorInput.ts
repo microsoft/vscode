@@ -250,7 +250,7 @@ export class MediaPlayerEditorInput extends WebviewInput {
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src ${webviewGenericCspSource}; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src ${webviewGenericCspSource} blob:; connect-src ${webviewGenericCspSource}; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
 	<style nonce="${nonce}">
 		html, body {
 			width: 100%;
@@ -293,8 +293,99 @@ export class MediaPlayerEditorInput extends WebviewInput {
 	<script nonce="${nonce}">
 		(function () {
 			const vscode = acquireVsCodeApi();
-			document.querySelector('audio, video')?.addEventListener('error', () => {
-				document.body.classList.add('error');
+			const media = document.querySelector('audio, video');
+			const showError = () => document.body.classList.add('error');
+
+			// Some Electron builds ship an FFmpeg without the WebM container, so a WebM file
+			// cannot be opened directly. Media Source Extensions parse WebM in Chromium itself.
+			// Remove this fallback once the shipped FFmpeg supports WebM:
+			// https://github.com/microsoft/vscode/issues/195758
+			const webmCodecs = { V_VP8: 'vp8', V_VP9: 'vp9', V_AV1: 'av01.0.08M.08', A_OPUS: 'opus', A_VORBIS: 'vorbis' };
+			// Bounds the memory the fallback may use; this limit only applies after normal playback failed
+			const maxWebmBytes = 200 * 1024 * 1024;
+			const isWebm = bytes => bytes.length >= 4 && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
+			const getWebmType = bytes => {
+				const header = Array.from(bytes.subarray(0, 65536), byte => String.fromCharCode(byte)).join('');
+				const codecs = Object.keys(webmCodecs).filter(id => header.includes(id)).map(id => webmCodecs[id]);
+				return codecs.length ? 'video/webm; codecs="' + codecs.join(',') + '"' : undefined;
+			};
+			const concat = (chunks, size) => {
+				const bytes = new Uint8Array(size);
+				let offset = 0;
+				for (const chunk of chunks) {
+					bytes.set(chunk, offset);
+					offset += chunk.length;
+				}
+				return bytes;
+			};
+			// Streams the file so that other formats and oversized files are rejected without reading them completely
+			const readWebm = async url => {
+				const response = await fetch(url);
+				if (!response.ok || !response.body) {
+					throw new Error('Failed to load media: ' + response.status);
+				}
+				if (Number(response.headers.get('Content-Length')) > maxWebmBytes) {
+					throw new Error('Media too large');
+				}
+				const reader = response.body.getReader();
+				const chunks = [];
+				let size = 0;
+				let checkedSignature = false;
+				try {
+					while (true) {
+						const { done, value } = await reader.read();
+						if (done) {
+							break;
+						}
+						chunks.push(value);
+						size += value.length;
+						if (size > maxWebmBytes) {
+							throw new Error('Media too large');
+						}
+						if (!checkedSignature && size >= 4) {
+							checkedSignature = true;
+							if (!isWebm(concat(chunks, size))) {
+								throw new Error('Unsupported media');
+							}
+						}
+					}
+				} finally {
+					reader.cancel().catch(() => { });
+				}
+				if (!checkedSignature) {
+					throw new Error('Unsupported media');
+				}
+				return concat(chunks, size);
+			};
+			const playWithMediaSource = async video => {
+				const bytes = await readWebm(video.currentSrc || video.src);
+				const type = getWebmType(bytes);
+				if (!type || typeof MediaSource === 'undefined' || !MediaSource.isTypeSupported(type)) {
+					throw new Error('Unsupported media');
+				}
+				const source = new MediaSource();
+				const url = URL.createObjectURL(source);
+				const opened = new Promise(resolve => source.addEventListener('sourceopen', resolve, { once: true }));
+				video.src = url;
+				await opened;
+				URL.revokeObjectURL(url);
+				const buffer = source.addSourceBuffer(type);
+				await new Promise((resolve, reject) => {
+					buffer.addEventListener('updateend', resolve, { once: true });
+					buffer.addEventListener('error', reject, { once: true });
+					buffer.appendBuffer(bytes);
+				});
+				source.endOfStream();
+			};
+
+			let triedMediaSource = false;
+			media?.addEventListener('error', () => {
+				if (media instanceof HTMLVideoElement && !triedMediaSource && media.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+					triedMediaSource = true;
+					playWithMediaSource(media).catch(showError);
+					return;
+				}
+				showError();
 			});
 			document.querySelector('.open-in-text-editor').addEventListener('click', e => {
 				e.preventDefault();

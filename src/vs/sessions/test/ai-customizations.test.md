@@ -24,8 +24,8 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 #### Preconditions
 
 - AI features are enabled.
-- Enable `chat.customizations.marketplace.enabled` (experimental and disabled by default) to show Discover. Existing configured MCP and Plugin marketplaces then move from their management surfaces into Discover. `chat.customizations.marketplace.sources.publicFeed.enabled` independently controls the SDK-backed GitHub Feed when the active harness provides it. Local never provides that source. Default and custom registries remain available regardless of the GitHub Feed setting.
-- Enable `chat.customizations.copilotConnectors.enabled` independently to include authenticated Copilot connectors.
+- Keep `chat.customizations.marketplace.enabled` enabled (preview and enabled by default) to show Discover. Existing configured MCP and Plugin marketplaces then move from their management surfaces into Discover. `chat.customizations.marketplace.sources.publicFeed.enabled` independently controls the SDK-backed GitHub Feed when the active harness provides it. Local never provides that source. Default and custom registries remain available regardless of the GitHub Feed setting.
+- Keep `chat.customizations.copilotConnectors.enabled` enabled (an independent preview setting, enabled by default) to include authenticated Copilot connectors. Disabling editor preview features by policy overrides both settings, including explicit opt-ins, and disables connector access in agent sessions. Removing the policy restores explicit preferences or the defaults.
 - Open Agent Customizations in either the editor workbench or Agents Window.
 
 #### Actions and Expected Results

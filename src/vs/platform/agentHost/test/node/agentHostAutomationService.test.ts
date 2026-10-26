@@ -25,6 +25,7 @@ import { createUnknownAgentHostClientTelemetryContext } from '../../common/agent
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../common/automationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
@@ -228,12 +229,12 @@ suite('AgentHostAutomationService', () => {
 		publish(session, auth);
 		service.dispose();
 		publish(session, changedAuth);
+		const requestsFor = (auth: McpAuthRequirement) => ['top', 'child'].map(serverName => ({
+			serverName, auth, target: { kind: AuthenticateTargetKind.McpServer, session: session.toString(), customizationId: serverName },
+		}));
 		assert.deepStrictEqual({ inflightRequests, failedRequests, requests: authenticationRequests }, {
-			inflightRequests: [{ serverName: 'top', auth }, { serverName: 'child', auth }],
-			failedRequests: [{ serverName: 'top', auth }, { serverName: 'child', auth }],
-			requests: [auth, changedAuth, ...changedChallenges, auth, auth].flatMap(auth => [
-				{ serverName: 'top', auth }, { serverName: 'child', auth },
-			]),
+			inflightRequests: requestsFor(auth), failedRequests: requestsFor(auth),
+			requests: [auth, changedAuth, ...changedChallenges, auth, auth].flatMap(requestsFor),
 		});
 	});
 

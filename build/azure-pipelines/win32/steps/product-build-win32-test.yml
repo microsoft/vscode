@@ -67,6 +67,7 @@ steps:
         compile-extension:css-language-features-server `
         compile-extension:emmet `
         compile-extension:git `
+        compile-extension:git-base `
         compile-extension:github-authentication `
         compile-extension:html-language-features-server `
         compile-extension:ipynb `
@@ -200,6 +201,7 @@ steps:
           key: '"wsl-installer" | "win32-x64" | build/checksums/wsl.txt'
           path: $(Build.SourcesDirectory)/.build/wsl-installer
         condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'))
+        retryCountOnTaskFailure: 2
 
       - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps
         displayName: Prepare WSL Dev Container smoke tests

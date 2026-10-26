@@ -17,7 +17,7 @@ import type { ISessionStateChange, ISessionStateSnapshot } from '../../common/ag
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, SessionStatus, withSessionWorkspaceless, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, MessageKind, SessionStatus, withSessionWorkspaceless, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatMovability, type IChatMovabilitySources } from '../../node/agentHostChatMovability.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../node/shared/sessionAdditionalWorktrees.js';
@@ -87,6 +87,12 @@ suite('AgentHostChatMovability', () => {
 		}
 	}
 
+	/** Adds a chat that has already sent its first message: an unsent chat is never movable. */
+	function addStartedChat(stateManager: AgentHostStateManager, ...args: Parameters<AgentHostStateManager['addChat']>): void {
+		stateManager.addChat(...args);
+		stateManager.dispatchServerAction(args[1], { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+	}
+
 	/** A source session with a peer, both sessions working in `/repo`, and moving chats enabled. */
 	async function setupStrict(workingDirectories?: string[]) {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -95,7 +101,7 @@ suite('AgentHostChatMovability', () => {
 		disposables.add(new AgentHostChatMovability(stateManager, configuration, sources));
 		stateManager.createSession(summary(session, workingDirectories));
 		const peer = buildChatUri(session, 'peer');
-		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)));
+		addStartedChat(stateManager, session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)));
 		configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 		await timeout(0);
 		// What a client of the session learns: the `movable` changes of the peer's catalog entry.
@@ -143,9 +149,9 @@ suite('AgentHostChatMovability', () => {
 		const tool = buildChatUri(session, 'tool');
 		const hidden = buildChatUri(session, 'hidden');
 		const storage = (chat: string) => creationTimeChatStorageResource(session, chat, defaultChat);
-		stateManager.addChat(session, peer, storage(peer));
-		stateManager.addChat(session, tool, storage(tool), { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'call' } });
-		stateManager.addChat(session, hidden, storage(hidden), { interactivity: ChatInteractivity.Hidden });
+		addStartedChat(stateManager, session, peer, storage(peer));
+		addStartedChat(stateManager, session, tool, storage(tool), { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'call' } });
+		addStartedChat(stateManager, session, hidden, storage(hidden), { interactivity: ChatInteractivity.Hidden });
 		const labels = new Map([[defaultChat, 'default'], [buildDefaultChatUri(target), 'targetDefault'], [peer, 'peer'], [tool, 'tool'], [hidden, 'hidden']]);
 		const movable = () => Object.fromEntries([session, target].flatMap(owner => stateManager.getSessionState(owner)?.chats ?? [])
 			.map(chat => [labels.get(chat.resource), chat.movable ?? false]));
@@ -178,6 +184,53 @@ suite('AgentHostChatMovability', () => {
 		});
 	});
 
+	test('a chat is movable once its first turn started, while that turn is still running', async () => {
+		const { stateManager, peer } = await setupStrict();
+		const unsent = buildChatUri(session, 'unsent');
+		stateManager.addChat(session, unsent, creationTimeChatStorageResource(session, unsent, buildDefaultChatUri(session)));
+		await timeout(0);
+		const movable = () => stateManager.getSessionState(session)?.chats.filter(chat => chat.resource !== buildDefaultChatUri(session)).map(chat => ({ chat: chat.resource === peer ? 'peer' : 'unsent', movable: chat.movable ?? false }));
+		const before = movable();
+
+		stateManager.dispatchServerAction(unsent, { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+
+		const state = stateManager.getChatState(unsent);
+		assert.deepStrictEqual({ before, after: movable(), firstTurn: { completedTurns: state?.turns.length, running: state?.activeTurn?.id } }, {
+			before: [{ chat: 'peer', movable: true }, { chat: 'unsent', movable: false }],
+			after: [{ chat: 'peer', movable: true }, { chat: 'unsent', movable: true }],
+			firstTurn: { completedTurns: 0, running: 'first-turn' },
+		});
+	});
+
+	test('a chat follows its history: truncating every turn makes it unsent, loading turns makes it started', async () => {
+		const { stateManager, peer } = await setupStrict();
+		const unsent = buildChatUri(session, 'unsent');
+		stateManager.addChat(session, unsent, creationTimeChatStorageResource(session, unsent, buildDefaultChatUri(session)));
+		await timeout(0);
+		const movable = (chat: string) => stateManager.getSessionState(session)?.chats.find(candidate => candidate.resource === chat)?.movable ?? false;
+		stateManager.dispatchServerAction(peer, { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 10 });
+		const turns = [...stateManager.getChatState(peer)!.turns];
+
+		const before = movable(peer);
+		stateManager.dispatchServerAction(peer, { type: ActionType.ChatTruncated });
+		const truncated = movable(peer);
+		stateManager.dispatchServerAction(unsent, { type: ActionType.ChatTurnsLoaded, turns });
+
+		assert.deepStrictEqual({ turns: turns.length, before, truncated, loaded: movable(unsent) }, { turns: 1, before: true, truncated: false, loaded: true });
+	});
+
+	test('a restored chat without a conversation is not movable once its history loaded', async () => {
+		const { stateManager } = await setupStrict();
+		const restored = buildChatUri(session, 'restored');
+		stateManager.registerRestoredChatSummary(session, restored, { storageResource: creationTimeChatStorageResource(session, restored, buildDefaultChatUri(session)), resolver: async () => ({ turns: [] }) });
+		const movable = () => stateManager.getSessionState(session)?.chats.find(chat => chat.resource === restored)?.movable ?? false;
+		const before = movable();
+
+		await stateManager.resolveChatState(restored);
+
+		assert.deepStrictEqual({ before, after: movable() }, { before: true, after: false });
+	});
+
 	test('a chat about to join another session is judged by the folders it brings, not the destination\'s', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = disposables.add(new AgentConfigurationService(stateManager, new NullLogService()));
@@ -187,7 +240,7 @@ suite('AgentHostChatMovability', () => {
 		stateManager.createSession(summary(session));
 		stateManager.createSession(summary(target, [destinationFolder]));
 		const peer = buildChatUri(session, 'peer');
-		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)));
+		addStartedChat(stateManager, session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)));
 		configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 		// The destination works in a worktree it records; the peer inherits its own session's folder, which isn't in it.
 		sources.values.set(WORKTREE_META_PATH, destinationFolder);
@@ -204,7 +257,7 @@ suite('AgentHostChatMovability', () => {
 		), flipped);
 	});
 
-	test('a chat of a workspace-less session, or without a folder, is not movable', async () => {
+	test('a chat sharing its workspace-less session\'s scratch folder, or without a folder, is not movable', async () => {
 		const workspaceless = await setupStrict();
 		const meta = () => workspaceless.stateManager.getSessionState(session)?._meta;
 		const noFolder = await setupStrict();
@@ -218,6 +271,62 @@ suite('AgentHostChatMovability', () => {
 				() => noFolder.stateManager.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: noFolder.peer, changes: { workingDirectories: [folder] } }),
 			),
 		}, { workspaceless: flipped, noFolder: flipped });
+	});
+
+	test('a chat of a workspace-less session with a scratch folder of its own stays movable, until another chat uses that folder too', async () => {
+		const { stateManager, flip, peer } = await setupStrict();
+		const own = 'file:///home/.copilot/chats/own';
+		const meta = () => stateManager.getSessionState(session)?._meta;
+		stateManager.setSessionMeta(session, withSessionWorkspaceless(meta(), true));
+		stateManager.setScratchFolder(own, true);
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: peer, changes: { workingDirectories: [own] } });
+		await timeout(0);
+		const sharedWith = buildChatUri(session, 'other');
+		assert.deepStrictEqual(await flip(
+			() => {
+				addStartedChat(stateManager, session, sharedWith, creationTimeChatStorageResource(session, sharedWith, buildDefaultChatUri(session)));
+				stateManager.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: sharedWith, changes: { workingDirectories: [own] } });
+			},
+			() => stateManager.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: sharedWith, changes: { workingDirectories: [] } }),
+		), { ...flipped, announced: [false, true, false, true] });
+	});
+
+	test('a chat with a scratch folder of its own is not movable at once while a fork shares it, in a workspace-less or a foldered session (PR review)', async () => {
+		const own = 'file:///home/.copilot/chats/own';
+		const setup = async (workspaceless: boolean) => {
+			const { stateManager, flip, peer } = await setupStrict(workspaceless ? undefined : [folder, own]);
+			if (workspaceless) {
+				stateManager.setSessionMeta(session, withSessionWorkspaceless(stateManager.getSessionState(session)?._meta, true));
+			}
+			stateManager.setScratchFolder(own, true);
+			stateManager.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: peer, changes: { workingDirectories: [own] } });
+			await timeout(0);
+			return { stateManager, flip, peer };
+		};
+		const forked = async (workspaceless: boolean) => {
+			const { stateManager, flip, peer } = await setup(workspaceless);
+			const fork = buildChatUri(session, 'fork');
+			return flip(
+				() => addStartedChat(stateManager, session, fork, creationTimeChatStorageResource(session, fork, buildDefaultChatUri(session)), { origin: { kind: ChatOriginKind.Fork, chat: peer, turnId: 'turn' }, workingDirectories: [own] }),
+				() => stateManager.removeChat(session, fork),
+			);
+		};
+		const sibling = async () => {
+			const { stateManager, flip } = await setup(false);
+			const other = buildChatUri(session, 'other');
+			addStartedChat(stateManager, session, other, creationTimeChatStorageResource(session, other, buildDefaultChatUri(session)), { workingDirectories: [folder] });
+			return flip(
+				() => stateManager.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: other, changes: { workingDirectories: [own] } }),
+				() => stateManager.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: other, changes: { workingDirectories: [folder] } }),
+			);
+		};
+
+		// Making the session workspace-less made the peer, without a folder yet, immovable until it got its own.
+		assert.deepStrictEqual({ workspaceless: await forked(true), foldered: await forked(false), folderChange: await sibling() }, {
+			workspaceless: { ...flipped, announced: [false, true, false, true] },
+			foldered: flipped,
+			folderChange: flipped,
+		});
 	});
 
 	test('a chat changing its workspace, or of a quarantined session, is not movable until that ends', async () => {
@@ -281,10 +390,10 @@ suite('AgentHostChatMovability', () => {
 				const defaultChat = buildDefaultChatUri(session);
 				for (let i = 0; i < chats; i++) {
 					const peer = buildChatUri(session, `peer-${i}`);
-					stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, defaultChat));
+					addStartedChat(stateManager, session, peer, creationTimeChatStorageResource(session, peer, defaultChat));
 					if (i % 10 === 0) {
 						const subagent = buildChatUri(session, `subagent-${i}`);
-						stateManager.addChat(session, subagent, subagent, { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: `call-${i}` } });
+						addStartedChat(stateManager, session, subagent, subagent, { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: `call-${i}` } });
 					}
 				}
 				if (ownWorktree) {
@@ -338,7 +447,7 @@ suite('AgentHostChatMovability', () => {
 				for (let i = 0; i < chats; i++) {
 					const peer = buildChatUri(session, `peer-${i}`);
 					// Each chat works in its own worktree; the second one also in the first one's, which keeps the first (D2).
-					stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, defaultChat), { workingDirectories: i === 1 ? [`${own(1)}/src`, own(0)] : [`${own(i)}/src`] });
+					addStartedChat(stateManager, session, peer, creationTimeChatStorageResource(session, peer, defaultChat), { workingDirectories: i === 1 ? [`${own(1)}/src`, own(0)] : [`${own(i)}/src`] });
 					worktrees.push({ handle: generateUuid(), workingDirectory: own(i), repositoryRoot: folder, chat: peer });
 				}
 				sources.values.set(ADDITIONAL_WORKTREES_METADATA_KEY, JSON.stringify(worktrees));
@@ -418,14 +527,19 @@ suite('AgentHostChatMovability', () => {
 		assert.deepStrictEqual(results, { off: [off, off], onWithWorktree: [onWithWorktree, onWithWorktree] });
 	});
 
-	test('a chat that runs Agent Merge for a folder of its session is not movable until it stops', async () => {
+	test('a chat that runs Agent Merge for a folder of its session stays movable: its Agent Merge moves with it', async () => {
 		const { stateManager, peer, flip } = await setupStrict();
 		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: {} });
 		const agentMerge = (enabled: boolean) => stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(folder)]: { enabled, chat: peer } } },
 		});
-		assert.deepStrictEqual(await flip(() => agentMerge(true), () => agentMerge(false)), flipped);
+		assert.deepStrictEqual(await flip(() => agentMerge(true), () => agentMerge(false)), {
+			before: { summary: true, state: true },
+			refused: { summary: true, state: true },
+			allowed: { summary: true, state: true },
+			announced: [],
+		});
 	});
 
 	test('a restored chat, which registers once its session lists it, is published at once and follows its session\'s inputs', async () => {

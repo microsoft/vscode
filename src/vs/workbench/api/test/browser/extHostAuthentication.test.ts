@@ -116,6 +116,7 @@ suite('DynamicAuthProvider', () => {
 	function createProvider(options: ITestServer & {
 		readonly resource: string;
 		readonly initialTokens?: IAuthorizationToken[];
+		readonly providerId?: string;
 		readonly fetcher?: typeof fetch;
 		readonly onDidOpenUri?: (uri: string) => void;
 	}): TestDynamicAuthProvider {
@@ -162,9 +163,18 @@ suite('DynamicAuthProvider', () => {
 			undefined,
 			disposables.add(new Emitter()),
 			options.initialTokens ?? [],
+			options.providerId,
 			options.fetcher,
 		));
 	}
+
+	test('honors an explicit provider ID without changing the default identity', () => {
+		const providerId = 'https://auth.example.com/ https://workiq.example.com/mcp client:client-id';
+		const scoped = createProvider({ ...servers.nonMicrosoft, resource, providerId });
+		const legacy = createProvider({ ...servers.nonMicrosoft, resource });
+
+		assert.deepStrictEqual([scoped.id, legacy.id], [providerId, 'https://auth.example.com/ https://workiq.example.com/mcp']);
+	});
 
 	test('does not rotate the client while silently refreshing a token', async () => {
 		let fetchCalls = 0;

@@ -24,20 +24,33 @@ suite('Agent Host Chat Move Errors', () => {
 
 		assert.deepStrictEqual({
 			reasons: [archived, notStarted, credentials, unknownReason, failure].map(getChatMoveRefusal),
-			messages: [archived, notStarted, credentials, unknownReason, failure].map(error => message(toChatMoveError(error))),
+			messages: [archived, notStarted, credentials, unknownReason, failure].map(error => message(toChatMoveError(error, false))),
 			// Only refusals become errors the sessions list shows as they are.
-			refused: [archived, notStarted, credentials, unknownReason, failure].map(error => toChatMoveError(error) instanceof SessionMoveRefusedError),
+			refused: [archived, notStarted, credentials, unknownReason, failure].map(error => toChatMoveError(error, false) instanceof SessionMoveRefusedError),
 		}, {
 			reasons: [AgentChatMoveRefusal.SessionArchived, AgentChatMoveRefusal.NotStarted, AgentChatMoveRefusal.DifferentCredentialOwner, undefined, undefined],
 			messages: [
 				'Chats can\'t be moved into or out of an archived session.',
-				'Send a message in this chat before moving it to its own session.',
+				'Send a message in this chat before moving it.',
 				'This chat uses a different account\'s credentials than the destination session.',
 				// Anything that is not a refusal passes through unchanged.
 				'Bad params',
 				'Connection closed',
 			],
 			refused: [true, true, true, false, false],
+		});
+	});
+
+	test('explains a workspace-less refusal by whether the chat shares its folder', () => {
+		const refusal = new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Chat x shares its scratch folder.', { reason: AgentChatMoveRefusal.Workspaceless });
+		const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+		assert.deepStrictEqual({
+			shared: message(toChatMoveError(refusal, true)),
+			noFolder: message(toChatMoveError(refusal, false)),
+		}, {
+			shared: 'This chat shares its folder with another chat in its session, so it can\'t be moved on its own.',
+			noFolder: 'This chat\'s folder is missing, so it can\'t be moved.',
 		});
 	});
 });

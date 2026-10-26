@@ -16,8 +16,6 @@ export const ChatMoveConfigKey = {
 /** Workbench settings for moving chats. `Enabled` is mirrored into {@link ChatMoveConfigKey}. */
 export const ChatMoveSettingId = {
 	Enabled: 'chat.agentHost.moveChats.enabled',
-	/** Whether moving a chat or session by drag and drop asks for confirmation; a workbench preference only. */
-	ConfirmDragAndDrop: 'chat.agentHost.moveChats.confirmDragAndDrop',
 } as const;
 
 export const chatMoveRootConfigSchema = createSchema({
@@ -51,10 +49,10 @@ export interface IChatMoveEligibility extends IChatMoveStructuralEligibility {
 	readonly converting: boolean;
 	/** It works in an additional worktree recorded for it that a chat staying in its session also uses ({@link AgentChatMoveRefusal.WorktreeFolder}). */
 	readonly worktreeFolder: boolean;
-	/** It or a descendant runs Agent Merge for a folder of its session ({@link AgentChatMoveRefusal.AgentMergeOwner}). */
-	readonly agentMergeOwner: boolean;
 	/** Its session's legacy chat catalog can't be converted for now: its conversion is parked ({@link AgentChatMoveRefusal.LegacyCatalog}). */
 	readonly legacyCatalog: boolean;
+	/** It has no turn yet, so nothing of it exists beyond its composer ({@link AgentChatMoveRefusal.NotStarted}). */
+	readonly notStarted: boolean;
 }
 
 /**
@@ -80,8 +78,8 @@ export function isChatMovable(eligibility: IChatMoveEligibility): boolean {
 		&& !eligibility.workspaceless
 		&& !eligibility.converting
 		&& !eligibility.worktreeFolder
-		&& !eligibility.agentMergeOwner
-		&& !eligibility.legacyCatalog;
+		&& !eligibility.legacyCatalog
+		&& !eligibility.notStarted;
 }
 
 /** Where a chat moves: another position in its own session, another existing session, or a new session. */
@@ -102,6 +100,7 @@ export const enum AgentChatMoveRefusal {
 	ConversionInProgress = 'conversionInProgress',
 	WorktreeFolder = 'worktreeFolder',
 	Workspaceless = 'workspaceless',
+	/** Only older hosts: a chat that runs Agent Merge now moves with it. */
 	AgentMergeOwner = 'agentMergeOwner',
 	DestinationSingleFolder = 'destinationSingleFolder',
 	LegacyCatalog = 'legacyCatalog',
@@ -109,7 +108,7 @@ export const enum AgentChatMoveRefusal {
 	Unsupported = 'unsupported',
 	/** A session moves under another session only while its default chat is its only chat (Block 4, VS Code-internal). */
 	NotSingleChat = 'notSingleChat',
-	/** A chat becomes its own session only once its first turn started, which is when every agent persists its conversation. */
+	/** A chat moves, or becomes its own session, only once its first turn started, which is when every agent persists its conversation. */
 	NotStarted = 'notStarted',
 	/**
 	 * The chat's session and the destination session are sponsored by different credential owners, or only one of them is.

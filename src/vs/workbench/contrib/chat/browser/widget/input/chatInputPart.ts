@@ -160,7 +160,7 @@ import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput, isTerminalCommandPaste as isTerminalCommandPasteContent } from '../../chatTerminalCommandPaste.js';
 import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
-import { getChatPetPillPlatformTop, getChatPetStackPlatformTop } from '../chatPetWidget.js';
+import { getChatPetStackPlatform, IChatPetPlatform } from '../chatPetWidget.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationContext, IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
@@ -177,6 +177,7 @@ import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../ch
 import { IChatPetService } from '../../chatPetService.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
 import { ModelPickerActionItem, IModelPickerDelegate, IModelPickerPresentationOptions } from './modelPicker/modelPickerActionItem.js';
+import { withoutFusionEffortLevel } from './modelPicker/modelPickerModelConfig.js';
 import { getChatSessionTelemetryContext, getChatSessionTelemetryIds } from '../../../common/chatService/chatServiceTelemetry.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
@@ -274,10 +275,11 @@ export interface IChatInputStyles {
 	listShadow?: string;
 }
 
-/** A dynamic set of elements that can act as raised platforms for the chat pet. */
+/** Raised pet surfaces and an optional container whose edge replaces its inset controls. */
 export interface IChatPetHorizontalPlatformProvider {
 	readonly onDidChange: Event<void>;
 	getElements(): readonly HTMLElement[];
+	getBaseElement?(): HTMLElement | undefined;
 }
 
 export interface IChatInputPartOptions {
@@ -390,7 +392,11 @@ export interface IChatInputHostModelSelection extends IChatInputNotificationMode
  * session provider, takes part in submitting the input.
  */
 export interface IChatInputHostSubmit {
-	/** Whether the host currently allows submitting, in addition to the input's own checks. */
+	/**
+	 * Whether the host currently allows submitting, in addition to the input's own
+	 * checks. The host also decides whether its session's options are valid, so
+	 * the input does not check them.
+	 */
 	readonly canSubmit: IObservable<boolean>;
 	/** Whether the host has content to send even when the input is empty, such as feedback it sends along. */
 	readonly hasContent?: IObservable<boolean>;
@@ -702,7 +708,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/** Arbitrates which notice occupies the area above this input. */
 	readonly noticeHost = this._register(new ChatInputNoticeHost(() => this.focus()));
 
-	/** Registers raised platforms that occupy only part of the input width. */
+	/** Registers raised platforms associated with this input. */
 	registerChatPetHorizontalPlatformProvider(provider: IChatPetHorizontalPlatformProvider): IDisposable {
 		this._chatPetHorizontalPlatformProviders.add(provider);
 		const store = new DisposableStore();
@@ -716,23 +722,40 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	getChatPetPlatformTop(petCenterX?: number): number {
-		if (petCenterX !== undefined) {
-			const pillBounds: DOMRect[] = [];
-			for (const provider of this._chatPetHorizontalPlatformProviders) {
-				for (const element of provider.getElements()) {
-					pillBounds.push(element.getBoundingClientRect());
-				}
+		const stack = getChatPetStackPlatform(this.container, this.inputContainer, this.persistentContentContainer);
+		if (petCenterX === undefined) {
+			return stack.top;
+		}
+		return this.getChatPetPlatforms()
+			.filter(platform => petCenterX >= platform.left && petCenterX <= platform.right)
+			.reduce((top, platform) => Math.min(top, platform.top), stack.top);
+	}
+
+	getChatPetPlatforms(): readonly IChatPetPlatform[] {
+		const platforms = [getChatPetStackPlatform(this.container, this.inputContainer, this.persistentContentContainer)];
+		const inputTop = this.inputContainer.getBoundingClientRect().top;
+		const elements = new Set<HTMLElement>();
+		const containers: HTMLElement[] = [];
+		for (const provider of this._chatPetHorizontalPlatformProviders) {
+			for (const element of provider.getElements()) {
+				elements.add(element);
 			}
-			const pillTop = getChatPetPillPlatformTop(
-				petCenterX,
-				pillBounds
-			);
-			if (pillTop !== undefined) {
-				return pillTop;
+			const baseElement = provider.getBaseElement?.();
+			if (baseElement) {
+				containers.push(baseElement);
+				elements.add(baseElement);
 			}
 		}
-		// Skips the persistent content, which floats above the input part rather than sitting in the stack.
-		return getChatPetStackPlatformTop(this.container, this.inputContainer, this.persistentContentContainer);
+		for (const element of elements) {
+			if (!element.checkVisibility({ checkVisibilityCSS: true }) || containers.some(container => container !== element && container.contains(element))) {
+				continue;
+			}
+			const bounds = element.getBoundingClientRect();
+			if (bounds.width > 0 && bounds.height > 0 && bounds.top <= inputTop) {
+				platforms.push({ left: bounds.left, right: bounds.right, top: bounds.top, element, isDefault: containers.includes(element) });
+			}
+		}
+		return platforms;
 	}
 
 	readonly height = observableValue<number>(this, 0);
@@ -1603,7 +1626,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getSessionType: () => this.modelTargetSessionType,
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
-			modelConfiguration: this._modelConfigStore,
+			// Inline chat, editor or terminal, offers no Copilot Fusion effort level while the host pins Fusion's tier there.
+			modelConfiguration: this.location === ChatAgentLocation.EditorInline || this.location === ChatAgentLocation.Terminal
+				? withoutFusionEffortLevel(this._modelConfigStore, modelId => this.languageModelsService.lookupLanguageModel(modelId))
+				: this._modelConfigStore,
 		};
 	}
 
@@ -2831,7 +2857,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return [];
 		}
 
-		const allOptionsValid = sessionResource ? this.areAllOptionsValid(sessionResource, visibleOptionGroups) : true;
+		// A host that submits for itself decides whether its session's options are valid.
+		const allOptionsValid = this.options.hostSubmit || !sessionResource ? true : this.areAllOptionsValid(sessionResource, visibleOptionGroups);
 
 		this.chatSessionHasOptions.set(true);
 		this.chatSessionOptionsValid.set(allOptionsValid);
@@ -5208,6 +5235,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const store = this._sessionWorkingSetView.value = new DisposableStore();
 					const sessionKeep = derived(r => this._sessionFileChanges.read(r)?.keep.read(r));
 					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed, {
+						editingSession: () => this._widget?.viewModel?.model.editingSession,
 						keep: async (diffs, automatic) => {
 							const keep = sessionKeep.read(undefined);
 							if (keep) {
@@ -5221,7 +5249,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						},
 						keepEnabled: derived(r => sessionKeep.read(r)?.enabled.read(r) ?? true),
 						undo: derived(r => this._sessionFileChanges.read(r)?.undo.read(r)),
-					}));
+					}, () => this.focus()));
 					this.chatEditingSessionWidgetContainer.appendChild(workingSet.domNode);
 					this._sessionWorkingSet = workingSet;
 					store.add(workingSet.onDidFocus(() => this._onDidFocus.fire()));

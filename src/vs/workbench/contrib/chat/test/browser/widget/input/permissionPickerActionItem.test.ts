@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { isMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -13,6 +14,7 @@ import { IActionWidgetService } from '../../../../../../../platform/actionWidget
 import { createAgentHostSandboxToggle } from '../../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IConfigurationValue } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
@@ -20,8 +22,10 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../../
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatPermissionLevel } from '../../../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../../common/constants.js';
+import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { PermissionPickerActionItem } from '../../../../browser/widget/input/permissionPickerActionItem.js';
+import { IUnavailablePermissionLevel } from '../../../../browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 
 suite('PermissionPickerActionItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -159,6 +163,124 @@ suite('PermissionPickerActionItem', () => {
 		assert.deepStrictEqual({ open: fixture.isOpen(), writes: fixture.writes, hides: fixture.hides() }, { open: false, writes: [true], hides: 1 });
 		fixture.picker.show();
 		assert.strictEqual(fixture.toggle()?.checked, true);
+	});
+
+	function setupPolicy(options: { readonly availableLevels?: readonly ChatPermissionLevel[]; readonly unavailableLevels?: readonly IUnavailablePermissionLevel[]; readonly legacyRestricted?: boolean }) {
+		const unavailableLevels = observableValue<readonly IUnavailablePermissionLevel[]>('unavailableLevels', options.unavailableLevels ?? []);
+		const writes: ChatPermissionLevel[] = [];
+		let items: readonly IActionListItem<IActionWidgetDropdownAction>[] = [];
+		let hides = 0;
+		const widgetService = new class extends mock<IActionWidgetService>() {
+			override show<T>(_user: string, _supportsPreview: boolean, shown: readonly IActionListItem<T>[]): void {
+				items = shown as readonly IActionListItem<IActionWidgetDropdownAction>[];
+			}
+			override hide(): void { hides++; }
+		}();
+		const configuration = new class extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const result = super.inspect<T>(key);
+				return { ...result, policyValue: options.legacyRestricted && key === ChatConfiguration.GlobalAutoApprove ? result.value : undefined };
+			}
+		}({ [ChatConfiguration.GlobalAutoApprove]: false });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const action = new MenuItemAction({ id: 'test.permissions', title: 'Permissions' }, undefined, undefined, undefined, undefined,
+			new MockContextKeyService(), new class extends mock<ICommandService>() { }());
+		const picker = store.add(new PermissionPickerActionItem(
+			action,
+			{
+				currentPermissionLevel: constObservable(ChatPermissionLevel.Default),
+				setPermissionLevel: level => { writes.push(level); },
+				get availableLevels() { return options.availableLevels?.filter(level => !unavailableLevels.get().some(entry => entry.level === level)); },
+				unavailableLevels: options.availableLevels ? unavailableLevels : undefined,
+			},
+			{ compact: constObservable(false) },
+			widgetService,
+			new MockKeybindingService(),
+			new MockContextKeyService(),
+			NullTelemetryService,
+			configuration,
+			new class extends mock<IDialogService>() { }(),
+			new class extends mock<IOpenerService>() { }(),
+			store.add(new InMemoryStorageService()),
+			new class extends mock<IHoverService>() {
+				override setupDelayedHover() { return { dispose: () => { } }; }
+			}(),
+		));
+		picker.render(document.createElement('div'));
+		const read = () => items.filter(item => item.item?.id.startsWith('chat.permissions.') && !['chat.permissions.sandbox', 'chat.permissions.learnMore'].includes(item.item.id)).map(item => ({
+			label: item.label,
+			badge: item.badge,
+			disabled: !!item.disabled,
+			description: typeof item.description === 'object' ? item.description.value : item.description,
+			ariaDescription: item.ariaDescription,
+		}));
+		return { picker, unavailableLevels, writes, read, items: () => items, hides: () => hides };
+	}
+
+	const policy = {
+		badge: undefined,
+		disabled: true,
+		description: '$(briefcase) Disabled by policy',
+		ariaDescription: 'Disabled by policy. Your organization\'s policy doesn\'t allow this permission level.',
+	};
+	const enabled = { badge: undefined, disabled: false, description: undefined, ariaDescription: undefined };
+	const unattributed = {
+		badge: undefined,
+		disabled: true,
+		description: 'Unavailable',
+		ariaDescription: 'Unavailable. The agent host doesn\'t allow this permission level for this session.',
+	};
+
+	test('shows host policy-disabled agent host levels disabled, rejects stale activation and closes on refresh', async () => {
+		const fixture = setupPolicy({ availableLevels: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove], unavailableLevels: [{ level: ChatPermissionLevel.AutoApprove, byPolicy: true }] });
+		fixture.picker.show();
+		const restricted = fixture.read();
+		const hover = fixture.items().find(item => item.label === 'Allow all')?.hover?.content;
+		const staleAssisted = fixture.items().find(item => item.label === 'Assisted permissions')!.item!;
+		fixture.unavailableLevels.set([{ level: ChatPermissionLevel.Assisted, byPolicy: false }, { level: ChatPermissionLevel.AutoApprove, byPolicy: true }], undefined);
+		const hidesAfterRefresh = fixture.hides();
+		await staleAssisted.run();
+		fixture.picker.show();
+		const withheld = fixture.read();
+		await fixture.items().find(item => item.label === 'Allow all')!.item!.run();
+		fixture.unavailableLevels.set([], undefined);
+		fixture.picker.show();
+		const removed = fixture.read();
+		assert.deepStrictEqual({ restricted, hover: isMarkdownString(hover) ? hover.value : hover, hidesAfterRefresh, withheld, removed, writes: fixture.writes }, {
+			restricted: [
+				{ label: 'Default permissions', ...enabled },
+				{ label: 'Assisted permissions', ...enabled, badge: 'New' },
+				{ label: 'Allow all', ...policy },
+			],
+			hover: 'Your organization\'s policy doesn\'t allow this permission level.',
+			hidesAfterRefresh: 1,
+			withheld: [
+				{ label: 'Default permissions', ...enabled },
+				{ label: 'Assisted permissions', ...unattributed },
+				{ label: 'Allow all', ...policy },
+			],
+			removed: [
+				{ label: 'Default permissions', ...enabled },
+				{ label: 'Assisted permissions', ...enabled, badge: 'New' },
+				{ label: 'Allow all', ...enabled },
+			],
+			writes: [],
+		});
+	});
+
+	test('keeps unsupported levels hidden while explaining Local levels disabled by legacy policy', () => {
+		const unsupported = setupPolicy({ availableLevels: [ChatPermissionLevel.Default] });
+		unsupported.picker.show();
+		const local = setupPolicy({ legacyRestricted: true });
+		local.picker.show();
+		assert.deepStrictEqual({ unsupported: unsupported.read(), local: local.read() }, {
+			unsupported: [{ label: 'Default permissions', ...enabled }],
+			local: [
+				{ label: 'Default permissions', ...enabled },
+				{ label: 'Allow all', ...policy },
+				{ label: 'Autopilot (Preview)', ...policy },
+			],
+		});
 	});
 
 	test('closes on managed policy changes and keeps required sandboxing checked and disabled', () => {

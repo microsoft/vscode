@@ -91,16 +91,75 @@ export type DiffHistoryOptions = {
 };
 
 export enum RejectedEditsMemoryMode {
-	DiffWithTags = 'diffWithTags', // This is currently the only mode, so it is used by default but defined as a string for future extensibility.
+	/** Rejected hunks are tagged with `<|rejected/|>` and the prompt gets an instruction explaining the tag. */
+	DiffWithTags = 'diffWithTags',
+	/**
+	 * Rejected hunks are rendered as ordinary edit history (applied, then undone by the developer),
+	 * with no tag and no instruction. Only rejections in the active document are used.
+	 */
+	AppliedThenUndone = 'appliedThenUndone',
+}
+
+/**
+ * Default for {@link PromptMemoryOptions.rejectedEditsMaxEditsAfter}. Offline, the effect of a rejection on repeated
+ * suggestions fades as later edits push it back (with the cursor on the rejected lines, repeats fall from 87% to
+ * 79% at four later edits and to 83% at eight), so older rejections are dropped to save prompt tokens.
+ */
+export const DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER = 4;
+
+/** Where a rejection is placed in the edit history. */
+export enum RejectedEditsPlacement {
+	/** At the position where the rejection happened, so later edits push it back like any other entry. */
+	InPlace = 'inPlace',
+	/** As the newest entries on every request, for as long as the rejection is used. */
+	Newest = 'newest',
+}
+
+/** Which cached suggestions are marked as rejected when the user rejects a suggestion. */
+export enum RejectedEditsCacheScope {
+	/** Every cached suggestion from the same model request, including ones that were never shown. */
+	Request = 'request',
+	/** Only the suggestion that was rejected. */
+	Edit = 'edit',
+	/** No cached suggestion is marked as rejected. */
+	None = 'none',
 }
 
 export type PromptMemoryOptions = {
 	readonly rejectedEdits?: RejectedEditsMemoryMode;
+	/**
+	 * A rejection is no longer used once more than this many edit-history entries follow it (consecutive edits to the
+	 * same line count once). Applies to every `rejectedEdits` mode.
+	 * Defaults to {@link DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER}.
+	 */
+	readonly rejectedEditsMaxEditsAfter?: number;
+	/** Where rejections are placed in the edit history. Applies to every `rejectedEdits` mode. Defaults to {@link RejectedEditsPlacement.InPlace}. */
+	readonly rejectedEditsPlacement?: RejectedEditsPlacement;
+	/** How many times the applied-then-undone pair is written. Only for {@link RejectedEditsMemoryMode.AppliedThenUndone}. Defaults to 1. */
+	readonly rejectedEditsRepetitions?: number;
+	/** At most this many of the most recent rejections are used. Applies to every `rejectedEdits` mode. Defaults to all recorded rejections. */
+	readonly rejectedEditsMaxCount?: number;
+	/**
+	 * Which cached suggestions are marked as rejected when a suggestion is rejected. Applies to every `rejectedEdits` mode;
+	 * without `rejectedEdits` the whole request is always marked. Defaults to {@link RejectedEditsCacheScope.Request}.
+	 */
+	readonly rejectedEditsCacheScope?: RejectedEditsCacheScope;
+	/**
+	 * When true, a rejection is recorded only if the whole suggested edit was inside the visible editor area, so the user
+	 * could have seen all of it. Applies to every `rejectedEdits` mode. Defaults to false: every rejection is recorded.
+	 */
+	readonly rejectedEditsOnlyFullyVisible?: boolean;
 };
 
 export namespace PromptMemoryOptions {
 	export const VALIDATOR: IValidator<PromptMemoryOptions> = vObj({
-		'rejectedEdits': vUnion(vEnum(RejectedEditsMemoryMode.DiffWithTags), vUndefined()),
+		'rejectedEdits': vUnion(vEnum(RejectedEditsMemoryMode.DiffWithTags, RejectedEditsMemoryMode.AppliedThenUndone), vUndefined()),
+		'rejectedEditsMaxEditsAfter': vUnion(vNumber(), vUndefined()),
+		'rejectedEditsPlacement': vUnion(vEnum(RejectedEditsPlacement.InPlace, RejectedEditsPlacement.Newest), vUndefined()),
+		'rejectedEditsRepetitions': vUnion(vNumber(), vUndefined()),
+		'rejectedEditsMaxCount': vUnion(vNumber(), vUndefined()),
+		'rejectedEditsCacheScope': vUnion(vEnum(RejectedEditsCacheScope.Request, RejectedEditsCacheScope.Edit, RejectedEditsCacheScope.None), vUndefined()),
+		'rejectedEditsOnlyFullyVisible': vUnion(vBoolean(), vUndefined()),
 	});
 }
 
@@ -594,7 +653,7 @@ export function isEagernessPrompt(options: PromptOptions, aggressivenessLevel: A
 }
 
 export function isRejectedEditMemoryEnabled(options: { readonly memory?: PromptMemoryOptions }): boolean {
-	return options.memory?.rejectedEdits === RejectedEditsMemoryMode.DiffWithTags;
+	return options.memory?.rejectedEdits !== undefined;
 }
 
 export enum ResponseFormat {
@@ -763,8 +822,15 @@ export namespace PatchModelPrediction {
 	);
 }
 
+const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+type ReasoningEffort = typeof REASONING_EFFORTS[number];
+
 export interface ModelConfiguration {
 	modelName: string;
+	/** Reasoning effort sent to the endpoint. Omitted to use the endpoint default. */
+	reasoningEffort?: ReasoningEffort;
+	/** Output token budget, including reasoning tokens. Replaces max_tokens when useMaxTokens is enabled; ignored when usePrediction is enabled. */
+	maxCompletionTokens?: number;
 	promptingStrategy: PromptingStrategy | undefined /* default */;
 	eagernessPrompt?: EagernessPrompt;
 	includeTagsInCurrentFile: boolean;
@@ -881,8 +947,22 @@ export const LINT_OPTIONS_VALIDATOR: IValidator<Partial<LintOptions>> = vObj({
 	'nRecentFiles': vNumber(),
 });
 
+const MAX_COMPLETION_TOKENS_VALIDATOR: IValidator<number> = {
+	validate(content) {
+		if (typeof content !== 'number' || !Number.isInteger(content) || content <= 0) {
+			return { content: undefined, error: { message: 'Expected a finite positive integer' } };
+		}
+		return { content, error: undefined };
+	},
+	toSchema() {
+		return { type: 'integer', minimum: 1 };
+	},
+};
+
 export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vObj({
 	'modelName': vRequired(vString()),
+	'reasoningEffort': vUnion(vEnum(...REASONING_EFFORTS), vUndefined()),
+	'maxCompletionTokens': vUnion(MAX_COMPLETION_TOKENS_VALIDATOR, vUndefined()),
 	'promptingStrategy': vUnion(vEnum(...Object.values(PromptingStrategy)), vUndefined()),
 	'eagernessPrompt': vUnion(vEnum<EagernessPrompt[]>('aggressionHighLow', 'aggressionLowMedium'), vUndefined()),
 	'includeTagsInCurrentFile': vRequired(vBoolean()),

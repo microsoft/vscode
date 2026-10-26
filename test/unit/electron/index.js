@@ -25,6 +25,7 @@ const url = require('url');
 const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
 const { applyReporter, importMochaReporter } = require('../reporter');
+const { getWorkerCount, removeArgument, runInWorkers, writeWorkerReport } = require('../parallel.ts');
 
 const minimist = require('minimist');
 
@@ -44,6 +45,7 @@ protocol.registerSchemesAsPrivileged([
  * _: string[];
  * grep: string;
  * run: string | string[];
+ * runList: string;
  * runGlob: string;
  * excludeRunGlob: string;
  * testSplit: string;
@@ -59,11 +61,15 @@ protocol.registerSchemesAsPrivileged([
  * coveragePath: string;
  * coverageFormats: string | string[];
  * 'per-test-coverage': boolean;
+ * 'rerun-failed-files': string;
+ * workers: string;
+ * worker: string;
+ * workerDir: string;
  * help: boolean;
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
+	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'rerun-failed-files', 'workers', 'worker', 'workerDir'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -79,6 +85,12 @@ const args = minimist(process.argv.slice(2), {
 
 const isCI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
 
+/**
+ * With more failed tests and suites than this, a rerun repeats whole test files
+ * instead of selecting the failures by title.
+ */
+const MAX_RERUN_TARGETS = 50;
+
 if (args.help) {
 	console.log(`Usage: node ${process.argv[1]} [options] [file...]
 
@@ -88,6 +100,7 @@ Bare .ts/.js file paths passed as positional arguments are treated as
 Options:
 --grep, -g, -f <pattern>      only run tests matching <pattern>
 --run <file>                  only run tests from <file>
+--runList <file>              only run tests whose files are listed in <file>, one per line
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
 --excludeRunGlob <file_pattern> exclude tests matching <file_pattern> from --runGlob
 --testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
@@ -100,6 +113,8 @@ Options:
 --waitServer <port>           port to connect to and wait before running tests
 --timeout <ms>                timeout for tests
 --crash-reporter-directory <path> crash reporter directory
+--rerun-failed-files <count>  rerun failed tests (suites for failed hooks) in a fresh window up to <count> more times; use whole files for many failures
+--workers <count>             run all test files in <count> parallel processes, at most one per CPU and per 2 GB of memory; ignored when only some files or tests run; reruns use one window
 --tfs <url>                   TFS server URL
 --help, -h                    show the help`);
 	process.exit(0);
@@ -111,6 +126,24 @@ if (bareFiles.length > 0) {
 	const existing = !args.run ? [] : Array.isArray(args.run) ? args.run : [args.run];
 	args.run = [...existing, ...bareFiles];
 	args._ = (args._ || []).filter(a => !bareFiles.includes(a));
+}
+
+// The renderer reads the --runList file (see loadTestModules in renderer.js)
+if (args.runList) {
+	args.runList = path.resolve(args.runList);
+}
+
+// Only a run of all test files is spread across worker processes, reruns of failed tests run in one window
+let workerCount = 1;
+try {
+	workerCount = getWorkerCount(args.workers);
+} catch (error) {
+	console.error(/** @type {Error} */ (error).message);
+	app.exit(1);
+}
+const runInParallel = workerCount > 1 && !args.run && !args.runList && !args.runGlob && !args.grep && !args.testSplit && !args.dev && !args.waitServer && !args.coverage && !args['per-test-coverage'];
+if (workerCount > 1 && !runInParallel) {
+	console.log('Running in a single window, because --workers only applies when all test files run without --grep, --dev, --waitServer or coverage');
 }
 
 let crashReporterDirectory = args['crash-reporter-directory'];
@@ -172,7 +205,8 @@ function deserializeRunnable(runnable) {
 		slow: () => runnable.slow,
 		speed: runnable.speed,
 		duration: runnable.duration,
-		currentRetry: () => runnable.currentRetry
+		currentRetry: () => runnable.currentRetry,
+		file: runnable.file
 	};
 }
 
@@ -192,6 +226,42 @@ function deserializeError(err) {
 	return err;
 }
 
+/**
+ * A failed test or hook of a test file.
+ * @typedef {{ title: string; file: string; type: string; parentTitle?: string }} IFailure
+ */
+
+/**
+ * A test that passed.
+ * @typedef {{ title: string; file: string }} IPassed
+ */
+
+/**
+ * What an attempt ran, in one window or in parallel worker processes.
+ * @typedef {{ didFail: boolean; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }} IAttemptResult
+ */
+
+/**
+ * Runs all test files once in `workerCount` worker processes. Each worker is a separate
+ * instance of this script that runs the test files it claims in its own window, and does not
+ * rerun its failures: this process reruns them in one window.
+ * @returns {Promise<IAttemptResult>}
+ */
+async function runFirstAttemptInWorkers() {
+	const { failures, unattributedFailures } = await runInWorkers({
+		name: 'Electron unit tests',
+		count: workerCount,
+		command: process.execPath,
+		args: [__filename, ...removeArgument(removeArgument(process.argv.slice(2), 'workers'), 'rerun-failed-files')],
+	});
+	// Only reruns check which tests passed
+	return { didFail: failures.length > 0 || unattributedFailures.length > 0, failures, passed: [], unattributedFailures };
+}
+
+/**
+ * Relays the mocha events of the test run in one window to the reporters in the
+ * main process, and records which tests passed and failed.
+ */
 class IPCRunner extends events.EventEmitter {
 
 	constructor(win) {
@@ -199,6 +269,13 @@ class IPCRunner extends events.EventEmitter {
 
 		this.didFail = false;
 		this.didEnd = false;
+
+		/** @type {IFailure[]} failed tests and hooks that belong to a test file */
+		this.failures = [];
+		/** @type {IPassed[]} */
+		this.passed = [];
+		/** @type {string[]} failures that do not belong to a test file, such as root-level hooks */
+		this.unattributedFailures = [];
 
 		ipcMain.on('start', () => this.emit('start'));
 		ipcMain.on('end', () => {
@@ -211,12 +288,21 @@ class IPCRunner extends events.EventEmitter {
 		ipcMain.on('test end', (e, test) => this.emit('test end', deserializeRunnable(test)));
 		ipcMain.on('hook', (e, hook) => this.emit('hook', deserializeRunnable(hook)));
 		ipcMain.on('hook end', (e, hook) => this.emit('hook end', deserializeRunnable(hook)));
-		ipcMain.on('pass', (e, test) => this.emit('pass', deserializeRunnable(test)));
+		ipcMain.on('pass', (e, test) => {
+			this.passed.push({ title: test.fullTitle, file: test.file });
+			this.emit('pass', deserializeRunnable(test));
+		});
 		ipcMain.on('fail', (e, test, err) => {
 			this.didFail = true;
+			if (test.file) {
+				this.failures.push({ title: test.fullTitle, file: test.file, type: test.type, parentTitle: test.parentTitle });
+			} else {
+				this.unattributedFailures.push(test.fullTitle);
+			}
 			this.emit('fail', deserializeRunnable(test), deserializeError(err));
 		});
 		ipcMain.on('pending', (e, test) => this.emit('pending', deserializeRunnable(test)));
+		ipcMain.on('all done', () => this.emit('all done'));
 
 		ipcMain.handle('startCoverage', async () => {
 			win.webContents.debugger.attach();
@@ -245,6 +331,14 @@ class IPCRunner extends events.EventEmitter {
 				this.emit('coverage increment', test, coverage);
 			}
 		});
+	}
+
+	dispose() {
+		for (const channel of ['start', 'end', 'suite', 'suite end', 'test', 'test end', 'hook', 'hook end', 'pass', 'fail', 'pending', 'all done']) {
+			ipcMain.removeAllListeners(channel);
+		}
+		ipcMain.removeHandler('startCoverage');
+		ipcMain.removeHandler('snapshotCoverage');
 	}
 }
 
@@ -326,6 +420,33 @@ app.on('ready', async () => {
 			};
 		} finally {
 			remoteResourceTestWindow.close();
+		}
+	});
+
+	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots) => {
+		const [{ ProtocolMainService }, { URI }] = await Promise.all([
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/protocolMainService.js`)).href),
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/uri.js`)).href),
+		]);
+		// Preserve the production root registration and guard; replace only protocol registration and file transport.
+		class TestProtocolMainService extends ProtocolMainService {
+			handleProtocols() { }
+			async createFileResponse(_request, filePath) {
+				return new Response(filePath);
+			}
+		}
+		/** @type {string[]} */
+		const errors = [];
+		const service = new TestProtocolMainService(
+			{ ...roots, workspaceStorageHome: URI.file(roots.workspaceStorageHome), isBuilt: true },
+			{ defaultProfile: { globalStorageHome: URI.file(roots.globalStorageHome) } },
+			{ error: message => errors.push(message) },
+		);
+		try {
+			const response = await service.handleResourceRequest(new Request(requestUrl));
+			return { status: response.status, path: response.ok ? await response.text() : undefined, errors };
+		} finally {
+			service.dispose();
 		}
 	});
 
@@ -425,37 +546,96 @@ app.on('ready', async () => {
 		}
 	});
 
-	const win = new BrowserWindow({
-		height: 600,
-		width: 800,
-		show: false,
-		webPreferences: {
-			preload: path.join(__dirname, 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
-			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
-			nodeIntegration: true,
-			contextIsolation: false,
-			backgroundThrottling: false,
-			spellcheck: false
-		}
-	});
+	/**
+	 * Runs the tests selected by `runArgs` in a new window, and so in a new renderer
+	 * process. `done` resolves with the runner once the tests finished and the
+	 * reporters are drained.
+	 * @param {typeof args} runArgs
+	 * @param {number} attempt
+	 */
+	function runInWindow(runArgs, attempt) {
+		const win = new BrowserWindow({
+			height: 600,
+			width: 800,
+			show: false,
+			webPreferences: {
+				preload: path.join(__dirname, 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
+				additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
+				nodeIntegration: true,
+				contextIsolation: false,
+				backgroundThrottling: false,
+				spellcheck: false
+			}
+		});
 
-	if (isCI) {
-		// Hidden windows throttle requestAnimationFrame on Windows even when background throttling is disabled.
-		win.showInactive();
+		if (isCI) {
+			// Hidden windows throttle requestAnimationFrame on Windows even when background throttling is disabled.
+			win.showInactive();
+		}
+
+		win.webContents.on('did-finish-load', () => {
+			if (runArgs.dev) {
+				win.show();
+				win.webContents.openDevTools();
+			}
+
+			const sendRun = () => win.webContents.send('run', runArgs);
+			if (runArgs.waitServer) {
+				waitForServer(Number(runArgs.waitServer)).then(sendRun);
+			} else {
+				sendRun();
+			}
+		});
+
+		const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
+		target.searchParams.set('argv', JSON.stringify(runArgs));
+		win.loadURL(target.href);
+
+		const runner = new IPCRunner(win);
+		createStatsCollector(runner);
+
+		// Handle renderer crashes, #117068
+		win.webContents.on('render-process-gone', (evt, details) => {
+			if (!runner.didEnd) {
+				console.error(`Renderer process crashed with: ${JSON.stringify(details)}`);
+				app.exit(1);
+			}
+		});
+
+		const reporters = createReporters(runner, attempt);
+
+		/** @type {Promise<IPCRunner>} */
+		const done = new Promise(resolve => runner.once('all done', async () => {
+			await Promise.all(reporters.map(r => r.drain?.()));
+			resolve(runner);
+		}));
+
+		return { win, done };
 	}
 
-	win.webContents.on('did-finish-load', () => {
-		if (args.dev) {
-			win.show();
-			win.webContents.openDevTools();
+	function createReporters(runner, attempt) {
+		if (!args.tfs) {
+			return [applyReporter(runner, args)];
 		}
 
-		if (args.waitServer) {
-			waitForServer(Number(args.waitServer)).then(sendRun);
-		} else {
-			sendRun();
-		}
-	});
+		// every attempt and worker writes its own results file, so that reruns do not overwrite earlier failures
+		const attemptSuffix = attempt > 1 ? `-attempt-${attempt}` : '';
+		const workerSuffix = args.worker ? `-worker${args.worker}` : '';
+		const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
+		// without a results folder, mocha-junit-reporter writes test-results.xml to the working directory
+		const mochaFile = testResultsRoot
+			? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}${workerSuffix}${attemptSuffix}-results.xml`)
+			: args.worker ? `test-results${workerSuffix}.xml` : undefined;
+		return [
+			new mocha.reporters.Spec(runner),
+			new MochaJUnitReporter(runner, {
+				reporterOptions: {
+					testsuitesTitle: `${args.tfs} ${process.platform}${args.worker ? ` (worker ${args.worker})` : ''}${attempt > 1 ? ` (attempt ${attempt})` : ''}`,
+					mochaFile
+				}
+			}),
+		];
+	}
 
 	async function waitForServer(port) {
 		let timeout;
@@ -484,57 +664,243 @@ app.on('ready', async () => {
 		});
 	}
 
-	function sendRun() {
-		win.webContents.send('run', args);
-	}
-
-	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
-	target.searchParams.set('argv', JSON.stringify(args));
-	win.loadURL(target.href);
-
-	const runner = new IPCRunner(win);
-	createStatsCollector(runner);
-
-	// Handle renderer crashes, #117068
-	win.webContents.on('render-process-gone', (evt, details) => {
-		if (!runner.didEnd) {
-			console.error(`Renderer process crashed with: ${JSON.stringify(details)}`);
-			app.exit(1);
-		}
-	});
-
-	const reporters = [];
-
-	if (args.tfs) {
-		const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
-		reporters.push(
-			new mocha.reporters.Spec(runner),
-			new MochaJUnitReporter(runner, {
-				reporterOptions: {
-					testsuitesTitle: `${args.tfs} ${process.platform}`,
-					mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
-				}
-			}),
-		);
-	} else {
-		// mocha patches symbols to use windows escape codes, but it seems like
-		// Electron mangles these in its output.
-		if (process.platform === 'win32') {
-			Object.assign(importMochaReporter('base').symbols, {
-				ok: '+',
-				err: 'X',
-				dot: '.',
-			});
-		}
-
-		reporters.push(applyReporter(runner, args));
-	}
-
-	if (!args.dev) {
-		ipcMain.on('all done', async () => {
-			await Promise.all(reporters.map(r => r.drain?.()));
-			await new Promise(resolve => remoteResourceServer.close(resolve));
-			app.exit(runner.didFail ? 1 : 0);
+	// mocha patches symbols to use windows escape codes, but it seems like
+	// Electron mangles these in its output.
+	if (!args.tfs && process.platform === 'win32') {
+		Object.assign(importMochaReporter('base').symbols, {
+			ok: '+',
+			err: 'X',
+			dot: '.',
 		});
 	}
+
+	if (args.dev) {
+		// keep the window open for debugging
+		runInWindow(args, 1);
+		return;
+	}
+
+	// Coverage is collected from the first window only. A worker only runs the first attempt, see runFirstAttemptInWorkers.
+	const maxReruns = args.coverage || args['per-test-coverage'] ? 0 : Math.max(0, Number(args['rerun-failed-files']) || 0);
+
+	/** @type {Map<string, IRerunRecord>} every failure that was a rerun target, by key */
+	const records = new Map();
+	/** @type {Map<string, IRerunTarget>} the failures that did not pass since they failed */
+	let targets = new Map();
+	/** @type {IRerunPlan | undefined} what the current attempt reruns, unless it is the first */
+	let plan;
+	let runArgs = args;
+	let previousWindow;
+	let exitCode = 0;
+
+	for (let attempt = 1; ; attempt++) {
+		/** @type {IAttemptResult} */
+		let runner;
+		if (attempt === 1 && runInParallel) {
+			runner = await runFirstAttemptInWorkers();
+		} else {
+			const { win, done } = runInWindow(runArgs, attempt);
+			previousWindow?.destroy();
+			previousWindow = win;
+
+			const windowRunner = await done;
+			windowRunner.dispose();
+			if (args.worker && args.workerDir) {
+				writeWorkerReport({ workerId: args.worker, workerDir: args.workerDir }, windowRunner);
+			}
+			runner = windowRunner;
+		}
+
+		if (!plan && !runner.didFail) {
+			break;
+		}
+
+		// A failure outside any test file can stop the run early, so the attempt does not establish that anything passed.
+		if (plan && runner.unattributedFailures.length === 0) {
+			for (const key of findPassedTargets(targets, runner)) {
+				targets.delete(key);
+				const record = records.get(key);
+				if (record) {
+					record.passedInAttempt = attempt;
+				}
+			}
+		}
+		targets = new Map([...targets, ...targetsFromFailures(runner.failures)]);
+		recordNotPassed(records, targets, attempt);
+
+		if (targets.size === 0 && runner.unattributedFailures.length === 0) {
+			break;
+		}
+
+		if (runner.unattributedFailures.length > 0 && maxReruns > 0) {
+			console.error(`\n${plan ? `Not counting attempt ${attempt}` : 'Not rerunning failed tests'}: ${runner.unattributedFailures.length} failure(s) do not belong to a test file:\n${runner.unattributedFailures.map(title => `  ${title}`).join('\n')}`);
+		} else if (attempt <= maxReruns) {
+			plan = planRerun(targets);
+			console.log(plan.byTitle
+				? `\nRerunning ${targets.size} failed test(s) in a fresh window (attempt ${attempt + 1} of ${maxReruns + 1}):\n${[...targets.values()].map(target => `  ${describeTarget(target)}`).join('\n')}\n`
+				: `\nRerunning the test files of ${targets.size} failed test(s) in a fresh window (attempt ${attempt + 1} of ${maxReruns + 1}):\n${plan.files.map(file => `  ${file}`).join('\n')}\n`);
+			runArgs = { ...args, run: plan.files, grep: plan.grep, runGlob: undefined, excludeRunGlob: undefined, testSplit: undefined, waitServer: undefined };
+			continue;
+		}
+
+		if (plan) {
+			console.error(`\n${targets.size} failed test(s) did not pass in ${attempt} attempts:\n${[...targets.values()].map(target => `  ${describeTarget(target)}`).join('\n')}`);
+		}
+		exitCode = 1;
+		break;
+	}
+
+	reportFlakyTests(records);
+
+	await new Promise(resolve => remoteResourceServer.close(resolve));
+	app.exit(exitCode);
 });
+
+/**
+ * What a rerun runs to establish that a failure was flaky: a failed test by its full
+ * title, the suite of a failed hook, or the test file of a failed hook outside any suite.
+ * @typedef {{ kind: 'test' | 'suite' | 'file'; file: string; title: string; label: string }} IRerunTarget
+ */
+
+/**
+ * The test files that a rerun loads, and the grep that selects their tests.
+ * @typedef {{ byTitle: boolean; files: string[]; grep: string | undefined }} IRerunPlan
+ */
+
+/**
+ * When a rerun target did not pass, and when it passed.
+ * @typedef {{ target: IRerunTarget; firstAttempt: number; lastAttempt: number; passedInAttempt?: number }} IRerunRecord
+ */
+
+/**
+ * Returns the rerun targets of the failed tests and hooks, by key.
+ * @param {IFailure[]} failures
+ * @returns {Map<string, IRerunTarget>}
+ */
+function targetsFromFailures(failures) {
+	/** @type {Map<string, IRerunTarget>} */
+	const targets = new Map();
+	for (const failure of failures) {
+		/** @type {IRerunTarget} */
+		let target;
+		if (failure.type !== 'hook') {
+			target = { kind: 'test', file: failure.file, title: failure.title, label: failure.title };
+		} else if (failure.parentTitle) {
+			// a failed hook skips the rest of its suite
+			target = { kind: 'suite', file: failure.file, title: failure.parentTitle, label: failure.title };
+		} else {
+			target = { kind: 'file', file: failure.file, title: '', label: failure.title };
+		}
+
+		const key = JSON.stringify([target.kind, target.file, target.title]);
+		if (!targets.has(key)) {
+			targets.set(key, target);
+		}
+	}
+	return targets;
+}
+
+/**
+ * Plans a rerun attempt: only the failed tests and the suites of failed hooks, or their
+ * whole test files when they cannot be selected by title, such as when there are too many.
+ * @param {Map<string, IRerunTarget>} targets
+ * @returns {IRerunPlan}
+ */
+function planRerun(targets) {
+	const files = [...new Set([...targets.values()].map(target => target.file))];
+	// mocha reads a grep of the form /pattern/flags as a regular expression literal, which cannot be combined
+	const byTitle = targets.size <= MAX_RERUN_TARGETS && [...targets.values()].every(target => target.kind !== 'file') && !/^\/.*\/[gimy]{0,4}$/.test(args.grep ?? '');
+	if (!byTitle) {
+		return { byTitle, files, grep: args.grep };
+	}
+
+	// mocha matches the grep against the full title of every test
+	const selection = [...targets.values()].map(target => target.kind === 'test' ? escapeRegExp(target.title) : `${escapeRegExp(target.title)} [\\s\\S]*`).join('|');
+	return { byTitle, files, grep: args.grep ? `^(?=[\\s\\S]*(?:${args.grep}))(?:${selection})$` : `^(?:${selection})$` };
+}
+
+/**
+ * Returns the keys of the targets that passed in the rerun. The rerun must have run and
+ * passed the failed test, or a test of the failed hook's suite, so that a failure that
+ * the rerun did not select does not count as passing. A failed hook outside any suite
+ * passes with its whole test file.
+ * @param {Map<string, IRerunTarget>} targets
+ * @param {{ failures: IFailure[]; passed: IPassed[] }} result
+ * @returns {string[]}
+ */
+function findPassedTargets(targets, result) {
+	return [...targets].filter(([, target]) => {
+		const failedTitles = new Set(result.failures.filter(failure => failure.file === target.file).map(failure => failure.title));
+		// A test that passes and then fails in teardown is reported both ways.
+		const passedTitles = result.passed.filter(test => test.file === target.file && !failedTitles.has(test.title)).map(test => test.title);
+		if (target.kind === 'file') {
+			return failedTitles.size === 0 && passedTitles.length > 0;
+		}
+		if (target.kind === 'test') {
+			return passedTitles.includes(target.title);
+		}
+		const prefix = `${target.title} `;
+		return passedTitles.some(title => title.startsWith(prefix)) && ![...failedTitles].some(title => title.startsWith(prefix));
+	}).map(([key]) => key);
+}
+
+/**
+ * Records that the targets did not pass in the attempt.
+ * @param {Map<string, IRerunRecord>} records
+ * @param {Map<string, IRerunTarget>} targets
+ * @param {number} attempt
+ */
+function recordNotPassed(records, targets, attempt) {
+	for (const [key, target] of targets) {
+		const record = records.get(key);
+		if (record) {
+			record.lastAttempt = attempt;
+			record.passedInAttempt = undefined;
+		} else {
+			records.set(key, { target, firstAttempt: attempt, lastAttempt: attempt });
+		}
+	}
+}
+
+/**
+ * Reports the failed tests that passed when they were rerun, as warnings in CI, so that
+ * flaky tests stay visible whether or not the run passed.
+ * @param {Map<string, IRerunRecord>} records
+ */
+function reportFlakyTests(records) {
+	const flaky = [...records.values()].filter(record => record.passedInAttempt !== undefined);
+	if (flaky.length === 0) {
+		return;
+	}
+
+	console.log(`\n${flaky.length} failed test(s) passed when rerun in a fresh window. They are flaky:`);
+	for (const record of flaky) {
+		const failed = record.firstAttempt === record.lastAttempt ? `failed in attempt ${record.firstAttempt}` : `did not pass in attempts ${record.firstAttempt} to ${record.lastAttempt}`;
+		const message = `${describeTarget(record.target)} ${failed} and ${record.target.kind === 'file' ? 'its test file passed' : 'passed'} in attempt ${record.passedInAttempt}`;
+		console.log(`  ${message}`);
+		// the runner also runs the node.js integration tests, so this is not only about unit tests
+		if (process.env.GITHUB_ACTIONS) {
+			console.log(`::warning title=Flaky test::${message}`);
+		} else if (process.env.TF_BUILD) {
+			console.log(`##vso[task.logissue type=warning]Flaky test: ${message}`);
+		}
+	}
+}
+
+/**
+ * Describes a rerun target on one line, so that a title with line breaks stays in one
+ * list entry and one CI annotation.
+ * @param {IRerunTarget} target
+ */
+function describeTarget(target) {
+	return `${target.label.replace(/\s*[\n\r\u2028\u2029]+\s*/g, ' ')} (${target.file})`;
+}
+
+/**
+ * Escapes a title for a grep. Line terminators are escaped too, because mocha reads a
+ * grep string only up to the first one.
+ * @param {string} value
+ */
+function escapeRegExp(value) {
+	return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&').replace(/[\n\r\u2028\u2029]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
+}

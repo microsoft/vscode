@@ -352,7 +352,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				if (!isRead) {
 					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 				}
-				if (completedStateIcon) {
+				if (status === SessionStatus.Completed && completedStateIcon) {
 					return completedStateIcon;
 				}
 				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
