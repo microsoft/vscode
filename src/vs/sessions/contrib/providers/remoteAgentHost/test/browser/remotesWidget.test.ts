@@ -43,12 +43,17 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, [
 		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 		{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
-		{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: 'work-laptop', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+		{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: 'work-laptop', canRemove: false, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 		{ id: 'container:project', kind: 'devContainer', name: 'Project', detail: '/project', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	]);
 	readonly managementChanges: { id: string; action: 'rename' | 'remove' }[] = [];
 	readonly connectionChanges: { id: string; connected: boolean }[] = [];
 	readonly visibilityChanges: { id: string; hidden: boolean }[] = [];
+	readonly copiedAddresses: string[] = [];
+	readonly locationChanges: string[] = [];
+	readonly serverUpdates: string[] = [];
+	readonly tunnelDeletions: string[] = [];
+	copyFailure: Error | undefined;
 	pendingConnection: DeferredPromise<void> | undefined;
 	pendingManagement: DeferredPromise<void> | undefined;
 	failedKinds: readonly RemoteKind[] = [];
@@ -80,6 +85,30 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		this.managementChanges.push({ id, action: 'rename' });
 		await this.pendingManagement?.p;
 		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, name: 'Renamed remote' } : remote).sort((a, b) => a.name.localeCompare(b.name)), undefined);
+	}
+
+	async copyAddress(id: string): Promise<void> {
+		if (this.copyFailure) {
+			throw this.copyFailure;
+		}
+		this.copiedAddresses.push(id);
+	}
+
+	async changePreferredAgentLocation(id: string): Promise<void> {
+		this.locationChanges.push(id);
+		await this.pendingManagement?.p;
+	}
+
+	async updateServer(id: string): Promise<void> {
+		this.serverUpdates.push(id);
+		await this.pendingManagement?.p;
+		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected } : remote), undefined);
+	}
+
+	async deleteTunnel(id: string): Promise<void> {
+		this.tunnelDeletions.push(id);
+		await this.pendingManagement?.p;
+		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
 	}
 
 	async remove(id: string): Promise<void> {
@@ -220,7 +249,7 @@ suite('RemotesWidget', () => {
 			rowHeight: row.getBoundingClientRect().height,
 			groupHeight: parent.querySelector('.remotes-group-row')!.getBoundingClientRect().height,
 			headerHeight: headers[1].getBoundingClientRect().height,
-			actionsWidth: headers[3].getBoundingClientRect().width === 72,
+			actionsWidth: headers[3].getBoundingClientRect().width === 144,
 			sashes: parent.querySelectorAll('.monaco-sash.vertical').length > 0,
 		}, {
 			values: ['Build server', 'Connected'], aligned: true,
@@ -517,7 +546,7 @@ suite('RemotesWidget', () => {
 		}, { changes: [{ id: 'ssh:build', action: 'rename' }], sameControl: true, focused: true, name: 'Renamed remote' });
 	});
 
-	test('only environment rows offer Delete, including after refresh', async () => {
+	test('environment and deletable tunnel rows offer Delete, including after refresh', async () => {
 		const { parent, model, widget } = createWidget(OperatingSystem.Windows);
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([...model.remotes.get(), {
@@ -530,10 +559,10 @@ suite('RemotesWidget', () => {
 		widget.setVisible(true);
 		await timeout(0);
 		const expected = [
-			['Connect to Desktop', 'Rename Desktop...', 'Delete Desktop'],
-			['Disconnect Build server', 'Rename Build server...'],
-			['Connect to Laptop', 'Rename Laptop...'],
-			['Connect to Ubuntu', 'Rename Ubuntu...'],
+			['Connect to Desktop', 'Rename Desktop...', 'Copy Address of Desktop', 'Delete Desktop'],
+			['Disconnect Build server', 'Rename Build server...', 'Copy Address of Build server', 'Change Preferred Agent Location for Build server'],
+			['Connect to Laptop', 'Rename Laptop...', 'Copy Address of Laptop', 'Change Preferred Agent Location for Laptop', 'Delete Laptop'],
+			['Connect to Ubuntu', 'Rename Ubuntu...', 'Copy Address of Ubuntu'],
 		];
 		assert.deepStrictEqual({ before, after: actions(), changes: model.managementChanges }, { before: expected, after: expected, changes: [] });
 	});
@@ -565,6 +594,174 @@ suite('RemotesWidget', () => {
 			remaining: parent.querySelector('[data-remote-id="environment:desktop"]') !== null,
 			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
 		}, { busy: { deletion: 'true', rename: 'true' }, changes: [{ id: 'environment:desktop', action: 'remove' }], remaining: false, focused: true });
+	});
+
+	test('tunnel Delete is keyboard accessible, distinct from Remove and guarded while pending', async () => {
+		const { parent, model } = createWidget();
+		const row = parent.querySelector('[data-remote-id="tunnel:laptop"]')!;
+		const location = row.querySelector<HTMLElement>('.codicon-server-process')!;
+		location.focus();
+		location.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		location.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		const deletion = row.querySelector<HTMLElement>('.codicon-trash')!;
+		assert.strictEqual(dom.getActiveElement(), deletion);
+		model.pendingManagement = new DeferredPromise<void>();
+		for (const type of ['keydown', 'keyup']) {
+			deletion.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		deletion.click();
+		const disabled = deletion.getAttribute('aria-disabled');
+		row.querySelector<HTMLElement>('.codicon-copy')!.click();
+		await model.pendingManagement.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			disabled, deleted: model.tunnelDeletions, removed: model.managementChanges, copied: model.copiedAddresses,
+			present: !!parent.querySelector('[data-remote-id="tunnel:laptop"]'),
+			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
+		}, { disabled: 'true', deleted: ['tunnel:laptop'], removed: [], copied: ['tunnel:laptop'], present: false, focused: true });
+	});
+
+	test('failed tunnel deletion reports the error and keeps Delete available for retry', async () => {
+		const { parent, model, errors } = createWidget();
+		const deletion = parent.querySelector<HTMLElement>('[data-remote-id="tunnel:laptop"] .codicon-trash')!;
+		model.pendingManagement = new DeferredPromise<void>();
+		deletion.click();
+		const error = new Error('Tunnel deletion forbidden');
+		await model.pendingManagement.error(error);
+		await timeout(0);
+		assert.deepStrictEqual({ errors, enabled: deletion.getAttribute('aria-disabled'), deleted: model.tunnelDeletions }, {
+			errors: [error], enabled: null, deleted: ['tunnel:laptop'],
+		});
+	});
+
+	test('tunnel Delete tracks deletion capability independently of local removal', () => {
+		const { parent, model } = createWidget();
+		const remote = model.remotes.get().find(remote => remote.kind === 'tunnel')!;
+		const states = [false, true, false].map(canDelete => {
+			model.remotes.set([{ ...remote, canDelete }], undefined);
+			return !!parent.querySelector('[data-remote-id="tunnel:laptop"] .codicon-trash');
+		});
+		assert.deepStrictEqual(states, [false, true, false]);
+	});
+
+	test('Copy Address works on every visible remote without changing connections or focus', async () => {
+		const { parent, model } = createWidget(OperatingSystem.Windows);
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([...model.remotes.get(), {
+			id: 'environment:offline', name: 'Offline', kind: 'environment', detail: 'host', canRemove: true,
+			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Offline',
+		}], undefined);
+		const buttons = [...parent.querySelectorAll<HTMLElement>('[data-remote-id] .remotes-actions-column .codicon-copy')];
+		const ids = buttons.map(button => button.closest<HTMLElement>('[data-remote-id]')!.dataset.remoteId);
+		for (const button of buttons) {
+			button.focus();
+			button.click();
+			await timeout(0);
+			assert.strictEqual(dom.getActiveElement(), button);
+		}
+		assert.deepStrictEqual({ copied: model.copiedAddresses, connections: model.connectionChanges }, { copied: ids, connections: [] });
+	});
+
+	for (const id of ['ssh:build', 'tunnel:laptop']) {
+		test(`${id} location action is keyboard accessible and guards duplicate requests while copying stays available`, async () => {
+			const { parent, model } = createWidget();
+			const row = parent.querySelector(`[data-remote-id="${id}"]`)!;
+			const copy = row.querySelector<HTMLElement>('.codicon-copy')!;
+			const location = row.querySelector<HTMLElement>('.codicon-server-process')!;
+			copy.focus();
+			copy.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+			copy.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+			assert.strictEqual(dom.getActiveElement(), location);
+			model.pendingManagement = new DeferredPromise<void>();
+			for (const type of ['keydown', 'keyup']) {
+				location.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			}
+			location.click();
+			const busy = location.getAttribute('aria-disabled');
+			copy.click();
+			await model.pendingManagement.complete();
+			await timeout(0);
+			assert.deepStrictEqual({
+				busy, enabled: location.getAttribute('aria-disabled'), calls: model.locationChanges, copied: model.copiedAddresses,
+			}, { busy: 'true', enabled: null, calls: [id], copied: [id] });
+		});
+	}
+
+	test('Update Server follows advertised capability as a row changes status', () => {
+		const { parent, model } = createWidget();
+		const remote = model.remotes.get()[0];
+		const statuses = [
+			RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.incompatible('Too old', ['1']),
+			RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], ['2'], 'vendor/update'),
+			RemoteAgentHostConnectionStatus.connecting,
+			RemoteAgentHostConnectionStatus.connected,
+		];
+		const labels = statuses.map(connectionStatus => {
+			model.remotes.set([{ ...remote, connectionStatus }], undefined);
+			return parent.querySelector('.remotes-actions-column .codicon-cloud-download')?.getAttribute('aria-label') ?? null;
+		});
+		assert.deepStrictEqual(labels, [null, null, 'Update Server for Build server', null, null]);
+	});
+
+	test('Update Server supports keyboard activation, blocks duplicates and restores focus when it disappears', async () => {
+		const { parent, model } = createWidget();
+		model.remotes.set([{
+			...model.remotes.get()[0],
+			connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], undefined, 'vendor/update'),
+		}], undefined);
+		const location = parent.querySelector<HTMLElement>('.remotes-actions-column .codicon-server-process')!;
+		location.focus();
+		location.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		location.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		const update = parent.querySelector<HTMLElement>('.remotes-actions-column .codicon-cloud-download')!;
+		assert.strictEqual(dom.getActiveElement(), update);
+		model.pendingManagement = new DeferredPromise<void>();
+		for (const type of ['keydown', 'keyup']) {
+			update.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		update.click();
+		const busy = update.getAttribute('aria-disabled');
+		parent.querySelector<HTMLElement>('.remotes-actions-column .codicon-copy')!.click();
+		await model.pendingManagement.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			busy, updates: model.serverUpdates, copies: model.copiedAddresses,
+			present: !!parent.querySelector('.remotes-actions-column .codicon-cloud-download'),
+			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
+		}, { busy: 'true', updates: ['ssh:build'], copies: ['ssh:build'], present: false, focused: true });
+	});
+
+	test('failed Update Server reports the error and re-enables the action', async () => {
+		const { parent, model, errors } = createWidget();
+		model.remotes.set([{
+			...model.remotes.get()[0],
+			connectionStatus: RemoteAgentHostConnectionStatus.incompatible('Too old', ['1'], undefined, 'vendor/update'),
+		}], undefined);
+		const update = parent.querySelector<HTMLElement>('.remotes-actions-column .codicon-cloud-download')!;
+		model.pendingManagement = new DeferredPromise<void>();
+		update.click();
+		const error = new Error('Cannot update server');
+		await model.pendingManagement.error(error);
+		await timeout(0);
+		assert.deepStrictEqual({ errors, enabled: update.getAttribute('aria-disabled'), updates: model.serverUpdates }, {
+			errors: [error], enabled: null, updates: ['ssh:build'],
+		});
+	});
+
+	test('new inline actions report failures and location changes re-enable for retry', async () => {
+		const { parent, model, errors } = createWidget();
+		const row = parent.querySelector('[data-remote-id="tunnel:laptop"]')!;
+		const copyError = new Error('Clipboard unavailable');
+		const locationError = new Error('Cannot save preference');
+		model.copyFailure = copyError;
+		row.querySelector<HTMLElement>('.codicon-copy')!.click();
+		model.pendingManagement = new DeferredPromise<void>();
+		const location = row.querySelector<HTMLElement>('.codicon-server-process')!;
+		location.click();
+		await model.pendingManagement.error(locationError);
+		await timeout(0);
+		assert.deepStrictEqual({ errors, enabled: location.getAttribute('aria-disabled') }, { errors: [copyError, locationError], enabled: null });
 	});
 
 	test('failed Delete retains the row, reports the error and allows retry', async () => {
@@ -1105,6 +1302,12 @@ suite('RemotesWidget', () => {
 		}
 		await timeout(0);
 		rename.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		const copy = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .codicon-copy')!;
+		assert.strictEqual(dom.getActiveElement(), copy);
+		copy.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		const location = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .codicon-server-process')!;
+		assert.strictEqual(dom.getActiveElement(), location);
+		location.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
 		assert.deepStrictEqual({ changes: model.managementChanges, focused: dom.getActiveElement() === connection }, {
 			changes: [{ id: 'ssh:build', action: 'rename' }], focused: true,
 		});
@@ -1277,7 +1480,7 @@ suite('RemotesWidget', () => {
 			link.click();
 		}
 		assert.deepStrictEqual(documentation, Array.from({ length: 4 }, () => [
-			'https://aka.ms/vscode-agent-environments', 'https://aka.ms/vscode-agent-ssh', 'https://aka.ms/vscode-agent-tunnel', 'https://aka.ms/vscode-remote/wsl/install-wsl',
+			'https://aka.ms/vscode-agent-environments', 'https://aka.ms/vscode-agent-ssh', 'https://aka.ms/vscode-agent-tunnel', 'https://aka.ms/vscode-agent-wsl',
 		]).flat());
 	});
 
@@ -1300,7 +1503,7 @@ suite('RemotesWidget', () => {
 			documentation: [
 				'https://aka.ms/vscode-agent-ssh',
 				'https://aka.ms/vscode-agent-tunnel',
-				'https://aka.ms/vscode-remote/wsl/install-wsl',
+				'https://aka.ms/vscode-agent-wsl',
 			],
 			accessibleGuidance: true,
 		});
