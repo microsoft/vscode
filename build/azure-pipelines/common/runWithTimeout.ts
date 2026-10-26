@@ -20,7 +20,7 @@ import { spawn, spawnSync } from 'node:child_process';
 export const TIMEOUT_EXIT_CODE = 124;
 
 /** How long the `--on-timeout` command may run, since it may talk to the stuck process. */
-const ON_TIMEOUT_DEADLINE_MS = 60_000;
+const ON_TIMEOUT_DEADLINE_MS = Number(process.env.RUN_WITH_TIMEOUT_CLEANUP_MS) || 60_000;
 
 interface Options {
 	readonly seconds: number;
@@ -64,7 +64,28 @@ function killTree(pid: number): void {
 	}
 }
 
-export function runWithTimeout(options: Options): Promise<number> {
+/** Runs a shell command, killing its process tree if it runs longer than the deadline. */
+function runCleanup(command: string, deadlineMs: number): Promise<string | undefined> {
+	return new Promise(resolve => {
+		const child = spawn(command, { stdio: 'inherit', shell: true, detached: process.platform !== 'win32' });
+		const timer = setTimeout(() => {
+			if (child.pid !== undefined) {
+				killTree(child.pid);
+			}
+			resolve(`no exit within ${deadlineMs / 1000} s`);
+		}, deadlineMs);
+		child.on('error', err => {
+			clearTimeout(timer);
+			resolve(err.message);
+		});
+		child.on('exit', code => {
+			clearTimeout(timer);
+			resolve(code === 0 ? undefined : `exit code ${code}`);
+		});
+	});
+}
+
+export function runWithTimeout(options: Options, onTimeoutDeadlineMs = ON_TIMEOUT_DEADLINE_MS): Promise<number> {
 	return new Promise(resolve => {
 		const child = spawn(options.command, options.args, {
 			stdio: 'inherit',
@@ -83,13 +104,13 @@ export function runWithTimeout(options: Options): Promise<number> {
 			console.error(err);
 			resolve(1);
 		});
-		child.on('exit', (code, signal) => {
+		child.on('exit', async (code, signal) => {
 			clearTimeout(timer);
 			if (timedOut) {
 				if (options.onTimeout) {
-					const cleanup = spawnSync(options.onTimeout, { stdio: 'inherit', shell: true, timeout: ON_TIMEOUT_DEADLINE_MS, killSignal: 'SIGKILL' });
-					if (cleanup.error || cleanup.status !== 0) {
-						console.log(`##vso[task.logissue type=warning]'${options.onTimeout}' did not complete: ${cleanup.error?.message ?? `exit code ${cleanup.status}`}`);
+					const failure = await runCleanup(options.onTimeout, onTimeoutDeadlineMs);
+					if (failure) {
+						console.log(`##vso[task.logissue type=warning]'${options.onTimeout}' did not complete: ${failure}`);
 					}
 				}
 				resolve(TIMEOUT_EXIT_CODE);

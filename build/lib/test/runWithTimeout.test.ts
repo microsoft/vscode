@@ -14,8 +14,8 @@ import { parseArgs, TIMEOUT_EXIT_CODE } from '../../azure-pipelines/common/runWi
 
 const scriptPath = fileURLToPath(new URL('../../azure-pipelines/common/runWithTimeout.ts', import.meta.url));
 
-function run(args: string[]) {
-	return spawnSync(process.execPath, [scriptPath, ...args], { encoding: 'utf8', timeout: 30_000 });
+function run(args: string[], env: NodeJS.ProcessEnv = {}) {
+	return spawnSync(process.execPath, [scriptPath, ...args], { encoding: 'utf8', timeout: 30_000, env: { ...process.env, ...env } });
 }
 
 suite('runWithTimeout', () => {
@@ -43,6 +43,22 @@ suite('runWithTimeout', () => {
 		const result = run(['1', '--on-timeout', `"${process.execPath}" -e "process.exit(5)"`, '--', process.execPath, '-e', 'setTimeout(() => {}, 60_000)']);
 		assert.equal(result.status, TIMEOUT_EXIT_CODE);
 		assert.match(result.stdout, /did not complete: exit code 5/);
+	});
+
+	test('kills a hung timeout command and still fails with the timeout exit code', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'run-with-timeout-'));
+		const marker = join(dir, 'cleanup-survived');
+		try {
+			// The timeout command would write the marker after 4 s, unless it's killed at its 1 s deadline.
+			const cleanup = `"${process.execPath}" -e "setTimeout(() => require('fs').writeFileSync(process.argv[1], ''), 4000)" "${marker}"`;
+			const result = run(['1', '--on-timeout', cleanup, '--', process.execPath, '-e', 'setTimeout(() => {}, 60_000)'], { RUN_WITH_TIMEOUT_CLEANUP_MS: '1000' });
+			assert.equal(result.status, TIMEOUT_EXIT_CODE);
+			assert.match(result.stdout, /did not complete: no exit within 1 s/);
+			spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 5000)']);
+			assert.equal(existsSync(marker), false, 'the timeout command kept running after its deadline');
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	test('rejects malformed arguments', () => {
