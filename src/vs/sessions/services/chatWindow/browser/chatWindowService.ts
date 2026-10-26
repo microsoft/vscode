@@ -223,6 +223,8 @@ export interface IChatWindowTerminalHost {
 	 * which opens in it a moment later: false only when there is none to show, which leaves the row empty for good.
 	 */
 	show(window: IChatWindow, group: IEditorGroup, focus: boolean): Promise<boolean>;
+	/** Opens a new terminal for `window` in `group`, a group split off its terminal row. Resolves to whether one opened. */
+	newTerminal(window: IChatWindow, group: IEditorGroup): Promise<boolean>;
 	/** Takes the terminal of `window` out of its terminal row, which is about to go, keeping it running to show again. */
 	hide(window: IChatWindow): void;
 	/** Takes the terminal of `window` out of it, which closes or moves its chat: the terminal is its session's again. */

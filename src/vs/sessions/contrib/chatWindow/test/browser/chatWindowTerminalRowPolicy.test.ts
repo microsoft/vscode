@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { completeTerminalReturn, decideTerminalRowMove, EditorAreaCloser, ITerminalReturn, shouldCloseEditorArea, shouldHideTerminalRow, TerminalRowMoveAction } from '../../browser/chatWindowTerminalRowPolicy.js';
+import { completeTerminalReturn, decideTerminalRowMove, EditorAreaCloser, ITerminalReturn, planTerminalRowSplits, TerminalRowSplitState, shouldCloseEditorArea, shouldHideTerminalRow, TerminalRowMoveAction } from '../../browser/chatWindowTerminalRowPolicy.js';
 
 suite('Chat window terminal row policy', () => {
 
@@ -108,5 +108,28 @@ suite('Chat window terminal row policy', () => {
 		steps.push(closes);
 
 		assert.deepStrictEqual(steps, [0, 1, 1, 1, 1]);
+	});
+
+	test('a split of the terminal row closes when empty, and an empty row hands its place to the split that shows a terminal', () => {
+		const Terminal = TerminalRowSplitState.Terminal, Empty = TerminalRowSplitState.Empty, Pending = TerminalRowSplitState.Pending;
+		assert.deepStrictEqual({
+			closeSecond: planTerminalRowSplits(false, [Empty]),
+			closeFirst: planTerminalRowSplits(true, [Terminal]),
+			keepsShownSplit: planTerminalRowSplits(false, [Terminal]),
+			allEmpty: planTerminalRowSplits(true, [Empty]),
+			firstOfTwo: planTerminalRowSplits(true, [Empty, Terminal]),
+			justSplit: planTerminalRowSplits(false, [Pending]),
+			justSplitBesideEmpty: planTerminalRowSplits(false, [Empty, Pending]),
+			emptyRowBesidePending: planTerminalRowSplits(true, [Pending, Empty]),
+		}, {
+			closeSecond: { adopt: undefined, remove: [0] },
+			closeFirst: { adopt: 0, remove: [] },
+			keepsShownSplit: { adopt: undefined, remove: [] },
+			allEmpty: { adopt: undefined, remove: [] },
+			firstOfTwo: { adopt: 1, remove: [0] },
+			justSplit: { adopt: undefined, remove: [] },
+			justSplitBesideEmpty: { adopt: undefined, remove: [0] },
+			emptyRowBesidePending: { adopt: undefined, remove: [] },
+		});
 	});
 });

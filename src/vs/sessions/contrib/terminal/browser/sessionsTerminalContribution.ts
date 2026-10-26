@@ -965,6 +965,7 @@ class ChatWindowTerminalHost implements IChatWindowTerminalHost {
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) { }
 
 	private get _contribution(): SessionsTerminalContribution {
@@ -1007,6 +1008,16 @@ class ChatWindowTerminalHost implements IChatWindowTerminalHost {
 			}
 			first = false;
 		}
+		return true;
+	}
+
+	async newTerminal(window: IChatWindow, group: IEditorGroup): Promise<boolean> {
+		const instance = await this._terminalService.createTerminal({ location: { viewColumn: editorGroupToColumn(this._editorGroupsService, group) } });
+		if (instance.isDisposed) {
+			return false;
+		}
+		this._getTerminals(window).add(instance);
+		this._contribution.setShownInChatWindow(instance, true);
 		return true;
 	}
 
