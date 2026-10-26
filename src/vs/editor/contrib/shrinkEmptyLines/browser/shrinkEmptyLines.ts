@@ -129,10 +129,16 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		if (!model || !this._decorationOptions) {
 			return;
 		}
-		const changedRanges = event.changes.map(change => ({
-			startLineNumber: change.range.startLineNumber,
-			endLineNumber: Math.min(change.range.startLineNumber + countEOL(change.text)[0], model.getLineCount()),
-		}));
+		let lineDelta = 0;
+		const changedRanges: LineRange[] = [];
+		// Changes use pre-edit coordinates and are ordered from bottom to top.
+		for (let i = event.changes.length - 1; i >= 0; i--) {
+			const change = event.changes[i];
+			const insertedLines = countEOL(change.text)[0];
+			const startLineNumber = change.range.startLineNumber + lineDelta;
+			changedRanges.push({ startLineNumber, endLineNumber: Math.min(startLineNumber + insertedLines, model.getLineCount()) });
+			lineDelta += insertedLines - (change.range.endLineNumber - change.range.startLineNumber);
+		}
 		const oldDecorations = new Set<string>();
 		for (const range of changedRanges) {
 			const modelRange = new Range(range.startLineNumber, 1, range.endLineNumber, model.getLineMaxColumn(range.endLineNumber));

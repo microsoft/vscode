@@ -322,6 +322,159 @@ suite('Shrink Empty Lines', () => {
 		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 10, 19]);
 	});
 
+	test('shrinks blank lines inserted at multiple positions', () => {
+		const { editor, model } = createEditor('a\nb', { shrinkEmptyLines: 0.5 });
+
+		model.applyEdits([
+			{ range: new Range(1, 2, 1, 2), text: '\n' },
+			{ range: new Range(2, 2, 2, 2), text: '\n' },
+		]);
+
+		assert.deepStrictEqual({
+			lines: model.getLinesContent(),
+			lineHeights: getLineHeights(editor),
+		}, {
+			lines: ['a', '', 'b', ''],
+			lineHeights: [19, 10, 19, 10],
+		});
+	});
+
+	test('does not leave code lines shrunk after deleting multiple lines', () => {
+		const { editor, model } = createEditor('x\n\ny\n}\nz', { shrinkEmptyLines: 0.5 });
+
+		model.applyEdits([
+			{ range: new Range(2, 1, 3, 1), text: '' },
+			{ range: new Range(4, 1, 5, 1), text: '' },
+		]);
+
+		assert.deepStrictEqual({
+			lines: model.getLinesContent(),
+			lineHeights: getLineHeights(editor),
+		}, {
+			lines: ['x', 'y', 'z'],
+			lineHeights: [19, 19, 19],
+		});
+	});
+
+	test('shrinks punctuation shifted by an earlier multiline replacement', () => {
+		const { editor, model } = createEditor('a\nb\nx\nc', { shrinkEmptyLines: 0.5 });
+
+		model.applyEdits([
+			{ range: new Range(1, 1, 1, 2), text: 'a\n\n' },
+			{ range: new Range(3, 1, 3, 2), text: '}' },
+		]);
+
+		assert.deepStrictEqual({
+			lines: model.getLinesContent(),
+			lineHeights: getLineHeights(editor),
+			fontSizes: getLineFontSizes(editor),
+		}, {
+			lines: ['a', '', '', 'b', '}', 'c'],
+			lineHeights: [19, 10, 10, 19, 10, 19],
+			fontSizes: ['14px', '14px', '14px', '14px', '7px', '14px'],
+		});
+	});
+
+	test('restores regular height and font size for code shifted by an earlier deletion', () => {
+		const { editor, model } = createEditor('a\n\nb\n}\nz', { shrinkEmptyLines: 0.5 });
+
+		model.applyEdits([
+			{ range: new Range(2, 1, 3, 1), text: '' },
+			{ range: new Range(4, 2, 4, 2), text: 'x' },
+		]);
+
+		assert.deepStrictEqual({
+			lines: model.getLinesContent(),
+			lineHeights: getLineHeights(editor),
+			fontSizes: getLineFontSizes(editor),
+		}, {
+			lines: ['a', 'b', '}x', 'z'],
+			lineHeights: [19, 19, 19, 19],
+			fontSizes: ['14px', '14px', '14px', '14px'],
+		});
+	});
+
+	test('accounts for intermediate line shifts when the total line count is unchanged', () => {
+		const { editor, model } = createEditor('a\nb\nx\nc\n\nz', { shrinkEmptyLines: 0.5 });
+
+		model.applyEdits([
+			{ range: new Range(1, 2, 1, 2), text: '\n' },
+			{ range: new Range(3, 1, 3, 2), text: '}' },
+			{ range: new Range(5, 1, 6, 1), text: '' },
+		]);
+
+		assert.deepStrictEqual({
+			lines: model.getLinesContent(),
+			lineHeights: getLineHeights(editor),
+			fontSizes: getLineFontSizes(editor),
+		}, {
+			lines: ['a', '', 'b', '}', 'c', 'z'],
+			lineHeights: [19, 10, 19, 10, 19, 19],
+			fontSizes: ['14px', '14px', '14px', '7px', '14px', '14px'],
+		});
+	});
+
+	const multiCursorLines = [
+		'const first = 1;',
+		'const second = 2;',
+		'const third = 3;',
+		'const fourth = 4;',
+		'const fifth = 5;',
+		'const sixth = 6;',
+	];
+
+	function createEditorWithMultiCursorLineBreaks() {
+		const { editor, model } = createEditor(multiCursorLines.join('\n'), { shrinkEmptyLines: 0.5 });
+
+		model.pushEditOperations([], multiCursorLines.map((line, index) => ({
+			range: new Range(index + 1, line.length + 1, index + 1, line.length + 1),
+			text: '\n',
+		})), () => null);
+
+		return { editor, model };
+	}
+
+	test('updates all line heights after a multi-cursor edit', () => {
+		const { editor, model } = createEditorWithMultiCursorLineBreaks();
+
+		assert.deepStrictEqual({
+			lines: model.getLinesContent(),
+			lineHeights: getLineHeights(editor),
+		}, {
+			lines: multiCursorLines.flatMap(line => [line, '']),
+			lineHeights: [19, 10, 19, 10, 19, 10, 19, 10, 19, 10, 19, 10],
+		});
+	});
+
+	test('updates all line heights after a multi-cursor undo', async () => {
+		const { editor, model } = createEditorWithMultiCursorLineBreaks();
+
+		await model.undo();
+
+		assert.deepStrictEqual({
+			lines: model.getLinesContent(),
+			lineHeights: getLineHeights(editor),
+		}, {
+			lines: multiCursorLines,
+			lineHeights: [19, 19, 19, 19, 19, 19],
+		});
+	});
+
+	test('updates all line heights after a multi-cursor redo', async () => {
+		const { editor, model } = createEditorWithMultiCursorLineBreaks();
+
+		await model.undo();
+		await model.redo();
+
+		assert.deepStrictEqual({
+			lines: model.getLinesContent(),
+			lineHeights: getLineHeights(editor),
+		}, {
+			lines: multiCursorLines.flatMap(line => [line, '']),
+			lineHeights: [19, 10, 19, 10, 19, 10, 19, 10, 19, 10, 19, 10],
+		});
+	});
+
 	test('updates punctuation-only lines after edits, undo and redo', async () => {
 		const { editor, model } = createEditor('{\n}\n// comment', { shrinkEmptyLines: 0.5 });
 		const results = [{ lineHeights: getLineHeights(editor), fontSizes: getLineFontSizes(editor) }];
