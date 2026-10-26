@@ -246,8 +246,8 @@ function getSessionsListMoveMessages(move: SessionsListMove): ISessionsListMoveM
 	const log = 'Moving a chat failed';
 	if (move.destination.kind === 'newSession') {
 		return {
-			progress: localize('sessionsMove.promoting', "Promoting '{0}' to a new session...", title),
-			success: localize('sessionsMove.promoted', "Promoted '{0}' to a new session", title),
+			progress: localize('sessionsMove.movingToNewSession', "Moving '{0}' to a new session...", title),
+			success: localize('sessionsMove.movedToNewSession', "Moved '{0}' to a new session", title),
 			failure,
 			log,
 		};

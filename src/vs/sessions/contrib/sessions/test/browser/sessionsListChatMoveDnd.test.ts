@@ -372,7 +372,7 @@ suite('Move Chats Drag and Drop', () => {
 			}
 			assert.deepStrictEqual(announcements, [
 				'Moved \'Chat\' into \'Target\'',
-				'Promoted \'Chat\' to a new session',
+				'Moved \'Chat\' to a new session',
 				'Moved session \'Single\' into \'Target\'',
 			]);
 		});
@@ -407,8 +407,8 @@ suite('Move Chats Drag and Drop', () => {
 					'result: Moved \'Chat\' to the start [Undo]',
 					'progress: Moving \'Chat\' into \'Target\'...',
 					'result: Moved \'Chat\' into \'Target\' [Undo]',
-					'progress: Promoting \'Chat\' to a new session...',
-					'result: Promoted \'Chat\' to a new session [Undo]',
+					'progress: Moving \'Chat\' to a new session...',
+					'result: Moved \'Chat\' to a new session [Undo]',
 					'progress: Moving session \'Single\' into \'Target\'...',
 					'result: Moved session \'Single\' into \'Target\' [Undo]',
 				],
@@ -431,7 +431,7 @@ suite('Move Chats Drag and Drop', () => {
 			await test.run(reorder);
 			assert.deepStrictEqual({ shown: test.shown, logged: test.logged, watched: test.watched }, {
 				shown: [
-					'progress: Promoting \'Chat\' to a new session...',
+					'progress: Moving \'Chat\' to a new session...',
 					'warning: Could not move \'Chat\'. Chats can\'t be moved into or out of an archived session.',
 					'progress: Moving \'Chat\'...',
 					'warning: Could not move \'Chat\'.',
@@ -1207,7 +1207,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	});
 
-	test('after Promote to Session, the list reveals and selects the new session', async () => {
+	test('after Move to New Session, the list reveals and selects the new session', async () => {
 		const own = listSession('Own', ['promoted']);
 		const others = ['A', 'B', 'C', 'D'].map(title => listSession(title, []));
 		const list = render([own, ...others], { height: 220, simulateMoves: true });
@@ -1225,12 +1225,12 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		assert.deepStrictEqual({ moved, moves: list.moves, notices: list.notices, selected: list.rendered().selected }, {
 			moved: true,
 			moves: ['promoted -> new session'],
-			notices: ['progress: Promoting \'promoted\' to a new session...', 'result: Promoted \'promoted\' to a new session [Undo]'],
+			notices: ['progress: Moving \'promoted\' to a new session...', 'result: Moved \'promoted\' to a new session [Undo]'],
 			selected: ['promoted'],
 		});
 	});
 
-	test('Promote to Session with the sessions view hidden reports a refusal as a notification, not in the notice', async () => {
+	test('Move to New Session with the sessions view hidden reports a refusal as a notification, not in the notice', async () => {
 		const own = listSession('Own', ['promoted']);
 		const list = render([own]);
 		const shown: string[] = [];

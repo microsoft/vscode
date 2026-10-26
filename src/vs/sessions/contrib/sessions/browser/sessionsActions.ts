@@ -746,7 +746,7 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: PROMOTE_CHAT_TO_SESSION_ACTION_ID,
-			title: localize2('promoteChatToSession', "Promote to Session"),
+			title: localize2('moveChatToNewSession', "Move to New Session"),
 			f1: false,
 			menu: [{
 				id: Menus.SessionChatItemContext,

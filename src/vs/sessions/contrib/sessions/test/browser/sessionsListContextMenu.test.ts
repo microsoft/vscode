@@ -674,7 +674,7 @@ suite('Sessions list context menus', () => {
 		}
 	});
 
-	test('a nested session\'s context menu knows whether the chat can move, for Promote to Session', () => {
+	test('a nested session\'s context menu knows whether the chat can move, for Move to New Session', () => {
 		const chat = (title: string) => upcastPartial<IChat>({
 			resource: URI.parse(`test-chat:/${title}`),
 			workspace: constObservable(undefined),
@@ -703,7 +703,7 @@ suite('Sessions list context menus', () => {
 		assert.deepStrictEqual({ movable: canMove('Movable'), fixed: canMove('Fixed') }, { movable: true, fixed: false });
 	});
 
-	test('Promote to Session moves a nested session into a new session without a dialog, explaining a refusal', async () => {
+	test('Move to New Session moves a nested session into a new session without a dialog, explaining a refusal', async () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionChatItemContext).filter(isIMenuItem).find(candidate => candidate.command.id === PROMOTE_CHAT_TO_SESSION_ACTION_ID);
 		const shownWhen = (values: Record<string, unknown>) => !!item?.when?.evaluate({ getValue: <T>(key: string) => values[key] as T });
 		const enabled = { 'config.chat.agentHost.moveChats.enabled': true, [ChatContextKeys.enabled.key]: true, 'sessionChatItem.canMove': true };
@@ -761,7 +761,7 @@ suite('Sessions list context menus', () => {
 			results,
 			events,
 		}, {
-			title: 'Promote to Session',
+			title: 'Move to New Session',
 			group: '1_move',
 			order: 1,
 			shown: { enabled: true, settingOff: false, aiDisabled: false, notMovable: false },
