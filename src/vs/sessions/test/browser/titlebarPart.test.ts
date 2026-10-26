@@ -184,7 +184,7 @@ suite('Sessions - Titlebar Part', () => {
 
 		assert.deepStrictEqual({ before, hosting, after: read() }, {
 			before: { hosts: false, height: 44, sameHost: true, inTitlebar: true },
-			hosting: { hosts: true, height: 44, sameHost: true, inTitlebar: true },
+			hosting: { hosts: true, height: 32, sameHost: true, inTitlebar: true },
 			after: { hosts: false, height: 44, sameHost: true, inTitlebar: true },
 		});
 	});

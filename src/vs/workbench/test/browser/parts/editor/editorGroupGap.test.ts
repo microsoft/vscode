@@ -11,6 +11,9 @@ import { GroupDirection } from '../../../../services/editor/common/editorGroupsS
 import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { IDimension } from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { EDITOR_GROUP_BORDER } from '../../../../common/theme.js';
 import { createEditorPart, TestEditorPart, TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 
 class TestGroupGapLayoutService extends TestLayoutService {
@@ -27,9 +30,12 @@ suite('Editor Part Group Gap', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createPart(): Promise<TestEditorPart> {
+	async function createPart(themeService?: TestThemeService): Promise<TestEditorPart> {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		instantiationService.stub(IWorkbenchLayoutService, new TestGroupGapLayoutService());
+		if (themeService) {
+			instantiationService.stub(IThemeService, themeService);
+		}
 		return createEditorPart(instantiationService, disposables); // laid out at 1080x800
 	}
 
@@ -140,6 +146,28 @@ suite('Editor Part Group Gap', () => {
 			sameGap: [],
 			// The right column now has a gap between its rows, and the right group's minimum height includes its share
 			afterSplit: { changes: ['right'], minimum: { width: withoutGap.width + 8, height: withoutGap.height * 2 + 8 }, rightMinimumHeight: 0 },
+		});
+	});
+
+	test('no separator is drawn in the gap between groups', async () => {
+		const part = await createPart(new TestThemeService(new TestColorTheme({ [EDITOR_GROUP_BORDER]: '#ff0000' })));
+		const top = part.activeGroup;
+		part.addGroup(top, GroupDirection.DOWN);
+		const separator = () => {
+			const splitView = part.element.querySelector<HTMLElement>('.monaco-grid-view .monaco-split-view2')!;
+			return { drawn: splitView.classList.contains('separator-border'), color: splitView.style.getPropertyValue('--separator-border') };
+		};
+		const withoutGap = separator();
+
+		part.setGroupGap(8);
+		const withGap = separator();
+		part.setGroupGap(0);
+
+		assert.deepStrictEqual({ withoutGap, withGap, reset: separator() }, {
+			withoutGap: { drawn: true, color: '#ff0000' },
+			// Groups set apart by a gap are cards of their own: a separator would be drawn in the middle of the gap
+			withGap: { drawn: false, color: '' },
+			reset: { drawn: true, color: '#ff0000' },
 		});
 	});
 
