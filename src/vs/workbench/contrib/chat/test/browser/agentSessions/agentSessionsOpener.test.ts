@@ -26,6 +26,9 @@ import { openSession, openSessionByResource, ISessionOpenerParticipant, sessionO
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { ACTIVE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite('AgentSessionsOpener', () => {
@@ -194,6 +197,46 @@ suite('AgentSessionsOpener', () => {
 		}
 
 		assert.strictEqual(handledSession?.resource.toString(), twin.toString());
+	});
+
+	test('a list click opens the session in an editor when chat.agentSessions.openInEditor is enabled, revealing an existing editor like a file', async () => {
+		const resource = URI.parse('test-session://provider/session');
+		const session = upcastPartial<IAgentSession>({ resource, providerType: 'test-session', label: 'Session', setRead: () => { } });
+		const open = async (openInEditor: boolean, existing: 'none' | 'chatView' | 'editor') => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ILogService, new NullLogService());
+			stubAgentHost(instantiationService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.OpenSessionsInEditor]: openInEditor }));
+			instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: () => undefined }));
+			instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+				activateChatSessionItemProvider: async () => undefined,
+				canResolveChatSession: async () => true,
+			}));
+			let opened: { target: unknown; revealIfOpened: boolean | undefined } | undefined;
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+				getWidgetBySessionResource: () => existing === 'none' ? undefined : upcastPartial<IChatWidget>({
+					viewContext: existing === 'chatView' ? { viewId: 'workbench.panel.chat.view.copilot' } : {},
+				}),
+				openSession: async (_resource, target, options) => {
+					opened = { target, revealIfOpened: options?.revealIfOpened };
+					return undefined;
+				},
+			}));
+			await instantiationService.invokeFunction(openSession, session, undefined, /* alreadyResolved */ true);
+			return opened;
+		};
+
+		assert.deepStrictEqual({
+			chatView: await open(false, 'none'),
+			editor: await open(true, 'none'),
+			movedFromChatView: await open(true, 'chatView'),
+			revealedEditor: await open(true, 'editor'),
+		}, {
+			chatView: { target: ChatViewPaneTarget, revealIfOpened: true },
+			editor: { target: ACTIVE_GROUP, revealIfOpened: false },
+			movedFromChatView: { target: ACTIVE_GROUP, revealIfOpened: false },
+			revealedEditor: { target: ACTIVE_GROUP, revealIfOpened: true },
+		});
 	});
 
 	test('reports a migrated session refresh failure without swallowing it', async () => {
