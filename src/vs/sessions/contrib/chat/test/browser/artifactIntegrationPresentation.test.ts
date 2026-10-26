@@ -431,6 +431,7 @@ suite('Artifact Integration Presentation', () => {
 		const data = model.data.get();
 		const summary = {
 			loading: loading.lists.map(list => list.loading),
+			panelLoading: [loading.loading, data.loading],
 			loadingMessages: [loading.message, ...loading.lists.map(list => list.message)],
 			title: data.title, description: data.description, resource: data.resource,
 			lists: data.lists.map(list => ({ id: list.id, title: list.title, items: list.items.map(item => item.label), loading: list.loading })),
@@ -441,7 +442,7 @@ suite('Artifact Integration Presentation', () => {
 			panels: f.host.querySelectorAll('.artifact-integration-panel').length,
 		};
 		assert.deepStrictEqual(summary, {
-			loading: [true, true], loadingMessages: ['', '', ''], title: 'Full title for artifact', description: 'The actual resource description.', resource: 'https://example.test/artifact',
+			loading: [true, true], panelLoading: [true, false], loadingMessages: ['', '', ''], title: 'Full title for artifact', description: 'The actual resource description.', resource: 'https://example.test/artifact',
 			lists: [
 				{ id: artifactViewKey('test', 'checks'), title: 'Checks', items: ['Lint', 'Build'], loading: false },
 				{ id: artifactViewKey('test', 'comments'), title: 'Review threads', items: ['Preserve focus after refresh'], loading: false },
@@ -487,7 +488,7 @@ suite('Artifact Integration Presentation', () => {
 		const commands: string[] = [];
 		const data: IArtifactDetailsViewData = {
 			title: 'Deployment', resource: 'https://example.test/deployment', icon: { id: 'package' }, titleDescription: 'Ready to deploy',
-			description: 'Deploy the selected revision.', message: '',
+			description: 'Deploy the selected revision.', message: '', loading: false,
 			lists: [{ id: 'health', title: 'Health', icon: { id: 'pulse' }, description: 'Checks in the target environment.', message: 'No failures.', loading: false, items: [], itemActions: new Map(), openItem: () => { commands.push('openItem'); } }],
 			selectedList: 'health',
 			stateActions: [{ id: 'deploy', label: 'Deploy', primary: true, enabled: true, run: () => { commands.push('deploy'); } }],
@@ -497,7 +498,7 @@ suite('Artifact Integration Presentation', () => {
 				rules: [{ id: 'autoDeploy', label: 'Deploy When Healthy', description: 'Wait for healthy checks.', checked: false, disabled: false, pending: false, setEnabled: async value => { commands.push(`rule:${value}`); } }],
 				setExpanded: expanded => { commands.push(`expand:${expanded}`); }, setEnabled: async value => { commands.push(`group:${value}`); },
 			}],
-			activities: { expanded: false, items: [], summary: '0 loaded', message: '', setExpanded: () => { } }, sections: [], accessibleText: 'Deployment\nHealth\nDeploy\nAutopilot',
+			activities: { expanded: false, loading: false, items: [], summary: '0 loaded', message: '', setExpanded: () => { } }, sections: [], accessibleText: 'Deployment\nHealth\nDeploy\nAutopilot',
 			openResource: () => { commands.push('open'); }, selectList: id => { commands.push(`select:${id}`); },
 		};
 		const input = observableValue<IArtifactDetailsViewData>('static panel data', data);
@@ -836,7 +837,7 @@ suite('Artifact Integration Presentation', () => {
 			}, { requests: [undefined, 'entry-10'], firstPageCount: 50, totalCount: 60, newest: 'Fix CI: Completed', summaries: ['50 loaded', '60 loaded'], moreHidden: true });
 		});
 
-		test('loading activity history does not add a message or move existing rows', async () => {
+		test('loading activity history remains accessible without adding a message or moving existing rows', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			const recent = activity(a, 'recent');
@@ -844,18 +845,21 @@ suite('Artifact Integration Presentation', () => {
 			const history = new DeferredPromise<{ runs: readonly ArtifactRun[] }>();
 			a.setHistoryResult(history.p);
 			const panel = await open(f, a);
+			const activities = panel.querySelector<HTMLElement>('.artifact-activities')!;
+			const initiallyBusy = activities.getAttribute('aria-busy');
 			await expand(f, panel);
 			const bounds = () => {
 				const panelBounds = panel.getBoundingClientRect();
 				const rowBounds = rows(panel)[0].getBoundingClientRect();
 				const message = panel.querySelector<HTMLElement>('.artifact-activities-message')!;
-				return { top: panelBounds.top, height: panelBounds.height, rowTop: rowBounds.top, message: message.textContent, hidden: message.hidden };
+				return { top: panelBounds.top, height: panelBounds.height, rowTop: rowBounds.top, busy: activities.getAttribute('aria-busy'), message: message.textContent, hidden: message.hidden };
 			};
 			const loading = bounds();
 			await history.complete({ runs: [recent] });
 			await settle(f);
-			assert.deepStrictEqual({ loading, loaded: bounds() }, {
-				loading: { ...loading, message: '', hidden: true }, loaded: { ...loading, message: '', hidden: true },
+			assert.deepStrictEqual({ initiallyBusy, loading, loaded: bounds() }, {
+				initiallyBusy: 'false',
+				loading: { ...loading, busy: 'true', message: '', hidden: true }, loaded: { ...loading, busy: 'false', message: '', hidden: true },
 			});
 		});
 
@@ -876,8 +880,9 @@ suite('Artifact Integration Presentation', () => {
 			await settle(f);
 			assert.deepStrictEqual({
 				message, retained, requests: a.historyRequests,
+				busy: panel.querySelector('.artifact-activities')?.getAttribute('aria-busy'),
 				errorHidden: panel.querySelector<HTMLElement>('.artifact-activities-message')?.hidden,
-			}, { message: 'Could not load activities: History offline', retained: 1, requests: [undefined, undefined], errorHidden: true });
+			}, { message: 'Could not load activities: History offline', retained: 1, requests: [undefined, undefined], busy: 'false', errorHidden: true });
 		});
 
 		test('ignores history completed after switching to another artifact', async () => {
@@ -1335,6 +1340,44 @@ suite('Artifact Integration Presentation', () => {
 			geometry: before, busy: String(loading), messages: Array.from({ length: 3 }, () => ({ text: '', hidden: true })),
 		})));
 	});
+
+	for (const withLists of [false, true]) {
+		test(`main and contribution loading remains accessible ${withLists ? 'with available lists' : 'without lists'}`, async () => {
+			const f = fixture();
+			const a = f.artifact();
+			if (!withLists) {
+				updateContribution(a, contribution => ({ ...contribution, view: { ...contribution.view, lists: [], sections: [] } }));
+			}
+			const acquisition = new DeferredPromise<void>();
+			a.setAcquireResult(acquisition.p);
+			const panel = await open(f, a);
+			const state = () => {
+				const message = panel.querySelector<HTMLElement>('.artifact-details-availability')!;
+				return {
+					busy: panel.getAttribute('aria-busy'), message: message.textContent, hidden: message.hidden,
+					lists: [...panel.querySelectorAll<HTMLElement>('[role="tabpanel"]')].map(list => list.getAttribute('aria-busy')),
+				};
+			};
+			const states = [state()];
+			await acquisition.complete();
+			await settle(f);
+			states.push(state());
+			for (const kind of ['loading', 'available'] as const) {
+				a.details.main.set({ ...a.details.main.get(), availability: { kind } }, undefined);
+				await settle(f);
+				states.push(state());
+			}
+			for (const kind of ['loading', 'available'] as const) {
+				updateContribution(a, contribution => ({ ...contribution, view: { ...contribution.view, availability: { kind } } }));
+				await settle(f);
+				states.push(state());
+			}
+			assert.deepStrictEqual(states, [true, false, true, false, true, false].map((loading, index) => ({
+				busy: String(loading), message: '', hidden: true,
+				lists: withLists ? [String(index === 0), String(index === 0)] : [],
+			})));
+		});
+	}
 
 	test('refresh does not reclaim focus after the user moves to another control', async () => {
 		const f = fixture();

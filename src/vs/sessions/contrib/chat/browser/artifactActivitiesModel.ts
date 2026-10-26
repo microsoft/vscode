@@ -53,6 +53,7 @@ export class ArtifactActivitiesModel extends Disposable {
 			const items = this.runs(snapshot).map(run => this.item(run, snapshot));
 			return {
 				expanded: state.activitiesExpanded,
+				loading: this.loading,
 				items,
 				summary: localize('artifactActivitiesLoadedCount', "{0} loaded", items.length),
 				message: this.error,

@@ -129,6 +129,8 @@ export class ArtifactDetailsModel extends Disposable {
 		const contribution = getArtifactMainContribution(snapshot);
 		const main = contribution?.view.main;
 		const mainDetails = main && contribution ? details.get(key(contribution.integrationId, main.detailsId)) : undefined;
+		const loading = snapshot.contributions.some(contribution => contribution.view.availability.kind === 'loading')
+			|| !!(main && contribution && !requiresAuthentication(contribution) && (!mainDetails || mainDetails.availability.kind === 'loading'));
 		const title = mainDetails?.title || snapshot.artifact.label;
 		const description = (mainDetails ? getArtifactDetailsDescription(mainDetails) : '') || (mainDetails?.availability.kind === 'available' ? localize('artifactNoDescription', "No description provided.") : '');
 		const message = [...new Set([
@@ -232,7 +234,7 @@ export class ArtifactDetailsModel extends Disposable {
 		const selectedList = lists.some(list => list.id === this.presentation.viewState.selectedList) ? this.presentation.viewState.selectedList : undefined;
 		return {
 			title, resource: snapshot.artifact.resource, icon: main ? getArtifactThemeIcon(main.icon) : entry?.icon,
-			titleDescription: main?.description ?? '', description, message, lists, selectedList, stateActions, generalActions, autopilot, activities, sections,
+			titleDescription: main?.description ?? '', description, message, loading, lists, selectedList, stateActions, generalActions, autopilot, activities, sections,
 			openResource: () => {
 				void this.presentation.run(async () => {
 					const entry = this.presentation.baseEntry;
