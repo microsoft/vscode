@@ -22,6 +22,8 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceBrowseSectionsProgress, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -100,6 +102,14 @@ suite('AICustomizationDiscoveryPage', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+		const hovers = new Map<Parameters<IHoverService['setupDelayedHover']>[0], Parameters<IHoverService['setupDelayedHover']>[1]>();
+		instantiationService.stub(IHoverService, {
+			...NullHoverService,
+			setupDelayedHover: (target, options) => {
+				hovers.set(target, options);
+				return toDisposable(() => hovers.delete(target));
+			},
+		});
 		const telemetry: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
 		instantiationService.stub(ITelemetryService, new class extends NullTelemetryServiceShape {
 			override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
@@ -275,6 +285,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		}
 		return {
 			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, prompts, promptHandles, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, uninstalls, commands, telemetry,
+			getHoverContent: (target: HTMLElement) => {
+				const options = hovers.get(target);
+				return typeof options === 'function' ? options().content : options?.content;
+			},
 			reportBrowseSectionsProgress: (progress: Parameters<NonNullable<typeof browseSectionsProgress>>[0]) => browseSectionsProgress?.(progress),
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
@@ -2374,6 +2388,61 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	for (const connector of [false, true]) {
+		test(`failed ${connector ? 'connector reconnect' : 'skill repair'} updates installed row actions and error hover`, async () => {
+			const candidate = resource('repair-item', connector ? {
+				displayName: 'Mail',
+				sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+				installation: { kind: 'copilotConnector', name: 'mail' },
+			} : {
+				displayName: 'Mail skill',
+				mediaType: CustomizationMarketplaceMediaType.Skill,
+				installation: { kind: 'skill', repository: 'owner/catalog', ref: 'v1', path: 'skills/mail' },
+			});
+			const target = connector
+				? { kind: 'copilotConnector' as const, name: 'mail' }
+				: { kind: 'skill' as const, uri: URI.file('/workspace/.agents/skills/mail/SKILL.md') };
+			const fixture = createPage([candidate.sourceId]);
+			fixture.setInstallState(candidate, { kind: 'missing', target });
+			fixture.setRepairHandler(async () => {
+				fixture.setInstallState(candidate, { kind: 'missing', target });
+				fixture.notifyInstallChange();
+				throw new Error('Test repair failed');
+			});
+			fixture.page.setSearchQuery('@installed mail');
+			fixture.page.setVisible(true);
+			const action = () => [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-results .monaco-list-row')]
+				.find(row => row.querySelector('.customization-discovery-result-name')?.textContent === candidate.displayName)!
+				.querySelector<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')!;
+			assert.strictEqual(action().textContent, connector ? 'Reconnect' : 'Repair');
+			action().click();
+			await timeout(0);
+			const failure = {
+				label: action().textContent,
+				ariaLabel: action().getAttribute('aria-label'),
+				hover: fixture.getHoverContent(action()),
+			};
+			fixture.setRepairHandler(async () => { });
+			action().click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				failure,
+				repaired: action().textContent,
+				repairedHover: fixture.getHoverContent(action()),
+				repairs: fixture.repairs,
+			}, {
+				failure: {
+					label: connector ? 'Retry' : 'Retry Repair',
+					ariaLabel: connector ? 'Retry Mail' : 'Retry Repair Mail skill',
+					hover: connector ? 'Could not reconnect Mail. Test repair failed' : 'Could not repair Mail skill. Test repair failed',
+				},
+				repaired: connector ? 'Disconnect' : 'Uninstall',
+				repairedHover: undefined,
+				repairs: ['repair-item', 'repair-item'],
+			});
+		});
+	}
+
 	test('shows missing records in installed-only search without querying the catalog', async () => {
 		const candidate = resource('retired-skill', {
 			sourceId: 'retired',
@@ -3350,6 +3419,54 @@ suite('AICustomizationDiscoveryPage', () => {
 			selectedSource: 'Copilot Connectors',
 			sourceResults: ['Connector 0', 'Connector 1'],
 			resultSourceIds: ['copilotConnectors'],
+		});
+	});
+
+	test('empty source preview refresh clears retained shelves and their cached results', async () => {
+		const previews: Record<string, readonly ICustomizationMarketplaceResource[] | Promise<readonly ICustomizationMarketplaceResource[]>> = {
+			other: [resource('retired-preview', { sourceId: 'other' })],
+		};
+		const fixture = createPage(
+			['agentFinder', 'other'],
+			[AICustomizationManagementSection.McpServers],
+			[],
+			undefined,
+			[],
+			{ sourceId: 'agentFinder', sections: [{ id: 'editorial', title: 'Editorial', items: [resource('editorial-item')] }] },
+			previews,
+		);
+		const names = () => [...fixture.container.querySelectorAll('.customization-discovery-card-name')].map(element => element.textContent);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+		const initial = names();
+
+		const refreshedPreviews = new DeferredPromise<readonly ICustomizationMarketplaceResource[]>();
+		previews.other = refreshedPreviews.p;
+		fixture.marketplaceChanges.fire();
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({ items: [] });
+		await timeout(0);
+		const pending = names();
+		await refreshedPreviews.complete([]);
+		await timeout(0);
+		const refreshed = names();
+		fixture.page.setSearchQuery('@installed');
+		fixture.page.setSearchQuery('');
+		assert.deepStrictEqual({
+			initial,
+			pending,
+			refreshed,
+			restored: names(),
+			accessible: fixture.page.getAccessibilityContent().includes('retired-preview'),
+			requests: fixture.requests.length,
+		}, {
+			initial: ['editorial-item', 'retired-preview'],
+			pending: ['editorial-item', 'retired-preview'],
+			refreshed: ['editorial-item'],
+			restored: ['editorial-item'],
+			accessible: false,
+			requests: 2,
 		});
 	});
 

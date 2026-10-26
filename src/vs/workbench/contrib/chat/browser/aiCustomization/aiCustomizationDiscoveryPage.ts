@@ -1833,6 +1833,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				onUnexpectedError(error);
 			}
 		}
+		if (!token.isCancellationRequested) {
+			this.sourceSections = sections;
+		}
 	}
 
 	private cacheBrowseCatalog(): void {
@@ -2216,12 +2219,15 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const unmatchedInstalled = this.selectedSourceId && !this.query.installed
 			? []
 			: installed.filter((_, index) => !consumedInstalledIndices.has(index));
-		const entries: DiscoveryListEntry[] = [...unmatchedInstalled, ...marketplaceEntries].map(entry => ({
-			...entry,
-			installationState: entry.kind === 'available' ? this.getInstallState(entry.resource) : entry.catalogResource ? this.getInstallState(entry.catalogResource) : undefined,
-			uninstalling: entry.kind === 'installed' && this.pendingDirectUninstalls.has(entry.id),
-			installError: entry.kind === 'available' ? this.installErrors.get(getCustomizationMarketplaceResourceKey(entry.resource)) : undefined,
-		}));
+		const entries: DiscoveryListEntry[] = [...unmatchedInstalled, ...marketplaceEntries].map(entry => {
+			const resource = entry.kind === 'available' ? entry.resource : entry.catalogResource;
+			return {
+				...entry,
+				installationState: resource ? this.getInstallState(resource) : undefined,
+				uninstalling: entry.kind === 'installed' && this.pendingDirectUninstalls.has(entry.id),
+				installError: resource ? this.installErrors.get(getCustomizationMarketplaceResourceKey(resource)) : undefined,
+			};
+		});
 		const resultCount = entries.length;
 		if (this.isLoadingMore() && resultCount > 0) {
 			entries.push({ kind: 'loading', id: 'loading' });
