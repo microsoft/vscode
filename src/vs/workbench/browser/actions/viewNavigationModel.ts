@@ -189,6 +189,8 @@ function getTargetIndex(
 			}
 			return wrap ? length - 1 : undefined;
 	}
+
+	return undefined;
 }
 
 /**
