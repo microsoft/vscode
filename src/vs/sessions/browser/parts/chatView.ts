@@ -56,6 +56,8 @@ export interface ISessionViewHostOptions {
 	readonly showHeader?: boolean;
 	/** Whether the Session Activity Bar shows beside the chats; `true` by default. */
 	readonly showActivityBar?: boolean;
+	/** Whether the session header can carry the chrome of its window, which has no title bar then; see `SessionView.setWindowChrome`. */
+	readonly hasWindowChrome?: boolean;
 	/** Options of the inputs of the chats. */
 	readonly input?: IChatViewInputOptions;
 }

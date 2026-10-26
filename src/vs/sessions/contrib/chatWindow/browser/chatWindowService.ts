@@ -473,6 +473,16 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				titlebar.setTitle(title);
 			}
 		}));
+		if (titlebar instanceof TitlebarPart) {
+			// The chat's header carries the chrome of the window, in place of the title bar or inside it; the title bar does otherwise.
+			window.state.headerHost.set(titlebar.getSessionHeaderHost(), undefined);
+			windowDisposables.add(toDisposable(() => window.state.headerHost.set(undefined, undefined)));
+			windowDisposables.add(autorun(reader => {
+				const headerChrome = window.state.headerChrome.read(reader);
+				titlebar.setChromeless(headerChrome === 'replace');
+				titlebar.setHostsSessionHeader(headerChrome === 'host');
+			}));
+		}
 		if (options?.showTerminal && content.editorArea) {
 			void window.setTerminalShown(true);
 		}

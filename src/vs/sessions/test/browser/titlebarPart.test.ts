@@ -120,7 +120,7 @@ suite('Sessions - Titlebar Part', () => {
 		const part = store.add(titleService.createAuxiliaryTitlebarPart(container, new class extends mock<IEditorGroupsContainer>() { }(), instantiationService));
 		const read = () => {
 			part.layout(800, part.height, 0, 0);
-			return { height: part.height, containerHeight: part.container.style.height, notificationTop: container.style.getPropertyValue('--modern-ui-notifications-block-start-inset') };
+			return { height: part.height, containerHeight: part.element.style.height, notificationTop: container.style.getPropertyValue('--modern-ui-notifications-block-start-inset') };
 		};
 		const initial = read();
 		await configuration.setUserConfiguration(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Compact);
@@ -134,6 +134,58 @@ suite('Sessions - Titlebar Part', () => {
 		assert.deepStrictEqual({ initial, compact: read() }, {
 			initial: { height: 44, containerHeight: '44px', notificationTop: '49px' },
 			compact: { height: 35, containerHeight: '35px', notificationTop: '40px' },
+		});
+	});
+
+	test('a chromeless auxiliary title bar takes no height and keeps the window title', () => {
+		const { instantiationService } = createTitlebar();
+		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
+			override getContainer(): HTMLElement { return container; }
+		}());
+		const titleService = store.add(instantiationService.createInstance(TitleService));
+		const part = store.add(titleService.createAuxiliaryTitlebarPart(container, new class extends mock<IEditorGroupsContainer>() { }(), instantiationService));
+		assert.ok(part instanceof TitlebarPart);
+		const previousDocumentTitle = mainWindow.document.title;
+		store.add(toDisposable(() => mainWindow.document.title = previousDocumentTitle));
+		const read = () => ({ height: part.height, containerHeight: part.element.style.height, chromeless: part.element.classList.contains('chromeless') });
+
+		const shown = read();
+		part.setChromeless(true);
+		part.setTitle('Session');
+		const chromeless = { ...read(), documentTitle: mainWindow.document.title };
+		part.setChromeless(false);
+
+		assert.deepStrictEqual({ shown, chromeless, shownAgain: read() }, {
+			shown: { height: 44, containerHeight: '44px', chromeless: false },
+			chromeless: { height: 0, containerHeight: '0px', chromeless: true, documentTitle: 'Session' },
+			shownAgain: { height: 44, containerHeight: '44px', chromeless: false },
+		});
+	});
+
+	test('an auxiliary title bar can host a session header in place of its content', () => {
+		const { instantiationService } = createTitlebar();
+		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
+			override getContainer(): HTMLElement { return container; }
+		}());
+		const titleService = store.add(instantiationService.createInstance(TitleService));
+		const part = store.add(titleService.createAuxiliaryTitlebarPart(container, new class extends mock<IEditorGroupsContainer>() { }(), instantiationService));
+		assert.ok(part instanceof TitlebarPart);
+		const host = part.getSessionHeaderHost();
+		const read = () => ({ hosts: part.element.classList.contains('hosts-session-header'), height: part.height, sameHost: part.getSessionHeaderHost() === host, inTitlebar: host.parentElement === part.element });
+
+		const before = read();
+		part.setHostsSessionHeader(true);
+		const hosting = read();
+		part.setHostsSessionHeader(false);
+
+		assert.deepStrictEqual({ before, hosting, after: read() }, {
+			before: { hosts: false, height: 44, sameHost: true, inTitlebar: true },
+			hosting: { hosts: true, height: 44, sameHost: true, inTitlebar: true },
+			after: { hosts: false, height: 44, sameHost: true, inTitlebar: true },
 		});
 	});
 

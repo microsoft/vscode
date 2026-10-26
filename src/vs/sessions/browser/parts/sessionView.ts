@@ -113,7 +113,13 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	readonly primaryChatViewTop: IObservable<number>;
 
 	private readonly _headerHeight = observableValue<number>(this, 0);
+	/** The element outside this view that hosts the session header, taking none of this view's height. */
+	private _headerHost: HTMLElement | undefined;
 	private readonly _headerHidden = observableValue<boolean>(this, false);
+	private readonly _headerShown = observableValue<boolean>(this, false);
+
+	/** Whether the session header shows, if the host wants it. */
+	get headerShown(): IObservable<boolean> { return this._headerShown; }
 
 	constructor(
 		private readonly _hostOptions: ISessionViewHostOptions | undefined,
@@ -204,6 +210,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			const tabsReplaceHeader = (session?.isCreated.read(reader) ?? false)
 				&& !showChatAsSessionView
 				&& (groupCount > 1 || (session?.shouldShowChatTabs.read(reader) ?? false));
+			this._headerShown.set(!this._headerHidden.read(reader) && !tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1), undefined);
 			this._header.setVisible((this._hostOptions?.showHeader ?? true) && !this._headerHidden.read(reader) && !tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1));
 			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 			this.element.classList.toggle('tabs-replace-header', tabsReplaceHeader);
@@ -349,7 +356,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			return;
 		}
 
-		const barHeight = this._header.visible ? this._header.height : 0;
+		const barHeight = this._header.visible && !this._headerHost ? this._header.height : 0;
 		this._headerHeight.set(barHeight, undefined);
 		const contentHeight = Math.max(0, height - barHeight);
 		const contentTop = top + barHeight;
@@ -379,6 +386,26 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	}
 
 	/** Hides the session header for as long as its host wants, such as while a chat window shows only the chat input. */
+	/**
+	 * Shows the chrome of the window in the session header, which is then its top row; see `SessionHeaderBar.setWindowChrome`.
+	 * With a `host`, the session header is moved there, above the editor area it is not part of the layout of.
+	 */
+	setWindowChrome(shown: boolean, host?: HTMLElement): void {
+		const hosted = shown && !!this._hostOptions?.hasWindowChrome ? host : undefined;
+		this._header.setWindowChrome(shown && !!this._hostOptions?.hasWindowChrome);
+		if (this._headerHost !== hosted) {
+			this._headerHost = hosted;
+			(hosted ?? this._centeredContentContainer).appendChild(this._header.element);
+			this._lastContentLayout = undefined;
+			this._layoutChildren();
+		}
+	}
+
+	/** Whether {@link setWindowChrome} can show it: the session header is. */
+	get canShowWindowChrome(): boolean {
+		return !!this._hostOptions?.hasWindowChrome && (this._hostOptions.showHeader ?? true);
+	}
+
 	setHeaderHidden(hidden: boolean): void {
 		this._headerHidden.set(hidden, undefined);
 	}
