@@ -1729,8 +1729,11 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private doLayout(dimension: Dimension, top = this.top, left = this.left): void {
 		this._contentDimension = dimension;
 
-		// Layout Grid
-		this.centeredLayoutWidget.layout(Math.max(0, this._contentDimension.width - this._gridRightInset), this._contentDimension.height, top, left);
+		// Layout Grid, and end its container with it: the views of a grid take the width of the container, not the one the
+		// grid is laid out at, so the groups would otherwise reach into the inset
+		const gridWidth = Math.max(0, this._contentDimension.width - this._gridRightInset);
+		this.container.style.width = this._gridRightInset > 0 ? `${gridWidth}px` : '';
+		this.centeredLayoutWidget.layout(gridWidth, this._contentDimension.height, top, left);
 		this.applyGroupGap(); // edges can change with the grid, such as when it is replaced by a state
 
 		// Event
