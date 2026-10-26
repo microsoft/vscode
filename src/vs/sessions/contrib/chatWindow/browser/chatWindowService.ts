@@ -30,6 +30,7 @@ import { IEditorResolverService } from '../../../../workbench/services/editor/co
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../browser/menus.js';
+import { getSessionsEditorGroupViewOptions } from '../../../browser/parts/sessionsEditorGroupViewOptions.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
 import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowHasSessionHeaderContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowTerminalRowContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -328,6 +329,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				customizableTitleMenu: { menu: Menus.ChatWindowTitleLayout, alwaysShownItems: [Menus.ChatWindowLayout.id] },
 				size: defaults.getDockedSize(),
 				minimumSize: kind.dockedMinimumSize ?? CHAT_WINDOW_DOCKED_MINIMUM_SIZE,
+				groupViewOptions: getSessionsEditorGroupViewOptions(),
 			});
 			part = floatingPart;
 			const dockedPart = floatingPart;
@@ -347,7 +349,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		} else {
 			// Not compact: a compact window sends editors opened next to it to the main window. Kept out of working sets,
 			// which the Agents window applies as it switches sessions, and which would close it.
-			const auxiliaryPart = await this._editorGroupsService.createAuxiliaryEditorPart({ bounds: kind.windowSize ?? CHAT_WINDOW_DEFAULT_SIZE, excludeFromWorkingSets: true });
+			const auxiliaryPart = await this._editorGroupsService.createAuxiliaryEditorPart({ bounds: kind.windowSize ?? CHAT_WINDOW_DEFAULT_SIZE, excludeFromWorkingSets: true, groupViewOptions: getSessionsEditorGroupViewOptions() });
 			part = auxiliaryPart;
 			close = created.close = () => auxiliaryPart.close();
 			chatGroup = (await this._editorService.openEditor(input, { pinned: true }, auxiliaryPart.activeGroup))?.group ?? auxiliaryPart.activeGroup;

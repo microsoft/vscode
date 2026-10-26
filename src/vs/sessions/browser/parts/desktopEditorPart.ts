@@ -21,6 +21,7 @@ import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
 import { Menus } from '../menus.js';
+import { getSessionsEditorGroupViewOptions } from './sessionsEditorGroupViewOptions.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from './agentsPartCard.js';
 import { MainEditorPart } from './editorPart.js';
@@ -50,15 +51,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 
 	protected override getGroupViewOptions(): IEditorGroupViewOptions {
 		return {
-			menuIds: {
-				headerPrimary: Menus.SessionsEditorHeaderPrimary,
-				headerLayout: Menus.SessionsEditorHeaderLayout,
-				editorActions: Menus.SessionsEditorTitle,
-				tabsBarContext: Menus.SessionsEditorTabsBarContext,
-				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
-			},
-			showHeader: true,
-			useModernUITabs: true,
+			...getSessionsEditorGroupViewOptions(),
 			reserveHeaderSpace: editor => editor instanceof DockedEditorInput && this.agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow)
 		};
 	}
