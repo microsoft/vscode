@@ -51,6 +51,16 @@ export function completeTerminalReturn(r: ITerminalReturn): void {
 	}
 }
 
+/** What a group split off the terminal row holds. */
+export const enum TerminalRowSplitState {
+	/** A terminal shows in it. */
+	Terminal,
+	/** It is empty, and nothing is on its way to it. */
+	Empty,
+	/** It is empty, but a terminal is about to open in it, as it does in a group just split. */
+	Pending
+}
+
 /** What {@link planTerminalRowSplits} does with the groups that were split off the terminal row. */
 export interface ITerminalRowSplitPlan {
 	/** The split group whose editors take the empty row's place: the row then shows them, and the split is removed. */
@@ -60,13 +70,15 @@ export interface ITerminalRowSplitPlan {
 }
 
 /**
- * Decides what becomes of the groups split off the terminal row once a terminal closed in it: an empty split closes while another
- * group of the row shows a terminal, and an empty row hands its place to the first split that does, so the terminal left takes the whole row.
+ * The terminal row never shows an empty group: one that is empty closes, whatever emptied it. This decides it for the groups split off
+ * the row, once an editor left any of its groups. An empty split closes while another group of the row shows a terminal, and an empty
+ * row hands its place to the first split that does, so the terminal left takes the whole row. The row itself closes with its last
+ * terminal, which is not decided here.
  */
-export function planTerminalRowSplits(rowIsEmpty: boolean, splitsAreEmpty: readonly boolean[]): ITerminalRowSplitPlan {
-	const adopt = rowIsEmpty ? splitsAreEmpty.findIndex(empty => !empty) : -1;
+export function planTerminalRowSplits(rowIsEmpty: boolean, splits: readonly TerminalRowSplitState[]): ITerminalRowSplitPlan {
+	const adopt = rowIsEmpty ? splits.indexOf(TerminalRowSplitState.Terminal) : -1;
 	const othersShow = !rowIsEmpty || adopt !== -1;
-	const remove = othersShow ? splitsAreEmpty.map((empty, i) => empty ? i : -1).filter(i => i !== -1) : [];
+	const remove = othersShow ? splits.map((state, i) => state === TerminalRowSplitState.Empty ? i : -1).filter(i => i !== -1) : [];
 	return { adopt: adopt === -1 ? undefined : adopt, remove };
 }
 
