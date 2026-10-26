@@ -18,6 +18,8 @@ interface IFocusTestHarness {
 	readonly views: IViewsService;
 	readonly descriptors: IViewDescriptorService;
 	readonly calls: IFocusCall[];
+	readonly headerFocusCalls: string[];
+	isCollapsed(id: string): boolean;
 	setFocused(id: string | undefined): void;
 	setVisible(location: ViewContainerLocation, visible: boolean): void;
 	setViews(containerId: string, views: readonly string[]): void;
@@ -41,6 +43,7 @@ function createFocusHarness(): IFocusTestHarness {
 	const collapsed = new Set<string>();
 	const hidden = new Set<string>();
 	const calls: IFocusCall[] = [];
+	const headerFocusCalls: string[] = [];
 	let focusedId: string | undefined = 'a';
 
 	const getContainerForView = (viewId: string) =>
@@ -52,6 +55,14 @@ function createFocusHarness(): IFocusTestHarness {
 			const container = containers.find(candidate => candidate.location === location);
 			return container && visibleContainers.has(container.id) ? container as ViewContainer : null;
 		},
+		getActiveViewWithId: (id: string) => ({
+			draggableElement: {
+				focus: () => {
+					headerFocusCalls.push(id);
+					focusedId = id;
+				}
+			}
+		}),
 		openView: async (id: string, focus: boolean) => {
 			calls.push({ id, focus });
 			focusedId = id;
@@ -73,6 +84,8 @@ function createFocusHarness(): IFocusTestHarness {
 		views,
 		descriptors,
 		calls,
+		headerFocusCalls,
+		isCollapsed(id) { return collapsed.has(id); },
 		setFocused(id) { focusedId = id; },
 		setVisible(location, visible) {
 			const container = containers.find(candidate => candidate.location === location);
@@ -102,6 +115,63 @@ async function navigate(harness: IFocusTestHarness, request: IViewNavigationRequ
 }
 
 suite('Workbench view navigation: command integration', () => {
+
+	test('focuses a collapsed pane header without expanding its body', async () => {
+		const harness = createFocusHarness();
+		harness.setCollapsed('b', true);
+		const result = await navigate(harness, { direction: 'next', scope: 'container' });
+		assert.strictEqual(result, undefined);
+		assert.deepStrictEqual(harness.headerFocusCalls, ['b']);
+		assert.deepStrictEqual(harness.calls, []);
+		assert.strictEqual(harness.isCollapsed('b'), true);
+	});
+
+	test('can focus a collapsed pane header in a different workbench location', async () => {
+		const harness = createFocusHarness();
+		harness.setFocused('c');
+		harness.setCollapsed('d', true);
+		await navigate(harness, { direction: 'next', scope: 'workbench' });
+		assert.deepStrictEqual(harness.headerFocusCalls, ['d']);
+		assert.deepStrictEqual(harness.calls, []);
+		assert.strictEqual(harness.isCollapsed('d'), true);
+	});
+
+	test('normal navigation from a collapsed header does not expand its pane', async () => {
+		const harness = createFocusHarness();
+		harness.setCollapsed('b', true);
+		await navigate(harness, { direction: 'next', scope: 'container' });
+		assert.strictEqual(harness.isCollapsed('b'), true);
+		assert.deepStrictEqual(await navigate(harness, { direction: 'next', scope: 'container' }), { id: 'c', focus: true });
+		assert.strictEqual(harness.isCollapsed('b'), true);
+	});
+
+	test('expanded-only navigation from a collapsed header uses original ordering', async () => {
+		const harness = createFocusHarness();
+		harness.setCollapsed('b', true);
+		harness.setFocused('b');
+		assert.deepStrictEqual(await navigate(harness, {
+			direction: 'next', scope: 'container', includeCollapsed: false, wrap: false
+		}), { id: 'c', focus: true });
+		harness.setFocused('b');
+		assert.deepStrictEqual(await navigate(harness, {
+			direction: 'previous', scope: 'container', includeCollapsed: false, wrap: false
+		}), { id: 'a', focus: true });
+	});
+
+	test('an all-collapsed container does not leak focus into the next container', async () => {
+		const harness = createFocusHarness();
+		for (const id of ['a', 'b', 'c']) {
+			harness.setCollapsed(id, true);
+		}
+		harness.setFocused('b');
+		assert.strictEqual(await navigate(harness, {
+			direction: 'next', scope: 'container', includeCollapsed: false
+		}), undefined);
+		assert.deepStrictEqual(harness.calls, []);
+		assert.deepStrictEqual(harness.headerFocusCalls, []);
+	});
+
+
 	test('a next-view command calls openView with focus=true', async () => {
 		const harness = createFocusHarness();
 		const result = await navigate(harness, { direction: 'next', scope: 'container' });
