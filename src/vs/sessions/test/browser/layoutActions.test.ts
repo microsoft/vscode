@@ -233,11 +233,15 @@ suite('Sessions - Layout Actions', () => {
 		assert.strictEqual(toggleAlwaysOnTop.group, 'navigation');
 	});
 
-	test('always-on-top toggle is not shown in chat windows', () => {
+	test('always-on-top toggle is not shown in chat windows with a session header, which replaces their title bar', () => {
 		const toggleAlwaysOnTop = MenuRegistry.getMenuItems(Menus.TitleBarRightLayout).filter(isIMenuItem).find(item => item.command.id === 'workbench.action.toggleWindowAlwaysOnTop');
-		const matches = (chatWindow: string) => toggleAlwaysOnTop?.when?.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => ({ isAuxiliaryWindow: true, 'sessions.chatWindow': chatWindow } as Record<string, ContextKeyValue>)[key] as T | undefined });
+		const matches = (values: Record<string, ContextKeyValue>) => toggleAlwaysOnTop?.when?.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => ({ isAuxiliaryWindow: true, ...values } as Record<string, ContextKeyValue>)[key] as T | undefined });
 
-		assert.deepStrictEqual({ outsideChatWindows: matches(''), chatWindow: matches('chat') }, { outsideChatWindows: true, chatWindow: false });
+		assert.deepStrictEqual({
+			outsideChatWindows: matches({}),
+			chatWindowWithSessionHeader: matches({ 'sessions.chatWindow': 'chat', 'sessions.chatWindowHasSessionHeader': true }),
+			chatWindowWithoutSessionHeader: matches({ 'sessions.chatWindow': 'other', 'sessions.chatWindowHasSessionHeader': false }),
+		}, { outsideChatWindows: true, chatWindowWithSessionHeader: false, chatWindowWithoutSessionHeader: true });
 	});
 
 	test('screen reader optimized action uses a title bar toolbar menu', () => {
