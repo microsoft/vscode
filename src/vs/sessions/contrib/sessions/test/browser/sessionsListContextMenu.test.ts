@@ -27,6 +27,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ARCHIVE_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
@@ -115,6 +116,7 @@ suite('Sessions list context menus', () => {
 			override createMenu(id: MenuId, contextKeyServiceOfMenu: IContextKeyService): IMenu {
 				menuContextKeyService = contextKeyServiceOfMenu;
 				const disposable = toDisposable(() => menuDisposed = true);
+				const isItemMenu = id === Menus.SessionItemContextMenu || id === Menus.SessionChatItemContext;
 				const extensionAction = new MenuItemAction({
 					id: 'extension.action',
 					title: 'Extension Action',
@@ -133,7 +135,7 @@ suite('Sessions list context menus', () => {
 					onDidChange: Event.None,
 					getActions: () => {
 						const actions = includeExtensionAction ? [...testMenuActions, extensionAction] : testMenuActions;
-						return actions.length ? [['navigation', actions]] : [];
+						return isItemMenu && actions.length ? [['navigation', actions]] : [];
 					},
 					dispose: () => disposable.dispose(),
 				};
@@ -189,8 +191,8 @@ suite('Sessions list context menus', () => {
 			}, {
 				grouped,
 				ids: grouped
-					? ['extension.action', 'vs.actions.separator', 'sessions.createGroup', 'sessions.addToGroupSubmenu', 'sessions.addToGroup.target', 'sessions.removeFromGroup']
-					: ['extension.action', 'vs.actions.separator', 'sessions.createGroup', 'sessions.addToGroupSubmenu', 'sessions.addToGroup.target', 'sessions.addToGroup.group'],
+					? ['extension.action', 'vs.actions.separator', 'sessions.addToGroupSubmenu', 'sessions.addToGroup.target', 'sessions.createGroup', 'sessions.removeFromGroup']
+					: ['extension.action', 'vs.actions.separator', 'sessions.addToGroupSubmenu', 'sessions.addToGroup.target', 'sessions.addToGroup.group', 'sessions.createGroup'],
 				disposableIds: [],
 				menuDisposed: true,
 			});
@@ -237,6 +239,59 @@ suite('Sessions list context menus', () => {
 			enabled: false,
 		}]);
 		contextMenuService.delegate!.onHide?.(false);
+	});
+
+	test('session menus list open, triage, organize, and manage actions with group membership after Pin', async () => {
+		const session = createTestSession('Session');
+		session.capabilities.set({ ...session.capabilities.get(), supportsMultipleChats: true, supportsRename: true, supportsDelete: true }, undefined);
+		const harness = createListHarness(disposables, [session.session], { groups: [group] });
+		const { instantiationService, store } = harness;
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+		const contextKeyService = store.add(new ContextKeyService(configurationService));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		store.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
+		const contextMenuService = new TestContextMenuService();
+		instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer(400, 500);
+		const list = store.add(instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(500, 400);
+		await timeout(100);
+		const row = container.querySelector<HTMLElement>('.session-item');
+		assert.ok(row);
+
+		dispatchContextMenu(row);
+		const toLabel = (action: IAction) => action instanceof Separator ? '---' : action.label;
+		const actions = contextMenuService.delegate!.getActions();
+		contextMenuService.delegate!.onHide?.(false);
+
+		assert.deepStrictEqual({
+			menu: actions.map(toLabel),
+			groupSubmenu: actions.find((action): action is SubmenuAction => action instanceof SubmenuAction)?.actions.map(toLabel),
+		}, {
+			menu: [
+				'Open to the Side',
+				'New Nested Session',
+				'---',
+				'Mark as Unread',
+				'Mark as Done',
+				'---',
+				'Pin',
+				'Add to Group',
+				'Create Group',
+				'---',
+				'Rename...',
+				'Delete...',
+			],
+			groupSubmenu: ['Group'],
+		});
 	});
 
 	test('New navigation shortcut runs the existing command and navigation rows have no context menus', async () => {
@@ -348,7 +403,7 @@ suite('Sessions list context menus', () => {
 		dispatchContextMenu(groupHeader);
 
 		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
-			ids: ['sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
+			ids: ['sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			disposableIds: [],
 		});
 	});
@@ -375,7 +430,7 @@ suite('Sessions list context menus', () => {
 				disposableIds: [],
 			},
 			groupActions: {
-				ids: ['sessions.createGroup', 'vs.actions.separator', 'sessions.deleteGroupAction'],
+				ids: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.deleteGroupAction'],
 				disposableIds: [],
 			},
 			deletedGroups: [[group.id]],
@@ -424,7 +479,7 @@ suite('Sessions list context menus', () => {
 			moveToGroup: { label: moveToGroup?.label, targets: moveToGroup?.actions.map(action => action.label) },
 			created: harness.createdGroups,
 		}, {
-			groupMenu: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
+			groupMenu: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			moveToGroup: { label: 'Move to Group', targets: ['Release work', 'Release work › Hotfixes › Urgent', 'Triage'] },
 			created: [
 				{ name: 'New Group', sessionIds: [], parentId: hotfixes.id },
@@ -444,7 +499,7 @@ suite('Sessions list context menus', () => {
 		dispatchContextMenu(groupHeader);
 
 		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
-			ids: ['sessions.createGroup'],
+			ids: ['sessionsViewPane.markAllInSectionRead'],
 			disposableIds: [],
 		});
 	});
@@ -636,7 +691,7 @@ suite('Sessions list context menus', () => {
 
 		assert.strictEqual(
 			contextMenuService.delegate!.getActions().find(action => action.id === 'sessionsViewPane.markAllNestedRead')?.label,
-			'Mark All as Read',
+			'Mark Nested Sessions as Read',
 		);
 		contextMenuService.delegate!.onHide?.(false);
 	});
@@ -665,13 +720,38 @@ suite('Sessions list context menus', () => {
 				grouped,
 				actions: {
 					ids: grouped
-						? ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
-						: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.moveSectionToGroup', 'sessions.moveSectionToGroup.target', 'sessions.moveSectionToGroup.group', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.createGroup'],
+						? ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
+						: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.moveSectionToGroup', 'sessions.moveSectionToGroup.target', 'sessions.moveSectionToGroup.group', 'sessions.createGroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor'],
 					disposableIds: [],
 				},
 				readSessions: ['Visible', 'Filtered'],
 			});
 		}
+	});
+
+	test('Date section headers mark only their own unread sessions as read', async () => {
+		const recentUnread = createTestSession('Recent unread', { isRead: false }).session;
+		const recentRead = createTestSession('Recent read').session;
+		const olderUnread = createTestSession('Older unread', { isRead: false, createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }).session;
+		const { container, contextMenuService, managementService } = createList(false, false, SessionsGrouping.Date, [recentUnread, recentRead, olderUnread]);
+		const header = [...container.querySelectorAll<HTMLElement>('.session-section')]
+			.find(element => element.querySelector('.session-section-label')?.textContent === 'Recent');
+		assert.ok(header);
+
+		dispatchContextMenu(header);
+		const actions = contextMenuService.delegate!.getActions();
+		await actions[0].run();
+
+		assert.deepStrictEqual({
+			actions: snapshotActions(actions),
+			readSessions: managementService.readSessions.map(session => session.title.get()),
+		}, {
+			actions: {
+				ids: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createGroup'],
+				disposableIds: [],
+			},
+			readSessions: ['Recent unread'],
+		});
 	});
 
 	test('a nested session\'s context menu knows whether the chat can move, for Move to New Session', () => {
@@ -818,8 +898,8 @@ suite('Sessions list context menus', () => {
 			events,
 		}, {
 			title: 'Move to New Session',
-			group: '1_move',
-			order: 1,
+			group: '2_organize',
+			order: 3,
 			shown: { enabled: true, settingOff: false, aiDisabled: false, notMovable: false },
 			results: [true, false, false, false],
 			events: [
@@ -898,9 +978,9 @@ suite('Sessions list context menus', () => {
 			order: item.order,
 			when: item.when?.serialize(),
 		})), [
-			{ id: RENAME_CHAT_COMMAND_ID, title: 'Rename...', group: '1_chat', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
-			{ id: 'sessions.list.openChatToSide', title: 'Open to the Side', group: '1_chat', order: 2, when: undefined },
-			{ id: 'sessions.list.deleteChat', title: 'Delete...', group: '2_delete', order: 1, when: 'sessionChatItem.canDelete' },
+			{ id: RENAME_CHAT_COMMAND_ID, title: 'Rename...', group: '4_manage', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
+			{ id: 'sessions.list.openChatToSide', title: 'Open to the Side', group: 'navigation', order: 2, when: undefined },
+			{ id: 'sessions.list.deleteChat', title: 'Delete...', group: '4_manage', order: 2, when: 'sessionChatItem.canDelete' },
 		]);
 		const deleteToolbarItem = MenuRegistry.getMenuItems(Menus.SessionChatItemToolbar)
 			.filter(isIMenuItem)

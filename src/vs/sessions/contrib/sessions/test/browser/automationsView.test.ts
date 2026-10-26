@@ -4081,16 +4081,16 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			unreadActionIds: [
 				MARK_SESSION_READ_COMMAND_ID,
+				'sessionsViewPane.archiveSession',
 				'vs.actions.separator',
 				'sessionsViewPane.renameSession',
-				'sessionsViewPane.archiveSession',
 			],
 			archiveLabel: 'Archive',
 			readActionIds: [
 				MARK_SESSION_UNREAD_COMMAND_ID,
+				'sessionsViewPane.archiveSession',
 				'vs.actions.separator',
 				'sessionsViewPane.renameSession',
-				'sessionsViewPane.archiveSession',
 			],
 			commandCalls: [{
 				commandId: MARK_SESSION_READ_COMMAND_ID,

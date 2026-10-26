@@ -87,6 +87,10 @@ export const Menus = {
 	SessionChatBackgroundContext: new MenuId('SessionsSessionChatBackgroundContext'),
 	SessionItemToolbar: new MenuId('SessionItemToolbar'),
 	SessionItemSettings: new MenuId('SessionsSessionItemSettings'),
+	/** Context menu of a section header in the Sessions list. The list merges its own section actions into these groups. */
+	SessionSectionContext: new MenuId('SessionsSessionSectionContext'),
+	/** Context menu of a custom or comparison group header in the Sessions list. The list merges its own group actions into these groups. */
+	SessionGroupContext: new MenuId('SessionsSessionGroupContext'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),

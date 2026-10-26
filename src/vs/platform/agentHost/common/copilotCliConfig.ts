@@ -46,8 +46,6 @@ export const enum CopilotCliConfigKey {
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
 	ClaudeAdvisor = 'claudeAdvisor',
-	/** Enable repository-size-gated tgrep indexed search for Copilot SDK sessions. Off by default. */
-	Tgrep = 'tgrep',
 	/** Offer the runtime's `search_code_subagent` tool to Copilot SDK sessions. Off by default. */
 	SearchSubagent = 'searchSubagent',
 	/** CAPI model override for the runtime's search subagent. Empty uses the runtime default. */
@@ -114,8 +112,6 @@ export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.l
 export const AgentHostCopilotRuntimePathSettingId = 'chat.agentHost.copilot.runtimePath';
 
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
-
-export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
 /** Selects the image model offered to Copilot agents, or turns image generation off. */
@@ -282,12 +278,6 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.claudeAdvisor.title', "Claude Advisor Tool"),
 		description: localize('agentHost.config.claudeAdvisor.description', "When enabled, Copilot SDK sessions using supported Claude models expose the provider-native Advisor tool."),
-		default: false,
-	}),
-	[CopilotCliConfigKey.Tgrep]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.tgrep.title', "Indexed Search (tgrep)"),
-		description: localize('agentHost.config.tgrep.description', "When enabled, Copilot SDK sessions use tgrep indexed search for eligible large repositories. Requires a local Git repository on a non-virtual filesystem."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SearchSubagent]: schemaProperty<boolean>({
