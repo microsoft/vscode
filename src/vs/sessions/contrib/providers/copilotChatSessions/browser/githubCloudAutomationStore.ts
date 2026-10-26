@@ -131,6 +131,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 					}
 					this.targetRepositories.set(key, repository);
 				}
+				const configuration = repository ? this.repositoryConfigurations.get(repositoryKey(repository)) : undefined;
 				result.set(repository && repositoryState?.isPrivate && repositoryState.configuration?.can_manage_automations ? {
 					workspace: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }),
 					repositoryLabel: repositoryDisplayName(repository),
@@ -142,6 +143,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 					isRepository: repository !== undefined,
 					...(repositoryState?.isPrivate === false ? { isPrivateRepository: false } : {}),
 					repositoryLabel: repository ? repositoryDisplayName(repository) : undefined,
+					...(configuration ? { allowReadAccessTriggers: configuration.allow_read_access_triggers } : {}),
 				}, undefined);
 			} catch (error) {
 				if (!isCancellationError(error)) {
@@ -701,6 +703,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 				isRepository: true,
 				...(isPrivate === false ? { isPrivateRepository: false } : {}),
 				repositoryLabel: repositoryDisplayName(repository),
+				...(configuration ? { allowReadAccessTriggers: configuration.allow_read_access_triggers } : {}),
 			}, undefined);
 		}
 	}

@@ -668,15 +668,18 @@ suite('Automation dialog creation', () => {
 		});
 	}
 
-	for (const editing of [false, true]) {
-		test(`repository settings lock read-access activity off when ${editing ? 'editing' : 'creating'} an event automation`, async () => {
+	for (const { editing, publicRepository } of [{ editing: false, publicRepository: false }, { editing: true, publicRepository: false }, { editing: true, publicRepository: true }]) {
+		test(`repository settings lock read-access activity off when ${editing ? 'editing' : 'creating'} ${publicRepository ? 'a public-repository' : 'a private-repository'} event automation`, async () => {
 			const initial = eventAutomation({ issues: { types: ['opened'] } });
 			const existing = { ...initial, cloudTrigger: { ...initial.cloudTrigger!, requireActorWritePermission: false } };
 			const dialog = openDialog(editing
 				? { existing }
 				: { initialValues: { ...existing, schedule: { ...existing.schedule, interval: 'daily' } } }, {
 				...eventConfiguration(),
-				getWorkspaceTarget: () => constObservable({ workspace: REPOSITORY, allowReadAccessTriggers: false }),
+				getWorkspaceTarget: () => constObservable(publicRepository ? {
+					disabledReason: 'Cloud automations cannot be managed for this repository.',
+					isRepository: true, isPrivateRepository: false, repositoryLabel: 'owner/public', allowReadAccessTriggers: false,
+				} : { workspace: REPOSITORY, allowReadAccessTriggers: false }),
 			});
 			if (!editing) {
 				const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;

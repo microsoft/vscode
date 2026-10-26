@@ -347,7 +347,7 @@ suite('GitHubCloudAutomationStore', () => {
 	});
 
 	for (const eligibilityFirst of [true, false]) {
-		test(`public repository selection remains disabled when ${eligibilityFirst ? 'eligibility precedes refresh' : 'refresh precedes eligibility'}`, async () => {
+		test(`public repository selection remains disabled and preserves trigger restrictions when ${eligibilityFirst ? 'eligibility precedes refresh' : 'refresh precedes eligibility'}`, async () => {
 			const { store, api, recents } = setup();
 			api.privateRepositories.set(repository.repo, false);
 			api.definitions.set(repository.repo, [definition]);
@@ -370,6 +370,7 @@ suite('GitHubCloudAutomationStore', () => {
 					isRepository: true,
 					isPrivateRepository: false,
 					repositoryLabel: 'microsoft/vscode-internalbacklog',
+					allowReadAccessTriggers: false,
 				},
 				canManageExisting: true,
 				selectableFromSearch: false,
@@ -377,26 +378,29 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	}
 
-	test('background configuration refresh updates read-access trigger eligibility without a manageability change', async () => {
-		const { store, api } = setup();
-		const target = store.getWorkspaceTarget(workspace);
-		await timeout(0);
-		const initial = target.get().allowReadAccessTriggers;
+	for (const isPrivate of [false, true]) {
+		test(`background configuration refresh updates ${isPrivate ? 'private' : 'public'} repository trigger restrictions without a manageability change`, async () => {
+			const { store, api } = setup();
+			api.privateRepositories.set(repository.repo, isPrivate);
+			const target = store.getWorkspaceTarget(workspace);
+			await timeout(0);
+			const initial = target.get().allowReadAccessTriggers;
 
-		api.allowReadAccessTriggers.set(repository.repo, true);
-		await store.refresh({ background: true });
-		const allowed = target.get().allowReadAccessTriggers;
+			api.allowReadAccessTriggers.set(repository.repo, true);
+			await store.refresh({ background: true });
+			const allowed = target.get().allowReadAccessTriggers;
 
-		api.allowReadAccessTriggers.set(repository.repo, false);
-		await store.refresh({ background: true });
-		assert.deepStrictEqual({
-			initial, allowed, restricted: target.get().allowReadAccessTriggers,
-			workspace: target.get().workspace?.toString(), calls: api.calls.map(call => call.method),
-		}, {
-			initial: false, allowed: true, restricted: false, workspace: workspace.toString(),
-			calls: ['capability', 'capability', 'list', 'capability', 'list'],
+			api.allowReadAccessTriggers.set(repository.repo, false);
+			await store.refresh({ background: true });
+			assert.deepStrictEqual({
+				initial, allowed, restricted: target.get().allowReadAccessTriggers,
+				workspace: target.get().workspace?.toString(), calls: api.calls.map(call => call.method),
+			}, {
+				initial: isPrivate ? false : undefined, allowed: true, restricted: false, workspace: isPrivate ? workspace.toString() : undefined,
+				calls: [...(isPrivate ? ['capability'] : []), 'capability', 'list', 'capability', 'list'],
+			});
 		});
-	});
+	}
 
 	test('background manageability refresh updates private repository selection eligibility', async () => {
 		const { store, api } = setup();
