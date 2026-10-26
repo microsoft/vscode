@@ -107,6 +107,7 @@ suite('SessionsTasksService', () => {
 	let ranTasks: { label: string; session: ISession; chat: IChat | undefined }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
+	let activeWatches: Set<string>;
 	let runnerCanRun: (session: ISession) => boolean;
 	let preferencesService: IPreferencesService & { userSettingsResource: URI };
 
@@ -119,6 +120,7 @@ suite('SessionsTasksService', () => {
 		jsonEdits = [];
 		ranTasks = [];
 		readFileCalls = [];
+		activeWatches = new Set();
 		runnerCanRun = () => true;
 
 		const instantiationService = store.add(new TestInstantiationService());
@@ -132,7 +134,11 @@ suite('SessionsTasksService', () => {
 				}
 				return { value: VSBuffer.fromString(content) } as IFileContent;
 			}
-			override watch() { return { dispose() { } }; }
+			override watch(resource: URI) {
+				const key = resource.toString();
+				activeWatches.add(key);
+				return { dispose() { activeWatches.delete(key); } };
+			}
 			override onDidFilesChange: any = () => ({ dispose() { } });
 		});
 
@@ -173,6 +179,53 @@ suite('SessionsTasksService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// --- getSessionTasks ---
+
+	test('getSessionTasks of two sessions with different folders reads each tasks.json once, however often and in whatever order they are asked', async () => {
+		const otherRepo = URI.parse('file:///other');
+		fileContents.set('file:///repo/.vscode/tasks.json', tasksJsonContent([makeTask('a', 'a', true)]));
+		fileContents.set('file:///other/.vscode/tasks.json', tasksJsonContent([makeTask('b', 'b', true)]));
+		const first = makeSession({ repository: repoUri });
+		const second = makeSession({ repository: otherRepo });
+
+		const a = service.getSessionTasks(first);
+		const b = service.getSessionTasks(second);
+		for (let i = 0; i < 5; i++) {
+			service.getSessionTasks(first);
+			service.getSessionTasks(second);
+		}
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			a: a.get().map(t => t.task.label),
+			b: b.get().map(t => t.task.label),
+			sameObservable: service.getSessionTasks(first) === a,
+			reads: readFileCalls.map(uri => uri.toString()).sort(),
+		}, {
+			a: ['a'],
+			b: ['b'],
+			sameObservable: true,
+			reads: [
+				'file:///other/.vscode/tasks.json',
+				'file:///repo/.vscode/tasks.json',
+				'file:///user/tasks.json',
+			],
+		});
+	});
+
+	test('getSessionTasks keeps at most 16 folders watched, evicting the least recently used and keeping the single user tasks.json watcher', async () => {
+		const sessions = Array.from({ length: 17 }, (_, i) => makeSession({ repository: URI.parse(`file:///repo${i}`) }));
+		for (const session of sessions) {
+			service.getSessionTasks(session);
+		}
+		service.getSessionTasks(sessions[0]);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual([...activeWatches].sort(), [
+			'file:///repo0/.vscode/tasks.json',
+			...Array.from({ length: 15 }, (_, i) => `file:///repo${i + 2}/.vscode/tasks.json`),
+			'file:///user/tasks.json',
+		].sort());
+	});
 
 	test('getSessionTasks returns tasks with inAgents: true from worktree', async () => {
 		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
