@@ -317,7 +317,7 @@ jobs:
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests && inputs.unit_test_suite != 'node' }}
         timeout-minutes: 25
-        run: ./scripts/test.sh --tfs "Unit Tests" --rerun-failed-files 2
+        run: ./scripts/test.sh --tfs "Unit Tests" --workers 4 --rerun-failed-files 2
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
@@ -325,7 +325,7 @@ jobs:
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_tests && inputs.unit_test_suite != 'electron' }}
         timeout-minutes: 25
-        run: npm run test-node -- --rerun-failed-files 2
+        run: npm run test-node -- --workers 4 --rerun-failed-files 2
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
