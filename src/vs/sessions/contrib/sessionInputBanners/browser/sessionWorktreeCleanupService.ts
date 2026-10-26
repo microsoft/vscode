@@ -63,10 +63,13 @@ export interface ISessionWorktree {
 
 type IMeasuredSessionWorktree = Omit<ISessionWorktree, 'cleanupState'>;
 
-interface IWorktreeMeasurementProgress {
-	readonly worktrees: readonly IMeasuredSessionWorktree[];
+export interface ISessionWorktreeMeasurementProgress {
 	readonly scannedWorktrees: number;
 	readonly totalWorktrees: number;
+}
+
+interface IWorktreeMeasurementProgress extends ISessionWorktreeMeasurementProgress {
+	readonly worktrees: readonly IMeasuredSessionWorktree[];
 }
 
 export const ISessionWorktreeCleanupService = createDecorator<ISessionWorktreeCleanupService>('sessionWorktreeCleanupService');
@@ -79,7 +82,7 @@ export interface ISessionWorktreeCleanupService {
 	suppressForWindow(): void;
 	setAvailableDiskSpace(availableBytes: number | undefined): void;
 	/** Publishes initial and measured worktrees progressively. forceRefresh bypasses cached results without starting a separate background scan. */
-	getWorktrees(minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token?: CancellationToken, forceRefresh?: boolean): Promise<readonly ISessionWorktree[]>;
+	getWorktrees(minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[], progress?: ISessionWorktreeMeasurementProgress) => void, token?: CancellationToken, forceRefresh?: boolean): Promise<readonly ISessionWorktree[]>;
 	refreshPendingCleanup(sessionIds: readonly string[], minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token?: CancellationToken): Promise<readonly ISessionWorktree[]>;
 	cleanupWorktrees(candidates: readonly ISessionWorktreeCleanupCandidate[]): Promise<boolean>;
 }
@@ -482,14 +485,19 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		this._suggestion.set(undefined, undefined);
 	}
 
-	async getWorktrees(minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token = CancellationToken.None, forceRefresh = false): Promise<readonly ISessionWorktree[]> {
+	async getWorktrees(minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[], progress?: ISessionWorktreeMeasurementProgress) => void, token = CancellationToken.None, forceRefresh = false): Promise<readonly ISessionWorktree[]> {
 		if (forceRefresh) {
 			this._lastMeasurementAt = -Infinity;
 		}
 		if (onUpdate) {
 			const worktrees = await this._getMeasuredWorktrees(minimumAgeDays, token, progress => {
-				onUpdate(this._filterWorktrees(this._withCleanupState(progress.worktrees, minimumAgeDays)));
+				onUpdate(this._filterWorktrees(this._withCleanupState(progress.worktrees, minimumAgeDays)), {
+					scannedWorktrees: progress.scannedWorktrees,
+					totalWorktrees: progress.totalWorktrees,
+				});
 			});
+			const totalWorktrees = worktrees.reduce((total, worktree) => total + worktree.worktreeCount, 0);
+			onUpdate(this._filterWorktrees(worktrees), { scannedWorktrees: totalWorktrees, totalWorktrees });
 			return this._filterWorktrees(worktrees);
 		}
 		const measuredSessionSignature = this._getWorktreeSessionSignature();

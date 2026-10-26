@@ -17,6 +17,10 @@ on:
       unit_tests:
         type: boolean
         default: true
+      unit_test_suite:
+        description: Unit tests to run in an Electron job, 'all', 'electron' or 'node'
+        type: string
+        default: all
       integration_tests:
         type: boolean
         default: true
@@ -52,7 +56,7 @@ jobs:
     if: ${{ inputs.affected }}
     runs-on: ubuntu-24.04
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.unit_test_suite != 'all' && format('-{0}', inputs.unit_test_suite) || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -278,7 +282,7 @@ jobs:
         run: npm run gulp transpile-client-esbuild transpile-extensions
 
       - name: Setup Electron
-        if: ${{ inputs.electron_tests || inputs.remote_tests }}
+        if: ${{ (inputs.electron_tests && inputs.unit_test_suite != 'node') || inputs.remote_tests }}
         uses: ./.github/actions/setup-electron
         with:
           arch: ${{ env.VSCODE_ARCH }}
@@ -311,7 +315,7 @@ jobs:
           done
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_tests && inputs.unit_test_suite != 'node' }}
         timeout-minutes: 25
         run: ./scripts/test.sh --tfs "Unit Tests" --rerun-failed-files 2
         env:
@@ -319,7 +323,7 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_tests && inputs.unit_test_suite != 'electron' }}
         timeout-minutes: 25
         run: npm run test-node -- --rerun-failed-files 2
 
@@ -339,6 +343,7 @@ jobs:
             compile-extension:css-language-features-server \
             compile-extension:emmet \
             compile-extension:git \
+            compile-extension:git-base \
             compile-extension:github-authentication \
             compile-extension:html-language-features-server \
             compile-extension:ipynb \

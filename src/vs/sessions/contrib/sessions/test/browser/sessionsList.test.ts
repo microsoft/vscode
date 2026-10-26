@@ -30,7 +30,7 @@ import { TestAccessibilityService } from '../../../../../platform/accessibility/
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
-import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -52,7 +52,7 @@ import { IListService, ListService, WorkbenchObjectTree } from '../../../../../p
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -70,7 +70,7 @@ import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -552,7 +552,7 @@ suite('Sessions - SessionsList', () => {
 				withMigrations: {
 					hover: 'Some customizations need an update to keep working.',
 					hasDot: true,
-					iconColor: 'var(--vscode-activityWarningBadge-background)',
+					iconColor: 'var(--vscode-activityBarBadge-background)',
 				},
 				withoutSignals: {
 					hover: 'Customizations',
@@ -1004,7 +1004,7 @@ suite('Sessions - SessionsList', () => {
 					hasTotalCountBadge: false,
 					hasMigrationIcon: true,
 					hasExtensionsIcon: false,
-					iconColor: 'var(--vscode-activityWarningBadge-background)',
+					iconColor: 'var(--vscode-activityBarBadge-background)',
 				},
 				customizationsPresentationWithoutMigration: {
 					hasMigrationIcon: false,
@@ -2622,25 +2622,120 @@ suite('Sessions - SessionsList', () => {
 
 		test('groups a repository across environments, names sections by repository, and keeps sessions without one in their workspace', () => {
 			const cloudRoot = URI.parse('github-remote-file://github/microsoft/vscode/main');
+			// A cloud sandbox session names its repository by URL and reports no Git metadata until its sandbox connects.
+			const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
+			const otherHostRoot = URI.parse('https://example.com/microsoft/vscode');
 			const sessions = [
 				// A cloud session names its repository only through its workspace.
 				createSession('cloud', { workspaceLabel: 'microsoft/vscode', workspaceResource: cloudRoot, folders: [folder(cloudRoot)] }),
+				createSession('sandbox', { workspaceLabel: 'microsoft/vscode', workspaceResource: sandboxRoot, folders: [folder(sandboxRoot)] }),
+				createSession('git url', { workspaceLabel: 'vscode', folders: [folder(URI.parse('https://github.com/microsoft/vscode.git'))] }),
 				createSession('local', { workspaceLabel: 'vscode', folders: [folder(URI.file('/src/vscode'), 'microsoft/vscode')] }),
 				createSession('remote', { workspaceLabel: 'vscode [Host]', folders: [folder(URI.parse('vscode-agent-host://host/src/vscode'), 'Microsoft/VSCode')] }),
 				createSession('fork', { workspaceLabel: 'vscode', folders: [folder(URI.file('/src/fork'), 'someone/vscode')] }),
+				// Git metadata takes precedence over a repository URL.
+				createSession('fork by url', { workspaceLabel: 'vscode', folders: [folder(sandboxRoot, 'someone/vscode')] }),
 				createSession('docs', { workspaceLabel: 'docs', folders: [folder(URI.file('/src/docs'), 'microsoft/vscode-docs')] }),
 				createSession('scratch', { workspaceLabel: 'scratch', folders: [folder(URI.file('/tmp/scratch'))] }),
+				createSession('other host', { workspaceLabel: 'example', workspaceResource: otherHostRoot, folders: [folder(otherHostRoot)] }),
 				createSession('unknown', {}),
 			];
 
 			assert.deepStrictEqual(groupByRepository(sessions).map(section => ({ id: section.id, label: section.label, sessions: section.sessions.map(session => session.sessionId) })), [
+				{ id: 'workspace:example', label: 'example', sessions: ['other host'] },
 				// Repository names are shared by two repository sections, so they include their owner.
-				{ id: 'repository:microsoft/vscode', label: 'microsoft/vscode', sessions: ['cloud', 'local', 'remote'] },
+				{ id: 'repository:microsoft/vscode', label: 'microsoft/vscode', sessions: ['cloud', 'sandbox', 'git url', 'local', 'remote'] },
 				{ id: 'workspace:scratch', label: 'scratch', sessions: ['scratch'] },
-				{ id: 'repository:someone/vscode', label: 'someone/vscode', sessions: ['fork'] },
+				{ id: 'repository:someone/vscode', label: 'someone/vscode', sessions: ['fork', 'fork by url'] },
 				{ id: 'repository:microsoft/vscode-docs', label: 'vscode-docs', sessions: ['docs'] },
 				{ id: 'workspace:Unknown', label: 'Unknown', sessions: ['unknown'] },
 			]);
+		});
+	});
+
+	suite('migrateCloudSandboxRepositorySections', () => {
+		test('gives repository sections the state recorded for their cloud sandbox sessions\' workspace sections, once', () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const store = (key: string, value: object) => storageService.store(key, JSON.stringify(value), StorageScope.PROFILE, StorageTarget.USER);
+			const read = (key: string) => JSON.parse(storageService.get(key, StorageScope.PROFILE) ?? 'null');
+			store('sessionsListControl.groups', {
+				groups: [{ id: 'work', name: 'Work', createdAt: 1 }, { id: 'other', name: 'Other', createdAt: 2 }],
+				membership: {},
+				sectionMembership: {
+					// Repository grouping placed the workspace sections of sessions without a repository under these keys.
+					'repository:workspace:osortega/simple-server': 'work',
+					'repository:workspace:microsoft/vscode': 'work',
+					'repository:workspace:scratch': 'work',
+					// The user placed `repository:contoso/app` at the top level, which promotes it.
+					'repository:workspace:contoso/app': 'work',
+					// Workspace grouping's placement, and a repository section's own placement.
+					'workspace:osortega/simple-server': 'other',
+					'repository:microsoft/vscode': 'other',
+				},
+				sectionAppearance: {
+					'workspace:osortega/simple-server': { color: 'charts.red' },
+					// Without cloud sandbox sessions, this only names a Copilot cloud session's workspace section.
+					'workspace:microsoft/vscode-docs': { icon: 'book' },
+				},
+			});
+			store('sessionsListControl.sectionOrder', {
+				order: ['workspace:osortega/simple-server', 'group:work', 'workspace:microsoft/vscode-docs', 'repository:contoso/app'],
+				promoted: ['workspace:osortega/simple-server', 'workspace:microsoft/vscode-docs', 'repository:contoso/app'],
+			});
+			store('sessionsListControl.sectionCollapseState', {
+				'workspace:https://github.com/contoso/app': true,
+				'workspace:https://github.com/microsoft/vscode': true,
+				'repository:microsoft/vscode': false,
+				'workspace:github-remote-file://github/microsoft/vscode-docs/HEAD': true,
+			});
+			store('sessionsListControl.sessionGroupExpansionState', { 'workspace:https://github.com/contoso/app': true });
+			const orderService = disposables.add(new SessionSectionOrderService(storageService));
+			const groupsService = disposables.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
+				onDidChangeSessions: Event.None,
+				onDidDeleteSession: Event.None,
+				onDidArchiveSession: Event.None,
+				onWillSendRequest: Event.None,
+				onDidReplaceNewDraftSession: Event.None,
+				onDidReplaceSession: Event.None,
+				onDidStartSession: Event.None,
+				onDidDiscardNewSession: Event.None,
+				onDidMoveChat: Event.None,
+				getSessions: () => [],
+				getInFlightNewSessionRequests: () => [],
+				getSession: () => undefined,
+			}), orderService));
+			const migrate = () => SessionsList.migrateCloudSandboxRepositorySections(storageService, groupsService, orderService);
+
+			migrate();
+			const migrated = {
+				work: groupsService.getChildIds('work'),
+				other: groupsService.getChildIds('other'),
+				appearances: ['repository:osortega/simple-server', 'repository:microsoft/vscode-docs'].map(id => groupsService.getSectionAppearance(id)),
+				order: orderService.capturePositions([]).order,
+				promoted: ['repository:osortega/simple-server', 'repository:microsoft/vscode-docs'].filter(id => orderService.isPromoted(id)),
+				collapsed: read('sessionsListControl.sectionCollapseState'),
+				expanded: read('sessionsListControl.sessionGroupExpansionState'),
+			};
+			// A later choice of the user stays, as the migration runs once.
+			groupsService.moveSection('repository:osortega/simple-server', undefined);
+			migrate();
+
+			assert.deepStrictEqual({ ...migrated, groupAfterRerun: groupsService.getGroupOfSection('repository:osortega/simple-server') }, {
+				work: ['repository:workspace:osortega/simple-server', 'repository:osortega/simple-server', 'repository:workspace:microsoft/vscode', 'repository:workspace:scratch', 'repository:workspace:contoso/app'],
+				other: ['workspace:osortega/simple-server', 'repository:microsoft/vscode'],
+				appearances: [{ color: 'charts.red' }, undefined],
+				order: ['workspace:osortega/simple-server', 'repository:osortega/simple-server', 'group:work', 'workspace:microsoft/vscode-docs', 'repository:contoso/app'],
+				promoted: ['repository:osortega/simple-server'],
+				collapsed: {
+					'workspace:https://github.com/contoso/app': true,
+					'workspace:https://github.com/microsoft/vscode': true,
+					'repository:microsoft/vscode': false,
+					'workspace:github-remote-file://github/microsoft/vscode-docs/HEAD': true,
+					'repository:contoso/app': true,
+				},
+				expanded: { 'workspace:https://github.com/contoso/app': true, 'repository:contoso/app': true },
+				groupAfterRerun: undefined,
+			});
 		});
 	});
 
@@ -5564,7 +5659,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli' });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli' });
@@ -5647,6 +5742,7 @@ suite('Sessions - SessionsList', () => {
 				sectionMemberships: sectionParent ? new Map([[sectionId, sectionParent.id]]) : undefined,
 				memberships, comparisons: [comparison], pinnedSessionIds,
 			});
+			configure?.(harness);
 			const contextMenus: (readonly IAction[])[] = [];
 			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
 				override showContextMenu(delegate: IContextMenuDelegate): void {
@@ -5667,6 +5763,52 @@ suite('Sessions - SessionsList', () => {
 			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, false);
 			list.layout(400, 400);
 			return { attempt1, attempt2, judge, synthesis, container, harness, list, contextMenus };
+		}
+
+		for (const outcome of ['success', 'cancelled', 'disabled', 'reduced motion', 'failure'] as const) {
+			test(`group Mark All as Done confetti: ${outcome}`, async () => {
+				const { container, harness, list, attempt1, attempt2, judge, synthesis } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Workspace, undefined, harness => {
+					const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+					void configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+					harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+						override isMotionReduced(): boolean { return outcome === 'reduced motion'; }
+					}());
+					harness.instantiationService.stub(IContextKeyService, harness.store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService))));
+					harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
+					harness.store.add(harness.instantiationService.createInstance(SessionsArchiveActionsContribution));
+				});
+				const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+				await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, outcome !== 'disabled');
+				const executed = new DeferredPromise<void>();
+				sinon.stub(harness.commandService, 'executeCommand').callsFake(async commandId => {
+					assert.strictEqual(commandId, ARCHIVE_SESSION_GROUP_COMMAND_ID);
+					if (outcome === 'failure') {
+						await executed.complete();
+						throw new Error('Archive failed');
+					}
+					if (outcome !== 'cancelled') {
+						for (const participant of [attempt1, attempt2, judge, synthesis]) {
+							participant.isArchived.set(true, undefined);
+						}
+						list.dispose();
+					}
+					await executed.complete();
+					return undefined;
+				});
+				await timeout(100);
+				const button = container.querySelector<HTMLElement>('.session-comparison-group .action-label[aria-label="Mark All as Done"]');
+				assert.ok(button, container.querySelector('.session-comparison-group')?.outerHTML);
+				button.click();
+				await executed.p;
+				await timeout(0);
+				const overlay = document.querySelector('.animation-overlay');
+				disposables.add(toDisposable(() => overlay?.remove()));
+
+				assert.deepStrictEqual({ animated: !!overlay, buttonConnected: button.isConnected }, {
+					animated: outcome === 'success',
+					buttonConnected: outcome === 'cancelled' || outcome === 'failure',
+				});
+			});
 		}
 
 		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Environment]) {

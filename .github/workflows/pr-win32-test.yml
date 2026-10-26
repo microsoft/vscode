@@ -5,10 +5,6 @@ on:
         description: Whether the pull request can affect the tests; the job is skipped when false
         type: boolean
         default: true
-      job_name:
-        description: Identifies the job in the JobId label of its runner, which must be unique in the run
-        type: string
-        required: true
       electron_tests:
         type: boolean
         default: false
@@ -47,6 +43,14 @@ on:
         description: Whether to run the Agent Host E2E tests
         type: boolean
         default: false
+      agent_host_e2e_shard_index:
+        description: 1-based index of the Agent Host E2E shard to run
+        type: number
+        default: 1
+      agent_host_e2e_shard_total:
+        description: Number of shards the Agent Host E2E suites are split into
+        type: number
+        default: 1
       agent_host_test_profile:
         description: Agent Host test profile, 'pr' or 'full' (see .github/actions/detect-agent-host-e2e-changes)
         type: string
@@ -62,14 +66,53 @@ jobs:
     # as "<calling job> / Windows", for example "Electron-Unit / Windows", whether the job runs or not.
     name: Windows
     if: ${{ inputs.affected }}
-    # JobId must be unique per job, so smoke test shards and the browser unit tests part add a suffix
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-windows-8-core
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.agent_host_e2e_shard_total > 1 && format('-{0}', inputs.agent_host_e2e_shard_index) || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
     steps:
+      # The larger runners keep the workspace on the OS disk, where creating many small files, such as
+      # extracting node_modules, takes twice as long as on the 1ES runners' temporary disk. A Dev Drive in
+      # a VHDX on the same disk is faster than both. It is mounted at the parent of the workspace, so that
+      # the workspace keeps its path and is an ordinary, empty folder for actions/checkout, which cannot
+      # clear the root of a volume. WSL cannot open folders on a volume that is mounted in a folder of
+      # drive C:, so the smoke test shard with the WSL suite keeps its workspace on the OS disk.
+      - name: Move the workspace to a Dev Drive
+        if: ${{ !(inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1) }}
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $workspace = $env:GITHUB_WORKSPACE
+          $mount = Split-Path $workspace -Parent
+          $vhd = Join-Path $env:RUNNER_TEMP 'workspace.vhdx'
+          try {
+            if (Get-ChildItem -Force $workspace) { throw "$workspace is not empty" }
+            @(
+              "create vdisk file=`"$vhd`" maximum=204800 type=expandable"
+              "select vdisk file=`"$vhd`""
+              'attach vdisk'
+              'create partition primary'
+              'assign letter=W'
+            ) | Set-Content diskpart.txt
+            diskpart /s diskpart.txt | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "diskpart exited with $LASTEXITCODE" }
+            Format-Volume -DriveLetter W -DevDrive -Confirm:$false -Force | Out-Host
+            Remove-Item $workspace
+            if (Get-ChildItem -Force $mount) { throw "$mount holds more than the workspace" }
+            Add-PartitionAccessPath -DriveLetter W -AccessPath "$mount\"
+            # Without a drive letter, the native realpath of the workspace files stays under $mount.
+            Remove-PartitionAccessPath -DriveLetter W -AccessPath 'W:\'
+            New-Item -ItemType Directory -Path $workspace | Out-Null
+            fsutil devdrv query $mount | Out-Host
+          } catch {
+            Write-Output "::warning::The workspace stays on the OS disk: $_"
+            New-Item -ItemType Directory -Path $workspace -Force | Out-Null
+          }
+          exit 0
+
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -248,6 +291,7 @@ jobs:
             compile-extension:css-language-features-server `
             compile-extension:emmet `
             compile-extension:git `
+            compile-extension:git-base `
             compile-extension:github-authentication `
             compile-extension:html-language-features-server `
             compile-extension:ipynb `
@@ -275,7 +319,7 @@ jobs:
         if: ${{ inputs.electron_tests && inputs.agent_host_e2e_tests }}
         timeout-minutes: 30
         shell: pwsh
-        run: .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
+        run: .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests" --rerun-failed-files 2${{ inputs.agent_host_e2e_shard_total > 1 && format(' --shard {0}/{1}', inputs.agent_host_e2e_shard_index, inputs.agent_host_e2e_shard_total) || '' }} ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
         env:
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}

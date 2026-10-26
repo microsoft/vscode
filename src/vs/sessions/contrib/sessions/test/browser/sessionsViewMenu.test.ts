@@ -251,8 +251,12 @@ suite('Sessions - View Menu', () => {
 		]);
 	});
 
-	test('places Compact View and Collapse All Groups in their own header overflow group', () => {
+	test('places Compact View and Collapse All Groups before the management overflow group', () => {
 		const { snapshot, contextKeyService } = createMenu();
+		store.add(MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
+			command: { id: 'test.manage', title: 'Manage' },
+			group: '2_manage',
+		}));
 		const menuService = store.add(new MenuService(new TestCommandService(), new MockKeybindingService(), store.add(new InMemoryStorageService())));
 		const { primary, secondary } = getActionBarActions(
 			menuService.getMenuActions(Menus.SidebarSessionsHeader, contextKeyService),
@@ -260,24 +264,24 @@ suite('Sessions - View Menu', () => {
 		);
 		const viewActionIds = ['sessionsViewPane.toggleCompact', 'sessionsViewPane.collapseAllGroups'];
 		assert.deepStrictEqual({
-			group: snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === 'view'),
+			group: snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === '1_view'),
 			primary: primary.filter(action => viewActionIds.includes(action.id)).map(action => action.id),
-			secondary: secondary.filter(action => viewActionIds.includes(action.id)).map(action => action.id),
+			secondary: secondary.filter(action => [...viewActionIds, 'test.manage'].includes(action.id)).map(action => action.id),
 			filter: snapshot(Menus.SessionsViewFilter).filter(item => item.title === 'Compact View' || item.title === 'Collapse All Groups'),
 		}, {
 			group: [
-				{ title: 'Compact View', group: 'view', checked: false },
-				{ title: 'Collapse All Groups', group: 'view' },
+				{ title: 'Compact View', group: '1_view', checked: false },
+				{ title: 'Collapse All Groups', group: '1_view' },
 			],
 			primary: [],
-			secondary: viewActionIds,
+			secondary: [...viewActionIds, 'test.manage'],
 			filter: [],
 		});
 	});
 
 	test('preserves the Compact View toggle and hides header view actions when AI is disabled', () => {
 		const { snapshot, compact, contextKeyService } = createMenu();
-		const viewActions = () => snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === 'view');
+		const viewActions = () => snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === '1_view');
 		compact.set(true);
 		const checked = viewActions();
 		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
@@ -285,10 +289,10 @@ suite('Sessions - View Menu', () => {
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
 		assert.deepStrictEqual({ checked, phone, disabled: viewActions() }, {
 			checked: [
-				{ title: 'Compact View', group: 'view', checked: true },
-				{ title: 'Collapse All Groups', group: 'view' },
+				{ title: 'Compact View', group: '1_view', checked: true },
+				{ title: 'Collapse All Groups', group: '1_view' },
 			],
-			phone: [{ title: 'Collapse All Groups', group: 'view' }],
+			phone: [{ title: 'Collapse All Groups', group: '1_view' }],
 			disabled: [],
 		});
 	});

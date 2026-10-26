@@ -308,7 +308,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 			assert.deepStrictEqual({
-				discoveryHelp: content.includes('choose Environments to discover your environments'),
+				discoveryHelp: content.includes('choose GitHub Environments to discover your environments'),
 				folderBrowsing: content.includes('then select a folder on that host.'),
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
@@ -754,9 +754,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	});
 
-	test('describes the existing response-selection input by default', () => {
+	test('describes the Ask Question input when the response-selection menu is disabled', () => {
 		const instantiationService = store.add(new TestInstantiationService());
-		const configuration = new TestConfigurationService();
+		const configuration = new TestConfigurationService({
+			[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: false,
+		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
 		stubContextKeyService(instantiationService, configuration);
@@ -772,7 +774,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		);
 	});
 
-	test('describes the experimental response-selection menu when enabled', () => {
+	test('describes the response-selection menu when enabled', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({
 			[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: true,

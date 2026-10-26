@@ -604,7 +604,7 @@ registerAction2(class ManageAgentSessionStorageAction extends Action2 {
 			precondition: ChatContextKeys.enabled,
 			menu: [{
 				id: Menus.SidebarSessionsHeader,
-				group: 'manage',
+				group: '2_manage',
 				order: 0,
 				when: ChatContextKeys.enabled,
 			}],
@@ -680,7 +680,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
