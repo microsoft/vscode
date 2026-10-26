@@ -3385,7 +3385,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.interactive-session .chat-summary-list .monaco-list .monaco-list-row:hover {
+.interactive-session .chat-summary-list .monaco-list .monaco-list-row:hover:not(.selected):not(.focused) {
 	background-color: var(--vscode-list-hoverBackground) !important;
 }
 
