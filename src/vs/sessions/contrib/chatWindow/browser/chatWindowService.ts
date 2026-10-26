@@ -19,7 +19,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { EditorCloseContext, EditorsOrder, GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
-import { completeTerminalReturn, decideTerminalRowMove, shouldCloseEditorArea, shouldHideTerminalRow, TerminalRowMoveAction } from './chatWindowTerminalRowPolicy.js';
+import { completeTerminalReturn, decideTerminalRowMove, EditorAreaCloser, shouldHideTerminalRow, TerminalRowMoveAction } from './chatWindowTerminalRowPolicy.js';
 import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { EditorPartFixedGroupsContext } from '../../../../workbench/common/contextkeys.js';
 import { IsQuickChatSessionContext, SessionWorkspaceIsVirtualContext } from '../../../common/contextkeys.js';
@@ -416,11 +416,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			}));
 			// Closing its last editor closes the editor area, as it does the main window's side pane: the chat shows alone, and reopening the editor area restores the split layout.
 			// Not a move, such as to another group or window, nor an editor that is replaced.
-			windowDisposables.add(editorGroup.onDidCloseEditor(e => {
-				if (shouldCloseEditorArea({ areaIsEmpty: editorGroup.isEmpty, isMove: e.context === EditorCloseContext.MOVE, windowIsChanging: this._replacing.has(window) || windowDisposables.isDisposed })) {
-					window.setLayout(ChatWindowLayout.ChatOnly);
-				}
-			}));
+			const editorAreaCloser = new EditorAreaCloser(() => window.setLayout(ChatWindowLayout.ChatOnly));
+			windowDisposables.add(editorGroup.onDidCloseEditor(e => editorAreaCloser.closed({ areaIsEmpty: editorGroup.isEmpty, isMove: e.context === EditorCloseContext.MOVE, windowIsChanging: this._replacing.has(window) || windowDisposables.isDisposed })));
+			windowDisposables.add(editorGroup.onDidActiveEditorChange(() => editorAreaCloser.settled(editorGroup.isEmpty)));
 			// Its empty editor area offers the same Add Tab actions as the main window's. The terminal row, which holds terminals only, does not.
 			windowDisposables.add(this._instantiationService.createInstance(EmptyEditorGroupAddTab, editorGroup as IEditorGroupView, Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab));
 			// What the Session Activity Bar of the chat window shows as checked, and offers, as it does for the main window.

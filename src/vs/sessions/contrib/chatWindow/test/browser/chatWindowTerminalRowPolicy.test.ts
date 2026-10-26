@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { completeTerminalReturn, decideTerminalRowMove, ITerminalReturn, shouldCloseEditorArea, shouldHideTerminalRow, TerminalRowMoveAction } from '../../browser/chatWindowTerminalRowPolicy.js';
+import { completeTerminalReturn, decideTerminalRowMove, EditorAreaCloser, ITerminalReturn, shouldCloseEditorArea, shouldHideTerminalRow, TerminalRowMoveAction } from '../../browser/chatWindowTerminalRowPolicy.js';
 
 suite('Chat window terminal row policy', () => {
 
@@ -86,5 +86,27 @@ suite('Chat window terminal row policy', () => {
 			moved: shouldCloseEditorArea({ ...close, isMove: true }),
 			replacing: shouldCloseEditorArea({ ...close, windowIsChanging: true }),
 		}, { lastClosed: true, othersRemain: false, moved: false, replacing: false });
+	});
+
+	test('the editor area closes once its group settled, after the focus it takes back, not as the editor closes', () => {
+		const close = { areaIsEmpty: true, isMove: false, windowIsChanging: false };
+		let closes = 0;
+		const closer = new EditorAreaCloser(() => closes++);
+		const steps: number[] = [];
+
+		closer.closed(close);
+		steps.push(closes);
+		closer.settled(true);
+		steps.push(closes);
+		closer.settled(true);
+		steps.push(closes);
+		closer.closed({ ...close, isMove: true });
+		closer.settled(true);
+		steps.push(closes);
+		closer.closed(close);
+		closer.settled(false);
+		steps.push(closes);
+
+		assert.deepStrictEqual(steps, [0, 1, 1, 1, 1]);
 	});
 });
