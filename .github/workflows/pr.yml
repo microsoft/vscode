@@ -210,7 +210,7 @@ jobs:
     env:
       # Hygiene and ESLint check only the files that changed since this commit, unless
       # a change can affect other files (see build/lib/changedFiles.ts). The full checks
-      # run in the product build.
+      # run in the scheduled and manual product builds.
       PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
     steps:
       - name: Checkout microsoft/vscode
