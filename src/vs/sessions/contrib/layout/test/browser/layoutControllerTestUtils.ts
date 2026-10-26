@@ -417,9 +417,12 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
 			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
 			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
+		}, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 		}, new class extends mock<IDecorationsService>() {
 			override registerDecorationsProvider() { return toDisposable(() => { }); }
-		})),
+		}, new NullLogService())),
 		contextKeyService,
 		editorWorkingSetService,
 	};

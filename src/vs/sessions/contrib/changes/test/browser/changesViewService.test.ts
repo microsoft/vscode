@@ -11,16 +11,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
+import { AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
 import { ChangesViewMode } from '../../common/changes.js';
@@ -63,6 +60,7 @@ suite('ChangesViewService', () => {
 		});
 		return upcastPartial<IActiveSession>({
 			resource: URI.from({ scheme: 'test-session', path: `/${id}` }),
+			isCreated: constObservable(true),
 			providerId: 'local-agent-host',
 			sessionType: 'test',
 			loading: options?.loading ?? constObservable(false),
@@ -140,10 +138,11 @@ suite('ChangesViewService', () => {
 			override readonly onDidDiscardNewSession = onDidDiscardNewSession.event;
 			override readonly onDidReplaceNewDraftSession = onDidReplaceNewDraftSession.event;
 		}();
+		const feedbackByResource = new Map<string, readonly IAgentFeedback[]>();
 		const agentFeedbackService = new class extends mock<IAgentFeedbackService>() {
 			override readonly onDidChangeFeedback = Event.None;
 			override readonly activeFeedbackSessionResource = constObservable(URI.from({ scheme: 'test-feedback' }));
-			override getFeedback() { return []; }
+			override getFeedback(resource: URI) { return feedbackByResource.get(resource.toString()) ?? []; }
 		}();
 		const codeReviewService = new class extends mock<ICodeReviewService>() {
 			override getPRReviewState() {
@@ -151,26 +150,16 @@ suite('ChangesViewService', () => {
 			}
 		}();
 		const contextKeyService = disposables.add(new MockContextKeyService());
-		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IAgentFeedbackService, agentFeedbackService);
-		instantiationService.stub(ICodeReviewService, codeReviewService);
-		instantiationService.stub(IContextKeyService, contextKeyService);
-		instantiationService.stub(ISessionsService, sessionsService);
-		instantiationService.stub(IStorageService, storageService);
-		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		const service = disposables.add(new ChangesViewService(
-			undefined,
-			undefined,
 			agentFeedbackService,
 			codeReviewService,
 			contextKeyService,
 			sessionsService,
 			storageService,
 			sessionsManagementService,
-			instantiationService,
 		));
 
-		return { activeSession, contextKeyService, onDidDeleteChat, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, instantiationService, service, storageService };
+		return { activeSession, contextKeyService, feedbackByResource, onDidDeleteChat, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
 	}
 
 	test('restores section collapse state independently per session', () => {
@@ -327,32 +316,53 @@ suite('ChangesViewService', () => {
 		});
 	});
 
-	test('serves the changes of a session in a chat window, with its own selection, without changing the main window session', () => {
-		const mainChange = upcastPartial<ISessionFileChange>({ modifiedUri: URI.file('/main.ts'), insertions: 1, deletions: 0 });
-		const windowBranchChange = upcastPartial<ISessionFileChange>({ modifiedUri: URI.file('/window-branch.ts'), insertions: 2, deletions: 0 });
-		const windowTurnChange = upcastPartial<ISessionFileChange>({ modifiedUri: URI.file('/window-turn.ts'), insertions: 3, deletions: 0 });
-		const turnChangeset = upcastPartial<ISessionChangeset>({
-			...createTransientChangeset(),
-			id: 'turn',
-			changes: constObservable([windowTurnChange]),
-		});
-		const mainSession = createSession('main', { changesets: [createChangeset([], { changes: constObservable([mainChange]) })] });
-		const windowSession = createSession('window', { changesets: [createChangeset([], { changes: constObservable([windowBranchChange]) }), turnChangeset] });
-		const { service } = createHarness(mainSession, undefined, [windowSession]);
-		const windowChanges = service.getSessionChanges(windowSession.resource);
+	test('getSessionChanges observes its own session independently of the active session', () => {
+		const changesetA = createChangeset([upcastPartial<ISessionChangesetOperation>({ id: 'op-a', scopes: [] })]);
+		const changesetB = createChangeset([upcastPartial<ISessionChangesetOperation>({ id: 'op-b', scopes: [] })]);
+		const sessionA = createSession('a', { changesets: [changesetA] });
+		const sessionB = createSession('b', { changesets: [changesetB] });
+		const { activeSession, service } = createHarness(sessionA);
+		const scopedSession = observableValue<IActiveSession | undefined>('test.scopedSession', sessionB);
+
+		const scoped = service.getSessionChanges(scopedSession);
 		const read = () => ({
-			main: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.path),
-			window: windowChanges.get().map(change => change.modifiedUri?.path),
+			scopedResource: scoped.resourceObs.get()?.toString(),
+			scopedChangeset: scoped.changesetOperationsObs.get().map(o => o.id).join(),
+			activeResource: service.activeSessionResourceObs.get()?.toString(),
+			activeChangeset: service.activeSessionChangesetOperationsObs.get().map(o => o.id).join(),
 		});
+		const initial = read();
+		activeSession.set(sessionB, undefined);
+		const activeSwitched = read();
+		scopedSession.set(sessionA, undefined);
+		const scopedSwitched = read();
+		scopedSession.set(undefined, undefined);
+		const scopedCleared = { resource: scoped.resourceObs.get(), changeset: scoped.changesetOperationsObs.get().map(o => o.id).join() };
 
-		const byDefault = read();
-		service.setChangesetId('turn', windowSession.resource);
-		const afterSelectingInWindow = read();
+		assert.deepStrictEqual({ initial, activeSwitched, scopedSwitched, scopedCleared }, {
+			initial: { scopedResource: sessionB.resource.toString(), scopedChangeset: 'op-b', activeResource: sessionA.resource.toString(), activeChangeset: 'op-a' },
+			activeSwitched: { scopedResource: sessionB.resource.toString(), scopedChangeset: 'op-b', activeResource: sessionB.resource.toString(), activeChangeset: 'op-b' },
+			scopedSwitched: { scopedResource: sessionA.resource.toString(), scopedChangeset: 'op-a', activeResource: sessionB.resource.toString(), activeChangeset: 'op-b' },
+			scopedCleared: { resource: undefined, changeset: '' },
+		});
+	});
 
-		assert.deepStrictEqual({ byDefault, afterSelectingInWindow, mainChangeset: service.activeSessionChangesetObs.get()?.id }, {
-			byDefault: { main: ['/main.ts'], window: ['/window-branch.ts'] },
-			afterSelectingInWindow: { main: ['/main.ts'], window: ['/window-turn.ts'] },
-			mainChangeset: 'branch',
+	test('getSessionChanges counts agent feedback of its own session', () => {
+		const sessionA = createSession('a');
+		const sessionB = createSession('b');
+		const { feedbackByResource, service } = createHarness(sessionA);
+		const feedbackItem = (path: string) => upcastPartial<IAgentFeedback>({ resourceUri: URI.file(path), state: AgentFeedbackState.Created });
+		feedbackByResource.set(sessionB.resource.toString(), [feedbackItem('/b.ts'), feedbackItem('/b.ts')]);
+		const scopedSession = observableValue<IActiveSession | undefined>('test.scopedSession', sessionB);
+
+		const scoped = service.getSessionChanges(scopedSession);
+
+		assert.deepStrictEqual({
+			scoped: [...scoped.agentFeedbackCountByFileObs.get()],
+			active: [...service.activeSessionAgentFeedbackCountByFileObs.get()],
+		}, {
+			scoped: [[URI.file('/b.ts').fsPath, 2]],
+			active: [],
 		});
 	});
 
@@ -591,6 +601,19 @@ suite('ChangesViewService', () => {
 			unvisitedSelection: SESSION_CHANGES_CHANGESET_ID,
 			unrelatedSessionSelection: 'branch',
 		});
+	});
+
+	test('selects a changeset of an explicit session without affecting the active session', () => {
+		const branchChangeset = { ...createChangeset([]), id: 'branch' };
+		const turnChangeset = { ...createChangeset([]), id: TURN_CHANGES_CHANGESET_ID, isDefault: constObservable(false) };
+		const { service } = createHarness(createSession('a', { changesets: [branchChangeset, turnChangeset] }));
+		const other = createSession('b', { changesets: [branchChangeset, turnChangeset] });
+
+		service.setChangesetId(TURN_CHANGES_CHANGESET_ID, other);
+		const otherSelection = service.getSessionChanges(constObservable(other)).changesetObs.get()?.id;
+		const activeSelection = service.activeSessionChangesetObs.get()?.id;
+
+		assert.deepStrictEqual({ otherSelection, activeSelection }, { otherSelection: TURN_CHANGES_CHANGESET_ID, activeSelection: 'branch' });
 	});
 
 	test('confirmed deletion removes only the exact owner when the chat catalogue is incomplete or stale', () => {
@@ -1143,50 +1166,5 @@ suite('ChangesViewService', () => {
 		hasOpenPullRequest.push(service.activeSessionStateObs.get()?.hasOpenPullRequest);
 
 		assert.deepStrictEqual(hasOpenPullRequest, [true, false, true, false]);
-	});
-
-	test('a scoped service reports on its own session while the main window shows another', () => {
-		const mainSession = createSession('main', { changesets: [createChangeset([])] });
-		const windowChangeset = upcastPartial<ISessionChangeset>({ ...createChangeset([]), id: 'window-changes', isDefault: constObservable(true) });
-		const windowSession = createSession('window', { changesets: [windowChangeset] });
-		const { service } = createHarness(mainSession, undefined, [windowSession]);
-
-		const scoped = disposables.add(service.createScoped(constObservable(windowSession.resource), disposables.add(new MockContextKeyService())));
-
-		assert.deepStrictEqual({
-			main: service.activeSessionResourceObs.get()?.path,
-			scoped: scoped.activeSessionResourceObs.get()?.path,
-			mainChangeset: service.activeSessionChangesetObs.get()?.id,
-			scopedChangeset: scoped.activeSessionChangesetObs.get()?.id,
-		}, {
-			main: '/main',
-			scoped: '/window',
-			mainChangeset: 'branch',
-			scopedChangeset: 'window-changes',
-		});
-	});
-
-	test('a scoped service follows its session resource and selects changesets for its own session only', () => {
-		const secondChangeset = upcastPartial<ISessionChangeset>({ ...createChangeset([]), id: 'second', isDefault: constObservable(false) });
-		const mainSession = createSession('main', { changesets: [createChangeset([])] });
-		const windowSession = createSession('window', { changesets: [createChangeset([]), secondChangeset] });
-		const { service } = createHarness(mainSession, undefined, [windowSession]);
-		const resource = observableValue<URI | undefined>('test.scopedResource', undefined);
-		const scoped = disposables.add(service.createScoped(resource, disposables.add(new MockContextKeyService())));
-
-		// Until it has a resource, a scoped service reports the main window's session.
-		const before = scoped.activeSessionResourceObs.get()?.toString();
-		resource.set(windowSession.resource, undefined);
-		scoped.setChangesetId('second');
-
-		assert.deepStrictEqual({
-			before,
-			scoped: scoped.activeSessionChangesetObs.get()?.id,
-			main: service.activeSessionChangesetObs.get()?.id,
-		}, {
-			before: mainSession.resource.toString(),
-			scoped: 'second',
-			main: 'branch',
-		});
 	});
 });

@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ISessionChangeset, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { ChangesetReviewAction } from '../../browser/changesetReviewActions.js';
-import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChangesSessionObservables, IChangesViewService } from '../../common/changesViewService.js';
 
 suite('ChangesetReviewAction', () => {
 
@@ -23,16 +25,28 @@ suite('ChangesetReviewAction', () => {
 	interface ISetReviewStateCall {
 		readonly resources: readonly URI[];
 		readonly reviewed: boolean;
+		readonly session?: IActiveSession;
 	}
 
-	function createInstantiationService(changes: readonly ISessionFileChange[], setReviewStateCalls: ISetReviewStateCall[]): TestInstantiationService {
+	const activeSession = upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') });
+
+	function createInstantiationService(changes: readonly ISessionFileChange[], setReviewStateCalls: ISetReviewStateCall[], otherChanges: readonly ISessionFileChange[] = []): TestInstantiationService {
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionChangesetObs = constObservable(upcastPartial<ISessionChangeset>({ capabilities: { review: true } }));
 			override readonly activeSessionChangesObs = constObservable(changes);
-			override readonly scopedServicesObs = constObservable<readonly IChangesViewService[]>([]);
-			override setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void {
-				setReviewStateCalls.push({ resources, reviewed });
+			override getSessionChanges(sessionObs: IObservable<IActiveSession | undefined>): IChangesSessionObservables {
+				return upcastPartial<IChangesSessionObservables>({
+					changesetObs: constObservable(upcastPartial<ISessionChangeset>({ capabilities: { review: true } })),
+					changesObs: constObservable(otherChanges),
+				});
 			}
+			override setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean, session?: IActiveSession): void {
+				setReviewStateCalls.push(session ? { resources, reviewed, session } : { resources, reviewed });
+			}
+		}();
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
+			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 		}();
 		const editorService = new class extends mock<IEditorService>() {
 			override readonly activeEditorPane = undefined;
@@ -40,61 +54,10 @@ suite('ChangesetReviewAction', () => {
 		return disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IChangesViewService, changesViewService],
 			[IEditorService, editorService],
+			[ISessionsService, sessionsService],
+			[ILogService, new NullLogService()],
 		)));
 	}
-
-	test('toggles the review state of the Changes editor\'s session, not the main window\'s', () => {
-		const resource = URI.file('/workspace/current.ts');
-		const mainCalls: ISetReviewStateCall[] = [];
-		const windowCalls: ISetReviewStateCall[] = [];
-		const windowChangesViewService = new class extends mock<IChangesViewService>() {
-			override readonly activeSessionChangesetObs = constObservable(upcastPartial<ISessionChangeset>({ capabilities: { review: true } }));
-			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([{ modifiedUri: resource, insertions: 1, deletions: 0, reviewed: false }]);
-			override setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void {
-				windowCalls.push({ resources, reviewed });
-			}
-		}();
-		const pane = Object.create(SessionChangesEditor.prototype, {
-			changesViewServiceForSession: { value: windowChangesViewService },
-			collapse: { value: () => { } },
-		});
-		const instantiationService = createInstantiationService([], mainCalls);
-		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override readonly activeEditorPane = pane;
-		}());
-
-		new ChangesetReviewAction().run(instantiationService, resource);
-
-		assert.deepStrictEqual({ mainCalls, windowCalls }, { mainCalls: [], windowCalls: [{ resources: [resource], reviewed: true }] });
-	});
-
-	test('toggles the review state of the window that shows the resource, even when another window\'s editor is active', () => {
-		const resource = URI.file('/workspace/window.ts');
-		const mainCalls: ISetReviewStateCall[] = [];
-		const windowCalls: ISetReviewStateCall[] = [];
-		const windowChangesViewService = new class extends mock<IChangesViewService>() {
-			override readonly activeSessionChangesetObs = constObservable(upcastPartial<ISessionChangeset>({ capabilities: { review: true } }));
-			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([{ modifiedUri: resource, insertions: 1, deletions: 0, reviewed: false }]);
-			override setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void {
-				windowCalls.push({ resources, reviewed });
-			}
-		}();
-		const otherResource = URI.file('/workspace/other.ts');
-		const mainChangesViewService = new class extends mock<IChangesViewService>() {
-			override readonly activeSessionChangesetObs = constObservable(upcastPartial<ISessionChangeset>({ capabilities: { review: true } }));
-			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([{ modifiedUri: otherResource, insertions: 1, deletions: 0, reviewed: false }]);
-			override readonly scopedServicesObs = constObservable<readonly IChangesViewService[]>([windowChangesViewService]);
-			override setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void {
-				mainCalls.push({ resources, reviewed });
-			}
-		}();
-		const instantiationService = createInstantiationService([], mainCalls);
-		instantiationService.stub(IChangesViewService, mainChangesViewService);
-
-		new ChangesetReviewAction().run(instantiationService, resource);
-
-		assert.deepStrictEqual({ mainCalls, windowCalls }, { mainCalls: [], windowCalls: [{ resources: [resource], reviewed: true }] });
-	});
 
 	test('ignores a resource that is not part of the active changeset', () => {
 		const setReviewStateCalls: ISetReviewStateCall[] = [];
@@ -120,7 +83,35 @@ suite('ChangesetReviewAction', () => {
 
 		new ChangesetReviewAction().run(instantiationService, resource);
 
-		assert.deepStrictEqual(setReviewStateCalls, [{ resources: [resource], reviewed: true }]);
+		assert.deepStrictEqual(setReviewStateCalls, [{ resources: [resource], reviewed: true, session: activeSession }]);
+	});
+
+	test('toggles a file of the session it is invoked for instead of the active one', () => {
+		const resource = URI.file('/workspace/other.ts');
+		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'other', resource: URI.parse('agent-host:other') });
+		const setReviewStateCalls: ISetReviewStateCall[] = [];
+		const instantiationService = createInstantiationService(
+			[{ modifiedUri: URI.file('/workspace/current.ts'), insertions: 1, deletions: 0, reviewed: false }],
+			setReviewStateCalls,
+			[{ modifiedUri: resource, insertions: 1, deletions: 0, reviewed: false }],
+		);
+
+		new ChangesetReviewAction().run(instantiationService, resource, otherSession);
+
+		assert.deepStrictEqual(setReviewStateCalls, [{ resources: [resource], reviewed: true, session: otherSession }]);
+	});
+
+	test('does nothing when the session argument is empty instead of using the active session', () => {
+		const resource = URI.file('/workspace/current.ts');
+		const setReviewStateCalls: ISetReviewStateCall[] = [];
+		const instantiationService = createInstantiationService(
+			[{ modifiedUri: resource, insertions: 1, deletions: 0, reviewed: false }],
+			setReviewStateCalls,
+		);
+
+		new ChangesetReviewAction().run(instantiationService, resource, { session: undefined });
+
+		assert.deepStrictEqual(setReviewStateCalls, []);
 	});
 
 	test('toggles a deleted file using its file resource', () => {
@@ -134,6 +125,6 @@ suite('ChangesetReviewAction', () => {
 
 		new ChangesetReviewAction().run(instantiationService, originalUri);
 
-		assert.deepStrictEqual(setReviewStateCalls, [{ resources: [fileResource], reviewed: false }]);
+		assert.deepStrictEqual(setReviewStateCalls, [{ resources: [fileResource], reviewed: false, session: activeSession }]);
 	});
 });

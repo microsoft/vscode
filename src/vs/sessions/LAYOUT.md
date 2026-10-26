@@ -134,6 +134,10 @@ A custom view is mutually exclusive with the Sessions Part, grid Editor, Auxilia
 
 Explicit session and chat open actions dismiss the active custom view. Reactive fallback opens driven by session or chat lifecycle changes preserve the custom view while reconciling the hidden Sessions grid. On phone layouts, custom views participate in mobile navigation so platform back navigation dismisses them.
 
+## Session-scoped actions
+
+`ISessionScope` names the session the UI of a host acts on. It defaults to the active session. A host that shows another session, such as a window or Changes view of its own, overrides it through a child instantiation service. The Changes view and the title bar session actions read their session from the scope instead of the active session. When the scope is not the active session, the title bar actions evaluate the session action context keys on their own scoped context key service (`bindSessionActionContextKeys`). Session action commands take an optional session argument and fall back to the active session for keybindings and the command palette.
+
 ## Part lifecycle
 
 The workbench:

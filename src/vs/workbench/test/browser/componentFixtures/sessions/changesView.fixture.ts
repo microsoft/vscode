@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -33,7 +33,7 @@ import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
-import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
+import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -46,6 +46,8 @@ import { GitHubPullRequestCIModel } from '../../../../../sessions/contrib/github
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../../sessions/contrib/github/common/types.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionScope } from '../../../../../sessions/services/sessions/browser/sessionScope.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -70,7 +72,6 @@ const VIEW_HEIGHT = 520;
 class FixtureChangesViewService extends Disposable implements IChangesViewService {
 	declare readonly _serviceBrand: undefined;
 
-	readonly activeSessionObs: IObservable<IActiveSession | undefined>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
 	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;
@@ -87,21 +88,35 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
+	getSessionChanges(): IChangesSessionObservables {
+		return {
+			resourceObs: this.activeSessionResourceObs,
+			typeObs: this.activeSessionTypeObs,
+			isVirtualWorkspaceObs: this.activeSessionIsVirtualWorkspaceObs,
+			hasGitRepositoryObs: this.activeSessionHasGitRepositoryObs,
+			reviewCommentCountByFileObs: this.activeSessionReviewCommentCountByFileObs,
+			agentFeedbackCountByFileObs: this.activeSessionAgentFeedbackCountByFileObs,
+			changesetsLoadingObs: this.activeSessionChangesetsLoadingObs,
+			changesetsObs: this.activeSessionChangesetsObs,
+			changesetObs: this.activeSessionChangesetObs,
+			changesetLoadingObs: this.activeSessionChangesetLoadingObs,
+			changesetOperationsObs: this.activeSessionChangesetOperationsObs,
+			changesObs: this.activeSessionChangesObs,
+			loadingObs: this.activeSessionLoadingObs,
+			changesSummaryObs: this.activeSessionChangesSummaryObs,
+			sectionCollapseStateObs: this.activeSessionSectionCollapseStateObs,
+			stateObs: this.activeSessionStateObs,
+		};
+	}
+
 	readonly detailsViewStateTransferObs = constObservable(undefined);
 	readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
-
-	readonly scopedServicesObs = constObservable<readonly IChangesViewService[]>([]);
-
-	createScoped(): IChangesViewService & IDisposable {
-		return this;
-	}
 
 	constructor(session: IActiveSession, options: IChangesViewFixtureOptions) {
 		super();
 
 		const changeset = createChangeset(options.changes);
 		this.viewModeObs.set(options.viewMode, undefined);
-		this.activeSessionObs = constObservable(session);
 		this.activeSessionResourceObs = constObservable(session.resource);
 		this.activeSessionTypeObs = constObservable(session.sessionType);
 		this.activeSessionIsVirtualWorkspaceObs = constObservable(false);
@@ -147,7 +162,6 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 
 	setChangesetId(_changesetId: string | undefined): void { }
 	showChangeset(_changeset: ISessionChangeset): void { }
-	getSessionChanges(_sessionResource: URI): IObservable<readonly ISessionFileChange[]> { return constObservable([]); }
 
 	setChangesetFilesReviewState(_resources: readonly URI[], _reviewed: boolean): void { }
 
@@ -419,6 +433,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 				override readonly visibleSessions = constObservable([session]);
 				override readonly onDidToggleSessionStickiness = Event.None;
 			}());
+			reg.defineInstance(ISessionScope, { _serviceBrand: undefined, session: constObservable<IActiveSession | undefined>(session) });
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: 'fixture', folders: [], configuration: undefined }; } }());

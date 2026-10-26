@@ -20,9 +20,8 @@ import { isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../.
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -54,6 +53,10 @@ suite('Changes Actions', () => {
 				insertions: 1,
 				deletions: 1,
 			}]);
+		});
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
+			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 		});
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
@@ -190,12 +193,9 @@ suite('Changes Actions', () => {
 			override readonly activeSessionChangesetObs = constObservable(changeset);
 			override readonly activeSessionChangesetOperationsObs = operations;
 			override readonly activeSessionStateObs = constObservable(undefined);
-			override readonly scopedServicesObs = constObservable<readonly IChangesViewService[]>([]);
 		}();
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		instantiationService.stub(IChangesViewService, changesViewService);
-		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
-		disposables.add(new ChangesetOperationsActionControllerContribution(changesViewService, contextKeyService, new NullLogService()));
+		disposables.add(new ChangesetOperationsActionControllerContribution(changesViewService));
 
 		const commandId = 'workbench.contrib.sessions.changesetOperation.discard-changes';
 		const getAction = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
@@ -234,37 +234,6 @@ suite('Changes Actions', () => {
 			visibleForOtherEditors: false,
 			invokedResources: [resource.toString()],
 		});
-	});
-
-	test('resource operations of a chat window\'s session are offered while the main window shows none', () => {
-		const windowChangeset = upcastPartial<ISessionChangeset>({
-			operations: constObservable<readonly ISessionChangesetOperation[]>([{
-				id: 'window-undo',
-				label: 'Undo',
-				scopes: [SessionChangesetOperationScope.Resource],
-				status: SessionChangesetOperationStatus.Idle,
-			}]),
-		});
-		const windowService = new class extends mock<IChangesViewService>() {
-			override readonly activeSessionChangesetObs = constObservable(windowChangeset);
-		}();
-		const mainService = new class extends mock<IChangesViewService>() {
-			override readonly activeSessionChangesObs = constObservable([]);
-			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
-			override readonly activeSessionLoadingObs = constObservable(false);
-			override readonly activeSessionChangesetObs = constObservable(undefined);
-			override readonly activeSessionStateObs = constObservable(undefined);
-			override readonly scopedServicesObs = constObservable<readonly IChangesViewService[]>([windowService]);
-		}();
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
-		disposables.add(new ChangesetOperationsActionControllerContribution(mainService, contextKeyService, new NullLogService()));
-
-		const offered = MenuRegistry.getMenuItems(MenuId.MultiDiffEditorFileToolbar)
-			.filter(isIMenuItem)
-			.some(item => item.command.id === 'workbench.contrib.sessions.changesetOperation.window-undo');
-
-		assert.strictEqual(offered, true);
 	});
 
 	test('changesets contribute operations to the Changes tab-level toolbar for draft and existing sessions', async () => {

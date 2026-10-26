@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DesktopChangesViewPane } from '../../browser/changesView.js';
 import assert from 'assert';
 import { $, append, Dimension } from '../../../../../base/browser/dom.js';
-import { DesktopChangesViewPane } from '../../browser/changesView.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -26,6 +26,9 @@ import { MultiDiffEditorWithFileListWidget } from '../../../../../workbench/cont
 import { MultiDiffEditorFileListAvailableContext } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { ISessionChangesService } from '../../browser/sessionChangesService.js';
+import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
 import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
 import '../../browser/media/sessionChangesEditor.css';
@@ -39,11 +42,15 @@ suite('SessionChangesEditor empty state layout', () => {
 			override contextMatchesRules(): boolean { return true; }
 		});
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const activeSession = constObservable<IActiveSession | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = activeSession;
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		}());
+		instantiationService.stub(ISessionScope, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
-			override createScoped() {
-				return Object.assign(new class extends mock<IChangesViewService>() { }(), { dispose() { } });
-			}
 		}());
 		instantiationService.stub(IAgentWorkbenchLayoutService, {
 			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
@@ -202,11 +209,15 @@ suite('SessionChangesEditor host widget', () => {
 		});
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const activeSession = constObservable<IActiveSession | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = activeSession;
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		}());
+		instantiationService.stub(ISessionScope, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
-			override createScoped() {
-				return Object.assign(new class extends mock<IChangesViewService>() { }(), { dispose() { } });
-			}
 		}());
 		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
