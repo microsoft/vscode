@@ -19,7 +19,7 @@ import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorI
 import { IWorkbenchLayoutService } from '../../../layout/browser/layoutService.js';
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { IEditorGroupsService, IEditorPart, IFloatingEditorPart } from '../../common/editorGroupsService.js';
+import { GroupDirection, IEditorGroupsService, IEditorPart, IFloatingEditorPart } from '../../common/editorGroupsService.js';
 
 class TestFloatingEditorPartLayoutService extends TestLayoutService {
 
@@ -239,5 +239,24 @@ suite('Floating Editor Part', () => {
 		});
 
 		part.close();
+	});
+
+	test('the groups of the part take the group view options it is created with, and none by default', async () => {
+		const { parts, layoutService } = await createParts();
+		const describe = async (part: IFloatingEditorPart) => {
+			part.addGroup(part.activeGroup, GroupDirection.DOWN);
+			const groups = [...getElements(layoutService)[0].querySelectorAll('.editor-group-container')];
+			const hasHeader = groups.map(group => !!group.querySelector('.editor-group-header'));
+			part.close();
+			return hasHeader;
+		};
+
+		assert.deepStrictEqual({
+			withOptions: await describe(await parts.createFloatingEditorPart({ title: 'With Options', groupViewOptions: { showHeader: true } })),
+			withoutOptions: await describe(await parts.createFloatingEditorPart({ title: 'Without Options' })),
+		}, {
+			withOptions: [true, true],
+			withoutOptions: [false, false],
+		});
 	});
 });

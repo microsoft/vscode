@@ -5,7 +5,6 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent, EditorInputWithOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Dimension } from '../../../../base/browser/dom.js';
@@ -258,44 +257,7 @@ export interface IEditorGroupTitleHeight {
 	readonly offset: number;
 }
 
-export interface IEditorGroupViewOptions {
-
-	/**
-	 * Whether the editor group should receive keyboard focus
-	 * after creation or not.
-	 */
-	readonly preserveFocus?: boolean;
-
-	/**
-	 * Optional menu ids used by the group header and tab bar. When unset the
-	 * workbench uses the shared defaults and renders no custom header actions.
-	 */
-	readonly menuIds?: IEditorGroupMenuIds;
-
-	/** Shows the full-width group header with its configured actions and breadcrumbs. */
-	readonly showHeader?: boolean;
-
-	/** Reserves the enabled group header for an editor even when its breadcrumbs and actions are empty. */
-	readonly reserveHeaderSpace?: (editor: EditorInput | undefined) => boolean;
-
-	/** Uses the modern UI presentation for editor tabs. */
-	readonly useModernUITabs?: boolean;
-}
-
-export interface IEditorGroupMenuIds {
-	/** Menu whose actions render as the leading (left) header toolbar. */
-	readonly headerPrimary?: MenuId;
-	/** Menu whose actions render as the trailing (right) header toolbar. */
-	readonly headerSecondary?: MenuId;
-	/** Menu whose actions render after the trailing header toolbar. */
-	readonly headerLayout?: MenuId;
-	/** Menu whose actions render in the editor-actions toolbar on the tab bar. */
-	readonly editorActions?: MenuId;
-	/** Menu shown when right-clicking the empty tab-bar area. */
-	readonly tabsBarContext?: MenuId;
-	/** Menu whose actions populate the add-tab (`+`) control in the tab bar. */
-	readonly tabsBarAddTab?: MenuId;
-}
+export type { IEditorGroupViewOptions, IEditorGroupMenuIds } from '../../../services/editor/common/editorGroupsService.js';
 
 /**
  * A helper to access and mutate an editor group within an editor part.
