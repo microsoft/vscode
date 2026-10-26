@@ -8,11 +8,13 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, ExtensionUntrustedWorkspaceSupportType, IExtensionContributions, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceTrustEnablementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService, getSessionsWindowSuggestedContributions } from '../../common/extensionManifestPropertiesService.js';
 import { TestProductService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices.js';
@@ -181,16 +183,52 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 		});
 	}
 
-	test('supports product allow-listed extensions regardless of overrides and declarations', async () => {
-		await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.a': false });
+	test('registers sessions window support configuration without editor window contributions', () => {
+		testObject = createTestObject();
+		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[EXTENSIONS_SUPPORT_AGENTS_WINDOW];
+
+		assert.deepStrictEqual({
+			type: property?.type,
+			scope: property?.scope,
+			default: property?.default,
+			additionalProperties: property?.additionalProperties,
+			valueTypes: Object.values(property?.patternProperties ?? {}).map(value => value.type),
+		}, {
+			type: 'object',
+			scope: ConfigurationScope.APPLICATION,
+			default: {},
+			additionalProperties: false,
+			valueTypes: ['boolean'],
+		});
+	});
+
+	test('supports product allow-listed extensions regardless of declarations when not configured', () => {
 		testObject = disposables.add(new ExtensionManifestPropertiesService({ ...TestProductService, sessionsWindowAllowedExtensions: ['Pub.A'] }, testConfigurationService, new TestWorkspaceTrustEnablementService(), new NullLogService()));
 
 		assert.deepStrictEqual([
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { commands: [] } })),
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { views: {} } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: false } }, contributes: { commands: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: false } }, contributes: { views: {} } }), true),
 			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', main: './out/extension.js' })),
 		], [true, true, false]);
 	});
+
+	for (const supported of [false, true]) {
+		test(`configured ${supported} overrides product allow-listed extensions`, async () => {
+			await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'PUB.a': supported });
+			testObject = disposables.add(new ExtensionManifestPropertiesService({ ...TestProductService, sessionsWindowAllowedExtensions: ['Pub.A'] }, testConfigurationService, new TestWorkspaceTrustEnablementService(), new NullLogService()));
+			const manifest = getExtensionManifest({ main: './out/extension.js', contributes: { grammars: [{ language: 'a' }] } });
+
+			assert.deepStrictEqual({
+				user: testObject.canExecuteOnSessionsWindow(manifest),
+				builtin: testObject.canExecuteOnSessionsWindow(manifest, true),
+				autoEnable: testObject.canAutoEnableOnSessionsWindow(manifest),
+			}, {
+				user: supported,
+				builtin: supported,
+				autoEnable: false,
+			});
+		});
+	}
 
 	test('ignores declared agents window support for user extensions when the capability setting is disabled', async () => {
 		await testConfigurationService.setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, false);
