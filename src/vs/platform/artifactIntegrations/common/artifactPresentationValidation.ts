@@ -36,6 +36,7 @@ export function isArtifactActionAvailability(value: unknown): boolean {
 export function isArtifactContributionView(value: unknown): value is ArtifactContributionView {
 	return isRecord(value) && isArtifactAvailability(value.availability)
 		&& (value.main === undefined || isPart(value.main))
+		&& (value.group === undefined || (isRecord(value.group) && isArtifactIcon(value.group.icon) && typeof value.group.priority === 'number' && Number.isFinite(value.group.priority)))
 		&& Array.isArray(value.sections) && value.sections.every(section => isRecord(section) && strings(section, 'id') && isPart(section))
 		&& new Set(value.sections.map(section => section.id)).size === value.sections.length
 		&& (value.lists === undefined || (Array.isArray(value.lists)

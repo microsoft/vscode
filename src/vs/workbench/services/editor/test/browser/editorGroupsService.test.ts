@@ -2314,6 +2314,12 @@ suite('EditorGroupsService', () => {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		const parts = await createEditorParts(instantiationService, disposables);
 
+		const providerContextKey = new RawContextKey<string>('restoredGroupProviderKey', '');
+		disposables.add(parts.registerContextKeyProvider({
+			contextKey: providerContextKey,
+			getGroupContextKeyValue: group => `group-${group.id}`
+		}));
+
 		await parts.activeGroup.openEditor(createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID), { pinned: true });
 		const groupBefore = parts.activeGroup;
 		// Restoring the state, as applying a working set does, creates a new group with the same id.
@@ -2325,7 +2331,8 @@ suite('EditorGroupsService', () => {
 			replaced: groupAfter !== groupBefore,
 			sameId: groupAfter.id === groupBefore.id,
 			activeEditor: groupAfter.scopedContextKeyService.getContextKeyValue(ActiveEditorContext.key),
-		}, { replaced: true, sameId: true, activeEditor: TEST_EDITOR_ID });
+			providerKey: groupAfter.scopedContextKeyService.getContextKeyValue(providerContextKey.key),
+		}, { replaced: true, sameId: true, activeEditor: TEST_EDITOR_ID, providerKey: `group-${groupAfter.id}` });
 
 		await groupAfter.closeAllEditors();
 		disposables.dispose();

@@ -256,10 +256,10 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		@ISessionEditorWorkingSetService private readonly _editorWorkingSetService: ISessionEditorWorkingSetService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@ISessionLayoutModeService private readonly _layoutModeService: ISessionLayoutModeService,
 		@IChatService private readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
-		@ISessionLayoutModeService private readonly _layoutModeService: ISessionLayoutModeService,
 	) {
 		super();
 

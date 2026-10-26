@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { joinPath, dirname } from '../../../../base/common/resources.js';
 import { parse } from '../../../../base/common/jsonc.js';
@@ -15,6 +15,7 @@ import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IJSONEditingService } from '../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
+import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { CommandString } from '../../../../workbench/contrib/tasks/common/taskConfiguration.js';
 import { ISessionTaskRunnerRegistry } from './sessionTaskRunner.js';
 
@@ -199,8 +200,9 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 
 	/** The most recently used folders, each read once and again only when its `tasks.json` changes; evicted entries release their watcher. */
 	private readonly _folderTasks = new Map<string, { readonly tasks: IObservable<readonly ISessionTaskWithTarget[]>; readonly store: DisposableStore }>();
-	/** The user `tasks.json`, read and watched once for all folders. */
+	/** The current profile's user `tasks.json`, read and watched once for all folders and re-watched when the profile changes. */
 	private _userTasks: ISettableObservable<readonly ISessionTaskWithTarget[]> | undefined;
+	private readonly _userTasksWatcher = this._register(new MutableDisposable<DisposableStore>());
 	private static readonly MaxWatchedFolders = 16;
 	private readonly _noTasks = constObservable<readonly ISessionTaskWithTarget[]>([]);
 	private readonly _pinnedTaskLabels: Map<string, string>;
@@ -216,8 +218,14 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@ISessionTaskRunnerRegistry private readonly _taskRunnerRegistry: ISessionTaskRunnerRegistry,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super();
+		this._register(userDataProfileService.onDidChangeCurrentProfile(() => {
+			if (this._userTasks) {
+				this._watchUserTasks(this._userTasks);
+			}
+		}));
 		this._pinnedTaskLabels = this._loadPinnedTaskLabels();
 		this._browserUrls = this._loadBrowserUrls();
 		this._pinnedBrowsers = this._loadPinnedBrowsers();
@@ -562,20 +570,32 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 
 	private _getUserTasks(): IObservable<readonly ISessionTaskWithTarget[]> {
 		if (!this._userTasks) {
-			const userTasks = this._userTasks = observableValue<readonly ISessionTaskWithTarget[]>(this, []);
-			const userUri = this._getUserTasksJsonUri();
-			if (userUri) {
-				const refresh = () => this._readTasks(userUri, 'user').then(tasks => transaction(tx => userTasks.set(tasks, tx)));
-				this._register(this._fileService.watch(userUri));
-				this._register(this._fileService.onDidFilesChange(e => {
-					if (e.affects(userUri)) {
-						refresh();
-					}
-				}));
-				refresh();
-			}
+			this._userTasks = observableValue<readonly ISessionTaskWithTarget[]>(this, []);
+			this._watchUserTasks(this._userTasks);
 		}
 		return this._userTasks;
+	}
+
+	private _watchUserTasks(userTasks: ISettableObservable<readonly ISessionTaskWithTarget[]>): void {
+		const store = this._userTasksWatcher.value = new DisposableStore();
+		const userUri = this._getUserTasksJsonUri();
+		if (!userUri) {
+			transaction(tx => userTasks.set([], tx));
+			return;
+		}
+		const refresh = () => this._readTasks(userUri, 'user').then(tasks => {
+			// Ignore reads of a previous profile's tasks.json that complete after a profile switch
+			if (!store.isDisposed) {
+				transaction(tx => userTasks.set(tasks, tx));
+			}
+		});
+		store.add(this._fileService.watch(userUri));
+		store.add(this._fileService.onDidFilesChange(e => {
+			if (e.affects(userUri)) {
+				refresh();
+			}
+		}));
+		refresh();
 	}
 
 	override dispose(): void {
