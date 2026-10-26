@@ -366,6 +366,52 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		});
 	});
 
+	test('filters provider Awesome Copilot sources and results when toggling the feed', async () => {
+		const configuration = createConfiguration([]);
+		const marketplaces = ['awesome-copilot', 'team-plugins'].map(name => ({
+			name, source: `GitHub: github/${name}`, isDefault: name === 'awesome-copilot', managed: false, available: true,
+		}));
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
+			list: async () => marketplaces,
+			add: async () => { throw new Error('Unexpected add'); },
+			queryMarketplace: async (_session, marketplace) => ({
+				items: [{
+					identifier: marketplace.name, displayName: marketplace.name, description: '',
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					tags: [], capabilities: [], representativeQueries: [],
+				}],
+				total: 1,
+			}),
+			remove: async () => ({ removed: true }),
+			refresh: async () => [],
+		};
+		const service = createService(configuration,
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override async query() { return { items: [], total: 0 }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			{ query: async () => ({ items: [], total: 0 }) },
+			provider,
+		);
+		await Event.toPromise(service.onDidChangeSources);
+		const actual = [];
+		for (const enabled of [false, true, false]) {
+			await setEnabled(configuration, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, enabled);
+			actual.push({
+				sources: service.sources.filter(source => source.id.startsWith('providerPluginMarketplace.')).map(source => source.displayName),
+				results: (await service.query({ query: 'plugin' }, CancellationToken.None)).items.map(item => item.displayName).sort(),
+			});
+		}
+		assert.deepStrictEqual(actual, [
+			{ sources: ['awesome-copilot', 'team-plugins'], results: ['awesome-copilot', 'team-plugins'] },
+			{ sources: ['team-plugins'], results: ['team-plugins'] },
+			{ sources: ['awesome-copilot', 'team-plugins'], results: ['awesome-copilot', 'team-plugins'] },
+		]);
+	});
+
 	test('provider customization activity signals source changes only when the marketplace list changes', async () => {
 		const configuration = createConfiguration([]);
 		const providerChanges = store.add(new Emitter<void>());
