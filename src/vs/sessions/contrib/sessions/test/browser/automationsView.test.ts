@@ -3375,6 +3375,28 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('duplicate preserves the source ownership', async () => {
+		const initialOwnership = async (ownership: IAutomationDescriptor['ownership']) => {
+			const { automationDialogService, automationService, instantiationService } = setup();
+			const source = automation({ ownership });
+			automationService.setAutomations([source]);
+			const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
+			assert.ok(command);
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+			return automationDialogService.lastOptions?.initialValues?.ownership;
+		};
+
+		assert.deepStrictEqual({
+			repository: await initialOwnership('repository'),
+			user: await initialOwnership('user'),
+			legacy: await initialOwnership(undefined),
+		}, {
+			repository: 'repository',
+			user: 'user',
+			legacy: undefined,
+		});
+	});
+
 	test('duplicate dialog failures are logged and reported to the user', async () => {
 		const { automationDialogService, automationService, dialogService, instantiationService, logService } = setup();
 		const source = automation();

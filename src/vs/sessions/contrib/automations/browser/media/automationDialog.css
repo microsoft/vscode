@@ -160,6 +160,11 @@
 	margin-left: 0;
 }
 
+/* The warning message flexes; the buttons keep their natural size. */
+.monaco-dialog-box.automation-dialog:not(.align-vertical) > .automation-dialog-footer-row > .automation-dialog-footer-actions > .monaco-button {
+	flex-shrink: 0;
+}
+
 /*
  * Strip the base dialog padding on the message row and container so
  * our titlebar can full-bleed. The form pane below re-adds horizontal
