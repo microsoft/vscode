@@ -690,7 +690,66 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('installation notifications update only the affected search row and retain focus on unchanged rows', async () => {
+		const fixture = createPage(['agentFinder']);
+		const items = ['first', 'second', 'third'].map(name => resource(name));
+		fixture.page.setSearchQuery('@type:mcp');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items });
+		await timeout(0);
+		const buttons = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-actions .monaco-button')];
+		assert.strictEqual(buttons.length, 3);
+		buttons[2].focus();
+
+		fixture.notifyInstallChange();
+		fixture.setInstallState(resource('unrelated'), { kind: 'installing' });
+		fixture.notifyInstallChange();
+		const unchanged = buttons.map(button => button.isConnected);
+
+		fixture.setInstallState(items[1], { kind: 'installing' });
+		fixture.notifyInstallChange();
+		const installingButton = fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')[1];
+		fixture.notifyInstallChange();
+		assert.deepStrictEqual({
+			unchanged,
+			retained: buttons.map(button => button.isConnected),
+			focused: DOM.getActiveElement() === buttons[2],
+			installingButtonRetained: installingButton.isConnected,
+			installing: installingButton.getAttribute('aria-busy'),
+			requests: fixture.requests.length,
+		}, {
+			unchanged: [true, true, true],
+			retained: [true, false, true],
+			focused: true,
+			installingButtonRetained: true,
+			installing: 'true',
+			requests: 1,
+		});
+	});
+
 	for (const targetKind of ['skill', 'plugin'] as const) {
+		test(`equivalent ${targetKind} installation target URIs keep search actions and focus`, async () => {
+			const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Skills, AICustomizationManagementSection.Plugins]);
+			const item = resource('installed-item', { mediaType: targetKind === 'skill' ? CustomizationMarketplaceMediaType.Skill : CustomizationMarketplaceMediaType.CopilotPlugin });
+			const targetUri = URI.file('/installed/item');
+			fixture.setInstallState(item, { kind: 'installed', target: { kind: targetKind, uri: targetUri, name: 'item' } });
+			fixture.page.setSearchQuery(`@type:${targetKind}`);
+			fixture.page.setVisible(true);
+			await fixture.requests[0].result.complete({ items: [item] });
+			await timeout(0);
+			const button = fixture.container.querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button')!;
+			assert.ok(button);
+			button.focus();
+			targetUri.toString();
+
+			fixture.setInstallState(item, { kind: 'installed', target: { kind: targetKind, uri: URI.file('/installed/item'), name: 'item' } });
+			fixture.notifyInstallChange();
+			assert.deepStrictEqual({
+				retained: button.isConnected,
+				focused: DOM.getActiveElement() === button,
+			}, { retained: true, focused: true });
+		});
+
 		test(`equivalent ${targetKind} installation target URIs keep browse cards and focus`, async () => {
 			const fixture = createPage(['agentFinder']);
 			const item = resource('installed-item');
@@ -2645,7 +2704,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, { queries: 2, containsBlocked: false });
 	});
 
-	test('workspace marketplace changes reset plugin results and cursor without requerying the public source', async () => {
+	test('workspace marketplace changes retain plugin results while resetting the cursor', async () => {
 		const fixture = createPage([configuredMarketplaceSourceId]);
 		fixture.page.setSearchQuery('@type:plugin review');
 		fixture.page.setVisible(true);
@@ -2669,10 +2728,63 @@ suite('AICustomizationDiscoveryPage', () => {
 			beforeNewResults,
 			newResultVisible: fixture.page.getAccessibilityContent().includes('new-review'),
 		}, {
-			beforeNewResults: { resetCursor: undefined, previousResultVisible: false },
+			beforeNewResults: { resetCursor: undefined, previousResultVisible: true },
 			newResultVisible: true,
 		});
 	});
+
+	for (const query of ['', '@type:mcp']) {
+		test(`same-source refresh retains results, focus and scroll through progress and completion (${query || 'selected source'})`, async () => {
+			const fixture = createPage(['agentFinder']);
+			await fixture.selectSource('agentFinder');
+			fixture.page.setSearchQuery(query);
+			fixture.page.setVisible(true);
+			const items = () => Array.from({ length: 24 }, (_, index) => resource(`retained-${index}`));
+			await fixture.requests[0].result.complete({ items: items() });
+			await timeout(0);
+			const listElement = fixture.container.querySelector<HTMLElement>('.customization-discovery-results .monaco-list')!;
+			listElement.focus();
+			listElement.dispatchEvent(new FocusEvent('focus'));
+			const list = fixture.listService.lastFocusedList;
+			assert.ok(list instanceof WorkbenchList);
+			list.scrollTop = list.scrollHeight;
+			list.setFocus([23]);
+			list.setSelection([23]);
+			const scrollTop = list.scrollTop;
+			assert.ok(scrollTop > 0);
+			const button = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-actions .monaco-button')].at(-1)!;
+			assert.ok(button);
+			button.focus();
+
+			const snapshots: { retained: boolean; focused: boolean; scrollTop: number; focus: number[]; selection: number[]; busy: string | null }[] = [];
+			const snapshot = () => snapshots.push({
+				retained: button.isConnected,
+				focused: DOM.getActiveElement() === button,
+				scrollTop: list.scrollTop,
+				focus: list.getFocus(),
+				selection: list.getSelection(),
+				busy: fixture.container.querySelector('.customization-discovery-results')!.getAttribute('aria-busy'),
+			});
+			fixture.marketplaceChanges.fire();
+			await waitForRequestCount(fixture.requests, 2);
+			snapshot();
+			fixture.requests[1].onProgress?.({
+				page: { items: [] },
+				completedSourceIds: [],
+				cachedSourceIds: [],
+				totalSourceCount: 1,
+			});
+			snapshot();
+			await fixture.requests[1].result.complete({ items: items() });
+			await timeout(0);
+			snapshot();
+			assert.deepStrictEqual(snapshots, [
+				{ retained: true, focused: true, scrollTop, focus: [23], selection: [23], busy: 'true' },
+				{ retained: true, focused: true, scrollTop, focus: [23], selection: [23], busy: 'true' },
+				{ retained: true, focused: true, scrollTop, focus: [23], selection: [23], busy: 'false' },
+			]);
+		});
+	}
 
 	test('plugin marketplace changes reload Discover while the public feed remains enabled', async () => {
 		const fixture = createPage([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
@@ -2691,12 +2803,14 @@ suite('AICustomizationDiscoveryPage', () => {
 		const fixture = createPage(['other']);
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({ items: [resource('old-item', { sourceId: 'other' })] });
+		fixture.marketplaceChanges.fire();
 		await fixture.configuration.setUserConfiguration(otherSourceUrlSetting, 'https://new.registry.test');
 		fixture.configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 			override affectsConfiguration(section: string): boolean { return section === otherSourceUrlSetting; }
 		}());
 		await timeout(0);
 		assert.strictEqual(fixture.requests.length, 2);
+		assert.ok(!fixture.page.getAccessibilityContent().includes('old-item'));
 		await fixture.requests[1].result.complete({
 			items: [],
 			sourceErrors: [{ sourceId: 'other', message: 'Source is changing. Try again.' }],
