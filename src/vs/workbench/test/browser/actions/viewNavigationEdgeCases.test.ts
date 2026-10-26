@@ -282,4 +282,101 @@ suite('Workbench view navigation: visibility and focus transitions', () => {
 		}
 		assert.strictEqual(JSON.stringify(state), before);
 	});
+
+	test('expanded-only next traverses forward from a collapsed header', () => {
+		const state = makeSnapshot([
+			makeContainer('explorer', 'sidebar', [
+				makeView('a'), makeView('b', { collapsed: true }), makeView('c')
+			])
+		], 'b');
+		assert.strictEqual(targetId(state, {
+			direction: 'next', scope: 'container', includeCollapsed: false, wrap: false
+		}), 'c');
+	});
+
+	test('expanded-only previous traverses backward from a collapsed header', () => {
+		const state = makeSnapshot([
+			makeContainer('explorer', 'sidebar', [
+				makeView('a'), makeView('b', { collapsed: true }), makeView('c')
+			])
+		], 'b');
+		assert.strictEqual(targetId(state, {
+			direction: 'previous', scope: 'container', includeCollapsed: false, wrap: false
+		}), 'a');
+	});
+
+	test('expanded-only traversal respects non-wrapping boundaries from collapsed anchors', () => {
+		const state = makeSnapshot([
+			makeContainer('explorer', 'sidebar', [
+				makeView('a', { collapsed: true }), makeView('b'), makeView('c', { collapsed: true })
+			])
+		]);
+		assert.strictEqual(targetId(focused(state, 'a'), {
+			direction: 'previous', scope: 'container', includeCollapsed: false, wrap: false
+		}), undefined);
+		assert.strictEqual(targetId(focused(state, 'c'), {
+			direction: 'next', scope: 'container', includeCollapsed: false, wrap: false
+		}), undefined);
+		assert.strictEqual(targetId(focused(state, 'a'), {
+			direction: 'next', scope: 'container', includeCollapsed: false, wrap: false
+		}), 'b');
+		assert.strictEqual(targetId(focused(state, 'c'), {
+			direction: 'previous', scope: 'container', includeCollapsed: false, wrap: false
+		}), 'b');
+	});
+
+	test('expanded-only traversal wraps past collapsed panes', () => {
+		const state = makeSnapshot([
+			makeContainer('explorer', 'sidebar', [
+				makeView('a'), makeView('b', { collapsed: true }), makeView('c')
+			])
+		], 'c');
+		assert.strictEqual(targetId(state, {
+			direction: 'next', scope: 'container', includeCollapsed: false
+		}), 'a');
+		assert.strictEqual(targetId(focused(state, 'a'), {
+			direction: 'previous', scope: 'container', includeCollapsed: false
+		}), 'c');
+	});
+
+	test('all-collapsed focus anchors never escape their container', () => {
+		const state = makeSnapshot([
+			makeContainer('explorer', 'sidebar', [
+				makeView('a', { collapsed: true }),
+				makeView('b', { collapsed: true })
+			]),
+			makeContainer('problems', 'panel', [makeView('c')])
+		], 'b');
+		for (const direction of ['next', 'previous', 'first', 'last'] as const) {
+			assert.strictEqual(targetId(state, {
+				direction, scope: 'container', includeCollapsed: false
+			}), undefined);
+		}
+	});
+
+	test('workbench-scoped expanded-only navigation can reach another container', () => {
+		const state = makeSnapshot([
+			makeContainer('explorer', 'sidebar', [
+				makeView('a', { collapsed: true }),
+				makeView('b', { collapsed: true })
+			]),
+			makeContainer('problems', 'panel', ['c'])
+		], 'b');
+		assert.strictEqual(targetId(state, {
+			direction: 'next', scope: 'workbench', includeCollapsed: false
+		}), 'c');
+	});
+
+	test('expanded-only navigation never changes its input snapshot', () => {
+		const state = makeSnapshot([
+			makeContainer('explorer', 'sidebar', [
+				makeView('a'), makeView('b', { collapsed: true }), makeView('c')
+			])
+		], 'b');
+		const before = JSON.stringify(state);
+		targetId(state, { direction: 'next', scope: 'container', includeCollapsed: false });
+		targetId(state, { direction: 'previous', scope: 'container', includeCollapsed: false });
+		assert.strictEqual(JSON.stringify(state), before);
+	});
+
 });
