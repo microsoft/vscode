@@ -37,6 +37,9 @@ import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hover
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
+/** The heights of the session header row, as in `chatCompositeBar.css`. */
+const SESSION_HEADER_HEIGHT = 32;
+const SESSION_HEADER_COMPACT_HEIGHT = 28;
 
 /**
  * Simplified agent sessions titlebar part.
@@ -83,8 +86,28 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			this.chromeless = chromeless;
 			this.element.classList.toggle('chromeless', chromeless);
 			this._onDidChange.fire(undefined);
+			this.onDidChangeChromeless();
 		}
 	}
+
+	protected get isChromeless(): boolean {
+		return this.chromeless;
+	}
+
+	/**
+	 * The height of the row the native window controls are centered in. A chromeless title bar has none: its controls
+	 * sit in the session header, the top row of the window, whose height is set in `chatCompositeBar.css`.
+	 */
+	protected get windowControlsRowHeight(): number {
+		if (!this.chromeless) {
+			return this.minimumHeight;
+		}
+		return this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact
+			? SESSION_HEADER_COMPACT_HEIGHT
+			: SESSION_HEADER_HEIGHT;
+	}
+
+	protected onDidChangeChromeless(): void { }
 
 	get minimumHeight(): number {
 		const wcoEnabled = isWeb && isWCOEnabled();

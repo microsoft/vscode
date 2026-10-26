@@ -188,14 +188,25 @@ export class NativeTitlebarPart extends TitlebarPart {
 		}
 	}
 
+	private lastLayoutHeight = 0;
+
 	override layout(width: number, height: number): void {
 		super.layout(width, height);
+		this.lastLayoutHeight = height;
+		this.updateWindowControlsPosition();
+	}
 
+	protected override onDidChangeChromeless(): void {
+		this.updateWindowControlsPosition();
+	}
+
+	private updateWindowControlsPosition(): void {
 		if (useWindowControlsOverlay(this.configurationService)) {
 			const zoomFactor = getZoomFactor(getWindow(this.element));
 			// Mirror the default-density toolbar's optical padding in the native button center.
-			const opticalPadding = isMacintosh && this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) !== ModernUIDensity.Compact ? 2 : 0;
-			const newHeight = Math.round(height * zoomFactor + opticalPadding * (this.preventZoom ? 1 : zoomFactor));
+			const opticalPadding = isMacintosh && !this.isChromeless && this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) !== ModernUIDensity.Compact ? 2 : 0;
+			const rowHeight = this.isChromeless ? this.windowControlsRowHeight : this.lastLayoutHeight;
+			const newHeight = Math.round(rowHeight * zoomFactor + opticalPadding * (this.preventZoom ? 1 : zoomFactor));
 			const horizontalInset = isMacintosh
 				? getMacOSWindowControlsPosition(Math.round(DEFAULT_CUSTOM_TITLEBAR_HEIGHT * (this.preventZoom ? 1 : zoomFactor)), this.environmentService.os.release)?.x
 				: undefined;

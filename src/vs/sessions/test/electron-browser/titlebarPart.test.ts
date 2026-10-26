@@ -57,6 +57,48 @@ suite('Sessions - Native Titlebar Part', () => {
 		});
 	});
 
+	(isMacintosh ? test : test.skip)('centers the macOS traffic lights in the session header row of a chromeless title bar', async () => {
+		const initialZoom = getZoomFactor(mainWindow);
+		setZoomFactor(1, mainWindow);
+		store.add(toDisposable(() => setZoomFactor(initialZoom, mainWindow)));
+		const configuration = new TestConfigurationService({
+			window: { titleBarStyle: 'custom' },
+			[LayoutSettings.MODERN_UI_DENSITY]: ModernUIDensity.Default,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
+		const updates: Parameters<INativeHostService['updateWindowControls']>[0][] = [];
+		instantiationService.stub(INativeHostService, new class extends TestNativeHostService {
+			override async updateWindowControls(options: Parameters<INativeHostService['updateWindowControls']>[0]): Promise<void> {
+				updates.push(options);
+			}
+		}());
+		instantiationService.stub(INativeWorkbenchEnvironmentService, new class extends mock<INativeWorkbenchEnvironmentService>() {
+			override readonly os = { release: '25.0.0', hostname: 'test', arch: 'arm64' };
+		}());
+		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.mac'));
+		store.add(toDisposable(() => container.remove()));
+		const part = store.add(instantiationService.createInstance(NativeTitlebarPart, Parts.TITLEBAR_PART, mainWindow));
+		part.create(append(container, $('.part.titlebar')));
+
+		const heights: (number | undefined)[] = [];
+		const lastHeight = () => updates.at(-1)?.height;
+		part.layout(800, part.minimumHeight);
+		heights.push(lastHeight());
+		part.setChromeless(true);
+		heights.push(lastHeight());
+		part.layout(800, 0);
+		heights.push(lastHeight());
+		await configuration.setUserConfiguration(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Compact);
+		part.setChromeless(false);
+		part.setChromeless(true);
+		heights.push(lastHeight());
+		part.setChromeless(false);
+		part.layout(800, part.minimumHeight);
+		heights.push(lastHeight());
+		assert.deepStrictEqual(heights, [46, 32, 32, 28, 35]);
+	});
+
 	for (const release of ['24.0.0', '25.0.0']) {
 		(isMacintosh ? test : test.skip)(`aligns macOS ${release} traffic lights with the optical toolbar center across densities and zoom levels`, async () => {
 			const initialZoom = getZoomFactor(mainWindow);
