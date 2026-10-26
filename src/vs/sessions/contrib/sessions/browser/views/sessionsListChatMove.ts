@@ -59,6 +59,37 @@ export function getChatMoveAppendAnchor(session: ISession, exclude?: IChat): ICh
 	return undefined;
 }
 
+/** Where a chat or session moved into `session` goes: after `after` (first when `undefined`). */
+export interface ISessionsListMoveDestination {
+	readonly session: ISession;
+	readonly after: IChat | undefined;
+}
+
+/**
+ * Where moving a chat or single-chat session of `source` to the end of `target` puts it, or `undefined` when `target`
+ * can't receive it (see {@link canMoveIntoSession}). `exclude` is the moved chat, when it is already in `target`. The
+ * sessions list's drops and the move commands share it.
+ */
+export function getChatMoveAppendDestination(source: ISession, target: ISession, exclude?: IChat): ISessionsListMoveDestination | undefined {
+	return canMoveIntoSession(source, target) ? { session: target, after: getChatMoveAppendAnchor(target, exclude) } : undefined;
+}
+
+/** The sessions the nested session `chat` of `source` can move into, each at its end, in the order of `sessions`: none when its provider can't move it. */
+export function getChatMoveDestinations(source: ISession, chat: IChat, sessions: readonly ISession[], sessionsManagementService: Pick<ISessionsManagementService, 'canMoveChat'>): ISessionsListMoveDestination[] {
+	if (!sessionsManagementService.canMoveChat(source, chat)) {
+		return [];
+	}
+	return sessions.flatMap(session => getChatMoveAppendDestination(source, session, chat) ?? []);
+}
+
+/** The sessions the single-chat session `source` can nest under, each at its end, in the order of `sessions`: none when its provider can't move it. */
+export function getSessionMoveDestinations(source: ISession, sessions: readonly ISession[], sessionsManagementService: Pick<ISessionsManagementService, 'canMoveSessionUnder'>): ISessionsListMoveDestination[] {
+	if (!sessionsManagementService.canMoveSessionUnder(source)) {
+		return [];
+	}
+	return sessions.flatMap(session => getChatMoveAppendDestination(source, session) ?? []);
+}
+
 /**
  * Whether placing `chat` of `session` after `after` (first when `undefined`) changes the order of the session's chats,
  * which is what the host reorders. The list's rows can show the chats in another order, or only some of them.
@@ -121,23 +152,28 @@ export type SessionsListChatDrop =
  *   reorders it within its own session;
  * - anywhere else (empty space, a section or folder header): into a new session.
  * Positions are anchored in the order of the session's chats, whatever order the list shows them in.
+ * When the list doesn't show the session's chats in that order (`positionsShown` false), a chat can't be reordered in
+ * its own session, and dropped on a nested chat row of another session it goes to that session's end.
  */
-export function getSessionsListChatDrop(source: ISession, chat: IChat, target: ISessionsListChatDropTarget | undefined): SessionsListChatDrop | undefined {
+export function getSessionsListChatDrop(source: ISession, chat: IChat, target: ISessionsListChatDropTarget | undefined, positionsShown: boolean): SessionsListChatDrop | undefined {
 	const session = target?.session;
 	if (!target || !session) {
 		return { kind: 'newSession' };
 	}
 	const isOwnSession = session.sessionId === source.sessionId;
-	if (!isOwnSession && !canMoveIntoSession(source, session)) {
+	if (!positionsShown && isOwnSession) {
+		return undefined;
+	}
+	const append = isOwnSession ? { session, after: getChatMoveAppendAnchor(session, chat) } : getChatMoveAppendDestination(source, session, chat);
+	if (!append) {
 		return undefined;
 	}
 
-	if (!target.chat) {
-		const after = getChatMoveAppendAnchor(session, chat);
-		if (isOwnSession && !changesChatOrder(session, chat, after)) {
+	if (!target.chat || !positionsShown) {
+		if (isOwnSession && !changesChatOrder(session, chat, append.after)) {
 			return undefined;
 		}
-		return { kind: 'session', session, after, position: 'over' };
+		return { kind: 'session', ...append, position: 'over' };
 	}
 
 	const next = target.chat;
@@ -186,20 +222,24 @@ export type SessionsListSessionDrop =
  * In Pinned and custom groups, whose sessions the user orders by hand, the top quarter of a session's row places it
  * before that session, and the bottom quarter of the section's last row places it after the section's last session,
  * where the list accepts that placement; otherwise these quarters nest too.
+ * When the list doesn't show the session's chats in that order (`positionsShown` false), a nested chat row is the
+ * session's row: the session goes to its end.
  */
-export function getSessionsListSessionDrop(source: ISession, target: ISessionsListSessionDropTarget): SessionsListSessionDrop | undefined {
-	const { session, chat, quarter } = target;
-	if (!chat && quarter === ListViewTargetSector.TOP && target.isManuallyOrdered() && target.canPlace('before')) {
+export function getSessionsListSessionDrop(source: ISession, target: ISessionsListSessionDropTarget, positionsShown: boolean): SessionsListSessionDrop | undefined {
+	const { session, quarter } = target;
+	const chat = positionsShown ? target.chat : undefined;
+	if (!target.chat && quarter === ListViewTargetSector.TOP && target.isManuallyOrdered() && target.canPlace('before')) {
 		return { kind: 'place', session, position: 'before' };
 	}
 	if (quarter === ListViewTargetSector.BOTTOM && target.isManuallyOrdered() && target.isLastInSection() && target.canPlace('after')) {
 		return { kind: 'place', session, position: 'after' };
 	}
-	if (!canMoveIntoSession(source, session)) {
+	const append = getChatMoveAppendDestination(source, session);
+	if (!append) {
 		return undefined;
 	}
 	if (!chat) {
-		return { kind: 'nest', session, after: getChatMoveAppendAnchor(session), position: 'over' };
+		return { kind: 'nest', ...append, position: 'over' };
 	}
 	if (chat.resource.toString() === session.mainChat.get().resource.toString()) {
 		return undefined;
@@ -248,8 +288,8 @@ function getSessionsListMoveMessages(move: SessionsListMove): ISessionsListMoveM
 	const log = 'Moving a chat failed';
 	if (move.destination.kind === 'newSession') {
 		return {
-			progress: localize('sessionsMove.promoting', "Promoting '{0}' to a new session...", title),
-			success: localize('sessionsMove.promoted', "Promoted '{0}' to a new session", title),
+			progress: localize('sessionsMove.movingToNewSession', "Moving '{0}' to a new session...", title),
+			success: localize('sessionsMove.movedToNewSession', "Moved '{0}' to a new session", title),
 			failure,
 			log,
 		};
