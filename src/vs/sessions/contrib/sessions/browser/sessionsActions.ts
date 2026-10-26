@@ -834,7 +834,7 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 			}, {
 				id: Menus.SessionItemContextMenu,
 				group: 'navigation',
-				order: 1,
+				order: 2,
 				when: ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate()),
 			}],
 		});

@@ -114,7 +114,7 @@ suite('Sessions - Actions', () => {
 			contextMenu: {
 				title: 'New Nested Session',
 				group: 'navigation',
-				order: 1,
+				order: 2,
 				when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection',
 			},
 		});
@@ -176,7 +176,7 @@ suite('Sessions - Actions', () => {
 					{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
 				],
 				contextMenu: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
+					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
 					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived' },
 					{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned' },
 					{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived' },
@@ -344,9 +344,9 @@ suite('Sessions - Actions', () => {
 			}));
 
 		assert.deepStrictEqual(actions, [
-			{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1 },
-			{ id: 'sessionsViewPane.importSession', group: 'navigation', order: 2 },
-			{ id: 'sessionsViewPane.openToTheSide', group: 'navigation', order: 3 },
+			{ id: 'sessionsViewPane.openToTheSide', group: 'navigation', order: 1 },
+			{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2 },
+			{ id: 'sessionsViewPane.importSession', group: 'navigation', order: 3 },
 			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_state', order: 1 },
 			{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: '1_state', order: 1 },
 			{ id: 'sessionsViewPane.markAllNestedRead', group: '1_state', order: 2 },

@@ -277,8 +277,8 @@ suite('Sessions list context menus', () => {
 			groupSubmenu: actions.find((action): action is SubmenuAction => action instanceof SubmenuAction)?.actions.map(toLabel),
 		}, {
 			menu: [
-				'New Nested Session',
 				'Open to the Side',
+				'New Nested Session',
 				'---',
 				'Mark as Unread',
 				'Mark as Done',

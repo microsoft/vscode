@@ -1210,7 +1210,7 @@ registerAction2(class ImportSessionAction extends Action2 {
 			menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
 				id,
 				group: 'navigation',
-				order: id === Menus.SessionItemToolbar ? 1.5 : 2,
+				order: id === Menus.SessionItemToolbar ? 1.5 : 3,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemCanImportContext, SessionIsArchivedContext.negate()),
 			})),
 		});
@@ -1782,7 +1782,7 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 			menu: [{
 				id: SessionItemContextMenuId,
 				group: 'navigation',
-				order: 3,
+				order: 1,
 				when: IsSessionsWindowContext,
 			}]
 		});
