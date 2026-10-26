@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableFromEvent } from '../../../../../base/common/observable.js';
@@ -34,6 +34,7 @@ import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } 
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { AgentHostSessionListController } from '../agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore } from '../agentSessions/agentHost/agentHostSessionListStore.js';
+import { MovedChatEditorRetargeter } from '../agentSessions/agentHost/agentHostChatMoveEditors.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { readAgentModelCatalogStatus } from '../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -47,6 +48,8 @@ import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
 import { authenticateWithConnectionCustomization, IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostSessionPreparation } from './remoteAgentHostConnectionCustomization.js';
 import { IAgentHostTerminalService } from '../../../terminal/browser/agentHostTerminalService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { CLOUD_SANDBOX_INPUT_PLACEHOLDER, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
 import { IRemoteAgentHostAuthenticationService } from './remoteAgentHostAuthentication.js';
@@ -159,6 +162,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private readonly _progressConnections = this._register(new DisposableMap<IAgentConnection, DisposableStore>());
 	private readonly _enableSmokeTestDriver: boolean;
 	private readonly _isSessionsWindow: boolean;
+	private readonly _movedChatEditors: MovedChatEditorRetargeter;
 
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -178,10 +182,13 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostAdvertisedAuthenticationResolver private readonly _initialAuthentication: IAgentHostAdvertisedAuthenticationResolver,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
 	) {
 		super();
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 		this._isSessionsWindow = environmentService.isSessionsWindow;
+		this._movedChatEditors = new MovedChatEditorRetargeter(editorGroupsService, editorService);
 
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
 		this._register(this._remoteAgentHostService.onDidChangeDisplayName(() => this._reconcile()));
@@ -438,6 +445,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (connState.sessionList) {
 			const listController = agentStore.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, connState.sessionList, hostLabel, sanitized, false));
 			agentStore.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
+			agentStore.add(listController.onDidMoveChat(({ from, to }) => this._movedChatEditors.retarget(from.chat, to.chat).catch(onUnexpectedError)));
 			// Local workspace folders do not exist on the host, so let it choose the directory.
 			agentStore.add(this._workingDirectoryResolver.registerResolver(sessionType, () => null, sessionResource => listController.isNewSession(sessionResource)));
 		}
