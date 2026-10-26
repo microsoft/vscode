@@ -135,4 +135,26 @@ suite('WorkbenchToolBar', () => {
 			contextMenu: ['Configure Keybinding', 'Hide optional1', '---', 'optional1 (checked)', 'optional2'],
 		});
 	});
+
+	test('the last optional item can be hidden next to an item that always shows and has no hide actions', () => {
+		const hidden = new Set(['optional2']);
+		const createHideActions = (id: string): IMenuItemHide => ({
+			get isHidden() { return hidden.has(id); },
+			hide: toAction({ id: `hide/${id}`, label: `Hide ${id}`, run: () => { hidden.add(id); } }),
+			toggle: toAction({ id: `toggle/${id}`, label: id, checked: !hidden.has(id), run: () => { } }),
+		});
+		const createAction = (id: string) => new MenuItemAction({ id, title: id }, undefined, undefined, createHideActions(id), undefined, new class extends mock<IContextKeyService>() { }(), new class extends mock<ICommandService>() { }());
+		const fixed = toAction({ id: 'fixed', label: 'fixed', run: () => { } });
+		let contextMenuActions: readonly string[] = [];
+		const toolBar = createToolBar(new TestTelemetryService(), { hiddenItemStrategy: HiddenItemStrategy.Ignore, alwaysShownItems: ['fixed'] }, delegate => {
+			contextMenuActions = delegate.getActions().map(action => action instanceof Separator ? '---' : `${action.label}${action.checked ? ' (checked)' : ''}${action.enabled ? '' : ' (disabled)'}`);
+		});
+		toolBar.setActions([fixed, createAction('optional1'), createAction('optional2')]);
+		toolBar.getItemElement(1)?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+
+		assert.deepStrictEqual({ shown: [0, 1].map(index => toolBar.getItemAction(index)?.label), contextMenu: contextMenuActions }, {
+			shown: ['fixed', 'optional1'],
+			contextMenu: ['Configure Keybinding (disabled)', 'Hide optional1', '---', 'optional1 (checked)', 'optional2'],
+		});
+	});
 });
