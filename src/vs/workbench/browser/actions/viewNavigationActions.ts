@@ -9,7 +9,7 @@ import { Action2, registerAction2 } from '../../../platform/actions/common/actio
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
-import { ViewPane } from '../parts/views/viewPane.js';
+import type { ViewPane } from '../parts/views/viewPane.js';
 import { INavigableViewContainer, IViewNavigationRequest, IViewNavigationSnapshot, resolveViewNavigationTarget, ViewNavigationLocation } from './viewNavigationModel.js';
 
 /**
