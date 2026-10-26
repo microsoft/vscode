@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ChangesViewMode, IsolationMode } from './changes.js';
 
@@ -58,6 +60,14 @@ export interface IChangesDetailsViewStateTransfer {
 export interface IChangesViewService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Creates a service that reports on the session of `sessionResource` instead of the
+	 * main window's active session, for a window or editor showing a different session.
+	 */
+	createScoped(sessionResource: IObservable<URI | undefined>): IChangesViewService & IDisposable;
+
+	/** The session this service reports on: the main window's active session, or the scoped one. */
+	readonly activeSessionObs: IObservable<IActiveSession | undefined>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
 	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;

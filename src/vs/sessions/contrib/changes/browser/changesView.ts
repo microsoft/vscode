@@ -14,6 +14,7 @@ import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../..
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
+import { ChatWindowContext } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -616,7 +617,6 @@ export class ChangesActionsBar extends Disposable {
 		excludedOperationIds: ReadonlySet<string>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChangesViewService changesViewService: IChangesViewService,
-		@ISessionsService sessionsService: ISessionsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -634,7 +634,7 @@ export class ChangesActionsBar extends Disposable {
 		});
 
 		const isAgentHostSessionObs = derived(reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
+			const activeSession = changesViewService.activeSessionObs.read(reader);
 			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
 		});
 
@@ -657,7 +657,7 @@ export class ChangesActionsBar extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			sessionsService.activeSession.read(reader)?.status.read(reader);
+			changesViewService.activeSessionObs.read(reader)?.status.read(reader);
 			updateVisibility();
 		}));
 	}
@@ -728,6 +728,13 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
+			}
+			// A header scoped to another session (e.g. in a chat window) needs its own label and summary.
+			if (instantiationService.invokeFunction(accessor => accessor.get(IChangesViewService)) !== changesViewService) {
+				const scopedSummary = instantiationService.createInstance(ChangesPickerSummary);
+				const item = instantiationService.createInstance(ChangesPickerActionItem, action, scopedSummary, undefined);
+				item.own(scopedSummary);
+				return item;
 			}
 			return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs);
 		}, onDidRegister.event));
@@ -2117,7 +2124,7 @@ class VersionsPickerAction extends Action2 {
 				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 1,
-				when: desktopChangesEditorHeader,
+				when: ContextKeyExpr.or(desktopChangesEditorHeader, ChatWindowContext),
 			}],
 		});
 	}
@@ -2221,6 +2228,11 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	private readonly _summaryLease = this._register(new MutableDisposable());
 	private _container: HTMLElement | undefined;
 	private _labelElement: HTMLElement | undefined;
+
+	/** Disposes `disposable` together with this item. */
+	own(disposable: IDisposable): void {
+		this._register(disposable);
+	}
 
 	constructor(
 		action: MenuItemAction,

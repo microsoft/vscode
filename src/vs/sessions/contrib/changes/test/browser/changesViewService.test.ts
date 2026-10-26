@@ -11,6 +11,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -148,16 +151,25 @@ suite('ChangesViewService', () => {
 			}
 		}();
 		const contextKeyService = disposables.add(new MockContextKeyService());
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAgentFeedbackService, agentFeedbackService);
+		instantiationService.stub(ICodeReviewService, codeReviewService);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(ISessionsService, sessionsService);
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		const service = disposables.add(new ChangesViewService(
+			undefined,
 			agentFeedbackService,
 			codeReviewService,
 			contextKeyService,
 			sessionsService,
 			storageService,
 			sessionsManagementService,
+			instantiationService,
 		));
 
-		return { activeSession, contextKeyService, onDidDeleteChat, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
+		return { activeSession, contextKeyService, onDidDeleteChat, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, instantiationService, service, storageService };
 	}
 
 	test('restores section collapse state independently per session', () => {
@@ -1130,5 +1142,49 @@ suite('ChangesViewService', () => {
 		hasOpenPullRequest.push(service.activeSessionStateObs.get()?.hasOpenPullRequest);
 
 		assert.deepStrictEqual(hasOpenPullRequest, [true, false, true, false]);
+	});
+
+	test('a scoped service reports on its own session while the main window shows another', () => {
+		const mainSession = createSession('main', { changesets: [createChangeset([])] });
+		const windowChangeset = upcastPartial<ISessionChangeset>({ ...createChangeset([]), id: 'window-changes', isDefault: constObservable(true) });
+		const windowSession = createSession('window', { changesets: [windowChangeset] });
+		const { service } = createHarness(mainSession, undefined, [windowSession]);
+
+		const scoped = disposables.add(service.createScoped(constObservable(windowSession.resource)));
+
+		assert.deepStrictEqual({
+			main: service.activeSessionResourceObs.get()?.path,
+			scoped: scoped.activeSessionResourceObs.get()?.path,
+			mainChangeset: service.activeSessionChangesetObs.get()?.id,
+			scopedChangeset: scoped.activeSessionChangesetObs.get()?.id,
+		}, {
+			main: '/main',
+			scoped: '/window',
+			mainChangeset: 'branch',
+			scopedChangeset: 'window-changes',
+		});
+	});
+
+	test('a scoped service follows its session resource and selects changesets for its own session only', () => {
+		const secondChangeset = upcastPartial<ISessionChangeset>({ ...createChangeset([]), id: 'second', isDefault: constObservable(false) });
+		const mainSession = createSession('main', { changesets: [createChangeset([])] });
+		const windowSession = createSession('window', { changesets: [createChangeset([]), secondChangeset] });
+		const { service } = createHarness(mainSession, undefined, [windowSession]);
+		const resource = observableValue<URI | undefined>('test.scopedResource', undefined);
+		const scoped = disposables.add(service.createScoped(resource));
+
+		const before = scoped.activeSessionResourceObs.get();
+		resource.set(windowSession.resource, undefined);
+		scoped.setChangesetId('second');
+
+		assert.deepStrictEqual({
+			before,
+			scoped: scoped.activeSessionChangesetObs.get()?.id,
+			main: service.activeSessionChangesetObs.get()?.id,
+		}, {
+			before: undefined,
+			scoped: 'second',
+			main: 'branch',
+		});
 	});
 });

@@ -195,6 +195,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	private _desktop = false;
+	private _hostsHeader = false;
+	private _inChatWindow = false;
 	private _scopedInstantiationService: IInstantiationService | undefined;
 
 	/** Session whose changes this editor is currently showing (from its input). */
@@ -271,15 +273,23 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(root));
 		this._register(bindContextKey(ActiveSessionContextKeys.HasGitRepository, scopedContextKeyService, reader =>
 			this.changesViewService.activeSessionHasGitRepositoryObs.read(reader)));
-		const scopedInstantiationService = this._register(this.instantiationService.createChild(
-			new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		// A chat window shows its own session, so its header reports on the editor's session
+		// rather than the one the main window shows.
+		const inChatWindow = this._inChatWindow = ChatWindowContext.getValue(this.contextKeyService);
+		const scopedServices = new ServiceCollection([IContextKeyService, scopedContextKeyService]);
+		if (inChatWindow) {
+			scopedServices.set(IChangesViewService, this._register(this.changesViewService.createScoped(this._inputSessionResource)));
+		}
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(scopedServices));
 		this._scopedInstantiationService = scopedInstantiationService;
 
 		// In desktop, the header (Branch Changes dropdown, diff stats and primary
 		// actions) is hosted by the editor part's full-width header instead of inside
 		// this editor, so it spans the editor content and the docked detail panel.
+		// Chat windows have no such part header, so they host it here.
 		this._desktop = this.layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop;
-		if (!this._desktop) {
+		this._hostsHeader = !this._desktop || inChatWindow;
+		if (this._hostsHeader) {
 			const header = append(root, $('.session-changes-editor-header'));
 			const left = append(header, $('.session-changes-editor-header-left'));
 			const right = append(header, $('.session-changes-editor-header-right'));
@@ -297,7 +307,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
 		const uiElementFactory = paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs);
 		const widgetOptions = { variant: variant.get(), diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS };
-		if (ChatWindowContext.getValue(this.contextKeyService)) {
+		if (inChatWindow) {
 			this.fileListWidget = this._register(this.createFileListWidget(paneInstantiationService, uiElementFactory, widgetOptions));
 			this.widget = this.fileListWidget.multiDiffEditorWidget;
 		} else {
@@ -395,7 +405,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	get scopedInstantiationService(): IInstantiationService | undefined {
-		return this._desktop ? this._scopedInstantiationService : undefined;
+		return this._desktop || this._inChatWindow ? this._scopedInstantiationService : undefined;
 	}
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -588,7 +598,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	override layout(dimension: Dimension): void {
 		// In desktop the header is external (the editor part reserves a top inset),
 		// so the diff fills the full dimension; otherwise reserve the internal header.
-		const bodyHeight = this._desktop ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
+		const bodyHeight = this._hostsHeader ? Math.max(0, dimension.height - HEADER_HEIGHT) : dimension.height;
 		const size = new Dimension(dimension.width, bodyHeight);
 		if (this.fileListWidget) {
 			this.fileListWidget.layout(size);
