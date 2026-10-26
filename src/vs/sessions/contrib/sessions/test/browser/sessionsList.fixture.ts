@@ -1047,6 +1047,17 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			newSessionRow.classList.add('hovered');
 		},
 	}),
+	SessionsList_CustomizationsNavigationKeyboardFocus: defineSessionsListFixture({
+		sessions: [{ id: 'focus', title: 'Verify the Customizations focus indicator', workspace: 'vscode', minutesAgo: 5 }],
+		header: { navigationShortcuts: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The keyboard-focused Customizations navigation row has a complete blue outline on all four rounded edges, including the bottom edge.'],
+		afterRender: (fixture, context) => {
+			context.focus({ focus: () => fixture.list.focusCustomizations() });
+		},
+	}),
 	SessionsList_CustomizationsMigrationsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'migrations', title: 'Move instructions into the new format', workspace: 'vscode', minutesAgo: 5 }],
 		header: { navigationShortcuts: true, customizationsCount: 8, customizationMigrationsAvailable: true },

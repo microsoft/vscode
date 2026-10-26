@@ -29,6 +29,10 @@
 		background-color: var(--vscode-list-hoverBackground);
 	}
 
+	.monaco-list:focus .monaco-list-row.session-section.focused.session-section-shortcut {
+		outline-offset: calc(-2 * var(--vscode-strokeThickness));
+	}
+
 	&:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-label,
 	&:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-icon {
 		color: var(--vscode-descriptionForeground);
