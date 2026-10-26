@@ -414,7 +414,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		]);
 	});
 
-	test('disables HydraFusion when preview features are disabled', async () => {
+	test('does not gate HydraFusion on the preview-features policy', async () => {
 		const { agentHostService, defaultAccountService } = setup(disposables, {
 			[AgentHostHydraFusionEnabledSettingId]: true,
 		}, { chat_preview_features_enabled: false });
@@ -422,21 +422,19 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.HydraFusion]: fullSchema[CopilotCliConfigKey.HydraFusion],
 		}));
 		await flush();
-
-		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[CopilotCliConfigKey.HydraFusion]: false,
-		});
+		const previewDisabled = agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config);
 
 		agentHostService.dispatchedActions.length = 0;
 		defaultAccountService.setPreviewFeaturesEnabled(true);
 		await flush();
 
-		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[CopilotCliConfigKey.HydraFusion]: true,
+		assert.deepStrictEqual({ previewDisabled, afterPolicyChange: agentHostService.dispatchedActions.length }, {
+			previewDisabled: [{ [CopilotCliConfigKey.HydraFusion]: true }],
+			afterPolicyChange: 0,
 		});
 	});
 
-	test('forwards HydraFusion, its v2 version, and multi-root from the setting value when preview features are allowed', async () => {
+	test('forwards HydraFusion, its v2 version, and multi-root from the setting value regardless of preview features', async () => {
 		const hydraFusionSchema = {
 			[CopilotCliConfigKey.HydraFusion]: fullSchema[CopilotCliConfigKey.HydraFusion],
 			[CopilotCliConfigKey.HydraFusionV2]: fullSchema[CopilotCliConfigKey.HydraFusionV2],
@@ -464,8 +462,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			multiRoot: 'true/true/true',
 			disabled: 'false/false/false',
 			unknown: 'false/false/false',
-			v2PreviewFeaturesDisabled: 'false/false/false',
-			multiRootPreviewFeaturesDisabled: 'false/false/false',
+			v2PreviewFeaturesDisabled: 'true/true/false',
+			multiRootPreviewFeaturesDisabled: 'true/true/true',
 		});
 	});
 
