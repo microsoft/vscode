@@ -169,6 +169,8 @@ export interface IMenuEntryActionViewItemOptions {
 	readonly hoverDelegate?: IHoverDelegate;
 	readonly keybindingNotRenderedWithLabel?: boolean;
 	readonly onClickAnimation?: ClickAnimation;
+	/** Checks whether the completed action changed state, for example after a confirmation dialog. */
+	readonly shouldTriggerClickAnimation?: (context: unknown) => boolean;
 	readonly onDidTriggerClickAnimation?: () => void;
 }
 
@@ -213,8 +215,9 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 		});
 		try {
 			const animationTarget = this._options?.onClickAnimation && this.element ? captureAnimationTarget(this.element) : undefined;
-			await this.actionRunner.run(commandAction, this._context);
-			if (!actionError && this._options?.onClickAnimation && animationTarget && !this._accessibilityService.isMotionReduced()) {
+			const context = this._context;
+			await this.actionRunner.run(commandAction, context);
+			if (!actionError && this._options?.onClickAnimation && animationTarget && !this._accessibilityService.isMotionReduced() && (this._options.shouldTriggerClickAnimation?.(context) ?? true)) {
 				const icon = this._menuItemAction.item.icon;
 				triggerClickAnimation(animationTarget, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
 				this._options.onDidTriggerClickAnimation?.();
