@@ -61,6 +61,7 @@ suite('RemotesModel', () => {
 		let workspaces: { workspaceUri: URI; name: string }[] = [];
 		const providersChanged = store.add(new Emitter<{ added: []; removed: [] }>());
 		const connectionsChanged = store.add(new Emitter<void>());
+		const tunnelsChanged = store.add(new Emitter<void>());
 		let connections = initialConnections;
 		let workspacesInitialized = false;
 		let initializingWorkspaces = false;
@@ -69,6 +70,7 @@ suite('RemotesModel', () => {
 		const removals: string[] = [];
 		const connectionChanges: { id: string; connected: boolean }[] = [];
 		const reconnects: string[] = [];
+		const tunnelConnections: { tunnel: ITunnelInfo; authProvider?: 'github' | 'microsoft' }[] = [];
 		const signIns: string[] = [];
 		const displayNames = new Map<string, string>();
 		const displayNamesChanged = store.add(new Emitter<string>());
@@ -197,14 +199,17 @@ suite('RemotesModel', () => {
 			cacheDistro: distro => { distros = [distro]; },
 		});
 		instantiationService.stub(ITunnelAgentHostService, {
-			onDidChangeTunnels: Event.None,
+			onDidChangeTunnels: tunnelsChanged.event,
 			getCachedTunnels: () => tunnels,
 			getAuthProvider: () => tunnelAuthentication(),
 			listTunnels: () => tunnelDiscovery(),
 			isTunnelDismissed: id => dismissed.has(id),
 			clearTunnelDismissal: id => { dismissed.delete(id); },
 			cacheTunnel: (value, authProvider) => { tunnels = [{ ...value, authProvider }]; },
-			connect: async value => { reconnects.push(`tunnel:${value.tunnelId}`); },
+			connect: async (value, authProvider) => {
+				reconnects.push(`tunnel:${value.tunnelId}`);
+				tunnelConnections.push({ tunnel: value, authProvider });
+			},
 			signIn: async provider => { signIns.push(provider); },
 		});
 		instantiationService.stub(IDevContainerAgentHostService, {
@@ -281,6 +286,9 @@ suite('RemotesModel', () => {
 			copiedAddresses, locationPromptResult, locationPreferences, notifications, upgrades, upgrade,
 			setConnections: (value: readonly IRemoteAgentHostConnectionInfo[]) => { connections = value; connectionsChanged.fire(); },
 			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
+			getCachedTunnels: () => tunnels,
+			setCachedTunnels: (cached: ICachedTunnel[]) => { tunnels = cached; tunnelsChanged.fire(); },
+			tunnelConnections,
 			failConnection: (error: Error) => { connectionFailure = error; },
 			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
@@ -346,6 +354,88 @@ suite('RemotesModel', () => {
 			updated: { status: RemoteAgentHostConnectionStatus.connecting, error: 'Updated failure' },
 			connected: { status: RemoteAgentHostConnectionStatus.connected, error: undefined },
 			removed: undefined,
+		});
+	});
+
+	test('fresh tunnel discovery wins over cached and provider names without registering or connecting', async () => {
+		const { model, setCachedTunnels, getCachedTunnels, setTunnelDiscovery, providersChanged, connectionChanges, reconnects } = setup();
+		const cached: ICachedTunnel[] = [
+			{ ...tunnel, name: 'Old cached name', authProvider: 'github' },
+			{ ...tunnel, tunnelId: 'offline', name: 'Cached offline', authProvider: 'github' },
+		];
+		setCachedTunnels(cached);
+		setTunnelDiscovery(async () => [
+			{ ...tunnel, name: 'Renamed tunnel' },
+			{ ...tunnel, tunnelId: 'new', name: 'New tunnel' },
+		]);
+		await model.refresh(CancellationToken.None);
+		const snapshot = () => model.remotes.get().filter(remote => remote.kind === 'tunnel').map(({ id, name, canRemove }) => ({ id, name, canRemove }));
+		const refreshed = snapshot();
+		providersChanged.fire({ added: [], removed: [] });
+		setCachedTunnels([...cached]);
+		assert.deepStrictEqual({ refreshed, afterEvents: snapshot(), cached: getCachedTunnels(), connectionChanges, reconnects }, {
+			refreshed: [
+				{ id: 'tunnel:offline', name: 'Cached offline', canRemove: false },
+				{ id: 'tunnel:new', name: 'New tunnel', canRemove: false },
+				{ id: 'tunnel:laptop', name: 'Renamed tunnel', canRemove: true },
+			],
+			afterEvents: refreshed, cached, connectionChanges: [], reconnects: [],
+		});
+	});
+
+	test('explicit tunnel rename overrides discovery and clearing it restores the latest discovered name', async () => {
+		const { model, setCachedTunnels, setTunnelDiscovery, setRenameInput, renameInputs } = setup();
+		setCachedTunnels([{ ...tunnel, name: 'Old cached name' }]);
+		setTunnelDiscovery(async () => [{ ...tunnel, name: 'Discovered name' }]);
+		await model.refresh(CancellationToken.None);
+		setRenameInput('My tunnel');
+		await model.rename('tunnel:laptop');
+		setTunnelDiscovery(async () => [{ ...tunnel, name: 'Newest discovered name' }]);
+		await model.refresh(CancellationToken.None);
+		const renamed = model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.name;
+		setRenameInput('');
+		await model.rename('tunnel:laptop');
+		assert.deepStrictEqual({ renamed, cleared: model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.name, initialRenameValue: renameInputs[0].value }, {
+			renamed: 'My tunnel', cleared: 'Newest discovered name', initialRenameValue: 'Discovered name',
+		});
+	});
+
+	test('connecting a cached tunnel uses fresh discovery metadata when the provider is absent', async () => {
+		const { model, providers, setCachedTunnels, setTunnelDiscovery, setTunnelAuthentication, tunnelConnections } = setup();
+		providers.delete('tunnel:laptop');
+		setCachedTunnels([{ ...tunnel, name: 'Old name', protocolVersion: 5, clusterId: 'old', authProvider: 'microsoft' }]);
+		const discovered = { ...tunnel, name: 'New name', tags: ['updated'], clusterId: 'new' };
+		setTunnelDiscovery(async () => [discovered]);
+		setTunnelAuthentication(async () => 'github');
+		await model.refresh(CancellationToken.None);
+		await model.setConnected('tunnel:laptop', true);
+		assert.deepStrictEqual(tunnelConnections, [{ tunnel: discovered, authProvider: 'github' }]);
+	});
+
+	test('missing discovery falls back to live cache updates while failed and canceled discovery retain the snapshot', async () => {
+		const { model, setCachedTunnels, setTunnelDiscovery } = setup();
+		setCachedTunnels([{ ...tunnel, name: 'Cached name' }]);
+		setTunnelDiscovery(async () => [{ ...tunnel, name: 'Discovered name' }]);
+		await model.refresh(CancellationToken.None);
+		const name = () => model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.name;
+		setTunnelDiscovery(async () => { throw new Error('Discovery failed'); });
+		await model.refresh(CancellationToken.None);
+		setCachedTunnels([{ ...tunnel, name: 'Updated cache' }]);
+		const afterFailure = name();
+		const pending = new DeferredPromise<ITunnelInfo[]>();
+		setTunnelDiscovery(() => pending.p);
+		const cancellation = store.add(new CancellationTokenSource());
+		const refresh = model.refresh(cancellation.token);
+		cancellation.cancel();
+		await pending.complete([]);
+		await refresh;
+		const afterCancellation = name();
+		setTunnelDiscovery(async () => []);
+		await model.refresh(CancellationToken.None);
+		const fallback = name();
+		setCachedTunnels([{ ...tunnel, name: 'Latest cache' }]);
+		assert.deepStrictEqual({ afterFailure, afterCancellation, fallback, cacheUpdate: name() }, {
+			afterFailure: 'Discovered name', afterCancellation: 'Discovered name', fallback: 'Updated cache', cacheUpdate: 'Latest cache',
 		});
 	});
 

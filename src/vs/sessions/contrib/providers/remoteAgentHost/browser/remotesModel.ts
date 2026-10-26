@@ -90,7 +90,7 @@ export function getVisibleRemoteKinds(operatingSystem: OperatingSystem, environm
 type RemoteTarget =
 	| { readonly kind: 'ssh'; readonly entry: IRemoteAgentHostEntry }
 	| { readonly kind: 'wsl'; readonly distro: string; readonly name: string }
-	| { readonly kind: 'tunnel'; readonly tunnel: ITunnelInfo; readonly authProvider?: 'github' | 'microsoft' }
+	| { readonly kind: 'tunnel'; readonly tunnel: ITunnelInfo; readonly authProvider?: 'github' | 'microsoft'; readonly source: 'discovered' | 'cached' }
 	| { readonly kind: 'environment'; readonly host: IMissionControlHost; readonly account: string }
 	| { readonly kind: 'devContainer'; readonly container: IDiscoveredDevContainer; readonly workspaceUri?: URI };
 
@@ -195,7 +195,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			discover('wsl', async () => isWindows ? (await this.wslService.listDistros()).map(distro => ({ kind: 'wsl', distro: distro.name, name: distro.name })) : []),
 			discover('tunnel', async () => {
 				const authProvider = await this.tunnelService.getAuthProvider({ silent: true });
-				return (await this.tunnelService.listTunnels({ silent: true, authProvider })).map(tunnel => ({ kind: 'tunnel', tunnel, authProvider }));
+				return (await this.tunnelService.listTunnels({ silent: true, authProvider })).map(tunnel => ({ kind: 'tunnel', tunnel, authProvider, source: 'discovered' }));
 			}),
 			discover('environment', async () => {
 				if (this.environmentService.enabled) {
@@ -326,7 +326,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				this.checkEnvironment(target);
 				this.environmentService.setDisplayName(target.host.id, name);
 			},
-		} : provider ?? { remoteAddress: id, label: remote.name };
+		} : {
+			remoteAddress: id, label: remote.name,
+			setDisplayName: provider?.setDisplayName ? (name: string | undefined) => provider.setDisplayName?.(name) : undefined,
+		};
 		await renameRemoteHost(renameTarget, this.quickInputService, this.remoteAgentHostService);
 		if (!this._store.isDisposed) {
 			this.update();
@@ -525,7 +528,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			...sshEntries.map((entry): RemoteTarget => ({ kind: 'ssh', entry })),
 			...distros.map((distro): RemoteTarget => ({ kind: 'wsl', ...distro })),
 			...tunnels.map((tunnel): RemoteTarget => ({
-				kind: 'tunnel', authProvider: tunnel.authProvider,
+				kind: 'tunnel', authProvider: tunnel.authProvider, source: 'cached',
 				tunnel: { ...tunnel, tags: [], protocolVersion: tunnel.protocolVersion ?? TUNNEL_MIN_PROTOCOL_VERSION, hostConnectionCount: 0 },
 			})),
 			...workspaces.map((workspace): RemoteTarget => ({ kind: 'devContainer', workspaceUri: workspace.workspaceUri, container: { id: getComparisonKey(workspace.workspaceUri), name: workspace.name } })),
@@ -533,7 +536,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		this.registered.clear();
 		for (const target of registered) {
 			const id = this.getId(target);
-			this.targets.set(id, target);
+			const existing = this.targets.get(id);
+			if (existing?.kind !== 'tunnel' || existing.source !== 'discovered') {
+				this.targets.set(id, target);
+			}
 			this.registered.add(id);
 		}
 		const remotes: ICustomizationRemote[] = [];
@@ -570,7 +576,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			}
 			const provider = providersByAddress.get(id);
 			if (target.kind !== 'environment') {
-				name = this.remoteAgentHostService.getDisplayNameOverride(id) ?? provider?.label ?? name;
+				name = this.remoteAgentHostService.getDisplayNameOverride(id) ?? (target.kind === 'tunnel' ? name : provider?.label ?? name);
 			}
 			const canRemove = target.kind === 'environment' || this.registered.has(id) && (target.kind === 'devContainer' || !!provider && provider.canRemove !== false);
 			const hidden = this.pickerVisibility.isHidden(this.getPickerKey(target), reader);
