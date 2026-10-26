@@ -92,9 +92,11 @@ suite('Changes View Actions', () => {
 			}
 		});
 
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-			override readonly mainWindowActiveSession = this.activeSession;
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionObs = constObservable<IActiveSession | undefined>(activeSession);
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override readonly activeEditorPane = undefined;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.openPullRequest')!.handler(accessor));

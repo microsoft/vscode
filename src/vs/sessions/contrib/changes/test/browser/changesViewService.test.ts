@@ -1174,7 +1174,8 @@ suite('ChangesViewService', () => {
 		const resource = observableValue<URI | undefined>('test.scopedResource', undefined);
 		const scoped = disposables.add(service.createScoped(resource, disposables.add(new MockContextKeyService())));
 
-		const before = scoped.activeSessionResourceObs.get();
+		// Until it has a resource, a scoped service reports the main window's session.
+		const before = scoped.activeSessionResourceObs.get()?.toString();
 		resource.set(windowSession.resource, undefined);
 		scoped.setChangesetId('second');
 
@@ -1183,7 +1184,7 @@ suite('ChangesViewService', () => {
 			scoped: scoped.activeSessionChangesetObs.get()?.id,
 			main: service.activeSessionChangesetObs.get()?.id,
 		}, {
-			before: undefined,
+			before: mainSession.resource.toString(),
 			scoped: 'second',
 			main: 'branch',
 		});

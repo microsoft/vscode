@@ -40,6 +40,9 @@ suite('SessionChangesEditor empty state layout', () => {
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+			override createScoped() {
+				return Object.assign(new class extends mock<IChangesViewService>() { }(), { dispose() { } });
+			}
 		}());
 		instantiationService.stub(IAgentWorkbenchLayoutService, {
 			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
@@ -200,6 +203,9 @@ suite('SessionChangesEditor host widget', () => {
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+			override createScoped() {
+				return Object.assign(new class extends mock<IChangesViewService>() { }(), { dispose() { } });
+			}
 		}());
 		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
