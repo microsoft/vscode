@@ -854,7 +854,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING]: {
 			type: 'boolean',
-			default: true,
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['advanced'],
 			experiment: { mode: 'auto' },
