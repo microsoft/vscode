@@ -15,6 +15,7 @@ import { findLast } from '../../../util/vs/base/common/arraysFind';
 import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage, ResponseEventRenderContext } from '../common/sessionEventRenderer';
 import { CLI_TOOL_EVENT_HANDLERS } from '../copilotcli/common/copilotCLITools';
 import { getAuthorDisplayName, isFailedTaskState } from '../vscode/copilotCodingAgentUtils';
+import { cloudPermissionPart, getCloudTaskPermissions } from './cloudTaskPermissions';
 
 export interface ToolCall {
 	function: {
@@ -162,6 +163,13 @@ export class ChatSessionContentBuilder {
 			}
 
 			const latestSession = task.sessions?.[task.sessions.length - 1];
+			let permissionParts: vscode.ExtendedChatResponsePart[];
+			try {
+				permissionParts = getCloudTaskPermissions(task, events).map(cloudPermissionPart);
+			} catch (error) {
+				this._logService.warn(`[CloudPermissions] Could not restore permission: ${error}`);
+				permissionParts = [new ChatResponseMarkdownPart(error instanceof Error ? error.message : vscode.l10n.t('Could not restore the cloud permission request.'))];
+			}
 
 			turns.forEach((turn, index) => {
 				const turnReferences = index === 0 ? references : [];
@@ -203,7 +211,7 @@ export class ChatSessionContentBuilder {
 					this._logService.trace(`[ChatSessionContentBuilder] task ${task.id} stopped (state=${task.state}); errorDetail=${detail ?? 'none'}`);
 					failureMessage = formatTaskStoppedMessage(task.state, detail);
 				}
-				history.push(...this.buildTaskResponseTurn(turn.events, state, failureMessage));
+				history.push(...this.buildTaskResponseTurn(turn.events, state, failureMessage, isLatestTurn ? permissionParts : []));
 			});
 
 			return history;
@@ -223,7 +231,7 @@ export class ChatSessionContentBuilder {
 	 *    with content, no `parentToolCallId`, no `toolRequests`); intermediate
 	 *    messages carry narration that would clutter the view.
 	 */
-	private buildTaskResponseTurn(events: readonly AgentTaskSessionEvent[], state: AgentTaskSession['state'] | undefined, failureMessage?: string): ChatResponseTurn2[] {
+	private buildTaskResponseTurn(events: readonly AgentTaskSessionEvent[], state: AgentTaskSession['state'] | undefined, failureMessage?: string, permissionParts: readonly vscode.ExtendedChatResponsePart[] = []): ChatResponseTurn2[] {
 		const lastFinalMessage = findLast(events, e =>
 			!e.dismissed
 			&& e.type === 'assistant.message'
@@ -268,7 +276,7 @@ export class ChatSessionContentBuilder {
 		}
 		flushPendingAssistantMessage(ctx);
 
-		const parts = [...ctx.currentResponseParts];
+		const parts = [...ctx.currentResponseParts, ...permissionParts];
 		if (parts.length === 0) {
 			if (failureMessage !== undefined) {
 				// The task ended in an unsuccessful terminal state (e.g. "Failed to launch agent")

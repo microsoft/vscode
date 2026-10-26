@@ -12,9 +12,10 @@ import {
 	flushPendingAssistantMessage,
 	ResponseEventRenderContext,
 } from '../common/sessionEventRenderer';
-import { CloudAgentBackend } from '../vscode/cloudAgentBackend';
+import { CloudAgentBackend, TaskContent } from '../vscode/cloudAgentBackend';
 import { isActiveTaskState, isFailedTaskState } from '../vscode/copilotCodingAgentUtils';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from './copilotCloudSessionContentBuilder';
+import { cloudPermissionPart, getCloudTaskPermissions } from './cloudTaskPermissions';
 
 /**
  * Phase of a single Task turn. The Task API uses `queued | in_progress | idle |
@@ -40,9 +41,10 @@ function isActiveState(state: AgentTaskGetResponse['state'] | undefined): boolea
  * `seedEventIds` are event ids already rendered as history so the live loop does
  * not re-emit them.
  */
-export type StreamBaseline =
+export type StreamBaseline = (
 	| { readonly mode: 'current'; readonly seedEventIds: ReadonlySet<string> }
-	| { readonly mode: 'next'; readonly seedEventIds: ReadonlySet<string>; readonly priorTurnCount: number };
+	| { readonly mode: 'next'; readonly seedEventIds: ReadonlySet<string>; readonly priorTurnCount: number }
+) & { readonly permissionDecision?: { readonly requestId: string; readonly toolCallId?: string; readonly approved: boolean }; readonly observationTimeoutMs?: number };
 
 /**
  * Streams the currently active (or upcoming) Task turn into a `vscode.ChatResponseStream`.
@@ -111,6 +113,9 @@ export class TaskTurnStreamer {
 			renderedError: false,
 		};
 		let lastProgressLabel: string | undefined;
+		const observationStarted = Date.now();
+		const decision = baseline.permissionDecision;
+		let automation = false;
 
 		const publishProgress = () => {
 			const label = this._progressLabel(state);
@@ -141,6 +146,9 @@ export class TaskTurnStreamer {
 					consecutiveFetchFailures++;
 					if (consecutiveFetchFailures >= TaskTurnStreamer.MAX_CONSECUTIVE_FETCH_FAILURES) {
 						this._logService.warn(`[TaskTurnStreamer] Giving up on task ${taskId} after ${consecutiveFetchFailures} consecutive fetchTaskContent failures.`);
+						if (decision) {
+							stream.warning(vscode.l10n.t('The permission decision may have been accepted, but its outcome could not be verified. Refresh the session before taking further action.'));
+						}
 						return;
 					}
 				} else {
@@ -149,6 +157,46 @@ export class TaskTurnStreamer {
 
 				this._ingestBatch(events, ctx, state);
 				sink.flush();
+				if (task?.automation_id) {
+					automation = true;
+					const permissions = getCloudTaskPermissions(task, events);
+					const unanswered = permissions.filter(permission => permission.confirmation.requestId !== decision?.requestId);
+					if (unanswered.length) {
+						for (const permission of unanswered) {
+							if (decision || !baseline.seedEventIds.has(permission.confirmation.eventId)) {
+								stream.push(cloudPermissionPart(permission));
+							}
+						}
+						return;
+					}
+					if (decision) {
+						const completed = events.find(event => event.type === 'permission.completed' && event.data.requestId === decision.requestId);
+						if (completed?.type === 'permission.completed') {
+							const kind = completed.data.result?.kind;
+							if (kind?.startsWith('denied')) {
+								stream.markdown(vscode.l10n.t('The cloud runtime denied the permission request.'));
+								return;
+							}
+							const execution = events.find(event => event.type === 'tool.execution_complete' && event.data.toolCallId === decision.toolCallId);
+							if (kind === 'approved' && execution?.type === 'tool.execution_complete') {
+								if (execution.data.success) {
+									stream.markdown(vscode.l10n.t('The cloud runtime approved the permission and completed the tool call.'));
+								} else {
+									stream.warning(vscode.l10n.t('The cloud runtime answered the permission request, but the tool call failed.'));
+								}
+								return;
+							}
+							if (kind !== 'approved') {
+								stream.warning(vscode.l10n.t('The cloud runtime returned an unrecognized permission result. Refresh the session to check its outcome.'));
+								return;
+							}
+						}
+					}
+				}
+				if (decision && Date.now() - observationStarted >= (baseline.observationTimeoutMs ?? 60_000)) {
+					stream.warning(vscode.l10n.t('Decision submitted, but cloud resumption was not observed. Refresh the session to check its state; do not submit the decision again.'));
+					return;
+				}
 
 				const sessions = task?.sessions;
 				const latestTurn = sessions?.[sessions.length - 1];
@@ -156,7 +204,7 @@ export class TaskTurnStreamer {
 				// session state is still active. A task that failed to launch (e.g. "Failed to
 				// launch agent") never advances the turn out of `queued`/`in_progress`, so the
 				// per-turn check below would otherwise poll forever.
-				if (task !== undefined && !isActiveState(task.state)) {
+				if (!baseline.permissionDecision && task !== undefined && !isActiveState(task.state)) {
 					if (isFailedTaskState(task.state)) {
 						// Surface the stop in-stream too, so it shows even after partial content
 						// streamed. Skip the concrete detail if a `session.error` already rendered it.
@@ -168,7 +216,7 @@ export class TaskTurnStreamer {
 					state.isWorking = false;
 					return;
 				}
-				if (latestTurn && !isActiveState(latestTurn.state)) {
+				if (!baseline.permissionDecision && latestTurn && !isActiveState(latestTurn.state)) {
 					state.isWorking = false;
 					return;
 				}
@@ -183,6 +231,11 @@ export class TaskTurnStreamer {
 			}
 		} catch (err) {
 			this._logService.warn(`[TaskTurnStreamer] Unexpected error streaming task ${taskId}: ${err}`);
+			if (baseline.permissionDecision) {
+				stream.warning(vscode.l10n.t('The permission decision may have been accepted, but its outcome could not be verified. Refresh the session before taking further action.'));
+			} else if (automation) {
+				stream.warning(err instanceof Error ? err.message : vscode.l10n.t('Could not observe the cloud session.'));
+			}
 		}
 	}
 
@@ -376,7 +429,7 @@ export class TaskTurnStreamer {
 		return state.currentIntent;
 	}
 
-	private async _fetchTask(taskId: string): Promise<AgentTaskGetResponse | undefined> {
+	private async _fetchTask(taskId: string): Promise<TaskContent['task'] | undefined> {
 		try {
 			const content = await this._backend.fetchTaskContent(taskId);
 			return content?.task;

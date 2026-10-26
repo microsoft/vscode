@@ -45,6 +45,7 @@ import { CloudTaskOwnership } from './cloudTaskOwnership';
 import { parseRepoFromTaskUrl, TaskApiBackend, TaskApiError, TaskApiHttpClient } from './taskApiBackend';
 import { resolvePullArtifact } from './pullArtifactResolver';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
+import { getCloudTaskPermissions, isCloudPermissionConfirmation } from './cloudTaskPermissions';
 import MarkdownIt = require('markdown-it');
 
 interface ConfirmationMetadata {
@@ -523,6 +524,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}, 0));
 	private sessionItemsRequestGeneration = 0;
 	private readonly explicitlyResolvedSessions = new LRUCache<string, vscode.ChatSessionItem>(50);
+	private readonly permissionDecisions = new Set<string>();
 	private readonly unpublishedExactTasks = new Set<string>();
 	private sessionSourceGeneration = 0;
 	// Task ids with an in-flight "Create pull request" toolbar request, used to guard against
@@ -2421,6 +2423,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 
 		if (request.acceptedConfirmationData || request.rejectedConfirmationData) {
+			const data: unknown = request.acceptedConfirmationData?.[0] ?? request.rejectedConfirmationData?.[0];
+			if (typeof data === 'object' && data !== null && 'kind' in data && data.kind === 'cloudAutomationPermission') {
+				await this.handleCloudPermission(request, context, stream, token, data);
+				return {};
+			}
 			await this.handleConfirmationData(request, stream, context, token);
 			this.setWorkspaceContext(SEEN_DELEGATION_PROMPT_KEY, 'yes');
 			return {};
@@ -2508,6 +2515,61 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					chatContext: context
 				} satisfies ConfirmationMetadata,
 			);
+		}
+	}
+
+	private async handleCloudPermission(request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken, data: unknown): Promise<void> {
+		const resource = context.chatSessionContext?.chatSessionItem.resource;
+		if (!isCloudPermissionConfirmation(data) || !resource || resource.scheme !== CopilotCloudSessionsProvider.TYPE
+			|| SessionIdForTask.parseTaskId(resource) !== data.taskId
+			|| (request.acceptedConfirmationData?.length ?? 0) + (request.rejectedConfirmationData?.length ?? 0) !== 1) {
+			this.logService.warn('[CloudPermissions] Invalid permission confirmation');
+			stream.warning(vscode.l10n.t('Could not verify the pending cloud permission. Refresh the session before responding.'));
+			return;
+		}
+		const key = JSON.stringify([data.taskId, data.sessionId, data.requestId]);
+		if (this.permissionDecisions.has(key)) {
+			stream.warning(vscode.l10n.t('A decision was already submitted for this cloud permission. Refresh the session to check its outcome.'));
+			return;
+		}
+		const backend = this._backend;
+		let submitted = false;
+		try {
+			const before = await backend.fetchTaskContent(data.taskId);
+			if (!before?.task.automation_id) {
+				throw new Error(vscode.l10n.t('Could not verify the pending cloud permission. Refresh the session before responding.'));
+			}
+			const events = await backend.fetchTaskEvents(data.taskId, { requireComplete: true });
+			const latest = await backend.fetchTaskContent(data.taskId);
+			if (!latest || latest.task.automation_id !== before.task.automation_id || latest.task.sessions?.at(-1)?.id !== data.sessionId) {
+				throw new Error(vscode.l10n.t('The cloud session changed. Refresh before responding.'));
+			}
+			const permission = getCloudTaskPermissions(latest.task, events).find(permission =>
+				permission.confirmation.requestId === data.requestId && permission.confirmation.eventId === data.eventId);
+			if (!permission) {
+				throw new Error(vscode.l10n.t('This cloud permission is no longer pending. Refresh the session.'));
+			}
+			if (token.isCancellationRequested || this.permissionDecisions.has(key)) {
+				return;
+			}
+			const approved = (request.acceptedConfirmationData?.length ?? 0) === 1;
+			this.permissionDecisions.add(key);
+			submitted = true;
+			await backend.sendPermissionResponse(data.taskId, data.requestId, approved);
+			stream.markdown(vscode.l10n.t('Permission decision submitted. Waiting for the cloud runtime to confirm the outcome.'));
+			await this._createTaskStreamCallback(data.taskId, {
+				mode: 'current', seedEventIds: new Set(events.map(event => event.id)),
+				permissionDecision: { requestId: data.requestId, toolCallId: permission.toolCallId, approved },
+			})(stream, token);
+		} catch (error) {
+			this.logService.error(`[CloudPermissions] Permission response failed for ${data.taskId}: ${error}`);
+			if (error instanceof TaskApiError && [400, 401, 403, 404, 409, 422, 429].includes(error.status)) {
+				this.permissionDecisions.delete(key);
+				submitted = false;
+			}
+			stream.warning(submitted
+				? vscode.l10n.t('The permission decision may have been accepted, but its outcome could not be verified. Refresh the session before taking further action.')
+				: error instanceof Error ? error.message : vscode.l10n.t('Could not verify the pending cloud permission. Refresh the session before responding.'));
 		}
 	}
 
