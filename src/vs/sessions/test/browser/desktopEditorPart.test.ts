@@ -476,22 +476,21 @@ suite('Sessions - Desktop editor part Session Activity Bar host', () => {
 		readonly height: ISettableObservable<number>;
 	}
 
-	function layoutHost(stackedColumn: boolean, compact: boolean): IHostHarness {
+	function layoutHost(inColumn: boolean): IHostHarness {
 		const layout = Reflect.get(DesktopMainEditorPart.prototype, '_layoutSessionActivityBarHost') as (this: object) => void;
 		const partElement = mainWindow.document.createElement('div');
-		const gridRoot = mainWindow.document.createElement('div');
-		const host = append(stackedColumn ? gridRoot : partElement, $('.session-activity-bar-editor-host'));
+		// The view of the workbench grid the host shows in, beside the stacked side pane and the Sessions Part.
+		const column = mainWindow.document.createElement('div');
+		const host = append(inColumn ? column : partElement, $('.session-activity-bar-editor-host'));
 		const height = observableValue('height', 0);
 		const harness = Object.assign(Object.create(DesktopMainEditorPart.prototype), {
 			element: partElement,
 			_sessionActivityBarHost: host,
 			_sessionActivityBarHostActive: constObservable(true),
 			_sessionActivityBarOccupancy: { occupied: constObservable(true) },
-			_sessionActivityBarStackedColumn: constObservable(stackedColumn),
+			_sessionActivityBarStackedColumn: constObservable(inColumn),
 			_sessionActivityBarHostHeight: height,
-			// Where the grid laid out the editor part, and the Sessions Part stacked below it.
-			_gridAllocation: { width: 800, height: 300, top: 40, left: 260 },
-			agentWorkbenchLayoutService: { isModernUICompact: () => compact, getSize: () => ({ width: 800, height: 420 }) },
+			_sessionActivityBarColumnHeight: 720,
 		});
 		Object.defineProperty(harness, 'contentDimension', { value: { width: 798, height: 298 } });
 		Object.defineProperty(harness, 'activeGroup', { value: { titleHeight: { offset: 35 } } });
@@ -499,17 +498,14 @@ suite('Sessions - Desktop editor part Session Activity Bar host', () => {
 		return { host, height };
 	}
 
-	test('stacked, runs the strip in a column at the right of the editor and the Sessions Part below it, from below the tabs to the bottom of both, at either density', () => {
-		const geometry = ({ host, height }: IHostHarness) => ({ left: host.style.left, top: host.style.top, height: host.style.height, area: height.get() });
+	test('stacked, fills its column of the workbench grid from the top, the full height of the side pane and the Sessions Part; with the chat hidden, below the editor tabs', () => {
+		const geometry = ({ host, height }: IHostHarness) => ({ top: host.style.top, height: host.style.height, area: height.get() });
 
-		assert.deepStrictEqual({ stacked: geometry(layoutHost(true, false)), compact: geometry(layoutHost(true, true)), editorOnly: geometry(layoutHost(false, false)) }, {
-			// 260 + 800 - 34; below the 1px card border and the 35px tabs; down to the inside of the Sessions Part's bottom border.
-			stacked: { left: '1026px', top: '76px', height: '683px', area: 683 },
-			// No card borders.
-			compact: { left: '1026px', top: '75px', height: '685px', area: 685 },
-			// With the chat hidden, at the right edge of the editor, below its tabs, as before.
-			editorOnly: { left: '', top: '35px', height: '263px', area: 263 },
+		assert.deepStrictEqual({ stacked: geometry(layoutHost(true)), editorOnly: geometry(layoutHost(false)) }, {
+			// The height the grid laid the column out at, from right under the title bar.
+			stacked: { top: '0px', height: '720px', area: 720 },
+			// At the right edge of the editor, below its tabs, as before.
+			editorOnly: { top: '35px', height: '263px', area: 263 },
 		});
 	});
 });
-

@@ -19,22 +19,6 @@ export const AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS = 'agents-side-pane-multiple-t
 /** Marks the workbench while the side pane is stacked above the Sessions Part rather than beside it. */
 export const AGENTS_SIDE_PANE_STACKED_CLASS = 'side-pane-stacked';
 
-/**
- * Marks the workbench while the side pane stacked above the Sessions Part and the Sessions Part end before a column of
- * their right, beside both, such as the column the Session Activity Bar runs in. Its width is in
- * {@link AGENTS_STACKED_SIDE_PANE_COLUMN_WIDTH_PROPERTY}; see {@link getStackedSidePaneColumnWidth}.
- */
-export const AGENTS_STACKED_SIDE_PANE_COLUMN_CLASS = 'stacked-side-pane-column';
-export const AGENTS_STACKED_SIDE_PANE_COLUMN_WIDTH_PROPERTY = '--agents-stacked-side-pane-column-width';
-
-/** The width the side pane stacked above the Sessions Part and the Sessions Part keep free at their right, beside both. */
-export function getStackedSidePaneColumnWidth(container: HTMLElement): number {
-	if (!container.classList.contains(AGENTS_STACKED_SIDE_PANE_COLUMN_CLASS)) {
-		return 0;
-	}
-	return parseInt(container.style.getPropertyValue(AGENTS_STACKED_SIDE_PANE_COLUMN_WIDTH_PROPERTY), 10) || 0;
-}
-
 /** Visual metrics of a card part, kept in sync with the CSS in `media/workbench.css`. */
 export const AgentsPartCard = {
 	MARGIN_TOP: 0,

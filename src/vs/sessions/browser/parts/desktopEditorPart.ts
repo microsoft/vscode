@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, getActiveElement, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
+import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -25,7 +25,8 @@ import { SessionLayoutMode } from '../../common/sessionLayoutMode.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
 import { Menus } from '../menus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, AgentsPartCard } from './agentsPartCard.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from './agentsPartCard.js';
+import { IStackedSidePaneColumn, moveKeepingFocus } from './stackedSidePaneColumnView.js';
 import { MainEditorPart } from './editorPart.js';
 import { DesktopAuxiliaryBarPart } from './desktopAuxiliaryBarPart.js';
 import { EmptyEditorGroupAddTab } from './emptyEditorGroupAddTab.js';
@@ -52,8 +53,8 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	private _sessionActivityBarHost: HTMLElement | undefined;
 	/** Whether the strip runs in a column of its own beside the side pane stacked above the Sessions Part and that part. */
 	private _sessionActivityBarStackedColumn: IObservable<boolean> = constObservable(false);
-	/** Where the grid last laid the part out, before its margins and border. */
-	private _gridAllocation: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+	/** The height of the column of the workbench grid the host shows in, beside the stacked side pane; see {@link IStackedSidePaneColumn}. */
+	private _sessionActivityBarColumnHeight = 0;
 	private readonly _groupRelayoutListeners = this._register(new DisposableMap<EditorGroupView>());
 	private readonly _emptyGroupAddTabControls = this._register(new DisposableMap<EditorGroupView>());
 	private readonly _tabsOverride = this._register(new MutableDisposable());
@@ -243,39 +244,30 @@ export class DesktopMainEditorPart extends MainEditorPart {
 			this._layoutSessionActivityBarHost();
 			this._dockedAuxBar?.layout();
 		}));
+		// Stacked, the host shows in a column of its own in the workbench grid, beside the editor and the chat.
+		const column: IStackedSidePaneColumn = {
+			element,
+			width: SESSION_ACTIVITY_BAR_COLUMN_WIDTH,
+			layout: height => {
+				this._sessionActivityBarColumnHeight = height;
+				this._layoutSessionActivityBarHost();
+			},
+			release: () => moveKeepingFocus(element, this.element),
+		};
 		this._register(autorun(reader => {
-			const inColumn = stackedColumn.read(reader);
-			// Within the grid, the column runs beside the Sessions Part too, outside this part.
-			const gridRoot = this.element.closest<HTMLElement>('.monaco-grid-view');
-			const parent = inColumn && gridRoot ? gridRoot : this.element;
-			if (element.parentElement !== parent) {
-				// Moving the host drops the focus of the strip in it: the entry that had it gets it back.
-				const focused = getActiveElement();
-				const hadFocus = isHTMLElement(focused) && element.contains(focused) ? focused : undefined;
-				parent.appendChild(element);
-				hadFocus?.focus();
+			if (!stackedColumn.read(reader) || !layoutService.setStackedSidePaneColumn(column)) {
+				moveKeepingFocus(element, this.element);
+				layoutService.setStackedSidePaneColumn(undefined);
 			}
-			if (parent === this.element) {
-				element.style.left = '';
-			}
-			layoutService.setStackedSidePaneColumnWidth(parent !== this.element ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
-			const allocation = this._gridAllocation;
-			if (allocation) {
-				// The grid does not lay the part out again, as its allocation does not change.
-				this.layout(allocation.width, allocation.height, allocation.top, allocation.left);
-			}
+			this._layoutSessionActivityBarHost();
+			this._dockedAuxBar?.layout();
 		}));
-		this._register(toDisposable(() => layoutService.setStackedSidePaneColumnWidth(0)));
+		this._register(toDisposable(() => layoutService.setStackedSidePaneColumn(undefined)));
 	}
 
 	/** Whether the host of the Session Activity Bar is in the column beside the stacked side pane, outside the part. */
 	private _isSessionActivityBarHostInColumn(): boolean {
 		return this._sessionActivityBarStackedColumn.get() && !!this._sessionActivityBarHost?.parentElement && this._sessionActivityBarHost.parentElement !== this.element;
-	}
-
-	/** Lays out the host of the Session Activity Bar, such as once the Sessions Part beside its column is laid out. */
-	layoutSessionActivityBarHost(): void {
-		this._layoutSessionActivityBarHost();
 	}
 
 	/** Only while the host is active or a strip is in it; from the laid out sizes, so it forces no reflow. */
@@ -285,20 +277,14 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		if (!element || contentHeight === undefined || (!this._sessionActivityBarHostActive.get() && !this._sessionActivityBarOccupancy.occupied.get())) {
 			return;
 		}
-		const tabsHeight = (this.activeGroup as EditorGroupView).titleHeight.offset;
-		const allocation = this._gridAllocation;
-		if (allocation && this._isSessionActivityBarHostInColumn()) {
-			// In the grid: below the editor's tabs, down to the bottom of the Sessions Part stacked below it.
-			const border = this.agentWorkbenchLayoutService.isModernUICompact() ? 0 : AgentsPartCard.BORDER_WIDTH;
-			const top = allocation.top + border + tabsHeight;
-			const bottom = allocation.top + allocation.height + this.agentWorkbenchLayoutService.getSize(Parts.SESSIONS_PART).height - border;
-			const height = Math.max(0, bottom - top);
-			element.style.left = `${allocation.left + allocation.width - SESSION_ACTIVITY_BAR_COLUMN_WIDTH}px`;
-			element.style.top = `${top}px`;
-			element.style.height = `${height}px`;
-			this._sessionActivityBarHostHeight.set(height, undefined);
+		if (this._isSessionActivityBarHostInColumn()) {
+			// The full height of its column, from right under the title bar.
+			element.style.top = '0';
+			element.style.height = `${this._sessionActivityBarColumnHeight}px`;
+			this._sessionActivityBarHostHeight.set(this._sessionActivityBarColumnHeight, undefined);
 			return;
 		}
+		const tabsHeight = (this.activeGroup as EditorGroupView).titleHeight.offset;
 		const height = Math.max(0, contentHeight - tabsHeight);
 		element.style.top = `${tabsHeight}px`;
 		element.style.height = `${height}px`;
@@ -373,7 +359,6 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
-		this._gridAllocation = { width, height, top, left };
 		super.layout(width, height, top, left);
 		this.agentWorkbenchLayoutService.handleDockedEditorPartLayout(width);
 

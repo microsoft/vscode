@@ -14,9 +14,10 @@ import { SessionLayoutMode } from '../../../common/sessionLayoutMode.js';
 
 /**
  * While the chat of a chat window is below its editor or hidden, the Session Activity Bar of the chat window shows at the
- * right edge of the window, below the editor's tabs, as the main window shows it. Stacked, it runs in a column of its own
- * beside the editor and the chat, and all the groups, their tabs included, end before it; with the chat hidden, the
- * editor makes room for it below its tabs. Beside the editor or alone, the chat shows it.
+ * right edge of the window, as the main window shows it. Stacked, the window is two columns: the groups (the editor, the
+ * chat and the terminal row, with their tabs and sashes) are laid out in the first, and the strip runs in the second, of
+ * its own, the full height of the window; with the chat hidden, the editor makes room for it below its tabs. Beside the
+ * editor or alone, the chat shows it.
  *
  * `scope` is the element of the chat window's editor part, within which the host applies to the chat window's strip.
  */
@@ -42,6 +43,7 @@ export function registerChatWindowActivityBarHost(part: IEditorPart, scope: HTML
 		setOccupied: (occupant, occupied) => occupancy.set(occupant, occupied),
 	}));
 
+	const inColumn = derived(reader => occupancy.occupied.read(reader) && layout.read(reader) === SessionLayoutMode.Stacked);
 	// Only while the host is active or a strip is in it; from the laid out content height, so it forces no reflow.
 	const layoutHost = () => {
 		const contentHeight = part.contentDimension?.height;
@@ -49,7 +51,7 @@ export function registerChatWindowActivityBarHost(part: IEditorPart, scope: HTML
 			return;
 		}
 		const group = getEditorGroup();
-		const top = group ? part.getGroup(group.id)?.titleHeight.offset ?? 0 : 0;
+		const top = inColumn.get() ? 0 : group ? part.getGroup(group.id)?.titleHeight.offset ?? 0 : 0;
 		const available = Math.max(0, contentHeight - top);
 		element.style.top = `${top}px`;
 		element.style.height = `${available}px`;
@@ -68,16 +70,18 @@ export function registerChatWindowActivityBarHost(part: IEditorPart, scope: HTML
 	store.add(part.onDidRemoveGroup(group => groupRelayouts.deleteAndDispose(group)));
 	store.add(autorun(reader => {
 		active.read(reader);
+		inColumn.read(reader);
 		occupancy.occupied.read(reader);
 		layoutHost();
 	}));
 
 	store.add(autorun(reader => {
 		const isOccupied = occupancy.occupied.read(reader);
-		const stacked = layout.read(reader) === SessionLayoutMode.Stacked;
+		const column = inColumn.read(reader);
 		element.classList.toggle('occupied', isOccupied);
-		part.setGridRightInset(isOccupied && stacked ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
-		part.setContentRightInset(isOccupied && !stacked ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
+		element.classList.toggle('stacked-column', column);
+		part.setGridRightInset(column ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
+		part.setContentRightInset(isOccupied && !column ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
 	}));
 	store.add(toDisposable(() => {
 		part.setGridRightInset(0);
