@@ -388,16 +388,22 @@ suite('Sessions Chat Background Service', () => {
 		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService()), telemetryService));
 
 		await service.setBackground(URI.file('/textures/kirby.png'), 'backgroundPicker');
+		await service.setBackground(URI.file('/textures/kirby.png'), 'backgroundPicker');
+		await service.setBackgroundImageLayout('repeat', 'layoutPicker');
 		await service.setBackgroundImageLayout('center', 'layoutPicker', false);
 		await service.setBackgroundImageLayout('center', 'layoutPicker');
 		await service.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'agent', ColorScheme.LIGHT);
+		await service.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'agent', ColorScheme.LIGHT);
 		await service.clearBackground('agent');
+		await service.clearBackground('backgroundPicker');
 		await configurationService.setUserConfiguration(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, 'top');
 		fireConfigurationChange(configurationService, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
-		await configurationService.setUserConfiguration(AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, URI.file('/textures/light.png').fsPath);
+		await configurationService.setUserConfiguration(AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, URI.file('/textures/light.png').toString());
 		fireConfigurationChange(configurationService, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING);
+		await service.setBackground(URI.file('/textures/light.png'), 'backgroundPicker', ColorScheme.LIGHT);
 
-		// The layout preview and the layout change without an image are not reported.
+		// Not reported: selecting the current image, the default layout, the current preset, or no background again,
+		// the layout preview, a layout without an image, and a path that replaces a `file` URI of the same image.
 		assert.deepStrictEqual(telemetryEvents, [
 			{ source: 'backgroundPicker', change: 'background', background: 'userImage', layout: 'repeat', colorScheme: 'dark' },
 			{ source: 'layoutPicker', change: 'layout', background: 'userImage', layout: 'center', colorScheme: 'dark' },
