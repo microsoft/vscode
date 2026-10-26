@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, rejects, strictEqual } from 'assert';
+import { restore, spy, stub } from 'sinon';
+import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -20,8 +23,9 @@ import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetR
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -61,7 +65,7 @@ import { ChatAgentToolsContribution } from '../../browser/terminal.chatAgentTool
 import { TerminalToolId } from '../../browser/tools/toolIds.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
+import { ILanguageModelsService, LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
@@ -99,6 +103,7 @@ suite('RunInTerminalTool', () => {
 	let sandboxPrereqResult: ITerminalSandboxPrerequisiteCheckResult;
 	let terminalSandboxService: ITerminalSandboxService;
 	let createdTerminalInstance: ITerminalInstance;
+	let terminalCommandOutput: string;
 	let createTerminalCallCount: number;
 	let chatSessions: Map<string, ChatModel>;
 	let chatSessionContribution: ReturnType<IChatSessionsService['getChatSessionContribution']>;
@@ -154,6 +159,7 @@ suite('RunInTerminalTool', () => {
 			},
 		};
 		createTerminalCallCount = 0;
+		terminalCommandOutput = '';
 		createdTerminalInstance = {
 			instanceId: 1,
 			processId: 1,
@@ -165,7 +171,7 @@ suite('RunInTerminalTool', () => {
 				// Simulate successful command completion after sendText
 				queueMicrotask(() => {
 					onDataEmitter.fire('\x1b]633;C\x07\x1b]633;A\x07');
-					commandFinishedEmitter.fire({ exitCode: 0, getOutput: () => '' });
+					commandFinishedEmitter.fire({ exitCode: 0, getOutput: () => terminalCommandOutput });
 				});
 			},
 			focus: () => { },
@@ -313,6 +319,163 @@ suite('RunInTerminalTool', () => {
 	function clearAutoApproveWarningAcceptedState() {
 		storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
 	}
+
+	suite('image extraction limits', () => {
+		const cwd = URI.from({ scheme: Schemas.inMemory, path: '/images' });
+		let provider: InMemoryFileSystemProvider;
+
+		setup(async () => {
+			provider = store.add(new InMemoryFileSystemProvider());
+			store.add(fileService.registerProvider(Schemas.inMemory, provider));
+			await fileService.createFolder(cwd);
+		});
+
+		teardown(() => restore());
+
+		async function extract(sizes: number[]) {
+			for (const [index, size] of sizes.entries()) {
+				await fileService.writeFile(URI.joinPath(cwd, `${index}.png`), VSBuffer.alloc(size));
+			}
+			const result = await runInTerminalTool['_extractImagesFromOutput'](sizes.map((_, index) => `./${index}.png`).join('\n'), cwd);
+			return {
+				images: result.images.map(part => part.value.data.byteLength),
+				notices: result.notice ? 1 : 0,
+			};
+		}
+
+		test('caps the aggregate file bytes at 5 MiB', async () => {
+			deepStrictEqual(await extract([3 * 1024 * 1024, 3 * 1024 * 1024]), {
+				images: [3 * 1024 * 1024],
+				notices: 1,
+			});
+		});
+
+		test('caps the number of images at ten', async () => {
+			deepStrictEqual(await extract(Array(12).fill(1)), { images: Array(10).fill(1), notices: 1 });
+		});
+
+		test('keeps the image omission notice in the UI message and out of model content', async () => {
+			runInTerminalTool.disableProcessIdAssociation();
+			await extract(Array(11).fill(1));
+			terminalCommandOutput = Array.from({ length: 11 }, (_, index) => `./${index}.png`).join('\n');
+			stub(createdTerminalInstance, 'getCwdResource').resolves(cwd);
+
+			const result = await invokeToolTest({ command: 'echo images', isBackground: false });
+			createdTerminalInstance.dispose();
+			const message = typeof result.toolResultMessage === 'string' ? result.toolResultMessage : result.toolResultMessage?.value;
+			deepStrictEqual({
+				text: result.content.filter(part => part.kind === 'text').map(part => part.value),
+				images: result.content.filter(part => part.kind === 'data').map(part => part.value.data.byteLength),
+				notice: message?.includes('Additional image previews were omitted.'),
+			}, {
+				text: [terminalCommandOutput],
+				images: Array(10).fill(1),
+				notice: true,
+			});
+		});
+
+		test('accepts exactly 5 MiB and reports an additional image', async () => {
+			deepStrictEqual(await extract([5 * 1024 * 1024, 1]), { images: [5 * 1024 * 1024], notices: 1 });
+		});
+
+		test('preserves images within both limits without a notice', async () => {
+			deepStrictEqual(await extract([2 * 1024 * 1024, 3 * 1024 * 1024]), {
+				images: [2 * 1024 * 1024, 3 * 1024 * 1024],
+				notices: 0,
+			});
+		});
+
+		test('preserves exactly ten images without a notice', async () => {
+			deepStrictEqual(await extract(Array(10).fill(1)), { images: Array(10).fill(1), notices: 0 });
+		});
+
+		test('does not read images beyond the remaining budget', async () => {
+			const reads = spy(fileService, 'readFileStream');
+			const unbufferedReads = spy(provider, 'readFile');
+			const opens = spy(provider, 'open');
+			const result = await extract([3 * 1024 * 1024, 3 * 1024 * 1024]);
+			deepStrictEqual({ result, reads: reads.callCount, options: reads.firstCall.args[1], unbufferedReads: unbufferedReads.callCount, opens: opens.callCount }, {
+				result: { images: [3 * 1024 * 1024], notices: 1 },
+				reads: 1,
+				options: { limits: { size: 5 * 1024 * 1024 } },
+				unbufferedReads: 0,
+				opens: 1,
+			});
+		});
+
+		test('preserves a non-chunk-aligned image immediately below the byte limit', async () => {
+			const data = VSBuffer.alloc(5 * 1024 * 1024 - 1);
+			data.buffer.fill(127);
+			await fileService.writeFile(URI.joinPath(cwd, 'image.png'), data);
+			const result = await runInTerminalTool['_extractImagesFromOutput']('./image.png', cwd);
+			deepStrictEqual(result, {
+				images: [{ kind: 'data', value: { mimeType: 'image/png', data }, audience: [LanguageModelPartAudience.User] }],
+				notice: undefined,
+			});
+		});
+
+		test('does not report missing paths after exactly ten images as omitted previews', async () => {
+			await extract(Array(10).fill(1));
+			const result = await runInTerminalTool['_extractImagesFromOutput'](
+				[...Array.from({ length: 10 }, (_, index) => `./${index}.png`), './missing.png'].join('\n'), cwd);
+			deepStrictEqual({ kinds: result.images.map(part => part.kind), notice: result.notice }, { kinds: Array(10).fill('data'), notice: undefined });
+		});
+
+		test('preserves bytes, mime type, user audience and deduplication', async () => {
+			const data = VSBuffer.fromString('synthetic image bytes');
+			await fileService.writeFile(URI.joinPath(cwd, 'image.PNG'), data);
+			const result = await runInTerminalTool['_extractImagesFromOutput']('./image.PNG\n./image.PNG', cwd);
+			deepStrictEqual(result, {
+				images: [{ kind: 'data', value: { mimeType: 'image/png', data }, audience: [LanguageModelPartAudience.User] }],
+				notice: undefined,
+			});
+		});
+
+		test('skips missing paths and oversized files without blocking later small images', async () => {
+			await fileService.writeFile(URI.joinPath(cwd, 'large.png'), VSBuffer.alloc(5 * 1024 * 1024 + 1));
+			const data = VSBuffer.fromString('small');
+			await fileService.writeFile(URI.joinPath(cwd, 'small.png'), data);
+			const result = await runInTerminalTool['_extractImagesFromOutput']('./missing.png\n./large.png\n./small.png', cwd);
+			deepStrictEqual(result, {
+				images: [{ kind: 'data', value: { mimeType: 'image/png', data }, audience: [LanguageModelPartAudience.User] }],
+				notice: undefined,
+			});
+		});
+
+		test('preserves the long-line regex guard and non-image output', async () => {
+			const reads = spy(fileService, 'readFileStream');
+			const result = await runInTerminalTool['_extractImagesFromOutput'](`${'a/'.repeat(6000)}image.png\nordinary text\n./file.txt`, cwd);
+			deepStrictEqual({ result, reads: reads.callCount }, { result: { images: [], notice: undefined }, reads: 0 });
+		});
+
+		test('reports a file that exceeds the read limit after stat', async () => {
+			await fileService.writeFile(URI.joinPath(cwd, 'image.png'), VSBuffer.alloc(1));
+			stub(fileService, 'readFileStream').rejects(new FileOperationError('File grew', FileOperationResult.FILE_TOO_LARGE));
+			const result = await runInTerminalTool['_extractImagesFromOutput']('./image.png', cwd);
+			deepStrictEqual({ images: result.images, notice: !!result.notice }, { images: [], notice: true });
+		});
+
+		test('does not attach data returned beyond the read limit', async () => {
+			const uri = URI.joinPath(cwd, 'image.png');
+			await fileService.writeFile(uri, VSBuffer.alloc(1));
+			const file = await fileService.readFile(uri);
+			stub(fileService, 'readFileStream').resolves({ ...file, value: bufferToStream(VSBuffer.alloc(5 * 1024 * 1024 + 1)) });
+			const result = await runInTerminalTool['_extractImagesFromOutput']('./image.png', cwd);
+			deepStrictEqual({ images: result.images, notice: !!result.notice }, { images: [], notice: true });
+		});
+
+		test('propagates cancellation during the final image read', async () => {
+			const uri = URI.joinPath(cwd, 'image.png');
+			await fileService.writeFile(uri, VSBuffer.alloc(1));
+			const file = await fileService.readFile(uri);
+			const cancellation = store.add(new CancellationTokenSource());
+			stub(fileService, 'readFileStream').callsFake(async () => {
+				cancellation.cancel();
+				return { ...file, value: bufferToStream(file.value) };
+			});
+			await rejects(runInTerminalTool['_extractImagesFromOutput']('./image.png', cwd, cancellation.token), CancellationError);
+		});
+	});
 
 	/**
 	 * Executes a test scenario for the RunInTerminalTool
