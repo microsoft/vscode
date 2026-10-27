@@ -26,7 +26,7 @@ import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../.
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { copilotConnectorsScope } from '../../../../../../platform/github/common/connectors/connectors.js';
+import { copilotConnectorsScope, copilotCredentialBaselineScopes } from '../../../../../../platform/github/common/connectors/connectors.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -929,18 +929,19 @@ async function resolveSessionForProtectedResource(
 		requiredScopes.every(scope => session.scopes.includes(scope)));
 	// The forwarded credential is also used for GitHub requests beyond Copilot (for example, the GitHub MCP server),
 	// so a Connector-scoped session must never replace it with fewer scopes. The baseline is the credential the
-	// account would use without Connector authorization.
+	// account would use without Connector authorization; Connector authorization keeps the same baseline's scopes.
 	const isConnectorScoped = (session: AuthenticationSession) => session.scopes.includes(copilotConnectorsScope);
-	const baseline = isConnectorScoped(resolution.session)
+	const baselineScopes = copilotCredentialBaselineScopes(candidates, requiredScopes) ?? resolution.session.scopes;
+	const fallback = isConnectorScoped(resolution.session)
 		? selectFewestScopes(candidates.filter(session => !isConnectorScoped(session))) ?? resolution.session
 		: resolution.session;
-	const retainsBaseline = (session: AuthenticationSession) => baseline.scopes.every(scope => session.scopes.includes(scope));
+	const retainsBaseline = (session: AuthenticationSession) => baselineScopes.every(scope => session.scopes.includes(scope));
 	const preferred = isConnectorScoped(resolution.session) && retainsBaseline(resolution.session)
 		? resolution.session
 		: options.preferConnectorScopedSession
-			? selectFewestScopes(candidates.filter(session => isConnectorScoped(session) && retainsBaseline(session))) ?? baseline
-			: baseline;
-	if (preferred === baseline && baseline !== resolution.session) {
+			? selectFewestScopes(candidates.filter(session => isConnectorScoped(session) && retainsBaseline(session))) ?? fallback
+			: fallback;
+	if (preferred === fallback && fallback !== resolution.session) {
 		logService.info(`${options.logPrefix} Forwarding the account's GitHub credential instead of a Copilot Connector session that lacks some of its scopes`);
 	}
 	return preferred === resolution.session ? resolution : {

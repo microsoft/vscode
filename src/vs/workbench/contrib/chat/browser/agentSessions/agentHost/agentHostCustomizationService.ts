@@ -30,8 +30,6 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ILogger, ILoggerService, ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { CopilotConnectorsError, ICopilotConnectorsService } from '../../aiCustomization/copilotConnectorsService.js';
@@ -739,8 +737,6 @@ class AgentHostCopilotConnectorAuthorization {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ICommandService private readonly _commandService: ICommandService,
 	) { }
 
 	/**
@@ -754,7 +750,7 @@ class AgentHostCopilotConnectorAuthorization {
 		} catch (error) {
 			if (isCancellationError(error)) {
 				status(localize('agentHost.mcpAuthenticationCancelled', "Authentication for {0} was cancelled.", label));
-				this._reportCancelledAuthorization(label);
+				this._logService.info(`[AgentHost] Copilot Connector authorization for ${label} was cancelled`);
 			} else {
 				this._logService.warn(`[AgentHost] Copilot Connector authorization for ${label} failed`, error);
 				this._notificationService.notify({
@@ -773,22 +769,6 @@ class AgentHostCopilotConnectorAuthorization {
 			this._logService.warn(`[AgentHost] Failed to forward the Copilot credential after authorizing connectors for ${label}`, error);
 		}
 		return true;
-	}
-
-	private _reportCancelledAuthorization(label: string): void {
-		if (this._configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true) {
-			this._logService.info(`[AgentHost] Copilot Connector authorization for ${label} was cancelled`);
-			return;
-		}
-		this._logService.warn(`[AgentHost] Cannot authorize Copilot Connectors for ${label}: the ${CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled} setting is disabled`);
-		this._notificationService.prompt(
-			Severity.Warning,
-			localize('agentHost.mcpConnectorsDisabled', "{0} requires Copilot connectors, which are turned off. Enable Copilot connectors in settings, then sign in again.", label),
-			[{
-				label: localize('agentHost.mcpConnectorsDisabled.openSettings', "Open Settings"),
-				run: () => this._commandService.executeCommand('workbench.action.openSettings', `@id:${CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled}`),
-			}],
-		);
 	}
 
 	async refresh(connectorName: string | undefined): Promise<void> {

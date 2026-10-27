@@ -30,9 +30,8 @@ import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, Severity } from '../../../../../../platform/notification/common/notification.js';
+import { INotification, INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -844,7 +843,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 			id: 'connector-session', accessToken: 'connector-token', scopes: ['read:user', 'user:email', 'write:plugin_gateway_connections'], account: { id: 'test-account', label: 'Test Account' },
 		};
 
-		function createConnectorSut(onRefresh: (sut: TestAgentHostCustomizationService) => Promise<void> | void, options: { readonly authorizationError?: Error; readonly connectorsEnabled?: boolean; readonly authenticationSessions?: AuthenticationSession[] } = {}) {
+		function createConnectorSut(onRefresh: (sut: TestAgentHostCustomizationService) => Promise<void> | void, options: { readonly authorizationError?: Error; readonly authenticationSessions?: AuthenticationSession[] } = {}) {
 			const operations: string[] = [];
 			const notifications: string[] = [];
 			const logs: string[] = [];
@@ -852,16 +851,9 @@ suite('AbstractAgentHostCustomizationService', () => {
 				authenticationSessions: options.authenticationSessions ?? [fullScopeSession],
 				logService: new RecordingLogService(logs),
 				configure: instantiationService => {
-					instantiationService.stub(IConfigurationService, new TestConfigurationService({
-						[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: options.connectorsEnabled ?? true,
-					}));
 					instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 						override notify(notification: INotification): INotificationHandle {
 							notifications.push(`${notification.severity}:${notification.message}`);
-							return new class extends mock<INotificationHandle>() { }();
-						}
-						override prompt(severity: Severity, message: string, choices: IPromptChoice[]): INotificationHandle {
-							notifications.push(`${severity}:${message} [${choices.map(choice => choice.label).join(', ')}]`);
 							return new class extends mock<INotificationHandle>() { }();
 						}
 					}());
@@ -1003,26 +995,22 @@ suite('AbstractAgentHostCustomizationService', () => {
 			});
 		});
 
-		for (const connectorsEnabled of [true, false]) {
-			test(`explains a cancelled Connector authorization (Copilot connectors enabled: ${connectorsEnabled})`, async () => {
-				const meta = withMcpServerConnectorNameMeta(withMcpServerDisplayNameMeta(undefined, 'Work IQ'), 'workiqmcp');
-				const session = URI.parse('vscode-agent-session:///session-1');
-				const target = new FakeTarget([connectorAuthRequired(meta)]);
-				const { sut, operations, notifications, logs } = createConnectorSut(() => { }, { authorizationError: new CancellationError(), connectorsEnabled });
-				sut.setTarget(session, target);
+		test('logs a cancelled Connector authorization without notifying', async () => {
+			const meta = withMcpServerConnectorNameMeta(withMcpServerDisplayNameMeta(undefined, 'Work IQ'), 'workiqmcp');
+			const session = URI.parse('vscode-agent-session:///session-1');
+			const target = new FakeTarget([connectorAuthRequired(meta)]);
+			const { sut, operations, notifications, logs } = createConnectorSut(() => { }, { authorizationError: new CancellationError() });
+			sut.setTarget(session, target);
 
-				const result = await sut.authenticateMcpServer(session, 'workiq');
-				assert.deepStrictEqual({ result, operations, tokens: target.authenticateCalls, notifications, logs }, {
-					result: false,
-					operations: ['authorize'],
-					tokens: [],
-					notifications: connectorsEnabled ? [] : [`${Severity.Warning}:Work IQ (Connector) requires Copilot connectors, which are turned off. Enable Copilot connectors in settings, then sign in again. [Open Settings]`],
-					logs: [connectorsEnabled
-						? 'info:[AgentHost] Copilot Connector authorization for Work IQ (Connector) was cancelled'
-						: `warn:[AgentHost] Cannot authorize Copilot Connectors for Work IQ (Connector): the ${CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled} setting is disabled`],
-				});
+			const result = await sut.authenticateMcpServer(session, 'workiq');
+			assert.deepStrictEqual({ result, operations, tokens: target.authenticateCalls, notifications, logs }, {
+				result: false,
+				operations: ['authorize'],
+				tokens: [],
+				notifications: [],
+				logs: ['info:[AgentHost] Copilot Connector authorization for Work IQ (Connector) was cancelled'],
 			});
-		}
+		});
 	});
 
 	for (const stage of ['start', 'resource discovery', 'authorization metadata', 'provider creation', 'session lookup', 'session creation', 'token forwarding']) {

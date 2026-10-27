@@ -2573,6 +2573,50 @@ suite('authenticateProtectedResources', () => {
 		});
 	});
 
+	test('forwards the Connector session that Connector authorization creates for a narrow default session', async () => {
+		// Mirrors a narrow default session (`user:email`) whose earlier Connector authorization produced a session without
+		// `repo`. That session is never forwarded; the session a new authorization requests (every scope of the equally
+		// narrow Copilot credentials plus the Connector scope) is.
+		const account = { id: 'active-account', label: 'Active' };
+		const defaultSession: AuthenticationSession = { id: 'default', accessToken: 'default-token', account, scopes: ['user:email'] };
+		const copilot: AuthenticationSession = { id: 'copilot', accessToken: 'copilot-token', account, scopes: ['read:user', 'user:email', 'repo', 'workflow'] };
+		const codespace: AuthenticationSession = { id: 'codespace', accessToken: 'codespace-token', account, scopes: ['codespace', 'read:user', 'repo', 'user:email'] };
+		const narrowConnector: AuthenticationSession = { id: 'narrow-connector', accessToken: 'narrow-connector-token', account, scopes: ['user:email', 'read:user', 'write:plugin_gateway_connections'] };
+		const authorizedConnector: AuthenticationSession = { id: 'authorized-connector', accessToken: 'authorized-connector-token', account, scopes: ['user:email', 'read:user', 'repo', 'workflow', 'codespace', 'write:plugin_gateway_connections'] };
+		const forward = async (sessions: readonly AuthenticationSession[]) => {
+			const authService = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: async () => sessions,
+			});
+			const instantiationService = createAuthInstantiationService(disposables, authService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+			}));
+			instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+				override readonly currentDefaultAccount = {
+					sessionId: defaultSession.id, accountName: account.label, enterprise: false,
+					authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				};
+			}());
+			const agents = [new class extends mock<AgentInfo>() {
+				override readonly protectedResources = [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], scopes_supported: ['read:user', 'user:email'] }];
+			}()];
+			const tokens: string[] = [];
+			await instantiationService.invokeFunction(authenticateProtectedResources, agents, {
+				logPrefix: '[AgentHost]',
+				authenticate: async request => { tokens.push(request.token); },
+			});
+			return tokens;
+		};
+		assert.deepStrictEqual({
+			beforeAuthorization: await forward([defaultSession, copilot, codespace, narrowConnector]),
+			afterAuthorization: await forward([defaultSession, copilot, codespace, narrowConnector, authorizedConnector]),
+		}, {
+			beforeAuthorization: ['copilot-token'],
+			afterAuthorization: ['authorized-connector-token'],
+		});
+	});
+
 	test('Copilot Connector credential stays on the authorized account when another account is returned first', async () => {
 		const scopes = ['read:user', 'user:email'];
 		const account = { id: 'active-account', label: 'Active' };

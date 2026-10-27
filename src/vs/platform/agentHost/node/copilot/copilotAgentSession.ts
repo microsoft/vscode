@@ -593,6 +593,8 @@ const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
 const CONNECTOR_REFRESH_TIMEOUT_MS = 60_000;
+/** Bounds the Connector status read that classifies a server published Connector state does not know, so a token never waits on it for long. */
+const CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS = 10_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
 /** The longest a `tasks.readOutput` call may wait for a detached shell to write more output. */
 const DETACHED_SHELL_OUTPUT_WAIT_MS = 30_000;
@@ -708,6 +710,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly controlPlaneRpcTimeoutMs?: number;
 	/** Bounds one Connector reconciliation attempt; a timed-out request remains pending. */
 	readonly connectorRefreshTimeoutMs?: number;
+	/** Bounds the Connector status read that classifies a server published Connector state does not know. */
+	readonly connectorOwnershipLookupTimeoutMs?: number;
 	/** Requests a later attempt after an abandoned Connector RPC settles. */
 	readonly onConnectorRefreshRetryable?: (session: CopilotAgentSession) => void;
 	/** Live canvases handed over by the runtime this session replaces during a configuration refresh. */
@@ -1889,6 +1893,7 @@ export class CopilotAgentSession extends Disposable {
 	private _outstandingConnectorReconcile: Promise<void> | undefined;
 	private _retryAfterConnectorReconcile = false;
 	private readonly _connectorRefreshTimeoutMs: number;
+	private readonly _connectorOwnershipLookupTimeoutMs: number;
 	private readonly _onConnectorRefreshRetryable: (session: CopilotAgentSession) => void;
 	private _mcpServerControlOperations = 0;
 	private readonly _copilotConnectorServers = new Map<string, ICopilotConnectorServer>();
@@ -2113,6 +2118,7 @@ export class CopilotAgentSession extends Disposable {
 		this.launchOwner = options.owner.get();
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
 		this._connectorRefreshTimeoutMs = options.connectorRefreshTimeoutMs ?? CONNECTOR_REFRESH_TIMEOUT_MS;
+		this._connectorOwnershipLookupTimeoutMs = options.connectorOwnershipLookupTimeoutMs ?? CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS;
 		this._onConnectorRefreshRetryable = options.onConnectorRefreshRetryable ?? (() => { });
 		this.resourceUri = options.resource ?? this.launchOwner;
 		this._chatChannelUri = options.chatChannelUri;
@@ -5265,7 +5271,7 @@ export class CopilotAgentSession extends Disposable {
 		const publishedGeneration = this._copilotConnectorServersGeneration;
 		let connectorServers: ICopilotConnectorServers;
 		try {
-			const status = await raceTimeout(wrapper.session.rpc.connectors.getStatus(), this._controlPlaneRpcTimeoutMs);
+			const status = await raceTimeout(wrapper.session.rpc.connectors.getStatus(), this._connectorOwnershipLookupTimeoutMs);
 			if (!status) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Timed out reading Connector state for MCP server '${serverName}'; treating it as not Connector-owned`);
 				return false;
@@ -5310,7 +5316,9 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 			if (pending.ownershipResolved) {
-				await pending.ownershipResolved;
+				// Stop waiting as soon as the request itself settles (Stop, cancellation, dispose).
+				const settled = pending.completion?.then(() => undefined, () => undefined);
+				await (settled ? Promise.race([pending.ownershipResolved, settled]) : pending.ownershipResolved);
 				if (this._pendingMcpAuthRequests.getMetadata(requestId) !== pending) {
 					continue;
 				}
@@ -5417,7 +5425,8 @@ export class CopilotAgentSession extends Disposable {
 		};
 		const result = this._pendingMcpAuthRequests.register(request.requestId, pending);
 		pending.completion = result;
-		if (!copilotConnector) {
+		if (!copilotConnector && this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true) {
+			// Without Copilot Connectors no server is Connector-owned, so only ask the runtime when they are enabled.
 			pending.ownershipResolved = this._classifyPendingMcpAuthRequest(request.requestId, pending);
 		}
 		this._lastMcpAuthRequirements.set(request.serverName, {
