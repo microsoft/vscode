@@ -25,6 +25,7 @@ import { derived, derivedOpts, IObservable } from '../../../../base/common/obser
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { ApiRequestOptions } from '../../../../platform/github/common/client/request.js';
@@ -42,9 +43,19 @@ export function isGitHubReferenceSupported(uri: URI, enterpriseHost: string | un
 	return uri.scheme === 'https' && uri.authority.toLowerCase() === (enterpriseHost ?? 'github.com').toLowerCase();
 }
 
+/** Observable pull request models for one session. */
+export interface IGitHubSessionPullRequestObservables {
+	readonly pullRequestObs: IObservable<GitHubPullRequestModel | undefined>;
+	readonly pullRequestCIObs: IObservable<GitHubPullRequestCIModel | undefined>;
+	readonly pullRequestReviewThreadsObs: IObservable<GitHubPullRequestReviewThreadsModel | undefined>;
+}
+
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
 	readonly enterpriseHost: string | undefined;
+
+	/** Creates the pull request observables for the given session; the `activeSession*` observables are this over the active session. */
+	getSessionPullRequest(sessionObs: IObservable<IActiveSession | undefined>): IGitHubSessionPullRequestObservables;
 
 	activeSessionPullRequestObs: IObservable<GitHubPullRequestModel | undefined>;
 	activeSessionPullRequestCIObs: IObservable<GitHubPullRequestCIModel | undefined>;
@@ -170,9 +181,18 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._issueReferences = this._register(instantiationService.createInstance(GitHubIssueModelReferenceCollection, apiClient));
 		this._register(apiClient.onDidChange(() => this._findPRByBranchCache.clear()));
 
+		// The session the main window shows, whose Changes view, checks and details these feed, also while another window,
+		// with a session of its own, has focus.
+		const active = this.getSessionPullRequest(sessionsService.mainWindowActiveSession);
+		this.activeSessionPullRequestObs = active.pullRequestObs;
+		this.activeSessionPullRequestCIObs = active.pullRequestCIObs;
+		this.activeSessionPullRequestReviewThreadsObs = active.pullRequestReviewThreadsObs;
+	}
+
+	getSessionPullRequest(sessionObs: IObservable<IActiveSession | undefined>): IGitHubSessionPullRequestObservables {
 		const gitHubInfoObs = derivedOpts<{ owner: string; repo: string; pullRequestNumber: number } | undefined>({ equalsFn: structuralEquals },
 			reader => {
-				const gitHubInfo = sessionsService.activeSession.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+				const gitHubInfo = sessionObs.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 
 				if (!gitHubInfo?.pullRequest || !isGitHubReferenceSupported(gitHubInfo.pullRequest.uri, this.enterpriseHost)) {
 					return undefined;
@@ -185,7 +205,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 				};
 			});
 
-		this.activeSessionPullRequestObs = derived(reader => {
+		const pullRequestObs = derived(reader => {
 			const gitHubInfo = gitHubInfoObs.read(reader);
 			if (!gitHubInfo) {
 				return undefined;
@@ -199,7 +219,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 		const pullRequestInfoObs = derivedOpts<{ owner: string; repo: string; prNumber: number; headSha: string } | undefined>({ equalsFn: structuralEquals },
 			reader => {
-				const pullRequest = this.activeSessionPullRequestObs.read(reader);
+				const pullRequest = pullRequestObs.read(reader);
 				const pullRequestDetails = pullRequest?.pullRequest.read(reader);
 
 				if (!pullRequest || !pullRequestDetails) {
@@ -214,7 +234,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 				};
 			});
 
-		this.activeSessionPullRequestCIObs = derived(reader => {
+		const pullRequestCIObs = derived(reader => {
 			const pullRequestInfo = pullRequestInfoObs.read(reader);
 			if (!pullRequestInfo) {
 				return undefined;
@@ -226,7 +246,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 			return prModelRef.object;
 		});
 
-		this.activeSessionPullRequestReviewThreadsObs = derived(reader => {
+		const pullRequestReviewThreadsObs = derived(reader => {
 			const gitHubInfo = gitHubInfoObs.read(reader);
 			if (!gitHubInfo) {
 				return undefined;
@@ -237,6 +257,8 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 			return reviewThreadsModelRef.object;
 		});
+
+		return { pullRequestObs, pullRequestCIObs, pullRequestReviewThreadsObs };
 	}
 
 	authenticateForRepositoryAccess(token: CancellationToken): Promise<void> {

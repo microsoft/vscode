@@ -19,6 +19,9 @@ import { IEditorService, PreferredGroup } from '../../../../workbench/services/e
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { findSessionByResource } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../common/sessionChangesService.js';
 import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
@@ -30,6 +33,8 @@ const CHANGES_MULTI_DIFF_SOURCE_SCHEME = 'changes-multi-diff-source';
 
 interface IChangesMultiDiffUriFields {
 	readonly sessionResource: string;
+	/** The chat of an editor that shows the changes of one chat only. */
+	readonly chatResource?: string;
 }
 
 export class SessionChangesService extends Disposable implements ISessionChangesService {
@@ -47,7 +52,9 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IDecorationsService decorationsService: IDecorationsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -94,14 +101,27 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		}));
 	}
 
-	getChangesEditorResource(sessionResource: URI): URI {
+	getChangesEditorResource(sessionResource: URI, chatResource?: URI): URI {
+		const fields: IChangesMultiDiffUriFields = chatResource
+			? { sessionResource: sessionResource.toString(), chatResource: chatResource.toString() }
+			: { sessionResource: sessionResource.toString() };
 		return URI.from({
 			scheme: CHANGES_MULTI_DIFF_SOURCE_SCHEME,
-			query: JSON.stringify({ sessionResource: sessionResource.toString() } satisfies IChangesMultiDiffUriFields),
+			query: JSON.stringify(fields),
 		});
 	}
 
 	getSessionResource(editorResource: URI): URI | undefined {
+		const sessionResource = this._parseFields(editorResource)?.sessionResource;
+		return sessionResource !== undefined ? URI.parse(sessionResource) : undefined;
+	}
+
+	getChatResource(editorResource: URI): URI | undefined {
+		const chatResource = this._parseFields(editorResource)?.chatResource;
+		return typeof chatResource === 'string' ? URI.parse(chatResource) : undefined;
+	}
+
+	private _parseFields(editorResource: URI): IChangesMultiDiffUriFields | undefined {
 		if (editorResource.scheme !== CHANGES_MULTI_DIFF_SOURCE_SCHEME) {
 			return undefined;
 		}
@@ -117,23 +137,27 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 			return undefined;
 		}
 
-		return URI.parse(fields.sessionResource);
+		return fields;
 	}
 
 	async openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions, group?: PreferredGroup): Promise<IEditorGroup | undefined> {
 		if (options?.changesetSelection) {
-			if (options.changesetSelection.kind === 'transient') {
-				this.changesViewService.showChangeset(options.changesetSelection.changeset, sessionResource);
+			// Select the changeset of the session the editor is opened for, which may not be the active one.
+			const session = findSessionByResource(this.sessionsService, sessionResource);
+			if (!session) {
+				this.logService.trace('[SessionChangesService] cannot select a changeset, the session is not shown', sessionResource.toString());
+			} else if (options.changesetSelection.kind === 'transient') {
+				this.changesViewService.showChangeset(options.changesetSelection.changeset, session);
 			} else {
-				this.changesViewService.setChangesetId(options.changesetSelection.id, sessionResource);
+				this.changesViewService.setChangesetId(options.changesetSelection.id, session);
 			}
 		}
 		let editorOptions: IMultiDiffEditorOptions | undefined;
 		if (options) {
-			const { changesetSelection: _, ...optionsWithoutSelection } = options;
+			const { changesetSelection: _, chatResource: __, ...optionsWithoutSelection } = options;
 			editorOptions = optionsWithoutSelection;
 		}
-		const multiDiffSource = this.getChangesEditorResource(sessionResource);
+		const multiDiffSource = this.getChangesEditorResource(sessionResource, options?.chatResource);
 
 		if (this.layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop) {
 			const input = this.instantiationService.createInstance(SessionChangesEditorInput, multiDiffSource);

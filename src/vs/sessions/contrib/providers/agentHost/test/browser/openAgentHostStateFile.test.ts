@@ -27,7 +27,7 @@ import { IActiveSession } from '../../../../../services/sessions/common/sessions
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IsAgentHostSession } from '../../browser/agentHostSkillButtons.js';
+import { IsAgentHostSession } from '../../../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { OpenAgentHostStateFileAction } from '../../browser/openAgentHostStateFileAction.js';
 
 suite('Open Agent Host State File', () => {
