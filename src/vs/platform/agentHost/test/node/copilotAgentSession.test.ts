@@ -26218,6 +26218,262 @@ Use the attached image as context.
 			mcpServers: {},
 		};
 
+		const workIqConnectors: ICopilotConnectorServers = {
+			servers: new Map([['connector-workiq', { connectorName: 'workiqmcp', displayName: 'Work IQ' }]]),
+			authorizationRequired: true,
+		};
+
+		async function createConnectorRoutingSession(options: { routingEnabled?: boolean; serverEnabled?: boolean; reconcile?: Promise<ICopilotConnectorServers | undefined> } = {}) {
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('tool-search-client', globalMcpRoutingSnapshot.tools);
+			const created = await createAgentSession(disposables, {
+				clientSnapshot: globalMcpRoutingSnapshot,
+				activeClientToolSet,
+				modelId: 'claude-opus-4.8',
+				rootValues: {
+					[CopilotCliConfigKey.ToolSearchEnabled]: true,
+					[AgentHostMcpToolRoutingEnabledConfigKey]: options.routingEnabled !== false,
+					[AgentHostMcpConnectorsEnabledConfigKey]: true,
+				},
+				...(options.serverEnabled === false ? {
+					resolveCustomizationEnablement: () => ({
+						kind: 'resolved' as const,
+						enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+						enabled: false,
+						workingDirectory: { kind: 'workspaceless' as const },
+					}),
+				} : {}),
+				configureMockSession: mock => {
+					mock.connectorStatus = {
+						...mock.connectorStatus,
+						catalog: { revision: 1, refreshedAtMs: 1, connectors: [{ name: 'workiqmcp', displayName: 'Work IQ', status: 'connected', runtimeServerIds: ['connector-workiq'] }] },
+						authorizationRequirement: { accountId: 'session-account', scope: 'write_plugin_gateway_connections' },
+						runtimeServers: [{ connectorName: 'workiqmcp', runtimeServerId: 'connector-workiq', status: 'needs_auth' }],
+					};
+					mock.mcpListResult = { servers: [{ name: 'connector-workiq', status: options.serverEnabled === false ? 'disabled' : 'needs-auth', source: 'managed', url: 'https://connectors.example.com/workiq/mcp' }] };
+					mock.mcpListToolsResult = { tools: [{ name: 'current_search', description: 'Search current Work IQ documents' }] };
+				},
+				duringLaunch: runtime => {
+					runtime.createClientSdkTools(true);
+					runtime.configureClientTools!(clientToolConfiguration(true));
+					runtime.adoptLaunchConnectorReconcile(options.reconcile ?? Promise.resolve(workIqConnectors));
+				},
+			});
+			if (!options.reconcile) {
+				await created.session.refreshConnectors();
+				for (const action of getActions(created.signals)) {
+					if (action.type === ActionType.SessionMetaChanged) {
+						created.dispatchSessionAction(action);
+					}
+				}
+			}
+			return created;
+		}
+
+		test('MCP routing registers searchable deferred Connector proxies after asynchronous launch discovery', async () => {
+			const reconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
+			const { session, mockSession, signals, waitForSignal } = await createConnectorRoutingSession({ reconcile: reconcile.p });
+			assert.strictEqual(mockSession.setToolsCalls.length, 0);
+			await reconcile.complete(workIqConnectors);
+			await session.refreshConnectors();
+			const [search, proxy] = mockSession.setToolsCalls.at(-1)!;
+			session.resetTurnState('connector-tool-search');
+			mockSession.fire('tool.execution_start', { toolCallId: 'find-workiq', toolName: search.name, arguments: { query: 'Work IQ Connector' } });
+			const resultPromise = invokeClientToolHandler(search, 'find-workiq', { query: 'Work IQ Connector' }, [{
+				name: proxy.name, description: proxy.description!, deferLoading: true,
+			}]);
+			const readySignal = await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallReady));
+			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
+			session.handleClientToolCallComplete('find-workiq', {
+				success: true,
+				pastTenseMessage: 'Searched tools',
+				content: [{ type: ToolResultContentType.Text, text: JSON.stringify([proxy.name]) }],
+			});
+			const result = await resultPromise;
+			assert.deepStrictEqual({
+				nameIsRecognizable: proxy.name.startsWith('mcp_route_work_iq_connector_'),
+				descriptionNamesConnector: proxy.description?.includes('"Work IQ (Connector)"'),
+				defer: proxy.defer,
+				candidates: readToolCallMeta(readySignal.action as ChatToolCallReadyAction).toolSearchCandidates,
+				references: result.toolReferences,
+				routedServers: getActions(signals).flatMap(action => action.type === ActionType.SessionMetaChanged ? [...readMcpRoutingServers(action, session.chatChannelUri.toString())] : []),
+				authPrompts: getActions(signals).filter(action => action.type === ActionType.ChatToolCallAuthRequired),
+				starts: mockSession.mcpStartServerCalls,
+				discovery: mockSession.mcpListToolsCalls,
+			}, {
+				nameIsRecognizable: true,
+				descriptionNamesConnector: true,
+				defer: 'auto',
+				candidates: [{ name: proxy.name, description: proxy.description }],
+				references: [proxy.name],
+				routedServers: ['connector-workiq'],
+				authPrompts: [],
+				starts: [],
+				discovery: [],
+			});
+		});
+
+		for (const timing of ['statusOnly', 'statusWhileStarting', 'sdkCallback'] as const) {
+			test(`MCP routing requests Connector authorization only on selection (${timing})`, async () => {
+				const { session, runtime, mockSession, signals, waitForSignal } = await createConnectorRoutingSession();
+				let authentication: ReturnType<typeof runtime.handleMcpAuthRequest> | undefined;
+				if (timing === 'sdkCallback') {
+					authentication = runtime.handleMcpAuthRequest({
+						requestId: 'connector-auth',
+						serverName: 'connector-workiq',
+						serverUrl: 'https://connectors.example.com/workiq/mcp',
+						reason: 'upscope',
+						wwwAuthenticateParams: { scope: 'write:plugin_gateway_connections' },
+					}, { sessionId: 'test-session-1' });
+					await timeout(0);
+				}
+				if (timing === 'statusWhileStarting') {
+					mockSession.mcpListResult = { servers: [{ name: 'connector-workiq', status: 'pending', source: 'managed' }] };
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'connector-workiq', status: 'pending' });
+				}
+				const [, proxy] = mockSession.setToolsCalls.at(-1)!;
+				session.resetTurnState('connector-route');
+				mockSession.fire('tool.execution_start', { toolCallId: 'connect-workiq', toolName: proxy.name, arguments: {} });
+				const activation = invokeClientToolHandler(proxy, 'connect-workiq');
+				if (timing === 'statusWhileStarting') {
+					await timeout(0);
+					mockSession.mcpListResult = { servers: [{ name: 'connector-workiq', status: 'needs-auth', source: 'managed', url: 'https://connectors.example.com/workiq/mcp' }] };
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'connector-workiq', status: 'needs-auth' });
+				}
+				await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallAuthRequired));
+				const acceptsMcpToken = await session.resolveMcpAuthentication({
+					resource: 'https://connectors.example.com/workiq/mcp', scopes: ['write:plugin_gateway_connections'], token: 'not-a-connector-credential',
+				});
+				session.handleClientToolCallComplete('connect-workiq', {
+					success: false, pastTenseMessage: 'Cancelled authentication', error: { message: 'Authentication cancelled', code: 'cancelled' },
+				});
+				const result = await activation;
+				await authentication;
+				const start = getActions(signals).find(action => action.type === ActionType.ChatToolCallStart);
+				const auth = getActions(signals).filter(action => action.type === ActionType.ChatToolCallAuthRequired);
+				assert.deepStrictEqual({
+					displayName: start?.type === ActionType.ChatToolCallStart ? start.displayName : undefined,
+					auth: auth.map(action => action.type === ActionType.ChatToolCallAuthRequired ? { toolCallId: action.toolCallId, scopes: action.auth.requiredScopes } : undefined),
+					acceptsMcpToken,
+					resultType: result.resultType,
+					starts: mockSession.mcpStartServerCalls,
+					discovery: mockSession.mcpListToolsCalls,
+				}, {
+					displayName: 'Connect to Work IQ (Connector)',
+					auth: [{ toolCallId: 'connect-workiq', scopes: ['write:plugin_gateway_connections'] }],
+					acceptsMcpToken: false,
+					resultType: 'failure',
+					starts: [],
+					discovery: [],
+				});
+			});
+		}
+
+		test('MCP routing orders client tool replacement after asynchronous Connector registration', async () => {
+			const reconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
+			const { session, mockSession } = await createConnectorRoutingSession({ reconcile: reconcile.p });
+			const update = session.updateClientTools([...globalMcpRoutingSnapshot.tools, { name: 'added' }]);
+			await reconcile.complete(workIqConnectors);
+			await update;
+			const proxyName = mockSession.setToolsCalls[0][1].name;
+			assert.deepStrictEqual(mockSession.setToolsCalls.map(tools => tools.map(tool => tool.name)), [
+				[RUNTIME_TOOL_SEARCH_TOOL_NAME, proxyName],
+				[RUNTIME_TOOL_SEARCH_TOOL_NAME, 'added', proxyName],
+			]);
+		});
+
+		test('MCP routing retries failed Connector tool registration without advertising an unaccepted proxy', async () => {
+			const reconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
+			const { session, mockSession, signals } = await createConnectorRoutingSession({ reconcile: reconcile.p });
+			mockSession.setToolsError = new Error('SDK rejected the replacement tools');
+			await reconcile.complete(workIqConnectors);
+			await session.refreshConnectors();
+			const advertisedAfterFailure = getActions(signals).filter(action => action.type === ActionType.SessionMetaChanged);
+			mockSession.setToolsError = undefined;
+			session.markConnectorConfigurationChanged();
+			await session.refreshConnectors();
+			const proxyName = mockSession.setToolsCalls.at(-1)![1].name;
+			assert.deepStrictEqual({
+				advertisedAfterFailure,
+				replacements: mockSession.setToolsCalls.map(tools => tools.map(tool => tool.name)),
+				advertisedAfterRetry: getActions(signals).flatMap(action => action.type === ActionType.SessionMetaChanged ? [...readMcpRoutingServers(action, session.chatChannelUri.toString())] : []),
+			}, {
+				advertisedAfterFailure: [],
+				replacements: [[RUNTIME_TOOL_SEARCH_TOOL_NAME, proxyName], [RUNTIME_TOOL_SEARCH_TOOL_NAME, proxyName]],
+				advertisedAfterRetry: ['connector-workiq'],
+			});
+		});
+
+		test('MCP routing discovers current Connector tools after account authorization without sharing account metadata in the cache', async () => {
+			const { session, mockSession, waitForSignal, storageService } = await createConnectorRoutingSession();
+			const [, proxy] = mockSession.setToolsCalls.at(-1)!;
+			session.resetTurnState('connector-authorize');
+			mockSession.fire('tool.execution_start', { toolCallId: 'authorize-workiq', toolName: proxy.name, arguments: {} });
+			const activation = invokeClientToolHandler(proxy, 'authorize-workiq');
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallAuthRequired));
+			session.markConnectorConfigurationChanged('workiqmcp');
+			assert.strictEqual((await activation).resultType, 'failure');
+			mockSession.fire('tool.execution_complete', { toolCallId: 'authorize-workiq', success: false });
+			mockSession.fire('session.idle', {});
+			mockSession.connectorStatus = { ...mockSession.connectorStatus, authorizationRequirement: undefined };
+			mockSession.mcpListResult = { servers: [{ name: 'connector-workiq', status: 'connected', toolsLoaded: true, source: 'managed' }] };
+			await session.refreshConnectors();
+			session.resetTurnState('connector-retry');
+			const result = await invokeClientToolHandler(proxy, 'retry-workiq');
+			assert.deepStrictEqual({
+				resultType: result.resultType,
+				liveTools: result.textResultForLlm,
+				queriedConnector: mockSession.mcpListToolsCalls.some(call => call.serverName === 'connector-workiq'),
+				cache: storageService.get<unknown>('copilotMcpToolRoutingCache'),
+			}, {
+				resultType: 'success',
+				liveTools: 'The Work IQ (Connector) MCP server is connected. Search tools again to use one of its current tools: ["current_search"]',
+				queriedConnector: true,
+				cache: undefined,
+			});
+		});
+
+		test('MCP routing removes Connector proxies on catalog refresh and rejects stale activation', async () => {
+			const { session, mockSession, signals } = await createConnectorRoutingSession();
+			const [, proxy] = mockSession.setToolsCalls.at(-1)!;
+			mockSession.connectorStatus = { ...mockSession.connectorStatus, runtimeServers: [] };
+			mockSession.mcpListResult = { servers: [] };
+			session.markConnectorConfigurationChanged();
+			await session.refreshConnectors();
+			session.resetTurnState('removed-connector');
+			const result = await invokeClientToolHandler(proxy, 'stale-connector');
+			assert.deepStrictEqual({
+				tools: mockSession.setToolsCalls.at(-1)!.map(tool => tool.name),
+				routedServers: getActions(signals).flatMap(action => action.type === ActionType.SessionMetaChanged ? [[...readMcpRoutingServers(action, session.chatChannelUri.toString())]] : []).at(-1),
+				resultType: result.resultType,
+				starts: mockSession.mcpStartServerCalls,
+			}, {
+				tools: [RUNTIME_TOOL_SEARCH_TOOL_NAME],
+				routedServers: [],
+				resultType: 'failure',
+				starts: [],
+			});
+		});
+
+		test('MCP routing does not activate disabled Connectors or register their proxies when routing is off', async () => {
+			const disabled = await createConnectorRoutingSession({ serverEnabled: false });
+			const [, proxy] = disabled.mockSession.setToolsCalls.at(-1)!;
+			disabled.session.resetTurnState('disabled-connector');
+			const result = await invokeClientToolHandler(proxy, 'disabled-workiq');
+			const routingOff = await createConnectorRoutingSession({ routingEnabled: false });
+			assert.deepStrictEqual({
+				disabledResult: result.resultType,
+				starts: disabled.mockSession.mcpStartServerCalls,
+				routingOffReplacements: routingOff.mockSession.setToolsCalls,
+				routingOffTools: routingOff.runtime.createClientSdkTools(true).map(tool => tool.name),
+			}, {
+				disabledResult: 'failure',
+				starts: [],
+				routingOffReplacements: [],
+				routingOffTools: [RUNTIME_TOOL_SEARCH_TOOL_NAME],
+			});
+		});
+
 		for (const resume of [false, true]) {
 			test(`MCP routing includes uncached SDK user servers before ${resume ? 'resuming' : 'creating'} the SDK session`, async () => {
 				const configuration = { type: 'http' as const, url: 'https://mcp.atlassian.example/mcp', tools: ['*'] };
