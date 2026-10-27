@@ -266,7 +266,7 @@ export class OpenerService implements IOpenerService {
 
 		return {
 			sourceUri: uri,
-			sourceHref: typeof resource === 'string' ? resource : encodeURI(uri.toString(true)),
+			sourceHref: typeof resource === 'string' ? resource : uri.toString(true),
 			href,
 			validationTarget: preserveOriginalString ? resource : externalUri,
 		};

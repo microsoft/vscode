@@ -245,11 +245,13 @@ suite('OpenerService', function () {
 		await openerService.open(sourceHref, { allowContributedOpeners: true });
 		await openerService.open(sourceHref);
 		await openerService.open(URI.parse('http://localhost:3000/?q=hi'), { allowContributedOpeners: true });
+		await openerService.open(URI.parse('http://localhost:3000/a%23b%3Fc?q=hi'), { allowContributedOpeners: true });
 
 		assert.deepStrictEqual(opened, [
 			{ href: forwardedUri.toString(), sourceHref },
 			{ href: forwardedUri.toString(), sourceHref },
 			{ href: forwardedUri.toString(), sourceHref: 'http://localhost:3000/?q=hi' },
+			{ href: forwardedUri.toString(), sourceHref: 'http://localhost:3000/a%23b%3Fc?q=hi' },
 		]);
 	});
 
