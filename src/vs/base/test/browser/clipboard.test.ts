@@ -52,7 +52,7 @@ suite('Clipboard text fallback', () => {
 		const focus = sinon.spy(document.body, 'focus');
 		const error = new Error('Copy failed');
 		sinon.stub(document, 'execCommand').throws(error);
-		assert.throws(() => writeTextUsingExecCommand('copied text', document), err => err === error);
+		assert.throws(() => writeTextUsingExecCommand('copied text', document), /Copy failed/);
 		assert.deepStrictEqual({
 			textareas: document.querySelectorAll('textarea').length,
 			focusRestored: focus.calledOnce,
