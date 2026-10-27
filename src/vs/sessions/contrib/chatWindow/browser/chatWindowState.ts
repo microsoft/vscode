@@ -109,6 +109,43 @@ export class ChatWindowChatLayouts {
 	}
 }
 
+/** The sizes the cells of a chat window showed with, per topology; see `ChatWindowGridHost.exportSizes`. */
+export type ChatWindowCellSizes = Record<string, Record<string, { readonly width: number; readonly height: number }>>;
+
+function isCellSizes(value: unknown): value is ChatWindowCellSizes {
+	return !!value && typeof value === 'object' && Object.values(value).every(sizes => !!sizes && typeof sizes === 'object'
+		&& Object.values(sizes as Record<string, Partial<{ width: unknown; height: unknown }> | undefined>).every(size => typeof size?.width === 'number' && typeof size.height === 'number'));
+}
+
+/** Remembers, per chat and in the workspace, the sizes the cells of its chat window last showed with, so that they come back after a reload. */
+export class ChatWindowChatSizes {
+
+	static readonly STORAGE_KEY = 'sessions.chatWindow.chatSizes';
+
+	constructor(private readonly _storageService: IStorageService) { }
+
+	private _read(): [string, ChatWindowCellSizes][] {
+		try {
+			const stored: unknown = JSON.parse(this._storageService.get(ChatWindowChatSizes.STORAGE_KEY, StorageScope.WORKSPACE, '[]'));
+			return Array.isArray(stored) ? stored.filter((entry): entry is [string, ChatWindowCellSizes] => Array.isArray(entry) && typeof entry[0] === 'string' && isCellSizes(entry[1])) : [];
+		} catch {
+			return [];
+		}
+	}
+
+	get(chat: URI): ChatWindowCellSizes | undefined {
+		const key = chat.toString();
+		return this._read().find(([candidate]) => candidate === key)?.[1];
+	}
+
+	set(chat: URI, sizes: ChatWindowCellSizes): void {
+		const key = chat.toString();
+		const entries = this._read().filter(([candidate]) => candidate !== key);
+		entries.push([key, sizes]);
+		this._storageService.store(ChatWindowChatSizes.STORAGE_KEY, JSON.stringify(entries.slice(-MAX_REMEMBERED_CHAT_LAYOUTS)), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+}
+
 /**
  * The state of an open chat window: how it shows its chat and its editor area, and where its terminals show. Changes become
  * the defaults of its kind, and are remembered for its chat.
