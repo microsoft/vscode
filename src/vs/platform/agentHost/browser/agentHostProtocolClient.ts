@@ -1593,7 +1593,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _maybeReinitializeForChatProviders(): void {
 		if (this._describeChatSubscriptionsOnReconnect && this._state.kind === AgentHostClientState.Connected) {
 			this._describeChatSubscriptionsOnReconnect = false;
-			this._logService.info(`[RemoteAgentHostProtocol] ${this._address} re-initialized for chats with their own agents with ${this._describeChatSubscriptions()}.`);
+			this._logService.trace(`[RemoteAgentHostProtocol] ${this._address} re-initialized for chats with their own agents with ${this._describeChatSubscriptions()}.`);
 		}
 		if (this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) !== true) {
 			this._reinitializedForChatProviders = false;
@@ -1614,7 +1614,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		this._reinitializedForChatProviders = true;
 		this._freshInitializeRequested = true;
-		this._logService.info(`[RemoteAgentHostProtocol] ${this._address} enabled chats with their own agents after the handshake; re-initializing with ${this._describeChatSubscriptions()}.`);
+		this._logService.info(`[RemoteAgentHostProtocol] ${this._address} enabled chats with their own agents after the handshake; re-initializing.`);
+		this._logService.trace(`[RemoteAgentHostProtocol] ${this._address} re-initializing with ${this._describeChatSubscriptions()}.`);
 		this._describeChatSubscriptionsOnReconnect = true;
 		// Disposing the listeners closes the transport; route the close through the soft-reconnect path, as the watchdog does.
 		this._transportListeners.clear();
@@ -1936,7 +1937,21 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private async _subscribe(resource: URI): Promise<IStateSnapshot> {
 		this._logService.trace(`[RemoteAgentHostProtocol] subscribe start: ${resource.toString()}`);
-		const result = await this._sendRequest('subscribe', { channel: resource.toString() });
+		let result: CommandMap['subscribe']['result'];
+		while (true) {
+			try {
+				result = await this._sendRequest('subscribe', { channel: resource.toString() });
+				break;
+			} catch (error) {
+				// A subscribe in flight when the transport drops (a soft reconnect, or the re-initialize that enables
+				// chats with their own agents) is rejected only because its reply was lost: send it again once the
+				// client reconnects, as any request issued while reconnecting is, instead of failing the subscription.
+				if (!isConnectionClosedError(error) || (this._state as ClientState).kind !== AgentHostClientState.Reconnecting) {
+					throw error;
+				}
+				this._logService.trace(`[RemoteAgentHostProtocol] subscribe lost to a reconnect, retrying once reconnected: ${resource.toString()}`);
+			}
+		}
 		if (!result.snapshot) {
 			throw new Error(`subscribe to ${resource.toString()} returned no snapshot`);
 		}

@@ -1566,9 +1566,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				config.connection,
 				config.connectionAuthority,
 				sessionResource => this._resolveSessionUri(sessionResource),
-				sessionResource => {
+				(sessionResource, sessionState) => {
 					const backendSession = this._resolveSessionUri(sessionResource);
-					const chat = backendSession ? this._getChatURIOrDefault(sessionResource, backendSession) : undefined;
+					const chat = backendSession ? this._getChatURIOrDefault(sessionResource, backendSession, sessionState) : undefined;
 					return chat !== undefined ? URI.parse(chat) : undefined;
 				},
 				this._logService,
@@ -2720,7 +2720,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return chatURI;
 	}
 
-	private _getChatURIOrDefault(sessionResource: URI, session: URI): string | undefined {
+	/** Resolves the chat of `sessionResource`, from `sessionState` when given, else from the session's current state. */
+	private _getChatURIOrDefault(sessionResource: URI, session: URI, sessionState?: SessionState): string | undefined {
 		const mapped = this._chatURIsBySessionResource.get(sessionResource);
 		if (mapped) {
 			return mapped;
@@ -2729,7 +2730,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (explicitChat) {
 			return explicitChat;
 		}
-		const state = this._getRawSessionState(session.toString());
+		const state = sessionState ?? this._getRawSessionState(session.toString());
 		return sessionResource.fragment ? state && getSessionChatResource(state, sessionResource.fragment, state.defaultChat) : state?.defaultChat;
 	}
 
