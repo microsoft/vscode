@@ -57,7 +57,7 @@ export class FloatingEditorPart {
 	) {
 	}
 
-	async create(label: string, options: IFloatingEditorPartOptions): Promise<ICreateFloatingEditorPartResult> {
+	async create(options: IFloatingEditorPartOptions): Promise<ICreateFloatingEditorPartResult> {
 		const disposables = new DisposableStore();
 		const id = FloatingEditorPart.nextId++;
 
@@ -96,7 +96,6 @@ export class FloatingEditorPart {
 			id,
 			mainWindow.vscodeWindowId,
 			this.editorPartsView,
-			label,
 			options.size,
 			titleElement,
 		));
@@ -228,7 +227,6 @@ class FloatingEditorPartImpl extends EditorPart implements IFloatingEditorPart {
 		id: number,
 		windowId: number,
 		editorPartsView: IEditorPartsView,
-		groupsLabel: string,
 		size: IDimension | undefined,
 		private readonly titleElement: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -239,7 +237,7 @@ class FloatingEditorPartImpl extends EditorPart implements IFloatingEditorPart {
 		@IHostService hostService: IHostService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(editorPartsView, `workbench.parts.floatingEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+		super(editorPartsView, `workbench.parts.floatingEditor.${id}`, localize('floatingEditorPart', "Floating Editor Area"), windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 
 		this._size = size ?? FloatingEditorPart.getDefaultSize(layoutService);
 	}

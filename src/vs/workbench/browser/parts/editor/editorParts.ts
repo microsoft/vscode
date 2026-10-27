@@ -173,7 +173,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	readonly onDidCreateAuxiliaryEditorPart = this._onDidCreateAuxiliaryEditorPart.event;
 
 	async createAuxiliaryEditorPart(options?: IAuxiliaryEditorPartOpenOptions): Promise<IAuxiliaryEditorPart> {
-		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(AuxiliaryEditorPart, this).create(this.getGroupsLabel(this._parts.size), options);
+		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(AuxiliaryEditorPart, this).create(this.getGroupsLabel(this.getWindowParts().length), options);
 
 		// Keep instantiation service
 		this.mapPartToInstantiationService.set(part.windowId, instantiationService);
@@ -195,7 +195,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	//#region Floating Editor Parts
 
 	async createFloatingEditorPart(options: IFloatingEditorPartOptions): Promise<IFloatingEditorPart> {
-		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(FloatingEditorPart, this).create(this.getGroupsLabel(this._parts.size), options);
+		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(FloatingEditorPart, this).create(options);
 
 		// Keep instantiation service
 		this.mapFloatingPartToInstantiationService.set(part, instantiationService);
@@ -321,13 +321,21 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// Notify all parts about a groups label change
 		// given it is computed based on the index
 
-		this.parts.forEach((part, index) => {
+		this.getWindowParts().forEach((part, index) => {
 			if (part === this.mainPart) {
 				return;
 			}
 
 			part.notifyGroupsLabelChange(this.getGroupsLabel(index));
 		});
+	}
+
+	/**
+	 * The parts that are numbered as windows in the labels of their groups. Floating parts
+	 * share the main window and keep a label of their own.
+	 */
+	private getWindowParts(): EditorPart[] {
+		return this.parts.filter(part => !this.mapFloatingPartToInstantiationService.has(part));
 	}
 
 	private registerEditorPartListeners(part: EditorPart, disposables: DisposableStore): void {

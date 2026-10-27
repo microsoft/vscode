@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IDimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
@@ -20,6 +21,7 @@ import { IWorkbenchLayoutService } from '../../../layout/browser/layoutService.j
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IEditorGroupsService, IEditorPart, IFloatingEditorPart } from '../../common/editorGroupsService.js';
+import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 
 class TestFloatingEditorPartLayoutService extends TestLayoutService {
 
@@ -55,7 +57,7 @@ suite('Floating Editor Part', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createParts(): Promise<{ parts: TestEditorParts; layoutService: TestFloatingEditorPartLayoutService }> {
+	async function createParts(): Promise<{ parts: TestEditorParts; layoutService: TestFloatingEditorPartLayoutService; instantiationService: TestInstantiationService }> {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		const layoutService = disposables.add(new TestFloatingEditorPartLayoutService());
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
@@ -64,7 +66,7 @@ suite('Floating Editor Part', () => {
 		const parts = await createEditorParts(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, parts);
 
-		return { parts, layoutService };
+		return { parts, layoutService, instantiationService };
 	}
 
 	function isRegistered(parts: TestEditorParts, part: IEditorPart): boolean {
@@ -114,6 +116,29 @@ suite('Floating Editor Part', () => {
 		part1.close();
 		part2.close();
 		assert.deepStrictEqual({ registered: parts.parts.length, elements: getElements(layoutService).length }, { registered: 1, elements: 0 });
+	});
+
+	test('labels its groups as a floating editor area, without changing the numbering of the windows of other parts', async () => {
+		const { parts, instantiationService } = await createParts();
+
+		const floating = await parts.createFloatingEditorPart({ title: 'Floating' });
+
+		// A part of another window, registered after the floating part
+		const windowPart = instantiationService.createInstance(EditorPart, parts, 'workbench.parts.testWindowEditor', 'Window 2', mainWindow.vscodeWindowId + 1000);
+		disposables.add(parts.registerPart(windowPart));
+		disposables.add(windowPart); // after unregistering it
+		windowPart.create(mainWindow.document.createElement('div'));
+
+		// Closing another floating part labels the groups of the remaining parts again
+		const closing = await parts.createFloatingEditorPart({ title: 'Closing' });
+		closing.close();
+
+		assert.deepStrictEqual({ floating: floating.activeGroup.label, window: windowPart.activeGroup.label }, {
+			floating: 'Floating Editor Area: Group 1',
+			window: 'Window 2: Group 1',
+		});
+
+		floating.close();
 	});
 
 	test('takes its default size, or the given size kept within the main window', async () => {
