@@ -276,7 +276,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 	}
 
 	private _ownerKeyString(): string | undefined {
-		const session = this._sessionsService.activeSession.get();
+		const session = this._sessionsService.mainWindowActiveSession.get();
 		if (!session) {
 			return undefined;
 		}
@@ -311,7 +311,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 	private _readTarget(reader: IReader | undefined): IManagedTabsTarget {
 		const read = <T>(obs: IObservable<T>): T => reader ? obs.read(reader) : obs.get();
-		const session = read(this._sessionsService.activeSession);
+		const session = read(this._sessionsService.mainWindowActiveSession);
 		const isQuickChat = session?.isQuickChat ? read(session.isQuickChat) : false;
 		const workspace = session ? read(session.workspace) : undefined;
 		if (!session || isQuickChat || !workspace) {
@@ -413,7 +413,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 			// [2] Decide which docked inputs to open, from the trigger + group state. A created
 			// session leaves an empty group empty so it offers the Add Tab actions instead.
-			const isCreated = this._sessionsService.activeSession.get()?.isCreated.get() ?? false;
+			const isCreated = this._sessionsService.mainWindowActiveSession.get()?.isCreated.get() ?? false;
 			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && !isCreated && this._layoutService.isSidePaneVisible() && group.editors.length === 0;
 			const changesPresent = !!changesResource && !!this._findChangesEditor(group, changesResource);
 			const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
