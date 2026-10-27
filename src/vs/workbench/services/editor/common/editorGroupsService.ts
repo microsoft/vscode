@@ -715,8 +715,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 		/**
 		 * Keeps the part out of working sets and window restore: saving
 		 * them does not capture it, and applying a working set leaves it
-		 * open. For windows that their owner manages, such as one that
-		 * shows a chat.
+		 * open. For windows that a feature manages on its own.
 		 */
 		excludeFromWorkingSets?: boolean;
 	}): Promise<IAuxiliaryEditorPart>;
