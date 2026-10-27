@@ -6,6 +6,7 @@
 import { decodeHex } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { DevContainerAgentHostEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
 import { WorkspaceArgumentKind } from '../../../common/workspaceSelection.js';
@@ -74,7 +75,8 @@ function readDevContainerHostPath(config: string): string | undefined {
 }
 
 export function resolveAgentsWindowFolderIntent(workspaceUri: URI | undefined, configurationService: IConfigurationService): IAgentsWindowFolderIntent {
-	if (workspaceUri?.scheme === Schemas.file) {
+	// Agent host folders (e.g. from an `agent-host-session://new` link) already name the host that owns them.
+	if (workspaceUri?.scheme === Schemas.file || workspaceUri?.scheme === AGENT_HOST_SCHEME) {
 		return { folderUri: workspaceUri, preferDevContainer: false };
 	}
 	if (workspaceUri?.scheme !== Schemas.vscodeRemote || !workspaceUri.authority.startsWith(DEV_CONTAINER_REMOTE_AUTHORITY_PREFIX)) {

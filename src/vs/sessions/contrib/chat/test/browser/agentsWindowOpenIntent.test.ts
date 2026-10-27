@@ -8,6 +8,7 @@ import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { DevContainerAgentHostEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { getAgentsWindowWorkspaceArgumentKind, resolveAgentsWindowFolderIntent } from '../../browser/agentsWindowOpenIntent.js';
@@ -37,6 +38,7 @@ suite('Agents Window open intent', () => {
 			path: '/workspaces/project',
 		});
 		const devContainerFolder = devContainerUri(hostFolder.fsPath);
+		const agentHostFolder = toAgentHostUri(URI.file('/home/me/project'), 'localhost__8123');
 		const resolve = (uri: URI | undefined, enabled: boolean) => {
 			const result = resolveAgentsWindowFolderIntent(uri, configurationService(enabled));
 			return {
@@ -58,6 +60,7 @@ suite('Agents Window open intent', () => {
 			devContainerInVolume: resolve(devContainerUri(JSON.stringify({ volumeName: 'volume', folder: 'project' })), true),
 			otherRemote: resolve(URI.parse('vscode-remote://ssh-remote+host/workspace'), true),
 			invalidDevContainer: resolve(URI.parse('vscode-remote://dev-container+invalid/workspace'), true),
+			agentHostFolder: resolve(agentHostFolder, true),
 		}, {
 			local: { folderUri: localFolder.toString(), preferDevContainer: false },
 			devContainerEnabled: { folderUri: hostFolder.toString(), preferDevContainer: true },
@@ -68,6 +71,7 @@ suite('Agents Window open intent', () => {
 			devContainerInVolume: { folderUri: undefined, preferDevContainer: false },
 			otherRemote: { folderUri: undefined, preferDevContainer: false },
 			invalidDevContainer: { folderUri: undefined, preferDevContainer: false },
+			agentHostFolder: { folderUri: agentHostFolder.toString(), preferDevContainer: false },
 		});
 	});
 });

@@ -22,7 +22,9 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { registerSharedProcessRemoteService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
+import { AgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ViewContainerLocation } from '../../../common/views.js';
@@ -40,6 +42,7 @@ import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsSer
 import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
 import { ChatSessionPosition, openChatSession } from '../browser/chatSessions/chatSessions.contribution.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { parseNewSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { type AgentInfo, type RootState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatService } from '../common/chatService/chatService.js';
@@ -63,6 +66,33 @@ import { NativePluginGitCommandService } from './pluginGitCommandService.js';
 registerSingleton(IPluginGitService, NativePluginGitCommandService, InstantiationType.Delayed);
 registerSingleton(IAgentHostEditorActivityService, AgentHostEditorActivity, InstantiationType.Delayed);
 registerSharedProcessRemoteService(ILocalGitService, 'localGit');
+
+/**
+ * Opens `agent-host-session://new?...` links clicked in an editor window in the
+ * Agents window, which prepares its new-session composer with the linked agent
+ * host, folder, and draft prompt.
+ */
+class AgentHostNewSessionLinkOpener extends Disposable {
+
+	static readonly ID = 'workbench.contrib.agentHostNewSessionLinkOpener';
+
+	constructor(
+		@IOpenerService openerService: IOpenerService,
+		@INativeHostService nativeHostService: INativeHostService,
+	) {
+		super();
+		this._register(openerService.registerOpener({
+			open: async resource => {
+				const link = parseNewSessionLinkUri(resource);
+				if (!link) {
+					return false;
+				}
+				await nativeHostService.openAgentsWindow({ folderUri: link.folderUri, reveal: 'new', source: AgentsWindowOpenSource.Link, draft: link.draft });
+				return true;
+			},
+		}));
+	}
+}
 
 class ChatCommandLineHandler extends Disposable {
 
@@ -248,6 +278,7 @@ registerInstallDictationModelAction();
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatCommandLineHandler.ID, ChatCommandLineHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(AgentHostNewSessionLinkOpener.ID, AgentHostNewSessionLinkOpener, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrottlingHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(OpenWorkspaceInAgentsContribution.ID, OpenWorkspaceInAgentsContribution, WorkbenchPhase.BlockRestore);

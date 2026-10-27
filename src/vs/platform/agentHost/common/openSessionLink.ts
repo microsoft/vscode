@@ -7,7 +7,9 @@ import { AGENTS_AUTHORITY } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILinkPresentation, ILinkPresentationStatus } from '../../dataChannel/common/dataChannel.js';
+import { IAgentsWindowDraft } from '../../window/common/window.js';
 import { AgentSession } from './agent.js';
+import { agentHostAuthority, toAgentHostUri } from './agentHostUri.js';
 import { SessionServerToolName } from './serverToolNames.js';
 import { DEFAULT_CHAT_ID, getAgentHostChatId, isAhpChatChannel } from './state/sessionState.js';
 
@@ -28,6 +30,70 @@ export const AGENT_HOST_CHAT_LINK_PATTERN = /^(?=[^#]*[?&]chat=)agent-host-sessi
 
 const AGENT_HOST_SESSION_LINK_PATH_PREFIX = `/${AGENT_HOST_SESSION_LINK_SCHEME}/`;
 const AGENT_HOST_CHAT_LINK_PATH_SEGMENT = '/chat/';
+const AGENT_HOST_NEW_SESSION_LINK_AUTHORITY = 'new';
+
+/**
+ * Target of an {@link AGENT_HOST_SESSION_LINK_SCHEME} new-session link: what the
+ * Agents window's new-session composer should be prepared with. The prompt is
+ * only a draft; it is never sent on the user's behalf.
+ */
+export interface IAgentHostNewSessionLink {
+	/** A local `file:` folder, or a folder on a remote agent host ({@link toAgentHostUri}). */
+	readonly folderUri: URI | undefined;
+	readonly draft: IAgentsWindowDraft | undefined;
+}
+
+/**
+ * Builds a link that opens the Agents window's new-session composer with an
+ * agent host, a folder on that host, and a draft prompt preselected.
+ *
+ * Shape: `agent-host-session://new?connectionAuthority=<authority>&folder=<path>&prompt=<text>`.
+ * Without `connectionAuthority` (or its human-writable alternative
+ * `host=<address>`), `folder` is a folder on the local machine. All parameters
+ * are optional. Values are percent-encoded twice; hand-written links may encode
+ * values without `%`, `&`, or `=` only once. A new-session link has no path, so
+ * it never matches a session.
+ */
+export function buildNewSessionLinkUri(options: { readonly connectionAuthority?: string; readonly folder?: string; readonly prompt?: string }): string {
+	// Values are encoded twice so they survive `URI`'s own decoding of the query (see parseNewSessionLinkUri).
+	const query = Object.entries(options)
+		.flatMap(([name, value]) => value ? [`${name}=${encodeURIComponent(encodeURIComponent(value))}`] : [])
+		.join('&');
+	return `${AGENT_HOST_SESSION_LINK_SCHEME}://${AGENT_HOST_NEW_SESSION_LINK_AUTHORITY}${query ? `?${query}` : ''}`;
+}
+
+/**
+ * Parses a link built by {@link buildNewSessionLinkUri}, or returns `undefined`
+ * when {@link uri} is not a new-session link.
+ */
+export function parseNewSessionLinkUri(uri: URI | string): IAgentHostNewSessionLink | undefined {
+	const parsed = typeof uri === 'string' ? URI.parse(uri) : uri;
+	if (parsed.scheme !== AGENT_HOST_SESSION_LINK_SCHEME || parsed.authority !== AGENT_HOST_NEW_SESSION_LINK_AUTHORITY || (parsed.path !== '' && parsed.path !== '/')) {
+		return undefined;
+	}
+	// `URI` exposes the query decoded once, so `&` and `=` separate parameters and the values are still encoded once.
+	const query = new Map(parsed.query.split('&').filter(Boolean).map(parameter => {
+		const separator = parameter.indexOf('=');
+		return separator === -1 ? [parameter, ''] : [parameter.slice(0, separator), decodeQueryValue(parameter.slice(separator + 1))];
+	}));
+	const host = query.get('host');
+	const connectionAuthority = query.get('connectionAuthority') || (host ? agentHostAuthority(host) : undefined);
+	const folder = query.get('folder') || undefined;
+	const prompt = query.get('prompt') || undefined;
+	return {
+		folderUri: folder ? (connectionAuthority ? toAgentHostUri(URI.file(folder), connectionAuthority) : URI.file(folder)) : undefined,
+		draft: prompt ? { inputText: prompt, attachments: '[]' } : undefined,
+	};
+}
+
+/** Hand-written links may encode values only once; a value that is no longer valid encoding is used as is. */
+function decodeQueryValue(value: string): string {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return value;
+	}
+}
 
 export type AgentSessionLinkStatus = 'untitled' | 'inProgress' | 'needsInput' | 'completed' | 'error';
 
