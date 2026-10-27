@@ -408,10 +408,22 @@ suite('Sessions - New Nested Session composer', () => {
 		});
 	});
 
+	/** The input's shared harness picker, rendering its slot like the real one. */
+	function fakeHarnessPicker(isVisible: IObservable<boolean>) {
+		return {
+			isVisible,
+			render: (container: HTMLElement, options?: { className?: string }) => {
+				container.appendChild(mainWindow.document.createElement('div')).className = `sessions-chat-picker-slot ${options?.className}`;
+			},
+		};
+	}
+
 	test('renders the New Session structure: the options row in the centered content, the repository controls where New Session has them', () => {
 		const experimental = observableValue('experimental', false);
 		const supported = observableValue<INestedChatWorkspaceSupport | undefined>('support', support(repo));
 		const offersWorktree = observableValue('offersWorktree', true);
+		// Hidden unless the session offers its chats more than one harness (and behind the setting).
+		const harnessVisible = observableValue('harnessVisible', false);
 		const placements: (string | undefined)[] = [];
 		const parent = mainWindow.document.createElement('div');
 		const owner = {
@@ -429,6 +441,7 @@ suite('Sessions - New Nested Session composer', () => {
 				render: (content: HTMLElement) => content.appendChild(mainWindow.document.createElement('div')).classList.add('new-chat-input-container'),
 				placeRepositoryControls: (host?: HTMLElement) => placements.push(host?.className),
 				hostNoticeContainerElement: undefined,
+				sessionTypePicker: fakeHarnessPicker(harnessVisible),
 			},
 			storageService: { getBoolean: () => true },
 			_renderSubSessionTip: Reflect.get(NewChatInSessionWidget.prototype, '_renderSubSessionTip'),
@@ -447,8 +460,17 @@ suite('Sessions - New Nested Session composer', () => {
 		const noWorktree = structure()[0];
 		supported.set(undefined, undefined);
 		const unsupported = structure()[0][0];
+		// More than one harness: the harness picker follows the repository controls in the tray, which it fills even
+		// without a worktree to offer, and keeps the row shown on a host without nested chat workspaces.
+		harnessVisible.set(true, undefined);
+		const details = parent.querySelector('.new-chat-session-options-details')!;
+		const withHarness = {
+			row: structure()[0][0],
+			tray: structure()[0][2],
+			trayChildren: [...details.children].map(child => child.className),
+		};
 
-		assert.deepStrictEqual({ standard, experimentalLayout, noWorktree, unsupported }, {
+		assert.deepStrictEqual({ standard, experimentalLayout, noWorktree, unsupported, withHarness }, {
 			standard: {
 				structure: [
 					['new-session-workspace-picker-container', 'nested-chat-folder-picker', 'new-chat-session-options-details legacy-session-options-details', 'monaco-button new-chat-session-options-toggle codicon codicon-chevron-left-compact[hidden]'],
@@ -467,6 +489,11 @@ suite('Sessions - New Nested Session composer', () => {
 			},
 			noWorktree: ['new-session-workspace-picker-container', 'nested-chat-folder-picker', 'new-chat-session-options-details[hidden]', 'monaco-button new-chat-session-options-toggle codicon codicon-chevron-left-compact[hidden]'],
 			unsupported: 'new-session-workspace-picker-container[hidden]',
+			withHarness: {
+				row: 'new-session-workspace-picker-container',
+				tray: 'new-chat-session-options-details',
+				trayChildren: ['new-chat-repository-controls-host', 'sessions-chat-picker-slot sessions-chat-session-type-picker sessions-workspace-category-picker-slot'],
+			},
 		});
 	});
 
@@ -482,7 +509,7 @@ suite('Sessions - New Nested Session composer', () => {
 			_sessionOptionsExpanded: observableValue('expanded', Reflect.get(NewChatInSessionWidget.prototype, '_getInitialSessionOptionsExpanded').call({ storageService: storage })),
 			_workspaceSupport: constObservable(support(repo)),
 			_workspaceControls: { renderFolderPicker: () => { }, offersWorktree: constObservable(true) },
-			_newChatInput: { render: () => { }, placeRepositoryControls: () => { }, hostNoticeContainerElement: undefined },
+			_newChatInput: { render: () => { }, placeRepositoryControls: () => { }, hostNoticeContainerElement: undefined, sessionTypePicker: fakeHarnessPicker(constObservable(false)) },
 			storageService: storage,
 			_renderSubSessionTip: () => { },
 		};

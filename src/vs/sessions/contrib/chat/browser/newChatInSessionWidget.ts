@@ -256,8 +256,10 @@ export class NewChatInSessionWidget extends Disposable {
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 
 		// The New Session options row: the folder picker, then the session options (isolation and
-		// branch) wherever the New Session composer shows its repository controls. Hidden when the
-		// host can't give a nested chat its own workspace: then the composer is unchanged.
+		// branch, and the harness picker where the session offers its chats more than one harness)
+		// wherever the New Session composer shows them. Hidden when the host can't give a nested chat
+		// its own workspace and there is no harness to choose: then the composer is unchanged.
+		const harnessPicker = this._newChatInput.sessionTypePicker;
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		const row = dom.append(workspacePickerContainer, dom.$('.sessions-workspace-category-picker'));
 		this._workspaceControls.renderFolderPicker(row, this._newChatInput.pickerHoverDelegate);
@@ -268,19 +270,28 @@ export class NewChatInSessionWidget extends Disposable {
 			screenReaderOptimized: this._screenReaderOptimized,
 			expanded: this._sessionOptionsExpanded,
 			collapsedShowIcons: this._collapsedSessionOptionsShowIcons,
-			// Unlike New Session there is no harness picker: without a worktree to offer the tray is empty.
-			hasDetails: this._workspaceControls.offersWorktree,
+			// The harness picker shows only where the session offers its chats more than one harness: without
+			// it or a worktree to offer, the tray is empty.
+			hasDetails: derived(reader => this._workspaceControls.offersWorktree.read(reader) || harnessPicker.isVisible.read(reader)),
 			setExpanded: expanded => {
 				this._sessionOptionsExpanded.set(expanded, undefined);
 				this.storageService.store(STORAGE_KEY_SESSION_OPTIONS_EXPANDED, expanded, StorageScope.PROFILE, StorageTarget.USER);
 			},
 		}));
+		// Like New Session, the harness picker follows the repository controls in the session options.
+		harnessPicker.render(sessionOptionsRow.details, {
+			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
+			hoverDelegate: this._newChatInput.pickerHoverDelegate,
+		});
+		const harnessSlot = sessionOptionsRow.details.lastElementChild;
+		if (harnessSlot) {
+			sessionOptionsRow.repositoryControlsHost.after(harnessSlot);
+		}
 		this._register(autorun(reader => {
-			workspacePickerContainer.hidden = !this._workspaceSupport.read(reader);
+			workspacePickerContainer.hidden = !this._workspaceSupport.read(reader) && !harnessPicker.isVisible.read(reader);
 			sessionOptionsRow.layout();
 		}));
 
-		this._renderHarnessPicker(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
 		this._register(autorun(reader => {
 			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
@@ -293,19 +304,6 @@ export class NewChatInSessionWidget extends Disposable {
 		this._renderSubSessionTip();
 
 		chatWidgetContainer.classList.add('revealed');
-	}
-
-	/**
-	 * Renders the shared session-type picker, in peer-chat mode, in a header row above the input:
-	 * the same host and pill the new-session view uses. The row collapses while the picker is hidden.
-	 */
-	protected _renderHarnessPicker(container: HTMLElement): void {
-		const header = dom.append(container, dom.$('.new-session-quick-chat-header.sessions-workspace-category-picker.new-chat-harness-header'));
-		// Nested in a session-options group like the new-session view's pill, so its label spacing matches.
-		const options = dom.append(header, dom.$('.new-chat-session-options-details'));
-		const picker = this._newChatInput.sessionTypePicker;
-		picker.render(options, { className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' });
-		this._register(autorun(reader => header.classList.toggle('visible', picker.isVisible.read(reader))));
 	}
 
 	/**

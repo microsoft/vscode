@@ -63,7 +63,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, commandService, contextMenuService, hoverService, keybindingService, instantiationService);
 	}
 
-	override render(container: HTMLElement, options?: { className?: string; hoverDelegate?: IHoverDelegate; readonly before?: Node | null }): void {
+	override render(container: HTMLElement, options?: { className?: string; hoverDelegate?: IHoverDelegate }): void {
 		// Always render so the session-type chip is visible in the chip
 		// row on phone. The base class renders a trigger that the mobile
 		// `_showPicker` override routes to a bottom sheet, while desktop

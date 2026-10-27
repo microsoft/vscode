@@ -543,11 +543,10 @@ export class SessionTypePicker extends Disposable {
 		);
 	}
 
-	render(container: HTMLElement, options?: { className?: string; hoverDelegate?: IHoverDelegate; readonly before?: Node | null }): void {
+	render(container: HTMLElement, options?: { className?: string; hoverDelegate?: IHoverDelegate }): void {
 		this._renderDisposables.clear();
 
-		const slot = dom.$('.sessions-chat-picker-slot');
-		container.insertBefore(slot, options?.before ?? null);
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
 		if (options?.className) {
 			const classNames = options.className.split(/\s+/).filter(className => className.length > 0);
 			if (classNames.length > 0) {
