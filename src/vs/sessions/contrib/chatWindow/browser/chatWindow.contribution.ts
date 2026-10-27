@@ -12,6 +12,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { CHAT_WINDOWS_ENABLED_SETTING, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ChatWindowService } from './chatWindowService.js';
 import './chatWindowLayoutActions.js';
+import './chatWindowTerminalActions.js';
 import { ChatWindowsRestoration } from './openChatInWindow.js';
 
 registerSingleton(IChatWindowService, ChatWindowService, InstantiationType.Delayed);

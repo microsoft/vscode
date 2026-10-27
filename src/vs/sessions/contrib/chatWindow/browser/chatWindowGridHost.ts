@@ -5,6 +5,7 @@
 
 import { $, append } from '../../../../base/browser/dom.js';
 import { ISerializableView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, SerializableGrid } from '../../../../base/browser/ui/grid/grid.js';
+import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../../../browser/parts/gridGap.js';
@@ -40,8 +41,20 @@ export class ChatWindowCellView extends Disposable implements ISerializableView 
 	get minimumHeight(): number { return this._constraints.minimumHeight; }
 	get maximumHeight(): number { return this._constraints.maximumHeight; }
 
+	/**
+	 * As in the main window, where the Sessions part takes what the window grows or shrinks by: the chat first, the
+	 * terminals last, so that they keep their height as the window is resized; see {@link setPriority}.
+	 */
+	get priority(): LayoutPriority { return this._priority ?? this._defaultPriority; }
+	private readonly _defaultPriority: LayoutPriority;
+	private _priority: LayoutPriority | undefined;
+
 	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
+
+	private readonly _onDidLayout = this._register(new Emitter<void>());
+	/** Fires each time the grid lays the cell out, such as at every step of a drag of a sash beside it. */
+	readonly onDidLayout: Event<void> = this._onDidLayout.event;
 
 	private _insets: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
 	private _content: IChatWindowCellContent | undefined;
@@ -50,8 +63,17 @@ export class ChatWindowCellView extends Disposable implements ISerializableView 
 	constructor(readonly cell: SessionGridCell, constraints: IChatWindowCellConstraints) {
 		super();
 		this._constraints = constraints;
+		this._defaultPriority = cell === SessionGridCell.Chat ? LayoutPriority.High : cell === SessionGridCell.Terminals ? LayoutPriority.Low : LayoutPriority.Normal;
 		this.element = $(`.chat-window-cell.chat-window-cell-${cell}`);
 		this._card = append(this.element, $('.chat-window-cell-card'));
+	}
+
+	/**
+	 * Gives the cell `priority` for what the window grows or shrinks by, such as low to keep its height while the chat
+	 * shows only its input, as the main window keeps it; `undefined` brings back its own.
+	 */
+	setPriority(priority: LayoutPriority | undefined): void {
+		this._priority = priority;
 	}
 
 	/** The content of the card, which this cell lays out. */
@@ -98,6 +120,7 @@ export class ChatWindowCellView extends Disposable implements ISerializableView 
 	layout(width: number, height: number, top: number, left: number): void {
 		this._lastLayout = { width, height, top, left };
 		this._layoutContent();
+		this._onDidLayout.fire();
 	}
 
 	private _layoutContent(): void {

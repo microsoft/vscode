@@ -157,6 +157,30 @@ suite('ChatWindowGridHost', () => {
 		store.dispose();
 	});
 
+	test('the terminals keep their height as the window shrinks and grows again, in every mode and position; the chat and the editor area take the change', () => {
+		const store = disposables.add(new DisposableStore());
+		const { host, boxes } = createHost(store);
+		const result: Record<string, { readonly terminals: number[]; readonly fills: boolean }> = {};
+		for (const mode of [SessionLayoutMode.SideBySide, SessionLayoutMode.Stacked, SessionLayoutMode.EditorOnly, SessionLayoutMode.ChatOnly]) {
+			for (const terminalPosition of [SessionTerminalPosition.FullWidth, SessionTerminalPosition.UnderEditor, SessionTerminalPosition.UnderChat]) {
+				host.apply(computeSessionGridLayout(state({ mode, terminalPosition })));
+				host.layoutGrid(WIDTH, HEIGHT);
+				const terminals = [boxes.get(SessionGridCell.Terminals)!.height];
+				host.layoutGrid(WIDTH, 500);
+				terminals.push(boxes.get(SessionGridCell.Terminals)!.height);
+				host.layoutGrid(WIDTH, HEIGHT);
+				terminals.push(boxes.get(SessionGridCell.Terminals)!.height);
+				result[`${mode}/${terminalPosition}`] = { terminals: terminals.map(height => height === terminals[0] ? terminals[0] : -height), fills: terminals[0] > 0 };
+			}
+		}
+		const expected: typeof result = {};
+		for (const key of Object.keys(result)) {
+			expected[key] = { terminals: [result[key].terminals[0], result[key].terminals[0], result[key].terminals[0]], fills: true };
+		}
+		assert.deepStrictEqual(result, expected);
+		store.dispose();
+	});
+
 	test('the sizes the cells showed with come back in another host, such as after a reload', () => {
 		const store = disposables.add(new DisposableStore());
 		const first = createHost(store);
@@ -167,6 +191,26 @@ suite('ChatWindowGridHost', () => {
 		second.host.importSizes(exported);
 		second.host.apply(computeSessionGridLayout(state({ mode: SessionLayoutMode.SideBySide, terminalsVisible: false })));
 		assert.deepStrictEqual(second.boxes.get(SessionGridCell.Chat)!.width, 320);
+		store.dispose();
+	});
+
+	test('terminals shown as the window is restored, before its first layout, show without an error once it is laid out', () => {
+		const store = disposables.add(new DisposableStore());
+		const container = $('.chat-window-host');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const boxes = new Map<SessionGridCell, IBox>();
+		const cells = new Map<SessionGridCell, ChatWindowCellView>();
+		for (const cell of [SessionGridCell.Chat, SessionGridCell.SidePane, SessionGridCell.Terminals, SessionGridCell.Column]) {
+			const view = store.add(new ChatWindowCellView(cell, { minimumWidth: cell === SessionGridCell.Column ? COLUMN_WIDTH : 100, maximumWidth: cell === SessionGridCell.Column ? COLUMN_WIDTH : Number.POSITIVE_INFINITY, minimumHeight: 50, maximumHeight: Number.POSITIVE_INFINITY }));
+			view.setContent({ element: $('div'), layout: (width, height, top, left) => boxes.set(cell, { top, left, width, height }) });
+			cells.set(cell, view);
+		}
+		const host = store.add(new ChatWindowGridHost(container, cells, (cell, axis) => getChatWindowDefaultSizing(cell, axis)));
+		host.apply(computeSessionGridLayout(state({ terminalsVisible: false })));
+		host.apply(computeSessionGridLayout(state({ terminalsVisible: true })));
+		host.layoutGrid(WIDTH, HEIGHT);
+		assert.deepStrictEqual(boxes.get(SessionGridCell.Terminals)!.height > 0, true);
 		store.dispose();
 	});
 
