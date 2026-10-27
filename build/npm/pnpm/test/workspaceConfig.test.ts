@@ -121,6 +121,8 @@ suite('pnpm conversion: workspace configuration', () => {
 			nodeLinker: 'hoisted',
 			minimumReleaseAge: 10080,
 			minimumReleaseAgeExclude: ['@vscode/*', 'electron'],
+			skills: { dirs: [] },
+			pmOnFail: 'ignore',
 			packages: ['extensions/git', '.vscode/extensions/vscode-extras'],
 		}), [
 			'# Generated from the npm configuration by build/npm/pnpm/convert.ts during the npm to pnpm migration.',
@@ -133,6 +135,9 @@ suite('pnpm conversion: workspace configuration', () => {
 			'minimumReleaseAgeExclude:',
 			'  - \'@vscode/*\'',
 			'  - electron',
+			'pmOnFail: ignore',
+			'skills:',
+			'  dirs: []',
 			'allowBuilds:',
 			'  node-pty@1.2.0-beta.18: true',
 			'  husky: false',
@@ -169,9 +174,9 @@ suite('pnpm conversion: workspace configuration', () => {
 			convertPackageJsonText(text, { isInstallRoot: false }),
 			convertPackageJsonText('{\n\t"private": true\n}', { isInstallRoot: true }),
 		], [
-			'{\n  "name": "x",\n  "version": "1.0.0",\n  "packageManager": "pnpm@11.28.8",\n  "dependencies": {\n    "a": "^1.0.0"\n  }\n}\n',
+			'{\n  "name": "x",\n  "version": "1.0.0",\n  "packageManager": "pnpm@12.16.0",\n  "dependencies": {\n    "a": "^1.0.0"\n  }\n}\n',
 			'{\n  "name": "x",\n  "version": "1.0.0",\n  "dependencies": {\n    "a": "^1.0.0"\n  }\n}\n',
-			'{\n\t"packageManager": "pnpm@11.28.8",\n\t"private": true\n}',
+			'{\n\t"packageManager": "pnpm@12.16.0",\n\t"private": true\n}',
 		]);
 	});
 });

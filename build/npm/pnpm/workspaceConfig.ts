@@ -10,13 +10,13 @@ import { getInstalledPackages, isDistTagSpecifier, resolveNpmDependency, type Np
 /**
  * The pinned pnpm version (`packageManager` field of the root and of every separate root).
  */
-export const pnpmVersion = '11.28.8';
+export const pnpmVersion = '12.16.0';
 
 /**
  * The only setting names that the conversion writes to `pnpm-workspace.yaml`, checked against the
- * pnpm 11.28.8 documentation (https://pnpm.io/settings). pnpm 11 only warns about unknown names
- * and ignores them, so `verify-locks.ts` rejects any other name and reads every one of these back
- * with `pnpm config get`.
+ * pnpm 12.16.0 documentation (https://pnpm.io/settings). pnpm fails on an unknown name when the
+ * pinned version runs, but only warns with another version, so `verify-locks.ts` also rejects any
+ * other name and reads every one of these back with `pnpm config list`.
  */
 export const knownSettingNames = [
 	'packages',
@@ -32,6 +32,8 @@ export const knownSettingNames = [
 	'strictDepBuilds',
 	'sideEffectsCache',
 	'verifyDepsBeforeRun',
+	'pmOnFail',
+	'skills',
 	'optimisticRepeatInstall',
 	'allowBuilds',
 	'overrides',
@@ -39,7 +41,7 @@ export const knownSettingNames = [
 ] as const;
 
 export type SettingName = typeof knownSettingNames[number];
-export type SettingValue = string | number | boolean | readonly string[] | Readonly<Record<string, string | boolean>>;
+export type SettingValue = string | number | boolean | readonly string[] | Readonly<Record<string, string | boolean | readonly string[]>>;
 export type WorkspaceSettings = Partial<Record<SettingName, SettingValue>>;
 
 /**
@@ -51,7 +53,7 @@ export const sharedSettings: WorkspaceSettings = {
 	// npm: legacy-peer-deps=true
 	strictPeerDependencies: false,
 	autoInstallPeers: false,
-	// npm with legacy-peer-deps never installs peer dependencies. pnpm 11 links missing peers to a
+	// npm with legacy-peer-deps never installs peer dependencies. pnpm links missing peers to a
 	// version resolved elsewhere in the workspace (peer hoisting) unless both autoInstallPeers and
 	// dedupePeerDependents are false.
 	dedupePeerDependents: false,
@@ -84,9 +86,18 @@ export const sharedSettings: WorkspaceSettings = {
 	// not by the npm_config_* build variables, so a native module built for Electron would be
 	// reused for remote/ (Node.js), after an Electron update, or for another npm_config_arch.
 	sideEffectsCache: false,
-	// pnpm 11 runs an install before `pnpm run` when it considers dependencies outdated (default
+	// pnpm runs an install before `pnpm run` when it considers dependencies outdated (default
 	// `install`). npm never did; CI restores node_modules from caches and runs scripts offline.
 	verifyDepsBeforeRun: false,
+	// With a pinned version (`packageManager`), pnpm records the pnpm packages of every platform in
+	// a second YAML document of `pnpm-lock.yaml`, which the lockfile readers and GitHub's
+	// dependency graph can't read, and switches other pnpm versions to the pinned one. `ignore`
+	// does neither: the preinstall's check tells a developer with another version which one to use.
+	pmOnFail: 'ignore',
+	// pnpm links the agent skills that approved dependencies ship into the skill folders of the
+	// coding agent it detects, such as the repository's own .github/skills and .agents/skills, and
+	// asks for approval on every install. The repository's skills are its own.
+	skills: { dirs: [] },
 };
 
 /**
@@ -257,7 +268,7 @@ export function getGeneratedOverrides(folder: string, lockfile: NpmLockfile, not
 const gitAllowScriptsKey = /^(?:github:|git\+https:\/\/github\.com\/|https:\/\/github\.com\/|git\+ssh:\/\/git@github\.com\/)(?<repo>[^/#]+\/[^/#]+?)(?:\.git)?#(?<commit>[0-9a-f]{40})$/;
 
 /**
- * pnpm 11 doesn't approve a git dependency by name: an npm `allowScripts` key for a GitHub
+ * pnpm approves a git dependency by its source, not by name: an npm `allowScripts` key for a GitHub
  * dependency (`github:owner/repo#sha`) becomes `<name>@git+https://github.com/owner/repo.git#sha`,
  * with the package name from the folder's npm lockfile.
  */
@@ -456,7 +467,7 @@ export function renderWorkspaceYaml(settings: WorkspaceSettings): string {
 		if (Array.isArray(value)) {
 			lines.push(`${name}:`, ...value.map(item => `  - ${renderScalar(item)}`));
 		} else if (typeof value === 'object') {
-			lines.push(`${name}:`, ...Object.entries(value).map(([key, item]) => `  ${renderScalar(key)}: ${renderScalar(item)}`));
+			lines.push(`${name}:`, ...Object.entries(value).map(([key, item]) => `  ${renderScalar(key)}: ${typeof item === 'object' ? `[${item.map(renderScalar).join(', ')}]` : renderScalar(item)}`));
 		} else {
 			lines.push(`${name}: ${renderScalar(value as string | number | boolean)}`);
 		}

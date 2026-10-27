@@ -160,7 +160,7 @@ jobs:
         env:
           # build/npm/postinstall.ts runs a plain `pnpm install` in the other install roots; these
           # settings make those installs skip install scripts and update outdated lockfiles too.
-          # (pnpm 11 reads `pnpm_config_*`, not `npm_config_*`, from the environment.)
+          # (pnpm reads `pnpm_config_*`, not `npm_config_*`, from the environment.)
           pnpm_config_ignore_scripts: 'true'
           pnpm_config_frozen_lockfile: 'false'
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
