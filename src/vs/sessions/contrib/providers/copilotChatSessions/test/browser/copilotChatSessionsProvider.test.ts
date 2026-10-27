@@ -3422,6 +3422,39 @@ suite('CopilotChatSessionsProvider', () => {
 		for (const providerMode of ['default', 'sandbox'] as const) {
 			const sessionTypeId = providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id;
 
+			for (const quickChat of [false, true]) {
+				for (const { name, query, expectedTitle, title } of [
+					{ name: 'first prompt line', query: '  Review this file  \nMore context', expectedTitle: 'Review this file' },
+					{ name: 'long prompt', query: 'a'.repeat(120), expectedTitle: 'a'.repeat(100) },
+					{ name: 'empty first line', query: '\nReview this file', expectedTitle: 'New Session' },
+					{ name: 'explicit send title', query: 'Review this file', expectedTitle: 'Review this file', title: 'Review request' },
+				]) {
+					test(`${providerMode} titles a ${quickChat ? 'quick chat' : 'workspace session'} during preparation: ${name}`, async () => {
+						const pending = new DeferredPromise<ICloudSandboxProvisionedSession>();
+						const provisioned = provisionedSession();
+						const { provider } = createSandboxProvider({ providerMode, provision: () => pending.p });
+						const draft = quickChat ? provider.createQuickChat(sessionTypeId) : provider.createNewSession(repoWorkspace, sessionTypeId);
+
+						const preparing = provider.prepareNewSession(draft.sessionId, CancellationToken.None, query);
+						const duringPreparation = {
+							title: draft.title.get(),
+							chatTitle: draft.mainChat.get().title.get(),
+							status: draft.status.get(),
+							listed: provider.getSessions().length,
+						};
+						await pending.complete(provisioned);
+						await preparing;
+						const chat = await provider.createNewChat(draft.sessionId);
+						const committed = await provider.sendRequest(draft.sessionId, chat.resource, { query, title });
+
+						assert.deepStrictEqual({ duringPreparation, committedTitle: committed.title.get() }, {
+							duringPreparation: { title: expectedTitle, chatTitle: expectedTitle, status: SessionStatus.Untitled, listed: 0 },
+							committedTitle: title ?? expectedTitle,
+						});
+					});
+				}
+			}
+
 			for (const value of ['owner/repository', { id: 'owner/repository', name: 'owner/repository' }]) {
 				test(`${providerMode} repository option selection immediately discards unused preparation for ${typeof value} values`, () => {
 					const prepared: URI[] = [];
@@ -3560,17 +3593,23 @@ suite('CopilotChatSessionsProvider', () => {
 				});
 				const draft = provider.createQuickChat(sessionTypeId);
 				await assert.rejects(provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'First request'), /Test cloud creation failed/);
+				const titleAfterFailure = draft.title.get();
 				const prepared = await provider.prepareNewSession(draft.sessionId, CancellationToken.None, 'Updated request');
+				const titleAfterRetry = draft.title.get();
 				const chat = await provider.createNewChat(draft.sessionId);
 				await provider.sendRequest(draft.sessionId, chat.resource, { query: 'Updated request' });
 
 				assert.deepStrictEqual({
 					sameDraft: prepared.session === draft,
+					titleAfterFailure,
+					titleAfterRetry,
 					provisionRequests,
 					sent,
 					published: provisioned.published,
 				}, {
 					sameDraft: true,
+					titleAfterFailure: 'First request',
+					titleAfterRetry: 'Updated request',
 					provisionRequests: [{ prompt: 'First request' }, { prompt: 'Updated request' }],
 					sent: ['Updated request'],
 					published: ['sess-new'],
