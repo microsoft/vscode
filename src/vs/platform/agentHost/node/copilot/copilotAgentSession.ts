@@ -4100,31 +4100,32 @@ export class CopilotAgentSession extends Disposable {
 			await this._startMcpServer(serverName, token);
 		}
 		await raceCancellationError(this._refreshMcpServersFromRpc(), token);
-		while (true) {
-			const state = await waitForState(
-				this._mcpCustomizations.runtimeStates.map(() => this._mcpCustomizations.stateForServer(serverName)),
-				state => state?.kind === McpServerStatus.Ready || (state?.kind === McpServerStatus.AuthRequired && this._copilotConnectorServers.has(serverName)),
-				state => state?.kind === McpServerStatus.Error
-					? new Error(state.error.message)
-					: !state || state.kind === McpServerStatus.Stopped
-						? new Error(`MCP server '${serverName}' stopped before its tools became available.`)
-						: undefined,
-				token,
-			);
-			if (state?.kind !== McpServerStatus.AuthRequired) {
-				return;
-			}
-			// Connector status can report a missing session-account scope without an SDK auth callback.
-			// The shared pending-request path also handles cancellation and credential rebind for that challenge.
-			await raceCancellationError(this._adoptPendingMcpAuthentication(serverName) ?? this._handleMcpAuthRequest({
-				requestId: generateUuid(),
-				serverName,
-				serverUrl: state.resource.resource,
-				reason: 'upscope',
-				wwwAuthenticateParams: { scope: state.requiredScopes?.join(' ') ?? copilotConnectorsScope },
-			}).then(() => undefined), token);
-			await raceCancellationError(this._refreshMcpServersFromRpc(), token);
+		const runtimeState = this._mcpCustomizations.runtimeStates.map(() => this._mcpCustomizations.stateForServer(serverName));
+		const activationError = (state: McpServerState | undefined) => state?.kind === McpServerStatus.Error
+			? new Error(state.error.message)
+			: !state || state.kind === McpServerStatus.Stopped
+				? new Error(`MCP server '${serverName}' stopped before its tools became available.`)
+				: undefined;
+		const settledState = await waitForState(
+			runtimeState,
+			state => state?.kind === McpServerStatus.Ready || (state?.kind === McpServerStatus.AuthRequired && this._copilotConnectorServers.has(serverName)),
+			activationError,
+			token,
+		);
+		if (settledState?.kind !== McpServerStatus.AuthRequired) {
+			return;
 		}
+		// Connector status can report a missing session-account scope without an SDK auth callback.
+		// Handle it once; credential rebind cancels this activation and reconciliation runs after the turn.
+		await raceCancellationError(this._adoptPendingMcpAuthentication(serverName) ?? this._handleMcpAuthRequest({
+			requestId: generateUuid(),
+			serverName,
+			serverUrl: settledState.resource.resource,
+			reason: 'upscope',
+			wwwAuthenticateParams: { scope: settledState.requiredScopes?.join(' ') ?? copilotConnectorsScope },
+		}).then(() => undefined), token);
+		await raceCancellationError(this._refreshMcpServersFromRpc(), token);
+		await waitForState(runtimeState, state => state?.kind === McpServerStatus.Ready, activationError, token);
 	}
 
 	private _isToolSearchActive(): boolean {
