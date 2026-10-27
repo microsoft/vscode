@@ -115,10 +115,22 @@ export class FloatingEditorPart {
 			}));
 		}
 		if (options.customizableTitleMenu) {
-			disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, append(actionsContainer, $('.floating-editor-title-menu')), options.customizableTitleMenu.menu, {
+			const { menu, alwaysShownItems, getContext, contextKeys } = options.customizableTitleMenu;
+			const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, append(actionsContainer, $('.floating-editor-title-menu')), menu, {
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
-				alwaysShownItems: options.customizableTitleMenu.alwaysShownItems,
+				alwaysShownItems,
 			}));
+			if (getContext) {
+				const contextKeyService = scopedInstantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
+				const keys = new Set(contextKeys);
+				const updateContext = () => toolbar.context = getContext(contextKeyService);
+				updateContext();
+				disposables.add(contextKeyService.onDidChangeContext(e => {
+					if (e.affectsSome(keys)) {
+						updateContext();
+					}
+				}));
+			}
 		}
 		const closeActionBar = disposables.add(new ActionBar(append(actionsContainer, $('.floating-editor-close'))));
 		const closeAction = disposables.add(new Action('workbench.action.closeFloatingEditorPart', localize('closeFloatingEditorPart', "Close"), ThemeIcon.asClassName(Codicon.close), true, async () => { editorPart.close(); }));

@@ -589,6 +589,12 @@ export interface IFloatingEditorPartOptions {
 	readonly customizableTitleMenu?: {
 		readonly menu: MenuId;
 		readonly alwaysShownItems?: readonly string[];
+		/**
+		 * The context the actions of the menu run with, read from the context
+		 * keys of the part and read again when one of `contextKeys` changes.
+		 */
+		readonly getContext?: (contextKeyService: IContextKeyService) => unknown;
+		readonly contextKeys?: readonly string[];
 	};
 
 	/**

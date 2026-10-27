@@ -12,6 +12,8 @@ import { IDimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
@@ -26,6 +28,8 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { OverlayLayoutElement } from '../../../../../base/browser/overlayLayoutElement.js';
 import { timeout } from '../../../../../base/common/async.js';
 import '../../../../browser/actions/layoutActions.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 
 class TestFloatingEditorPartLayoutService extends TestLayoutService {
 
@@ -62,8 +66,8 @@ suite('Floating Editor Part', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createParts(): Promise<{ parts: TestEditorParts; layoutService: TestFloatingEditorPartLayoutService; instantiationService: TestInstantiationService }> {
-		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+	async function createParts(useRealContextKeyService = false): Promise<{ parts: TestEditorParts; layoutService: TestFloatingEditorPartLayoutService; instantiationService: TestInstantiationService }> {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => useRealContextKeyService ? disposables.add(new ContextKeyService(new TestConfigurationService())) : instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		const layoutService = disposables.add(new TestFloatingEditorPartLayoutService());
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
 		instantiationService.stub(IAuxiliaryWindowService, upcastPartial<IAuxiliaryWindowService>({ getWindow: () => undefined }));
@@ -356,6 +360,32 @@ suite('Floating Editor Part', () => {
 			afterMainLayout: { header: 50, editorHeight: 300 - 2 - 50 },
 		});
 
+		part.close();
+	});
+
+	test('the customizable title menu runs with the context read from the context keys of the part, and reads it again when they change', async () => {
+		const { parts } = await createParts(true);
+		const contextKey = new RawContextKey<number>('test.floatingEditorPart.context', -1);
+		const contexts: { groupId: number }[] = [];
+		let keyService: IContextKeyService | undefined;
+		const part = await parts.createFloatingEditorPart({
+			title: 'With Context',
+			customizableTitleMenu: {
+				menu: MenuId.for('test.floatingEditorPart.titleMenu'),
+				getContext: contextKeyService => {
+					keyService = contextKeyService;
+					const context = { groupId: contextKey.getValue(contextKeyService) ?? -1 };
+					contexts.push(context);
+					return context;
+				},
+				contextKeys: [contextKey.key],
+			},
+		});
+		const initial = contexts.at(-1);
+
+		contextKey.bindTo(keyService!).set(7);
+
+		assert.deepStrictEqual({ initial, latest: contexts.at(-1) }, { initial: { groupId: -1 }, latest: { groupId: 7 } });
 		part.close();
 	});
 });
