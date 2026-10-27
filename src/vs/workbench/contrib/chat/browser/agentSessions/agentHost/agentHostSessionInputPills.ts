@@ -59,7 +59,8 @@ import { createCustomizationIndexObservable, createProgressiveChatCustomizations
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
-import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatEditingService, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo, isSameSessionFileChange } from '../../widget/input/chatSessionWorkingSet.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
@@ -600,6 +601,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService commandService: ICommandService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IChatEditingService chatEditingService: IChatEditingService,
 	) {
 		super();
 		this._gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
@@ -745,15 +747,19 @@ export class AgentHostSessionInputPills extends Disposable {
 				defaultKind,
 			);
 		});
-		const changesetStateSource = derived(this, reader => {
+		const changesetSubscription = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			const resource = changesetTarget.read(reader)?.resource;
 			if (!currentResolution || !resource) {
-				return constObservable<ChangesetState | undefined>(undefined);
+				return undefined;
 			}
 			const subscription = reader.store.add(currentResolution.connection.getSubscription(StateComponents.Changeset, resource, 'AgentHostSessionInputPills'));
-			return observableFromSubscription(this, subscription.object);
+			return {
+				state: observableFromSubscription(this, subscription.object),
+				failed: observableFromEvent(this, Event.any(subscription.object.onDidChange, subscription.object.onDidError ?? Event.None), () => subscription.object.value instanceof Error),
+			};
 		});
+		const changesetStateSource = derived(this, reader => changesetSubscription.read(reader)?.state ?? constObservable<ChangesetState | undefined>(undefined));
 		const changesetFiles = derivedObservableWithCache<{ readonly connectionAuthority: string; readonly resource: URI; readonly files: ChangesetState['files'] } | undefined>(this, (reader, lastValue) => {
 			const currentResolution = resolution.read(reader);
 			const target = changesetTarget.read(reader);
@@ -794,11 +800,36 @@ export class AgentHostSessionInputPills extends Disposable {
 				})
 				.filter(isDefined);
 		});
+		const checkpointReview = derived(this, reader => {
+			const resource = sessionResource.read(reader);
+			chatEditingService.editingSessionsObs.read(reader);
+			const session = resource ? chatEditingService.getEditingSession(resource) : undefined;
+			return session instanceof AgentHostSnapshotController ? session.checkpointReview : undefined;
+		});
+		const checkpointSource = derived(this, reader => {
+			const channel = changesetTarget.read(reader)?.resource;
+			const state = changesetStateSource.read(reader).read(reader);
+			return channel ? {
+				channel,
+				ready: state?.status === ChangesetStatus.Ready,
+				failed: changesetSubscription.read(reader)?.failed.read(reader) || state?.status === ChangesetStatus.Error,
+				files: changes.read(reader).map(diff => ({ diff, nonce: this._fileChangeNonces.get(diff) })),
+			} : undefined;
+		});
+		this._register(autorun(reader => {
+			const review = checkpointReview.read(reader);
+			if (review && workingSetEnabled.read(reader)) {
+				reader.store.add(review.registerSource(checkpointSource));
+			}
+		}));
 		const workingSetChanges = derived(this, reader => {
 			if (!workingSetEnabled.read(reader)) {
 				return undefined;
 			}
-			return changes.read(reader);
+			const channel = changesetTarget.read(reader)?.resource;
+			const review = checkpointReview.read(reader);
+			const diffs = changes.read(reader);
+			return channel && review ? review.project(channel, diffs.map(diff => ({ diff, nonce: this._fileChangeNonces.get(diff) })), reader).map(file => file.diff) : diffs;
 		});
 		// Undo reverts a file's changes with the host's file-level Discard Changes operation, when the host offers it.
 		const workingSetDiscard = derived<ChangesetOperation | undefined>(this, reader => {
@@ -1014,10 +1045,16 @@ export class AgentHostSessionInputPills extends Disposable {
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, chatCustomizations, customizationFolders));
 		// A new source per chat keeps one chat's shell details from carrying over to another.
 		const backgroundShellOutputs = new AgentHostBackgroundShellOutputs(reader => resolution.read(reader)?.connection);
-		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, derived(this, reader => chatResource.read(reader) ? {
+		const backgroundShellSource = derived(this, reader => chatResource.read(reader) ? {
 			backgroundShells: derivedOpts<readonly IChatBackgroundShell[]>({ owner: this, equalsFn: structuralEquals }, shellReader => backgroundShellOutputs.project(chatState.read(shellReader)?.backgroundWork, chatResource.read(shellReader))),
-		} : undefined)));
+		} : undefined);
+		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, backgroundShellSource));
 
+		const subagentPillData = createSessionSubagentsPillData(subagents, visibility.subagents);
+		this._register(this._widget.registerBackgroundActivityPillSections({
+			subagents: subagentPillData.inProgressSections,
+			backgroundShells: derived(this, reader => backgroundShellSource.read(reader)?.backgroundShells.read(reader) ?? []),
+		}));
 		const sources = this._register(instantiationService.createInstance(StandardChatInputPillSources, {
 			changes: {
 				stats: changeStats,
@@ -1036,7 +1073,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			customizations: sessionCustomizations,
 			canvases: { sections: canvases.sections },
 			browsers: { sections: browserSections },
-			subagents: createSessionSubagentsPillData(subagents, visibility.subagents),
+			subagents: subagentPillData,
 			backgroundShells,
 		}, SESSION_CHAT_PILL_KINDS, derived(this, reader => {
 			const session = sessionResource.read(reader);

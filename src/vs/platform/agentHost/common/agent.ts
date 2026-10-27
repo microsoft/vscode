@@ -18,6 +18,7 @@ import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
+import type { IChatSurfaceMeta } from './meta/agentChatSurfaceMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
@@ -406,6 +407,7 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly catalogIdentity?: string;
 	readonly iconUrl?: string;
 	readonly categories?: readonly string[];
+	readonly compatibilityTags?: readonly string[];
 	readonly kind: 'skill' | 'mcp' | 'plugin';
 	readonly displayName: string;
 	readonly description?: string;
@@ -418,6 +420,7 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly repository?: string;
 	readonly path?: string;
 	readonly connectorIds?: readonly string[];
+	readonly installCount?: number;
 	readonly installable: boolean;
 	readonly unavailableMessage?: string;
 }
@@ -863,6 +866,12 @@ export interface IAgentChatContext {
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
+	/**
+	 * The VS Code chat surface the owning session was created for, from its surface
+	 * metadata. Supplied at each operation, so a runtime that replaces the chat's
+	 * keeps the surface's behavior. Absent for sessions no such surface created.
+	 */
+	readonly chatSurface?: IChatSurfaceMeta['surface'];
 }
 
 export type AgentChatOperationContext = URI | IAgentChatContext;
@@ -942,6 +951,11 @@ export interface IAgentCreateChatOptions {
 	 */
 	readonly hasScopedEditSurface?: boolean;
 	/**
+	 * Whether the owning chat surface is an inline chat (editor or terminal), where
+	 * latency matters more than routing depth, so Copilot Fusion runs at its fast tier.
+	 */
+	readonly isInlineChatSurface?: boolean;
+	/**
 	 * Authoritative initial title supplied to host creation. When present, it
 	 * takes precedence over a generated fork placeholder; explicit provenance
 	 * determines whether automatic title replacement is allowed.
@@ -970,6 +984,14 @@ export interface IAgentCreateChatOptions {
 	 * is forked from the source so it can continue independently.
 	 */
 	readonly fork?: IAgentCreateChatForkSource;
+}
+
+/** The surface-scoped {@link IAgentCreateChatOptions} for a chat whose owning session `surface` created. */
+export function getChatSurfaceOptions(surface: IChatSurfaceMeta['surface'] | undefined): Pick<IAgentCreateChatOptions, 'hasScopedEditSurface' | 'isInlineChatSurface'> {
+	return {
+		...(surface === 'editorInline' ? { hasScopedEditSurface: true } : {}),
+		...(surface === 'editorInline' || surface === 'terminal' ? { isInlineChatSurface: true } : {}),
+	};
 }
 
 /**

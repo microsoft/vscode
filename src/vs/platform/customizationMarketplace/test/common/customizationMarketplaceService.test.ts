@@ -125,6 +125,25 @@ suite('CustomizationMarketplaceService', () => {
 		assert.deepStrictEqual((await refresh).items.map(item => item.identifier), ['fresh-fast', 'fresh-slow']);
 	});
 
+	test('clears cached Browse content only for the requested sources', async () => {
+		const calls = { fast: 0, slow: 0 };
+		const service = new CustomizationMarketplaceService((['fast', 'slow'] as const).map((id): ICustomizationMarketplaceProvider => ({
+			id: `provider.${id}`,
+			sourceId: id,
+			query: async () => {
+				calls[id]++;
+				return { items: [{ ...entry, identifier: `${id}-${calls[id]}` }], total: 1 };
+			},
+		})));
+		await service.query({ sourceIds: ['fast', 'slow'], pageSize: 2 }, CancellationToken.None);
+		service.clearBrowseCache(['slow']);
+		const cached = new Set<string>();
+		await service.query({ sourceIds: ['fast', 'slow'], pageSize: 2 }, CancellationToken.None, update => {
+			update.cachedSourceIds.forEach(sourceId => cached.add(sourceId));
+		});
+		assert.deepStrictEqual({ cached: [...cached], calls }, { cached: ['fast'], calls: { fast: 2, slow: 2 } });
+	});
+
 	test('groups multiple providers behind one contributed source', async () => {
 		const calls: string[] = [];
 		const providers: ICustomizationMarketplaceProvider[] = ['custom', 'default'].map(kind => ({

@@ -31,7 +31,13 @@ const USAGE: &str = "usage: ripple <command> --config FILE [--repo PATH] [option
 	\tanalyze --file PATH: analysis summary of one module\n\
 	\tplan --base REV [--head REV] [--out-dir DIR]: the unit test files to run for a change\n\
 	\tblame --test PATH --since REV [--until REV]: the commits in a range that can affect a test\n\
+	\twhy --test PATH --base REV [--head REV]: how a change reaches a test that it selects\n\
 	\treplay --since DATE [--until REV] [--out FILE] [--hubs 1]: selection statistics over first-parent history";
+
+/// The commands of `USAGE`.
+const COMMANDS: &[&str] = &[
+	"stats", "affected", "analyze", "plan", "blame", "why", "replay",
+];
 
 /// The options of all commands. Each one takes a value.
 const OPTIONS: &[&str] = &[
@@ -87,7 +93,7 @@ fn weight<S: AsRef<str>>(snap: &Snapshot, files: impl Iterator<Item = S>) -> f64
 fn main() -> Result<()> {
 	let args = Args::parse(std::env::args().skip(1))?;
 	let command = args.command.as_str();
-	if !["stats", "affected", "analyze", "plan", "blame", "replay"].contains(&command) {
+	if !COMMANDS.contains(&command) {
 		bail!("{USAGE}");
 	}
 	let config = args
@@ -129,6 +135,13 @@ fn main() -> Result<()> {
 			args.get("test").context("--test is required")?,
 			args.get("since").context("--since is required")?,
 			args.get("until").unwrap_or("HEAD"),
+		),
+		"why" => why(
+			&config,
+			repo,
+			args.get("test").context("--test is required")?,
+			args.get("base").context("--base is required")?,
+			args.get("head").unwrap_or("HEAD"),
 		),
 		"replay" => replay(
 			&config,
@@ -549,6 +562,65 @@ fn blame(config: &Config, repo: PathBuf, test: &str, since: &str, until: &str) -
 		t.elapsed().as_millis()
 	);
 	Ok(())
+}
+
+/// Explains why a change selects a test: a path from the test's code to what the change changed,
+/// through the declarations, whole modules, packages and globals in between.
+fn why(config: &Config, repo: PathBuf, test: &str, base: &str, head: &str) -> Result<()> {
+	let mut engine = Engine::new(repo.clone(), config);
+	let mut blobs = blob_texts(&repo)?;
+	let bs = engine.snapshot(base)?;
+	let hs = engine.snapshot(head)?;
+	let (bg, hg) = (Graph::build(&bs, config), Graph::build(&hs, config));
+	let changes = git::diff_tree(&repo, base, head)?;
+	let sel = select(config, &mut blobs, &bs, &bg, &hs, &hg, &changes)?;
+	if let Some(reason) = &sel.run_all {
+		println!("every unit test runs: {reason}");
+		return Ok(());
+	}
+	if !sel.decl.iter().any(|p| &**p == test) {
+		println!("the change does not select {test}");
+		return Ok(());
+	}
+	// Only the base graph has the code that the change removed.
+	for (snap, graph, seeds) in [(&hs, &hg, &sel.head_seeds), (&bs, &bg, &sel.base_seeds)] {
+		let Some(f) = snap.find(test) else {
+			continue;
+		};
+		let mut targets = vec![false; graph.node_count()];
+		for &s in seeds {
+			targets[s as usize] = true;
+		}
+		let roots: Vec<u32> = graph.file_nodes(f as usize).collect();
+		let Some(path) = graph.path_from(&roots, &[], &targets) else {
+			continue;
+		};
+		let seed = path[path.len() - 1].0;
+		let data = |p: &str| !bs.role(p).is_module() && !hs.role(p).is_module();
+		let read: Vec<&str> = changes
+			.iter()
+			.map(|c| c.path.as_str())
+			.filter(|p| graph.readers(p, data(p)).0.contains(&seed))
+			.collect();
+		for (i, &(v, opener)) in path.iter().enumerate() {
+			let mut line = format!(
+				"{}{}",
+				if i == 0 { "" } else { "  -> " },
+				graph.label(snap, v)
+			);
+			if let Some(o) = opener {
+				line += &format!("  (method opened by its name in {})", graph.label(snap, o));
+			}
+			if v == seed && read.is_empty() {
+				line += "  (changed)";
+			} else if v == seed {
+				line += &format!("  (reads {} by path)", read.join(", "));
+			}
+			println!("{line}");
+		}
+		return Ok(());
+	}
+	bail!("found no path from {test} to the change")
 }
 
 /// Replays first-parent history and compares the share of unit test work that file-level and

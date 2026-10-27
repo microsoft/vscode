@@ -653,6 +653,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		const removeCalls: { name: string; force?: boolean }[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [{
 				name: 'VS Code Marketplace',
 				source: 'GitHub: microsoft/vscode-marketplace',
@@ -705,6 +706,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		const removeCalls: string[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [{
 				name: 'removable-marketplace',
 				source: 'GitHub: owner/removable-marketplace',
@@ -761,6 +763,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		let listCalls = 0;
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => {
 				listCalls++;
 				return [{
@@ -806,6 +809,7 @@ suite('ManagePluginMarketplacesAction', () => {
 			const addCalls: string[] = [];
 			const provider: ICustomizationMarketplaceManagementProvider = {
 				onDidChange: Event.None,
+				onDidChangeMarketplaces: Event.None,
 				list: async () => [],
 				add: async (_session, source) => {
 					addCalls.push(source);
@@ -850,6 +854,7 @@ suite('ManagePluginMarketplacesAction', () => {
 	test('cancelling the direct provider marketplace input does not open management', async () => {
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [],
 			add: async () => { throw new Error('Cancelled input must not add a marketplace'); },
 			queryMarketplace: async () => ({ items: [], total: 0 }),
@@ -871,6 +876,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		const addCalls: { session: URI; source: string }[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [],
 			add: async (session, source) => {
 				addCalls.push({ session, source });
@@ -951,6 +957,7 @@ suite('ManagePluginMarketplacesAction', () => {
 	test('validates provider marketplace input while typing and before adding', async () => {
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [{
 				name: 'existing', source: 'owner/existing', isDefault: false, managed: false, available: true,
 			}],
@@ -998,6 +1005,7 @@ suite('ManagePluginMarketplacesAction', () => {
 			const finished = new DeferredPromise<void>();
 			const provider: ICustomizationMarketplaceManagementProvider = {
 				onDidChange: Event.None,
+				onDidChangeMarketplaces: Event.None,
 				list: async () => [],
 				add: async (_session, source) => {
 					try {
@@ -1041,6 +1049,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		const addCalls: string[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [],
 			add: async (_session, source) => {
 				addCalls.push(source);
@@ -1166,6 +1175,7 @@ suite('ManagePluginMarketplacesAction', () => {
 				};
 				const provider: ICustomizationMarketplaceManagementProvider = {
 					onDidChange: Event.None,
+					onDidChangeMarketplaces: Event.None,
 					list: async () => [marketplace],
 					add: async () => { throw new Error('Browsing must not add a marketplace'); },
 					queryMarketplace: async () => ({ items: [], total: 0 }),

@@ -251,6 +251,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	protected constructor(
 		protected readonly _instantiationService: IInstantiationService,
 		protected readonly _logService: ILogService,
+		private readonly _notificationService: INotificationService,
 	) {
 		super();
 		this._mcpLogRegistry = this._register(this._instantiationService.createInstance(AgentHostMcpServerLogRegistry));
@@ -525,7 +526,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			verification.settle();
 			return this._reportMcpAuthenticationOutcome(server.name, await verification.outcome);
 		} catch (err) {
-			this._logService.error(`[AgentHost] Failed to authenticate MCP server '${server.name}'`, err);
+			if (!isCancellationError(err)) {
+				this._logService.error(`[AgentHost] Failed to authenticate MCP server '${server.name}'`, err);
+				this._notificationService.error(localize('agentHost.mcpAuthenticationFailed', "Unable to sign in to {0}: {1}", label, getErrorMessage(err)));
+			}
 			return false;
 		}
 	}
@@ -862,8 +866,9 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@INotificationService notificationService: INotificationService,
 	) {
-		super(instantiationService, logService);
+		super(instantiationService, logService, notificationService);
 
 		this._register(this._connectionsService.ambientConnection.onDidAction(envelope => {
 			switch (envelope.action.type) {

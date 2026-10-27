@@ -829,12 +829,12 @@
 	display: none;
 }
 
-.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) > .sessions-workspace-clear-button {
+.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, .workspace-focus-visible, .workspace-picker-open) > .sessions-workspace-clear-button {
 	opacity: 1;
 	pointer-events: auto;
 }
 
-.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) .action-label > .codicon:first-child {
+.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, .workspace-focus-visible, .workspace-picker-open) .action-label > .codicon:first-child {
 	opacity: 0;
 }
 

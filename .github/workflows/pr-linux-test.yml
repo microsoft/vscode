@@ -1,39 +1,34 @@
 on:
   workflow_call:
     inputs:
-      job_name:
-        type: string
-        required: true
-      electron_tests:
-        type: boolean
-        default: false
-      browser_tests:
-        type: boolean
-        default: false
-      remote_tests:
-        type: boolean
-        default: false
-      unit_tests:
+      electron_unit_affected:
+        description: Whether the pull request can affect the Electron-Unit jobs, which are skipped when false
         type: boolean
         default: true
-      integration_tests:
+      electron_affected:
+        description: Whether the pull request can affect the Electron job, which is skipped when false
         type: boolean
         default: true
-      smoke_tests:
+      agent_host_e2e_affected:
+        description: Whether the pull request can affect the Agent-Host-E2E job, which is skipped when false
         type: boolean
         default: true
-      smoke_shard_index:
-        description: 1-based index of the Electron smoke test shard to run
-        type: number
-        default: 1
-      smoke_shard_total:
-        description: Number of shards the Electron smoke tests are split into
-        type: number
-        default: 1
-      agent_host_e2e_tests:
-        description: Whether to run the Agent Host E2E tests
+      electron_smoke_affected:
+        description: Whether the pull request can affect the Electron-Smoke jobs, which are skipped when false
         type: boolean
-        default: false
+        default: true
+      browser_unit_affected:
+        description: Whether the pull request can affect the Browser-Unit job, which is skipped when false
+        type: boolean
+        default: true
+      browser_affected:
+        description: Whether the pull request can affect the Browser job, which is skipped when false
+        type: boolean
+        default: true
+      remote_affected:
+        description: Whether the pull request can affect the Remote job, which is skipped when false
+        type: boolean
+        default: true
       agent_host_test_profile:
         description: Agent Host test profile, 'pr' or 'full' (see .github/actions/detect-agent-host-e2e-changes)
         type: string
@@ -43,16 +38,35 @@ on:
         type: string
         default: Change detection unavailable
 
+env:
+  NPM_ARCH: x64
+  VSCODE_ARCH: x64
+  VSCODE_SKIP_PRELAUNCH: '1'
+
+# Each job reports as "Linux / <job name>", for example "Linux / Browser-Unit", whether it runs or
+# not: the names are fixed, as GitHub does not evaluate the expressions in the name of a skipped job.
+# The jobs run the steps of the first one (steps: &steps), and their env selects which of them run
+# (a flag is on when it is 'true'):
+# - ELECTRON_TESTS, BROWSER_TESTS or REMOTE_TESTS: the test runner
+# - UNIT_TESTS, INTEGRATION_TESTS, SMOKE_TESTS and AGENT_HOST_E2E_TESTS: the kinds of tests
+# - UNIT_TEST_SUITE: the unit tests of an Electron job, 'electron' or 'node', or both when unset
+# - SMOKE_SHARD_INDEX and SMOKE_SHARD_TOTAL: the 1-based index of the Electron smoke test shard to run,
+#   and the number of shards
+# - ARTIFACT_NAME: identifies the job in the names of the artifacts that it publishes
 jobs:
-  linux-test:
-    name: ${{ inputs.job_name }}
+  # Linux runs every unit test, so the Electron and node.js unit tests in one job could be the slowest
+  # job of the workflow: they run on separate machines. macOS and Windows run only the selected unit
+  # tests, so they rarely take as long.
+  electron-unit-electron:
+    name: Electron-Unit (electron)
+    if: ${{ inputs.electron_unit_affected }}
     runs-on: ubuntu-24.04
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
-      NPM_ARCH: x64
-      VSCODE_ARCH: x64
-      VSCODE_SKIP_PRELAUNCH: '1'
-    steps:
+      ARTIFACT_NAME: electron-unit-electron
+      ELECTRON_TESTS: 'true'
+      UNIT_TESTS: 'true'
+      UNIT_TEST_SUITE: electron
+    steps: &steps
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -274,7 +288,7 @@ jobs:
         run: npm run gulp transpile-client-esbuild transpile-extensions
 
       - name: Setup Electron
-        if: ${{ inputs.electron_tests || inputs.remote_tests }}
+        if: ${{ (env.ELECTRON_TESTS == 'true' && env.UNIT_TEST_SUITE != 'node') || env.REMOTE_TESTS == 'true' }}
         uses: ./.github/actions/setup-electron
         with:
           arch: ${{ env.VSCODE_ARCH }}
@@ -282,12 +296,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compile browser integration test runner
-        if: ${{ inputs.browser_tests && inputs.integration_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}
         working-directory: test/integration/browser
         run: npm run compile
 
       - name: Install Playwright Chromium
-        if: ${{ inputs.browser_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' }}
         run: |
           set -e
 
@@ -307,27 +321,27 @@ jobs:
           done
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'node' }}
         timeout-minutes: 25
-        run: ./scripts/test.sh --tfs "Unit Tests" --rerun-failed-files 2
+        run: ./scripts/test.sh --tfs "Unit Tests" --workers 4 --rerun-failed-files 2
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'electron' }}
         timeout-minutes: 25
-        run: npm run test-node -- --rerun-failed-files 2
+        run: npm run test-node -- --workers 4 --rerun-failed-files 2
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.unit_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TESTS == 'true' }}
         timeout-minutes: 30
-        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests" --rerun-failed-files 2
+        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests" --workers 4 --rerun-failed-files 2
         env:
           DEBUG: "*browser*"
 
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ inputs.integration_tests || inputs.smoke_tests }}
+        if: ${{ env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true' }}
         run: |
           set -e
           npm run gulp \
@@ -335,6 +349,7 @@ jobs:
             compile-extension:css-language-features-server \
             compile-extension:emmet \
             compile-extension:git \
+            compile-extension:git-base \
             compile-extension:github-authentication \
             compile-extension:html-language-features-server \
             compile-extension:ipynb \
@@ -352,7 +367,7 @@ jobs:
 
       - name: 🧪 Run Agent Host E2E tests (Electron)
         id: agent-host-e2e
-        if: ${{ inputs.electron_tests && inputs.agent_host_e2e_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.AGENT_HOST_E2E_TESTS == 'true' }}
         timeout-minutes: 25
         run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests" --rerun-failed-files 2
         env:
@@ -365,7 +380,7 @@ jobs:
       # Reruns the failed tests in a fresh window.
       - name: 🧪 Run integration tests (Electron)
         id: node-integration-tests
-        if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
         timeout-minutes: 25
         run: ./scripts/test-integration.sh --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2
         env:
@@ -377,7 +392,7 @@ jobs:
       # Runs even when the node.js integration tests or Agent Host E2E failed in the same job.
       # The extension host suites are not rerun.
       - name: 🧪 Run extension host integration tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
         timeout-minutes: 15
         run: ./scripts/test-integration.sh --only-extension-host-tests
         env:
@@ -385,12 +400,12 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.integration_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}
         timeout-minutes: 20
         run: ./scripts/test-web-integration.sh --browser chromium
 
       - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests && inputs.integration_tests }}
+        if: ${{ env.REMOTE_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}
         timeout-minutes: 20
         run: ./scripts/test-remote-integration.sh
         env:
@@ -398,12 +413,12 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Compile smoke tests
-        if: ${{ inputs.smoke_tests }}
+        if: ${{ env.SMOKE_TESTS == 'true' }}
         working-directory: test/smoke
         run: npm run compile
 
       - name: Compile Copilot Chat extension for smoke tests
-        if: ${{ inputs.smoke_tests && !inputs.browser_tests }}
+        if: ${{ env.SMOKE_TESTS == 'true' && env.BROWSER_TESTS != 'true' }}
         working-directory: extensions/copilot
         run: npm run compile
 
@@ -420,7 +435,7 @@ jobs:
       # https://github.com/anthropics/claude-agent-sdk-typescript for the SDK
       # resolution order.
       - name: Remove musl Claude binary on glibc Linux
-        if: ${{ inputs.smoke_tests && !inputs.browser_tests }}
+        if: ${{ env.SMOKE_TESTS == 'true' && env.BROWSER_TESTS != 'true' }}
         run: rm -rf node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64-musl
 
       - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
@@ -430,10 +445,10 @@ jobs:
           cat /proc/sys/fs/inotify/max_user_watches
           lsof | wc -l
         continue-on-error: true
-        if: ${{ inputs.smoke_tests && always() }}
+        if: ${{ env.SMOKE_TESTS == 'true' && always() }}
 
       - name: Set up native policy smoke fixture
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         id: policy-fixture
         run: |
           set -e
@@ -442,9 +457,9 @@ jobs:
           sudo chown "$(id -u):$(id -g)" /etc/vscode
 
       - name: 🧪 Run smoke tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --tracing --shard ${{ inputs.smoke_shard_index }}/${{ inputs.smoke_shard_total }}
+        run: npm run smoketest-no-compile -- --tracing --shard ${{ env.SMOKE_SHARD_INDEX }}/${{ env.SMOKE_SHARD_TOTAL }}
         env:
           DISPLAY: ":10"
           VSCODE_SMOKE_TEST_POLICY: '1'
@@ -457,19 +472,19 @@ jobs:
           sudo rmdir /etc/vscode
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.smoke_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
-        if: ${{ inputs.remote_tests && inputs.smoke_tests }}
+        if: ${{ env.REMOTE_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --remote --tracing
         env:
           DISPLAY: ":10"
 
       - name: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
-        if: ${{ inputs.smoke_tests && always() }}
+        if: ${{ env.SMOKE_TESTS == 'true' && always() }}
         run: |
           set -e
           ps -ef
@@ -505,3 +520,94 @@ jobs:
           name: ${{ format('logs-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
           path: .build/logs
           if-no-files-found: ignore
+
+  electron-unit-node:
+    name: Electron-Unit (node)
+    if: ${{ inputs.electron_unit_affected }}
+    runs-on: ubuntu-24.04
+    env:
+      ARTIFACT_NAME: electron-unit-node
+      ELECTRON_TESTS: 'true'
+      UNIT_TESTS: 'true'
+      UNIT_TEST_SUITE: node
+    steps: *steps
+
+  electron:
+    name: Electron
+    if: ${{ inputs.electron_affected }}
+    runs-on: ubuntu-24.04
+    env:
+      ARTIFACT_NAME: electron
+      ELECTRON_TESTS: 'true'
+      INTEGRATION_TESTS: 'true'
+    steps: *steps
+
+  # The integration tests and Agent Host E2E in one job would be the slowest job of the workflow, so
+  # Agent Host E2E runs in parallel on its own machine.
+  agent-host-e2e:
+    name: Agent-Host-E2E
+    if: ${{ inputs.agent_host_e2e_affected }}
+    runs-on: ubuntu-24.04
+    env:
+      ARTIFACT_NAME: electron-agent-host-e2e
+      ELECTRON_TESTS: 'true'
+      AGENT_HOST_E2E_TESTS: 'true'
+    steps: *steps
+
+  # Running every Electron smoke test takes one machine up to about 20 minutes, the timeout of the
+  # step, so the shards split them over parallel machines (see .github/skills/smoke-tests/SKILL.md).
+  electron-smoke-1:
+    name: Electron-Smoke (shard 1/2)
+    if: ${{ inputs.electron_smoke_affected }}
+    runs-on: ubuntu-24.04
+    env:
+      ARTIFACT_NAME: electron-smoke-shard1
+      ELECTRON_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+      SMOKE_SHARD_INDEX: '1'
+      SMOKE_SHARD_TOTAL: '2'
+    steps: *steps
+
+  electron-smoke-2:
+    name: Electron-Smoke (shard 2/2)
+    if: ${{ inputs.electron_smoke_affected }}
+    runs-on: ubuntu-24.04
+    env:
+      ARTIFACT_NAME: electron-smoke-shard2
+      ELECTRON_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+      SMOKE_SHARD_INDEX: '2'
+      SMOKE_SHARD_TOTAL: '2'
+    steps: *steps
+
+  browser-unit:
+    name: Browser-Unit
+    if: ${{ inputs.browser_unit_affected }}
+    runs-on: ubuntu-24.04
+    env:
+      ARTIFACT_NAME: browser-unit
+      BROWSER_TESTS: 'true'
+      UNIT_TESTS: 'true'
+    steps: *steps
+
+  browser:
+    name: Browser
+    if: ${{ inputs.browser_affected }}
+    runs-on: ubuntu-24.04
+    env:
+      ARTIFACT_NAME: browser
+      BROWSER_TESTS: 'true'
+      INTEGRATION_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+    steps: *steps
+
+  remote:
+    name: Remote
+    if: ${{ inputs.remote_affected }}
+    runs-on: ubuntu-24.04
+    env:
+      ARTIFACT_NAME: remote
+      REMOTE_TESTS: 'true'
+      INTEGRATION_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+    steps: *steps

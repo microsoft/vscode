@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isObject } from '../../../../../../base/common/types.js';
@@ -1213,37 +1213,110 @@ suite('resolveMcpServerAuthentication', () => {
 		});
 	}
 
-	test('logs terminal protected resource discovery failures without forwarding a token', async () => {
-		const warnings: string[] = [];
-		const forwarded: IAgentHostAuthenticateRequest[] = [];
-		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IAuthenticationService, createMockAuthService({}));
-		instantiationService.stub(IAuthenticationMcpAccessService, {});
-		instantiationService.stub(IAuthenticationMcpService, {});
-		instantiationService.stub(IAuthenticationMcpUsageService, {});
-		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
-		instantiationService.stub(IAgentHostMcpOAuthMetadataService, {
-			resolveResource: async () => { throw new Error('Invalid protected resource metadata'); },
+	for (const allowInteraction of [false, true]) {
+		test(`protected resource discovery failures ${allowInteraction ? 'propagate interactively' : 'stay silent'} without forwarding a token`, async () => {
+			const warnings: string[] = [];
+			const forwarded: IAgentHostAuthenticateRequest[] = [];
+			const failure = new Error('Invalid protected resource metadata');
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IAuthenticationService, createMockAuthService({}));
+			instantiationService.stub(IAuthenticationMcpAccessService, {});
+			instantiationService.stub(IAuthenticationMcpService, {});
+			instantiationService.stub(IAuthenticationMcpUsageService, {});
+			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
+			instantiationService.stub(IAgentHostMcpOAuthMetadataService, {
+				resolveResource: async () => { throw failure; },
+			});
+			instantiationService.stub(ILogService, new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}());
+			const operation = instantiationService.invokeFunction(resolveMcpServerAuthentication, { resource: 'https://mcp.example/v1/mcp' }, {
+				allowInteraction,
+				logPrefix: '[Test]',
+				target: undefined,
+				mcpServerId: 'server',
+				mcpServerName: 'Server',
+				mcpServerUrl: 'https://mcp.example/v1/mcp',
+				scopes: [],
+				authenticate: async request => { forwarded.push(request); },
+			});
+			if (allowInteraction) {
+				await assert.rejects(operation, error => error === failure);
+			} else {
+				assert.strictEqual(await operation, false);
+			}
+			assert.deepStrictEqual({ warnings, forwarded }, {
+				warnings: ['[Test] Failed to discover MCP authentication for Server'],
+				forwarded: [],
+			});
 		});
-		instantiationService.stub(ILogService, new class extends NullLogService {
-			override warn(message: string): void { warnings.push(message); }
-		}());
-		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, { resource: 'https://mcp.example/v1/mcp' }, {
-			allowInteraction: true,
-			logPrefix: '[Test]',
-			target: undefined,
-			mcpServerId: 'server',
-			mcpServerName: 'Server',
-			mcpServerUrl: 'https://mcp.example/v1/mcp',
-			scopes: [],
-			authenticate: async request => { forwarded.push(request); },
-		});
-		assert.deepStrictEqual({ result, warnings, forwarded }, {
-			result: false,
-			warnings: ['[Test] Failed to discover MCP authentication for Server'],
-			forwarded: [],
-		});
-	});
+	}
+
+	for (const stage of ['metadata', 'provider']) {
+		for (const { allowInteraction, fallback, cancelled } of [
+			{ allowInteraction: false, fallback: 'none', cancelled: false },
+			{ allowInteraction: true, fallback: 'none', cancelled: false },
+			{ allowInteraction: false, fallback: 'succeeds', cancelled: false },
+			{ allowInteraction: true, fallback: 'succeeds', cancelled: false },
+			{ allowInteraction: true, fallback: 'fails', cancelled: false },
+			{ allowInteraction: true, fallback: 'succeeds', cancelled: true },
+		]) {
+			test(`${stage} failure with interaction ${allowInteraction}, fallback ${fallback} and cancellation ${cancelled}`, async () => {
+				const firstIssuer = 'https://first.example/';
+				const secondIssuer = 'https://second.example/';
+				const failure = cancelled ? new CancellationError() : new Error(`${stage} failed`);
+				const fallbackFailure = new Error(`Fallback ${stage} failed`);
+				const metadataRequests: string[] = [];
+				const forwarded: IAgentHostAuthenticateRequest[] = [];
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(IAuthenticationService, createMockAuthService({
+					createDynamicAuthenticationProvider: async authorizationServer => {
+						if (stage === 'provider' && (authorizationServer.toString(true) === firstIssuer || fallback === 'fails')) {
+							throw authorizationServer.toString(true) === firstIssuer ? failure : fallbackFailure;
+						}
+						return { id: 'provider' };
+					},
+					getSessions: async () => [{ id: 'session', scopes: [], accessToken: 'token', account: { id: 'account', label: 'Account' } }],
+				}));
+				instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+				instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+				instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+				instantiationService.stub(IDynamicAuthenticationProviderStorageService, { getClientRegistration: async () => ({ clientId: 'persisted-client' }) });
+				instantiationService.stub(ILogService, new NullLogService());
+
+				const operation = instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+					resource: 'https://mcp.example.com',
+					authorization_servers: fallback === 'none' ? [firstIssuer] : [firstIssuer, secondIssuer],
+				}, {
+					allowInteraction,
+					logPrefix: '[Test]',
+					target: mcpAuthenticationTarget,
+					mcpServerId: 'server',
+					mcpServerName: 'Server',
+					mcpServerUrl: 'https://mcp.example.com',
+					scopes: [],
+					authorizationServerMetadataFetcher: async authorizationServer => {
+						metadataRequests.push(authorizationServer);
+						if (stage === 'metadata' && (authorizationServer === firstIssuer || fallback === 'fails')) {
+							throw authorizationServer === firstIssuer ? failure : fallbackFailure;
+						}
+						return { metadata: { issuer: authorizationServer, response_types_supported: ['code'] }, discoveryUrl: `${authorizationServer}.well-known/oauth-authorization-server`, errors: [] };
+					},
+					authenticate: async request => { forwarded.push(request); },
+				});
+				if (allowInteraction && (cancelled || fallback !== 'succeeds')) {
+					await assert.rejects(operation, error => error === (fallback === 'fails' ? fallbackFailure : failure));
+				} else {
+					assert.strictEqual(await operation, fallback === 'succeeds');
+				}
+
+				assert.deepStrictEqual({ metadataRequests, forwarded }, {
+					metadataRequests: fallback === 'none' || cancelled ? [firstIssuer] : [firstIssuer, secondIssuer],
+					forwarded: fallback === 'succeeds' && !cancelled ? [{ target: mcpAuthenticationTarget, resource: 'https://mcp.example.com', scopes: [], token: 'token' }] : [],
+				});
+			});
+		}
+	}
 
 	test('preserves OAuth context when selecting an account', async () => {
 		const authorizationServer = URI.parse('https://issuer.example/tenant');
