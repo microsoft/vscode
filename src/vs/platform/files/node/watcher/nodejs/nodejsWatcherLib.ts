@@ -10,7 +10,8 @@ import { isEqual, isEqualOrParent } from '../../../../../base/common/extpath.js'
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenRegisterOrDispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
 import { basename, dirname, isAbsolute, join } from '../../../../../base/common/path.js';
-import { isLinux, isMacintosh } from '../../../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
+import { getUNCHost } from '../../../../../base/node/unc.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Promises } from '../../../../../base/node/pfs.js';
@@ -214,6 +215,16 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			return;
 		}
 
+		// Windows: watching remote UNC/SMB network shares can crash VSCode or fail
+		// with UNKNOWN errors in the main process so we refuse to watch them with fs.watch()
+		// (https://github.com/microsoft/vscode/issues/344340)
+		const uncHost = isWindows ? (getUNCHost(realPath) ?? getUNCHost(this.request.path)) : undefined;
+		if (uncHost && uncHost.toLowerCase() !== 'localhost' && uncHost !== '127.0.0.1' && uncHost !== '::1') {
+			this.error(`Refusing to watch ${realPath} for changes using fs.watch() for being a Windows UNC/SMB network share where watching is unreliable and unstable.`);
+
+			return;
+		}
+
 		const cts = new CancellationTokenSource(this.cts.token);
 		disposables.add(toDisposable(() => cts.dispose(true)));
 
@@ -226,9 +237,32 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 			// Creating watcher can fail with an exception
 			const watcher = watch(realPath);
+
+			// Register error listener immediately before any asynchronous operations
+			// to prevent unhandled 'error' events from crashing the process
+			// (https://github.com/microsoft/vscode/issues/344340)
+			watcher.on('error', (error: unknown) => {
+				if (cts.token.isCancellationRequested) {
+					return;
+				}
+
+				this.error(`Failed to watch ${realPath} for changes using fs.watch() (${error})`);
+
+				this.notifyWatchFailed();
+			});
+
 			watcherDisposables.add(toDisposable(() => {
-				watcher.removeAllListeners();
-				watcher.close();
+				watcher.removeAllListeners('change');
+				watcher.removeAllListeners('close');
+				try {
+					watcher.close();
+				} catch (err) {
+					this.error(`Failed to close fs.watch() on ${realPath}: ${err}`);
+				}
+				// Keep a no-op error listener so trailing asynchronous libuv events
+				// do not throw unhandled 'error' events after disposal
+				watcher.removeAllListeners('error');
+				watcher.on('error', () => { /* ignore after disposal */ });
 			}));
 
 			this.trace(`Started watching: '${realPath}'`);
@@ -256,16 +290,6 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				}
 				mapPathToStatDisposable.clear();
 			}));
-
-			watcher.on('error', (code: number, signal: string) => {
-				if (cts.token.isCancellationRequested) {
-					return;
-				}
-
-				this.error(`Failed to watch ${realPath} for changes using fs.watch() (${code}, ${signal})`);
-
-				this.notifyWatchFailed();
-			});
 
 			watcher.on('change', (type, raw) => {
 				if (cts.token.isCancellationRequested) {
