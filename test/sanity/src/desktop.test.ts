@@ -292,6 +292,7 @@ export function setup(context: TestContext) {
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });
+		test.resolveProxy = url => app.evaluate(({ session }, url) => session.defaultSession.resolveProxy(url), url);
 		let failure: { error: unknown } | undefined;
 		try {
 			const window = await context.getPage(app.firstWindow());

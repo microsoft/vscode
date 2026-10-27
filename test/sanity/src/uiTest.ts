@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { execFile } from 'child_process';
 import fs from 'fs';
 import fetch from 'node-fetch';
 import path from 'path';
@@ -30,8 +31,14 @@ function savedResponseHeaders(headers: Iterable<[string, string]>): Record<strin
 	return result;
 }
 
+/** Request headers that a browser sends without a CORS preflight, or that only the browser sets. */
+const corsSafelistedHeaderPattern = /^(accept|accept-language|content-language|content-type|origin|referer|user-agent|sec-.*|dnt)$/i;
+
 /** How many distinct failed gallery URLs are probed from Node per test. */
 const maxGalleryProbes = 10;
+
+/** How much of each replayed preflight response, headers and body, is saved. */
+const maxPreflightResponseChars = 2048;
 
 /** NetLogs larger than this are not uploaded. */
 const maxNetLogBytes = 200 * 1024 * 1024;
@@ -58,6 +65,19 @@ interface GalleryProbe {
 	responseHeaders?: Record<string, string>;
 	bodyBytes?: number;
 	error?: string;
+	/** The CORS preflight that the app sends before this request, replayed directly and through the app's proxy. */
+	preflights?: GalleryPreflightProbe[];
+}
+
+/** A CORS preflight (`OPTIONS`) for a failed gallery request, replayed with curl. */
+interface GalleryPreflightProbe {
+	/** `DIRECT`, or the proxy that the app resolved for the URL. */
+	via: string;
+	durationMs: number;
+	status?: number;
+	/** The start of the raw response, headers and body, without `set-cookie` lines. */
+	response?: string;
+	error?: string;
 }
 
 /**
@@ -68,6 +88,12 @@ export class UITest {
 	private _workspaceDir: string | undefined;
 	private _userDataDir: string | undefined;
 	private _netLogPath: string | undefined;
+
+	/**
+	 * Resolves the proxy that the app uses for a URL, in PAC format (such as `PROXY host:port` or
+	 * `DIRECT`), so failed gallery preflights can also be replayed through it.
+	 */
+	public resolveProxy: ((url: string) => Promise<string>) | undefined;
 
 	constructor(
 		protected readonly context: TestContext,
@@ -374,7 +400,7 @@ export class UITest {
 		const probe = (request: Request) => {
 			const key = `${request.method()} ${request.url()}`;
 			if (!probes.has(key) && probes.size < maxGalleryProbes) {
-				probes.set(key, this.probeGalleryRequest(request));
+				probes.set(key, this.probeGalleryRequest(request, page));
 			}
 		};
 		const onRequestFailed = (request: Request) => {
@@ -411,9 +437,19 @@ export class UITest {
 	}
 
 	/**
-	 * Repeats a gallery request from Node and records the response status and headers.
+	 * Repeats a gallery request from Node and records the response status and headers. The app's
+	 * request also needs a CORS preflight, which can fail on its own, so that is replayed as well.
 	 */
-	private async probeGalleryRequest(request: Request): Promise<GalleryProbe> {
+	private async probeGalleryRequest(request: Request, page: Page): Promise<GalleryProbe> {
+		const [result, preflights] = await Promise.all([
+			this.replayGalleryRequest(request),
+			this.replayGalleryPreflight(request, page),
+		]);
+		result.preflights = preflights;
+		return result;
+	}
+
+	private async replayGalleryRequest(request: Request): Promise<GalleryProbe> {
 		const requestHeaders: Record<string, string> = {};
 		for (const [name, value] of Object.entries(await request.allHeaders().catch(() => request.headers()))) {
 			if (!unreplayedHeaderPattern.test(name)) {
@@ -440,6 +476,63 @@ export class UITest {
 		result.durationMs = Date.now() - start;
 		this.context.log(`Gallery probe from Node: ${result.method} ${result.url} -> ${result.status ?? result.error} in ${result.durationMs}ms`);
 		return result;
+	}
+
+	/**
+	 * Sends the CORS preflight that the app sends for a cross-origin request with custom headers,
+	 * directly and, if the app uses one for this URL, through the app's proxy.
+	 */
+	private async replayGalleryPreflight(request: Request, page: Page): Promise<GalleryPreflightProbe[]> {
+		const pageUrl = new URL(page.url());
+		const headers = await request.allHeaders().catch(() => request.headers());
+		const requestHeaderNames = Object.keys(headers)
+			.map(name => name.toLowerCase())
+			.filter(name => !corsSafelistedHeaderPattern.test(name) && !unreplayedHeaderPattern.test(name))
+			.sort();
+		if (requestHeaderNames.length === 0) {
+			return [];
+		}
+
+		const args = [
+			'-sS', '-i', '--max-time', '30', '-X', 'OPTIONS',
+			'-H', `Origin: ${pageUrl.protocol}//${pageUrl.host}`,
+			'-H', `Access-Control-Request-Method: ${request.method()}`,
+			'-H', `Access-Control-Request-Headers: ${requestHeaderNames.join(',')}`,
+		];
+		if (headers['user-agent']) {
+			args.push('-H', `User-Agent: ${headers['user-agent']}`);
+		}
+
+		const routes = [{ via: 'DIRECT', proxyArgs: ['--noproxy', '*'] }];
+		try {
+			const proxy = /^(PROXY|HTTPS)\s+([^\s;]+)/i.exec(await this.resolveProxy?.(request.url()) ?? '');
+			if (proxy) {
+				const proxyUrl = `${proxy[1].toUpperCase() === 'HTTPS' ? 'https' : 'http'}://${proxy[2]}`;
+				routes.push({ via: proxyUrl, proxyArgs: ['--proxy', proxyUrl] });
+			}
+		} catch (error) {
+			this.context.warn(`Failed to resolve the app's proxy for ${request.url()}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+
+		return Promise.all(routes.map(async ({ via, proxyArgs }) => {
+			const start = Date.now();
+			const result = await new Promise<Omit<GalleryPreflightProbe, 'via' | 'durationMs'>>(resolve => {
+				execFile('curl', [...args, ...proxyArgs, request.url()], { timeout: 40_000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+					const response = stdout
+						.split(/\r?\n/)
+						.filter(line => !/^set-cookie:/i.test(line))
+						.join('\n')
+						.slice(0, maxPreflightResponseChars);
+					// Through a proxy, curl prints the CONNECT response first, so use the last status line.
+					const statuses = [...response.matchAll(/^HTTP\/[\d.]+ (\d{3})/gm)];
+					const status = statuses.length ? Number(statuses[statuses.length - 1][1]) : undefined;
+					resolve({ status, response: response || undefined, error: error ? `${error.message}${stderr ? `: ${stderr.trim()}` : ''}` : undefined });
+				});
+			});
+			const probe: GalleryPreflightProbe = { via, durationMs: Date.now() - start, ...result };
+			this.context.log(`Gallery preflight replay (${via}): OPTIONS ${request.url()} -> ${probe.status ?? probe.error} in ${probe.durationMs}ms`);
+			return probe;
+		}));
 	}
 
 	/**
