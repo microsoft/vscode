@@ -270,7 +270,7 @@ suite('GitHub pull request artifact integration', () => {
 		], [JSON.stringify(['api.github.com', '1']), undefined, undefined, { addressReviews: false, fixCI: false, resolveConflicts: false, markReady: false, merge: 'never' }]);
 	}));
 
-	test('details expose the actual title and body, and lists do not depend on nonempty pill sections', () => run(async store => {
+	test('details expose the actual title without the body, and lists do not depend on nonempty pill sections', () => run(async store => {
 		const original = createPullRequestArtifactSnapshot();
 		const title = 'Preserve keyboard focus when artifact state refreshes';
 		const body = '## Description\n\nKeep the **selected control** stable.\n\n- Cover keyboard navigation\n- Preserve the draft';
@@ -287,8 +287,8 @@ suite('GitHub pull request artifact integration', () => {
 			commentSection: view.sections.some(section => section.id === 'comments'),
 			comments: comments.details.get().items, emptyDescription: main.details.get().description,
 		}, {
-			main: { title, description: body, format: 'markdown' }, lists: ['checks', 'comments'],
-			commentSection: false, comments: [], emptyDescription: '',
+			main: { title, description: undefined, format: undefined }, lists: ['checks', 'comments'],
+			commentSection: false, comments: [], emptyDescription: undefined,
 		});
 	}));
 
@@ -457,6 +457,27 @@ suite('GitHub pull request artifact integration', () => {
 			const recovered = f.model.snapshot.get().contributions[0].view.availability;
 			f.snapshot.set(refused, undefined);
 			assert.deepStrictEqual({ recovered, requests: f.authenticationRequests.length }, { recovered: { kind: 'available' }, requests: 2 });
+		}));
+	}
+
+	for (const source of ['snapshot', 'action'] as const) {
+		test(`links the page GitHub names for authorizing a credential single sign-on refused (${source})`, () => run(async store => {
+			const base = createPullRequestArtifactSnapshot();
+			const ssoAuthorizationUrl = 'https://github.com/orgs/octo/sso?authorization_request=example';
+			const message = 'Resource protected by organization SAML enforcement.';
+			const f = source === 'snapshot'
+				? await fixture(store, { ...base, core: { ...base.core, status: 'error' as const, complete: false, error: { kind: 'authorization' as const, statusCode: 403, message, ssoAuthorizationUrl } } })
+				: await fixture(store, { ...base, core: { ...base.core, value: { ...base.core.value!, draft: true } } });
+			if (source === 'action') {
+				f.onRefresh(() => { throw new GitHubRequestError(message, 'authorization', 403, undefined, undefined, undefined, { ssoAuthorizationUrl }); });
+				await f.invoke('markReady');
+			}
+
+			assert.deepStrictEqual(f.model.snapshot.get().contributions[0].view.availability, {
+				kind: 'authenticationRequired',
+				reason: 'Authorize your GitHub account for octo\'s single sign-on to see the state of this pull request.',
+				authorizationUrl: ssoAuthorizationUrl,
+			});
 		}));
 	}
 
