@@ -55,7 +55,7 @@ export function getChatFileChangeLineCounts(added: number, removed: number): str
 
 /** Options controlling how {@link renderChangesSummaryFileList} renders each row. */
 export interface IChangesSummaryFileListOptions {
-	/** Opens a session-owned live review instead of the response's immutable comparison. */
+	/** Overrides how activating a row opens its file. */
 	readonly openEditor?: (diff: IEditSessionEntryDiff, inDiffEditor: boolean, options: IEditorOptions, sideBySide: boolean) => void;
 	readonly ariaLabel?: string;
 	/**
