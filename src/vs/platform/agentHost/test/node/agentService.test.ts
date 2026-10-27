@@ -30258,7 +30258,17 @@ suite('AgentService (node dispatcher)', () => {
 				new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
 				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
 			));
-			registerTestAgentProvider(svc, disposables.add(new MockAgent('copilot')));
+			// Like Copilot, a provisional provider returns backing data that is persisted before the session is hidden.
+			class ProvisionalBackedAgent extends MockAgent {
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => ({
+						...await expectCreatedChat(base.createChat(chat, context, options)),
+						providerData: 'sdk-session',
+						provisional: true,
+					}),
+				}));
+			}
+			registerTestAgentProvider(svc, disposables.add(new ProvisionalBackedAgent('copilot')));
 			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
 			const session = await svc.createSession({
 				legacyChatUris: true,

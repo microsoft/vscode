@@ -253,7 +253,9 @@ suite('AgentHostDatabase session state', () => {
 		['sessions_v2 unregistration', (database: AgentHostDatabase, session: string) => database.unregisterSessionV2(session)],
 		['provider-absent exclusion', async (database: AgentHostDatabase, session: string) => { await database.excludeSessionV2({ provider: 'copilotcli', session, reason: 'providerAbsent', fingerprint: 'f' }, { identity: await database.getSessionV2Registration(session), catalog: undefined }); }],
 	] as const) {
-		test(`${cleanup} ${cleanup === 'provider-absent exclusion' ? 'keeps' : 'removes'} every session state row and marker`, async () => {
+		// A hidden session is live, and a provider-absent one may return: both keep their state.
+		const keeps = cleanup === 'hide' || cleanup === 'provider-absent exclusion';
+		test(`${cleanup} ${keeps ? 'keeps' : 'removes'} every session state row and marker`, async () => {
 			const database = await open();
 			const session = 'copilotcli:/removed';
 			const other = 'copilotcli:/kept';
@@ -265,7 +267,7 @@ suite('AgentHostDatabase session state', () => {
 			await database.close();
 			const counts = await withRaw(path, async raw => ({ removed: await sessionStateRowCounts(raw, session), other: await sessionStateRowCounts(raw, other) }));
 			const full = { ...FULL_STATE_ROWS };
-			assert.deepStrictEqual(counts, { removed: cleanup === 'provider-absent exclusion' ? full : Object.fromEntries(Object.keys(full).map(key => [key, 0])), other: full });
+			assert.deepStrictEqual(counts, { removed: keeps ? full : Object.fromEntries(Object.keys(full).map(key => [key, 0])), other: full });
 		});
 	}
 

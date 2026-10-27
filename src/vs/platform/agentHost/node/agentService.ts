@@ -2008,12 +2008,15 @@ export class AgentService extends Disposable implements IAgentService {
 				continue;
 			}
 			try {
-				// The list is read once; a session swept or revived since must not be torn down again.
-				if (!await this._sessionRegistry.isHidden(session)) {
-					continue;
-				}
 				this._providerService.associateSession(session, provider.id);
-				await this.disposeSession(session);
+				const creation = this._sessionCreationSequencer.peek(AgentSession.id(session));
+				await this._sessionResidency.runDisposal(session, async () => {
+					await creation?.catch(() => undefined);
+					// Rechecked once a concurrent creation settles: it may have revived the URI.
+					if (!this._stateManager.getSessionState(session.toString()) && await this._sessionRegistry.isHidden(session)) {
+						await this._doDisposeSession(session, 'delete');
+					}
+				});
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to dispose hidden session ${session.toString()}`, err);
 			}

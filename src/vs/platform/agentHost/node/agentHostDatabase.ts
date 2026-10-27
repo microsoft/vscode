@@ -435,7 +435,7 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	 * re-register it, recording the removal of its worktrees in the same transaction.
 	 */
 	tombstoneAndUnregisterSession(session: string, worktreeRemovals?: readonly IWorktreeRemovalRequest[]): Promise<void>;
-	/** Unregisters `session` and marks it hidden with its `provider`, clearing any deletion tombstone so its state stays writable. */
+	/** Unregisters `session` and marks it hidden with its `provider`, clearing any deletion tombstone; its central state is kept and stays writable. */
 	hideSession(session: string, provider: string): Promise<void>;
 	/** Whether `session` carries a hidden marker. */
 	isSessionHidden(session: string): Promise<boolean>;
@@ -1396,9 +1396,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true')
 			ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [tombstoneKey(session)]);
 		await this._removeSessionRows(database, session);
+		await deleteSessionStateRows(this._sessionStateConnection(database), session);
 	}
 
-	/** Removes a session's registration, catalog, owned chats and central state inside the caller's transaction. */
+	/** Removes a session's registration, catalog and owned chats inside the caller's transaction; its central state is kept. */
 	private async _removeSessionRows(database: Database, session: string): Promise<void> {
 		await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
 		await run(database, 'DELETE FROM metadata WHERE key = ?', [provisionalSessionKey(session)]);
@@ -1410,7 +1411,6 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		await this._tombstoneOwnedChats(database, session);
 		await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 		await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
-		await deleteSessionStateRows(this._sessionStateConnection(database), session);
 		await run(database, 'DELETE FROM worktree_co_owners WHERE session_uri = ?', [session]);
 	}
 
