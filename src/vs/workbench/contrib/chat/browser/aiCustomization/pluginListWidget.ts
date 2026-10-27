@@ -420,7 +420,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		}
 
 		templateData.container.classList.toggle('disabled', element.item.enabled === false);
-		templateData.metadata.textContent = localize('remotePluginMetadata', "Remote agent host");
+		templateData.metadata.textContent = localize('sessionPluginMetadata', "Agent host");
 		templateData.status.className = 'plugin-list-item-status';
 		if (element.item.enabled === false) {
 			templateData.status.textContent = getRemotePluginDisabledLabel(element.item);
@@ -1319,8 +1319,8 @@ export class PluginListWidget extends Disposable {
 		if (element.type === 'remote-item') {
 			const statusLabel = getRemotePluginStatusLabel(element.item);
 			return statusLabel
-				? localize('pluginRemoteItemAriaLabelWithStatus', "{0}. Remote agent host. Status: {1}", nameAndDescription, statusLabel)
-				: localize('pluginRemoteItemAriaLabel', "{0}. Remote agent host", nameAndDescription);
+				? localize('pluginSessionItemAriaLabelWithStatus', "{0}. Agent host. Status: {1}", nameAndDescription, statusLabel)
+				: localize('pluginSessionItemAriaLabel', "{0}. Agent host", nameAndDescription);
 		}
 		const marketplaceLabel = localize('pluginMarketplaceItemAriaLabel', "{0}. From {1}", nameAndDescription, element.item.marketplace);
 		return this.pluginMarketplaceService.recommendedPlugins.get().has(getMarketplaceRecommendationKey(element.item))
@@ -1494,8 +1494,8 @@ export class PluginListWidget extends Disposable {
 			...workspaceDefinitions,
 			{
 				id: 'remote',
-				label: localize('remotePluginsSection', "Remote Session"),
-				description: localize('remotePluginsSectionDescription', "Plugins configured directly on the active remote agent host."),
+				label: localize('sessionPluginsSection', "Session"),
+				description: localize('sessionPluginsSectionDescription', "Plugins configured directly on the active agent host."),
 				icon: Codicon.remote,
 				children: remoteEntries,
 			},
@@ -1804,7 +1804,7 @@ export class PluginListWidget extends Disposable {
 	protected appendRemotePluginRow(parent: HTMLElement, item: ICustomizationItem): void {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-remote-item'));
 		row.setAttribute('role', 'listitem');
-		row.setAttribute('aria-label', localize('pluginRemoteCardAria', "{0}. Remote plugin", item.name));
+		row.setAttribute('aria-label', localize('pluginSessionCardAria', "{0}. Session plugin", item.name));
 		row.classList.toggle('disabled', item.enabled === false);
 
 		const details = DOM.append(row, $('.plugin-list-item-details'));
@@ -1812,12 +1812,12 @@ export class PluginListWidget extends Disposable {
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = formatDisplayName(item.name);
 		const source = DOM.append(nameRow, $('.inline-badge.plugin-source-badge'));
-		source.textContent = localize('remotePluginSource', "Remote");
-		source.title = localize('remotePluginMetadata', "Remote agent host");
+		source.textContent = localize('sessionPluginSource', "Session");
+		source.title = localize('sessionPluginMetadata', "Agent host");
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		description.textContent = item.description || localize('pluginNoDescription', "No description provided.");
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
-		metadata.textContent = localize('remotePluginConfigurationSource', "Configured on the active remote agent host");
+		metadata.textContent = localize('sessionPluginConfigurationSource', "Configured on the active agent host");
 
 		const status = DOM.append(row, $('.plugin-list-item-status'));
 		const statusLabel = getRemotePluginStatusLabel(item);
