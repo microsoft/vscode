@@ -121,6 +121,13 @@ suite('AgentService - chats with their own agent', () => {
 		return { session, chat };
 	}
 
+	/** Completes a first turn in `chat`: a chat moves only once its first turn started. */
+	function startTurn(service: AgentService, chat: URI | string): void {
+		const stateManager = getTestAgentStateManager(service);
+		stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+		stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 1 });
+	}
+
 	async function rejection(promise: Promise<unknown>): Promise<string | undefined> {
 		try {
 			await promise;
@@ -598,20 +605,16 @@ suite('AgentService - chats with their own agent', () => {
 		}, { offered: ['copilot', 'second'], created: 'InvalidParams' });
 	});
 
-	test('a chat with its own agent keeps it when moved to a session of another agent; a chat that would gain or lose its own agent is refused', async () => {
+	test('a chat with its own agent keeps it when moved to a session of another agent of the same kind', async () => {
 		const { service, second } = createService(true);
 		getTestAgentServiceComposition(service).configurationService.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 		const { session: source, chat } = await createSessionWithSecondChat(service);
 		const copilotTarget = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
-		const secondTarget = await service.createSession({ legacyChatUris: true, provider: 'second', workingDirectories: [URI.file('/repo')] });
-		const native = URI.parse(buildChatUri(source, 'native'));
-		await service.createChat(source, native);
 		const subagent = URI.parse(buildChatUri(source, 'subagent'));
 		second.spawnEmitter.fire({ session: source, chat: subagent, parent: { chat, toolCallId: 'tool-1' }, title: 'Worker' });
 		await timeout(10);
+		startTurn(service, chat);
 
-		const refusedNative = await service.moveChat(source, native, { kind: 'session', session: secondTarget, after: undefined }).then(() => 'moved', (error: { reason?: string }) => error.reason);
-		const refusedToOwnAgent = await service.moveChat(source, chat, { kind: 'session', session: secondTarget, after: undefined }).then(() => 'moved', (error: { reason?: string }) => error.reason);
 		const announced: unknown[] = [];
 		const listener = getTestAgentStateManager(service).onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.ChatMoved) {
@@ -623,16 +626,12 @@ suite('AgentService - chats with their own agent', () => {
 		const ownSchema = getTestAgentStateManager(service).getChatOwnConfigSchema(chat.toString());
 
 		assert.deepStrictEqual({
-			refusedNative,
-			refusedToOwnAgent,
 			movedProvider: chatSummary(service, copilotTarget, chat)?.provider,
 			chatAgent: getTestAgentHostProviderService(service).getProviderForChat(copilotTarget, chat)?.id,
 			configSchema: ownSchema !== undefined,
 			announced,
 			chatState: { provider: getTestAgentStateManager(service).getChatState(chat.toString())?.provider, schema: getTestAgentStateManager(service).getChatState(chat.toString())?.config?.schema === ownSchema },
 		}, {
-			refusedNative: 'differentProvider',
-			refusedToOwnAgent: 'differentProvider',
 			movedProvider: 'second',
 			chatAgent: 'second',
 			configSchema: true,
@@ -643,6 +642,182 @@ suite('AgentService - chats with their own agent', () => {
 				{ channel: subagent.toString(), action: { type: ActionType.ChatMoved, session: copilotTarget.toString(), provider: 'second' } },
 			],
 			chatState: { provider: 'second', schema: true },
+		});
+	});
+
+	suite('moves across agents', () => {
+		const modeSchema = { type: 'object' as const, properties: { mode: { type: 'string' as const, title: 'Mode', enum: ['agent', 'plan', 'ask'], chatMutable: true, sessionMutable: true } } };
+
+		function createMoveService(enabled: boolean, options?: { readonly secondSupportsChats?: boolean }) {
+			const created = createService(enabled, options);
+			getTestAgentServiceComposition(created.service).configurationService.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+			return created;
+		}
+
+		async function createSessionOf(service: AgentService, provider: string, mode: string): Promise<URI> {
+			const session = await service.createSession({ legacyChatUris: true, provider, workingDirectories: [URI.file('/repo')] });
+			getTestAgentStateManager(service).setSessionConfig(session.toString(), { schema: modeSchema, values: { mode } });
+			return session;
+		}
+
+		/** The `chat/moved` actions dispatched while `run` runs. */
+		async function chatMovedDuring(service: AgentService, run: () => Promise<unknown>): Promise<unknown[]> {
+			const announced: unknown[] = [];
+			const listener = getTestAgentStateManager(service).onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChatMoved) {
+					announced.push({ channel: envelope.channel, action: envelope.action });
+				}
+			});
+			try {
+				await run();
+			} finally {
+				listener.dispose();
+			}
+			return announced;
+		}
+
+		async function refusal(promise: Promise<unknown>): Promise<string> {
+			return promise.then(() => 'moved', (error: { reason?: string }) => error.reason ?? String(error));
+		}
+
+		test('a chat that joins a session of another agent gains its own agent: its schema, valid values and recorded agent, with its subagent, also after a restart', async () => {
+			const { service, copilot } = createMoveService(true);
+			const source = await createSessionOf(service, 'copilot', 'agent');
+			const target = await createSessionOf(service, 'second', 'plan');
+			const chat = URI.parse(buildChatUri(source, 'native'));
+			await service.createChat(source, chat);
+			await timeout(0);
+			const configuration = getTestAgentServiceComposition(service).configurationService;
+			configuration.updateChatConfig({ session: source.toString(), chat: chat.toString() }, { mode: 'ask' });
+			const subagent = URI.parse(buildChatUri(source, 'native-subagent'));
+			copilot.spawnEmitter.fire({ session: source, chat: subagent, parent: { chat, toolCallId: 'tool-1' }, title: 'Worker' });
+			await timeout(10);
+			startTurn(service, chat);
+			const stateManager = getTestAgentStateManager(service);
+
+			const announced = await chatMovedDuring(service, () => service.moveChat(source, chat, { kind: 'session', session: target, after: undefined }));
+			const ownSchema = stateManager.getChatOwnConfigSchema(chat.toString());
+			const moved = {
+				announced,
+				ownSchema: ownSchema?.properties && Object.keys(ownSchema.properties),
+				config: stateManager.getChatState(chat.toString())?.config?.values,
+				agents: [chat, subagent].map(candidate => getTestAgentHostProviderService(service).getProviderForChat(target, candidate)?.id),
+				recorded: [chat, subagent].map(async candidate => (await getTestAgentHostDatabase(service).readChatAgentProviders?.())?.get(candidate.toString())),
+				stored: await getTestSessionStateStore(service).chatRows.getChatConfig(source, chat),
+			};
+			const recorded = await Promise.all(moved.recorded);
+			stateManager.deleteSession(target.toString());
+			await service.restoreSession(target);
+
+			assert.deepStrictEqual({ ...moved, recorded, restored: { provider: chatSummary(service, target, chat)?.provider, hasOwnSchema: stateManager.getChatOwnConfigSchema(chat.toString()) !== undefined } }, {
+				announced: [
+					{ channel: chat.toString(), action: { type: ActionType.ChatMoved, session: target.toString(), provider: 'copilot', schema: ownSchema } },
+					{ channel: subagent.toString(), action: { type: ActionType.ChatMoved, session: target.toString(), provider: 'copilot' } },
+				],
+				ownSchema: ['mode'],
+				config: { mode: 'ask' },
+				agents: ['copilot', 'copilot'],
+				recorded: ['copilot', 'copilot'],
+				stored: { mode: 'ask' },
+				restored: { provider: 'copilot', hasOwnSchema: true },
+			});
+		});
+
+		test('a chat with its own agent that joins a session of its agent loses it: no schema or recorded agent, and its valid values completed from its new session', async () => {
+			const { service } = createMoveService(true);
+			const { session: source, chat } = await createSessionWithSecondChat(service);
+			getTestAgentServiceComposition(service).configurationService.updateChatConfig({ session: source.toString(), chat: chat.toString() }, { mode: 'ask' });
+			const target = await createSessionOf(service, 'second', 'plan');
+			await timeout(0);
+			startTurn(service, chat);
+			const stateManager = getTestAgentStateManager(service);
+
+			const announced = await chatMovedDuring(service, () => service.moveChat(source, chat, { kind: 'session', session: target, after: undefined }));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				announced,
+				summaryProvider: chatSummary(service, target, chat)?.provider,
+				ownSchema: stateManager.getChatOwnConfigSchema(chat.toString()),
+				config: stateManager.getChatState(chat.toString())?.config,
+				agent: getTestAgentHostProviderService(service).getProviderForChat(target, chat)?.id,
+				recorded: (await getTestAgentHostDatabase(service).readChatAgentProviders?.())?.has(chat.toString()),
+			}, {
+				announced: [{ channel: chat.toString(), action: { type: ActionType.ChatMoved, session: target.toString() } }],
+				summaryProvider: undefined,
+				ownSchema: undefined,
+				config: { values: { mode: 'ask' } },
+				agent: 'second',
+				recorded: false,
+			});
+		});
+
+		test('a chat with its own agent becomes a session of its agent, with that agent\'s config and its own values', async () => {
+			const { service, second } = createMoveService(true);
+			// Its agent records a conversation of its own for it, which a new session needs.
+			const createChat = second.chats.createChat;
+			second.chats.createChat = async (chat, context, options) => ({ ...(await createChat(chat, context, options)), providerData: 'second-backing' });
+			const { session: source, chat } = await createSessionWithSecondChat(service);
+			getTestAgentServiceComposition(service).configurationService.updateChatConfig({ session: source.toString(), chat: chat.toString() }, { mode: 'ask' });
+			startTurn(service, chat);
+			const stateManager = getTestAgentStateManager(service);
+
+			let promoted: URI | undefined;
+			const announced = await chatMovedDuring(service, async () => { promoted = await service.moveChat(source, chat, { kind: 'newSession' }); });
+
+			assert.deepStrictEqual({
+				announced,
+				sessionAgent: getTestAgentHostProviderService(service).getProviderForSession(promoted!)?.id,
+				defaultChat: stateManager.getSessionState(promoted!.toString())?.defaultChat,
+				sessionMode: stateManager.getSessionState(promoted!.toString())?.config?.values.mode,
+				ownSchema: stateManager.getChatOwnConfigSchema(chat.toString()),
+				recorded: (await getTestAgentHostDatabase(service).readChatAgentProviders?.())?.has(chat.toString()),
+			}, {
+				announced: [{ channel: chat.toString(), action: { type: ActionType.ChatMoved, session: promoted!.toString() } }],
+				sessionAgent: 'second',
+				defaultChat: chat.toString(),
+				sessionMode: 'ask',
+				ownSchema: undefined,
+				recorded: false,
+			});
+		});
+
+		test('a session moved under a session of another agent: its default chat gains its own agent', async () => {
+			const { service } = createMoveService(true);
+			const source = await createSessionOf(service, 'copilot', 'agent');
+			const target = await createSessionOf(service, 'second', 'plan');
+			const defaultChat = getTestAgentStateManager(service).getSessionState(source.toString())!.defaultChat!;
+			startTurn(service, defaultChat);
+
+			const announced = await chatMovedDuring(service, () => service.moveSession(source, target, undefined));
+
+			assert.deepStrictEqual({
+				announced: announced.map(entry => (entry as { action: { provider?: string } }).action.provider),
+				summaryProvider: chatSummary(service, target, URI.parse(defaultChat))?.provider,
+				agent: getTestAgentHostProviderService(service).getProviderForChat(target, defaultChat)?.id,
+				hasOwnSchema: getTestAgentStateManager(service).getChatOwnConfigSchema(defaultChat) !== undefined,
+			}, { announced: ['copilot'], summaryProvider: 'copilot', agent: 'copilot', hasOwnSchema: true });
+		});
+
+		test('moves across agents are refused while chats can\'t use their own agents, or when the destination\'s agent can\'t host other agents\' chats', async () => {
+			const off = createMoveService(false);
+			const offSource = await createSessionOf(off.service, 'copilot', 'agent');
+			const offTarget = await createSessionOf(off.service, 'second', 'plan');
+			const offChat = URI.parse(buildChatUri(offSource, 'native'));
+			await off.service.createChat(offSource, offChat);
+			const noChats = createMoveService(true, { secondSupportsChats: false });
+			const noChatsSource = await createSessionOf(noChats.service, 'copilot', 'agent');
+			const noChatsTarget = await createSessionOf(noChats.service, 'second', 'plan');
+			const noChatsChat = URI.parse(buildChatUri(noChatsSource, 'native'));
+			await noChats.service.createChat(noChatsSource, noChatsChat);
+			await timeout(0);
+			startTurn(off.service, offChat);
+			startTurn(noChats.service, noChatsChat);
+
+			assert.deepStrictEqual({
+				gateOff: await refusal(off.service.moveChat(offSource, offChat, { kind: 'session', session: offTarget, after: undefined })),
+				noMultipleChats: await refusal(noChats.service.moveChat(noChatsSource, noChatsChat, { kind: 'session', session: noChatsTarget, after: undefined })),
+			}, { gateOff: 'differentProvider', noMultipleChats: 'differentProvider' });
 		});
 	});
 });

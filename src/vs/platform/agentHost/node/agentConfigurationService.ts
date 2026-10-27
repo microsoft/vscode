@@ -425,6 +425,12 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				}
 			});
 		}));
+		this._register(this._stateManager.onDidChangeChatOwner(({ chat, current }) => {
+			// A default chat that moves becomes a peer: what it took from its session is its own from then on.
+			if (this._stateManager.getDefaultChat(current) !== chat && this._inheritedChatKeys.delete(chat)) {
+				this._completedChats.add(chat);
+			}
+		}));
 		this._register(this._stateManager.onDidUnregisterChat(({ chat }) => {
 			this._completedChats.delete(chat);
 			this._inheritedChatKeys.delete(chat);
