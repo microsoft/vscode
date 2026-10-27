@@ -91,6 +91,24 @@ export function runWithTimeout(options: Options, onTimeoutDeadlineMs = ON_TIMEOU
 			stdio: 'inherit',
 			detached: process.platform !== 'win32',
 		});
+		// The child runs in its own process group on POSIX, so a signal that cancels this
+		// script (for example a cancelled pipeline step) would not reach it. Stop the child's
+		// process tree first, then exit the way the signal would have.
+		const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
+		const onSignal = (signal: NodeJS.Signals) => {
+			if (child.pid !== undefined) {
+				killTree(child.pid);
+			}
+			process.exit(128 + (signal === 'SIGINT' ? 2 : signal === 'SIGTERM' ? 15 : 1));
+		};
+		for (const signal of signals) {
+			process.on(signal, onSignal);
+		}
+		const removeSignalHandlers = () => {
+			for (const signal of signals) {
+				process.off(signal, onSignal);
+			}
+		};
 		let timedOut = false;
 		const timer = setTimeout(() => {
 			timedOut = true;
@@ -101,11 +119,13 @@ export function runWithTimeout(options: Options, onTimeoutDeadlineMs = ON_TIMEOU
 		}, options.seconds * 1000);
 		child.on('error', err => {
 			clearTimeout(timer);
+			removeSignalHandlers();
 			console.error(err);
 			resolve(1);
 		});
 		child.on('exit', async (code, signal) => {
 			clearTimeout(timer);
+			removeSignalHandlers();
 			if (timedOut) {
 				if (options.onTimeout) {
 					const failure = await runCleanup(options.onTimeout, onTimeoutDeadlineMs);

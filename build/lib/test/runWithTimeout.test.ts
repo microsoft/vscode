@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { suite, test } from 'node:test';
@@ -56,6 +56,27 @@ suite('runWithTimeout', () => {
 			assert.match(result.stdout, /did not complete: no exit within 1 s/);
 			spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 5000)']);
 			assert.equal(existsSync(marker), false, 'the timeout command kept running after its deadline');
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('stops the command when the script itself is cancelled', { skip: process.platform === 'win32' }, async () => {
+		const dir = mkdtempSync(join(tmpdir(), 'run-with-timeout-'));
+		const pidFile = join(dir, 'pid');
+		try {
+			const wrapper = spawn(process.execPath, [scriptPath, '600', '--', process.execPath, '-e', `require('fs').writeFileSync(process.argv[1], String(process.pid)); setTimeout(() => {}, 60_000)`, pidFile], { stdio: 'ignore' });
+			const deadline = Date.now() + 10_000;
+			while (!existsSync(pidFile) || !readFileSync(pidFile, 'utf8')) {
+				assert.ok(Date.now() < deadline, 'the command did not start');
+				await new Promise(resolve => setTimeout(resolve, 50));
+			}
+			const childPid = Number(readFileSync(pidFile, 'utf8'));
+			const exited = new Promise<number | null>(resolve => wrapper.on('exit', code => resolve(code)));
+			wrapper.kill('SIGTERM');
+			assert.equal(await exited, 143);
+			await new Promise(resolve => setTimeout(resolve, 500));
+			assert.throws(() => process.kill(childPid, 0), /ESRCH/, 'the command kept running after the script was cancelled');
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
