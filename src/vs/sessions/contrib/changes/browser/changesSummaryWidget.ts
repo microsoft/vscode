@@ -8,7 +8,6 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable } from '../../../../base/common/observable.js';
 import { ISessionChangesSummary } from '../../../services/sessions/common/session.js';
-import { IChangesViewService } from '../common/changesViewService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../../workbench/browser/changesStatsWidget.js';
 
@@ -17,11 +16,11 @@ export class ChangesSummaryWidget extends Disposable {
 	get summary() { return this._summaryObs; }
 
 	constructor(
-		@IChangesViewService changesViewService: IChangesViewService,
+		summaryObs: IObservable<ISessionChangesSummary | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._summaryObs = changesViewService.activeSessionChangesSummaryObs;
+		this._summaryObs = summaryObs;
 	}
 
 	render(container: HTMLElement): void {

@@ -37,6 +37,9 @@ suite('SessionChangesEditorInput', () => {
 	};
 	const sessionChangesServiceWithResource = new class extends mock<ISessionChangesService>() {
 		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+		override getChatResource(): URI | undefined {
+			return undefined;
+		}
 		override getSessionResource(): URI | undefined {
 			return URI.parse('agent-host-copilotcli:/session');
 		}
