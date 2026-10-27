@@ -87,12 +87,12 @@
 		"dependency installation": [
 			"pnpm-lock.yaml",
 			"pnpm-workspace.yaml",
-			".pnpmfile.mts",
-			"remote/.pnpmfile.mts",
+			".pnpmfile.mjs",
+			"remote/.pnpmfile.mjs",
 			"build/npm/**",
 			"build/azure-pipelines/win32/exec.ps1",
 			"build/.npmrc",
-			"build/.pnpmfile.mts",
+			"build/.pnpmfile.mjs",
 			"build/.cachesalt",
 			"build/azure-pipelines/common/computeNodeModulesCacheKey.ts",
 			"build/azure-pipelines/common/cacheKeys.ts"

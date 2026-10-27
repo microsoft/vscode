@@ -50,7 +50,7 @@ jobs:
           echo "$CHANGED_FILES"
 
           # Check if package.json, the pnpm files or package-lock.json (folders that still use npm) changed
-          if echo "$CHANGED_FILES" | grep -E '(^|/)(package(-lock)?\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.pnpmfile\.mts)$'; then
+          if echo "$CHANGED_FILES" | grep -E '(^|/)(package(-lock)?\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.pnpmfile\.mjs)$'; then
             echo "##vso[task.setvariable variable=SHOULD_VALIDATE]true"
             echo "Package files were modified, proceeding with validation"
           else

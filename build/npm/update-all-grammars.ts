@@ -15,8 +15,9 @@ async function spawn(cmd: string, args: string[], opts?: Parameters<typeof _spaw
 }
 
 async function main() {
-	// Installs the workspace, which includes extensions/ and its vscode-grammar-updater.
-	await spawn('pnpm', ['install', '--frozen-lockfile']);
+	// Installs the workspace, which includes extensions/ and its vscode-grammar-updater. pnpm doesn't
+	// pass --frozen-lockfile on to the separate install roots; the environment variable reaches them.
+	await spawn('pnpm', ['install', '--frozen-lockfile'], { env: { ...process.env, PNPM_CONFIG_FROZEN_LOCKFILE: 'true' } });
 
 	for (const extension of readdirSync('extensions')) {
 		try {
