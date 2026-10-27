@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as css from '../../../../base/browser/cssValue.js';
+import { Sequencer } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -126,6 +127,8 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 	private backgroundImageLayout: ChatBackgroundImageLayout;
 	/** The source of each setting this service is writing, which the resulting configuration change is attributed to. */
 	private readonly pendingChangeSources = new Map<string, ChatBackgroundChangeSource>();
+	/** Serializes writes, so that overlapping writes of a setting cannot replace or remove each other's source. */
+	private readonly writeSequencer = new Sequencer();
 	/** The last reported background of each color scheme, so that only changes of what is shown are reported. */
 	private readonly reportedBackgrounds = new Map<ColorScheme, IReportedChatBackground>();
 
@@ -257,14 +260,16 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		}
 	}
 
-	private async updateSetting(setting: string, value: string | undefined, source: ChatBackgroundChangeSource): Promise<void> {
-		// The configuration service reports the change before the update resolves.
-		this.pendingChangeSources.set(setting, source);
-		try {
-			await this.configurationService.updateValue(setting, value, ConfigurationTarget.USER);
-		} finally {
-			this.pendingChangeSources.delete(setting);
-		}
+	private updateSetting(setting: string, value: string | undefined, source: ChatBackgroundChangeSource): Promise<void> {
+		return this.writeSequencer.queue(async () => {
+			// The configuration service reports the change before the update resolves.
+			this.pendingChangeSources.set(setting, source);
+			try {
+				await this.configurationService.updateValue(setting, value, ConfigurationTarget.USER);
+			} finally {
+				this.pendingChangeSources.delete(setting);
+			}
+		});
 	}
 
 	/** Reports each change of a shown background, including changes made outside this service, such as in settings.json. */

@@ -390,6 +390,8 @@ suite('Sessions Chat Background Service', () => {
 		await service.setBackground(URI.file('/textures/kirby.png'), 'backgroundPicker');
 		await service.setBackground(URI.file('/textures/kirby.png'), 'backgroundPicker');
 		await service.setBackgroundImageLayout('repeat', 'layoutPicker');
+		await configurationService.setUserConfiguration(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, undefined);
+		fireConfigurationChange(configurationService, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
 		await service.setBackgroundImageLayout('center', 'layoutPicker', false);
 		await service.setBackgroundImageLayout('center', 'layoutPicker');
 		await service.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'agent', ColorScheme.LIGHT);
@@ -403,7 +405,8 @@ suite('Sessions Chat Background Service', () => {
 		await service.setBackground(URI.file('/textures/light.png'), 'backgroundPicker', ColorScheme.LIGHT);
 
 		// Not reported: selecting the current image, the default layout, the current preset, or no background again,
-		// the layout preview, a layout without an image, and a path that replaces a `file` URI of the same image.
+		// removing the explicit default layout, the layout preview, a layout without an image, and a path that
+		// replaces a `file` URI of the same image.
 		assert.deepStrictEqual(telemetryEvents, [
 			{ source: 'backgroundPicker', change: 'background', background: 'userImage', layout: 'repeat', colorScheme: 'dark' },
 			{ source: 'layoutPicker', change: 'layout', background: 'userImage', layout: 'center', colorScheme: 'dark' },
@@ -411,5 +414,23 @@ suite('Sessions Chat Background Service', () => {
 			{ source: 'agent', change: 'background', background: 'none', layout: undefined, colorScheme: 'dark' },
 			{ source: 'settings', change: 'background', background: 'userImage', layout: 'repeat', colorScheme: 'light' },
 		].map(data => ({ name: 'vscodeAgents.chatBackground/changed', data })));
+	});
+
+	test('reports overlapping writes of a background with their own sources', async () => {
+		const configurationService = new CapturingConfigurationService();
+		configurationService.fireChangeEvents = true;
+		const telemetryEvents: unknown[] = [];
+		const telemetryService = upcastPartial<ITelemetryService>({ publicLog2: (_name, data) => telemetryEvents.push(data) });
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService()), telemetryService));
+
+		await Promise.all([
+			service.setBackground(URI.file('/textures/kirby.png'), 'agent'),
+			service.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'backgroundPicker'),
+		]);
+
+		assert.deepStrictEqual(telemetryEvents, [
+			{ source: 'agent', change: 'background', background: 'userImage', layout: 'repeat', colorScheme: 'dark' },
+			{ source: 'backgroundPicker', change: 'background', background: 'builtin', layout: undefined, colorScheme: 'dark' },
+		]);
 	});
 });
