@@ -20,13 +20,16 @@ import minimist from 'minimist';
 import * as module from 'module';
 import { fileURLToPath, pathToFileURL } from 'url';
 import semver from 'semver';
+import parallel from '../parallel.ts';
+
+const { getWorkerCount, removeArgument, runInWorkers, writeWorkerReport, trackTestFiles, distributeTestFiles } = parallel;
 
 /**
- * @type {{ build: boolean; run: string; runGlob: string; grep?: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; 'rerun-failed-files'?: string; }}
+ * @type {{ build: boolean; run: string; runList: string; runGlob: string; grep?: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; 'rerun-failed-files'?: string; workers?: string; worker?: string; workerDir?: string; }}
  */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'coverage', 'help'],
-	string: ['run', 'grep', 'coveragePath', 'coverageFormats', 'timeout', 'rerun-failed-files'],
+	string: ['run', 'runList', 'grep', 'coveragePath', 'coverageFormats', 'timeout', 'rerun-failed-files', 'workers', 'worker', 'workerDir'],
 	alias: {
 		h: 'help',
 		t: 'timeout'
@@ -39,11 +42,13 @@ const args = minimist(process.argv.slice(2), {
 	description: {
 		build: 'Run from out-build',
 		run: 'Run a single file',
+		runList: 'Only run the tests whose files are listed in a file, one per line',
 		grep: 'Only run tests matching <pattern>',
 		coverage: 'Generate a coverage report',
 		coveragePath: 'Path to coverage report to generate',
 		coverageFormats: 'Coverage formats to generate',
 		timeout: 'Timeout for tests',
+		workers: 'Number of parallel worker processes for a run of all test files',
 		help: 'Show help'
 	}
 });
@@ -54,13 +59,18 @@ if (args.help) {
 Options:
 --build          Run from out-build
 --run <file>     Run a single file
+--runList <file> Only run the tests whose files are listed in <file>, one per line
 --grep <pattern> Only run tests matching <pattern>
 --coverage       Generate a coverage report
 --timeout <ms>   Test timeout (default: 5000 locally, 30000 in CI; alias: -t)
 --rerun-failed-files <count>  Rerun failed tests (suites for failed hooks) in a fresh process up to <count> more times; use whole files for many failures
+--workers <n>    Run all test files in <n> parallel processes, at most one per CPU and per 2 GB of memory; ignored when only some files or tests run; reruns use one process
 --help           Show help`);
 	process.exit(0);
 }
+
+// --runList: the listed test files as compiled modules relative to the output folder (src/vs/a.test.ts is vs/a.test.js)
+const runList = args.runList ? new Set(fs.readFileSync(args.runList, 'utf8').split(/\r?\n/).map(line => line.trim().replace(/\\/g, '/')).filter(line => line.length > 0).map(line => line.replace(/^src\//, '').replace(/\.ts$/, '.js'))) : undefined;
 
 const TEST_GLOB = '**/test/**/*.test.js';
 const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
@@ -179,6 +189,9 @@ function main() {
 		timeout: args.timeout ?? (IS_CI ? 30000 : 5000)
 	});
 
+	// a worker process of a parallel run (see parallel.ts) only runs the test files it claims
+	const testFiles = args.workerDir ? trackTestFiles(runner.suite) : undefined;
+
 	/**
 	 * @param modules
 	 */
@@ -225,9 +238,12 @@ function main() {
 				/** @type {string[]} */
 				const modules = [];
 				for (const file of files) {
-					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob))) {
+					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob)) && (!runList || runList.has(file))) {
 						modules.push(file.replace(/\.js$/, ''));
 					}
+				}
+				if (runList) {
+					console.log(`Running the ${modules.length} node.js test files of the ${runList.size} files listed in ${args.runList}`);
 				}
 				loadModules(modules).then(() => cb(null), cb);
 			});
@@ -284,6 +300,10 @@ function main() {
 			/** @type {string[]} failures that do not belong to a test file, such as the runner's own checks */
 			const unattributedFailures = [];
 
+			if (testFiles && args.worker && args.workerDir) {
+				distributeTestFiles(runner.suite, testFiles, { workerId: args.worker, workerDir: args.workerDir });
+			}
+
 			// fire up mocha
 			const mochaRunner = runner.run(failureCount => {
 				/** @type {IAttemptResult} */
@@ -291,6 +311,10 @@ function main() {
 				const reportPath = process.env[RESULT_REPORT_ENV];
 				if (reportPath) {
 					fs.writeFileSync(reportPath, JSON.stringify(result));
+				}
+				if (args.worker && args.workerDir) {
+					// the process that started this worker reruns the failures
+					writeWorkerReport({ workerId: args.worker, workerDir: args.workerDir }, result);
 				}
 
 				process.exit(failureCount ? rerunFailedTests(result) : 0);
@@ -606,4 +630,33 @@ function escapeRegExp(value) {
 	return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&').replace(/[\n\r\u2028\u2029]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
-main();
+// Only a run of all test files is spread across worker processes, reruns of failed tests run in one process
+let workerCount = 1;
+try {
+	workerCount = getWorkerCount(args.workers);
+} catch (error) {
+	console.error(/** @type {Error} */ (error).message);
+	process.exit(1);
+}
+const runInParallel = workerCount > 1 && !args.run && !args.runList && !args.runGlob && !args.grep && !args.coverage;
+if (runInParallel) {
+	// This process only starts the workers, each of which is a separate instance of this script and does not rerun its failures
+	runInWorkers({
+		name: 'Node.js unit tests',
+		count: workerCount,
+		command: process.execPath,
+		args: [...process.execArgv, ...removeArgument(removeArgument(process.argv.slice(1), 'workers'), 'rerun-failed-files')],
+	}).then(({ failures, unattributedFailures }) => {
+		const failureCount = failures.length + unattributedFailures.length;
+		// Only reruns check which tests passed
+		process.exit(failureCount ? rerunFailedTests({ failureCount, failures, passed: [], unattributedFailures }) : 0);
+	}, error => {
+		console.error(error);
+		process.exit(1);
+	});
+} else {
+	if (workerCount > 1) {
+		console.log('Running in a single process, because --workers only applies when all test files run without --grep or --coverage');
+	}
+	main();
+}

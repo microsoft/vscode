@@ -870,6 +870,47 @@ suite('CustomizationMarketplaceInstallService', () => {
 		});
 	});
 
+	test('refreshes provider installation metadata when compatibility tags change', async () => {
+		const icon = URI.parse('https://example.com/canvas.png');
+		const providerResource = resource({
+			identifier: 'canvas-plugin',
+			displayName: 'Canvas Plugin',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			icon,
+			tags: [],
+			installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'canvas-plugin' },
+		});
+		const candidate = { ...providerResource, compatibilityTags: ['canvas', 'canvas-only'] };
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations(): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
+				return Promise.resolve([{
+					installationId: 'canvas-plugin-installation',
+					resource: providerResource,
+					state: { kind: 'installed', target: { kind: 'plugin', name: 'canvas-plugin' } },
+				}]);
+			}
+			install(): Promise<void> { throw new Error('Unexpected install'); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		await timeout(0);
+
+		fixture.service.getInstallState(providerResource);
+		fixture.service.getInstallState(candidate);
+		await timeout(0);
+		const associated = fixture.service.installations.get().findByResource(candidate);
+
+		assert.deepStrictEqual({
+			installationId: associated?.installationId,
+			compatibilityTags: associated?.resource.compatibilityTags,
+		}, {
+			installationId: 'canvas-plugin-installation',
+			compatibilityTags: ['canvas', 'canvas-only'],
+		});
+	});
+
 	test('routes install, repair, and uninstall through the active harness provider', async () => {
 		const calls: string[] = [];
 		const changes = store.add(new Emitter<void>());
@@ -2098,6 +2139,36 @@ suite('CustomizationMarketplaceInstallService', () => {
 				connectCalls: ['mail', 'mail'],
 				after: { kind: 'installed', target: connectorInstallationTarget },
 				recorded: ['mail'],
+			});
+		});
+
+		test('cancels a pending connector connection and restores the connect action', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			let operationToken: CancellationToken | undefined;
+			fixture.connectorsService.onConnect = async (_name, token) => new Promise<void>((_resolve, reject) => {
+				operationToken = token;
+				const listener = token.onCancellationRequested(() => {
+					listener.dispose();
+					reject(new CancellationError());
+				});
+			});
+
+			const install = fixture.service.install(candidate);
+			const during = fixture.service.getInstallState(candidate);
+			fixture.service.cancelConnectorOperation(candidate);
+			await assert.rejects(install, isCancellationError);
+
+			assert.deepStrictEqual({
+				during,
+				cancelled: operationToken?.isCancellationRequested,
+				after: fixture.service.getInstallState(candidate),
+				recorded: recordedResources(fixture.service),
+			}, {
+				during: { kind: 'installing' },
+				cancelled: true,
+				after: { kind: 'available' },
+				recorded: [],
 			});
 		});
 

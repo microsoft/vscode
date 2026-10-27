@@ -15,7 +15,7 @@ import { autorun, derived, IObservable, IReader, observableSignalFromEvent, obse
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ArtifactAction, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactAction, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactGroupPresentation, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactConfigurationConflictError, ArtifactRetryLimitError } from '../../../artifactIntegrations/common/artifactIntegrationStore.js';
 import { firstCredentialFailure, FragmentState, GitHubFragmentError, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestReviewThread, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
@@ -40,6 +40,9 @@ const caller = 'agentHost.pullRequest';
 const resolvedThreadReadLag = 30_000;
 const reviewThreadIcon: ArtifactIcon = { id: 'comment-discussion', colorId: 'editorWarning.foreground' };
 const checkStateOrder = { pending: 0, failed: 1, skipped: 2, passed: 3 };
+const automationPollInterval = 60_000;
+const unchangedRepairCooldown = 10 * 60_000;
+const undispatchedRetryDelay = 30_000;
 
 function authenticationRequiredMessage(owner: string, message: string): string {
 	return isSamlEnforcementError(message)
@@ -160,6 +163,7 @@ class GitHubPullRequestArtifactResource extends Disposable {
 export class GitHubPullRequestArtifactIntegration implements IArtifactIntegration<GitHubPullRequestArtifactResource> {
 	readonly id = gitHubPullRequestArtifactIntegrationId;
 	readonly label = localize('prArtifact.integration', "GitHub Pull Request");
+	readonly groupLabel = localize('prArtifact.groupLabel', "Pull Requests");
 	readonly description = 'GitHub pull request links recorded as artifacts rather than references';
 	readonly automationOptions = gitHubPullRequestArtifactOptions;
 	readonly onDidChange: Event<void>;
@@ -330,6 +334,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	private readonly resolvedThreads = observableValue<ReadonlyMap<string, number>>(this, new Map());
 	private readonly hostChanges;
 	private readonly checkpointWrites = new Sequencer();
+	private refreshedAutomationRevision: number | undefined;
+	private nextAutomationPollAt: number | undefined;
 
 	constructor(
 		private readonly resource: GitHubPullRequestArtifactResource,
@@ -375,19 +381,21 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			const core = snapshot.core.value;
 			const open = core?.state === 'open';
 			const hasCore = !authenticationError && hasPresentationData(snapshot.core);
-			const showChecks = hasCore && open && hasPresentationData(snapshot.checks, core.headSha) && snapshot.checks.value.headSha === core.headSha;
-			const checks = showChecks ? getPullRequestArtifactChecks(snapshot) : [];
+			const checks = hasCore && open && hasPresentationData(snapshot.checks, core.headSha) && snapshot.checks.value.headSha === core.headSha
+				? getPullRequestArtifactChecks(snapshot) : [];
 			const threads = hasCore && hasPresentationData(snapshot.reviewThreads, core?.headSha) ? this.threads(snapshot, reader) : [];
 			const checkStates = checks.map(checkPresentationState);
 			const failed = checkStates.filter(state => state === 'failed').length;
 			const passed = checkStates.filter(state => state === 'passed').length;
 			const skipped = checkStates.filter(state => state === 'skipped').length;
+			const completedWithoutFailure = passed + skipped;
 			const checksIcon = checkIcon(failed ? 'failed' : checkStates.includes('pending') ? 'pending' : passed ? 'passed' : 'skipped');
 			const mergeability = snapshot.mergeability;
+			const conflicting = hasCore && open && hasPresentationData(mergeability, core.headSha) && mergeability.value.mergeable === 'CONFLICTING';
 			const visibleActions = new Set([
 				...threads.length ? ['addressReviews'] : [],
 				...failed ? ['fixCI'] : [],
-				...hasPresentationData(mergeability, core?.headSha) && (mergeability.value.mergeable === 'CONFLICTING' || mergeability.value.mergeStateStatus === 'BEHIND') ? ['resolveConflicts'] : [],
+				...hasPresentationData(mergeability, core?.headSha) && (conflicting || mergeability.value.mergeStateStatus === 'BEHIND') ? ['resolveConflicts'] : [],
 				core?.draft ? 'markReady' : 'merge',
 			]);
 			const resourceAvailability = this.availability(snapshot);
@@ -395,14 +403,21 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			return {
 				availability,
 				main: { label: `#${resource.target.number}`, icon: this.mainIcon(snapshot), detailsId: 'main', description: core ? `${this.stateLabel(snapshot)}: ${core.title}` : localize('prArtifact.loading', "Loading pull request.") },
+				...(hasCore && core ? { group: getPullRequestGroupPresentation(core, { needsRepair: open && (failed > 0 || conflicting), hasComments: threads.length > 0 }) } : {}),
 				sections: [
-					...(showChecks ? [{
+					...(checks.length ? [{
 						id: 'checks', detailsId: 'checks',
 						icon: checksIcon,
-						label: `${passed}/${checks.length}`,
+						label: `${completedWithoutFailure}/${checks.length}`,
 						description: skipped
-							? localize('prArtifact.checksSummaryWithSkipped', "{0} of {1} checks passed; {2} failed; {3} skipped.", passed, checks.length, failed, skipped)
+							? localize('prArtifact.checksSummaryWithSkipped', "{0} of {1} checks completed without failure; {2} failed; {3} skipped.", completedWithoutFailure, checks.length, failed, skipped)
 							: localize('prArtifact.checksSummary', "{0} of {1} checks passed; {2} failed.", passed, checks.length, failed),
+					}] : []),
+					...(conflicting ? [{
+						id: 'conflicts', detailsId: 'main',
+						icon: { id: 'git-compare', colorId: 'editorWarning.foreground' },
+						label: localize('prArtifact.conflicts', "Conflicts"),
+						description: localize('prArtifact.conflictsSummary', "This pull request has merge conflicts."),
 					}] : []),
 					...(threads.length ? [{
 						id: 'comments', detailsId: 'comments', icon: reviewThreadIcon, label: String(threads.length),
@@ -483,10 +498,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 
 	private mainIcon(snapshot: PullRequestSnapshot): ArtifactIcon {
 		const core = snapshot.core.value;
-		return core?.state === 'merged' ? { id: 'git-merge', colorId: 'charts.purple' }
-			: core?.state === 'closed' ? { id: 'git-pull-request-closed', colorId: 'charts.red' }
-				: core?.draft ? { id: 'git-pull-request-draft', colorId: 'descriptionForeground' }
-					: { id: 'git-pull-request', colorId: 'charts.green' };
+		return pullRequestStateIcons[core ? getPullRequestDisplayState(core) : 'open'];
 	}
 
 	private stateLabel(snapshot: PullRequestSnapshot): string {
@@ -536,7 +548,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				const checks = exposed && detailsId === 'checks' && hasPresentationData(snapshot.checks, snapshot.core.value?.headSha)
 					&& snapshot.checks.value.headSha === snapshot.core.value?.headSha
 					? getPullRequestArtifactChecks(snapshot).toSorted((a, b) => checkStateOrder[checkPresentationState(a)] - checkStateOrder[checkPresentationState(b)]) : [];
-				const passed = checks.filter(check => checkPresentationState(check) === 'passed').length;
+				const completedWithoutFailure = checks.filter(check => getPullRequestArtifactCheckState(check) === 'passed').length;
 				const threads = exposed && detailsId === 'comments' && hasPresentationData(snapshot.reviewThreads, snapshot.core.value?.headSha) ? this.threads(snapshot, reader) : [];
 				const fragment = main ? snapshot.core : detailsId === 'checks' ? snapshot.checks : snapshot.reviewThreads;
 				const total = main ? 0 : detailsId === 'checks' ? checks.length : threads.length;
@@ -549,7 +561,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 						: fragment.status === 'loading' || fragment.status === 'missing' ? { kind: 'loading' }
 							: fragment.status === 'stale' ? { kind: 'stale', reason: localize('prArtifact.detailsStale', "Showing the last known state while refreshing.") } : view.availability,
 					title: main ? snapshot.core.value?.title ?? `#${this.resource.target.number}` : detailsId === 'checks'
-						? localize('prArtifact.checksTitle', "Checks ({0}/{1})", passed, checks.length)
+						? checks.length ? localize('prArtifact.checksTitle', "Checks ({0}/{1})", completedWithoutFailure, checks.length) : localize('prArtifact.checks', "Checks")
 						: localize('prArtifact.commentsTitle', "Comments ({0})", threads.length),
 					description: main ? snapshot.core.value?.body : total > 200
 						? localize('prArtifact.detailsDescriptionPage', "{0}\nShowing {1}-{2} of {3}.", description, start + 1, Math.min(start + 200, total), total) : description,
@@ -943,13 +955,26 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		const store = new DisposableStore();
 		let running = false;
 		let pending = false;
-		const evaluate = async () => {
+		let refreshRequested = false;
+		const evaluate = async (refresh = false) => {
+			refreshRequested ||= refresh;
 			if (running) {
 				pending = true;
 				return;
 			}
 			running = true;
 			try {
+				const configuration = this.context.configuration.get();
+				if ((refreshRequested || this.refreshedAutomationRevision !== configuration.revision)
+					&& context.runs.get().every(run => isArtifactRunSettled(run) && !run.indeterminate)) {
+					refreshRequested = false;
+					// Refreshing can pause and reactivate automation; retain the revision to avoid a refresh loop.
+					this.refreshedAutomationRevision = configuration.revision;
+					await this.resource.refresh(CancellationToken.None);
+				}
+				if (store.isDisposed) {
+					return;
+				}
 				const retryAfter = await this.evaluate(context, () => !store.isDisposed);
 				if (retryAfter !== undefined && !store.isDisposed) {
 					scheduler.schedule(retryAfter);
@@ -973,9 +998,21 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 					pending = false;
 					scheduler.schedule();
 				}
+				if (!store.isDisposed && !poller.isScheduled()) {
+					schedulePoll();
+				}
 			}
 		};
 		const scheduler = store.add(new RunOnceScheduler(() => { void evaluate(); }, 50));
+		const poller = store.add(new RunOnceScheduler(() => {
+			this.nextAutomationPollAt = Date.now() + automationPollInterval;
+			void evaluate(true);
+		}, automationPollInterval));
+		const schedulePoll = () => {
+			this.nextAutomationPollAt ??= Date.now() + automationPollInterval;
+			poller.schedule(Math.max(0, this.nextAutomationPollAt - Date.now()));
+		};
+		schedulePoll();
 		store.add(autorun(reader => {
 			this.resource.snapshot.read(reader);
 			this.resource.authenticationError.read(reader);
@@ -1041,7 +1078,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				if (!retryable) {
 					continue;
 				}
-				const delay = previous.updatedAt + 30_000 - Date.now();
+				const delay = previous.updatedAt + (previous.dispatched ? unchangedRepairCooldown : undispatchedRetryDelay) - Date.now();
 				if (delay > 0) {
 					retryAfter = Math.min(retryAfter ?? delay, delay);
 					continue;
@@ -1079,4 +1116,39 @@ function checkIcon(state: ReturnType<typeof checkPresentationState>): ArtifactIc
 		: state === 'failed' ? { id: 'error-compact', colorId: 'errorForeground' }
 			: state === 'skipped' ? { id: 'skip', colorId: 'descriptionForeground' }
 				: { id: 'sync-compact', colorId: 'editorWarning.foreground' };
+}
+
+type PullRequestDisplayState = 'open' | 'draft' | 'merged' | 'closed';
+
+/** GitHub keeps `draft` on closed pull requests, so only an open pull request is presented as a draft. */
+function getPullRequestDisplayState(core: Pick<PullRequestCore, 'state' | 'draft'>): PullRequestDisplayState {
+	return core.state === 'open' && core.draft ? 'draft' : core.state;
+}
+
+/** The state icons shared by a pull request's main part and its group presentation. */
+const pullRequestStateIcons: Readonly<Record<PullRequestDisplayState, ArtifactIcon>> = {
+	open: { id: 'git-pull-request', colorId: 'charts.green' },
+	draft: { id: 'git-pull-request-draft', colorId: 'descriptionForeground' },
+	merged: { id: 'git-pull-request-done', colorId: 'charts.purple' },
+	closed: { id: 'git-pull-request-closed', colorId: 'charts.red' },
+};
+
+/**
+ * Ranks a pull request within a group of pull requests: one that needs repair (failing checks or merge conflicts)
+ * comes first, then an open one with unresolved comments, open, draft, merged and closed.
+ */
+export function getPullRequestGroupPresentation(core: Pick<PullRequestCore, 'state' | 'draft'>, status: { readonly needsRepair: boolean; readonly hasComments: boolean }): ArtifactGroupPresentation {
+	const state = getPullRequestDisplayState(core);
+	if (state === 'merged' || state === 'closed') {
+		return { icon: pullRequestStateIcons[state], priority: state === 'merged' ? 2 : 1 };
+	}
+	if (status.needsRepair) {
+		return { icon: { id: 'git-pull-request-error', colorId: 'charts.orange' }, priority: 6 };
+	}
+	if (state === 'draft') {
+		return { icon: pullRequestStateIcons.draft, priority: 3 };
+	}
+	return status.hasComments
+		? { icon: { id: 'git-pull-request-comment', colorId: 'charts.green' }, priority: 5 }
+		: { icon: pullRequestStateIcons.open, priority: 4 };
 }

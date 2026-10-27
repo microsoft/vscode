@@ -576,7 +576,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 					affectsConfiguration: key => key === ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING,
 				});
 			};
-			const defaultOff = snapshot();
+			const defaultOn = snapshot();
 			await setEnabled(true);
 			const enabled = snapshot();
 			await setEnabled(false);
@@ -588,14 +588,14 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			await setEnabled(true);
 			const restored = snapshot();
 			provider.showInEnvironmentPicker();
-			assert.deepStrictEqual({ defaultOff, enabled, disabled, offline, restored, shown: snapshot(), observed }, {
-				defaultOff: { visible: true, entries: 1, hidden: true },
+			assert.deepStrictEqual({ defaultOn, enabled, disabled, offline, restored, shown: snapshot(), observed }, {
+				defaultOn: { visible: false, entries: 0, hidden: true },
 				enabled: { visible: false, entries: 0, hidden: true },
 				disabled: { visible: true, entries: 1, hidden: true },
 				offline: { visible: false, entries: 0, hidden: true },
 				restored: { visible: false, entries: 0, hidden: true },
 				shown: { visible: true, entries: 1, hidden: false },
-				observed: [true, false, true, false, true, false, true],
+				observed: [false, true, false, true, false, true],
 			});
 		});
 	}
@@ -687,6 +687,26 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		provider.seedSessions([createSession('cloud-session', { workingDirectory: URI.file('/workspaces/repo') })]);
 		assert.strictEqual(provider.getNewSessionTarget(provider.getSessions()[0].resource), undefined);
 	});
+
+	for (const status of [ProtocolSessionStatus.Idle, ProtocolSessionStatus.InProgress, ProtocolSessionStatus.InputNeeded]) {
+		test(`forwards the advertised identity so the host decides whether all worktree owners are idle (${status})`, async () => {
+			const sessions: (string | undefined)[] = [];
+			connection.measureWorktreeDiskUsage = async (_root, _token, session) => {
+				sessions.push(session?.toString());
+				return 1234;
+			};
+			const provider = createProvider(disposables, connection);
+			const backendUri = URI.parse('other-host:/opaque/session');
+			provider.seedSessions([createSession('cached-size', {
+				session: backendUri,
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/cached-size'),
+				status,
+			})]);
+			await provider.getSessionWorktreeDiskUsage(provider.getSessions()[0].sessionId);
+			assert.deepStrictEqual(sessions, [backendUri.toString()]);
+		});
+	}
 
 	for (const sandbox of [false, true]) {
 		test(sandbox ? 'does not measure cloud sandbox worktrees' : 'continues measuring ordinary remote worktrees', async () => {

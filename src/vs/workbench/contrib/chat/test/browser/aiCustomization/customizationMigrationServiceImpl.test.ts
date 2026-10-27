@@ -29,6 +29,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -390,6 +391,7 @@ suite('CustomizationMigrationService', () => {
 		const harnessService = new TestCustomizationHarnessService();
 		const createProvider = (onDidChange: Event<void>): ICustomizationMarketplaceManagementProvider => ({
 			onDidChange,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [],
 			add: async (_sessionResource, source) => ({ name: source, source, isDefault: false, managed: false, available: true }),
 			queryMarketplace: async () => ({ items: [], total: 0 }),
@@ -570,6 +572,7 @@ suite('CustomizationMigrationService', () => {
 		}];
 		harnessService.marketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => providerMarketplaces,
 			add: async (_sessionResource, source) => {
 				addedSources.push(source);
@@ -672,6 +675,7 @@ suite('CustomizationMigrationService', () => {
 		const harnessService = new TestCustomizationHarnessService();
 		harnessService.marketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => {
 				listCalls++;
 				throw new Error('Marketplace inventory unavailable');
@@ -2410,6 +2414,7 @@ suite('CustomizationMigrationService', () => {
 				activeClientService,
 				{} as IMcpService,
 				store.add(createMigrationConfiguration()),
+				new TestNotificationService(),
 			));
 			const migrationService = store.add(new CustomizationMigrationService(
 				store.add(new TestPromptsService([])),

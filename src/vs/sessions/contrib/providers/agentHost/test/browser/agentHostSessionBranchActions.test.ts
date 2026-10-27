@@ -57,8 +57,8 @@ suite('Agent Host session link actions', () => {
 			};
 		});
 		const expected = {
-			group: 'secondary/1_session',
-			order: 40,
+			group: 'secondary/3_copy',
+			order: 10,
 			when: 'sessionIsCreated && sessionProviderId =~ /^(local-agent-host|agenthost-)/',
 		};
 
@@ -115,7 +115,7 @@ suite('Agent Host session link actions', () => {
 		}, {
 			submenu: {
 				title: 'Settings',
-				group: '2_settings',
+				group: '4_manage',
 				order: 1,
 				when: 'sessionProviderId =~ /^(local-agent-host|agenthost-)/',
 			},

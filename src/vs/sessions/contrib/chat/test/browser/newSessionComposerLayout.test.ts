@@ -38,14 +38,14 @@ const newSessionWelcomePhrasesProperty = Registry.as<IConfigurationRegistry>(Con
 suite('New session composer layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Environment picker is an opt-in window setting', () => {
+	test('Environment picker is a default-on window setting without an experimental tag', () => {
 		assert.deepStrictEqual({
 			type: environmentPickerProperty.type,
 			default: environmentPickerProperty.default,
 			scope: environmentPickerProperty.scope,
 			tags: environmentPickerProperty.tags,
 			experiment: environmentPickerProperty.experiment,
-		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
+		}, { type: 'boolean', default: true, scope: ConfigurationScope.WINDOW, tags: ['onExP'], experiment: { mode: 'auto' } });
 	});
 
 	test('workspace opt-out is a default-off experiment-controlled window setting', () => {
@@ -58,14 +58,14 @@ suite('New session composer layout', () => {
 		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
 	});
 
-	test('Manage Remotes is a default-off experiment-controlled window setting', () => {
+	test('Manage Remotes is a default-on experiment-controlled window setting', () => {
 		assert.deepStrictEqual({
 			type: environmentPickerManageRemotesProperty.type,
 			default: environmentPickerManageRemotesProperty.default,
 			scope: environmentPickerManageRemotesProperty.scope,
 			tags: environmentPickerManageRemotesProperty.tags,
 			experiment: environmentPickerManageRemotesProperty.experiment,
-		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
+		}, { type: 'boolean', default: true, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
 	});
 
 	test('workspace opt-out requires its own setting and both layout settings', () => {

@@ -78,6 +78,7 @@ export interface ICustomizationMarketplaceEntry {
 	readonly description: string;
 	readonly mediaType: string;
 	readonly tags: readonly string[];
+	readonly compatibilityTags?: readonly string[];
 	readonly capabilities: readonly string[];
 	readonly representativeQueries: readonly string[];
 	readonly connectorIds?: readonly string[];
@@ -92,6 +93,7 @@ export interface ICustomizationMarketplaceEntry {
 	/** Source-supplied origin within a feed, distinct from the feed's display name. */
 	readonly originLabel?: string;
 	readonly version?: string;
+	readonly installCount?: number;
 	readonly stars?: number;
 	/** Source-assigned relevance from 0 to 100, not a quality or trust rating. Unscored search results rank as 0. */
 	readonly score?: number;
@@ -242,13 +244,22 @@ export function createLazyCustomizationMarketplaceProvider(id: string, createPro
 
 export const ICustomizationMarketplaceService = createDecorator<ICustomizationMarketplaceService>('customizationMarketplaceService');
 
+/** Describes which marketplace sources a {@link ICustomizationMarketplaceService.onDidChangeSources} change may affect. */
+export interface ICustomizationMarketplaceSourcesChangeEvent {
+	/**
+	 * Identifiers of sources whose availability or contents may have changed, or `undefined` when
+	 * any source may be affected. Listeners may skip work for sources outside this list.
+	 */
+	readonly sourceIds?: readonly string[];
+}
+
 export interface ICustomizationMarketplaceService {
 	readonly _serviceBrand: undefined;
 	readonly sources: readonly ICustomizationMarketplaceSourceInfo[];
 	/** Complete source metadata, including sources that are not currently available. */
 	readonly allSources?: readonly ICustomizationMarketplaceSourceInfo[];
-	/** Fires when non-configuration inputs change source availability or query identity. */
-	readonly onDidChangeSources?: Event<void>;
+	/** Fires when non-configuration inputs change source availability, contents, or query identity. */
+	readonly onDidChangeSources?: Event<ICustomizationMarketplaceSourcesChangeEvent>;
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage>;
 	/** Optional ordered editorial sections for queryless Browse. */
 	getBrowseSections?(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken, onProgress?: (progress: ICustomizationMarketplaceBrowseSectionsProgress) => void): Promise<ICustomizationMarketplaceBrowseSections | undefined>;
@@ -365,8 +376,19 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		}
 	}
 
-	clearBrowseCache(): void {
-		this.browseCache.clear();
+	/** Clears cached Browse pages for the given sources, or for every source when `sourceIds` is undefined. */
+	clearBrowseCache(sourceIds?: readonly string[]): void {
+		if (!sourceIds) {
+			this.browseCache.clear();
+			return;
+		}
+		const providerIds = new Set(this.sources.filter(source => sourceIds.includes(source.sourceId ?? source.id)).map(source => source.id));
+		for (const [key] of [...this.browseCache]) {
+			const [providerId] = JSON.parse(key) as [string];
+			if (providerIds.has(providerId)) {
+				this.browseCache.delete(key);
+			}
+		}
 	}
 
 	async query(options: ICustomizationMarketplaceRequest, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {

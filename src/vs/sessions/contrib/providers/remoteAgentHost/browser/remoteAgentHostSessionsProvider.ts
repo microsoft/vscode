@@ -348,7 +348,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.hostDescription = config.hostDescription;
 		const pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
 		const pickerKey = config.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(config.preferenceKey ?? config.address);
-		const manageRemotes = observableConfigValue(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, false, this._configurationService);
+		const manageRemotes = observableConfigValue(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, true, this._configurationService);
 		this.isAvailableInEnvironmentPicker = config.isVisibleInEnvironmentPicker ?? constObservable(true);
 		this.isVisibleInEnvironmentPicker = derived(this, reader =>
 			(!manageRemotes.read(reader) || !pickerVisibility.isHidden(pickerKey, reader)) && this.isAvailableInEnvironmentPicker?.read(reader) !== false);
