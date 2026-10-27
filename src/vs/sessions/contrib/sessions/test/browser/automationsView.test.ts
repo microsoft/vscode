@@ -83,7 +83,7 @@ import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/a
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
-import { MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
 
 
@@ -460,6 +460,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	readonly isRead = observableValue<boolean>(this, false);
 	readonly secondIsRead = observableValue<boolean>(this, false);
 	readonly isArchived = observableValue<boolean>(this, false);
+	readonly isAutomation = observableValue<boolean>(this, false);
 	readonly sessionStatus = observableValue<SessionStatus>(this, SessionStatus.Completed);
 	readonly capabilities = observableValue(this, { supportsMultipleChats: false, supportsDelete: true, supportsRename: true });
 	readonly application = observableValue('application', getSessionApplication('vscode'));
@@ -480,6 +481,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 			isVirtualWorkspace: false,
 		}),
 		isQuickChat: constObservable(false),
+		isAutomation: this.isAutomation,
 		title: constObservable('Daily review'),
 		updatedAt: constObservable(new Date()),
 		isRead: this.isRead,
@@ -728,9 +730,11 @@ suite('AutomationsCardsWidget', () => {
 		const refreshErrors: string[] = [];
 		instantiationService.stub(INotificationService, { error: message => refreshErrors.push(String(message)) });
 		instantiationService.stub(ITelemetryService, telemetryService);
+		const shownAutomationSessionIds = new Set<string>();
 		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 			override readonly onDidChange = Event.None;
 			override isSessionPinned(): boolean { return false; }
+			override isSessionListed(session: ISession): boolean { return !session.isAutomation?.get() || shownAutomationSessionIds.has(session.sessionId); }
 			override getStatusIcon() { return Codicon.circleSmallFilled; }
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -759,7 +763,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
 	}
 
 	function renderRefreshButton({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>): HTMLElement {
@@ -4100,6 +4104,45 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('history context menu shows an automation run in the Sessions list or hides it again', async () => {
+		const { automationService, commandService, contextMenuService, sessionsManagementService, shownAutomationSessionIds, widget } = setup();
+		sessionsManagementService.isAutomation.set(true, undefined);
+		sessionsManagementService.setRead(true);
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run()]);
+		await waitForSessionActions();
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(row);
+		const openContextMenu = () => {
+			dispatchContextMenu(row);
+			const delegate = contextMenuService.delegate;
+			assert.ok(delegate);
+			return { delegate, actions: delegate.getActions() };
+		};
+
+		const unlisted = openContextMenu();
+		const show = unlisted.actions.find(action => action.id === SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID);
+		assert.ok(show);
+		await unlisted.delegate.actionRunner?.run(show, unlisted.delegate.getActionsContext?.());
+		unlisted.delegate.onHide?.(false);
+		shownAutomationSessionIds.add(sessionsManagementService.session.sessionId);
+		const listed = openContextMenu();
+		listed.delegate.onHide?.(false);
+
+		assert.deepStrictEqual({
+			unlisted: unlisted.actions.map(action => action.id),
+			listed: listed.actions.map(action => action.id),
+			commandCalls: commandService.calls.map(call => ({
+				commandId: call.commandId,
+				forwardsSession: Array.isArray(call.args[0]) && call.args[0].length === 1 && call.args[0][0] === sessionsManagementService.session,
+			})),
+		}, {
+			unlisted: [MARK_SESSION_UNREAD_COMMAND_ID, 'sessionsViewPane.archiveSession', 'vs.actions.separator', SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, 'vs.actions.separator', 'sessionsViewPane.renameSession'],
+			listed: [MARK_SESSION_UNREAD_COMMAND_ID, 'sessionsViewPane.archiveSession', 'vs.actions.separator', HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, 'vs.actions.separator', 'sessionsViewPane.renameSession'],
+			commandCalls: [{ commandId: SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, forwardsSession: true }],
+		});
+	});
+
 	test('history context menu only shows keybindings valid for the row context', async () => {
 		const { automationService, contextMenuService, keybindingService, widget } = setup();
 		automationService.setAutomations([automation()]);
@@ -4534,6 +4577,19 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider);
 		disposables.add(provider);
 		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
+	});
+
+	test('accessibility help explains showing run sessions in the Sessions list', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+		assert.ok(help);
+		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
+		assert.ok(provider);
+		disposables.add(provider);
+		assert.deepStrictEqual(provider.provideContent().split('\n').filter(line => line.includes('Show in Sessions List')), [
+			'Run sessions are listed here rather than in the Sessions list. Open a run\'s context menu and choose Show in Sessions List to also list its session there, or Hide from Sessions List to list it only here again, even after later messages. The sessions.list.showRepliedAutomationSessions setting controls whether sending a message in a run\'s session also shows it in the Sessions list.',
+		]);
 	});
 
 	test('accessibility help explains the unified Trigger picker and local weekdays', () => {

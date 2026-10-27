@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -16,7 +16,7 @@ import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionsListM
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 
-function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date; createdBySession?: URI }): ISession {
+function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date; createdBySession?: URI; isAutomation?: boolean }): ISession {
 	return {
 		sessionId: id,
 		resource: URI.parse(`session://${id}`),
@@ -28,6 +28,7 @@ function createSession(id: string, status: SessionStatus = SessionStatus.Complet
 		icon: Codicon.account,
 		createdAt: opts?.createdAt ?? new Date(),
 		workspace: observableValue(`workspace-${id}`, undefined),
+		isAutomation: observableValue(`isAutomation-${id}`, opts?.isAutomation ?? false),
 		createdBySession: constObservable(opts?.createdBySession ? { session: opts.createdBySession } : undefined),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, opts?.updatedAt ?? new Date()),
@@ -186,6 +187,105 @@ suite('SessionsListModelService', () => {
 		service.unpinSessions([s1, s2]);
 
 		assert.strictEqual(changeCount, 0);
+	});
+
+	// -- Automation sessions --
+
+	test('lists automation sessions only while they are shown and persists the shown state', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		const otherAutomation = createSession('other-automation', SessionStatus.Completed, { isAutomation: true });
+		const regular = createSession('regular');
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+		const listed = () => [automation, otherAutomation, regular].filter(session => service.isSessionListed(session)).map(session => session.sessionId);
+		const stored = () => storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE);
+
+		const initial = listed();
+		service.showAutomationSessions([automation, automation]);
+		service.showAutomationSessions([automation]);
+		const shown = { listed: listed(), stored: stored() };
+		service.hideAutomationSessions([automation, otherAutomation]);
+
+		assert.deepStrictEqual({ initial, shown, hidden: { listed: listed(), stored: stored() }, events }, {
+			initial: ['regular'],
+			shown: { listed: ['automation', 'regular'], stored: JSON.stringify(['automation']) },
+			hidden: { listed: ['regular'], stored: undefined },
+			events: [
+				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
+				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
+			],
+		});
+	});
+
+	test('tracks automation provenance and the shown state through the reader', () => {
+		const isAutomation = observableValue('isAutomation', false);
+		const session: ISession = { ...createSession('session'), isAutomation };
+		const states: boolean[] = [];
+		disposables.add(autorun(reader => { states.push(service.isSessionListed(session, reader)); }));
+
+		isAutomation.set(true, undefined);
+		service.showAutomationSessions([session]);
+		service.hideAutomationSessions([session]);
+
+		assert.deepStrictEqual(states, [true, false, true, false]);
+	});
+
+	test('keeps a shown automation session across eviction and reconstruction until it is deleted', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		service.showAutomationSessions([automation]);
+		sessionsChangedEmitter.fire({ added: [], removed: [automation], changed: [] });
+		const afterEviction = service.isSessionListed(automation);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		const afterReconstruction = service.isSessionListed(automation);
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+
+		sessionDeletedEmitter.fire(automation);
+
+		assert.deepStrictEqual({
+			afterEviction,
+			afterReconstruction,
+			afterDeletion: service.isSessionListed(automation),
+			stored: storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE),
+			events,
+		}, {
+			afterEviction: true,
+			afterReconstruction: true,
+			afterDeletion: false,
+			stored: undefined,
+			events: [{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] }],
+		});
+	});
+
+	test('a message does not show an automation session the user hid, across reloads, until the user shows it again', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		const reload = () => {
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		};
+		const stored = () => storageService.get('sessionsListControl.hiddenAutomationSessions', StorageScope.PROFILE);
+
+		service.showRepliedAutomationSession(automation);
+		const afterReply = service.isSessionListed(automation);
+		service.hideAutomationSessions([automation]);
+		reload();
+		service.showRepliedAutomationSession(automation);
+		const afterHiddenReply = { listed: service.isSessionListed(automation), stored: stored() };
+		service.showAutomationSessions([automation]);
+		service.hideAutomationSessions([automation]);
+		service.showAutomationSessions([automation]);
+		reload();
+		const afterExplicitShow = { listed: service.isSessionListed(automation), stored: stored() };
+		service.hideAutomationSessions([automation]);
+		sessionDeletedEmitter.fire(automation);
+
+		assert.deepStrictEqual({ afterReply, afterHiddenReply, afterExplicitShow, afterDeletion: stored() }, {
+			afterReply: true,
+			afterHiddenReply: { listed: false, stored: JSON.stringify(['automation']) },
+			afterExplicitShow: { listed: true, stored: undefined },
+			afterDeletion: undefined,
+		});
 	});
 
 	// -- onDidChange --

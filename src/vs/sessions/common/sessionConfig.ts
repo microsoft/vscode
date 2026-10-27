@@ -20,6 +20,9 @@ export const LEGACY_SESSION_TOOLBAR_SETTING = 'sessions.showSessionToolbar';
 
 export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.groupExternalSessions';
 
+/** Whether an automation session is also shown in the Sessions list once the user sends a message in it. */
+export const SESSIONS_LIST_SHOW_REPLIED_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showRepliedAutomationSessions';
+
 /** Whether agents get tools to read and organize the Agents window Sessions list. */
 export const SESSIONS_LIST_AGENT_TOOLS_SETTING = 'sessions.list.agentTools.enabled';
 

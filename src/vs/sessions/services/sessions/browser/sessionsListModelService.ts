@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IReader, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -15,6 +16,8 @@ import { ISessionsManagementService } from '../common/sessionsManagement.js';
 export const enum SessionListModelChangeKind {
 	Pinned = 'pinned',
 	Sort = 'sort',
+	/** Whether an automation session is shown in the sessions list. */
+	AutomationListing = 'automationListing',
 }
 
 /**
@@ -29,7 +32,8 @@ export interface ISessionListModelChangeEvent {
 }
 
 /**
- * Service that manages UI-only state for sessions: pinned and manual sort order.
+ * Service that manages UI-only state for sessions: pinned, manual sort order, and
+ * which automation sessions are shown in the sessions list.
  * The order of a session's nested chats is owned by its provider, never by the list.
  *
  * This state is purely local (persisted in storage) and not synced to providers.
@@ -43,7 +47,7 @@ export interface ISessionListModelChangeEvent {
 export interface ISessionsListModelService {
 	readonly _serviceBrand: undefined;
 
-	/** Fires when a session's pinned or sort state changes. */
+	/** Fires when a session's pinned, sort, or automation listing state changes. */
 	readonly onDidChange: Event<ISessionListModelChangeEvent>;
 
 	// -- Pinning --
@@ -52,6 +56,27 @@ export interface ISessionsListModelService {
 	unpinSession(session: ISession): void;
 	unpinSessions(sessions: ISession[]): void;
 	isSessionPinned(session: ISession): boolean;
+
+	// -- Automation sessions --
+
+	/**
+	 * Whether the session belongs in the sessions list. Automation sessions are
+	 * only listed in Automations until {@link showAutomationSessions} adds them;
+	 * every other session belongs in the list. List filters still apply.
+	 */
+	isSessionListed(session: ISession, reader?: IReader): boolean;
+
+	/** Shows automation sessions in the sessions list too, at the user's request. They remain listed in Automations. */
+	showAutomationSessions(sessions: readonly ISession[]): void;
+
+	/**
+	 * Shows an automation session in the sessions list because the user sent a
+	 * message in it, unless the user chose {@link hideAutomationSessions} for it.
+	 */
+	showRepliedAutomationSession(session: ISession): void;
+
+	/** Lists automation sessions only in Automations again, until the user shows them explicitly. */
+	hideAutomationSessions(sessions: readonly ISession[]): void;
 
 	// -- Legacy read-state migration --
 
@@ -104,6 +129,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
+	private static readonly SHOWN_AUTOMATION_SESSIONS_KEY = 'sessionsListControl.shownAutomationSessions';
+	private static readonly HIDDEN_AUTOMATION_SESSIONS_KEY = 'sessionsListControl.hiddenAutomationSessions';
 	private static readonly SORT_OVERRIDES_KEY = 'sessionsListControl.sortOverrides';
 	private static readonly UPDATED_DEFAULT_PLACEMENTS_KEY = 'sessionsListControl.updatedDefaultPlacements';
 	/** Retired: a list-owned order of nested chats, which conflicted with the order their provider owns. */
@@ -116,6 +143,9 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	readonly onDidChange: Event<ISessionListModelChangeEvent> = this._onDidChange.event;
 
 	private readonly _pinnedSessionIds: Set<string>;
+	private readonly _shownAutomationSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
+	/** Automation sessions the user hid from the list; a later message must not show them again. */
+	private readonly _hiddenAutomationSessionIds: Set<string>;
 	private readonly _sortOverrides: Record<SessionSortMode, Map<string, number>>;
 	private readonly _updatedDefaultPlacements: Map<string, number | null>;
 	private readonly _legacyReadSessionIds: Set<string> | undefined;
@@ -128,6 +158,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		super();
 
 		this._pinnedSessionIds = this.loadSet(SessionsListModelService.PINNED_SESSIONS_KEY);
+		this._shownAutomationSessionIds.set(this.loadSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY), undefined);
+		this._hiddenAutomationSessionIds = this.loadSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY);
 		this._sortOverrides = this.loadSortOverrides();
 		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
 		this.storageService.remove(SessionsListModelService.RETIRED_CHAT_ORDER_KEY, StorageScope.PROFILE);
@@ -138,11 +170,11 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => this.updateDefaultPlacement(this.sessionsManagementService.getSessions())));
 		this.updateDefaultPlacement(this.sessionsManagementService.getSessions());
 
-		// Only a definitive deletion discards pin and sort state. A session
-		// merely dropping out of the provider's list is an eviction (e.g. an
-		// agent that cannot answer `listSessions` yet reports no sessions), and
-		// discarding state there would permanently unpin sessions that come
-		// back on the next refresh.
+		// Only a definitive deletion discards pin, sort, and automation listing
+		// state. A session merely dropping out of the provider's list is an
+		// eviction (e.g. an agent that cannot answer `listSessions` yet reports
+		// no sessions), and discarding state there would permanently unpin
+		// sessions that come back on the next refresh.
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => {
 			this.deleteSession(session);
 		}));
@@ -203,6 +235,74 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	isSessionPinned(session: ISession): boolean {
 		return this._pinnedSessionIds.has(session.sessionId);
+	}
+
+	// -- Automation sessions --
+
+	isSessionListed(session: ISession, reader?: IReader): boolean {
+		return !session.isAutomation?.read(reader) || this._shownAutomationSessionIds.read(reader).has(session.sessionId);
+	}
+
+	showAutomationSessions(sessions: readonly ISession[]): void {
+		const sessionIds = sessions.map(session => session.sessionId);
+		this.setAutomationSessionsHidden(sessionIds, false);
+		this.fireChanges(this.setAutomationSessionsShown(sessionIds, true));
+	}
+
+	showRepliedAutomationSession(session: ISession): void {
+		if (!this._hiddenAutomationSessionIds.has(session.sessionId)) {
+			this.fireChanges(this.setAutomationSessionsShown([session.sessionId], true));
+		}
+	}
+
+	hideAutomationSessions(sessions: readonly ISession[]): void {
+		const sessionIds = sessions.map(session => session.sessionId);
+		this.setAutomationSessionsHidden(sessionIds, true);
+		this.fireChanges(this.setAutomationSessionsShown(sessionIds, false));
+	}
+
+	private setAutomationSessionsHidden(sessionIds: readonly string[], hidden: boolean): void {
+		let changed = false;
+		for (const sessionId of sessionIds) {
+			if (this._hiddenAutomationSessionIds.has(sessionId) !== hidden) {
+				changed = true;
+				if (hidden) {
+					this._hiddenAutomationSessionIds.add(sessionId);
+				} else {
+					this._hiddenAutomationSessionIds.delete(sessionId);
+				}
+			}
+		}
+		if (changed) {
+			this.saveSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY, this._hiddenAutomationSessionIds);
+		}
+	}
+
+	private setAutomationSessionsShown(sessionIds: readonly string[], shown: boolean): ISessionListModelChangeEvent['changes'] {
+		const ids = new Set(this._shownAutomationSessionIds.get());
+		const changes: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
+		for (const sessionId of sessionIds) {
+			if (ids.has(sessionId) === shown) {
+				continue;
+			}
+			if (shown) {
+				ids.add(sessionId);
+			} else {
+				ids.delete(sessionId);
+			}
+			changes.push({ sessionId, kind: SessionListModelChangeKind.AutomationListing });
+		}
+		if (changes.length > 0) {
+			this._shownAutomationSessionIds.set(ids, undefined);
+			this.saveSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY, ids);
+		}
+		return changes;
+	}
+
+	private fireChanges(changes: ISessionListModelChangeEvent['changes']): void {
+		if (changes.length > 0) {
+			this._onDidChange.fire({ changes });
+		}
 	}
 
 	// -- Manual sort order --
@@ -367,6 +467,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
 			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned });
 		}
+		changes.push(...this.setAutomationSessionsShown([session.sessionId], false));
+		this.setAutomationSessionsHidden([session.sessionId], false);
 		let sortChanged = false;
 		if (this._sortOverrides.created.delete(session.sessionId)) {
 			sortChanged = true;
