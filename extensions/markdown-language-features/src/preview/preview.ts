@@ -96,6 +96,8 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	#currentVersion?: PreviewDocumentVersion;
 	#isScrolling = false;
 	#scrollingTimer?: NodeJS.Timeout;
+	#isSyncingFromEditorSelection = false;
+	#editorSelectionSyncTimer?: NodeJS.Timeout;
 
 	#imageInfo: readonly ImageInfo[] = [];
 	readonly #fileWatchersBySrc = new Map</* src: */ string, vscode.FileSystemWatcher>();
@@ -225,6 +227,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 		clearTimeout(this.#throttleTimer);
 		clearTimeout(this.#scrollingTimer);
+		clearTimeout(this.#editorSelectionSyncTimer);
 		for (const entry of this.#fileWatchersBySrc.values()) {
 			entry.dispose();
 		}
@@ -375,6 +378,10 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 				continue;
 			}
 
+			if (this.#isSyncingFromEditorSelection) {
+				return;
+			}
+
 			this.#isScrolling = true;
 			if (this.#scrollingTimer) {
 				clearTimeout(this.#scrollingTimer);
@@ -384,6 +391,16 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}, 200);
 			scrollEditorToLine(line, editor);
 		}
+	}
+
+	public notifyEditorSelectionChanged(): void {
+		this.#isSyncingFromEditorSelection = true;
+		if (this.#editorSelectionSyncTimer) {
+			clearTimeout(this.#editorSelectionSyncTimer);
+		}
+		this.#editorSelectionSyncTimer = setTimeout(() => {
+			this.#isSyncingFromEditorSelection = false;
+		}, 400);
 	}
 
 	async #onDidClickPreview(line: number): Promise<void> {
@@ -780,6 +797,7 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 
 		this._register(vscode.window.onDidChangeTextEditorSelection(event => {
 			if (this.#preview.isPreviewOf(event.textEditor.document.uri)) {
+				this.#preview.notifyEditorSelectionChanged();
 				this.#preview.postMessage({
 					type: 'onDidChangeTextEditorSelection',
 					line: event.selections[0].active.line,
