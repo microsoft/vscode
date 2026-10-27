@@ -6452,7 +6452,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('only allows top-level comparison headers to be dragged', () => {
+		test('allows comparison headers to be dragged in workspace and date grouping', () => {
 			const workspace = renderComparison(undefined, 'all', new Set(), true);
 			const workspaceSection = [...workspace.container.querySelectorAll<HTMLElement>('.session-section')]
 				.find(section => section.querySelector('.session-section-label')?.textContent === 'Zebra');
@@ -6485,9 +6485,193 @@ suite('Sessions - SessionsList', () => {
 				workspaceSectionReorders: workspace.harness.sectionReorders,
 				date: dateContainer.querySelector('.session-comparison-group')?.closest<HTMLElement>('.monaco-list-row')?.draggable,
 			}, {
-				workspace: false,
-				workspaceSectionReorders: [],
+				workspace: true,
+				workspaceSectionReorders: [{
+					visibleOrder: ['workspace:Workspace', 'workspace:Zebra'],
+					draggedId: 'workspace:Zebra',
+					targetId: 'workspace:Workspace',
+					position: 'before',
+					promoteId: 'workspace:Zebra',
+				}],
 				date: true,
+			});
+		});
+
+		function renderOrganizableComparisons(grouping: SessionsGrouping, sorting: SessionsSorting, nested = false) {
+			const now = Date.now();
+			const first = createTestSession('First attempt', { resourceId: 'first', createdAt: new Date(now - 3000), updatedAt: new Date(now), repository: 'owner/repo' });
+			const second = createTestSession('Second attempt', { resourceId: 'second', createdAt: new Date(now - 1000), repository: 'owner/repo' });
+			const ordinary = createTestSession('Ordinary', { resourceId: 'ordinary', createdAt: new Date(now - 2000), updatedAt: new Date(now - 500), repository: 'owner/repo' });
+			const parent: ISessionGroup = { id: 'parent', name: 'Custom', createdAt: now };
+			const comparisonGroups: ISessionGroup[] = [
+				{ id: 'first-comparison', name: 'First', createdAt: first.session.createdAt.getTime(), parentId: nested ? parent.id : undefined },
+				{ id: 'second-comparison', name: 'Second', createdAt: second.session.createdAt.getTime(), parentId: nested ? parent.id : undefined },
+			];
+			const participants = [first, second];
+			const comparisons: ISessionComparison[] = comparisonGroups.map((group, index) => ({
+				id: group.id, groupId: group.id, title: group.name, createdAt: group.createdAt,
+				workspace: URI.file('/workspace'), prompt: 'Compare',
+				participants: [{
+					id: `attempt-${index}`, role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: participants[index].session.resource,
+				}],
+			}));
+			const harness = createListHarness(disposables, participants.map(participant => participant.session).concat(ordinary.session), {
+				groups: [parent, ...comparisonGroups],
+				memberships: new Map([
+					...participants.map((participant, index) => [participant.session.sessionId, comparisonGroups[index].id] as const),
+					...(nested ? [[ordinary.session.sessionId, parent.id] as const] : []),
+				]),
+				comparisons, liveListModel: true, liveGroups: true,
+			});
+			const contextMenus: (readonly IAction[])[] = [];
+			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void {
+					contextMenus.push(delegate.getActions());
+				}
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => grouping, sorting: () => sorting, onSessionOpen: () => { },
+			}));
+			list.layout(1000, 400);
+			const section = nested ? 'group:parent' : grouping === SessionsGrouping.Date ? 'recent'
+				: grouping === SessionsGrouping.Environment ? 'environment:local'
+					: grouping === SessionsGrouping.Repository ? 'repository:owner/repo' : 'workspace:Workspace';
+			const order = () => {
+				const find = (nodes: Readonly<ReturnType<SessionsList['getTreeSnapshot']>>): string[] | undefined => {
+					for (const node of nodes) {
+						if (node.type !== 'session') {
+							if (node.id === section) {
+								return node.children.map(child => child.type === 'session' ? child.session.title.get() : child.label);
+							}
+							const result = find(node.children);
+							if (result) {
+								return result;
+							}
+						}
+					}
+					return undefined;
+				};
+				return find(list.getTreeSnapshot());
+			};
+			return { harness, list, container, order, first, second, section, contextMenus };
+		}
+
+		function dragComparison(source: HTMLElement, target: HTMLElement, position: 'before' | 'over' | 'after' = 'before'): boolean {
+			const transfer = new DataTransfer();
+			source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+			const rect = target.getBoundingClientRect();
+			const clientY = position === 'before' ? rect.top + 1 : position === 'after' ? rect.bottom - 1 : rect.top + rect.height / 2;
+			const dragOver = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer, clientY });
+			target.dispatchEvent(dragOver);
+			const accepted = !!target.closest('.monaco-list-rows')?.querySelector('[class*="drop-target"]');
+			target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer, clientY }));
+			source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+			return accepted;
+		}
+
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository, SessionsGrouping.Environment, SessionsGrouping.Date]) {
+			for (const sorting of [SessionsSorting.Created, SessionsSorting.Updated]) {
+				test(`sorts comparisons alongside sessions: ${grouping}, ${sorting}`, () => {
+					const { order } = renderOrganizableComparisons(grouping, sorting);
+					assert.deepStrictEqual(order(), sorting === SessionsSorting.Created ? ['Second', 'Ordinary', 'First'] : ['First', 'Ordinary', 'Second']);
+				});
+				test(`drags a comparison next to a session: ${grouping}, ${sorting}`, () => {
+					const { list, order } = renderOrganizableComparisons(grouping, sorting);
+					const sourceId = sorting === SessionsSorting.Created ? 'first-comparison' : 'second-comparison';
+					dragComparison(list.getItemRow({ group: sourceId })!, list.getItemRow({ session: URI.parse('test-session://ordinary') })!);
+					assert.deepStrictEqual(order(), sorting === SessionsSorting.Created ? ['Second', 'First', 'Ordinary'] : ['First', 'Second', 'Ordinary']);
+				});
+			}
+
+			test(`reorders a whole comparison by dragging its header: ${grouping}`, () => {
+				const { list, order, harness } = renderOrganizableComparisons(grouping, SessionsSorting.Created);
+				const source = list.getItemRow({ group: 'first-comparison' })!;
+				const target = list.getItemRow({ session: URI.parse('test-session://ordinary') })!;
+				dragComparison(source, target);
+				assert.deepStrictEqual({
+					order: order(),
+					memberships: harness.addedToGroups,
+					removed: harness.removedFromGroups,
+					overrides: harness.sortChanges.map(change => [...change.set.keys()]),
+				}, {
+					order: ['Second', 'First', 'Ordinary'],
+					memberships: [], removed: [],
+					overrides: [['group:first-comparison']],
+				});
+			});
+		}
+
+		test('sorts comparisons with ordinary sessions inside a custom group', () => {
+			const { order, list } = renderOrganizableComparisons(SessionsGrouping.Workspace, SessionsSorting.Created, true);
+			const initial = order();
+			list.moveHeaderTo('group:first-comparison', 'group:parent', { siblingId: 'group:second-comparison', position: 'before' });
+			assert.deepStrictEqual({ initial, reordered: order() }, {
+				initial: ['Second', 'Ordinary', 'First'],
+				reordered: ['First', 'Second', 'Ordinary'],
+			});
+		});
+
+		test('moves a comparison into and out of a custom group without changing participants', () => {
+			const { list, harness, container } = renderOrganizableComparisons(SessionsGrouping.Workspace, SessionsSorting.Created);
+			list.moveHeaderTo('group:first-comparison', 'group:parent', undefined);
+			const nestedLevel = container.querySelector('.session-comparison-group .session-section-label')?.closest('.monaco-list-row')?.getAttribute('aria-level');
+			const grouped = harness.instantiationService.get(ISessionGroupsService).getGroup('first-comparison');
+			list.moveHeaderTo('group:first-comparison', undefined, undefined);
+			assert.deepStrictEqual({
+				groupedParent: grouped?.parentId,
+				nestedLevel,
+				parentAfterRemoval: harness.instantiationService.get(ISessionGroupsService).getGroup('first-comparison')?.parentId,
+				memberships: harness.addedToGroups,
+				removed: harness.removedFromGroups,
+			}, { groupedParent: 'parent', nestedLevel: '2', parentAfterRemoval: undefined, memberships: [], removed: [] });
+		});
+
+		test('drags a whole comparison into a custom group', () => {
+			const { list, harness } = renderOrganizableComparisons(SessionsGrouping.Workspace, SessionsSorting.Created);
+			const accepted = dragComparison(list.getItemRow({ group: 'first-comparison' })!, list.getItemRow({ group: 'parent' })!, 'over');
+			assert.deepStrictEqual({
+				accepted,
+				parent: harness.instantiationService.get(ISessionGroupsService).getGroup('first-comparison')?.parentId,
+				participants: harness.instantiationService.get(ISessionGroupsService).getSessionIdsInGroup('first-comparison'),
+				membershipChanges: harness.addedToGroups,
+			}, { accepted: true, parent: 'parent', participants: ['first'], membershipChanges: [] });
+		});
+
+		test('offers context-menu moves into and out of custom groups but not into another comparison', async () => {
+			const { list, contextMenus, harness } = renderOrganizableComparisons(SessionsGrouping.Date, SessionsSorting.Created);
+			list.getItemRow({ group: 'first-comparison' })!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+			const move = contextMenus.at(-1)?.find(action => action.id === 'sessions.moveComparisonToGroup');
+			assert.ok(move instanceof SubmenuAction);
+			const targets = move.actions.map(action => action.label);
+			await move.actions[0].run();
+			const nestedParent = harness.instantiationService.get(ISessionGroupsService).getGroup('first-comparison')?.parentId;
+			list.getItemRow({ group: 'first-comparison' })!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+			await contextMenus.at(-1)?.find(action => action.id === 'sessions.removeComparisonFromGroup')?.run();
+			assert.deepStrictEqual({
+				targets, nestedParent,
+				parentAfterRemoval: harness.instantiationService.get(ISessionGroupsService).getGroup('first-comparison')?.parentId,
+			}, { targets: ['Custom'], nestedParent: 'parent', parentAfterRemoval: undefined });
+		});
+
+		test('counts a comparison once toward Recent and rejects drops that would remain in Recent', () => {
+			const { harness, list } = renderOrganizableComparisons(SessionsGrouping.Date, SessionsSorting.Created);
+			harness.managementService.sessions.push(...Array.from({ length: 12 }, (_, index) => createTestSession(`Old ${index}`, {
+				resourceId: `old-${index}`, createdAt: new Date(Date.now() - 2 * 86_400_000 - index * 1000),
+			}).session));
+			list.refresh();
+			list.setHeaderCollapsed('older', false);
+			const snapshot = list.getTreeSnapshot().filter(node => node.type !== 'session' && ['recent', 'older'].includes(node.id));
+			const accepted = dragComparison(list.getItemRow({ group: 'first-comparison' })!, list.getItemRow({ session: URI.parse('test-session://old-7') })!, 'after');
+			assert.deepStrictEqual({
+				sections: snapshot.map(node => node.type !== 'session' ? { id: node.id, count: node.children.length, comparisons: node.children.filter(child => child.type === 'group').length } : undefined),
+				accepted,
+				overrides: harness.sortChanges.length,
+			}, {
+				sections: [{ id: 'recent', count: 10, comparisons: 2 }, { id: 'older', count: 5, comparisons: 0 }],
+				accepted: false, overrides: 0,
 			});
 		});
 
@@ -10708,7 +10892,7 @@ suite('Sessions - SessionsList', () => {
 
 		suite('hierarchy indent/connector guides', () => {
 
-			function twoSessionContainer(activePeer = false): { readonly container: HTMLElement; readonly session: ISession; readonly other: ISession } {
+			function twoSessionContainer(activePeer = false, compact = false): { readonly container: HTMLElement; readonly session: ISession; readonly other: ISession } {
 				const main = createChat('Main chat');
 				const peer = createChat('Peer chat', ChatOriginKind.User);
 				const base = createTestSession('Session').session;
@@ -10741,9 +10925,11 @@ suite('Sessions - SessionsList', () => {
 					}
 				});
 				const container = harness.createContainer();
+				container.classList.add('agent-sessions-viewpane');
 				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 					grouping: () => SessionsGrouping.Date,
 					sorting: () => SessionsSorting.Created,
+					compact: () => compact,
 					onSessionOpen: () => { },
 					onChatOpen: () => { },
 				}));
@@ -10776,9 +10962,23 @@ suite('Sessions - SessionsList', () => {
 				}
 
 				return {
-					session: !!sessionItem?.classList.contains('session-hierarchy-guides-visible'),
-					chats: ownChats.map(chatItem => chatItem.classList.contains('session-hierarchy-guides-visible')),
+					session: !!sessionItem && isGuideShown(sessionItem),
+					chats: ownChats.map(isGuideShown),
 				};
+			}
+
+			/** Whether a row draws its hierarchy guide, as rendered; rows without a guide still report full opacity. */
+			function isGuideShown(item: Element): boolean {
+				const style = mainWindow.getComputedStyle(item, '::after');
+				return style.content !== 'none' && style.display !== 'none' && style.opacity === '1';
+			}
+
+			function getSessionRow(container: HTMLElement, title: string): HTMLElement {
+				const row = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === title)
+					?.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(row, `Expected a row for session '${title}'`);
+				return row;
 			}
 
 			test('guides are hidden at rest', () => {
@@ -10786,43 +10986,159 @@ suite('Sessions - SessionsList', () => {
 				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: false, chats: [false] });
 			});
 
-			test('hovering the parent session row reveals its own guides only', () => {
+			test('hovering the pane keeps the twistie and row actions to the row under the pointer', () => {
 				const { container } = twoSessionContainer();
-				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
-					.find(item => item.querySelector('.session-title')?.textContent === 'Session');
-				assert.ok(sessionItem);
+				const rowChrome = (title: string) => {
+					const row = getSessionRow(container, title);
+					return {
+						twistie: mainWindow.getComputedStyle(row.querySelector('.session-chat-twistie.collapsible')!).opacity,
+						actions: mainWindow.getComputedStyle(row.querySelector('.session-title-toolbar')!).display,
+					};
+				};
 
-				sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+				container.classList.add('hovered');
+				getSessionRow(container, 'Session').classList.add('hovered');
 
-				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
-				assert.deepStrictEqual(guidesVisible(container, 'Other session'), { session: false, chats: [false] });
+				assert.deepStrictEqual({
+					hovered: rowChrome('Session'),
+					other: rowChrome('Other session'),
+					guides: [guidesVisible(container, 'Session'), guidesVisible(container, 'Other session')],
+				}, {
+					hovered: { twistie: '1', actions: 'block' },
+					other: { twistie: '0', actions: 'none' },
+					guides: [{ session: true, chats: [true] }, { session: true, chats: [true] }],
+				});
 			});
 
-			test('hovering a chat child reveals its parent session hierarchy guides only', () => {
+			for (const compact of [false, true]) {
+				test(`hovering the pane reveals all guides without revealing row controls (${compact ? 'compact' : 'normal'})`, () => {
+					const { container } = twoSessionContainer(false, compact);
+					container.classList.add('hovered');
+					const twisties = [...container.querySelectorAll<HTMLElement>('.session-item')]
+						.map(item => item.closest('.monaco-list-row')?.querySelector<HTMLElement>('.monaco-tl-twistie'))
+						.map(twistie => twistie && mainWindow.getComputedStyle(twistie).opacity);
+
+					assert.deepStrictEqual({
+						session: guidesVisible(container, 'Session'),
+						other: guidesVisible(container, 'Other session'),
+						twisties,
+					}, {
+						session: { session: true, chats: [true] },
+						other: { session: true, chats: [true] },
+						twisties: ['0', '0'],
+					});
+				});
+			}
+
+			test('moving between rows does not hide pane-wide guides', () => {
 				const { container } = twoSessionContainer();
-				const chatItem = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-					.find(item => item.querySelector('.session-chat-title')?.textContent === 'Peer chat');
-				assert.ok(chatItem);
+				container.classList.add('hovered');
+				for (const item of container.querySelectorAll('.session-item, .session-chat-item, .session-section')) {
+					item.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+					item.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+				}
 
-				chatItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-
-				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
-				assert.deepStrictEqual(guidesVisible(container, 'Other session'), { session: false, chats: [false] });
+				assert.deepStrictEqual({
+					session: guidesVisible(container, 'Session'),
+					other: guidesVisible(container, 'Other session'),
+				}, {
+					session: { session: true, chats: [true] },
+					other: { session: true, chats: [true] },
+				});
 			});
 
 			test('moving the pointer away hides the guides again', () => {
 				const { container } = twoSessionContainer();
-				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
-					.find(item => item.querySelector('.session-title')?.textContent === 'Session');
-				assert.ok(sessionItem);
-				const sessionRow = sessionItem.closest<HTMLElement>('.monaco-list-row');
-				assert.ok(sessionRow);
+				container.classList.add('hovered');
+				const hovered = [guidesVisible(container, 'Session'), guidesVisible(container, 'Other session')];
+				container.classList.remove('hovered');
 
-				sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
+				assert.deepStrictEqual({
+					hovered,
+					resting: [guidesVisible(container, 'Session'), guidesVisible(container, 'Other session')],
+				}, {
+					hovered: [{ session: true, chats: [true] }, { session: true, chats: [true] }],
+					resting: [{ session: false, chats: [false] }, { session: false, chats: [false] }],
+				});
+			});
 
-				sessionRow.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
-				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: false, chats: [false] });
+			test('pane hover applies to newly rendered rows after collapsing and expanding a session', () => {
+				const { container } = twoSessionContainer();
+				container.classList.add('hovered');
+				setSessionChatsExpanded(container, false, 'Session');
+				setSessionChatsExpanded(container, true, 'Session');
+
+				assert.deepStrictEqual({
+					session: guidesVisible(container, 'Session'),
+					other: guidesVisible(container, 'Other session'),
+				}, {
+					session: { session: true, chats: [true] },
+					other: { session: true, chats: [true] },
+				});
+			});
+
+			test('pane hover preserves collapsed parents and last-child guide termination', () => {
+				const { container } = twoSessionContainer();
+				container.classList.add('hovered');
+				setSessionChatsExpanded(container, false, 'Other session');
+				const otherItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === 'Other session');
+				const lastChat = container.querySelector<HTMLElement>('.session-chat-item.last-chat');
+				assert.ok(otherItem);
+				assert.ok(lastChat);
+
+				assert.deepStrictEqual({
+					collapsedConnector: mainWindow.getComputedStyle(otherItem, '::after').content,
+					lastChildStem: mainWindow.getComputedStyle(lastChat, '::before').display,
+					lastChildBranch: mainWindow.getComputedStyle(lastChat, '::after').opacity,
+				}, {
+					collapsedConnector: 'none',
+					lastChildStem: 'none',
+					lastChildBranch: '1',
+				});
+			});
+
+			test('pane hover does not add guides to standalone completed chats', () => {
+				const main = createChat('Main chat');
+				const done: IChat = { ...createChat('Done chat', ChatOriginKind.User), isArchived: constObservable(true) };
+				const session: ISession = {
+					...createTestSession('Session').session,
+					chats: constObservable([main, done]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const harness = createListHarness(disposables, [session]);
+				const container = harness.createContainer();
+				container.classList.add('agent-sessions-viewpane', 'hovered');
+				const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				list.setExcludeArchived(false);
+				list.setItemCollapsed({ section: 'archived' }, false);
+				const standalone = container.querySelector<HTMLElement>('.session-chat-item.standalone');
+				assert.ok(standalone);
+
+				assert.deepStrictEqual({
+					stem: mainWindow.getComputedStyle(standalone, '::before').display,
+					branch: mainWindow.getComputedStyle(standalone, '::after').display,
+				}, { stem: 'none', branch: 'none' });
+			});
+
+			test('leaving the pane retains only the selected and focused hierarchy guides', () => {
+				const { container } = twoSessionContainer(true);
+				container.classList.add('hovered');
+				container.classList.remove('hovered');
+
+				assert.deepStrictEqual({
+					session: guidesVisible(container, 'Session'),
+					other: guidesVisible(container, 'Other session'),
+				}, {
+					session: { session: true, chats: [true] },
+					other: { session: false, chats: [false] },
+				});
 			});
 
 			test('selecting the parent session keeps guides visible without hover', () => {

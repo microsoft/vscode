@@ -12,9 +12,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { AgentContextValuePick, GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
 import { ChatContextPickService } from '../../../browser/attachments/chatContextPickService.js';
 import { IChatWidget } from '../../../browser/chat.js';
+import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { IGitRepository, IGitService } from '../../../../git/common/gitService.js';
 
 function widget(overrides: Partial<Pick<IChatWidget, 'viewModel' | 'lockedAgentId'>>): Pick<IChatWidget, 'viewModel' | 'lockedAgentId'> {
@@ -97,6 +98,31 @@ function workspaceContextService(folders: readonly { readonly uri: URI; readonly
 suite('ChatContext', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('opens the invoking widget agent picker from Add Context without adding an attachment', async () => {
+		const pick = new AgentContextValuePick();
+		const attachButton = document.createElement('button');
+		const toolbar = document.createElement('div');
+		const opened: (HTMLElement | undefined)[] = [];
+		const createWidget = (enabled: boolean, anchor: HTMLElement | undefined) => upcastPartial<IChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				isAgentPickerInAttachContextMenu: enabled,
+				attachContextButtonElement: anchor,
+				inputToolbarElement: toolbar,
+				openModePicker: element => opened.push(element),
+			}),
+		});
+		const first = createWidget(true, attachButton);
+		const second = createWidget(false, undefined);
+		const result = await pick.asAttachment(first);
+		await pick.asAttachment(second);
+
+		assert.deepStrictEqual({ enabled: [pick.isEnabled(first), pick.isEnabled(second)], result, opened }, {
+			enabled: [true, false],
+			result: undefined,
+			opened: [attachButton, toolbar],
+		});
+	});
 
 	test('shows Open Editors for regular Copilot CLI sessions with eligible editors', () => {
 		assert.strictEqual(

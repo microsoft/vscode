@@ -1962,6 +1962,9 @@
         "selector": [
           {
             "filenamePattern": "*.{md,mkd,mkdn,mdwn,mdown,markdown,markdn,mdtxt,mdtext,litcoffee,ron,ronn,workbook}"
+          },
+          {
+            "filenamePattern": "*.txt"
           }
         ]
       }

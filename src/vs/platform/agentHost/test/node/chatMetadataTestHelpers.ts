@@ -174,6 +174,10 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 		this._sessionStateDatabase = undefined;
 	}
 
+	hideSession(...args: Parameters<IAgentHostDatabase['hideSession']>): ReturnType<IAgentHostDatabase['hideSession']> { return this._sessionState.hideSession(...args); }
+	isSessionSuppressed(...args: Parameters<IAgentHostDatabase['isSessionSuppressed']>): ReturnType<IAgentHostDatabase['isSessionSuppressed']> { return this._sessionState.isSessionSuppressed(...args); }
+	isSessionHidden(...args: Parameters<IAgentHostDatabase['isSessionHidden']>): ReturnType<IAgentHostDatabase['isSessionHidden']> { return this._sessionState.isSessionHidden(...args); }
+	listHiddenSessions(...args: Parameters<IAgentHostDatabase['listHiddenSessions']>): ReturnType<IAgentHostDatabase['listHiddenSessions']> { return this._sessionState.listHiddenSessions(...args); }
 	readSessionState(...args: Parameters<IAgentHostSessionStateDatabase['readSessionState']>): ReturnType<IAgentHostSessionStateDatabase['readSessionState']> { return this._sessionState.readSessionState(...args); }
 	getWorktreeDiskUsageRevision(...args: Parameters<IAgentHostDatabase['getWorktreeDiskUsageRevision']>): ReturnType<IAgentHostDatabase['getWorktreeDiskUsageRevision']> { return this._sessionState.getWorktreeDiskUsageRevision(...args); }
 	readWorktreeDiskUsage(...args: Parameters<IAgentHostDatabase['readWorktreeDiskUsage']>): ReturnType<IAgentHostDatabase['readWorktreeDiskUsage']> { return this._sessionState.readWorktreeDiskUsage(...args); }

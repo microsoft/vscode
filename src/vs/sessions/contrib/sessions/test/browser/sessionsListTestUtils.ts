@@ -21,7 +21,7 @@ import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/com
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -274,6 +274,7 @@ export interface IListHarnessOptions {
 	readonly shownAutomationSessionIds?: ReadonlySet<string>;
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
+	readonly liveGroups?: boolean;
 	readonly comparisons?: readonly ISessionComparison[];
 	/** Custom groups the user capped with "Show less" in an earlier window; groups otherwise list every session. */
 	readonly cappedGroupIds?: readonly string[];
@@ -288,7 +289,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const commandService = new TestCommandService();
 	const configure = typeof optionsOrConfigure === 'function' ? optionsOrConfigure : undefined;
 	const options: IListHarnessOptions = typeof optionsOrConfigure === 'function' ? {} : optionsOrConfigure;
-	const groups = options.groups ?? [];
+	const groups = [...options.groups ?? []];
 	const memberships = options.memberships ?? new Map();
 	const sectionMemberships = options.sectionMemberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
@@ -305,7 +306,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const pinChanges: IListHarness['pinChanges'] = [];
 	const sortChanges: ISortChangeRecord[] = [];
 	const sortOverrides = new Map<SessionSortMode, Map<string, number>>();
-	const getNaturalSortKey = (session: ISession, mode: SessionSortMode) => mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
+	const getNaturalSortKey = (session: SessionSortEntry, mode: SessionSortMode) => mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
 	const onDidChangeListModel = store.add(new Emitter<ISessionListModelChangeEvent>());
 	const sectionReorders: IListHarness['sectionReorders'] = [];
 
@@ -348,10 +349,10 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			}
 			onDidChangeListModel.fire({ changes: sessions.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing })) });
 		}
-		override getSortKey(session: ISession, mode: SessionSortMode): number {
+		override getSortKey(session: SessionSortEntry, mode: SessionSortMode): number {
 			return sortOverrides.get(mode)?.get(session.sessionId) ?? getNaturalSortKey(session, mode);
 		}
-		override getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
+		override getNaturalSortKey(session: SessionSortEntry, mode: SessionSortMode): number {
 			return getNaturalSortKey(session, mode);
 		}
 		override applySortChanges(mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
@@ -417,6 +418,11 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		}
 		override moveGroup(groupId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void {
 			movedGroups.push({ groupId, parentId, placement });
+			if (options.liveGroups) {
+				const index = groups.findIndex(group => group.id === groupId);
+				groups[index] = { ...groups[index], parentId };
+				appearanceChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
+			}
 		}
 		override moveSection(sectionId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void {
 			movedSections.push({ sectionId, parentId, placement });

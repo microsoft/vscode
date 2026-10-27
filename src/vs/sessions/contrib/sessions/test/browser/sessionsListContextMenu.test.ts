@@ -471,7 +471,7 @@ suite('Sessions list context menus', () => {
 		});
 	});
 
-	test('comparison groups and participants hide membership mutation actions but allow idle deletion', async () => {
+	test('comparison parents offer group moves while participants retain membership and idle deletion stays last', async () => {
 		const session = createSession('Attempt').session;
 		const { container, contextMenuService, commandService } = createList(true, true, SessionsGrouping.Date, [session], true);
 		const sessionRow = container.querySelector<HTMLElement>('.session-item');
@@ -493,7 +493,7 @@ suite('Sessions list context menus', () => {
 				disposableIds: [],
 			},
 			groupActions: {
-				ids: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.deleteGroupAction'],
+				ids: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.moveComparisonToGroup', 'sessions.moveComparisonToGroup.target', 'vs.actions.separator', 'sessions.deleteGroupAction'],
 				disposableIds: [],
 			},
 			deletedGroups: [[group.id]],
@@ -562,7 +562,7 @@ suite('Sessions list context menus', () => {
 		dispatchContextMenu(groupHeader);
 
 		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
-			ids: ['sessionsViewPane.markAllInSectionRead'],
+			ids: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.moveComparisonToGroup', 'sessions.moveComparisonToGroup.target'],
 			disposableIds: [],
 		});
 	});

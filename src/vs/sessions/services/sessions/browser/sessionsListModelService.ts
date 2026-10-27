@@ -31,6 +31,8 @@ export const enum SessionListModelChangeKind {
  */
 export type SessionSortMode = 'created' | 'updated';
 
+export type SessionSortEntry = Pick<ISession, 'sessionId' | 'createdAt' | 'updatedAt'>;
+
 export interface ISessionListModelChangeEvent {
 	readonly changes: ReadonlyArray<{ readonly sessionId: string; readonly kind: SessionListModelChangeKind }>;
 }
@@ -96,10 +98,10 @@ export interface ISessionsListModelService {
 	 * timestamp (`createdAt` for `'created'`, `updatedAt` for `'updated'`).
 	 * Sessions are displayed in descending order of this value.
 	 */
-	getSortKey(session: ISession, mode: SessionSortMode): number;
+	getSortKey(session: SessionSortEntry, mode: SessionSortMode): number;
 
 	/** The natural (non-overridden) sort key for a session in the given mode. */
-	getNaturalSortKey(session: ISession, mode: SessionSortMode): number;
+	getNaturalSortKey(session: SessionSortEntry, mode: SessionSortMode): number;
 
 	/** Whether the session has a manual sort override in the given mode. */
 	hasSortOverride(sessionId: string, mode: SessionSortMode): boolean;
@@ -399,11 +401,11 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		return changed;
 	}
 
-	getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
+	getNaturalSortKey(session: SessionSortEntry, mode: SessionSortMode): number {
 		return mode === 'updated' ? session.updatedAt.get().getTime() : session.createdAt.getTime();
 	}
 
-	getSortKey(session: ISession, mode: SessionSortMode): number {
+	getSortKey(session: SessionSortEntry, mode: SessionSortMode): number {
 		const override = this._sortOverrides[mode].get(session.sessionId);
 		return override ?? this.getNaturalSortKey(session, mode);
 	}

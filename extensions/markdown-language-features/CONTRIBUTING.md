@@ -127,7 +127,8 @@ The webview reserves symmetric scrollbar gutters so the document remains centere
 The `mermaid-markdown-features` extension contributes the Mermaid code block
 editor through `markdown.codeBlockEditorProviders`, sharing its theme and
 settings with the Markdown preview. This extension has no Mermaid renderer of
-its own.
+its own. Like all contributed code block editors, it is not loaded in Restricted
+Mode, where Mermaid blocks show as code.
 
 ### Rich editor diagnostics
 

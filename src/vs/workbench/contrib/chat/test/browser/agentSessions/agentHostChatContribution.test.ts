@@ -39,6 +39,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
+import { withMcpServerConnectorNameMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { ChatHookFilesLocationsSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
@@ -23223,7 +23224,7 @@ suite('AgentHostChatContribution', () => {
 			chatAgentService: MockChatAgentService,
 			resource: URI,
 			seq: { v: number },
-			opts?: { customizations?: unknown[]; routingServers?: unknown; routingChanges?: readonly (readonly string[])[] },
+			opts?: { customizations?: unknown[]; customizationChanges?: readonly unknown[][]; routingServers?: unknown; routingChanges?: readonly (readonly string[])[] },
 		): Promise<IChatMcpAuthenticationRequired[]> {
 			const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
@@ -23266,6 +23267,15 @@ suite('AgentHostChatContribution', () => {
 			}
 			// Let the async auto-grant filter resolve.
 			await timeout(50);
+			for (const customizations of opts?.customizationChanges ?? []) {
+				agentHostService.fireAction({
+					channel: mintedTestChatOwner(dispatch.channel.toString())!,
+					action: { type: ActionType.SessionCustomizationsChanged, customizations } as unknown as SessionAction,
+					serverSeq: seq.v++,
+					origin: undefined,
+				});
+				await timeout(50);
+			}
 			for (const routingServers of opts?.routingChanges ?? []) {
 				agentHostService.fireAction({
 					channel: mintedTestChatOwner(dispatch.channel.toString())!,
@@ -23573,6 +23583,62 @@ suite('AgentHostChatContribution', () => {
 			const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, { customizations: [authRequiredCustomization()] });
 			assert.deepStrictEqual(prompts.map(prompt => prompt.servers.read(undefined).map(server => server.id)), [['/mcp-1']]);
 		}));
+
+		for (const routingEnabled of [false, true]) {
+			for (const screenReader of [false, true]) {
+				test(`Connector proactive authentication respects routing=${routingEnabled}, screenReader=${screenReader}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
+						configOverrides: { [AgentHostMcpToolRoutingEnabledSettingId]: routingEnabled },
+					});
+					sinon.stub(instantiationService.get(IAccessibilityService), 'isScreenReaderOptimized').returns(screenReader);
+					const notification = new NoOpNotification();
+					const prompt = sinon.stub(instantiationService.get(INotificationService), 'prompt').returns(notification);
+					const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-connector' });
+					const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, { v: 1 }, {
+						customizations: [{
+							...authRequiredCustomization(),
+							_meta: withMcpServerConnectorNameMeta(undefined, 'workiq'),
+						}],
+					});
+					assert.deepStrictEqual({
+						servers: prompts.map(part => part.servers.read(undefined).map(server => server.id)),
+						notifications: prompt.callCount,
+					}, {
+						servers: !routingEnabled && !screenReader ? [['/mcp-1']] : [],
+						notifications: !routingEnabled && screenReader ? 1 : 0,
+					});
+				}));
+			}
+		}
+
+		for (const screenReader of [false, true]) {
+			test(`withdraws proactive authentication when Connector ownership arrives with screenReader=${screenReader}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
+					configOverrides: { [AgentHostMcpToolRoutingEnabledSettingId]: true },
+				});
+				sinon.stub(instantiationService.get(IAccessibilityService), 'isScreenReaderOptimized').returns(screenReader);
+				const notification = new NoOpNotification();
+				const close = sinon.spy(notification, 'close');
+				const prompt = sinon.stub(instantiationService.get(INotificationService), 'prompt').returns(notification);
+				const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService,
+					URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-connector-discovered' }), { v: 1 }, {
+					customizations: [authRequiredCustomization()],
+					customizationChanges: [[{
+						...authRequiredCustomization(),
+						_meta: withMcpServerConnectorNameMeta(undefined, 'workiq'),
+					}]],
+				});
+				assert.deepStrictEqual({
+					parts: prompts.map(part => ({ isUsed: part.isUsed, servers: part.servers.read(undefined) })),
+					notifications: prompt.callCount,
+					closed: close.callCount,
+				}, {
+					parts: screenReader ? [] : [{ isUsed: true, servers: [] }],
+					notifications: screenReader ? 1 : 0,
+					closed: screenReader ? 1 : 0,
+				});
+			}));
+		}
 
 		for (const routingServers of [['GitHub MCP'], ['other-server'], [], 'GitHub MCP', ['GitHub MCP', 1]]) {
 			test(`uses actual routing registration for sign-in hints: ${JSON.stringify(routingServers)}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

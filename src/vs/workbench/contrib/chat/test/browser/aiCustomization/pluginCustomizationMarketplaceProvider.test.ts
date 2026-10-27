@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { PluginCustomizationMarketplaceProvider, getPluginCustomizationMarketplaceSourceId, getPluginCustomizationMarketplaceSourceInfos, getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
+import { PluginCustomizationMarketplaceProvider, getPluginCustomizationMarketplaceSourceId, getPluginCustomizationMarketplaceSourceInfos, getPluginMarketplaceIdentifier, isPluginMarketplaceAvailableInDiscover } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { DEFAULT_PLUGIN_MARKETPLACE } from '../../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -205,10 +205,34 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		});
 	});
 
+	test('identifies Awesome Copilot by repository when the GitHub feed is visible', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+		});
+		const sources = [
+			'GitHub: github/awesome-copilot',
+			'github/awesome-copilot#marketplace',
+			'URL: https://github.com/GitHub/Awesome-Copilot.git',
+			'GitHub: other/awesome-copilot',
+			'GitHub: github/awesome-copilot-fork',
+			'file:///marketplaces/awesome-copilot',
+			'provider-defined source',
+		];
+		const visibleFeed = sources.map(source => isPluginMarketplaceAvailableInDiscover(configuration, source, true));
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		const hiddenFeed = sources.map(source => isPluginMarketplaceAvailableInDiscover(configuration, source, true));
+		assert.deepStrictEqual({ visibleFeed, hiddenFeed }, {
+			visibleFeed: [false, false, false, true, true, true, true],
+			hiddenFeed: [true, true, true, true, true, true, true],
+		});
+	});
+
 	test('contributes the logical source only when an allowed native registry can provide content', async () => {
 		const service = new TestPluginMarketplaceService();
 		const configuration = new TestConfigurationService({
 			[ChatConfiguration.PluginsEnabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		});
 		const sources = (githubFeedAvailable: boolean) => getPluginCustomizationMarketplaceSourceInfos(configuration, service, githubFeedAvailable).map(source => ({

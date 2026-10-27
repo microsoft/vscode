@@ -267,11 +267,6 @@ ssuite({ title: 'settingsEditorSearchResultsSelector', location: 'external' }, (
 				'type': 'object'
 			},
 			{
-				'key': 'github.copilot.chat.newWorkspaceCreation.enabled',
-				'type': 'boolean',
-				'description': 'Whether to enable new agentic workspace creation.'
-			},
-			{
 				'key': 'scm.autoReveal',
 				'type': 'boolean',
 				'description': 'Controls whether the Source Control view should automatically reveal and select files when opening them.'

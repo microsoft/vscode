@@ -81,7 +81,9 @@ Environment grouping uses the provider-neutral environment identity, combining s
 
 ### Nested custom groups
 
-User-created groups form a tree without a depth limit. In every grouping mode, only top-level groups take part in the order above; a group lists its child groups and active automatic sections in a shared user-managed order above its own sessions. Actions on a group's sessions, such as marking them done, include its subgroups and currently nested sections. Deleting a group deletes its subgroups, ungroups their explicit session members, and returns their automatic sections to the top level; undo restores section placements unless they have since moved to another group. Comparison groups cannot be manually nested or hold children; they retain their automatic placement within grouping sections.
+User-created groups form a tree without a depth limit. In every grouping mode, only top-level groups take part in the order above; a group lists its child groups and active automatic sections in a shared user-managed order above its own sessions. Actions on a group's sessions, such as marking them done, include its subgroups and currently nested sections. Deleting a group deletes its subgroups, ungroups their explicit session members, and returns their automatic sections to the top level; undo restores section placements unless they have since moved to another group.
+
+A comparison is one sortable entry alongside ordinary sessions, in its automatic section or an explicitly chosen custom group. Its creation time is the comparison's creation time; its updated time is the latest participant update. Manual sort keys are stored under the comparison group's section identity, independently for each ordering mode. Comparison membership and participant display order remain comparison-owned: moving the parent never regroups or reorders individual participants. A comparison cannot hold subgroups.
 
 A workspace, repository, or environment section can belong to one custom group at any depth. This places the section, not its sessions, in that group: future matching sessions follow it, and higher-precedence placements remain unchanged. Section placement is remembered independently for each grouping mode, including the workspace fallback in Repository mode, and only applies in that mode. Nested sections do not consume the top-level Recent section limit, while their own session limits still apply. Temporarily empty sections retain their parents and child order without rendering an empty automatic header.
 
@@ -131,7 +133,7 @@ A session drop resolves to a destination placement: Pinned, a custom group, an u
 - user groups and workspace, repository, or environment sections may reorder where the grouping mode allows, move into custom groups, and return to the top level; a user group never moves into itself or one of its subgroups;
 - dropping sessions on the Sessions grid opens them through `ISessionsService`.
 
-Archived sections and comparison groups keep a fixed order, and comparison group membership cannot change by dragging. Multi-selection preserves relative order.
+Archived sections keep a fixed order. Comparison parents can reorder alongside sessions and move into or out of custom groups; comparison participant membership cannot change by dragging. Multi-selection preserves relative order.
 
 ## Agent tools
 

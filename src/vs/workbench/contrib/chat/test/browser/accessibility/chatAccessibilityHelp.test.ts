@@ -15,6 +15,19 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents optional Agent placement in Add Context only on editor chat surfaces', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('sessions.chat.experimental.agentsPickerInAttachContextMenu')
+			&& help.includes('Non-default selections remain visible in the toolbar')
+			&& help.includes('<keybinding:workbench.action.chat.openModePicker>')), [true, true, true, false, false, false]);
+	});
+
 	test('documents opening session links from the input without sending', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
 		assert.deepStrictEqual({

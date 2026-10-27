@@ -97,6 +97,7 @@ import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABI
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { AgentHostArtifactIntegrations, mapArtifactModelChats } from './agentHostArtifactIntegrations.js';
 import { createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer } from './githubPullRequestArtifactWorkspaceConfiguration.js';
+import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../../../../platform/agentHost/common/githubPullRequestArtifact.js';
 import { IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -4694,6 +4695,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._syncSensitiveEditLocations(cached);
 			}
 		}));
+		this._register(this._baseConfigurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(gitHubPullRequestMarkReadyIgnoredChecksSetting)) {
+				void this._syncAgentMergeReadyIgnoredChecks();
+			}
+		}));
 		this._register(this._storageService.onWillSaveState(() => {
 			if (this._sessionCacheStorageKey && this._cacheDirty) {
 				this._persistCache();
@@ -6452,7 +6458,60 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			&& readWorkingDirectoryKeys(this._lastSessionStates.get(sessionId)?._meta).has(folder.workingDirectory);
 	}
 
-	private async _writeAgentMergeClientState(sessionId: string, enabled: boolean, overrides: AgentMergeSessionOverrides | undefined, chat: URI | undefined): Promise<void> {
+	/**
+	 * The workspace value of the check exclusions that decide whether a draft
+	 * is ready for review, for the folder a chat's Agent Merge settings belong
+	 * to. The host already has the user's value, which applies without one.
+	 */
+	private _getAgentMergeReadyIgnoredChecks(session: AgentHostSessionAdapter, chat: URI | undefined): readonly string[] | undefined {
+		const chatAdapter = chat ? session.chats.get().find(candidate => isEqual(candidate.resource, chat)) : undefined;
+		const resource = (chatAdapter ? chatAdapter.workspace.get() : session.workspace.get())?.folders[0]?.root;
+		const inspected = resource ? this._baseConfigurationService.inspect<readonly string[]>(gitHubPullRequestMarkReadyIgnoredChecksSetting, { resource }) : undefined;
+		return inspected?.workspaceFolderValue ?? inspected?.workspaceValue;
+	}
+
+	/**
+	 * Writes the check exclusions of each folder that runs Agent Merge when
+	 * their workspace value differs from what the host has.
+	 *
+	 * @param sessionId Limits the update to one session.
+	 * @param fillOnly Only adds a value the host lacks, so that windows with
+	 * different workspace values never overwrite each other. Rewriting a value
+	 * is left to a change of the setting, or of the folder's Agent Merge
+	 * settings, in the window where the user made it.
+	 */
+	private async _syncAgentMergeReadyIgnoredChecks(sessionId?: string, fillOnly = false): Promise<void> {
+		for (const session of [...this._sessionCache.values()]) {
+			if (sessionId !== undefined && session.sessionId !== sessionId) {
+				continue;
+			}
+			const folders = new Set<string | undefined>();
+			for (const chat of [undefined, ...session.chats.get().map(chat => chat.resource)]) {
+				const folder = session.getAgentMergeFolder(chat);
+				if (!folder || folders.has(folder.folderKey)) {
+					continue;
+				}
+				folders.add(folder.folderKey);
+				const state = this._getAgentMergeSessionState(session.sessionId, folder);
+				const readyIgnoredChecks = this._getAgentMergeReadyIgnoredChecks(session, chat);
+				if (!state?.enabled || structuralEquals(state.readyIgnoredChecks, readyIgnoredChecks)
+					|| (fillOnly && (state.readyIgnoredChecks !== undefined || readyIgnoredChecks === undefined))) {
+					continue;
+				}
+				try {
+					await this._writeAgentMergeClientState(session.sessionId, true, state.overrides, chat, true);
+				} catch (error) {
+					this._logService.warn(`[${this.id}] Failed to update the Agent Merge check exclusions of session ${session.sessionId}`, error);
+				}
+			}
+		}
+	}
+
+	/**
+	 * @param keepOwningChat Keeps the chat recorded as having turned Agent Merge
+	 * on, rather than recording `chat`, for an update the user did not make.
+	 */
+	private async _writeAgentMergeClientState(sessionId: string, enabled: boolean, overrides: AgentMergeSessionOverrides | undefined, chat: URI | undefined, keepOwningChat = false): Promise<void> {
 		this._assertSessionAvailable(sessionId);
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
@@ -6465,7 +6524,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`[${this.id}] Cannot update Agent Merge before the chat's folder is known`);
 		}
 		const values = this._lastSessionStates.get(sessionId)?.config?.values;
-		const clientState = { enabled, ...(overrides ? { overrides } : {}) };
+		const readyIgnoredChecks = enabled ? this._getAgentMergeReadyIgnoredChecks(cached, chat) : undefined;
+		const clientState = { enabled, ...(overrides ? { overrides } : {}), ...(readyIgnoredChecks ? { readyIgnoredChecks } : {}) };
 		if (!this._supportsPerFolderAgentMerge(sessionId, folder)) {
 			if (folder.folderKey !== folder.sessionFolderKey) {
 				throw new Error(`[${this.id}] This Agent Host does not support Agent Merge in peer chat folders`);
@@ -6487,8 +6547,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Only this folder's entry is written: the host merges it into the others
 		// and keys it by the working directory. It records the chat that turned
 		// Agent Merge on.
-		const owningChat = (chat && this.getBackendChatResource(chat)?.toString())
-			?? readAgentMergeFolderState(this._getAgentMergeValues(sessionId), folder.folderKey, folder.sessionFolderKey)?.chat;
+		const recordedChat = readAgentMergeFolderState(this._getAgentMergeValues(sessionId), folder.folderKey, folder.sessionFolderKey)?.chat;
+		const requestingChat = chat && this.getBackendChatResource(chat)?.toString();
+		const owningChat = keepOwningChat ? recordedChat ?? requestingChat : requestingChat ?? recordedChat;
 		connection.dispatch(cached.backendUri.toString(), {
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.AgentMergeFolders]: { [folder.workingDirectory]: { ...clientState, ...(owningChat ? { chat: owningChat } : {}) } } },
@@ -8763,6 +8824,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		if (agentMergeSettingsChanged) {
 			this._onDidChangeAgentMergeSessionState.fire(sessionId);
+			// The host turns Agent Merge on without this window's workspace check exclusions, as on pull request creation.
+			queueMicrotask(() => void this._syncAgentMergeReadyIgnoredChecks(sessionId, true));
 		}
 	}
 

@@ -13,7 +13,7 @@ export function renderMermaidEditorHtml(configSpan: string): string {
 <head>
 	<meta charset="UTF-8">
 	<style>
-		html, body { height: 100%; }
+		html, body { height: 100%; margin: 0; padding: 0; }
 		/* The body scrolls; Mermaid's hidden tooltip, appended to the body, must not make the document scroll. */
 		html { overflow: hidden; }
 		body { overflow: auto; }

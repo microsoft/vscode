@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionsListModelService } from '../../browser/sessionsListModelService.js';
+import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionSortEntry, SessionsListModelService } from '../../browser/sessionsListModelService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
@@ -713,6 +713,19 @@ suite('SessionsListModelService', () => {
 	});
 
 	// -- Storage persistence --
+
+	test('persists independent comparison sort keys without changing participant timestamps', () => {
+		const comparison: SessionSortEntry = { sessionId: 'group:comparison', createdAt: new Date(100), updatedAt: constObservable(new Date(200)) };
+		service.applySortChanges('created', new Map([[comparison.sessionId, 300]]), []);
+		service.applySortChanges('updated', new Map([[comparison.sessionId, 400]]), []);
+		const restored = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({
+			created: restored.getSortKey(comparison, 'created'),
+			updated: restored.getSortKey(comparison, 'updated'),
+			naturalCreated: restored.getNaturalSortKey(comparison, 'created'),
+			naturalUpdated: restored.getNaturalSortKey(comparison, 'updated'),
+		}, { created: 300, updated: 400, naturalCreated: 100, naturalUpdated: 200 });
+	});
 
 	test('state is loaded from storage on construction', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
