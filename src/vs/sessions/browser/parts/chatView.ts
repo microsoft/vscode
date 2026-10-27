@@ -11,6 +11,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { IAction } from '../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import { RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IAgentsWindowDraft } from '../../../platform/window/common/window.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
@@ -34,6 +35,31 @@ export interface IChatViewOptions {
 	readonly hostVisible?: IObservable<boolean>;
 }
 
+/**
+ * Options of the chat input of a chat view that hosts a session's chat.
+ */
+export interface IChatViewInputOptions {
+	/** Shown in the empty input instead of the chat's own placeholder. */
+	readonly placeholder?: string;
+	/** The fewest lines the input shows; 2 by default. */
+	readonly minLines?: number;
+	/** Whether the status pills of the session show above the input; `true` by default. */
+	readonly showPills?: boolean;
+}
+
+/**
+ * How a session view shows its session, for a session view outside the Sessions part's grid, such as in a chat window.
+ * By default, it shows its session as the Sessions part does.
+ */
+export interface ISessionViewHostOptions {
+	/** Whether the session header shows above the chats; `true` by default. */
+	readonly showHeader?: boolean;
+	/** Whether the Session Activity Bar shows beside the chats; `true` by default. */
+	readonly showActivityBar?: boolean;
+	/** Options of the inputs of the chats. */
+	readonly input?: IChatViewInputOptions;
+}
+
 export interface ISelectWorkspaceOptions {
 	readonly providerId?: string;
 	readonly preferDevContainer?: boolean;
@@ -48,6 +74,12 @@ export interface ISelectNoWorkspaceOptions {
 }
 
 export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
+
+/** Whether the focused chat view can switch between showing only its input and showing its conversation. */
+export const ChatViewInputOnlyEnabledContext = new RawContextKey<boolean>('sessions.chatViewInputOnlyEnabled', false);
+
+/** Whether the focused chat view shows only its input, without the conversation. */
+export const ChatViewInputOnlyContext = new RawContextKey<boolean>('sessions.chatViewInputOnly', false);
 
 /**
  * Base class for a view that lives inside the {@link SessionsPart} internal grid.
@@ -166,6 +198,41 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): void {
+		// no-op by default
+	}
+
+	/**
+	 * Whether the view shows only its chat input, without the conversation. In that mode the view shows the
+	 * chat's progress and its approvals above the input, and shows the conversation again when the chat needs
+	 * input that can only be given there. Hosts size the view to {@link inputOnlyHeight} while it is set.
+	 */
+	readonly inputOnly: IObservable<boolean> = constObservable(false);
+
+	/**
+	 * The height the view needs to show only its input, whether or not it shows only the input now, once
+	 * {@link enableInputOnly} was called.
+	 */
+	readonly inputOnlyHeight: IObservable<number> = constObservable(0);
+
+	/** Whether the view can show only its input: not while the chat needs input that only the conversation shows. */
+	readonly canShowInputOnly: IObservable<boolean> = constObservable(false);
+
+	/**
+	 * Lets the user switch between showing only the input and showing the conversation, and shows only the input unless
+	 * `inputOnly` is `false`. The input, with what is shown above it, grows to at most `maxHeight`. Views without a
+	 * conversation ignore this.
+	 */
+	enableInputOnly(_options: { readonly maxHeight: number; readonly inputOnly?: boolean }): void {
+		// no-op by default
+	}
+
+	/** Shows only the input, or the conversation, once {@link enableInputOnly} was called. */
+	setInputOnly(_inputOnly: boolean): void {
+		// no-op by default
+	}
+
+	/** Shows the conversation, and no longer lets the user switch to showing only the input. */
+	disableInputOnly(): void {
 		// no-op by default
 	}
 

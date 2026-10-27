@@ -3472,7 +3472,7 @@ suite('CopilotChatSessionsProvider', () => {
 				await provider.setSessionConfigValue(draft.sessionId, chatResource, 'mode', 'plan');
 				await provider.setSessionConfigValue(draft.sessionId, chatResource, 'approvalMode', 'manual');
 				const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
-				const view = disposables.add(instantiationService.createInstance(SessionView));
+				const view = disposables.add(instantiationService.createInstance(SessionView, undefined));
 				view.openSession({
 					...createTestActiveSession(draft.sessionId, false),
 					...draft,
