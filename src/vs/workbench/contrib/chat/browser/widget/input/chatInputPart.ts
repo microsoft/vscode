@@ -1578,12 +1578,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return picker?.triggerElement?.isConnected ? picker : undefined;
 	}
 
-	public openModePicker(): void {
+	public get isAgentPickerInAttachContextMenu(): boolean {
+		return this.modeWidget?.isInAttachContext ?? false;
+	}
+
+	public openModePicker(anchor?: HTMLElement): void {
 		if (this.chatPhoneInputPresenter.enabled.get()) {
 			this._showCombinedPhonePickerSheet();
 			return;
 		}
-		this.modeWidget?.show();
+		this.modeWidget?.show(anchor ?? (this.isAgentPickerInAttachContextMenu ? this.attachContextButtonElement : undefined));
 	}
 
 	private _showCombinedPhonePickerSheet(): void {
@@ -1686,6 +1690,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			currentMode: this._currentModeObservable,
 			currentChatModes: this._currentChatModesObservable,
 			sessionResource: () => this._widget?.viewModel?.sessionResource,
+			supportsAttachContext: !this.environmentService.isSessionsWindow && !this.options.isSessionsWindow && !this.inline && this.location === ChatAgentLocation.Chat,
 			// Direct setter for hosts that embed `ChatInputPart` without
 			// registering an `IChatWidget` (e.g. the automations dialog).
 			// The picker only calls this when `sessionResource()` is

@@ -90,6 +90,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	if (type !== 'inlineChat') {
 		content.push(getChatInputSessionLinkAccessibilityHelp());
 	}
+	if (!isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat') {
+		content.push(localize('chat.agentPickerInAttachContext', "When {0} is enabled, the default Agent picker is in Add Context. Open Add Context and choose Agent to change agents. Non-default selections remain visible in the toolbar; selecting the default Agent moves the picker back into Add Context and returns focus to the input. The Open Agent Picker shortcut{1} still opens the picker.", ChatConfiguration.AgentsPickerInAttachContextMenu, '<keybinding:workbench.action.chat.openModePicker>'));
+	}
 	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
 	if (hasSessionWorkingSet) {
 		const headingActions = !sessionWorkingSetReviewEnabled

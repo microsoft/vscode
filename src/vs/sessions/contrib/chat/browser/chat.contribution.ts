@@ -61,7 +61,7 @@ import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SE
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_ACTION_ID, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_ACTION_ID, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { DesktopLayoutContext, IsPhoneLayoutContext, SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID } from '../../../browser/layoutActions.js';
@@ -810,14 +810,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.experimental.newSessionComposerOptionsExpanded', "Controls whether session options are expanded before you first expand or collapse them. Your last choice takes precedence afterward. This setting only applies when the new-session composer layout is enabled."),
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
-		},
-		[AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: {
-			type: 'boolean',
-			default: false,
-			scope: ConfigurationScope.WINDOW,
-			description: localize('sessions.chat.experimental.agentsPickerInAttachContextMenu', "Controls whether the Agent picker appears in Add Context for Agents Window chat inputs when the default agent is selected. While a custom agent is selected, the picker appears in its usual position."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
