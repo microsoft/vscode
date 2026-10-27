@@ -329,3 +329,6 @@ registerAction2(class MoveChatToMainWindowAction extends Action2 {
 		}
 	}
 });
+
+/** Names this module, which registers chat window actions, in the list of the chat window contribution; see `chatWindowContributions`. */
+export const openChatInWindowContribution = 'openChatInWindow';

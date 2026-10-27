@@ -30,6 +30,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
@@ -235,6 +236,27 @@ suite('SessionsChatAccessibilityHelp', () => {
 			nested: content.includes('Quick chats can have nested chats: use New Nested Session'),
 			move: content.includes('Chats move between quick chats and workspace sessions and keep their folder.'),
 		}, { nested: true, move: true });
+	});
+
+	test('documents chat windows only when enabled', () => {
+		const help = [false, true].map(enabled => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			return content.split('\n').find(line => line.startsWith('To show a chat in a window of its own')) ?? null;
+		});
+
+		assert.deepStrictEqual(help, [
+			null,
+			'To show a chat in a window of its own, choose Open in New Window in the context menu of its session or chat in the sessions list, or in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window\'s title bar to show the chat, the editor area or both, side by side or stacked<keybinding:sessions.chatWindow.toggleArrangement>; the keys that toggle the panel<keybinding:sessions.chatWindow.toggleTerminal> toggle the terminals of its session, which show full width, under the editor or under the chat, as chosen in the Terminal Position menu. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen with their terminals after a restart. Move to Main Window shows the chat in the main window again.',
+		]);
 	});
 
 	test('documents background sandbox waking and connection feedback on input', () => {

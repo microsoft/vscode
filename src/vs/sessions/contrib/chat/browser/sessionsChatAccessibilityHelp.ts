@@ -37,6 +37,7 @@ import { ISessionComparisonService } from '../../../services/sessions/common/ses
 import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -104,6 +105,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(getModePickerAccessibilityHelp());
 		content.push(localize('sessionsChat.closePane', "When multiple session panes are visible, move focus to a pane header and activate Close to remove that pane from the grid. Closing a pane keeps the session and its worktree available in the Sessions list."));
 		content.push(localize('sessionsChat.newSessionDrag', "To move a new-session pane before sending a prompt, drag its blank top area beside another pane. The session grid movement commands also work on new-session panes."));
+		if (configurationService.getValue<boolean>(CHAT_WINDOWS_ENABLED_SETTING)) {
+			content.push(localize('sessionsChat.chatWindow', "To show a chat in a window of its own, choose Open in New Window in the context menu of its session or chat in the sessions list, or in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window's title bar to show the chat, the editor area or both, side by side or stacked{0}; the keys that toggle the panel{1} toggle the terminals of its session, which show full width, under the editor or under the chat, as chosen in the Terminal Position menu. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen with their terminals after a restart. Move to Main Window shows the chat in the main window again.", '<keybinding:sessions.chatWindow.toggleArrangement>', '<keybinding:sessions.chatWindow.toggleTerminal>'));
+		}
 
 		if (!isWeb && configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)) {
 			content.push(localize('sessionsChat.environmentPicker.beforeWorkspace', "Above the new-session input, Environment is before Workspace and remains visible when session options are collapsed."));
@@ -391,7 +395,7 @@ function createSessionsChatFocusRestorer(accessor: ServicesAccessor): () => void
 			previouslyFocused.focus();
 			return;
 		}
-		const view = sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId);
+		const view = sessionsPartService.getSessionView(sessionsService.activeSession.get());
 		view?.focus();
 	};
 }
