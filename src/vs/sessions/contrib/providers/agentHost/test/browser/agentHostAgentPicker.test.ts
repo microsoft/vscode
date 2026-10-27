@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -32,11 +33,12 @@ import { Menus } from '../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
 import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { SessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
-import { AgentHostAgentPickerContribution, AgentPickerSelectionState, createAgentContextPick } from '../../browser/agentHostAgentPicker.js';
+import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../browser/agentHostAgentPicker.js';
+import { ModePicker } from '../../../copilotChatSessions/browser/modePicker.js';
 import '../../browser/agentHostSessionConfigPicker.js';
 import '../../browser/mobile/mobileChatInputConfigPicker.js';
 import '../../../../chat/browser/modelPicker.js';
@@ -158,48 +160,58 @@ suite('agentHostAgentPicker', () => {
 		});
 	});
 
-	test('preserves explicit selection when a draft session graduates', () => {
-		const state = new AgentPickerSelectionState();
-		const draft = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli://draft'), mode: constObservable(undefined) });
-		const committed = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli://committed'), mode: constObservable(undefined) });
-		state.mark(draft);
-		const transferred = state.transfer(draft, committed);
+	for (const status of [SessionStatus.Untitled, SessionStatus.InProgress, SessionStatus.Completed]) {
+		test(`only keeps the current custom agent in the toolbar for session status ${status}`, () => {
+			const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', { id: beta.uri, kind: 'agent' });
+			const session = upcastPartial<ISession>({ resource: URI.parse('custom-host:/session'), mode, status: constObservable(status) });
+			const selections: boolean[] = [];
+			disposables.add(autorun(reader => selections.push(isCustomAgentSelected(session, reader))));
+			mode.set({ id: ChatMode.Agent.id, kind: 'agent' }, undefined);
+			mode.set({ id: alpha.uri, kind: 'agent' }, undefined);
+			mode.set(undefined, undefined);
 
-		assert.deepStrictEqual({
-			transferred,
-			draft: state.has(draft),
-			committed: state.has(committed),
-		}, {
-			transferred: true,
-			draft: false,
-			committed: true,
+			assert.deepStrictEqual(selections, [true, false, true, false]);
 		});
-	});
+	}
 
-	test('keeps restored custom agents in the toolbar and reacts to mode changes', () => {
-		const state = new AgentPickerSelectionState();
-		const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', { id: beta.uri, kind: 'agent' });
-		const session = upcastPartial<ISession>({ resource: URI.parse('custom-host:/session'), mode });
+	test('updates toolbar placement when a custom-agent draft graduates with the default agent', () => {
+		const draft = upcastPartial<ISession>({ mode: constObservable({ id: alpha.uri, kind: 'agent' }), status: constObservable(SessionStatus.Untitled) });
+		const committed = upcastPartial<ISession>({ mode: constObservable(undefined), status: constObservable(SessionStatus.Completed) });
+		const session = observableValue<ISession | undefined>('session', undefined);
 		const selections: boolean[] = [];
-		disposables.add(autorun(reader => selections.push(state.has(session, reader))));
-		mode.set({ id: ChatMode.Agent.id, kind: 'agent' }, undefined);
-		mode.set({ id: alpha.uri, kind: 'agent' }, undefined);
-		mode.set(undefined, undefined);
+		disposables.add(autorun(reader => selections.push(isCustomAgentSelected(session.read(reader), reader))));
+		session.set(draft, undefined);
+		session.set(committed, undefined);
 
-		assert.deepStrictEqual(selections, [true, false, true, false]);
+		assert.deepStrictEqual(selections, [false, true, false]);
 	});
 
-	test('remembers explicit selection of a restored custom agent after returning to default', () => {
-		const state = new AgentPickerSelectionState();
-		const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', { id: beta.uri, kind: 'agent' });
-		const session = upcastPartial<ISession>({ resource: URI.parse('custom-host:/session'), mode });
-		const marked = state.mark(session);
-		mode.set(undefined, undefined);
+	test('returns focus to the input when the focused agent picker moves into Add Context', () => {
+		const root = dom.append(document.body, dom.$('div'));
+		disposables.add(toDisposable(() => root.remove()));
+		const container = dom.append(root, dom.$('div'));
+		const input = dom.append(root, dom.$('input'));
+		const hidden = observableValue('hidden', false);
+		let focusRestored = 0;
+		const item = disposables.add(new AgentHostModePickerActionViewItem(upcastPartial<ModePicker>({
+			render: element => dom.append(element, dom.$('button')),
+			dispose: () => { },
+		}), hidden, Disposable.None, () => {
+			focusRestored++;
+			input.focus();
+		}));
+		item.render(container);
+		input.focus();
+		hidden.set(true, undefined);
+		hidden.set(false, undefined);
+		container.querySelector('button')!.focus();
+		hidden.set(true, undefined);
 
-		assert.deepStrictEqual({ marked, selected: state.has(session), missing: state.has(undefined) }, {
-			marked: true,
-			selected: true,
-			missing: false,
+		assert.deepStrictEqual({ hidden: container.hidden, inert: container.inert, focused: document.activeElement === input, focusRestored }, {
+			hidden: true,
+			inert: true,
+			focused: true,
+			focusRestored: 1,
 		});
 	});
 
@@ -239,7 +251,6 @@ suite('agentHostAgentPicker', () => {
 				new NullActionViewItemService(),
 				upcastPartial<ISessionsService>({ activeSession }),
 				providers,
-				upcastPartial<ISessionsManagementService>({ onDidReplaceSession: Event.None }),
 				upcastPartial<IChatService>({ getSession: () => undefined }),
 				upcastPartial<IChatWidgetService>({
 					getWidgetBySessionResource: () => undefined,

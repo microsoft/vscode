@@ -817,7 +817,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.WINDOW,
-			description: localize('sessions.chat.experimental.agentsPickerInAttachContextMenu', "Controls whether the Agent picker starts in Add Context for Agents Window chat inputs. After an agent is selected, the picker returns to its usual position."),
+			description: localize('sessions.chat.experimental.agentsPickerInAttachContextMenu', "Controls whether the Agent picker appears in Add Context for Agents Window chat inputs when the default agent is selected. While a custom agent is selected, the picker appears in its usual position."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
