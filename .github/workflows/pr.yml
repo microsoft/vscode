@@ -43,6 +43,8 @@ jobs:
       unit-tests: ${{ steps.detect.outputs.unit-tests }}
       browser-integration: ${{ steps.detect.outputs.browser-integration }}
       product-tests: ${{ steps.detect.outputs.product-tests }}
+      monaco-editor: ${{ steps.detect.outputs.monaco-editor }}
+      telemetry: ${{ steps.detect.outputs.telemetry }}
       agent-host-e2e: ${{ steps.detect-agent-host-e2e.outputs.affected }}
       agent-host-test-profile: ${{ steps.detect-agent-host-e2e.outputs.profile }}
       agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
@@ -202,6 +204,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   # Keep these checks first after Detect Changes so they appear at the top of the job group.
+  # Compile & Hygiene always runs: its build script tests also check the Azure Pipelines
+  # definitions, which no other job of this workflow reads.
   compile:
     name: Compile & Hygiene
     needs: changes
@@ -314,7 +318,7 @@ jobs:
   monaco-editor:
     name: Monaco Editor
     needs: changes
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.monaco-editor == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions: {}
@@ -399,7 +403,7 @@ jobs:
   telemetry:
     name: Telemetry
     needs: changes
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.telemetry == 'true') }}
     runs-on: ubuntu-latest
     permissions: {}
     steps:
