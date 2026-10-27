@@ -471,7 +471,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 			if (!this.remoteMcpManagementService) {
 				throw new Error(`Illegal target: ${server.scope}`);
 			}
-			return this.remoteMcpManagementService.uninstall(server, options);
+			return this.remoteMcpManagementService.uninstall(server, { ...options, mcpResource });
 		}
 
 		return this.mcpManagementService.uninstall(server, { ...options, mcpResource });

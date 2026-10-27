@@ -23,7 +23,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IAllowedMcpServersService, IGalleryMcpServer, IMcpGalleryService, IMcpManagementService, IInstallableMcpServer } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { McpManagementChannel, McpManagementChannelClient } from '../../../../../platform/mcp/common/mcpManagementIpc.js';
-import { McpManagementService, McpUserResourceManagementService } from '../../../../../platform/mcp/common/mcpManagementService.js';
+import { McpManagementService } from '../../../../../platform/mcp/common/mcpManagementService.js';
 import { IMcpServerConfiguration, McpServerType, McpServerVariableType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
@@ -47,12 +47,17 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 	const legacyResource = folder.toResource('.vscode/mcp.json');
 	const userResource = URI.from({ scheme: Schemas.inMemory, path: '/user/mcp.json' });
 	const remoteUserResource = URI.from({ scheme: Schemas.inMemory, path: '/remote-user/mcp.json' });
+	const remoteProfileResource = URI.from({ scheme: Schemas.inMemory, path: '/remote-user/profiles/other/mcp.json' });
 	const server: IInstallableMcpServer = { name: 'same', config: { type: McpServerType.LOCAL, command: 'node' } };
 
-	async function createFixture(options: { initialScan?: Promise<void>; beforeScan?: (resource: URI) => Promise<void>; allowed?: boolean; rootContent?: string; legacyContent?: string; userContent?: string; remoteUserContent?: string; workspaceConfiguration?: URI; folderTargetsOnly?: boolean } = {}) {
+	async function createFixture(options: { initialScan?: Promise<void>; beforeScan?: (resource: URI) => Promise<void>; allowed?: boolean; rootContent?: string; legacyContent?: string; userContent?: string; remoteUserContent?: string; nonDefaultProfile?: boolean; workspaceConfiguration?: URI; folderTargetsOnly?: boolean } = {}) {
 		const logService = store.add(new NullLogService());
 		const fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const defaultProfile = { ...new TestUserDataProfileService().currentProfile, isDefault: true, mcpResource: userResource };
+		const profileService = store.add(new UserDataProfileService(options.nonDefaultProfile
+			? { ...defaultProfile, id: 'other', isDefault: false, mcpResource: URI.joinPath(userResource, '..', 'profiles', 'other', 'mcp.json') }
+			: defaultProfile));
 		await fileService.createFolder(folder.uri);
 		if (options.rootContent) {
 			await fileService.writeFile(rootResource, VSBuffer.fromString(options.rootContent));
@@ -61,7 +66,7 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 			await fileService.writeFile(legacyResource, VSBuffer.fromString(options.legacyContent));
 		}
 		if (options.userContent) {
-			await fileService.writeFile(userResource, VSBuffer.fromString(options.userContent));
+			await fileService.writeFile(profileService.currentProfile.mcpResource, VSBuffer.fromString(options.userContent));
 		}
 		if (options.remoteUserContent) {
 			await fileService.writeFile(remoteUserResource, VSBuffer.fromString(options.remoteUserContent));
@@ -74,7 +79,6 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 				return super.scanMcpServers(...args);
 			}
 		}(fileService, uriIdentityService));
-		const profileService = store.add(new UserDataProfileService({ ...new TestUserDataProfileService().currentProfile, mcpResource: userResource }));
 		const foldersChanged = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		let workspace = new Workspace('test', [folder], options.workspaceConfiguration);
 		let remoteConnection: IRemoteAgentConnection | null = null;
@@ -92,8 +96,8 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 			[IEnvironmentService, upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.joinPath(userResource, '..') })],
 			[IMcpGalleryService, upcastPartial<IMcpGalleryService>({ getMcpServersFromGallery: async () => [] })],
 			[IUserDataProfileService, profileService],
-			[IUserDataProfilesService, upcastPartial<IUserDataProfilesService>({ profiles: [profileService.currentProfile], defaultProfile: profileService.currentProfile })],
-			[IRemoteUserDataProfilesService, upcastPartial<IRemoteUserDataProfilesService>({ getRemoteProfile: async profile => ({ ...profile, mcpResource: remoteUserResource }) })],
+			[IUserDataProfilesService, upcastPartial<IUserDataProfilesService>({ profiles: options.nonDefaultProfile ? [defaultProfile, profileService.currentProfile] : [defaultProfile], defaultProfile })],
+			[IRemoteUserDataProfilesService, upcastPartial<IRemoteUserDataProfilesService>({ getRemoteProfile: async profile => ({ ...profile, mcpResource: profile.isDefault ? remoteUserResource : remoteProfileResource }) })],
 			[IRemoteAgentService, upcastPartial<IRemoteAgentService>({ getConnection: () => remoteConnection })],
 			[IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 				getWorkspace: () => workspace,
@@ -113,7 +117,10 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 		const userManagement = store.add(instantiationService.createInstance(McpManagementService));
 		const userManagementClient = store.add(instantiationService.createInstance(McpManagementChannelClient, createChannel(userManagement)));
 		if (options.remoteUserContent !== undefined) {
-			const remoteManagement = store.add(instantiationService.createInstance(McpUserResourceManagementService, remoteUserResource));
+			const remoteInstantiationService = store.add(instantiationService.createChild(new ServiceCollection(
+				[IUserDataProfilesService, upcastPartial<IUserDataProfilesService>({ defaultProfile: { ...defaultProfile, mcpResource: remoteUserResource } })],
+			)));
+			const remoteManagement = store.add(remoteInstantiationService.createInstance(McpManagementService));
 			const remoteChannel = createChannel(remoteManagement);
 			remoteConnection = upcastPartial<IRemoteAgentConnection>({ getChannel: <T extends IChannel>() => remoteChannel as T });
 		}
@@ -216,6 +223,29 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 				}, { source: { servers: {}, inputs: [shared] }, consumer });
 			});
 		}
+
+		test('uninstalls from a non-default remote profile without changing the default profile', async () => {
+			const original = JSON.stringify({ servers: { removed }, inputs: [shared, exclusive] });
+			const { service, fileService } = await createFixture({
+				nonDefaultProfile: true,
+				remoteUserContent: original,
+				legacyContent: JSON.stringify({ servers: { kept } }),
+			});
+			await fileService.writeFile(remoteProfileResource, VSBuffer.fromString(original));
+			const local = (await service.getInstalled()).find(server => server.name === 'removed')!;
+
+			await service.uninstall(local);
+
+			assert.deepStrictEqual({
+				resource: local.mcpResource.toString(),
+				profile: JSON.parse((await fileService.readFile(remoteProfileResource)).value.toString()),
+				defaultProfile: (await fileService.readFile(remoteUserResource)).value.toString(),
+			}, {
+				resource: remoteProfileResource.toString(),
+				profile: { servers: {}, inputs: [shared] },
+				defaultProfile: original,
+			});
+		});
 
 		test('preserves workspace inputs inherited by a workspace folder', async () => {
 			const workspaceResource = URI.from({ scheme: Schemas.inMemory, path: '/test.code-workspace' });
