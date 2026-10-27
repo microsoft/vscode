@@ -58,3 +58,53 @@
 	border: none;
 	border-radius: 0;
 }
+
+/* While the header is above the chat's column only, the editor area runs to the top of the window: the empty space of its titles, and of the toolbar of an empty group, moves the window. */
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container > .title,
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container.empty > .editor-group-container-toolbar {
+	-webkit-app-region: drag;
+}
+
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container .tab,
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container .monaco-icon-label,
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container .breadcrumbs-control,
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container .action-item {
+	-webkit-app-region: no-drag;
+}
+
+/* Where the window controls are at the top right of the window (Windows, Linux), the top row of the group below them leaves them room: its toolbar shows left of them. */
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container.chat-window-reserves-controls > .title > .tabs-and-actions-container,
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container.chat-window-reserves-controls > .title > .single-tab-and-actions-container,
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container.chat-window-reserves-controls > .editor-group-container-toolbar {
+	padding-right: var(--chat-window-controls-width, 0px);
+	box-sizing: border-box;
+}
+
+/* Right above the chat (Side by Side, Chat Only), the title row that shows the session header is the header of the chat's card, as the main window's session header is: the card runs from the top of the window, with its top edge and corners, and shows through the title row, whose own background (the window's) would hide them. */
+.monaco-workbench .part.titlebar.hosts-session-header.title-over-chat,
+.monaco-workbench .part.titlebar.hosts-session-header.title-over-chat > .titlebar-container {
+	/* Over the inline background of the title bar. */
+	background-color: transparent !important;
+}
+
+/* The header and the chat are one surface, with no edge between them. As in the main window, a card leaves its frame to the session view in it, whose frame is above its session header where the view shows the header; where the header is the title row above the view, the chat's card draws the frame around both instead, and the session view none. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout) .chat-window-host.chat-window-title-over-chat .chat-window-cell-chat > .chat-window-cell-card.sessions-chat-surface {
+	--agents-card-frame-owner: card;
+	border-color: var(--part-border-color, transparent);
+	/* Over the card, as the session view's frame is. */
+	background-clip: border-box;
+}
+
+/* With connected tabs, the session view's frame takes its color from its group of chat tabs (`.modern-ui-editor-tab-group` in `connectedEditorTabs.css`): the card's frame takes the same. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout):not(:is(.hc-black, .hc-light)) .chat-window-host.chat-window-title-over-chat .chat-window-cell-chat > .chat-window-cell-card.sessions-chat-surface,
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout):not(:is(.hc-black, .hc-light)) .chat-window-host.chat-window-title-over-chat .chat-window-cell-chat > .chat-window-cell-card.sessions-chat-surface::after {
+	border-color: var(--modern-ui-editor-tab-custom-border, var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-tab-border, var(--part-border-color, transparent))));
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-compact:not(.phone-layout) .chat-window-host.chat-window-title-over-chat .chat-window-cell-chat > .chat-window-cell-card.sessions-chat-surface::after {
+	content: '';
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout) .chat-window-host.chat-window-title-over-chat .chat-window-cell-chat .session-view::after {
+	content: none;
+}

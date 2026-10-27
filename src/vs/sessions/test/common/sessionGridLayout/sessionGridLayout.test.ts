@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { SessionColumnPlacement, SessionGridCell, SessionGridLayoutNode, SessionTerminalPosition, computeSessionGridLayout, diffSessionGridLayout, resolveSessionLayoutMode, getPanelAlignmentOfTerminalPosition, ISessionGridLayoutState, SessionLayoutMode } from '../../../common/sessionGridLayout/sessionGridLayout.js';
+import { SessionColumnPlacement, SessionGridCell, SessionHeaderSpan, SessionGridLayoutNode, SessionTerminalPosition, computeSessionGridLayout, diffSessionGridLayout, resolveSessionLayoutMode, getPanelAlignmentOfTerminalPosition, ISessionGridLayoutState, SessionLayoutMode } from '../../../common/sessionGridLayout/sessionGridLayout.js';
 
 /** Renders a topology compactly: `row[a,b]`, `col[a,b]`, and a `!` after a hidden cell. */
 function render(node: SessionGridLayoutNode): string {
@@ -197,6 +197,24 @@ suite('Session grid layout', () => {
 		eachState(s => {
 			const layout = computeSessionGridLayout(s);
 			assert.deepStrictEqual(layout.tabOrder, visibleCells(layout.topology), JSON.stringify(s));
+		});
+	});
+
+	test('the header row spans the chat\'s column only Side by Side, where the editor runs to the top beside the chat, and the window otherwise, above the strip column too', () => {
+		const header: Record<string, string[]> = {};
+		for (const mode of [SessionLayoutMode.SideBySide, SessionLayoutMode.Stacked, SessionLayoutMode.ChatOnly, SessionLayoutMode.EditorOnly]) {
+			header[mode] = [SessionTerminalPosition.FullWidth, SessionTerminalPosition.UnderEditor, SessionTerminalPosition.UnderChat].map(terminalPosition => computeSessionGridLayout(state({ mode, terminalPosition })).header);
+		}
+		// Side by Side, the chat is the leftmost cell at the top, with the editor to its right.
+		const topLeft = (node: SessionGridLayoutNode): SessionGridCell => hasKey(node, { children: true }) ? topLeft(node.children[0]) : node.cell;
+		assert.deepStrictEqual({ header, sideBySideTopLeft: topLeft(computeSessionGridLayout(state({ mode: SessionLayoutMode.SideBySide })).topology) }, {
+			header: {
+				[SessionLayoutMode.SideBySide]: [SessionHeaderSpan.ChatColumn, SessionHeaderSpan.ChatColumn, SessionHeaderSpan.ChatColumn],
+				[SessionLayoutMode.Stacked]: [SessionHeaderSpan.Full, SessionHeaderSpan.Full, SessionHeaderSpan.Full],
+				[SessionLayoutMode.ChatOnly]: [SessionHeaderSpan.Full, SessionHeaderSpan.Full, SessionHeaderSpan.Full],
+				[SessionLayoutMode.EditorOnly]: [SessionHeaderSpan.Full, SessionHeaderSpan.Full, SessionHeaderSpan.Full],
+			},
+			sideBySideTopLeft: SessionGridCell.Chat,
 		});
 	});
 
