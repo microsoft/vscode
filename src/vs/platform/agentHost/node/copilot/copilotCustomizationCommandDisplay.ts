@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { appendEscapedMarkdownCodeBlockFence, appendEscapedMarkdownInlineCode, escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
-import type { CopilotSession } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
+import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { SYNCED_CUSTOMIZATION_DISPLAY_NAME } from '../../common/agentHostFileSystemService.js';
 import type { CopilotSlashCommandOutput, CopilotSlashCommandResult, ICopilotSlashCommandHandler, RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
@@ -20,6 +21,12 @@ export type CopilotPluginReloadReason = 'install' | 'uninstall' | 'update' | 'en
 
 /** Reloads installed plugins into the live session; owned by the session so it can account for runtime changes. */
 export type ReloadCopilotPlugins = (reason: CopilotPluginReloadReason) => Promise<void>;
+
+export type ICopilotMcpCommandServer = Awaited<ReturnType<CopilotSession['rpc']['mcp']['listConfigured']>>['servers'][number] & {
+	readonly configuration?: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>['servers'][string];
+	readonly sourceUri?: string;
+	readonly tools?: readonly { readonly name: string; readonly description?: string }[];
+};
 
 export async function installCopilotPlugin(plugins: ICopilotPluginCommandApi, reload: ReloadCopilotPlugins, source: string) {
 	const result = await plugins.install({ source });
@@ -44,12 +51,15 @@ export function getCopilotCustomizationCommandHandler(
 	command: RuntimeSlashCommandInfo,
 	plugins?: { readonly api: ICopilotPluginCommandApi; readonly reload: ReloadCopilotPlugins },
 	getInstalledPlugins?: () => Promise<Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins']>,
+	getMcpServer?: (name: string) => Promise<ICopilotMcpCommandServer | undefined>,
 ): ICopilotSlashCommandHandler | undefined {
 	if (command.kind !== 'builtin' || !['mcp', 'plugin', 'skills'].includes(command.name)) {
 		return undefined;
 	}
 	return {
-		invoke: command.name === 'plugin' && plugins ? input => invokeCopilotPluginCommand(input, plugins.api, plugins.reload) : undefined,
+		invoke: command.name === 'plugin' && plugins
+			? input => invokeCopilotPluginCommand(input, plugins.api, plugins.reload)
+			: command.name === 'mcp' && getMcpServer ? input => invokeCopilotMcpCommand(input, getMcpServer) : undefined,
 		getProgressMessage: command.name === 'plugin' && plugins ? getCopilotPluginProgressMessage : undefined,
 		showProgressImmediately: command.name === 'plugin' && plugins ? input => splitCommand(input).command === 'install' : undefined,
 		getOutput: async (input, result) => {
@@ -65,6 +75,65 @@ export function getCopilotCustomizationCommandHandler(
 		},
 		getErrorOutput: (input, error) => formatCopilotCustomizationError(command.name, input, error),
 	};
+}
+
+async function invokeCopilotMcpCommand(input: string, getServer: (name: string) => Promise<ICopilotMcpCommandServer | undefined>): Promise<CopilotSlashCommandResult | undefined> {
+	const { command, rest } = splitCommand(input);
+	if (command !== 'show' || !rest) {
+		return undefined;
+	}
+	const name = rest.replace(/^(?:"(?<doubleQuoted>.*)"|'(?<singleQuoted>.*)')$/, '$<doubleQuoted>$<singleQuoted>');
+	const server = await getServer(name);
+	if (!server) {
+		return { kind: 'text', text: localize('copilotMcp.notFound', "MCP server \"{0}\" is not configured in this session.", name) };
+	}
+	const lines = [
+		`# ${localize('copilotMcp.serverDetails', "MCP server: {0}", appendEscapedMarkdownInlineCode(server.name))}`,
+		'',
+		`- ${localize('copilotMcp.status', "Status: {0}", appendEscapedMarkdownInlineCode(server.live.status))}`,
+		`- ${localize('copilotMcp.enabled', "Enabled: {0}", server.enabled ? localize('copilotMcp.yes', "Yes") : localize('copilotMcp.no', "No"))}`,
+	];
+	if (server.source) {
+		lines.push(`- ${localize('copilotMcp.source', "Source: {0}", appendEscapedMarkdownInlineCode(server.source))}`);
+	}
+	if (server.sourcePlugin) {
+		lines.push(`- ${localize('copilotMcp.sourcePlugin', "Plugin: {0}", appendEscapedMarkdownInlineCode(server.sourcePlugin))}`);
+	}
+	if (server.sourceUri) {
+		lines.push(`- ${localize('copilotMcp.sourceFile', "Configuration file: {0}", appendEscapedMarkdownInlineCode(server.sourceUri))}`);
+	}
+	if (server.live.error) {
+		lines.push('', `## ${localize('copilotMcp.error', "Error")}`, '', appendEscapedMarkdownCodeBlockFence(server.live.error, 'text'));
+	}
+	lines.push('', `## ${localize('copilotMcp.configuration', "Launch configuration")}`, '');
+	const config = server.configuration;
+	if (config) {
+		const configuration = {
+			type: config.type ?? (hasKey(config, { command: true }) ? 'stdio' : 'http'),
+			...(hasKey(config, { command: true }) ? {
+				command: config.command,
+				args: config.args ?? [],
+				cwd: config.cwd,
+				env: Object.keys(config.env ?? {}),
+			} : {
+				url: config.url,
+				headers: Object.keys(config.headers ?? {}),
+			}),
+			tools: config.tools,
+			timeout: config.timeout,
+		};
+		lines.push(appendEscapedMarkdownCodeBlockFence(JSON.stringify(configuration, null, 2), 'json'),
+			'', localize('copilotMcp.configurationNote', "Configuration known to the agent host. Environment variable and header names are shown without their values."));
+	} else {
+		lines.push(localize('copilotMcp.configurationUnavailable', "The runtime does not expose this server's launch configuration to the agent host."));
+	}
+	lines.push('', `## ${localize('copilotMcp.tools', "Available tools")}`, '');
+	lines.push(...(server.tools
+		? server.tools.length > 0
+			? server.tools.map(tool => `- ${appendEscapedMarkdownInlineCode(tool.name)}${tool.description ? ` — ${escapeCustomizationMarkdownText(tool.description)}` : ''}`)
+			: [localize('copilotMcp.noTools', "No tools reported by this server.")]
+		: [localize('copilotMcp.toolsUnavailable', "Tools are not loaded for this server.")]));
+	return { kind: 'text', text: lines.join('\n'), markdown: true };
 }
 
 function getCopilotPluginProgressMessage(input: string): string | undefined {

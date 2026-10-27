@@ -776,6 +776,8 @@ Fork remains a provider operation because only the provider can clone its opaque
 
 ### 8b. Session customizations at the update boundary
 
+Copilot `/mcp show <server>` is a host-rendered, read-only detail response because the runtime treats `show` as a list alias. It reads `rpc.mcp.listConfigured`, adds launch configuration and source files only when the host knows the matching declaration, and lists tools only for an enabled, connected server whose tools have loaded. Environment and header values are omitted. Bare `/mcp show`, listing, and mutations continue through the runtime.
+
 `getChatCustomizations(chat, context, hostCustomizations)` receives the host's **last published snapshot** explicitly, from `AgentService` (create/restore), `AgentSideEffects._publishSessionCustomizations` (republish), and `AgentHostSkillCompletionProvider` (slash completions). It is a snapshot to reconcile against, not a replacement: the provider keeps its own authoritative view and reapplies the host's enablement decisions on top of it.
 
 `undefined` means the host has published no snapshot for that session yet — during creation, or for an unknown/evicted session. That is deliberately distinct from an empty list, and the host passes `undefined` rather than a meaningless `[]` so a provider cannot read "no snapshot" as "no customizations" and clear its reconciled state.
