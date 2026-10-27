@@ -429,7 +429,7 @@ export class SessionsPart extends Part {
 
 	private _createSlot(id: string): IGridSlot {
 		const disposables = new DisposableStore();
-		const view = disposables.add(this.instantiationService.createInstance(SessionView));
+		const view = disposables.add(this.instantiationService.createInstance(SessionView, undefined));
 		view.setPartVisible(this._sessionViewsVisible);
 		const slot: IGridSlot = { id, view, disposables, boundSessionId: undefined };
 		// Pointer-down also activates non-focusable chrome and the empty new-session slot.
