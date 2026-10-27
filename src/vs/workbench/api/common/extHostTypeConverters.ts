@@ -882,6 +882,57 @@ export namespace DocumentSymbol {
 	}
 }
 
+export namespace StructuralDiffContext {
+	export function to(context: languages.StructuralDiffContext): vscode.StructuralDiffContext {
+		return {
+			changes: context.changes.map(change => ({
+				originalRange: Range.to(change.originalRange),
+				modifiedRange: Range.to(change.modifiedRange),
+			})),
+		};
+	}
+}
+
+export namespace StructuralDiff {
+	export function from(diff: vscode.StructuralDiff): languages.StructuralDiff {
+		return {
+			root: nodeFrom(diff.root),
+			isIncomplete: diff.isIncomplete,
+		};
+	}
+
+	function nodeFrom(node: vscode.StructuralDiffNode): languages.StructuralDiffNode {
+		return {
+			id: node.id,
+			original: node.original && entityFrom(node.original),
+			modified: node.modified && entityFrom(node.modified),
+			originalChanges: node.originalChanges.map(coverageFrom),
+			modifiedChanges: node.modifiedChanges.map(coverageFrom),
+			children: node.children.map(nodeFrom),
+		};
+	}
+
+	function entityFrom(entity: vscode.StructuralDiffEntity): languages.StructuralDiffEntity {
+		return {
+			name: entity.name,
+			detail: entity.detail,
+			kind: SymbolKind.from(entity.kind),
+			languageKind: entity.languageKind,
+			range: Range.from(entity.range),
+			selectionRange: entity.selectionRange && Range.from(entity.selectionRange),
+		};
+	}
+
+	function coverageFrom(coverage: vscode.StructuralDiffCoverage): languages.StructuralDiffCoverage {
+		return {
+			textChangeIndex: coverage.textChangeIndex,
+			range: Range.from(coverage.range),
+			classification: coverage.classification,
+			tags: coverage.tags?.slice(),
+		};
+	}
+}
+
 export namespace CallHierarchyItem {
 
 	export function to(item: extHostProtocol.ICallHierarchyItemDto): types.CallHierarchyItem {
