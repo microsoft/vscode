@@ -50,8 +50,12 @@ import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../.
 import { ChatModel, ChatResponseModel, IChatModel, IChatModelInputState, IChatRequestModel, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/contrib/chat/common/model/chatModelStore.js';
 import { ModelSelectionReason } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
+import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ChatInputModelSelectionController } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputModelSelectionController.js';
+import { filterModelsForSession } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputModelUtils.js';
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { PromptTimelineRulerRail } from '../../../../../workbench/contrib/chat/browser/promptTimeline/promptTimelineRulerRail.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -4482,6 +4486,7 @@ suite('Sessions - Chat View', () => {
 		}());
 		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('progress', { message: 'Preparing worktree', cancel: () => { } });
 		const session = new class extends mock<ISession>() {
+			override readonly modelId = constObservable(undefined);
 			override readonly status = constObservable(SessionStatus.Untitled);
 			override readonly description = constObservable(undefined);
 			override readonly isNewSessionRequestInProgress = constObservable(true);
@@ -4491,13 +4496,14 @@ suite('Sessions - Chat View', () => {
 		const preparationModel = disposables.add(new MutableDisposable<ChatModel>());
 		const progressCalls: Parameters<ChatWidget['setTranscriptProgress']>[] = [];
 		const view: {
-			_showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>): void;
+			_showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession): void;
 			_setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void;
 			_saveCurrentViewState(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables,
 			_transcriptDisposables: disposables.add(new DisposableStore()),
 			instantiationService,
+			sessionsProvidersService: { getProvider: () => undefined },
 			_preparationModel: preparationModel,
 			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),
 			_currentSessionObs: constObservable(session),
@@ -4508,7 +4514,7 @@ suite('Sessions - Chat View', () => {
 		});
 		view._setupTranscriptPreparationProgress(chatModel);
 		const attachment = { kind: 'file' as const, id: 'readme', name: 'README.md', value: URI.file('/workspace/README.md') };
-		view._showPreparationInput({ query: 'Review this file\nand explain it.', attachedContext: [attachment] });
+		view._showPreparationInput({ query: 'Review this file\nand explain it.', attachedContext: [attachment] }, session);
 		const model = preparationModel.value!;
 		const request = model.getRequests()[0];
 		preparationProgress.set({ message: 'Starting Dev Container', cancel: () => { } }, undefined);
@@ -4534,6 +4540,86 @@ suite('Sessions - Chat View', () => {
 			inTranscript: true,
 		});
 	});
+
+	for (const modelTarget of ['copilot-cloud-sandbox', 'agent-host-test']) {
+		test(`preserves the selected ${modelTarget} model in the preparation picker`, () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IChatAgentService, new class extends mock<IChatAgentService>() {
+				override getDefaultAgent() { return undefined; }
+			}());
+			const createModel = (id: string, targetChatSessionType?: string): ILanguageModelChatMetadataAndIdentifier => ({
+				identifier: `${targetChatSessionType ?? 'local'}:${id}`,
+				metadata: {
+					extension: new ExtensionIdentifier('test.agent'),
+					id, name: id, vendor: 'test', version: '1', family: id,
+					maxInputTokens: 1000, maxOutputTokens: 1000,
+					isDefaultForLocation: { [ChatAgentLocation.Chat]: id === 'default' },
+					targetChatSessionType,
+				},
+			});
+			const localDefault = createModel('default');
+			const cloudDefault = createModel('default', modelTarget);
+			const selectedModel = createModel('selected', modelTarget);
+			const models = [localDefault, cloudDefault, selectedModel];
+			const resource = URI.parse('copilot-cloud-agent:/untitled-draft');
+			const session = upcastPartial<ISession>({
+				resource, sessionId: 'draft', providerId: 'cloud',
+				modelId: constObservable(selectedModel.identifier),
+			});
+			const provider = upcastPartial<ISessionsProvider>({
+				getModelsSnapshot: (sessionId, desiredModelId) => {
+					assert.deepStrictEqual({ sessionId, desiredModelId }, { sessionId: 'draft', desiredModelId: selectedModel.identifier });
+					return { models: [cloudDefault, selectedModel], modelTarget, desiredModelResolution: { kind: 'available', model: selectedModel } };
+				},
+			});
+			const preparationModel = disposables.add(new MutableDisposable<ChatModel>());
+			const controller = disposables.add(new ChatInputModelSelectionController({
+				getCurrentSessionType: () => getChatSessionType(preparationModel.value!.sessionResource),
+				isEmpty: () => preparationModel.value!.getRequests().length === 0,
+				getModels: sessionType => filterModelsForSession(models, sessionType, ChatModeKind.Ask, ChatAgentLocation.Chat),
+				getAllModels: () => models,
+				getConfiguredModelValue: () => 'default',
+				isModelSupportedHere: () => true,
+				getDeclaredDefaultModel: pool => pool.find(model => model.metadata.id === 'default'),
+				subscribeToModelChanges: VSCodeEvent.None,
+				getBoundConversationKey: () => preparationModel.value!.sessionResource.toString(),
+				getIntentHolder: () => preparationModel.value!.inputModel,
+				applyModel: () => { },
+			}));
+			const view: { _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession): void } = Object.assign(Object.create(ChatView.prototype), {
+				instantiationService,
+				sessionsProvidersService: { getProvider: () => provider },
+				_preparationModel: preparationModel,
+				_widget: {
+					setModel: (model: IChatModel) => {
+						controller.beginConversationSwitch();
+						controller.initialize(undefined);
+						const selected = model.inputModel.state.get()?.selectedModel;
+						if (selected) {
+							controller.syncFromConversationState(selected, undefined, getChatSessionType(model.sessionResource), model.sessionResource.toString());
+						}
+					},
+				},
+			});
+
+			view._showPreparationInput({ query: 'Hi' }, session);
+			const beforeRefresh = controller.currentModel.get()?.identifier;
+			controller.reconcileModelListChange(filterModelsForSession(models, getChatSessionType(preparationModel.value!.sessionResource), ChatModeKind.Ask, ChatAgentLocation.Chat));
+			assert.deepStrictEqual({
+				modelTarget: getChatSessionType(preparationModel.value!.sessionResource),
+				separateResource: preparationModel.value!.sessionResource.toString() !== resource.toString(),
+				beforeRefresh,
+				afterRefresh: controller.currentModel.get()?.identifier,
+				draftModel: session.modelId.get(),
+			}, {
+				modelTarget, separateResource: true,
+				beforeRefresh: selectedModel.identifier,
+				afterRefresh: selectedModel.identifier,
+				draftModel: selectedModel.identifier,
+			});
+		});
+	}
 
 	test('does not show chat tips while the initial request is active', () => {
 		assert.deepStrictEqual({
