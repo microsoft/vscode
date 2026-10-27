@@ -52,7 +52,7 @@ import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxP
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServer, type ICopilotConnectorServers } from './copilotConnectors.js';
-import { copilotConnectorsScope } from '../../../github/common/connectors/connectors.js';
+import { copilotConnectorsScope, isCopilotConnectorRuntimeServerName } from '../../../github/common/connectors/connectors.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
 import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentExtensionInfo, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentExtensionStatus, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
@@ -5230,10 +5230,13 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Whether a server is owned by a Copilot Connector, either as reported by Connector reconciliation or, when
-	 * that is unavailable, because its challenge asks for the Connector authorization scope.
+	 * that is unavailable, because it has a runtime Connector server name and its challenge asks for the Connector
+	 * authorization scope. The name is required because the runtime echoes the token's existing scopes, including
+	 * the Connector scope, in step-up challenges from other servers such as the built-in GitHub MCP server.
 	 */
 	private _isCopilotConnectorServer(serverName: string, requiredScopes: readonly string[] = []): boolean {
-		return this._copilotConnectorServers.has(serverName) || requiredScopes.includes(copilotConnectorsScope);
+		return this._copilotConnectorServers.has(serverName)
+			|| (isCopilotConnectorRuntimeServerName(serverName) && requiredScopes.includes(copilotConnectorsScope));
 	}
 
 	/**

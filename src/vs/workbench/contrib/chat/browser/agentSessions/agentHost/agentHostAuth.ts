@@ -26,7 +26,7 @@ import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../.
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { copilotConnectorsScope } from '../../../../../../platform/github/common/connectors/connectors.js';
+import { copilotConnectorsScope, isCopilotConnectorRuntimeServerName } from '../../../../../../platform/github/common/connectors/connectors.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -609,6 +609,8 @@ export interface IAgentHostMcpAuthenticationOptionsBase {
 	readonly logPrefix: string;
 	readonly mcpServerId: string;
 	readonly mcpServerName: string;
+	/** The MCP server's name in the agent host runtime; unlike {@link mcpServerName}, never a display label. */
+	readonly mcpRuntimeServerName: string;
 	readonly mcpServerUrl: string;
 	readonly oauthClient?: McpOAuthClient;
 	readonly scopes: readonly string[];
@@ -1082,10 +1084,11 @@ async function forceAuthenticationInteractively(
 /**
  * Whether an MCP authentication requirement belongs to a Copilot Connector. Connector-owned servers authenticate
  * with the session's GitHub credential, so their challenge asks for the Connector authorization scope and a
- * per-server MCP token never satisfies it.
+ * per-server MCP token never satisfies it. The runtime server name must also be a Connector's, because other
+ * servers' step-up challenges can echo the Connector scope already granted to the token.
  */
-export function isCopilotConnectorMcpAuthentication(requiredScopes: readonly string[] | undefined): boolean {
-	return requiredScopes?.includes(copilotConnectorsScope) === true;
+export function isCopilotConnectorMcpAuthentication(runtimeServerName: string, requiredScopes: readonly string[] | undefined): boolean {
+	return isCopilotConnectorRuntimeServerName(runtimeServerName) && requiredScopes?.includes(copilotConnectorsScope) === true;
 }
 
 /**
@@ -1120,6 +1123,7 @@ export function autoAuthenticateMcpServer(
 		logPrefix: '[AgentHost]',
 		mcpServerId: agentHostMcpServerId(agentHost.authority, serverName, auth.resource.resource),
 		mcpServerName: serverName,
+		mcpRuntimeServerName: serverName,
 		mcpServerUrl: auth.resource.resource,
 		oauthClient: auth.oauthClient,
 		scopes: auth.requiredScopes ?? [],
@@ -1140,7 +1144,7 @@ export async function resolveMcpServerAuthentication(
 	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
 	const dynamicAuthenticationProviderStorageService = accessor.get(IDynamicAuthenticationProviderStorageService);
 	const logService = accessor.get(ILogService);
-	if (isCopilotConnectorMcpAuthentication(options.scopes)) {
+	if (isCopilotConnectorMcpAuthentication(options.mcpRuntimeServerName, options.scopes)) {
 		// A narrow token would be ignored for the Connector and retried indefinitely; Connector authorization owns this.
 		logService.info(`${options.logPrefix} Not forwarding an MCP token for Connector-owned server ${options.mcpServerName}; it requires Copilot Connector authorization`);
 		return false;

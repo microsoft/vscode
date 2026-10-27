@@ -516,6 +516,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				logPrefix: '[AgentHost]',
 				mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource),
 				mcpServerName: label,
+				mcpRuntimeServerName: server.name,
 				mcpServerUrl: server.state.resource.resource,
 				oauthClient: server.state.oauthClient,
 				scopes: server.state.requiredScopes ?? [],
@@ -713,10 +714,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	}
 }
 
-/** Whether a server is owned by a Copilot Connector, by host metadata or by its Connector-scope challenge. */
+/** Whether a server is owned by a Copilot Connector, by host metadata or by its runtime name and Connector-scope challenge. */
 function isCopilotConnectorMcpServer(server: McpServerCustomization): boolean {
 	return readMcpServerConnectorName(server) !== undefined
-		|| server.state.kind === McpServerStatus.AuthRequired && isCopilotConnectorMcpAuthentication(server.state.requiredScopes);
+		|| server.state.kind === McpServerStatus.AuthRequired && isCopilotConnectorMcpAuthentication(server.name, server.state.requiredScopes);
 }
 
 /** Runs Copilot Connector authorization for a Connector-owned MCP server on behalf of its Sign In. */

@@ -31393,6 +31393,46 @@ Use the attached image as context.
 			});
 		});
 
+		for (const [serverName, source, connector] of [
+			['github-mcp-server', 'builtin', false],
+			['docs', 'user', false],
+			['github-copilot-connector-94d26095770df60673dd', 'managed', true],
+		] as const) {
+			test(`${connector ? 'ignores' : 'accepts'} an MCP token for ${serverName} whose step-up challenge includes the Connector scope before Connector state is published`, async () => {
+				const resource = 'https://api.githubcopilot.com/mcp';
+				// The runtime adds the token's existing scopes, including the Connector scope, to step-up challenges.
+				const scopes = ['read:user', 'user:email', 'write:plugin_gateway_connections', 'repo'];
+				const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
+					configureMockSession: mock => {
+						mock.mcpListResult = { servers: [{ name: serverName, status: 'needs-auth', source, url: resource }] };
+					},
+				});
+				const authPromise = runtime.handleMcpAuthRequest({
+					requestId: 'auth-step-up',
+					serverName,
+					serverUrl: resource,
+					reason: 'upscope',
+					wwwAuthenticateParams: { scope: scopes.join(' '), error: 'insufficient_scope' },
+				}, { sessionId: 'test-session-1' });
+				await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
+				const resolved = await session.resolveMcpAuthentication({ resource, scopes, token: 'mcp-token' });
+				const [server] = session.topLevelMcpCustomizations();
+				if (connector) {
+					session.cancelMcpServerAuthentication(server.id);
+				}
+
+				assert.deepStrictEqual({
+					resolved,
+					connectorName: readMcpServerConnectorName(server),
+					result: await authPromise,
+				}, {
+					resolved: !connector,
+					connectorName: undefined,
+					result: connector ? { kind: 'cancelled' } : { kind: 'token', accessToken: 'mcp-token' },
+				});
+			});
+		}
+
 		test('targeted MCP authentication isolates servers sharing a protected resource and scopes', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 			const resource = 'https://mcp.slack.com';

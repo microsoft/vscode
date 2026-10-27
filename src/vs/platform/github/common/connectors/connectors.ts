@@ -8,6 +8,15 @@ import { ApiRequestOptions } from '../client/request.js';
 /** OAuth permission requested by VS Code for explicit Connector management actions. */
 export const copilotConnectorsScope = 'write:plugin_gateway_connections';
 
+/**
+ * Whether an MCP server name was assigned to a Copilot Connector by the Copilot runtime, which names every
+ * Connector-owned server `github-copilot-connector-<id>` (`CONNECTOR_ID_PREFIX` in its Connector protocol).
+ * Used to recognize a Connector from its authentication challenge before Connector state is published.
+ */
+export function isCopilotConnectorRuntimeServerName(serverName: string): boolean {
+	return serverName.startsWith('github-copilot-connector-');
+}
+
 /** Service-owned plugin manifest and the authenticated user's catalog connection state. */
 export interface ConnectorPlugin {
 	/** Canonical connector identifier used by the catalog and connection-management routes. */

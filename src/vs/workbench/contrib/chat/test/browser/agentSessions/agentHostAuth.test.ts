@@ -1087,45 +1087,55 @@ suite('autoAuthenticateMcpServer', () => {
 		})));
 	});
 
-	test('never looks up sessions or forwards an MCP token for a Copilot Connector scope challenge', async () => {
-		const sessionRequests: (readonly string[] | undefined)[] = [];
-		const authenticateRequests: string[] = [];
-		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IAuthenticationService, createMockAuthService({
-			getSessions: async (_providerId, scopes) => {
-				sessionRequests.push(scopes);
-				return [{ id: 'narrow', scopes: ['write:plugin_gateway_connections'], accessToken: 'narrow-token', account: { id: 'account-id', label: 'Account' } }];
-			},
-		}));
-		instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
-		instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
-		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
-		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(ILabelService, { getHostLabel: () => 'Host' });
-		const connection = new class extends mock<IAgentConnection>() {
-			override async authenticate(request: { resource: string; scopes?: readonly string[]; token: string }) {
-				authenticateRequests.push(request.resource);
-				return { authenticated: true };
-			}
-		}();
-		const resource = { resource: 'https://api.github.com/copilot-connectors/api/v1/connectors/kusto/mcp', authorization_servers: ['https://github.com/login/oauth'] };
-		const silent = await instantiationService.invokeFunction(autoAuthenticateMcpServer, connection, { scheme: 'vscode-agent-host', authority: '' }, 'connector-kusto', {
-			resource,
-			requiredScopes: ['write:plugin_gateway_connections'],
-		}, mcpAuthenticationTarget);
-		const interactive = await instantiationService.invokeFunction(resolveMcpServerAuthentication, resource, {
-			allowInteraction: true,
-			logPrefix: '[AgentHost]',
-			target: mcpAuthenticationTarget,
-			mcpServerId: agentHostMcpServerId('', 'connector-kusto', resource.resource),
-			mcpServerName: 'Kusto',
-			mcpServerUrl: resource.resource,
-			scopes: ['write:plugin_gateway_connections'],
-			authenticate: request => connection.authenticate(request),
+	for (const { serverName, connector } of [
+		{ serverName: 'github-copilot-connector-94d26095770df60673dd', connector: true },
+		{ serverName: 'github-mcp-server', connector: false },
+	]) {
+		test(`${connector ? 'never forwards' : 'forwards'} an MCP token for ${serverName} with a Copilot Connector scope challenge`, async () => {
+			const scopes = ['read:user', 'user:email', 'write:plugin_gateway_connections', 'repo'];
+			const sessionRequests: (readonly string[] | undefined)[] = [];
+			const authenticateRequests: string[] = [];
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IAuthenticationService, createMockAuthService({
+				getOrActivateProviderIdForServer: () => Promise.resolve('github'),
+				getSessions: async (_providerId, requestedScopes) => {
+					sessionRequests.push(requestedScopes);
+					return [{ id: 'narrow', scopes, accessToken: 'narrow-token', account: { id: 'account-id', label: 'Account' } }];
+				},
+			}));
+			instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+			instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(ILabelService, { getHostLabel: () => 'Host' });
+			const connection = new class extends mock<IAgentConnection>() {
+				override async authenticate(request: { resource: string; scopes?: readonly string[]; token: string }) {
+					authenticateRequests.push(request.resource);
+					return { authenticated: true };
+				}
+			}();
+			const resource = { resource: 'https://api.githubcopilot.com/mcp', authorization_servers: ['https://github.com/login/oauth'] };
+			const silent = await instantiationService.invokeFunction(autoAuthenticateMcpServer, connection, { scheme: 'vscode-agent-host', authority: '' }, serverName, {
+				resource,
+				requiredScopes: scopes,
+			}, mcpAuthenticationTarget);
+			const interactive = await instantiationService.invokeFunction(resolveMcpServerAuthentication, resource, {
+				allowInteraction: true,
+				logPrefix: '[AgentHost]',
+				target: mcpAuthenticationTarget,
+				mcpServerId: agentHostMcpServerId('', serverName, resource.resource),
+				mcpServerName: 'GitHub',
+				mcpRuntimeServerName: serverName,
+				mcpServerUrl: resource.resource,
+				scopes,
+				authenticate: request => connection.authenticate(request),
+			});
+			assert.deepStrictEqual({ silent, interactive, sessionRequests, authenticateRequests }, connector
+				? { silent: false, interactive: false, sessionRequests: [], authenticateRequests: [] }
+				: { silent: true, interactive: true, sessionRequests: [scopes, scopes], authenticateRequests: [resource.resource, resource.resource] });
 		});
-		assert.deepStrictEqual({ silent, interactive, sessionRequests, authenticateRequests }, { silent: false, interactive: false, sessionRequests: [], authenticateRequests: [] });
-	});
+	}
 });
 
 suite('resolveMcpServerAuthentication', () => {
@@ -1194,6 +1204,7 @@ suite('resolveMcpServerAuthentication', () => {
 				target: mcpAuthenticationTarget,
 				mcpServerId: 'legacy',
 				mcpServerName: 'Legacy',
+				mcpRuntimeServerName: 'Legacy',
 				mcpServerUrl: resource,
 				scopes: ['read'],
 				authenticate: async request => { forwarded.push(request); },
@@ -1236,6 +1247,7 @@ suite('resolveMcpServerAuthentication', () => {
 				target: undefined,
 				mcpServerId: 'server',
 				mcpServerName: 'Server',
+				mcpRuntimeServerName: 'Server',
 				mcpServerUrl: 'https://mcp.example/v1/mcp',
 				scopes: [],
 				authenticate: async request => { forwarded.push(request); },
@@ -1293,6 +1305,7 @@ suite('resolveMcpServerAuthentication', () => {
 					target: mcpAuthenticationTarget,
 					mcpServerId: 'server',
 					mcpServerName: 'Server',
+					mcpRuntimeServerName: 'Server',
 					mcpServerUrl: 'https://mcp.example.com',
 					scopes: [],
 					authorizationServerMetadataFetcher: async authorizationServer => {
@@ -1362,6 +1375,7 @@ suite('resolveMcpServerAuthentication', () => {
 			target: mcpAuthenticationTarget,
 			mcpServerId: 'server',
 			mcpServerName: 'Server',
+			mcpRuntimeServerName: 'Server',
 			mcpServerUrl: resource,
 			oauthClient,
 			scopes: ['read'],
@@ -1403,6 +1417,7 @@ suite('resolveMcpServerAuthentication', () => {
 			target: mcpAuthenticationTarget,
 			mcpServerId: 'server-id',
 			mcpServerName: 'Example',
+			mcpRuntimeServerName: 'Example',
 			mcpServerUrl: 'https://mcp.example.com',
 			scopes: ['notifications'],
 			authenticate: async () => { },
@@ -1444,6 +1459,7 @@ suite('resolveMcpServerAuthentication', () => {
 			target: mcpAuthenticationTarget,
 			mcpServerId: 'slack',
 			mcpServerName: 'Slack',
+			mcpRuntimeServerName: 'Slack',
 			mcpServerUrl: 'https://mcp.slack.com',
 			scopes: [],
 			authenticate: async () => { },
@@ -1485,6 +1501,7 @@ suite('resolveMcpServerAuthentication', () => {
 			target: mcpAuthenticationTarget,
 			mcpServerId: 'github',
 			mcpServerName: 'GitHub',
+			mcpRuntimeServerName: 'GitHub',
 			mcpServerUrl: 'https://api.githubcopilot.com/mcp',
 			scopes: [],
 			authenticate: async () => { },
@@ -1531,6 +1548,7 @@ suite('resolveMcpServerAuthentication', () => {
 			target: mcpAuthenticationTarget,
 			mcpServerId: 'server-id',
 			mcpServerName: 'Example',
+			mcpRuntimeServerName: 'Example',
 			mcpServerUrl: 'https://mcp.example.com',
 			scopes: [],
 			authorizationServerMetadataFetcher: async authorizationServer => {
@@ -1602,6 +1620,7 @@ suite('resolveMcpServerAuthentication', () => {
 			target: mcpAuthenticationTarget,
 			mcpServerId: 'avalara',
 			mcpServerName: 'Avalara',
+			mcpRuntimeServerName: 'Avalara',
 			mcpServerUrl: 'https://mcp.avalara.com/elr',
 			scopes: [],
 			authenticate: async () => { },
@@ -1663,6 +1682,7 @@ suite('resolveMcpServerAuthentication', () => {
 			target: mcpAuthenticationTarget,
 			mcpServerId: 'notion',
 			mcpServerName: 'notion',
+			mcpRuntimeServerName: 'notion',
 			mcpServerUrl: 'https://mcp.notion.com/mcp',
 			scopes: [],
 			authorizationServerMetadataFetcher: async authorizationServer => ({
@@ -1754,6 +1774,7 @@ suite('resolveMcpServerAuthentication', () => {
 			target: { ...mcpAuthenticationTarget, customizationId: `opaque/${clientId}/server` },
 			mcpServerId: clientId,
 			mcpServerName: 'Example',
+			mcpRuntimeServerName: 'Example',
 			mcpServerUrl: 'https://mcp.example.com/resource',
 			oauthClient: { clientId: 'shared-client' },
 			scopes: [],
@@ -1866,6 +1887,7 @@ suite('resolveMcpServerAuthentication', () => {
 				target: { ...mcpAuthenticationTarget, customizationId: `opaque/${serverName}/server` },
 				mcpServerId: serverName,
 				mcpServerName: serverName,
+				mcpRuntimeServerName: serverName,
 				mcpServerUrl: protectedResource.resource,
 				oauthClient: { clientId, clientSecret: clientId === 'github-slack-client' ? 'configured-secret' : undefined },
 				scopes: [],
@@ -1955,6 +1977,7 @@ suite('resolveMcpServerAuthentication', () => {
 			target: mcpAuthenticationTarget,
 			mcpServerId: 'slack',
 			mcpServerName: 'Slack',
+			mcpRuntimeServerName: 'Slack',
 			mcpServerUrl: 'https://mcp.slack.com',
 			oauthClient: { clientId: 'slack-client-id' },
 			scopes: [],
@@ -2077,6 +2100,7 @@ suite('resolveMcpServerAuthentication', () => {
 				target: mcpAuthenticationTarget,
 				mcpServerId: 'slack',
 				mcpServerName: 'Slack',
+				mcpRuntimeServerName: 'Slack',
 				mcpServerUrl: 'https://mcp.slack.com',
 				oauthClient,
 				scopes: ['search:read.public'],

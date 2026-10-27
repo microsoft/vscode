@@ -817,12 +817,12 @@ suite('AbstractAgentHostCustomizationService', () => {
 	suite('Copilot Connector servers', () => {
 		const connectorUrl = 'https://api.github.com/copilot-connectors/api/v1/connectors/workiqmcp/mcp';
 		const connectorAuthRequired = (meta: Record<string, unknown> | undefined): McpServerCustomization => ({
-			...mcpServer('workiq', 'connector-workiq'),
+			...mcpServer('workiq', 'github-copilot-connector-workiq'),
 			...(meta ? { _meta: meta } : {}),
 			state: {
 				kind: McpServerStatus.AuthRequired,
 				reason: McpAuthRequiredReason.InsufficientScope,
-				resource: { resource: connectorUrl, resource_name: 'connector-workiq', authorization_servers: ['https://github.com/login/oauth'] },
+				resource: { resource: connectorUrl, resource_name: 'github-copilot-connector-workiq', authorization_servers: ['https://github.com/login/oauth'] },
 				requiredScopes: ['write:plugin_gateway_connections'],
 			},
 		});
@@ -862,7 +862,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 
 		for (const [identification, meta, refreshed] of [
 			['published Connector name', withMcpServerConnectorNameMeta(undefined, 'workiqmcp'), 'workiqmcp'],
-			['Connector-scope challenge', undefined, undefined],
+			['runtime Connector name and Connector-scope challenge', undefined, undefined],
 		] as const) {
 			test(`signs in through Connector authorization by ${identification} and forwards no MCP token`, async () => {
 				const readStatus = captureStatus();
@@ -880,7 +880,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 				assert.deepStrictEqual({ silent, result, status: readStatus(), operations, starts: target.startCalls, tokens: target.authenticateCalls.map(call => [call.resource, call.token]), notifications }, {
 					silent: [{ authenticating: false, connectorName: meta ? 'workiqmcp' : undefined }],
 					result: true,
-					status: 'Authenticated connector-workiq.',
+					status: 'Authenticated github-copilot-connector-workiq.',
 					operations: ['authorize', 'authenticate:https://api.github.com', `refresh:${refreshed}`],
 					starts: [],
 					tokens: [['https://api.github.com', 'connector-token']],
@@ -888,6 +888,34 @@ suite('AbstractAgentHostCustomizationService', () => {
 				});
 			});
 		}
+
+		test('signs in the built-in GitHub MCP server with an MCP token when its challenge echoes the Connector scope', async () => {
+			const readStatus = captureStatus();
+			const session = URI.parse('vscode-agent-session:///session-1');
+			const githubMcpServer: McpServerCustomization = {
+				...mcpServer('github', 'github-mcp-server'),
+				state: {
+					kind: McpServerStatus.AuthRequired,
+					reason: McpAuthRequiredReason.InsufficientScope,
+					resource: { resource: 'https://api.githubcopilot.com/mcp', authorization_servers: ['https://github.com/login/oauth'] },
+					requiredScopes: ['read:user', 'user:email', 'write:plugin_gateway_connections', 'repo'],
+				},
+			};
+			const target = new FakeTarget([githubMcpServer]);
+			const { sut, operations, notifications } = createConnectorSut(() => assert.fail('Must not refresh Connectors'));
+			target.onAuthenticate = () => queueMicrotask(() => sut.updateTarget(target, [{ ...githubMcpServer, state: { kind: McpServerStatus.Ready } }]));
+			sut.setTarget(session, target);
+
+			const result = await sut.authenticateMcpServer(session, 'github');
+			assert.deepStrictEqual({ result, status: readStatus(), operations, starts: target.startCalls, tokens: target.authenticateCalls.map(call => [call.resource, call.token]), notifications }, {
+				result: true,
+				status: 'Authenticated github-mcp-server.',
+				operations: [],
+				starts: ['github'],
+				tokens: [['https://api.githubcopilot.com/mcp', 'connector-token']],
+				notifications: [],
+			});
+		});
 
 		for (const release of ['timeout', 'disposal'] as const) {
 			test(`releases Sign In on ${release} while the Connector refresh is still pending`, async () => {
@@ -946,9 +974,9 @@ suite('AbstractAgentHostCustomizationService', () => {
 
 				assert.deepStrictEqual({ result: await sut.authenticateMcpServer(session, 'workiq'), status: readStatus(), operations, notifications }, {
 					result: false,
-					status: cancelled ? 'Authentication for connector-workiq was cancelled.' : 'Authenticating connector-workiq...',
+					status: cancelled ? 'Authentication for github-copilot-connector-workiq was cancelled.' : 'Authenticating github-copilot-connector-workiq...',
 					operations: ['authorize'],
-					notifications: cancelled ? [] : [`${Severity.Error}:Could not authorize Copilot connectors for connector-workiq: Sign-in failed`],
+					notifications: cancelled ? [] : [`${Severity.Error}:Could not authorize Copilot connectors for github-copilot-connector-workiq: Sign-in failed`],
 				});
 			});
 		}
