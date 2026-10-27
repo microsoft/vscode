@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -17,6 +17,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../../platfor
 import { IChatWidget } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatInputPart } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
@@ -148,8 +149,8 @@ suite('agentHostAgentPicker', () => {
 
 	test('preserves explicit selection when a draft session graduates', () => {
 		const state = new AgentPickerSelectionState();
-		const draft = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli://draft') });
-		const committed = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli://committed') });
+		const draft = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli://draft'), mode: constObservable(undefined) });
+		const committed = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli://committed'), mode: constObservable(undefined) });
 		state.mark(draft);
 		const transferred = state.transfer(draft, committed);
 
@@ -161,6 +162,33 @@ suite('agentHostAgentPicker', () => {
 			transferred: true,
 			draft: false,
 			committed: true,
+		});
+	});
+
+	test('keeps restored custom agents in the toolbar and reacts to mode changes', () => {
+		const state = new AgentPickerSelectionState();
+		const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', { id: beta.uri, kind: 'agent' });
+		const session = upcastPartial<ISession>({ resource: URI.parse('custom-host:/session'), mode });
+		const selections: boolean[] = [];
+		disposables.add(autorun(reader => selections.push(state.has(session, reader))));
+		mode.set({ id: ChatMode.Agent.id, kind: 'agent' }, undefined);
+		mode.set({ id: alpha.uri, kind: 'agent' }, undefined);
+		mode.set(undefined, undefined);
+
+		assert.deepStrictEqual(selections, [true, false, true, false]);
+	});
+
+	test('remembers explicit selection of a restored custom agent after returning to default', () => {
+		const state = new AgentPickerSelectionState();
+		const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', { id: beta.uri, kind: 'agent' });
+		const session = upcastPartial<ISession>({ resource: URI.parse('custom-host:/session'), mode });
+		const marked = state.mark(session);
+		mode.set(undefined, undefined);
+
+		assert.deepStrictEqual({ marked, selected: state.has(session), missing: state.has(undefined) }, {
+			marked: true,
+			selected: true,
+			missing: false,
 		});
 	});
 

@@ -7,7 +7,7 @@ import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/
 import * as dom from '../../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import * as nls from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -65,7 +65,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: () => openActiveAgentPicker?.(),
 });
 
-/** Tracks sessions whose Agent picker has returned to the toolbar after an explicit selection. */
 /** What the Add Context "Agent..." pick needs from the Agents window. */
 export interface IAgentContextPickDelegate {
 	getActiveSession(): IActiveSession | undefined;
@@ -104,12 +103,13 @@ export function createAgentContextPick(delegate: IAgentContextPickDelegate, conf
 export class AgentPickerSelectionState {
 	private readonly selectedSessions = new Set<string>();
 
-	has(session: ISession | undefined): boolean {
-		return !!session && this.selectedSessions.has(session.resource.toString());
+	has(session: ISession | undefined, reader?: IReader): boolean {
+		const modeId = session?.mode.read(reader)?.id;
+		return !!session && (!!modeId && modeId !== ChatMode.Agent.id || this.selectedSessions.has(session.resource.toString()));
 	}
 
 	mark(session: ISession | undefined): boolean {
-		if (!session || this.has(session)) {
+		if (!session || this.selectedSessions.has(session.resource.toString())) {
 			return false;
 		}
 		this.selectedSessions.add(session.resource.toString());
@@ -250,8 +250,8 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			}
 			return !explicitSelection.has(session);
 		};
-		const shouldHidePicker = (session: ISession | undefined): boolean => configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING)
-			&& !explicitSelection.has(session);
+		const shouldHidePicker = (session: ISession | undefined, reader: IReader): boolean => configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING)
+			&& !explicitSelection.has(session, reader);
 		const markExplicitlySelected = (session: ISession | undefined) => {
 			if (explicitSelection.mark(session)) {
 				explicitSelectionVersion.set(explicitSelectionVersion.get() + 1, undefined);
@@ -329,7 +329,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			const pickerInAttachContext = derived(reader => {
 				configurationChanged.read(reader);
 				explicitSelectionVersion.read(reader);
-				return hideWhenMoved && shouldHidePicker(session.read(reader));
+				return hideWhenMoved && shouldHidePicker(session.read(reader), reader);
 			});
 
 			disposableStore.add(picker.onDidSelect(mode => {
