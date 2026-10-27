@@ -234,7 +234,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 				}
 				// Set iteration also visits newly discovered dependencies, without revisiting cycles.
 				for (const id of remainingInputs) {
-					collectMcpInputIds(scannedMcpServers.inputs.find(input => input.id === id), remainingInputs);
+					collectMcpInputIds(scannedMcpServers.inputs.filter(input => input.id === id), remainingInputs);
 				}
 				scannedMcpServers.inputs = scannedMcpServers.inputs.filter(input => !removedInputs.has(input.id) || remainingInputs.has(input.id));
 			}

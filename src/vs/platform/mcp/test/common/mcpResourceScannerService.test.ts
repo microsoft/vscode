@@ -166,6 +166,30 @@ suite('McpResourceScannerService', () => {
 			});
 		}
 
+		for (const referencingDeclarationLast of [true, false]) {
+			test(`preserves duplicate input dependencies with referencing declaration last: ${referencingDeclarationLast}`, async () => {
+				const kept = { type: McpServerType.LOCAL, command: '${input:alias}' };
+				const literal = { ...input('alias'), default: 'literal' };
+				const referencing = { ...input('alias'), default: '${input:middle}' };
+				const inputs = [
+					input('shared'),
+					{ ...input('middle'), default: '${input:shared}' },
+					...(referencingDeclarationLast ? [literal, referencing] : [referencing, literal]),
+				];
+				await write(JSON.stringify({
+					servers: {
+						removed: { type: McpServerType.LOCAL, command: 'node', args: ['${input:shared}', '${input:middle}', '${input:exclusive}'] },
+						kept,
+					},
+					inputs: [...inputs, input('exclusive')],
+				}));
+
+				await scanner.removeMcpServers(['removed'], resource);
+
+				assert.deepStrictEqual(JSON.parse(await read()), { servers: { kept }, inputs });
+			});
+		}
+
 		test('preserves cyclic input dependencies without retaining an unreferenced cycle', async () => {
 			const inputs = [
 				{ ...input('alias'), default: '${input:shared}' },
