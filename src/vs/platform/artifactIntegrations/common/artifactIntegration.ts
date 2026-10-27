@@ -225,6 +225,17 @@ export class ArtifactAuthenticationRequiredError extends Error {
 	}
 }
 
+/**
+ * Thrown by a code action's execution when the external system definitively refused the action, so it cannot have
+ * taken effect. Unlike other errors after dispatch, the run fails with a known outcome instead of requiring reconciliation.
+ */
+export class ArtifactActionRejectedError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'ArtifactActionRejectedError';
+	}
+}
+
 export interface IArtifactResourceContext {
 	readonly authority: ArtifactAuthority;
 	readonly runtimeId: string;
