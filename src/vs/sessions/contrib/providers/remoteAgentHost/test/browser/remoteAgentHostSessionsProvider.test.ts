@@ -30,6 +30,7 @@ import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostCon
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -749,6 +750,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				resourceRequests++;
 				return { entries: [] };
 			};
+			connection.addSession(createSession('worktree-session', {
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/worktree-session'),
+			}));
 			const provider = createProvider(disposables, connection, {
 				ctor: sandbox ? CloudSandboxSessionsProvider : RemoteAgentHostSessionsProvider,
 			});
@@ -759,18 +764,69 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const session = provider.getSessions()[0];
 
 			const sizeBytes = await provider.getSessionWorktreeDiskUsage(session.sessionId);
+			const exists = await provider.sessionWorktreeExists(session.sessionId);
 
 			assert.deepStrictEqual({
 				hasWorktree: session.workspace.get()?.folders.some(folder => !!folder.gitRepository?.workTreeUri),
 				sizeBytes,
+				exists,
 				aggregateRequests: aggregateRequests.map(root => root.toString()),
 				resourceRequests,
 			}, {
 				hasWorktree: true,
 				sizeBytes: sandbox ? undefined : 0,
+				exists: sandbox ? undefined : true,
 				aggregateRequests: sandbox ? [] : [URI.file('/repo.worktrees/worktree-session').toString()],
-				resourceRequests: 0,
+				resourceRequests: sandbox ? 0 : 1,
 			});
+		});
+	}
+
+	for (const result of ['exists', 'absent', 'permission', 'unavailable', 'unsupported', 'disconnected'] as const) {
+		test(`checks worktree existence through its owning host without a measurement extension (${result})`, async () => {
+			const requests: { uri: string; followSymlinks: boolean | undefined }[] = [];
+			connection.resourceResolve = async params => {
+				requests.push({ uri: params.uri, followSymlinks: params.followSymlinks });
+				if (result !== 'exists') {
+					throw new ProtocolError(result === 'absent' ? AhpErrorCodes.NotFound : result === 'permission' ? AhpErrorCodes.PermissionDenied : result === 'unavailable' ? JsonRpcErrorCodes.InternalError : JsonRpcErrorCodes.MethodNotFound, result);
+				}
+				return { uri: params.uri, type: ResourceType.Directory };
+			};
+			const provider = createProvider(disposables, connection, { noConnection: result === 'disconnected' });
+			provider.seedSessions([createSession('existence', {
+				session: URI.parse('other-host:/opaque/session'),
+				project: { uri: toAgentHostUri(URI.file('/repo'), 'test-host'), displayName: 'repo' },
+				workingDirectory: toAgentHostUri(URI.file('/repo.worktrees/existence'), 'test-host'),
+			})]);
+			const check = provider.sessionWorktreeExists(provider.getSessions()[0].sessionId);
+			if (result === 'permission' || result === 'unavailable' || result === 'unsupported') {
+				await assert.rejects(check, { code: result === 'permission' ? AhpErrorCodes.PermissionDenied : result === 'unavailable' ? JsonRpcErrorCodes.InternalError : JsonRpcErrorCodes.MethodNotFound });
+			} else {
+				assert.strictEqual(await check, result === 'disconnected' ? undefined : result === 'exists');
+			}
+			assert.deepStrictEqual(requests, result === 'disconnected' ? [] : [{ uri: 'file:///repo.worktrees/existence', followSymlinks: false }]);
+		});
+	}
+
+	for (const lastExists of [false, true]) {
+		test(`requires all worktree roots to be absent without listing contents (last root exists: ${lastExists})`, async () => {
+			const requests: string[] = [];
+			connection.resourceResolve = async params => {
+				requests.push(params.uri);
+				if (!lastExists || !params.uri.endsWith('/second')) {
+					throw new ProtocolError(AhpErrorCodes.NotFound, 'Missing');
+				}
+				return { uri: params.uri, type: ResourceType.Directory };
+			};
+			const provider = createProvider(disposables, connection);
+			provider.seedSessions([{
+				...createSession('multiple', { session: URI.parse('other-host:/opaque/multiple'), project: { uri: URI.file('/repo'), displayName: 'repo' } }),
+				workingDirectories: [URI.file('/repo.worktrees/first'), URI.file('/repo.worktrees/second'), URI.file('/repo.worktrees/first')],
+			}]);
+			assert.deepStrictEqual({
+				exists: await provider.sessionWorktreeExists(provider.getSessions()[0].sessionId),
+				requests,
+			}, { exists: lastExists, requests: ['file:///repo.worktrees/first', 'file:///repo.worktrees/second'] });
 		});
 	}
 
