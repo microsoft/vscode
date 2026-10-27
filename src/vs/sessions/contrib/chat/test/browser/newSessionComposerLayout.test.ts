@@ -110,6 +110,7 @@ suite('New session composer layout', () => {
 
 	test('can be configured in Agents settings', () => {
 		assert.deepStrictEqual({
+			layoutDefault: experimentalNewSessionComposerLayoutProperty.default,
 			layoutScope: experimentalNewSessionComposerLayoutProperty.scope,
 			optionsDefault: newSessionComposerOptionsExpandedProperty.default,
 			optionsScope: newSessionComposerOptionsExpandedProperty.scope,
@@ -117,6 +118,7 @@ suite('New session composer layout', () => {
 			agentsPickerScope: agentsPickerInAttachContextMenuProperty.scope,
 			agentsPickerExperiment: agentsPickerInAttachContextMenuProperty.experiment,
 		}, {
+			layoutDefault: true,
 			layoutScope: ConfigurationScope.WINDOW,
 			optionsDefault: true,
 			optionsScope: ConfigurationScope.APPLICATION,
