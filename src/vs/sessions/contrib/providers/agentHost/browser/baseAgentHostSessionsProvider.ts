@@ -93,7 +93,7 @@ import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvid
 import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspaceWithScratchFolders, type IFolderGitHubInfoResolver, withoutScratchFolders } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, type SessionCanvasDefinitionSnapshot } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, SessionArtifactKind, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, type SessionCanvasDefinitionSnapshot } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { AgentHostArtifactIntegrations, mapArtifactModelChats } from './agentHostArtifactIntegrations.js';
 import { createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer } from './githubPullRequestArtifactWorkspaceConfiguration.js';
@@ -1423,21 +1423,35 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	/** GitHub info per folder, keyed by working-directory key and created on demand. */
 	private readonly _folderGitHubInfos = new Map<string, IObservable<IGitHubInfo | undefined>>();
 	/**
-	 * The listed chat that recorded each artifact, by artifact id. A tool chat
-	 * is not listed, so its artifacts belong to the chat that started it.
+	 * The chats that recorded each pull request, by link key. A tool chat is
+	 * not listed, so its pull requests belong to the chat that started it. An
+	 * owner that is not a listed chat is kept, so no listed chat claims its
+	 * pull request; a record without an owner belongs to the main chat.
 	 */
-	private readonly _artifactChats = derivedOpts<Map<string, URI>>({ owner: this, equalsFn: mapsStrictEqualIgnoreOrder }, reader => {
+	private readonly _pullRequestOwners = derivedOpts<ReadonlyMap<string, readonly string[]>>({
+		owner: this,
+		equalsFn: (a, b) => a.size === b.size && [...a].every(([key, owners]) => arrayEquals(owners, b.get(key) ?? [])),
+	}, reader => {
 		const chats = this._chatsObs.read(reader);
-		const findChat = (resource: URI | undefined) => resource && chats.find(chat => isEqual(chat.resource, resource));
-		const result = new Map<string, URI>();
+		const result = new Map<string, string[]>();
 		for (const artifact of this.artifacts.read(reader)) {
-			let chat = findChat(artifact.chat);
-			for (let depth = 0; chat?.origin?.kind === ChatOriginKind.Tool && depth < chats.length; depth++) {
-				chat = findChat(chat.origin.parentChat);
+			if (artifact.kind !== SessionArtifactKind.PullRequest || !artifact.link) {
+				continue;
 			}
-			if (chat) {
-				result.set(artifact.id, chat.resource);
+			let owner = artifact.chat ?? this.resource;
+			for (let depth = 0; depth < chats.length; depth++) {
+				const chat = chats.find(candidate => isEqual(candidate.resource, owner));
+				if (chat?.origin?.kind !== ChatOriginKind.Tool || !chat.origin.parentChat) {
+					break;
+				}
+				owner = chat.origin.parentChat;
 			}
+			const key = linkKey(artifact.link.toString());
+			const owners = result.get(key) ?? [];
+			if (!owners.includes(owner.toString())) {
+				owners.push(owner.toString());
+			}
+			result.set(key, owners);
 		}
 		return result;
 	});
@@ -2958,29 +2972,41 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	/**
-	 * Icon of the pull requests attributed to `chat`. The session folder's pull
-	 * requests belong to the chat that recorded them, else to the main chat,
-	 * whose first folder the session folder is; any other folder's belong to the
-	 * chats working in it. Prefers pull requests the session produced over ones
-	 * it only references or inherited from its checkout.
+	 * Icon of the pull requests attributed to `chat`, wherever in the session
+	 * they were found. A recorded pull request belongs to the chats that
+	 * recorded it. Otherwise, the session folder's belong to the main chat,
+	 * whose first folder the session folder is, and any other folder's belong
+	 * to the chats working in it. Prefers pull requests the session produced
+	 * over ones it only references or inherited from its checkout.
 	 */
 	private _getChatPullRequestIcon(reader: IReader, chat: URI, workspace: ISessionWorkspace | undefined): ThemeIcon | undefined {
-		const artifactChats = this._artifactChats.read(reader);
-		const isAttributed = (pullRequest: IGitHubPullRequestRef) =>
-			isEqual(chat, (pullRequest.recordedReferenceId ? artifactChats.get(pullRequest.recordedReferenceId) : undefined) ?? this.resource);
-		const sessionGitHubInfo = this.gitHubInfo.read(reader);
-		const owned = getSessionOwnedGitHubPullRequestRefs(sessionGitHubInfo).filter(isAttributed);
-		const all = getGitHubPullRequestRefs(sessionGitHubInfo).filter(isAttributed);
-		for (const folder of workspace?.folders ?? []) {
-			// Chat workspaces report the session folder through this.gitHubInfo, attributed above.
-			const gitHubInfo = folder.gitRepository?.gitHubInfo;
-			if (gitHubInfo && gitHubInfo !== this.gitHubInfo) {
-				const folderGitHubInfo = gitHubInfo.read(reader);
-				owned.push(...getSessionOwnedGitHubPullRequestRefs(folderGitHubInfo));
-				all.push(...getGitHubPullRequestRefs(folderGitHubInfo));
+		const owners = this._pullRequestOwners.read(reader);
+		const resolveFolderGitHubInfo = this._getFolderGitHubInfoResolver(reader);
+		const chatFolderGitHubInfos = new Set(workspace?.folders.map(folder => folder.gitRepository?.gitHubInfo));
+		// The chat's folders are among the session's unless detached, as an archived chat's can be.
+		const gitHubInfos = new Set<IObservable<IGitHubInfo | undefined> | undefined>([
+			this.gitHubInfo,
+			...this.workspace.read(reader)?.folders.map(folder => resolveFolderGitHubInfo(folder.workingDirectory)) ?? [],
+			...chatFolderGitHubInfos,
+		]);
+		const owned: IGitHubPullRequestRef[] = [];
+		const all: IGitHubPullRequestRef[] = [];
+		for (const gitHubInfo of gitHubInfos) {
+			if (!gitHubInfo) {
+				continue;
 			}
+			const isFolderOfChat = gitHubInfo === this.gitHubInfo ? isEqual(chat, this.resource) : chatFolderGitHubInfos.has(gitHubInfo);
+			const isAttributed = (pullRequest: IGitHubPullRequestRef) => {
+				const recordedBy = owners.get(linkKey(pullRequest.uri.toString()));
+				return recordedBy ? recordedBy.includes(chat.toString()) : isFolderOfChat;
+			};
+			const info = gitHubInfo.read(reader);
+			owned.push(...getSessionOwnedGitHubPullRequestRefs(info).filter(isAttributed));
+			all.push(...getGitHubPullRequestRefs(info).filter(isAttributed));
 		}
+		// Only a folder's primary pull request has a fallback icon while the others' live state loads.
 		return getHighestPriorityPullRequestIcon(owned.map(pullRequest => pullRequest.icon))
+			?? (owned.length > 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined)
 			?? getHighestPriorityPullRequestIcon(all.map(pullRequest => pullRequest.icon));
 	}
 
