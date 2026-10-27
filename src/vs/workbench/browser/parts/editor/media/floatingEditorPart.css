@@ -1,0 +1,70 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Floats over the content of the main window, above its sashes, below notifications, menus, hovers, modal editors,
+ * Quick Input and dialogs. Webviews in it stack just above it (see OverlayLayoutElement). */
+.monaco-workbench > .monaco-floating-editor-part {
+	position: absolute;
+	z-index: 40;
+	box-shadow: var(--vscode-shadow-xl);
+	border-radius: var(--vscode-cornerRadius-xLarge);
+}
+
+.monaco-workbench > .monaco-floating-editor-part > .floating-editor-part {
+	display: grid;
+	grid-template-rows: auto 1fr;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	background-color: var(--vscode-editor-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border-radius: var(--vscode-cornerRadius-xLarge);
+	overflow: hidden;
+
+	&:focus {
+		outline: none;
+	}
+
+	> .content {
+		overflow: hidden;
+		min-width: 0;
+		min-height: 0;
+	}
+}
+
+.monaco-workbench > .monaco-floating-editor-part .floating-editor-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size320);
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size120);
+	color: var(--vscode-titleBar-activeForeground);
+	background-color: var(--vscode-titleBar-activeBackground);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-titleBar-border, transparent);
+
+	.floating-editor-title {
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: var(--vscode-fontSize-label1);
+		font-weight: var(--vscode-fontWeight-semiBold);
+	}
+
+	.floating-editor-actions {
+		flex: 0 0 auto;
+		display: flex;
+		align-items: center;
+
+		.actions-container {
+			gap: var(--vscode-spacing-size40);
+		}
+
+		.codicon {
+			color: inherit;
+		}
+	}
+}

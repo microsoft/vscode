@@ -27,6 +27,8 @@ const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverl
 	{ className: 'suggest-details-container', type: BrowserOverlayType.Hover },
 	{ className: 'monaco-dialog-modal-block', type: BrowserOverlayType.Dialog },
 	{ className: 'monaco-modal-editor-block', type: BrowserOverlayType.Dialog },
+	// Floating editor parts float over the window without blocking it.
+	{ className: 'monaco-floating-editor-part', type: BrowserOverlayType.Unknown },
 	{ className: 'notifications-center', type: BrowserOverlayType.Notification },
 	{ className: 'notification-toast-container', type: BrowserOverlayType.Notification },
 	{ className: 'spotlight-overlay', type: BrowserOverlayType.Unknown },

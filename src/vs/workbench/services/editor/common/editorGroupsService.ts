@@ -562,6 +562,92 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	close(): boolean;
 }
 
+/**
+ * Options for an editor part that floats in the main window; see
+ * {@link IEditorGroupsService.createFloatingEditorPart}.
+ */
+export interface IFloatingEditorPartOptions {
+
+	/**
+	 * The title shown in the header of the part, which is also
+	 * its accessible name.
+	 */
+	readonly title: string;
+
+	/**
+	 * A menu whose actions show in the header of the part. They
+	 * are evaluated in the context of the part.
+	 */
+	readonly titleMenu?: MenuId;
+
+	/**
+	 * A menu whose actions show in the header of the part after those of
+	 * {@link titleMenu}. Unlike those, the user can show or hide each of them
+	 * from the context menu of its buttons, except `alwaysShownItems`; see
+	 * `IMenuItem.isHiddenByDefault` and `IWorkbenchToolBarOptions.alwaysShownItems`.
+	 */
+	readonly customizableTitleMenu?: {
+		readonly menu: MenuId;
+		readonly alwaysShownItems?: readonly string[];
+	};
+
+	/**
+	 * The size of the part. It is kept within the main window.
+	 */
+	readonly size?: IDimension;
+
+	/**
+	 * The size below which the part cannot be resized.
+	 */
+	readonly minimumSize?: IDimension;
+}
+
+/**
+ * An editor part that floats over the content of the main window in its
+ * bottom right corner, without blocking the rest of the window. Its header
+ * shows its title and actions, and the user can resize it from its top and
+ * left edges.
+ */
+export interface IFloatingEditorPart extends IEditorPart {
+
+	/**
+	 * The size of the part, as given or as resized by the user.
+	 */
+	readonly size: IDimension;
+
+	/**
+	 * Fired when the user resized the part.
+	 */
+	readonly onDidChangeSize: Event<IDimension>;
+
+	/**
+	 * Resizes the part to its default size, within the main window. This does
+	 * not fire {@link onDidChangeSize}, which is for sizes the user resized to.
+	 */
+	resetSize(): void;
+
+	/**
+	 * Changes the title shown in the header of the part, which is also
+	 * its accessible name.
+	 */
+	setTitle(title: string): void;
+
+	/**
+	 * Fired when this floating editor part is about to close.
+	 */
+	readonly onWillClose: Event<void>;
+
+	/**
+	 * Close this floating editor part after moving all
+	 * editors that need confirmation to close, such as dirty
+	 * ones, to the main editor part. Other editors close,
+	 * including ones that cannot be closed on their own.
+	 *
+	 * @returns `false` if an editor could not be moved.
+	 */
+	close(): boolean;
+}
+
 export interface IModalEditorPart extends IEditorPart {
 
 	/**
@@ -733,6 +819,15 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * The currently active modal editor part, if any.
 	 */
 	readonly activeModalEditorPart: IModalEditorPart | undefined;
+
+	/**
+	 * Creates an editor part that floats over the content of the
+	 * main window in its bottom right corner. Unlike a modal editor
+	 * part, it does not block the rest of the window, and several
+	 * can exist. Its editors open only in its groups when asked to.
+	 * It is not part of working sets: applying one leaves it open.
+	 */
+	createFloatingEditorPart(options: IFloatingEditorPartOptions): Promise<IFloatingEditorPart>;
 
 	/**
 	 * Returns the instantiation service that is scoped to the
