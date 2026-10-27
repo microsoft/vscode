@@ -248,6 +248,10 @@ function isRepositoriesOptionGroup(group: IChatSessionProviderOptionGroup): bool
 	return group.id === 'repositories';
 }
 
+function getSandboxSessionTitle(query: string, title?: string): string {
+	return (title || query.split('\n')[0]).trim().substring(0, 100) || localize('new session', "New Session");
+}
+
 /**
  * Remote new session for Cloud agent sessions.
  * Implements {@link ICopilotChatSession} (session facade) and provides
@@ -1929,6 +1933,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (this._sandboxSends.has(sessionId)) {
 			throw new Error(localize('sandbox.alreadyStarting', "A GitHub sandbox session is already being started. Wait for it to finish before sending another message."));
 		}
+		// The draft is already listed while sandbox preparation is pending.
+		session.setTitle(getSandboxSessionTitle(query));
 		if (this._preparedSandboxes.has(sessionId)) {
 			return { session: this._chatToSession(session) };
 		}
@@ -2054,7 +2060,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sandboxSends.add(session.sessionId);
 		const preparation = session.startPreparation();
 		const token = preparation.object;
-		session.setTitle((options.title || options.query.split('\n')[0]).trim().substring(0, 100) || localize('new session', "New Session"));
+		session.setTitle(getSandboxSessionTitle(options.query, options.title));
 		session.setStatus(SessionStatus.InProgress);
 		this._sessionCache.set(session.resource.toString(), session);
 		const placeholder = this._chatToSession(session);
