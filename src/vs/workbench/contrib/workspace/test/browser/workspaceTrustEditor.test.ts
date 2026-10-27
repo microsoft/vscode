@@ -196,8 +196,10 @@ suite('WorkspaceTrustedUrisTable', () => {
 		const content = mainWindow.document.createElement('div');
 		const scrollableElement = store.add(new DomScrollableElement(content, { vertical: ScrollbarVisibility.Auto }));
 		const viewport = scrollableElement.getDomNode();
-		viewport.style.height = '200px';
-		content.style.height = '200px';
+		// max-height rather than height: the browser test page renders in quirks mode, where the
+		// table's `height: 100%` would otherwise resolve against this constrained ancestor.
+		viewport.style.maxHeight = '200px';
+		content.style.maxHeight = '200px';
 		const spacer = content.appendChild(mainWindow.document.createElement('div'));
 		spacer.style.height = '300px';
 		content.appendChild(container);
