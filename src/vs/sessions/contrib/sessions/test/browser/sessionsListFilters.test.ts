@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -15,13 +15,14 @@ import { getSessionFilterOptions, sessionFilterKey, SessionsListFilters } from '
 
 suite('SessionsListFilters', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const listAll = () => true;
 
 	function createFilters(storage = store.add(new InMemoryStorageService())): SessionsListFilters {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
 	}
 
 	test('always offers the three harnesses, This Computer and Cloud, and their VS Code application choices', () => {
-		assert.deepStrictEqual(getSessionFilterOptions([], []), [
+		assert.deepStrictEqual(getSessionFilterOptions([], [], listAll), [
 			{ filter: { kind: 'harness', id: 'copilot' }, label: 'Copilot', group: '1_harnesses' },
 			{ filter: { kind: 'harness', id: 'claude' }, label: 'Claude', group: '1_harnesses' },
 			{ filter: { kind: 'harness', id: 'codex' }, label: 'Codex', group: '1_harnesses' },
@@ -42,7 +43,7 @@ suite('SessionsListFilters', () => {
 			{ id: 'connected-host', label: 'Connected Host' },
 			{ id: 'cached-host', label: 'Cached Host', isConnected: disconnected },
 			{ id: 'empty-host', label: 'Empty Host', isConnected: disconnected },
-		]);
+		], listAll);
 		assert.deepStrictEqual({
 			environments: options.filter(option => option.filter.kind === 'environment').map(option => option.label),
 			applications: options.filter(option => option.filter.kind === 'application').map(option => option.label),
@@ -91,7 +92,7 @@ suite('SessionsListFilters', () => {
 			before,
 			after: sessions.filter(session => filters.matches(session)).map(session => session.sessionId),
 			external: sessions.map(session => session.isExternal?.get()),
-			applications: getSessionFilterOptions(sessions, [])
+			applications: getSessionFilterOptions(sessions, [], listAll)
 				.filter(option => option.filter.kind === 'application' && option.filter.environment === 'cloud')
 				.map(option => option.label),
 		}, {
@@ -100,6 +101,22 @@ suite('SessionsListFilters', () => {
 			external: [false, false, false],
 			applications: ['Copilot App (Cloud)', 'Copilot CLI (Cloud)', 'VS Code (Cloud)'],
 		});
+	});
+
+	test('offers the creating applications of automation sessions only while the list includes them', () => {
+		const automation = (id: string, application: string): ISession => ({ ...buildTestSession({ id, title: id, environment: 'cloud', application }).session, isAutomation: constObservable(true) });
+		const sessions = [automation('shown', 'copilot-cli'), automation('hidden', 'copilot-app')];
+		const cloudApplications = (options: ReturnType<typeof getSessionFilterOptions>) => options
+			.filter(option => option.filter.kind === 'application' && option.filter.environment === 'cloud')
+			.map(option => option.label);
+		const shownIds = observableValue<ReadonlySet<string>>('shownIds', new Set());
+		const snapshots: string[][] = [];
+		store.add(autorun(reader => {
+			snapshots.push(cloudApplications(getSessionFilterOptions(sessions, [], (session, reader) => !session.isAutomation?.read(reader) || shownIds.read(reader).has(session.sessionId), reader)));
+		}));
+		shownIds.set(new Set(['shown']), undefined);
+
+		assert.deepStrictEqual(snapshots, [['VS Code (Cloud)'], ['Copilot CLI (Cloud)', 'VS Code (Cloud)']]);
 	});
 
 	test('omits unknown creating applications without hiding their sessions', () => {
@@ -116,7 +133,7 @@ suite('SessionsListFilters', () => {
 		filters.setExcluded({ kind: 'environment', id: 'cloud' }, false);
 		filters.setExcluded({ kind: 'harness', id: 'copilot' }, true);
 		assert.deepStrictEqual({
-			applications: getSessionFilterOptions(sessions, [])
+			applications: getSessionFilterOptions(sessions, [], listAll)
 				.filter(option => option.filter.kind === 'application' && option.filter.environment === 'cloud')
 				.map(option => option.label),
 			before,
@@ -183,7 +200,7 @@ suite('SessionsListFilters', () => {
 		const environments: ISessionEnvironment[] = [{ id: 'remote-id', label: 'Workstation', isConnected: connected }];
 		const snapshots: string[][] = [];
 		store.add(autorun(reader => {
-			snapshots.push(getSessionFilterOptions(catalog.read(reader), environments, reader).slice(3).map(option => `${option.group}: ${option.label}`));
+			snapshots.push(getSessionFilterOptions(catalog.read(reader), environments, listAll, reader).slice(3).map(option => `${option.group}: ${option.label}`));
 		}));
 		connected.set(false, undefined);
 		remote.application.set(getSessionApplication('github/cli'), undefined);
@@ -205,10 +222,10 @@ suite('SessionsListFilters', () => {
 		filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, false);
 		filters.setExcluded(environmentFilter, true);
 		filters.setExcluded(applicationFilter, true);
-		const absent = getSessionFilterOptions([], [{ id: 'remote-id', label: 'Old Name' }]);
+		const absent = getSessionFilterOptions([], [{ id: 'remote-id', label: 'Old Name' }], listAll);
 		const restored = createFilters(storage);
 		restored.setExcluded(environmentFilter, false);
-		const renamed = getSessionFilterOptions([session], [{ id: 'remote-id', label: 'New Name' }]);
+		const renamed = getSessionFilterOptions([session], [{ id: 'remote-id', label: 'New Name' }], listAll);
 		assert.deepStrictEqual({
 			absentApplications: absent.filter(option => option.filter.kind === 'application').map(option => option.label),
 			label: renamed.find(option => sessionFilterKey(option.filter) === sessionFilterKey(applicationFilter))?.label,
