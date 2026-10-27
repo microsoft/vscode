@@ -40,7 +40,7 @@ import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecyc
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { ActionType, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -4720,6 +4720,163 @@ suite('AgentHostProtocolClient', () => {
 	});
 
 	suite('soft reconnect (transport factory)', () => {
+
+		async function createExpiringRelayClient(connectionKind: AgentHostClientConnectionKind) {
+			const transport = disposables.add(new TestProtocolTransport(connectionKind));
+			const workspaceTrust = createWorkspaceTrustServices();
+			const client = disposables.add(new AgentHostProtocolClient(
+				'relay.example', transport,
+				{ resolveInitialAuthentication: async () => ({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.initial' }) },
+				new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+				workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+			));
+			const root = { snapshot: { resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [] } } };
+			const connecting = client.connect();
+			const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [root.snapshot] },
+			});
+			const authentication = await waitForRequestAtWithin(transport, 'authenticate', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: root });
+			await connecting;
+			return { client, transport, root };
+		}
+
+		for (const connectionKind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
+			test(`${connectionKind} restores open sessions, chats and filesystem watches after identity renewal`, async () => {
+				const { client, transport, root } = await createExpiringRelayClient(connectionKind);
+				const sessionUri = URI.parse('other-agent://tenant/conversations/opaque-session');
+				const chatUri = URI.parse('other-chat://tenant/opaque-thread');
+				const sessionState = createSessionState({
+					resource: sessionUri.toString(), provider: 'other-agent', title: 'Before expiry', status: SessionStatus.Idle,
+					createdAt: '2026-10-02T00:00:00.000Z', modifiedAt: '2026-10-02T00:00:00.000Z',
+				});
+				const chatState = createChatState({
+					resource: chatUri.toString(), title: 'Before expiry', status: SessionStatus.Idle, modifiedAt: '2026-10-02T00:00:00.000Z',
+				});
+				const snapshots = [
+					{ resource: sessionUri.toString(), state: sessionState },
+					{ resource: chatUri.toString(), state: chatState },
+				];
+				const session = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, sessionUri, 'test'));
+				const chat = disposables.add(client.getSubscription<ChatState>(StateComponents.Chat, chatUri, 'test'));
+				for (const [index, snapshot] of snapshots.entries()) {
+					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', index + 1);
+					transport.fireMessage({
+						jsonrpc: '2.0', id: subscribe.id,
+						result: { snapshot: { ...snapshot, fromSeq: 2 } },
+					});
+				}
+				const provider = disposables.add(new AgentHostFileSystemProvider());
+				disposables.add(provider.registerAuthority('relay', client));
+				disposables.add(provider.watch(toAgentHostUri(URI.file('/workspace'), 'relay'), { recursive: true, excludes: [] }));
+				const watch = await waitForRequestAtWithin(transport, 'createResourceWatch', 0);
+				transport.fireMessage({ jsonrpc: '2.0', id: watch.id, result: { channel: 'ahp-resource-watch:/initial' } });
+				const watchSubscription = await waitForRequestAtWithin(transport, 'subscribe', 3);
+				transport.fireMessage({ jsonrpc: '2.0', id: watchSubscription.id, result: {} });
+				await flushMicrotasks();
+
+				transport.fireMessage({
+					jsonrpc: '2.0', method: 'auth/required',
+					params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+				});
+				const renewed = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.fresh' });
+				const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+				transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+				const rootSubscription = await waitForRequestAtWithin(transport, 'subscribe', 4);
+				transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
+				for (const [index, snapshot] of snapshots.entries()) {
+					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', index + 5);
+					assert.deepStrictEqual(subscribe.params, { channel: snapshot.resource });
+					transport.fireMessage({
+						jsonrpc: '2.0', id: subscribe.id,
+						result: { snapshot: { ...snapshot, state: { ...snapshot.state, title: 'After expiry' }, fromSeq: 3 } },
+					});
+				}
+				await renewed;
+				const restoredWatch = await waitForRequestAtWithin(transport, 'createResourceWatch', 1);
+				transport.fireMessage({ jsonrpc: '2.0', id: restoredWatch.id, result: { channel: 'ahp-resource-watch:/restored' } });
+				const restoredWatchSubscription = await waitForRequestAtWithin(transport, 'subscribe', 7);
+				transport.fireMessage({ jsonrpc: '2.0', id: restoredWatchSubscription.id, result: {} });
+				await flushMicrotasks();
+				assert.deepStrictEqual({
+					sessionTitle: session.object.verifiedValue?.title,
+					chatTitle: chat.object.verifiedValue?.title,
+					state: client.connectionState,
+					watch: restoredWatch.params,
+					watchSubscription: restoredWatchSubscription.params,
+					initializations: transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'initialize').length,
+				}, {
+					sessionTitle: 'After expiry', chatTitle: 'After expiry', state: AgentHostClientState.Connected,
+					watch: watch.params,
+					watchSubscription: { channel: 'ahp-resource-watch:/restored' },
+					initializations: 1,
+				});
+			});
+		}
+
+		test('failed identity renewal and revocation do not announce recovery; a later successful renewal does', async () => {
+			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl);
+			let recovered = 0;
+			disposables.add(client.onDidReconnect(() => recovered++));
+			transport.fireMessage({
+				jsonrpc: '2.0', method: 'auth/required',
+				params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+			});
+			const denied = assert.rejects(client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.denied' }), /renewal refused/);
+			const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, error: { code: AhpErrorCodes.AuthRequired, message: 'renewal refused' } });
+			await denied;
+			for (const [index, token] of ['', 'copilot-sealed.v1.test.fresh'].entries()) {
+				const work = client.authenticate({ resource: 'https://api.github.com', token });
+				const authenticate = await waitForRequestAtWithin(transport, 'authenticate', index + 2);
+				transport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+				const subscribe = await waitForRequestAtWithin(transport, 'subscribe', index + 1);
+				transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: root });
+				await work;
+				assert.strictEqual(recovered, index);
+			}
+		});
+
+		test('provider expiry does not restore subscriptions or announce relay recovery', async () => {
+			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl);
+			let recovered = 0;
+			disposables.add(client.onDidReconnect(() => recovered++));
+			transport.fireMessage({
+				jsonrpc: '2.0', method: 'auth/required',
+				params: { channel: ROOT_STATE_URI, resource: { resource: 'https://provider.example' }, reason: AuthRequiredReason.Expired },
+			});
+			const renewed = client.authenticate({ resource: 'https://provider.example', token: 'copilot-sealed.v1.test.fresh' });
+			const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: root });
+			await renewed;
+			assert.strictEqual(recovered, 0);
+		});
+
+		test('revocation during identity renewal prevents subscription recovery', async () => {
+			const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl);
+			let recovered = 0;
+			disposables.add(client.onDidReconnect(() => recovered++));
+			transport.fireMessage({
+				jsonrpc: '2.0', method: 'auth/required',
+				params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+			});
+			const renewed = assert.rejects(client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.fresh' }), CancellationError);
+			const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+			const rootSubscription = await waitForRequestAtWithin(transport, 'subscribe', 1);
+			const revoked = client.authenticate({ resource: 'https://api.github.com', token: '' });
+			const revocation = await waitForRequestAtWithin(transport, 'authenticate', 2);
+			transport.fireMessage({ jsonrpc: '2.0', id: revocation.id, result: {} });
+			transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
+			await Promise.all([renewed, revoked]);
+			assert.strictEqual(recovered, 0);
+		});
 
 		test('WPS root refresh has a bounded hold and ignores a late response after timeout', async () => {
 			const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });

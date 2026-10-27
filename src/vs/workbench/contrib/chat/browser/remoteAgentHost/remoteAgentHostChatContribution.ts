@@ -625,7 +625,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				if (this._connections.get(address) !== connState) {
 					throw new CancellationError();
 				}
+				if (!request) {
+					return false;
+				}
 				await connection.authenticate(request);
+				return true;
 			} : undefined,
 			authenticate: this._authenticateCallback(address, connection, reason),
 		}))
