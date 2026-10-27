@@ -5,6 +5,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorOptions, IModalEditorNavigation, IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
@@ -532,6 +533,105 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	close(): boolean;
 }
 
+/**
+ * Options to create an {@link IEmbeddedEditorPart}.
+ */
+export interface ICreateEditorPartOptions {
+
+	/**
+	 * The element the editor part renders into. It becomes the root element
+	 * of the part and belongs to the window the element is attached to.
+	 * The caller is responsible for placing it and for calling `layout`.
+	 */
+	readonly container: unknown /* HTMLElement */;
+
+	/**
+	 * A label for the part, used as accessible name of its region.
+	 */
+	readonly label?: string;
+
+	/**
+	 * Options applied to every editor group created in the part.
+	 */
+	readonly groupViewOptions?: unknown /* IEditorGroupViewOptions */;
+
+	/**
+	 * Initial state of the part, as returned from {@link IEmbeddedEditorPart.createState}.
+	 */
+	readonly state?: unknown /* IEditorPartUIState */;
+
+	/**
+	 * Whether the part is the primary part of its window. When the focus is
+	 * not inside any editor part of a window, the primary part is used as
+	 * the active part of that window instead of the most recently used one.
+	 */
+	readonly primary?: boolean;
+
+	/**
+	 * Services the part, its groups and their editors use in place of the
+	 * workbench's, such as one that describes what the owner shows.
+	 */
+	readonly services?: ServiceCollection;
+
+	/**
+	 * Limits the editors the part takes. Returns the group of another part
+	 * that `editor` opens in instead, or `undefined` when the part takes it.
+	 * It applies to every way an editor gets into a group of the part:
+	 * opening it there (including as the active group or to its side),
+	 * moving or copying it there, and dropping it there. A group of the part
+	 * that is left without editors that way is removed again.
+	 */
+	readonly redirectEditor?: (editor: EditorInput) => IEditorGroup | undefined;
+}
+
+/**
+ * An editor part that is created and owned by a feature rather than by the
+ * workbench grid. The owner places the part, lays it out and closes it. It
+ * is never part of working sets or of the restored state of the window.
+ */
+export interface IEmbeddedEditorPart extends IEditorPart {
+
+	/**
+	 * The root element of the part.
+	 */
+	readonly element: unknown /* HTMLElement */;
+
+	readonly minimumWidth: number;
+	readonly maximumWidth: number;
+	readonly minimumHeight: number;
+	readonly maximumHeight: number;
+
+	/**
+	 * Fired when the size constraints of the part change.
+	 */
+	readonly onDidChange: Event<{ width: number; height: number } | undefined>;
+
+	/**
+	 * Lays out the part within its container.
+	 */
+	layout(width: number, height: number, top: number, left: number): void;
+
+	/**
+	 * Fired right before the part closes, either because {@link close} was
+	 * called or because its last group was removed.
+	 */
+	readonly onWillClose: Event<void>;
+
+	/**
+	 * Returns the state of the part, to be passed as `state` when creating
+	 * another part. The owner is responsible for persisting it.
+	 */
+	createState(): unknown /* IEditorPartUIState */;
+
+	/**
+	 * Closes this part after moving all dirty editors of all groups back
+	 * to the main editor part. The owner disposes the container.
+	 *
+	 * @returns `false` if an editor could not be moved back.
+	 */
+	close(): boolean;
+}
+
 export interface IModalEditorPart extends IEditorPart {
 
 	/**
@@ -679,6 +779,13 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * in there at the optional position and size on screen.
 	 */
 	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle>; compact?: boolean; alwaysOnTop?: boolean }): Promise<IAuxiliaryEditorPart>;
+
+	/**
+	 * Creates an editor part that renders into the provided container, which
+	 * the caller places in a window it owns. The part is not part of the
+	 * workbench grid, working sets or the restored state of windows.
+	 */
+	createEditorPart(options: ICreateEditorPartOptions): IEmbeddedEditorPart;
 
 	/**
 	 * Creates a modal editor part that shows in a modal overlay
