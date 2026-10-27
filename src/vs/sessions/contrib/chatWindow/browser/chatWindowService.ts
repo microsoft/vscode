@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
 import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -15,15 +16,17 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { hasCustomTitlebar } from '../../../../platform/window/common/window.js';
 import { IEditorGroupViewOptions } from '../../../../workbench/browser/parts/editor/editor.js';
 import { IAuxiliaryTitlebarPart } from '../../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { EditorCloseContext, EditorsOrder, GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
-import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../../../workbench/services/editor/browser/editorPartWindowBinding.js';
@@ -38,7 +41,8 @@ import { SessionsChatSurface } from '../../../services/chatBackground/browser/se
 import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SessionActivityBarHostOccupancy } from '../../../browser/parts/sessionActivityBar.js';
 import { SessionView } from '../../../browser/parts/sessionView.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
-import { IsQuickChatSessionContext, SessionWorkspaceIsVirtualContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, IsQuickChatSessionContext, SessionWorkspaceIsVirtualContext } from '../../../common/contextkeys.js';
+import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { computeSessionGridLayout, SessionGridCell, SessionLayoutMode, SessionTerminalPosition } from '../../../common/sessionGridLayout/sessionGridLayout.js';
@@ -47,13 +51,16 @@ import { ISessionsPartService, IWindowSessionViewHost } from '../../../services/
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { ChatModelHold, closeChatWindowsOfGoneChats, followReplacedWindowSessions, IChatWindowOpening, InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
 import { deserializeChatWindowEditors, serializeChatWindowEditors } from './chatWindowEditors.js';
 import { ChatWindowCellView, ChatWindowCellSizing, ChatWindowGridHost, IChatWindowCellConstraints } from './chatWindowGridHost.js';
+import { addEmptyEditorAreaAddTab } from './chatWindowEditorArea.js';
 import { ChatWindowInputOnlyController } from './chatWindowInputOnly.js';
 import { ChatWindowTerminals, releaseChatWindowTerminalsOnUnload } from './chatWindowTerminals.js';
 import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from './chatWindowState.js';
+import { setChatWindowOpenServices } from './chatWindowOpener.js';
 
 /** The size of a chat window, unless its kind has one. */
 const CHAT_WINDOW_DEFAULT_SIZE = { width: 1200, height: 800 };
@@ -83,6 +90,26 @@ export function getChatWindowDefaultSizing(cell: SessionGridCell, axis: 'row' | 
  */
 export function chatWindowPartOptions(showTabs?: string): DeepPartial<IEditorPartOptions> {
 	return { doubleClickTabToToggleEditorGroupSizes: 'off', ...(showTabs === 'none' ? { showTabs: 'single' } : undefined) };
+}
+
+/** The services of the editor parts of a chat window in place of the main window's: their session is the window's. */
+export function createChatWindowServices(sessionScope: ISessionScope): ServiceCollection {
+	return new ServiceCollection([ISessionScope, sessionScope]);
+}
+
+/**
+ * Creates the editor area of a chat window, the part its editors open in; what it shows acts on the window's session.
+ * Its element is in the window's `windowContainer` as the part is created, which takes the window it belongs to from it.
+ */
+export function createChatWindowEditorArea(editorGroupsService: IEditorGroupsService, windowContainer: HTMLElement, services: ServiceCollection): IEmbeddedEditorPart {
+	return editorGroupsService.createEditorPart({
+		container: append(windowContainer, $('.part.editor.chat-window-editor-area')),
+		label: localize('chatWindow.editorArea', "Editor Area"),
+		groupViewOptions: getEditorAreaGroupViewOptions(),
+		// When focus is in the chat, which is in no editor part, editors open here.
+		primary: true,
+		services,
+	});
 }
 
 /** The options of the groups of the editor area of a chat window: as the main window's editor area of the Agents window. */
@@ -193,6 +220,24 @@ interface IChatWindowContextValues {
 	readonly session: IObservable<IActiveSession | undefined>;
 	readonly editorGroup: IObservable<IEditorGroup | undefined>;
 	readonly editorAreaEditor: IObservable<string>;
+}
+
+/**
+ * Binds on the context of the editor area of a chat window whether it is visible, as the main window binds it for its own
+ * editor area, so that the editors in it show their title actions as in the main window's.
+ */
+export function bindEditorAreaVisible(contextKeyService: IContextKeyService, state: Pick<ChatWindowState, 'layout'>): IDisposable {
+	const visible = MainEditorAreaVisibleContext.bindTo(contextKeyService);
+	return autorun(reader => visible.set(state.layout.read(reader) !== SessionLayoutMode.ChatOnly));
+}
+
+/**
+ * Binds on the context of a chat window, which its title bar reads, the keys of the session it shows, as the main window
+ * binds those of its own session, and that it shows no custom view.
+ */
+export function bindChatWindowSessionContext(contextKeyService: IContextKeyService, session: IObservable<IActiveSession | undefined>): IDisposable {
+	CustomViewVisibleContext.bindTo(contextKeyService).set(false);
+	return autorun(reader => setActiveSessionContextKeys(session.read(reader), contextKeyService, reader));
 }
 
 /**
@@ -487,6 +532,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		@IChatService private readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHostService private readonly _hostService: IHostService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IFileService private readonly _fileService: IFileService,
+		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
 	) {
 		super();
 
@@ -555,6 +603,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const gridSession = this._sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
 		const chatResource = content.chat ?? gridSession?.activeChat.get().resource ?? session.mainChat.get().resource;
 		const sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
+		// What the window shows acts on its session, not on the one the main window shows.
+		const sessionScope: ISessionScope = { _serviceBrand: undefined, session: sessionObs };
 		const state = new ChatWindowState(kind, hasEditorArea, new ChatWindowDefaults(kind, this._storageService), {
 			initial: this._chatLayouts.get(chatResource),
 			// For the chat the window shows when the user chooses, which a replaced session changes.
@@ -580,14 +630,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const parts: IEmbeddedEditorPart[] = [];
 		let editorArea: IEmbeddedEditorPart | undefined;
 		if (hasEditorArea) {
-			const editorAreaElement = append(container, $('.part.editor.chat-window-editor-area'));
-			editorArea = this._editorGroupsService.createEditorPart({
-				container: editorAreaElement,
-				label: localize('chatWindow.editorArea', "Editor Area"),
-				groupViewOptions: getEditorAreaGroupViewOptions(),
-				// When focus is in the chat, which is in no editor part, editors open here.
-				primary: true,
-			});
+			editorArea = createChatWindowEditorArea(this._editorGroupsService, container, createChatWindowServices(sessionScope));
 			const part = editorArea;
 			parts.push(part);
 			disposables.add(toDisposable(() => {
@@ -615,19 +658,28 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 		// What the chat opens, such as files and its changes, opens in the editor area.
 		const editorAreaEditorService = editorArea ? this._editorGroupsService.getScopedInstantiationService(editorArea).invokeFunction(accessor => accessor.get(IEditorService)) : this._editorService;
-		const windowInstantiationService = disposables.add(this._instantiationService.createChild(new ServiceCollection(
+		const windowServices = new ServiceCollection(
 			[IContextKeyService, windowContextKeyService],
 			[IEditorService, editorAreaEditorService],
-		)));
+			[ISessionScope, sessionScope],
+		);
+		if (editorArea) {
+			setChatWindowOpenServices(windowServices, editorArea, editorAreaEditorService, () => window.showEditor(), this._openerService, this._fileService, this._sessionChangesService);
+		}
+		const windowInstantiationService = disposables.add(this._instantiationService.createChild(windowServices));
 
 		// The window's context, bound on the window and on its editor parts, which are scoped to the global context.
 		const editorGroup = editorArea ? observableFromEvent(this, editorArea.onDidActivateGroup, () => editorArea!.activeGroup) : observableValue<IEditorGroup | undefined>(this, undefined);
 		const editorAreaEditor = observableFromEvent(this, editorAreaEditorService.onDidActiveEditorChange, () => editorArea ? editorAreaEditorService.activeEditorPane?.getId() ?? '' : '');
 		const contextValues: IChatWindowContextValues = { kind, windowId, hasEditorArea, state, session: sessionObs, editorGroup, editorAreaEditor };
 		disposables.add(bindChatWindowContext(windowContextKeyService, contextValues));
+		disposables.add(bindChatWindowSessionContext(windowContextKeyService, sessionObs));
 		for (const part of parts) {
 			const partContextKeyService = this._editorGroupsService.getScopedInstantiationService(part).invokeFunction(accessor => accessor.get(IContextKeyService));
 			disposables.add(bindChatWindowContext(partContextKeyService, contextValues));
+			if (part === editorArea) {
+				disposables.add(bindEditorAreaVisible(partContextKeyService, state));
+			}
 		}
 
 
@@ -691,10 +743,13 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		disposables.add(this._storageService.onWillSaveState(saveSizes));
 		disposables.add(auxiliaryWindow.onBeforeUnload(saveSizes));
 
+		// The terminals show only with a terminal in them, never as an empty cell, such as before a terminal the host hands
+		// them opened, or before the host registered.
+		const terminalsRef = observableValue<ChatWindowTerminals | undefined>(this, undefined);
 		const gridLayout = derived(this, reader => computeSessionGridLayout({
 			mode: state.layout.read(reader),
 			terminalPosition: state.terminalPosition.read(reader),
-			terminalsVisible: state.terminalShown.read(reader),
+			terminalsVisible: state.terminalShown.read(reader) && !!terminalsRef.read(reader)?.hasTerminals.read(reader),
 			activityBar: activityBarEnabled.read(reader),
 			inputOnly: state.inputOnly.read(reader),
 		}));
@@ -751,9 +806,11 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			parts,
 			bindContext: contextKeyService => disposables.add(bindChatWindowContext(contextKeyService, contextValues)),
 			isClosing: () => window.closing || unloading || disposables.isDisposed,
+			services: createChatWindowServices(sessionScope),
 			container,
 		}, () => this._terminalHost));
 		window.attachTerminals(terminals);
+		terminalsRef.set(terminals, undefined);
 		if (editorArea) {
 			disposables.add(terminals.trackEditorArea(editorArea));
 		}
@@ -765,6 +822,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				onDidCloseLastEditor: () => window.setLayout(SessionLayoutMode.ChatOnly),
 				isClosing: () => window.closing || unloading || disposables.isDisposed,
 			}));
+			// Its empty groups offer the same Add Tab entries as the main window's.
+			disposables.add(addEmptyEditorAreaAddTab(part, this._instantiationService));
 			moveEditorsToChatWindow(content.editorArea?.moveEditorsFrom ?? [], part.activeGroup);
 			void this._openEditors(content.editorArea ?? {}, part.activeGroup).then(() => {
 				if (!disposables.isDisposed) {

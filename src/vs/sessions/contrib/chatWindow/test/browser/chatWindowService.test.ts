@@ -14,11 +14,16 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { EditorCloseContext, GroupModelChangeKind, IEditorCloseEvent } from '../../../../../workbench/common/editor.js';
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
-import { IEditorGroup, IEmbeddedEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ICreateEditorPartOptions, IEditorGroup, IEditorGroupsService, IEmbeddedEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/editor/editor.js';
+import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';
+import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
 import { SessionGridCell, SessionLayoutMode, SessionTerminalPosition } from '../../../../common/sessionGridLayout/sessionGridLayout.js';
 import { ChatWindowContext, ChatWindowEditorGroupContext, ChatWindowIdContext, ChatWindowTerminalPositionContext, IChatWindowKind, SessionLayoutModeContext } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { bindChatWindowContext, chatWindowPartOptions, createChatWindowSessionViewHost, showChatInsteadOfEmptyEditorArea, showChatBackgroundInChatWindow, trackEditorAreaEditors } from '../../browser/chatWindowService.js';
+import { bindChatWindowContext, bindEditorAreaVisible, chatWindowPartOptions, createChatWindowEditorArea, createChatWindowServices, createChatWindowSessionViewHost, showChatInsteadOfEmptyEditorArea, showChatBackgroundInChatWindow, trackEditorAreaEditors } from '../../browser/chatWindowService.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../browser/chatWindowState.js';
 import { ChatWindowCellView } from '../../browser/chatWindowGridHost.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -109,6 +114,47 @@ suite('Chat window', () => {
 			{ doubleClickTabToToggleEditorGroupSizes: 'off' },
 			{ doubleClickTabToToggleEditorGroupSizes: 'off', showTabs: 'single' },
 		]);
+	});
+	test('its editor area is created in its window, which it belongs to, and it and the editors and actions in it act on the window\'s session, not on the main window\'s', () => {
+		const session = observableValue<IActiveSession | undefined>('session', undefined);
+		const scope: ISessionScope = { _serviceBrand: undefined, session };
+		let services: ServiceCollection | undefined;
+		let inWindow = false;
+		const windowContainer = $('div');
+		const editorGroupsService = new class extends mock<IEditorGroupsService>() {
+			override createEditorPart(options: ICreateEditorPartOptions) {
+				services = options.services;
+				inWindow = (options.container as HTMLElement).parentElement === windowContainer;
+				return new class extends mock<IEmbeddedEditorPart>() { }();
+			}
+		}();
+		createChatWindowEditorArea(editorGroupsService, windowContainer, createChatWindowServices(scope));
+		assert.deepStrictEqual({ scope: (services?.get(ISessionScope) as ISessionScope | undefined)?.session === session, inWindow }, { scope: true, inWindow: true });
+	});
+
+	test('its editor area tells its editors whether it is visible as the main window tells its own: not while the window shows only its chat', () => {
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const state = new ChatWindowState({ id: 'test', title: 'Test', defaultLayout: SessionLayoutMode.SideBySide }, true, new ChatWindowDefaults({ id: 'test', title: 'Test', defaultLayout: SessionLayoutMode.SideBySide }, disposables.add(new InMemoryStorageService())));
+		disposables.add(bindEditorAreaVisible(contextKeyService, state));
+		const visible = Object.fromEntries([SessionLayoutMode.SideBySide, SessionLayoutMode.Stacked, SessionLayoutMode.EditorOnly, SessionLayoutMode.ChatOnly].map(mode => {
+			state.setLayout(mode);
+			return [mode, contextKeyService.getContextKeyValue(MainEditorAreaVisibleContext.key)];
+		}));
+		assert.deepStrictEqual(visible, { [SessionLayoutMode.SideBySide]: true, [SessionLayoutMode.Stacked]: true, [SessionLayoutMode.EditorOnly]: true, [SessionLayoutMode.ChatOnly]: false });
+	});
+
+	test('its editor area shows the same header, tab row and menus as the main window\'s editor area, so that editors show and contribute their actions alike', () => {
+		let options: IEditorGroupViewOptions | undefined;
+		const editorGroupsService = new class extends mock<IEditorGroupsService>() {
+			override createEditorPart(createOptions: ICreateEditorPartOptions) {
+				options = createOptions.groupViewOptions as IEditorGroupViewOptions | undefined;
+				return new class extends mock<IEmbeddedEditorPart>() { }();
+			}
+		}();
+		createChatWindowEditorArea(editorGroupsService, $('div'), new ServiceCollection());
+		const main = (Reflect.get(DesktopMainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions).call({ agentWorkbenchLayoutService: { isVisible: () => true } });
+		const read = (value: IEditorGroupViewOptions | undefined) => ({ menuIds: value?.menuIds, showHeader: value?.showHeader, useModernUITabs: value?.useModernUITabs });
+		assert.deepStrictEqual(read(options), read(main));
 	});
 
 	test('a chat window shows the chat background behind its chat only, in the chat\'s card, and every card but the Session Activity Bar\'s column looks as the main window\'s cards do', () => {

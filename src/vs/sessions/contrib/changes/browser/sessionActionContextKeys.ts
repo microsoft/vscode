@@ -23,7 +23,7 @@ import { bindSessionCIChecksContextKeys } from './checksActions.js';
 /** The session the session action context keys are derived from. */
 export interface ISessionActionContextKeysSource {
 	readonly session: IObservable<IActiveSession | undefined>;
-	readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetsLoadingObs' | 'loadingObs' | 'changesetObs' | 'stateObs'>;
+	readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetsLoadingObs' | 'loadingObs' | 'changesetObs' | 'changesetOperationsObs' | 'stateObs'>;
 	readonly pullRequest: Pick<IGitHubSessionPullRequestObservables, 'pullRequestCIObs'>;
 }
 
@@ -143,6 +143,7 @@ class ActiveSessionActionContextKeysContribution extends Disposable implements I
 				changesetsLoadingObs: changesViewService.activeSessionChangesetsLoadingObs,
 				loadingObs: changesViewService.activeSessionLoadingObs,
 				changesetObs: changesViewService.activeSessionChangesetObs,
+				changesetOperationsObs: changesViewService.activeSessionChangesetOperationsObs,
 				stateObs: changesViewService.activeSessionStateObs,
 			},
 			pullRequest: { pullRequestCIObs: gitHubService.activeSessionPullRequestCIObs },

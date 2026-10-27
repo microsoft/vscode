@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatWindowIdContext } from '../../services/chatWindow/browser/chatWindowService.js';
 import './media/sessionsEmptyState.css';
 import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from '../../../base/browser/dom.js';
 import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
@@ -109,6 +110,11 @@ export class EmptyEditorGroupAddTab extends Disposable {
 			actionRunner,
 			actionViewItemProvider: action => this.instantiationService.createInstance(SessionsWatermarkActionViewItem, action, lookupKeybinding),
 		}));
+		// In a chat window, the entries act on that window, not on the one that happens to be active.
+		const chatWindowId = ChatWindowIdContext.getValue(contextKeyService);
+		if (typeof chatWindowId === 'number' && chatWindowId >= 0) {
+			actionBar.context = { chatWindowId };
+		}
 		const layout = store.add(new SessionsEmptyStateLayout(watermarkContainer, [listContainer]));
 
 		// Submenu entries such as Canvas render their items, so changes inside them must refresh the list too.

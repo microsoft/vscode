@@ -18,7 +18,7 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { Context, ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -38,20 +38,25 @@ import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/comm
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
+import { bindChatWindowSessionContext } from '../../../chatWindow/browser/chatWindowService.js';
+import { setActiveSessionContextKeys } from '../../../../services/sessions/common/sessionContextKeys.js';
+import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
-import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
+import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
+import '../../../codeReview/browser/codeReview.contributions.js';
 
 // Awaited while this file loads so that the contribution's permanent registrations are in place before
 // any suite runs instead of being registered by this suite.
@@ -60,6 +65,9 @@ const { changesViewWhen } = await import('../../browser/changes.contribution.js'
 function getToggledExpression(toggled: ContextKeyExpression | ICommandActionToggleInfo | undefined): ContextKeyExpression | undefined {
 	return toggled && hasKey(toggled, { condition: true }) ? toggled.condition : toggled;
 }
+
+/** The Changes editor's own actions, which a chat window shows in the editor's header row rather than in its tab row. */
+const CHANGES_EDITOR_OWN_ACTIONS = ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.expandAllDiffs', 'workbench.action.agentSessions.toggleDiffEditorWordWrap', 'Diff View'];
 
 suite('Changes View Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -759,6 +767,50 @@ suite('Changes View Actions', () => {
 		});
 	});
 
+	test('the Changes editor shows the same title and header actions, in the same places and order, in the editor area of a chat window as in the main window, and none while its editor area is hidden', () => {
+		const context = (values: Record<string, unknown>) => {
+			const result = new Context(1, null);
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveEditorContext.key]: SessionChangesEditor.ID,
+				[DesktopLayoutContext.key]: true,
+				[IsTopRightEditorGroupContext.key]: true,
+				[SessionIsCreatedContext.key]: true,
+				[SessionHasChangesContext.key]: true,
+				...values,
+			})) {
+				result.setValue(key, value);
+			}
+			return result;
+		};
+		// The menus of the editor parts of both windows: the tab row's actions and "…", and the header row.
+		const menus = { tabRow: Menus.SessionsEditorTitle, headerPrimary: Menus.SessionsEditorHeaderPrimary, headerLayout: Menus.SessionsEditorHeaderLayout };
+		const shown = (values: Record<string, unknown>) => Object.fromEntries([false, true].map(allCollapsed => [allCollapsed ? 'allCollapsed' : 'expanded', Object.fromEntries(Object.entries(menus).map(([name, menu]) => [name, MenuRegistry.getMenuItems(menu)
+			.filter(item => item.when?.evaluate(context({ ...values, multiDiffEditorAllCollapsed: allCollapsed })) ?? true)
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
+			.map(item => `${item.group ?? ''}:${isIMenuItem(item) ? item.command.id : typeof item.title === 'string' ? item.title : item.title.value}`)]))]));
+		const main = shown({ [IsAuxiliaryWindowContext.key]: false, [MainEditorAreaVisibleContext.key]: true });
+		// A chat window's editor area is in an auxiliary window, and binds whether it is visible in its own context, as the main window does.
+		const chatWindow = shown({ [IsAuxiliaryWindowContext.key]: true, [MainEditorAreaVisibleContext.key]: true });
+		const hidden = shown({ [IsAuxiliaryWindowContext.key]: true, [MainEditorAreaVisibleContext.key]: false });
+
+		const ownActions = (state: typeof main) => Object.fromEntries(Object.entries(state).map(([key, lists]) => [key, (lists as Record<string, string[]>).tabRow.filter(entry => CHANGES_EDITOR_OWN_ACTIONS.includes(entry.slice(entry.indexOf(':') + 1)))]));
+		assert.deepStrictEqual({
+			chatWindow,
+			mainShowsRunCodeReview: main.expanded.tabRow.some(entry => entry.endsWith(':sessions.codeReview.run')),
+			ownActionsInTheTabRow: ownActions(chatWindow),
+			hiddenShowsNoOwnActions: Object.values(ownActions(hidden)).every(list => list.length === 0),
+		}, {
+			chatWindow: main,
+			mainShowsRunCodeReview: true,
+			ownActionsInTheTabRow: {
+				expanded: ['1_diff:workbench.action.agentSessions.collapseAllDiffs', '1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', '1_diff:Diff View'],
+				allCollapsed: ['1_diff:workbench.action.agentSessions.expandAllDiffs', '1_diff:workbench.action.agentSessions.toggleDiffEditorWordWrap', '1_diff:Diff View'],
+			},
+			hiddenShowsNoOwnActions: true,
+		});
+	});
+
 	test('Word Wrap uses independent actions for code and multi-diff editors, both in the editor title overflow menu on desktop', () => {
 		const actionIds = [
 			'workbench.action.agentSessions.toggleDiffEditorWordWrap',
@@ -1049,7 +1101,8 @@ suite('Changes View Actions', () => {
 			visibleForUnrelatedEditor: false,
 			visibleOutsideSessions: false,
 			visibleInMobileLayout: false,
-			visibleInAuxiliaryWindow: false,
+			// As in the editor area of a chat window; the Agents window's editor windows do not show the menu.
+			visibleInAuxiliaryWindow: true,
 			visibleInOtherGroup: false,
 			visibleWithoutChangesPane: false,
 			headerLayoutItems: [],
@@ -1130,6 +1183,58 @@ suite('Changes View Actions', () => {
 		});
 	});
 
+	test('Create Pull Request anchor shows in the title bar of each window for the session it shows, by the keys of that window: in a chat window for its session, and not in an editor window, which shows none', () => {
+		const item = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu).filter(isIMenuItem).find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID)!;
+		// The main window's context: its session is not created yet, and it shows a custom view.
+		const mainContextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		IsSessionsWindowContext.bindTo(mainContextKeyService).set(true);
+		DesktopLayoutContext.bindTo(mainContextKeyService).set(true);
+		SessionIsCreatedContext.bindTo(mainContextKeyService).set(false);
+		const customView = CustomViewVisibleContext.bindTo(mainContextKeyService);
+		customView.set(true);
+		// A chat window's context, an auxiliary window's, which binds the keys of the created session it shows.
+		const chatWindowContextKeyService = disposables.add(mainContextKeyService.createScoped(document.createElement('div')));
+		IsAuxiliaryWindowContext.bindTo(chatWindowContextKeyService).set(true);
+		disposables.add(bindChatWindowSessionContext(chatWindowContextKeyService, constObservable(createTestActiveSession('chat'))));
+		// An editor window's title bar, an auxiliary window's, which binds no session.
+		const editorWindowContextKeyService = disposables.add(mainContextKeyService.createScoped(document.createElement('div')));
+		IsAuxiliaryWindowContext.bindTo(editorWindowContextKeyService).set(true);
+		setActiveSessionContextKeys(undefined, editorWindowContextKeyService, undefined);
+		const visible = () => [mainContextKeyService, chatWindowContextKeyService, editorWindowContextKeyService].map(contextKeyService => contextKeyService.contextMatchesRules(item.when));
+		const whileMainShowsCustomView = visible();
+		customView.set(false);
+		SessionIsCreatedContext.bindTo(mainContextKeyService).set(true);
+
+		assert.deepStrictEqual({ whileMainShowsCustomView, mainCreated: visible() }, {
+			whileMainShowsCustomView: [false, true, false],
+			mainCreated: [true, true, false],
+		});
+	});
+
+	test('collapse and expand all diffs act on the Changes editor whose title they are invoked from, such as in a chat window, else on the active one', async () => {
+		const calls: string[] = [];
+		// A Changes editor, as the actions check, that records what they do to it.
+		const pane = (name: string) => upcastPartial<IVisibleEditorPane>(Object.assign(Object.create(SessionChangesEditor.prototype) as SessionChangesEditor, {
+			collapseAllDiffs: () => { calls.push(`collapse:${name}`); },
+			expandAllDiffs: () => { calls.push(`expand:${name}`); },
+		}));
+		const invoking = pane('invoking');
+		const active = pane('active');
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override getGroup(id: number) { return id === 7 ? upcastPartial<IEditorGroup>({ activeEditorPane: invoking }) : undefined; }
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override get activeEditorPane() { return active; }
+		});
+		for (const id of ['workbench.action.agentSessions.collapseAllDiffs', 'workbench.action.agentSessions.expandAllDiffs']) {
+			instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, URI.parse('changes:/session'), { groupId: 7 }));
+			instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+		}
+
+		assert.deepStrictEqual(calls, ['collapse:invoking', 'collapse:active', 'expand:invoking', 'expand:active']);
+	});
+
 	test('Create Pull Request anchor stays mounted while session changes resolve but is hidden for custom views', () => {
 		const item = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu)
 			.filter(isIMenuItem)
@@ -1163,7 +1268,8 @@ suite('Changes View Actions', () => {
 			group: 'navigation',
 			order: 5,
 			hasSessionsWindowGate: true,
-			hasAuxiliaryWindowGate: true,
+			// Each window binds the keys of the session it shows, an editor window's title bar none.
+			hasAuxiliaryWindowGate: false,
 			hasDesktopLayoutGate: true,
 			hasCreatedSessionGate: true,
 			visibleWhileChangesResolve: true,

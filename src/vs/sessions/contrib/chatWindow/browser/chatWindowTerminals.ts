@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from '../../../../base/browser/dom.js';
+import { $, append, isAncestor } from '../../../../base/browser/dom.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
@@ -11,6 +11,7 @@ import { IObservable, observableValue } from '../../../../base/common/observable
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EditorCloseContext, GroupModelChangeKind } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService, IEmbeddedEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -33,8 +34,30 @@ export interface IChatWindowTerminalsOwner {
 	bindContext(contextKeyService: IContextKeyService): void;
 	/** Whether the window closes, so that terminals closing with it do not hide the terminals. */
 	isClosing(): boolean;
+	/** The services of the window's parts in place of the main window's, such as the session they act on. */
+	readonly services?: ServiceCollection;
 	/** An element of the window, which the part of the terminals is created in, so that it belongs to the window. */
 	readonly container: HTMLElement;
+}
+
+/** Whether `editor` is a terminal: the terminals of a chat window take only terminals, and its editor area every other editor. */
+export function isChatWindowTerminalEditor(editor: EditorInput): boolean {
+	return editor.typeId === TERMINAL_EDITOR_TYPE_ID;
+}
+
+/**
+ * Creates the part of the terminals of a chat window in `container`, an element of the window so that it belongs to the
+ * window. Its groups have no Add Tab button: the terminals' own New Terminal adds to them, in both tab modes. It takes only
+ * terminals: any other editor that would get into it, however it is opened, moved or dropped there, opens in the group
+ * `editorArea` returns instead, which also reveals the editor area.
+ */
+export function createChatWindowTerminalsPart(editorGroupsService: IEditorGroupsService, container: HTMLElement, services: ServiceCollection | undefined, editorArea: () => IEditorGroup | undefined): IEmbeddedEditorPart {
+	return editorGroupsService.createEditorPart({
+		container,
+		label: localize('chatWindow.terminals', "Terminals"),
+		services,
+		redirectEditor: editor => isChatWindowTerminalEditor(editor) ? undefined : editorArea(),
+	});
 }
 
 /**
@@ -49,7 +72,12 @@ export class ChatWindowTerminals extends Disposable {
 	/** The active group of the terminals while they show. */
 	readonly group: IObservable<IEditorGroup | undefined> = this._group;
 
+	private readonly _hasTerminals = observableValue<boolean>(this, false);
+	/** Whether the terminals have a terminal to show: they show only then, never as an empty cell. */
+	readonly hasTerminals: IObservable<boolean> = this._hasTerminals;
+
 	private _part: IEmbeddedEditorPart | undefined;
+	private _partElement: HTMLElement | undefined;
 	private readonly _partDisposables = this._register(new DisposableStore());
 	private readonly _groupListeners = this._register(new DisposableStore());
 	private readonly _partOptions = this._register(new MutableDisposable());
@@ -78,8 +106,11 @@ export class ChatWindowTerminals extends Disposable {
 		if (this._part) {
 			return this._part;
 		}
-		const element = append(this._owner.container, $('.part.editor.chat-window-terminals'));
-		const part = this._editorGroupsService.createEditorPart({ container: element, label: localize('chatWindow.terminals', "Terminals") });
+		const element = this._partElement = append(this._owner.container, $('.part.editor.chat-window-terminals'));
+		const part = createChatWindowTerminalsPart(this._editorGroupsService, element, this._owner.services, () => {
+			this._owner.window.showEditor();
+			return this._owner.window.editorGroup;
+		});
 		this._part = part;
 		this._owner.parts.push(part);
 		this._partDisposables.add(toDisposable(() => {
@@ -96,9 +127,12 @@ export class ChatWindowTerminals extends Disposable {
 		ChatWindowTerminalRowContext.bindTo(contextKeyService).set(true);
 		this._owner.bindContext(contextKeyService);
 		this._enforcePartOptions();
+		const updateHasTerminals = () => this._hasTerminals.set(part.groups.some(group => !group.isEmpty), undefined);
 		const track = () => {
 			this._groupListeners.clear();
+			updateHasTerminals();
 			for (const group of part.groups) {
+				this._groupListeners.add(group.onDidModelChange(updateHasTerminals));
 				this._groupListeners.add(group.onDidCloseEditor(e => {
 					// The last terminal closed, rather than moved, hides the terminals.
 					if (e.context !== EditorCloseContext.MOVE && !this._hiding && !this._owner.isClosing() && part.groups.every(candidate => candidate.isEmpty)) {
@@ -129,6 +163,8 @@ export class ChatWindowTerminals extends Disposable {
 	async setShown(shown: boolean, focus: boolean): Promise<void> {
 		const host = this._getHost();
 		if (!shown) {
+			// Focus in the terminals stays in the window, in its chat, rather than going to no element as they hide.
+			const hadFocus = !!this._partElement && isAncestor(this._partElement.ownerDocument.activeElement, this._partElement);
 			this._hiding = true;
 			try {
 				host?.hide(this._owner.window);
@@ -136,6 +172,9 @@ export class ChatWindowTerminals extends Disposable {
 				this._group.set(undefined, undefined);
 			} finally {
 				this._hiding = false;
+			}
+			if (hadFocus) {
+				this._owner.window.focus();
 			}
 			return;
 		}
@@ -169,10 +208,16 @@ export class ChatWindowTerminals extends Disposable {
 			return false;
 		}
 		const part = this._ensurePart();
+		const wasShown = this._owner.state.terminalShown.get();
 		this._owner.state.setTerminalShown(true);
 		const group = this._group.get() ?? part.activeGroup;
 		this._group.set(group, undefined);
-		return host.showTerminal(this._owner.window, group, instanceId, false);
+		const shown = await host.showTerminal(this._owner.window, group, instanceId, false);
+		if (!shown && !wasShown && part.groups.every(candidate => candidate.isEmpty)) {
+			// Nothing to show after all: the terminals stay as they were.
+			await this.setShown(false, false);
+		}
+		return shown;
 	}
 
 	/** Fills the terminals that show without a terminal, such as those restored before the host registered. */
@@ -196,7 +241,7 @@ export class ChatWindowTerminals extends Disposable {
 
 	/** Moves a terminal opened in the editor area, such as by dragging it there, to the terminals. */
 	moveFromEditorArea(group: IEditorGroup, editor: EditorInput): void {
-		if (editor.typeId !== TERMINAL_EDITOR_TYPE_ID) {
+		if (!isChatWindowTerminalEditor(editor)) {
 			return;
 		}
 		// After the move that opened it completes: moving it meanwhile would leave it in no group.
