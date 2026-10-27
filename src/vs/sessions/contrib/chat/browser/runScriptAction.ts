@@ -11,7 +11,8 @@ import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { autorun, derivedOpts, IObservable, IReader } from '../../../../base/common/observable.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -29,14 +30,16 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';
-import { SessionTitleBarActionsShownContext } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { getChatWindowSession, IChatWindowHandle, IChatWindowService, isChatWindowHandle, SessionTitleBarActionsShownContext } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
 
@@ -142,10 +145,19 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 	) {
 		super();
 
-		this._activeRunState = derivedOpts<IRunScriptActionContext | undefined>({
+		this._activeRunState = this._runStateFor(this._sessionsService.activeSession).recomputeInitiallyAndOnChange(this._store);
+
+		this._registerActionViewItemProvider();
+		this._registerActions();
+	}
+
+	/** What Run shows and runs for the session `session` holds. */
+	private _runStateFor(session: IObservable<IActiveSession | undefined>) {
+		return derivedOpts<IRunScriptActionContext | undefined>({
 			owner: this,
 			equalsFn: (a, b) => {
 				if (a === b) { return true; }
@@ -161,23 +173,21 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						&& t1.target === t2.target
 						&& t1.task.runOptions?.runOn === t2.task.runOptions?.runOn);
 			}
-		}, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
-			if (!activeSession) {
-				return undefined;
-			}
+		}, reader => this._runStateOf(session.read(reader), reader));
+	}
 
-			const activeChat = activeSession.activeChat.read(reader);
-			const tasks = this._sessionsConfigService.getSessionTasks(activeChat).read(reader);
-			const folder = activeChat.workspace.read(reader)?.folders[0];
-			const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(folder?.root).read(reader);
-			const browserUrl = this._sessionsConfigService.getBrowserUrl(folder?.root).read(reader);
-			const pinnedBrowser = this._sessionsConfigService.getPinnedBrowser(folder?.root).read(reader);
-			return { session: activeSession, chat: activeChat, tasks, pinnedTaskLabel, browserUrl, pinnedBrowser };
-		}).recomputeInitiallyAndOnChange(this._store);
+	private _runStateOf(session: IActiveSession | undefined, reader: IReader | undefined): IRunScriptActionContext | undefined {
+		if (!session) {
+			return undefined;
+		}
 
-		this._registerActionViewItemProvider();
-		this._registerActions();
+		const activeChat = session.activeChat.read(reader);
+		const tasks = this._sessionsConfigService.getSessionTasks(activeChat).read(reader);
+		const folder = activeChat.workspace.read(reader)?.folders[0];
+		const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(folder?.root).read(reader);
+		const browserUrl = this._sessionsConfigService.getBrowserUrl(folder?.root).read(reader);
+		const pinnedBrowser = this._sessionsConfigService.getPinnedBrowser(folder?.root).read(reader);
+		return { session, chat: activeChat, tasks, pinnedTaskLabel, browserUrl, pinnedBrowser };
 	}
 
 	private _registerActionViewItemProvider(): void {
@@ -185,15 +195,19 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		this._register(this._actionViewItemService.register(
 			Menus.TitleBarCenterRight,
 			RunScriptDropdownMenuId,
-			(action, options, instantiationService) => {
+			(action, options, instantiationService, windowId) => {
 				if (!(action instanceof SubmenuItemAction)) {
 					return undefined;
 				}
+				// In the title bar of a chat window, Run shows and runs the tasks of the session of that window, whichever is
+				// active; in the main window, those of the active session.
+				const windowSession = windowId !== mainWindow.vscodeWindowId ? getChatWindowSession(that._chatWindowService, windowId) : undefined;
 				return instantiationService.createInstance(
 					RunScriptActionViewItem,
 					action,
 					options,
-					that._activeRunState,
+					windowSession ? that._runStateFor(windowSession) : that._activeRunState,
+					windowSession ? { chatWindowId: windowId } : undefined,
 					(session: ISession, chat: IChat) => that._showConfigureQuickPick(session, chat),
 					(session: ISession, chat: IChat, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, chat, existingTask, mode),
 					(session: ISession, chat: IChat) => that._generateNewTask(session, chat),
@@ -217,8 +231,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			async run(): Promise<void> {
-				const activeState = that._activeRunState.get();
+			async run(accessor: ServicesAccessor, context?: unknown): Promise<void> {
+				// From the title bar of a chat window, the session of that window; never the active one instead.
+				const activeState = isChatWindowHandle(context) ? that._runStateOf(resolveSessionActionTarget(accessor, context), undefined) : that._activeRunState.get();
 				if (!activeState) {
 					return;
 				}
@@ -530,7 +545,8 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		_options: IActionViewItemOptions,
-		private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>,
+		private readonly _runState: IObservable<IRunScriptActionContext | undefined>,
+		private readonly _chatWindowHandle: IChatWindowHandle | undefined,
 		private readonly _showConfigureQuickPick: (session: ISession, chat: IChat) => Promise<ITaskEntry | undefined>,
 		private readonly _showCustomCommandInput: (session: ISession, chat: IChat, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
 		private readonly _generateNewTask: (session: ISession, chat: IChat) => Promise<void>,
@@ -544,7 +560,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 	) {
 		super(undefined, action);
 
-		const state = this._activeRunState.get();
+		const state = this._runState.get();
 		const isPrimaryEnabled = !!state && (state.tasks.length > 0 || state.pinnedBrowser);
 
 		// Primary action button - runs the pinned task (or first task when none is pinned)
@@ -553,13 +569,13 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			this._getPrimaryActionTooltip(state),
 			ThemeIcon.asClassName(Codicon.play),
 			isPrimaryEnabled,
-			() => this._commandService.executeCommand(RUN_SCRIPT_ACTION_PRIMARY_ID)
+			() => this._commandService.executeCommand(RUN_SCRIPT_ACTION_PRIMARY_ID, this._chatWindowHandle)
 		));
 		this._primaryAction = this._register(new ActionViewItem(undefined, this._primaryActionAction, { icon: true, label: false }));
 
 		// Update enabled state when tasks change
 		this._register(autorun(reader => {
-			const runState = this._activeRunState.read(reader);
+			const runState = this._runState.read(reader);
 			this._primaryActionAction.enabled = !!runState && (runState.tasks.length > 0 || runState.pinnedBrowser);
 			this._primaryActionAction.label = this._getPrimaryActionTooltip(runState);
 		}));
@@ -652,7 +668,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 	}
 
 	private _getDropdownActions(): IActionWidgetDropdownAction[] {
-		const state = this._activeRunState.get();
+		const state = this._runState.get();
 		if (!state) {
 			return [];
 		}

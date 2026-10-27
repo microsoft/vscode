@@ -27,6 +27,8 @@ import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/w
 import { ITaskEntry, ISessionsTasksService, ISessionTaskWithTarget } from '../../../chat/browser/sessionsTasksService.js';
 import { osToTaskTargetOS } from '../../../chat/browser/taskCommand.js';
 import { AgentHostSessionTaskRunner } from '../../browser/agentHostSessionTaskRunner.js';
+import { IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 
 function makeSession(opts: { providerId: string; cwd?: URI; remoteConnectionStatus?: SessionRemoteConnectionStatus }): ISession {
 	const folder: ISessionFolder | undefined = opts.cwd ? {
@@ -92,12 +94,16 @@ suite('AgentHostSessionTaskRunner', () => {
 	let firstShowPanelCall: DeferredPromise<void> | undefined;
 	let secondShowPanelCall: DeferredPromise<void> | undefined;
 	let showPanelCallCount: number;
+	let panelCalls: string[];
+	let chatWindows: IChatWindow[];
+	let nextInstanceId: number;
 
 	function createFakeTerminal(): ITerminalInstance {
 		const instanceStore = store.add(new DisposableStore());
 		const onDisposed = instanceStore.add(new Emitter<ITerminalInstance>());
 		let isDisposed = false;
 		const instance = {
+			instanceId: nextInstanceId++,
 			get isDisposed() { return isDisposed; },
 			store: instanceStore,
 			onDisposed: onDisposed.event,
@@ -131,6 +137,9 @@ suite('AgentHostSessionTaskRunner', () => {
 		firstShowPanelCall = undefined;
 		secondShowPanelCall = undefined;
 		showPanelCallCount = 0;
+		panelCalls = [];
+		chatWindows = [];
+		nextInstanceId = 1;
 
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -171,7 +180,7 @@ suite('AgentHostSessionTaskRunner', () => {
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
-			override setActiveInstance() { /* no-op */ }
+			override setActiveInstance(instance: ITerminalInstance) { panelCalls.push(`active:${instance.instanceId}`); }
 			override get foregroundInstances() {
 				return createdTerminals.map(t => t.instance).filter(instance => !backgroundedTerminals.includes(instance));
 			}
@@ -179,6 +188,7 @@ suite('AgentHostSessionTaskRunner', () => {
 
 		instantiationService.stub(ITerminalGroupService, new class extends mock<ITerminalGroupService>() {
 			override async showPanel() {
+				panelCalls.push('showPanel');
 				showPanelCallCount++;
 				if (showPanelCallCount === 1) {
 					firstShowPanelCall?.complete();
@@ -190,6 +200,9 @@ suite('AgentHostSessionTaskRunner', () => {
 		});
 
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
+			override get windows() { return constObservable(chatWindows); }
+		}());
 		instantiationService.stub(IConfigurationResolverService, new class extends mock<IConfigurationResolverService>() {
 			override resolveAsync(folder: IWorkspaceFolderData | undefined, value: any): any {
 				resolverCalls.push(String(value));
@@ -256,6 +269,38 @@ suite('AgentHostSessionTaskRunner', () => {
 		assert.strictEqual(createdTerminals[0].address, '__local__');
 		assert.deepStrictEqual(createdTerminals[0].options?.cwd?.toString(), cwd.toString());
 		assert.deepStrictEqual(sentText, [{ text: 'echo hi', shouldExecute: true }]);
+	});
+
+	test('run from a chat window that shows the session, the task shows in its terminals and never in the main window\'s panel; otherwise, as in the main window, in the panel', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		const otherSession = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		const shownInWindow: string[] = [];
+		const chatWindow = (windowSession: ISession, takes: boolean) => new class extends mock<IChatWindow>() {
+			override readonly session = constObservable(windowSession as IActiveSession);
+			override async showTerminal(instanceId: number) {
+				shownInWindow.push(`${windowSession === session ? 'session' : 'other'}:${instanceId}`);
+				return takes;
+			}
+		}();
+		const newPanelTask = (label: string): ITaskEntry => ({ label, type: 'shell', command: 'echo', presentation: { panel: 'new' } } as ITaskEntry);
+
+		(await runner.runTask(newPanelTask('main'), session))?.dispose();
+		const main = { panel: [...panelCalls], window: [...shownInWindow] };
+		chatWindows = [chatWindow(otherSession, true), chatWindow(session, true)];
+		panelCalls.length = 0;
+		(await runner.runTask(newPanelTask('window'), session))?.dispose();
+		const inWindow = { panel: [...panelCalls], window: [...shownInWindow] };
+		chatWindows = [chatWindow(session, false)];
+		panelCalls.length = 0;
+		shownInWindow.length = 0;
+		(await runner.runTask(newPanelTask('without terminals'), session))?.dispose();
+		const windowWithoutTerminals = { panel: [...panelCalls], window: [...shownInWindow] };
+
+		assert.deepStrictEqual({ main, inWindow, windowWithoutTerminals }, {
+			main: { panel: ['active:1', 'showPanel'], window: [] },
+			inWindow: { panel: [], window: ['session:2'] },
+			windowWithoutTerminals: { panel: [], window: ['session:3'] },
+		});
 	});
 
 	test('returned handle stops the task by disposing its terminal', async () => {
