@@ -591,7 +591,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		}
 		this._lastContentLayout = undefined;
 		this._isVisibleObs.set(visible, undefined);
-		this._groupsView.setSessionVisible(visible);
+		this._groupsView.setSessionVisible(visible, this._isPartVisible);
 		this._visibleStandaloneView?.setVisible(visible);
 		this._updateStandaloneSessionActivityBar();
 		if (visible) {

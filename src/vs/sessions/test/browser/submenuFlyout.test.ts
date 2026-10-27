@@ -21,7 +21,7 @@ import { TestContextViewService } from './testContextViewService.js';
 suite('Sessions - Submenu flyout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createFlyout(disposables: Pick<DisposableStore, 'add'>, anchorAlignment?: AnchorAlignment) {
+	function createFlyout(disposables: Pick<DisposableStore, 'add'>, anchorAlignment?: AnchorAlignment, actionsContext?: unknown) {
 		const root = append(mainWindow.document.body, $('.monaco-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
 		const anchor = append(root, $('a.anchor'));
@@ -29,7 +29,8 @@ suite('Sessions - Submenu flyout', () => {
 		const outside = append(root, $('input.outside'));
 
 		const ran: string[] = [];
-		const actions = [toAction({ id: 'test.kusto', label: 'Kusto', run: () => { ran.push('test.kusto'); } })];
+		const contexts: unknown[] = [];
+		const actions = [toAction({ id: 'test.kusto', label: 'Kusto', run: (context?: unknown) => { ran.push('test.kusto'); contexts.push(context); } })];
 		const actionRunner = disposables.add(new ActionRunner());
 		const contextViewService = new TestContextViewService();
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -38,13 +39,14 @@ suite('Sessions - Submenu flyout', () => {
 			anchor,
 			getActions: () => actions,
 			getActionRunner: () => actionRunner,
+			getActionsContext: () => actionsContext,
 			lookupKeybinding: () => undefined,
 			openKeys: [KeyCode.Enter],
 			closeKeys: [KeyCode.LeftArrow],
 			anchorAlignment,
 		}));
 		const state = () => ({ open: flyout.isOpen, expanded: anchor.getAttribute('aria-expanded'), highlighted: anchor.classList.contains('submenu-open'), shown: contextViewService.openSubmenu });
-		return { anchor, outside, flyout, contextViewService, ran, state };
+		return { anchor, outside, flyout, contextViewService, ran, contexts, state };
 	}
 
 	test('opens on its preferred side when there is room on both sides, and flips only when there is not', () => {
@@ -135,5 +137,17 @@ suite('Sessions - Submenu flyout', () => {
 			afterEnter: { items: ['Kusto'], focused: true },
 			afterRun: { open: false, ran: ['test.kusto'], anchorFocused: true },
 		});
+	}));
+
+	test('runs its items with the context of its entry, so they act on the window the entry belongs to', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const disposables = store.add(new DisposableStore());
+		const { anchor, contexts, flyout } = createFlyout(disposables, undefined, { chatWindowId: 7 });
+
+		anchor.focus();
+		flyout.show(true);
+		getActiveElement()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		await timeout(0);
+
+		assert.deepStrictEqual(contexts, [{ chatWindowId: 7 }]);
 	}));
 });

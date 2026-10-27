@@ -725,6 +725,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/chatWindow",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/providers/copilotChatSessions",
 			"project": "vscode-sessions"
 		},

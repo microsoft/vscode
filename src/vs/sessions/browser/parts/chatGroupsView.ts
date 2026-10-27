@@ -99,6 +99,7 @@ export class ChatGroupsView extends Themable {
 	private _mainChatResource: IObservable<string> | undefined;
 	private _sessionActive = true;
 	private _sessionVisible = true;
+	private _sessionPartVisible = true;
 	private readonly _singleGroupTabsReplaceHeader = observableValue(this, false);
 	readonly showChatAsSessionView: IObservable<boolean>;
 	private readonly _showGroupChatHeaders: IObservable<boolean>;
@@ -386,7 +387,7 @@ export class ChatGroupsView extends Themable {
 		};
 		view.setContext(context);
 		view.setSessionActive(this._sessionActive);
-		view.setSessionVisible(this._sessionVisible);
+		view.setSessionVisible(this._sessionVisible, this._sessionPartVisible);
 
 		return entry;
 	}
@@ -1117,13 +1118,15 @@ export class ChatGroupsView extends Themable {
 		}
 	}
 
-	setSessionVisible(visible: boolean): void {
-		if (this._sessionVisible === visible) {
+	/** Whether the session is shown; `partVisible` is false while what hosts it is hidden, such as the Sessions part. */
+	setSessionVisible(visible: boolean, partVisible = true): void {
+		if (this._sessionVisible === visible && this._sessionPartVisible === partVisible) {
 			return;
 		}
 		this._sessionVisible = visible;
+		this._sessionPartVisible = partVisible;
 		for (const group of this._groups) {
-			group.view.setSessionVisible(visible);
+			group.view.setSessionVisible(visible, partVisible);
 		}
 	}
 

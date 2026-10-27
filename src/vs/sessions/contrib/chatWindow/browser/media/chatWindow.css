@@ -1,0 +1,60 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The grid of a chat window, below its title bar: the chat, the editor area, the terminals and the Session Activity Bar. */
+.monaco-workbench .chat-window-host {
+	position: absolute;
+	left: 0;
+	overflow: hidden;
+	background-color: var(--vscode-agents-background);
+}
+
+.monaco-workbench .chat-window-host > .chat-window-detached {
+	display: none;
+}
+
+.monaco-workbench .chat-window-cell {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+/* Each cell is a card, inset by the gap it shares with the cells beside it. Its look is the main window's cards' (`.agents-card-surface`). */
+.monaco-workbench .chat-window-cell > .chat-window-cell-card {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .chat-window-cell-card > .content {
+	width: 100%;
+	height: 100%;
+}
+
+/* The Session Activity Bar's column is not a card: it takes the chat's background. */
+.monaco-workbench .chat-window-cell.chat-window-cell-column > .chat-window-cell-card {
+	background: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench .chat-window-activity-bar-column {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-workbench .chat-window-editor-area,
+.monaco-workbench .chat-window-terminals {
+	width: 100%;
+	height: 100%;
+}
+
+/* The editor parts of a chat window are inside its cards, which draw their frame: not the frame of the main window's editor part. */
+.monaco-workbench.agent-sessions-workbench .chat-window-cell-card > .content > .part.editor:not(.modal-editor-part) {
+	position: relative;
+	margin: 0;
+	border: none;
+	border-radius: 0;
+}
