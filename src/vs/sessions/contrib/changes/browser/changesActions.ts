@@ -8,7 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -16,11 +16,9 @@ import { localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -29,14 +27,13 @@ import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/b
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, DesktopChangesEditorTransitionContext } from '../../../common/contextkeys.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesMultiDiffSourceResolver, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
+import { getChangesOfSession, IChangesViewService } from '../common/changesViewService.js';
+import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
@@ -61,15 +58,14 @@ class ViewAllChangesAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
+	override async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const sessionChangesService = accessor.get(ISessionChangesService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the
 		// active session when invoked without an explicit argument.
-		const sessionResource = (session ?? sessionsService.activeSession.get())?.resource;
+		const sessionResource = resolveSessionActionTarget(accessor, sessionArg)?.resource;
 		if (!sessionResource) {
 			return;
 		}
@@ -122,8 +118,13 @@ class OpenChangedFileAction extends Action2 {
 		}
 
 		const changesViewService = accessor.get(IChangesViewService);
+		const session = resolveSessionActionTarget(accessor, args[1]);
+		if (!session) {
+			return;
+		}
+		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).mainWindowActiveSession.get(), session);
 		await accessor.get(IEditorService).openEditor({
-			resource: getWorkspaceResource(resource, changesViewService.activeSessionChangesObs.get()),
+			resource: getWorkspaceResource(resource, changes.changesObs.get()),
 		});
 	}
 }
@@ -303,65 +304,8 @@ export class ChangesetOperationsActionControllerContribution extends Disposable 
 
 	constructor(
 		@IChangesViewService changesViewService: IChangesViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILogService logService: ILogService
 	) {
 		super();
-
-		// Use to optimistically update the toolbars until the server confirms
-		// the state. As soon as the server confirms the state, the client array
-		// will be reset to `undefined` so that the server state takes precedence.
-		const clientReviewedFilesObs = observableValue<string[] | undefined>(this, undefined);
-
-		// Authoritative source of reviewed files. This will be updated
-		// when the state is saved on the server and confirmed back to
-		// the client
-		const agentHostReviewedFilesObs = observableValue<string[]>(this, []);
-
-		this._register(autorun(reader => {
-			const changes = changesViewService.activeSessionChangesObs.read(reader);
-
-			const reviewedFiles = changes
-				.filter(change => change.reviewed)
-				.map(change => change.modifiedUri?.toString() ?? change.originalUri?.toString())
-				.filter((uri: string | undefined) => uri !== undefined);
-
-			transaction(tx => {
-				clientReviewedFilesObs.set(undefined, tx);
-				agentHostReviewedFilesObs.set(reviewedFiles, tx);
-			});
-		}));
-
-		this._register(bindContextKey<string[]>(SessionChangesReviewedFilesContext, contextKeyService, reader => {
-			return clientReviewedFilesObs.read(reader) ?? agentHostReviewedFilesObs.read(reader);
-		}));
-
-		// Publish the Agent Merge title-menu inputs together after the incoming changes state resolves.
-		const primaryPullRequestOperationKey = SessionPrimaryPullRequestOperationContext.bindTo(contextKeyService);
-		const hasOpenPullRequestKey = SessionHasOpenPullRequestContext.bindTo(contextKeyService);
-		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
-			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
-		let lastPullRequestOperation: string | undefined;
-		this._register(autorun(reader => {
-			if (changesEditorTransitionObs.read(reader)
-				|| changesViewService.activeSessionChangesetsLoadingObs.read(reader)
-				|| changesViewService.activeSessionLoadingObs.read(reader)) {
-				return;
-			}
-			const operations = changesViewService.activeSessionChangesetObs.read(reader)?.operations.read(reader) ?? [];
-			const primary = operations.find(op => AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(op.id))?.id ?? '';
-			const hasOpenPullRequest = changesViewService.activeSessionStateObs.read(reader)?.hasOpenPullRequest === true;
-			contextKeyService.bufferChangeEvents(() => {
-				primaryPullRequestOperationKey.set(primary);
-				hasOpenPullRequestKey.set(hasOpenPullRequest);
-			});
-			if (lastPullRequestOperation !== primary) {
-				lastPullRequestOperation = primary;
-				// Gates which Agent Merge entries the dropdown offers, so it is
-				// logged alongside the button bar itself.
-				logService.info(`[ChangesetOperationsActionController] Primary pull request operation: ${primary || 'none'}`);
-			}
-		}));
 
 		this._register(autorun(reader => {
 			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
@@ -472,7 +416,7 @@ export class ChangesHeaderChangesetOperationsActionContribution extends Disposab
 		}));
 
 		this._register(autorun(reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
+			const activeSession = sessionsService.mainWindowActiveSession.read(reader);
 			if (!activeSession) {
 				return;
 			}

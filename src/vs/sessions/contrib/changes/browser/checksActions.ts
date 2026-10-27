@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
+import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
 import { PullRequestCheck } from '../../../../platform/github/common/githubPullRequestService.js';
 import { getPullRequestCheckState, isUnreportedCheckSuite, RequiredPullRequestChecks } from '../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { SessionIsActiveContext } from '../../../common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 export const hasActiveSessionFailedCIChecks = new RawContextKey<boolean>('sessions.hasActiveSessionFailedCIChecks', false);
 
@@ -163,36 +163,27 @@ export async function submitFixCIChecks(ciModel: GitHubPullRequestCIModel, chatW
 }
 
 /**
- * Sets the `hasActiveSessionFailedCIChecks` context key to true when the
- * active session has a PR with CI checks and at least one that counts has
- * failed; see {@link GitHubPullRequestCIModel.requiredChecks}.
+ * Binds `hasActiveSessionFailedCIChecks` (a failed check that counts on the pull
+ * request of the session; see {@link GitHubPullRequestCIModel.requiredChecks}) and
+ * `activeSessionCIFixRequested` on the given context key service.
  */
-class ActiveSessionFailedCIChecksContextContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.activeSessionFailedCIChecksContext';
-
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IGitHubService gitHubService: IGitHubService,
-	) {
-		super();
-
-		this._register(bindContextKey(hasActiveSessionFailedCIChecks, contextKeyService, reader => {
-			const ciModel = gitHubService.activeSessionPullRequestCIObs.read(reader);
-			if (!ciModel) {
-				return false;
-			}
-			return (ciModel.requiredChecks.read(reader)?.failed.length ?? 0) > 0;
-		}));
-
-		this._register(bindContextKey(activeSessionCIFixRequested, contextKeyService, reader => {
-			const ciModel = gitHubService.activeSessionPullRequestCIObs.read(reader);
-			if (!ciModel) {
-				return false;
-			}
-			return ciModel.fixRequested.read(reader);
-		}));
-	}
+export function bindSessionCIChecksContextKeys(pullRequest: Pick<IGitHubSessionPullRequestObservables, 'pullRequestCIObs'>, contextKeyService: IContextKeyService): IDisposable {
+	const store = new DisposableStore();
+	store.add(bindContextKey(hasActiveSessionFailedCIChecks, contextKeyService, reader => {
+		const ciModel = pullRequest.pullRequestCIObs.read(reader);
+		if (!ciModel) {
+			return false;
+		}
+		return (ciModel.requiredChecks.read(reader)?.failed.length ?? 0) > 0;
+	}));
+	store.add(bindContextKey(activeSessionCIFixRequested, contextKeyService, reader => {
+		const ciModel = pullRequest.pullRequestCIObs.read(reader);
+		if (!ciModel) {
+			return false;
+		}
+		return ciModel.fixRequested.read(reader);
+	}));
+	return store;
 }
 
 class FixCIChecksAction extends Action2 {
@@ -215,23 +206,22 @@ class FixCIChecksAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
+	override async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const gitHubService = accessor.get(IGitHubService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const logService = accessor.get(ILogService);
 
-		const activeSession = sessionsService.activeSession.get();
-		if (!activeSession) {
+		const session = resolveSessionActionTarget(accessor, sessionArg);
+		if (!session) {
 			return;
 		}
 
-		const ciModel = gitHubService.activeSessionPullRequestCIObs.get();
+		const ciModel = gitHubService.getSessionPullRequest(constObservable(session)).pullRequestCIObs.get();
 		if (!ciModel) {
 			return;
 		}
 
-		const sessionResource = activeSession.resource;
+		const sessionResource = session.resource;
 		const chatWidget = await whenChatWidgetForSession(chatWidgetService, sessionResource);
 		if (!chatWidget) {
 			logService.error('[FixCIChecks] Cannot fix CI checks: no chat widget found for session', sessionResource.toString());
@@ -241,6 +231,4 @@ class FixCIChecksAction extends Action2 {
 		await submitFixCIChecks(ciModel, chatWidget);
 	}
 }
-
-registerWorkbenchContribution2(ActiveSessionFailedCIChecksContextContribution.ID, ActiveSessionFailedCIChecksContextContribution, WorkbenchPhase.AfterRestored);
 registerAction2(FixCIChecksAction);

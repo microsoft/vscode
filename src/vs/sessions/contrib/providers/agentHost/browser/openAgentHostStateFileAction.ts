@@ -13,7 +13,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IsAgentHostSession } from './agentHostSkillButtons.js';
+import { IsAgentHostSession } from '../../../../services/sessions/browser/sessionScopedContextKeys.js';
 
 /**
  * Sessions-app variant of "Open Agent Host State File". Uses the Agents

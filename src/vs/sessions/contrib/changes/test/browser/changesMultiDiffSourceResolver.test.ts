@@ -15,7 +15,18 @@ import { ISessionFileChange } from '../../../../services/sessions/common/session
 import { ChangesMultiDiffSourceResolver } from '../../browser/changesMultiDiffSourceResolver.js';
 import { ChangesViewMode } from '../../common/changes.js';
 import { ISessionChangesService } from '../../common/sessionChangesService.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChangesSessionObservables, IChangesViewService } from '../../common/changesViewService.js';
+
+function noSessions(): ISessionsService {
+	return new class extends mock<ISessionsService>() {
+		override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+		override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+	}();
+}
 
 suite('ChangesMultiDiffSourceResolver', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,7 +41,6 @@ suite('ChangesMultiDiffSourceResolver', () => {
 
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
-			override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 			override readonly activeSessionChangesObs = activeChanges;
 			override readonly activeSessionLoadingObs = loading;
 			override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
@@ -47,7 +57,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 				return resource.toString() === sourceResource.toString() ? sessionResource : undefined;
 			}
 		}();
-		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService));
+		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, noSessions()));
 		const source = await resolver!.resolveDiffSource(sourceResource);
 		const observedChanges: string[][] = [];
 		const recordChanges = () => observedChanges.push(source.resources.value.map(item => item.modifiedUri!.path));
@@ -60,6 +70,49 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			['/workspace/branch.ts'],
 			['/workspace/turn.ts'],
 		]);
+	});
+
+	test('publishes the changes of a visible session that is not the active one', async () => {
+		const sessionResource = URI.parse('agent-host:test-session');
+		const sourceResource = URI.parse('changes-multi-diff-source:test-session');
+		const sessionChanges = observableValue<readonly ISessionFileChange[]>('sessionChanges', [createChange('/workspace/visible.ts')]);
+		let chainsCreated = 0;
+		const visibleSession = upcastPartial<IActiveSession>({ sessionId: 'visible', resource: sessionResource });
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
+			override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([visibleSession]);
+		}();
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
+			override getSessionChanges() {
+				chainsCreated++;
+				return upcastPartial<IChangesSessionObservables>({ resourceObs: constObservable<URI | undefined>(sessionResource), changesObs: sessionChanges });
+			}
+		}();
+		let resolver: IMultiDiffSourceResolver | undefined;
+		const resolverService = new class extends mock<IMultiDiffSourceResolverService>() {
+			override registerResolver(value: IMultiDiffSourceResolver) {
+				resolver = value;
+				return Disposable.None;
+			}
+		}();
+		const sessionChangesService = new class extends mock<ISessionChangesService>() {
+			override getSessionResource(): URI { return sessionResource; }
+		}();
+		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionsService));
+		const source = await resolver!.resolveDiffSource(sourceResource);
+		const observed: string[][] = [];
+		const record = () => observed.push(source.resources.value.map(item => item.modifiedUri!.path));
+
+		record();
+		disposables.add(source.resources.onDidChange(record));
+		sessionChanges.set([createChange('/workspace/updated.ts')], undefined);
+		sessionChanges.set([createChange('/workspace/again.ts')], undefined);
+
+		assert.deepStrictEqual(observed, [['/workspace/visible.ts'], ['/workspace/updated.ts'], ['/workspace/again.ts']]);
+		assert.strictEqual(chainsCreated, 1);
 	});
 
 	test('preserves the previous diff while another session is active', async () => {
@@ -75,7 +128,6 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			override readonly activeSessionResourceObs = activeSessionResource;
 			override readonly activeSessionChangesObs = activeChanges;
 			override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
-			override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 		}();
 		let resolver: IMultiDiffSourceResolver | undefined;
 		const resolverService = new class extends mock<IMultiDiffSourceResolverService>() {
@@ -89,7 +141,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 				return resource.toString() === sourceResource.toString() ? sessionResource : undefined;
 			}
 		}();
-		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService));
+		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, noSessions()));
 		const source = await resolver!.resolveDiffSource(sourceResource);
 		const observedChanges: string[][] = [];
 		const recordChanges = () => observedChanges.push(source.resources.value.map(item => item.modifiedUri!.path));
@@ -116,7 +168,6 @@ suite('ChangesMultiDiffSourceResolver', () => {
 					createChange('/workspace/src/lib/c.ts'),
 				]);
 				override readonly viewModeObs = viewMode;
-				override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 			}(),
 			new class extends mock<IMultiDiffSourceResolverService>() {
 				override registerResolver() { return Disposable.None; }
@@ -124,6 +175,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			new class extends mock<ISessionChangesService>() {
 				override getSessionResource() { return sessionResource; }
 			}(),
+			noSessions(),
 		));
 		const source = await resolver.resolveDiffSource(URI.parse('changes-multi-diff-source:test-session'));
 		const observedChanges: string[][] = [];
@@ -167,7 +219,6 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			const resolver = disposables.add(new ChangesMultiDiffSourceResolver(
 				new class extends mock<IChangesViewService>() {
 					override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
-					override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 					override readonly activeSessionChangesObs = changes;
 					override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 				}(),
@@ -177,6 +228,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 				new class extends mock<ISessionChangesService>() {
 					override getSessionResource() { return sessionResource; }
 				}(),
+				noSessions(),
 			));
 			const source = await resolver.resolveDiffSource(URI.parse('changes-multi-diff-source:test-session'));
 			const snapshot = () => ({

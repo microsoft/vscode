@@ -15,10 +15,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetDropdownAction } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -42,7 +45,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
+import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
 import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
@@ -105,47 +108,73 @@ suite('Changes View Actions', () => {
 		}]);
 	});
 
-	test('Open Changes resolves a workspace resource to its snapshot-backed diff', async () => {
+	suite('Open Changes', () => {
 		const workspaceResource = URI.file('/workspace/file.ts');
 		const originalSnapshot = URI.parse('readonly-content:/before/file.ts');
 		const modifiedSnapshot = URI.parse('readonly-content:/after/file.ts');
-		const opened: { readonly original: string | undefined; readonly modified: string | undefined }[] = [];
-		const instantiationService = new TestInstantiationService();
-		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
-			override readonly activeSessionChangesObs = constObservable([{
-				uri: workspaceResource,
-				originalUri: originalSnapshot,
-				modifiedUri: modifiedSnapshot,
-				insertions: 1,
-				deletions: 1,
+		const sessionResource = URI.parse('test-session:/session');
+		const otherSessionResource = URI.parse('test-session:/other');
+
+		async function openChanges(sessionArg: URI, visible: readonly IActiveSession[]): Promise<{ readonly original: string | undefined; readonly modified: string | undefined }[]> {
+			const opened: { readonly original: string | undefined; readonly modified: string | undefined }[] = [];
+			const activeSession = upcastPartial<IActiveSession>({ sessionId: 'active', resource: sessionResource });
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				override readonly mainWindowActiveSession = this.activeSession;
+				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>(visible);
+			});
+			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+				override readonly activeSessionChangesObs = constObservable([{
+					uri: workspaceResource,
+					originalUri: originalSnapshot,
+					modifiedUri: modifiedSnapshot,
+					insertions: 1,
+					deletions: 1,
+				}]);
+				override getSessionChanges() {
+					return upcastPartial<IChangesSessionObservables>({ changesObs: constObservable([{ uri: workspaceResource, originalUri: URI.parse('readonly-content:/other/before.ts'), modifiedUri: URI.parse('readonly-content:/other/after.ts'), insertions: 1, deletions: 1 }]) });
+				}
+			});
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<undefined> {
+					const input = args[0] as {
+						readonly original?: { readonly resource?: URI };
+						readonly modified?: { readonly resource?: URI };
+					};
+					opened.push({
+						original: input.original?.resource?.toString(),
+						modified: input.modified?.resource?.toString(),
+					});
+					return undefined;
+				}
+			});
+
+			await instantiationService.invokeFunction(accessor =>
+				CommandsRegistry.getCommand('workbench.action.agentSessions.openChanges')!.handler(accessor, sessionArg, 'ref', workspaceResource));
+			return opened;
+		}
+
+		test('resolves a workspace resource to its snapshot-backed diff', async () => {
+			assert.deepStrictEqual(await openChanges(sessionResource, []), [{
+				original: originalSnapshot.toString(),
+				modified: modifiedSnapshot.toString(),
 			}]);
 		});
-		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override async openEditor(...args: unknown[]): Promise<undefined> {
-				const input = args[0] as {
-					readonly original?: { readonly resource?: URI };
-					readonly modified?: { readonly resource?: URI };
-				};
-				opened.push({
-					original: input.original?.resource?.toString(),
-					modified: input.modified?.resource?.toString(),
-				});
-				return undefined;
-			}
+
+		test('opens the changes of a visible non-active session', async () => {
+			const other = upcastPartial<IActiveSession>({ sessionId: 'other', resource: otherSessionResource });
+			assert.deepStrictEqual(await openChanges(otherSessionResource, [other]), [{
+				original: 'readonly-content:/other/before.ts',
+				modified: 'readonly-content:/other/after.ts',
+			}]);
 		});
 
-		await instantiationService.invokeFunction(accessor =>
-			CommandsRegistry.getCommand('workbench.action.agentSessions.openChanges')!.handler(
-				accessor,
-				URI.parse('test-session:/session'),
-				'ref',
-				workspaceResource,
-			));
-
-		assert.deepStrictEqual(opened, [{
-			original: originalSnapshot.toString(),
-			modified: modifiedSnapshot.toString(),
-		}]);
+		test('does nothing for a session that is not shown instead of using the active session', async () => {
+			assert.deepStrictEqual(await openChanges(URI.parse('test-session:/gone'), []), []);
+		});
 	});
 
 	test('Create PR button actions unlock Ship it without drafts or updates', () => {
@@ -286,7 +315,7 @@ suite('Changes View Actions', () => {
 		});
 		const renderPicker = () => {
 			const container = document.createElement('div');
-			disposables.add(new ChangesPickerActionItem(action, undefined, labelObs, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService)).render(container);
+			disposables.add(new ChangesPickerActionItem(action, undefined, labelObs, undefined, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, telemetryService)).render(container);
 			return container;
 		};
 		const snapshot = (container: HTMLElement) => ({
@@ -338,7 +367,7 @@ suite('Changes View Actions', () => {
 		const contextKeyService = new MockContextKeyService();
 		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
 		const container = document.createElement('div');
-		disposables.add(new ChangesPickerActionItem(action, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
+		disposables.add(new ChangesPickerActionItem(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
 		const snapshot = () => {
 			const label = container.querySelector('.changes-picker-label');
 			return {
@@ -414,7 +443,7 @@ suite('Changes View Actions', () => {
 			override getTooltip(): string {
 				return super.getTooltip();
 			}
-		}(action, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }()));
+		}(action, undefined, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }()));
 		picker.render(container);
 		const snapshot = () => ({
 			label: container.querySelector('.changes-picker-label')?.textContent,
@@ -474,9 +503,9 @@ suite('Changes View Actions', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
 		instantiationService.stub(IChangesViewService, changesViewService);
-		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary));
+		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, changesViewService.activeSessionChangesSummaryObs));
 		const container = document.createElement('div');
-		disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
+		disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }())).render(container);
 
 		const summaryElement = container.querySelector<HTMLElement>('.changes-picker-summary');
 		const snapshot = () => ({
@@ -503,6 +532,64 @@ suite('Changes View Actions', () => {
 		});
 	});
 
+	test('shows the data of an explicit session scope and selects changesets in that session', async () => {
+		const createChangeset = (id: string, label: string) => upcastPartial<ISessionChangeset>({ id, label, isEnabled: constObservable(true), isDefault: constObservable(true) });
+		const activeChangeset = createChangeset('active', 'Active Changes');
+		const otherChangeset = createChangeset('other', 'Other Changes');
+		const otherSession = upcastPartial<IActiveSession>({});
+		const otherResource = URI.parse('test-session:/other');
+		const selections: [string | undefined, IActiveSession | undefined][] = [];
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = constObservable([activeChangeset]);
+			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
+			override readonly activeSessionChangesetObs = constObservable(activeChangeset);
+			override readonly activeSessionChangesSummaryObs = constObservable<ISessionChangesSummary | undefined>({ files: 1, additions: 1, deletions: 1 });
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/active'));
+			override setChangesetId(id: string | undefined, session?: IActiveSession): void { selections.push([id, session]); }
+		}();
+		const scope: IChangesSessionScope = {
+			session: constObservable(otherSession),
+			changes: upcastPartial<IChangesSessionObservables>({
+				changesetsObs: constObservable([otherChangeset]),
+				changesetsLoadingObs: constObservable(false),
+				changesetObs: constObservable(otherChangeset),
+				changesSummaryObs: constObservable<ISessionChangesSummary | undefined>({ files: 4, additions: 9, deletions: 2 }),
+				resourceObs: constObservable(otherResource),
+			}),
+		};
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
+		instantiationService.stub(IChangesViewService, changesViewService);
+		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, scope.changes.changesSummaryObs));
+		const container = document.createElement('div');
+		let items: readonly IActionWidgetDropdownAction[] = [];
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override show(_user: string, _supportsPreview: boolean, listItems: readonly IActionListItem<unknown>[]): void {
+				items = listItems.flatMap(item => item.item ? [item.item as IActionWidgetDropdownAction] : []);
+			}
+			override hide(): void { }
+		}();
+		const picker = disposables.add(new ChangesPickerActionItem(action, pickerSummary, undefined, scope, actionWidgetService, new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { override publicLog2(): void { } }()));
+		picker.render(container);
+		picker.show();
+		await items[0].run();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			label: container.querySelector('.changes-picker-label')?.textContent,
+			summary: [...container.querySelector('.changes-picker-summary')?.children ?? []].map(child => child.textContent),
+			items: items.map(item => item.label),
+			selections,
+		}, {
+			label: 'Other Changes',
+			summary: ['4 Files', '+9', '-2'],
+			items: ['Other Changes'],
+			selections: [['other', otherSession]],
+		});
+	});
+
 	test('re-created pickers take over the shared summary so its counters keep animating', () => {
 		const changeset = upcastPartial<ISessionChangeset>({
 			id: 'branch',
@@ -522,10 +609,10 @@ suite('Changes View Actions', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAccessibilityService, { isMotionReduced: () => true });
 		instantiationService.stub(IChangesViewService, changesViewService);
-		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary));
+		const pickerSummary = disposables.add(instantiationService.createInstance(ChangesPickerSummary, changesViewService.activeSessionChangesSummaryObs));
 		const renderPicker = () => {
 			const container = document.createElement('div');
-			const picker = new ChangesPickerActionItem(action, pickerSummary, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }());
+			const picker = new ChangesPickerActionItem(action, pickerSummary, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }());
 			picker.render(container);
 			return { picker, summary: container.querySelector<HTMLElement>('.changes-picker-summary') };
 		};

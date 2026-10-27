@@ -23,11 +23,16 @@ import { GitHubService } from '../../browser/githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../browser/pullRequestIconCache.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 
 suite('GitHubService', () => {
 
 	const store = new DisposableStore();
 	let service: GitHubService;
+	let activeSession: ISettableObservable<IActiveSession | undefined>;
+	let mainWindowActiveSession: ISettableObservable<IActiveSession | undefined>;
 	let domainCalls: { operation: string; args: readonly unknown[] }[];
 
 	setup(() => {
@@ -35,6 +40,12 @@ suite('GitHubService', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+		mainWindowActiveSession = observableValue<IActiveSession | undefined>('test.mainWindowActiveSession', undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = mainWindowActiveSession;
+		}());
 		instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = Event.None;
@@ -92,6 +103,54 @@ suite('GitHubService', () => {
 				{ operation: 'content.getContent', args: [{ owner: 'o', repo: 'r' }, 'dir/file #.txt', { query: { ref: 'feature/branch' } }] },
 				{ operation: 'pullRequests.list', args: [{ owner: 'o', repo: 'r' }, { priority: 'background', query: { head: 'o:feature/branch', state: 'all', sort: 'updated', direction: 'desc', per_page: 1 } }] },
 			],
+		});
+	});
+
+	function createPullRequestSession(prNumber: number): IActiveSession {
+		return upcastPartial<IActiveSession>({
+			workspace: observableValue('test.workspace', {
+				folders: [{
+					gitRepository: {
+						gitHubInfo: observableValue('test.gitHubInfo', { owner: 'o', repo: 'r', pullRequest: { number: prNumber, uri: URI.parse(`https://github.com/o/r/pull/${prNumber}`) } }),
+					},
+				}],
+			}) as unknown as IActiveSession['workspace'],
+		});
+	}
+
+	test('the pull request of the active session is that of the session of the main window, also while another window has focus', () => {
+		const mainSession = createPullRequestSession(3);
+		mainWindowActiveSession.set(mainSession, undefined);
+		activeSession.set(mainSession, undefined);
+		const main = service.activeSessionPullRequestObs.get()?.prNumber;
+		// The session of a chat window is active while its window has focus; the main window keeps showing its own.
+		activeSession.set(createPullRequestSession(9), undefined);
+		assert.deepStrictEqual({ main, whileAnotherWindowHasFocus: service.activeSessionPullRequestObs.get()?.prNumber }, { main: 3, whileAnotherWindowHasFocus: 3 });
+	});
+
+	test('getSessionPullRequest resolves the pull request of its own session independent of the active session', () => {
+		const createSession = (prNumber: number) => upcastPartial<IActiveSession>({
+			workspace: observableValue('test.workspace', {
+				folders: [{
+					gitRepository: {
+						gitHubInfo: observableValue('test.gitHubInfo', { owner: 'o', repo: 'r', pullRequest: { number: prNumber, uri: URI.parse(`https://github.com/o/r/pull/${prNumber}`) } }),
+					},
+				}],
+			}) as unknown as IActiveSession['workspace'],
+		});
+		const scopedSession = observableValue<IActiveSession | undefined>('test.scopedSession', createSession(7));
+		activeSession.set(createSession(3), undefined);
+		mainWindowActiveSession.set(activeSession.get(), undefined);
+
+		const scoped = service.getSessionPullRequest(scopedSession);
+		const numbers = () => ({ scoped: scoped.pullRequestObs.get()?.prNumber, active: service.activeSessionPullRequestObs.get()?.prNumber });
+		const initial = numbers();
+		scopedSession.set(undefined, undefined);
+		const scopedCleared = numbers();
+
+		assert.deepStrictEqual({ initial, scopedCleared }, {
+			initial: { scoped: 7, active: 3 },
+			scopedCleared: { scoped: undefined, active: 3 },
 		});
 	});
 
