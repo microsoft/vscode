@@ -76,7 +76,7 @@ suite('Chat Accessibility Help', () => {
 			return {
 				sessionChanges: help.includes('changes across the whole session instead of showing a Changes pill'),
 				disclosure: help.includes('Enter or Space to expand or collapse it'),
-				openFile: help.includes('Up and Down Arrow to choose a file, and Enter to open it in a regular editor.'),
+				openFile: help.includes('Up and Down Arrow to choose a file, and Enter to open it in a regular editor at its first edit.'),
 				headingActions: help.includes('The Keep, Undo, and View All Edits buttons after the heading keep or undo the changes to every file in the working set, or open all of them in a diff editor')
 					? 'Keep, Undo, View All Edits'
 					: help.includes('The Keep and View All Edits buttons after the heading keep the changes to every file in the working set, or open all of them in a diff editor') ? 'Keep, View All Edits' : undefined,

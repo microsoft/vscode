@@ -24,7 +24,7 @@ import { ContextKeyService } from '../../../../../../../platform/contextkey/brow
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
-import { IUntypedEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
+import { IEditorPane, IUntypedEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
 import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
@@ -35,7 +35,7 @@ import { AgentChatAccessibilityHelp } from '../../../../browser/actions/chatAcce
 import '../../../../browser/chatEditing/chatEditingActions.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
-import { emptySessionEntryDiff, IChatEditingService, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
+import { emptySessionEntryDiff, IChatEditingService, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { IChatViewModel } from '../../../../common/model/chatViewModel.js';
@@ -43,7 +43,7 @@ import { IChatViewModel } from '../../../../common/model/chatViewModel.js';
 suite('ChatSessionWorkingSet', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keepEnabled?: IObservable<boolean>, keepResult?: Promise<boolean>, editingSession?: () => IChatEditingSession | undefined) {
+	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keepEnabled?: IObservable<boolean>, keepResult?: Promise<boolean>, editingSession?: () => IChatEditingSession | undefined, openedPane?: IEditorPane) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.OpenChangedFileInDiffEditor]: openInDiffEditor, [ChatConfiguration.EditorWorkingSetEnabled]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
@@ -81,7 +81,7 @@ suite('ChatSessionWorkingSet', () => {
 		instantiationService.stub(IEditorService, {
 			openEditor: async (input: EditorInput | IUntypedEditorInput) => {
 				opened.push(input);
-				return undefined;
+				return openedPane;
 			},
 		});
 		const diffs = observableValue('sessionDiffs', initialDiffs);
@@ -510,6 +510,40 @@ suite('ChatSessionWorkingSet', () => {
 			]);
 		});
 	}
+
+	test('reveals the first edit after opening a working set file', async () => {
+		const file = URI.file('/changed.ts');
+		const pane = upcastPartial<IEditorPane>({});
+		const reveals: { readonly first: boolean; readonly preserveFocus: boolean | undefined }[] = [];
+		let editorIntegrationPaneMatches = false;
+		const integration = upcastPartial<IModifiedFileEntryEditorIntegration>({
+			reveal: (first, preserveFocus) => reveals.push({ first, preserveFocus }),
+		});
+		const entry = upcastPartial<IModifiedFileEntry>({
+			modifiedURI: file,
+			state: constObservable(ModifiedFileEntryState.Modified),
+			getEditorIntegration: openedPane => {
+				editorIntegrationPaneMatches = openedPane === pane;
+				return integration;
+			},
+		});
+		const session = upcastPartial<IChatEditingSession>({ getEntry: () => entry });
+		const { rows, opened } = createWorkingSet([
+			emptySessionEntryDiff(URI.parse('snapshot:/before/changed.ts'), file),
+		], true, undefined, undefined, undefined, () => session, pane);
+		rows()[0].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened: opened.map(input => isResourceEditorInput(input) ? { resource: input.resource.toString(), options: input.options } : undefined),
+			editorIntegrationPaneMatches,
+			reveals,
+		}, {
+			opened: [{ resource: 'file:///changed.ts', options: { preserveFocus: true, pinned: false, revealIfVisible: true } }],
+			editorIntegrationPaneMatches: true,
+			reveals: [{ first: true, preserveFocus: true }],
+		});
+	});
 
 	test('opens regular files from rows and the owning session live review from explicit diff actions', async () => {
 		const file = URI.file('/changed.ts');

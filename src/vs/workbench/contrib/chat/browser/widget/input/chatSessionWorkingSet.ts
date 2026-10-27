@@ -257,8 +257,7 @@ export class ChatSessionWorkingSet extends Disposable {
 		const fileMenuChanged = observableSignalFromEvent(this, fileMenu.onDidChange);
 		this._fileList = this._register(renderChangesSummaryFileList(listContainer, this._diffs, scopedInstantiationService, this._editorService, configurationService, {
 			openEditor: (diff, _inDiffEditor, options, sideBySide) => {
-				const resource = diff.isDeleted ? diff.originalURI : diff.modifiedURI;
-				void this._editorService.openEditor({ resource, options }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				void this._openFile(diff, options, sideBySide).catch(onUnexpectedError);
 			},
 			ariaLabel: localize('chat.sessionWorkingSet.list', "Session changes"),
 			rowActionIcons: true,
@@ -340,6 +339,15 @@ export class ChatSessionWorkingSet extends Disposable {
 	openFileChanges(resources: readonly URI[]): void {
 		for (const diff of this._getDiffs(resources)) {
 			void this._openFileDiff(diff).catch(onUnexpectedError);
+		}
+	}
+
+	private async _openFile(diff: IEditSessionEntryDiff, options?: IEditorOptions, sideBySide = false): Promise<void> {
+		const entry = diff.isDeleted ? undefined : this._fileActions.editingSession?.()?.getEntry(diff.modifiedURI);
+		const resource = diff.isDeleted ? diff.originalURI : diff.modifiedURI;
+		const pane = await this._editorService.openEditor({ resource, options }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+		if (pane && entry?.state.get() === ModifiedFileEntryState.Modified) {
+			entry.getEditorIntegration(pane).reveal(true, options?.preserveFocus);
 		}
 	}
 
