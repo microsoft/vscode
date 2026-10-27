@@ -17,15 +17,16 @@
  * Colors come from the generic `surface.*` tokens, with dedicated border
  * tokens for parts that need independent theming.
  *
- * The default and compact gutter variables below must stay in sync with
- * `FLOATING_PANEL_MARGIN` and `COMPACT_FLOATING_PANEL_MARGIN` in code.
+ * The default and compact card/outer gutter variables below must stay in sync with
+ * `FLOATING_PANEL_MARGIN` and `COMPACT_FLOATING_PANEL_MARGIN` in code. The bottommost
+ * card meets a visible status bar directly; the status-bar margin is zero in both densities.
  */
 
 .monaco-workbench.floating-panels {
 	--modern-ui-floating-card-margin: var(--vscode-spacing-size40);
 	--modern-ui-floating-card-inner-margin: var(--vscode-spacing-sizeNone);
 	--modern-ui-floating-card-outer-margin: var(--vscode-spacing-size40);
-	--modern-ui-floating-card-statusbar-margin: var(--vscode-spacing-size40);
+	--modern-ui-floating-card-statusbar-margin: var(--vscode-spacing-sizeNone);
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact {
@@ -408,6 +409,13 @@
 	padding-right: var(--vscode-spacing-size40);
 }
 
+/* The status bar and bottommost floating card share an edge so the full rail and
+ * the status bar's painted background have the same vertical centerline. */
+.monaco-workbench.floating-panels .part.floating-part-outer-bottom,
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-outer-bottom {
+	margin-bottom: var(--modern-ui-floating-card-statusbar-margin);
+}
+
 /*
  * When the status bar is hidden every floating card sits directly against the window
  * bottom edge and adopts the density-specific outer gutter.
@@ -579,8 +587,8 @@
  * region by the card margins. Left unadjusted, the hover highlight (`:before`)
  * overshoots into those gaps — the reported "sash extends past the panels". Anchor the
  * highlight with `top`/`bottom` (rather than `height`) so the two insets compose
- * independently across layouts. The base follows the 4px outer shell gutter on
- * the bottom while cards meet the title or banner at the top. Only the highlight is inset; the sash hit region is
+ * independently across layouts. The base follows the bottommost card edge while cards
+ * meet the title or banner at the top. Only the highlight is inset; the sash hit region is
  * unchanged. In non-justify alignments a full-height side bar (spanning both the panel
  * and editor rows) keeps its own margins, so its highlight may sit up to a card margin
  * short on the abutting edge — an accepted minor cosmetic gap.

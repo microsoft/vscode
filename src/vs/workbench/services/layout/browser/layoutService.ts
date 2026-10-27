@@ -331,6 +331,7 @@ export function getFloatingSidebarSiblingToEditorStatus(
  * Vertical margins (in pixels) a floating pane composite (primary side bar, secondary side
  * bar or panel) reserves, mirroring the margins in `floatingPanels.css`. Compact density
  * uses the perimeter gutter whenever the edge faces window chrome rather than another card.
+ * A bottommost card meets a visible status bar directly so both share a centerline.
  */
 export function getFloatingPaneCompositeVerticalMargins(
 	layoutService: IWorkbenchLayoutService,
@@ -351,7 +352,7 @@ export function getFloatingPaneCompositeVerticalMargins(
 			? isFloatingTopEdgeExposed(layoutService, targetWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN
 			: margin,
 		bottom: outerEdges.bottom
-			? statusBarVisible ? margin : outerMargin
+			? statusBarVisible ? FLOATING_PANEL_INNER_MARGIN : outerMargin
 			: FLOATING_PANEL_INNER_MARGIN
 	};
 }
@@ -384,6 +385,7 @@ export function getFloatingPaneCompositeVerticalOuterEdges(
 /**
  * Vertical margins (in pixels) the floating main editor reserves, mirroring the margins in
  * `floatingPanels.css`. A panel above or below takes the place of the corresponding window edge.
+ * The editor meets a visible status bar directly at its bottom edge.
  */
 export function getFloatingEditorVerticalMargins(
 	layoutService: IWorkbenchLayoutService,
@@ -402,7 +404,7 @@ export function getFloatingEditorVerticalMargins(
 			? isFloatingTopEdgeExposed(layoutService, targetWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN
 			: margin,
 		bottom: outerEdges.bottom
-			? layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow) ? margin : outerMargin
+			? layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow) ? FLOATING_PANEL_INNER_MARGIN : outerMargin
 			: FLOATING_PANEL_INNER_MARGIN
 	};
 }

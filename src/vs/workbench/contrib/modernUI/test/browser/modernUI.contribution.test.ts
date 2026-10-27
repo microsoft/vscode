@@ -1294,7 +1294,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('centers status bar items within the status bar background', () => {
+	test('centers left and right status bar items within the floating rail', () => {
 		const measure = (className: string, statusbarHeight: number) => {
 			const root = document.createElement('div');
 			root.className = className;
@@ -1307,21 +1307,29 @@ suite('ModernUIContribution', () => {
 			const statusbar = appendElement(root, 'part statusbar');
 			statusbar.style.width = '240px';
 			statusbar.style.height = `${statusbarHeight}px`;
-			const items = appendElement(statusbar, 'left-items items-container');
-			const item = appendElement(items, 'statusbar-item left');
-			const label = appendElement(item, 'statusbar-item-label');
+			const leftItems = appendElement(statusbar, 'left-items items-container');
+			const rightItems = appendElement(statusbar, 'right-items items-container');
+			const leftItem = appendElement(leftItems, 'statusbar-item left first-visible-item');
+			const leftLabel = appendElement(leftItem, 'statusbar-item-label');
+			const rightItem = appendElement(rightItems, 'statusbar-item right last-visible-item');
+			const rightLabel = appendElement(rightItem, 'statusbar-item-label');
 
 			const statusbarBounds = statusbar.getBoundingClientRect();
-			const itemBounds = item.getBoundingClientRect();
-			const labelBounds = label.getBoundingClientRect();
+			const leftItemBounds = leftItem.getBoundingClientRect();
+			const rightItemBounds = rightItem.getBoundingClientRect();
+			const leftLabelBounds = leftLabel.getBoundingClientRect();
+			const rightLabelBounds = rightLabel.getBoundingClientRect();
 			const statusbarStyle = getWindow(statusbar).getComputedStyle(statusbar);
 
 			return {
 				paddingTop: statusbarStyle.paddingTop,
 				paddingBottom: statusbarStyle.paddingBottom,
-				itemHeight: itemBounds.height,
-				labelHeight: labelBounds.height,
-				centerOffset: itemBounds.top + itemBounds.height / 2 - (statusbarBounds.top + statusbarBounds.bottom) / 2,
+				leftItemHeight: leftItemBounds.height,
+				rightItemHeight: rightItemBounds.height,
+				leftLabelHeight: leftLabelBounds.height,
+				rightLabelHeight: rightLabelBounds.height,
+				leftCenterOffset: leftItemBounds.top + leftItemBounds.height / 2 - (statusbarBounds.top + statusbarBounds.bottom) / 2,
+				rightCenterOffset: rightItemBounds.top + rightItemBounds.height / 2 - (statusbarBounds.top + statusbarBounds.bottom) / 2,
 			};
 		};
 
@@ -1330,9 +1338,33 @@ suite('ModernUIContribution', () => {
 			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26),
 			classic: measure('monaco-workbench', 22),
 		}, {
-			defaultDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
-			compactDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
-			classic: { paddingTop: '0px', paddingBottom: '0px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
+			defaultDensity: { paddingTop: '2px', paddingBottom: '2px', leftItemHeight: 24, rightItemHeight: 24, leftLabelHeight: 24, rightLabelHeight: 24, leftCenterOffset: 0, rightCenterOffset: 0 },
+			compactDensity: { paddingTop: '2px', paddingBottom: '2px', leftItemHeight: 22, rightItemHeight: 22, leftLabelHeight: 22, rightLabelHeight: 22, leftCenterOffset: 0, rightCenterOffset: 0 },
+			classic: { paddingTop: '0px', paddingBottom: '0px', leftItemHeight: 22, rightItemHeight: 22, leftLabelHeight: 22, rightLabelHeight: 22, leftCenterOffset: 0, rightCenterOffset: 0 },
+		});
+	});
+
+	test('removes the gap before the status bar but keeps window-edge gutters without it', () => {
+		const root = appendElement(document.body, 'monaco-workbench floating-panels');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		store.add(toDisposable(() => root.remove()));
+
+		const grid = appendElement(root, 'monaco-grid-view');
+		const editor = appendElement(grid, 'part editor floating-editor-outer-bottom');
+		const panel = appendElement(root, 'part panel bottom floating-part-outer-bottom');
+		const margins = () => ({
+			editor: getWindow(editor).getComputedStyle(editor).marginBottom,
+			panel: getWindow(panel).getComputedStyle(panel).marginBottom,
+		});
+
+		const statusBarVisible = margins();
+		root.classList.add('nostatusbar');
+		const statusBarHidden = margins();
+
+		assert.deepStrictEqual({ statusBarVisible, statusBarHidden }, {
+			statusBarVisible: { editor: '0px', panel: '0px' },
+			statusBarHidden: { editor: '4px', panel: '4px' },
 		});
 	});
 
