@@ -98,7 +98,7 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 ### Embedded code-block editor presentation
 
 `markdown.codeBlockEditorProviders` contributions and export-API resolve results
-accept optional `presentation: { resizable, fullWidth, fullView, minHeight }`.
+accept optional `presentation: { resizable, fullWidth, fullView, minHeight, maxAutomaticHeight }`.
 The Markdown editor owns these controls, including for static/uncooperative
 pages. Resolve-result properties override contribution defaults; explicit
 provider properties override guest-advertised preferences. Keep the contribution
@@ -106,6 +106,10 @@ schema, descriptor validation, RPC schema, equality checks, and static/export-AP
 paths in sync when extending this contract.
 
 Undefined resolve-result properties inherit the contribution defaults; explicit `false` still overrides them. The extension consumes the published `@vscode/markdown-editor` package, which implements the controls and mode notifications.
+
+An export-API provider can expose an optional `onDidChange` event. When it
+fires, open Markdown editors resolve that provider's code blocks again, for
+example to apply a changed setting.
 
 The implementation and interaction fixtures live in the local Markdown editor
 package. See its README's **Embedded editor presentation** section for the
@@ -118,15 +122,12 @@ background and glow, and defaults to enabled. Resource-specific changes are sent
 to the renderer without reloading the document or changing source-marker visibility.
 The webview reserves symmetric scrollbar gutters so the document remains centered.
 
-### Mermaid presentation
+### Mermaid
 
-Built-in Mermaid diagrams use the same iframe provider and host-owned resize,
-full-width, and full-view controls as contributed editors. The guest consumes
-source updates through `WebEditorClient`, renders errors visibly, and preserves
-the iframe across presentation changes. A contributed matching `mermaid` provider
-takes precedence over the built-in renderer. The Mermaid bundle loads lazily.
-Run `node --test scripts/mermaid.browser.test.mts` from this extension directory
-to verify rendering, live updates, error recovery, and presentation controls.
+The `mermaid-markdown-features` extension contributes the Mermaid code block
+editor through `markdown.codeBlockEditorProviders`, sharing its theme and
+settings with the Markdown preview. This extension has no Mermaid renderer of
+its own.
 
 ### Rich editor diagnostics
 
