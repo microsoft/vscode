@@ -235,6 +235,7 @@ class TestAgentHostTerminalManager extends AgentHostTerminalManager {
 	spawnOptions: IPtyForkOptions | IWindowsPtyForkOptions | undefined;
 	spawnCount = 0;
 	spawnGate: Promise<void> | undefined;
+	readonly spawnStarted = new DeferredPromise<void>();
 
 	constructor(
 		stateManager: AgentHostStateManager,
@@ -248,6 +249,7 @@ class TestAgentHostTerminalManager extends AgentHostTerminalManager {
 
 	protected override async _spawnPty(_file: string, _args: string[], options: IPtyForkOptions | IWindowsPtyForkOptions): Promise<IPty> {
 		this.spawnCount++;
+		this.spawnStarted.complete();
 		await this.spawnGate;
 		this.spawnOptions = options;
 		this._pty.cols = options.cols ?? this._pty.cols;
@@ -944,7 +946,7 @@ suite('AgentHostTerminalManager – concurrent creation', () => {
 
 		const original = manager.createTerminal(params, { shell: '/bin/bash' });
 		const duplicate = manager.createTerminal(params, { shell: '/bin/bash' }).then(() => 'created', (err: Error) => err.message);
-		await timeout(0);
+		await manager.spawnStarted.p;
 		spawnGate.complete();
 		await pty.dataListenerRegistered.p;
 		pty.fireData('prompt');
@@ -961,7 +963,7 @@ suite('AgentHostTerminalManager – concurrent creation', () => {
 		const { manager, pty, spawnGate } = createManager();
 
 		const creation = manager.createTerminal(params, { shell: '/bin/bash' });
-		await timeout(0);
+		await manager.spawnStarted.p;
 		manager.disposeTerminal(uri);
 		spawnGate.complete();
 		await pty.dataListenerRegistered.p;
@@ -976,7 +978,7 @@ suite('AgentHostTerminalManager – concurrent creation', () => {
 
 		const original = manager.createTerminal(params, { shell: '/bin/bash' });
 		const duplicate = manager.createTerminal(params, { shell: '/bin/bash' }).then(() => 'created', (err: Error) => err.message);
-		await timeout(0);
+		await manager.spawnStarted.p;
 		manager.disposeTerminal(uri);
 		spawnGate.complete();
 		await pty.dataListenerRegistered.p;
@@ -995,9 +997,7 @@ suite('AgentHostTerminalManager – concurrent creation', () => {
 
 		const original = manager.createTerminal(params, { shell: '/bin/bash' }).then(() => 'created', (err: Error) => err.message);
 		const duplicate = manager.createTerminal(params, { shell: '/bin/bash' }).then(() => 'created', (err: Error) => err.message);
-		while (manager.spawnCount === 0) {
-			await timeout(0);
-		}
+		await manager.spawnStarted.p;
 		// Fail only the original spawn; the duplicate's spawn proceeds ungated.
 		manager.spawnGate = undefined;
 		spawnGate.error(new Error('spawn failed'));
