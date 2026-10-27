@@ -2481,6 +2481,14 @@ suite('AgentHostChatContribution', () => {
 			await finish();
 			assert.deepStrictEqual(sent.action.message.model, { id: 'auto' });
 		});
+		test('a model of another agent on the same host is sent by its raw id', async () => {
+			const models = new Map([['agent-host-otheragent:other-model', upcastPartial<ILanguageModelChatMetadata>({ id: 'other-model', name: 'Other', targetChatSessionType: 'agent-host-otheragent' })]]);
+			const { startRequest } = await openWireSession({ languageModels: models });
+			const { sent, finish } = await startRequest({ userSelectedModelId: 'agent-host-otheragent:other-model' });
+			assert.ok(sent.action.type === ActionType.ChatTurnStarted);
+			await finish();
+			assert.deepStrictEqual(sent.action.message.model, { id: 'other-model' });
+		});
 	});
 
 	suite('response resource links', () => {
@@ -2634,6 +2642,41 @@ suite('AgentHostChatContribution', () => {
 				peer: toAgentHostUri(URI.file('/sandbox/peer/images/my robot.png'), 'sandbox').toString(),
 				link: toAgentHostUri(URI.file('/sandbox/project/images/my robot.png'), 'sandbox').toString(),
 				peerLink: toAgentHostUri(URI.file('/sandbox/peer/images/my robot.png'), 'sandbox').toString(),
+			});
+		});
+
+		test('a chat on another agent than its session\'s, such as one moved in from a session of that agent, restores its models from that agent', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'moved-in');
+			const defaultChat = buildDefaultChatUri(backend);
+			const ownAgentChat = buildChatUri(backend.toString(), 'own-agent');
+			const sameAgentChat = buildChatUri(backend.toString(), 'same-agent');
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Moved', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			};
+			const ownAgent = { ...createDefaultChatSummary(summary, ownAgentChat), provider: 'claude' };
+			const sameAgent = createDefaultChatSummary(summary, sameAgentChat);
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat,
+				chats: [createDefaultChatSummary(summary, defaultChat), ownAgent, sameAgent],
+			});
+			const withTurn = (chat: ReturnType<typeof createDefaultChatSummary>, model: string): ChatState => ({
+				...createChatState(chat),
+				turns: [{ id: `${model}-turn`, state: TurnState.Complete, message: { text: 'Before the move', origin: { kind: MessageKind.User }, model: { id: model } }, responseParts: [], usage: undefined }],
+			});
+			agentHostService.chatStates.set(ownAgentChat, withTurn(ownAgent, 'claude-haiku'));
+			agentHostService.chatStates.set(sameAgentChat, withTurn(sameAgent, 'gpt'));
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: backend.path });
+			const historyModels = async (chat: string) => {
+				const session = disposables.add(await sessionHandler.provideChatSessionContent(resource.with({ fragment: getAgentHostChatId(chat) }), CancellationToken.None));
+				return session.history.flatMap(item => item.type === 'request' ? [item.modelId] : []);
+			};
+
+			assert.deepStrictEqual({ ownAgent: await historyModels(ownAgentChat), sameAgent: await historyModels(sameAgentChat) }, {
+				// The chat's model selection stays its own agent's: it is sent as is, not dropped as another session type's.
+				ownAgent: ['agent-host-claude:claude-haiku'],
+				sameAgent: ['agent-host-copilot:gpt'],
 			});
 		});
 
@@ -16653,6 +16696,14 @@ suite('AgentHostChatContribution', () => {
 					},
 				};
 			}
+
+			test('every agent\'s session type owns its model pool, so a chat answered by it never falls back to another\'s models', async () => {
+				const { instantiationService, subscription, chatSessionContributions } = createRegistrationServices();
+				disposables.add(instantiationService.createInstance(AgentHostContribution));
+				subscription.handleSnapshot(rootState, 0);
+				await timeout(0);
+				assert.deepStrictEqual(chatSessionContributions.map(contribution => [contribution.type, contribution.requiresCustomModels]), [['agent-host-copilot', true], ['agent-host-claude', true]]);
+			});
 
 			for (const kind of ['Error', 'undefined'] as const) {
 				test(`configuration changes preserve executable registrations with an ${kind} root snapshot`, async () => {

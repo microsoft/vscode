@@ -1368,7 +1368,8 @@ export class AgentHostChatInputPicker extends Disposable {
 	/** The effective config of this picker's chat: its session's, with the chat's own values applied. */
 	private _readChatConfig(state: SessionState): SessionConfigState | undefined {
 		const chat = this._subRef.value?.getChat();
-		return getAgentHostChatConfig(state, chat?.resource, member => chat?.chain.get(member)?.value);
+		const connection = this._subRef.value?.connection;
+		return getAgentHostChatConfig(state, chat?.resource, member => chat?.chain.get(member)?.value, connection?.initializeResult.get()?.protocolVersion);
 	}
 
 	/** Confirms an elevated approval selection before writing through its host binding. */
@@ -1465,7 +1466,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 
 		const state = this._subRef.value?.sub.value;
-		dispatchAgentHostConfigChange(connection, backendSession, this._subRef.value?.getChat()?.resource, state && !(state instanceof Error) ? state : undefined, partial);
+		dispatchAgentHostConfigChange(connection, backendSession, this._subRef.value?.getChat()?.resource, state && !(state instanceof Error) ? state : undefined, partial, state && !(state instanceof Error) ? this._readChatConfig(state) : undefined);
 		if (this._isCurrentTarget(context)) {
 			await this._provisional.refreshResolvedConfig(
 				sessionResource,

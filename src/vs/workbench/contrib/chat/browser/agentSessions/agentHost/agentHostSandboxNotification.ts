@@ -166,14 +166,14 @@ export class AgentHostSandboxNotification extends Disposable {
 		}
 		validateChatPickerConfigWrite(config.schema, config.values, SessionConfigKey.SandboxEnabled, AgentSandboxEnabledValue.Off, false);
 		// Turns off this chat's sandboxing, which is its own when the host lets a chat set it.
-		dispatchAgentHostConfigChange(resolution.connection, resolution.backendSession, chat, state, { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off });
+		dispatchAgentHostConfigChange(resolution.connection, resolution.backendSession, chat, state, { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off }, config);
 	}
 
 	/** This notification's chat in its session's catalog, and that chat's effective config. */
 	private _readChat(state: SessionState): { readonly chat: string | undefined; readonly config: SessionConfigState | undefined } {
 		const chat = getAgentHostBackendChat(this._sessionResource, state);
 		const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
-		return { chat, config: getAgentHostChatConfig(state, chat, chat => connection?.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value) };
+		return { chat, config: getAgentHostChatConfig(state, chat, chat => connection?.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, connection?.initializeResult.get()?.protocolVersion) };
 	}
 
 	private _canDisableSandboxing(state: SessionState | Error | undefined): boolean {

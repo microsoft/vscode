@@ -20,7 +20,7 @@ import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
-import { ChatTreeItem } from '../chat.js';
+import { ChatTreeItem, IChatResponseIdentity } from '../chat.js';
 import { getChatRequestText } from '../chatRequestText.js';
 
 export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocation: IChatToolInvocation[]) => {
@@ -95,6 +95,7 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
 
 	constructor(
+		private readonly _getResponseIdentity: () => IChatResponseIdentity | undefined = () => undefined,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -119,7 +120,10 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		}
 
 		if (isResponseVM(element)) {
-			return this._getLabelWithInfo(element);
+			// Name who answers a chat answered by another agent than its session type serves.
+			const identity = this._getResponseIdentity();
+			const label = this._getLabelWithInfo(element);
+			return identity ? localize('chatResponseFromIdentity', "{0}: {1}", identity.label, label) : label;
 		}
 
 		return '';
