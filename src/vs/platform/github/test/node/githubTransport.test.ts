@@ -237,6 +237,39 @@ suite('GitHubTransport', () => {
 		});
 	});
 
+	test('records the page where GitHub lets the user authorize a credential refused for single sign-on', async () => {
+		const refuse = async (header: string | undefined, url = 'https://api.github.example.test/repos/o/r/pulls') => {
+			const transport = disposables.add(new GitHubTransport(async () => new Response('{"message":"Resource protected by organization SAML enforcement."}', {
+				status: 403, headers: header ? { 'x-github-sso': header } : {},
+			})));
+			try {
+				await transport.rest(accountA, 'token', { method: 'GET', url, etag: false }, signal());
+				return 'resolved';
+			} catch (error) {
+				return error instanceof GitHubRequestError ? [error.kind, error.responseMetadata?.ssoAuthorizationUrl] : String(error);
+			}
+		};
+		const page = 'https://github.example.test/orgs/octo/sso?authorization_request=abc';
+
+		assert.deepStrictEqual({
+			apiHost: await refuse(`required; url=${page}`),
+			sameHost: await refuse(`required; url=https://ghe.example.test/orgs/octo/sso?authorization_request=abc`, 'https://ghe.example.test/api/v3/repos/o/r'),
+			otherHost: await refuse('required; url=https://evil.example.test/orgs/octo/sso?authorization_request=abc'),
+			insecure: await refuse(`required; url=${page.replace('https:', 'http:')}`),
+			otherPage: await refuse('required; url=https://github.example.test/login'),
+			partialResults: await refuse('partial-results; organizations=21955855'),
+			missing: await refuse(undefined),
+		}, {
+			apiHost: ['authorization', page],
+			sameHost: ['authorization', 'https://ghe.example.test/orgs/octo/sso?authorization_request=abc'],
+			otherHost: ['authorization', undefined],
+			insecure: ['authorization', undefined],
+			otherPage: ['authorization', undefined],
+			partialResults: ['authorization', undefined],
+			missing: ['authorization', undefined],
+		});
+	});
+
 	test('coalesces buffered and legacy JSON reads without changing either result shape', async () => {
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<Response>();
