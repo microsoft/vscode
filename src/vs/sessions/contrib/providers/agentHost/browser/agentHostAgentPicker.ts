@@ -221,7 +221,7 @@ class AgentHostModePickerActionViewItem extends BaseActionViewItem {
 	}
 }
 
-class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchContribution {
+export class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.agentHostAgentPicker';
 
@@ -426,14 +426,14 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		if (!selectedAgentUri && isUntitled && resolved) {
 			beginInternalSet();
 			try {
-				this._setAgent(session, provider, resolved);
+				provider.setAgent?.(session.sessionId, { uri: resolved.uri, name: resolved.name });
 			} finally {
 				endInternalSet();
 			}
 		} else if (selectedAgentUri && !resolved && agents.length > 0 && !isUntitled) {
 			beginInternalSet();
 			try {
-				this._setAgent(session, provider, undefined);
+				provider.setAgent?.(session.sessionId, undefined);
 			} finally {
 				endInternalSet();
 			}
