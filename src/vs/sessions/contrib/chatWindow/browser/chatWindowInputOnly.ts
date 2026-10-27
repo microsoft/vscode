@@ -5,6 +5,7 @@
 
 import { AbstractChatView } from '../../../browser/parts/chatView.js';
 import { addDisposableListener, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
+import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -12,7 +13,7 @@ import { SessionView } from '../../../browser/parts/sessionView.js';
 import { ISessionGridLayout, SessionGridCell, SessionLayoutMode } from '../../../common/sessionGridLayout/sessionGridLayout.js';
 import { ChatWindowCellView, ChatWindowGridHost, IChatWindowCellConstraints } from './chatWindowGridHost.js';
 import { ChatWindowState } from './chatWindowState.js';
-import { clampStackedChatOnResize, decideStackedChatInputOnly, shouldRestoreStackedChatConversation, stackedChatConversationFits, stackedChatForcedByWindow, stackedChatPersistedInputOnly } from '../../../common/stackedChatInputOnly.js';
+import { clampStackedChatOnResize, decideStackedChatInputOnly, decideStackedChatInputOnlyWhileDragging, shouldRestoreStackedChatConversation, stackedChatConversationFits, stackedChatForcedByWindow, stackedChatPersistedInputOnly } from '../../../common/stackedChatInputOnly.js';
 
 /** The least height of the conversation above the chat input, below the editor area. */
 export const CHAT_WINDOW_CONVERSATION_MIN_HEIGHT = 120;
@@ -27,11 +28,16 @@ const CHAT_WINDOW_INPUT_ONLY_MAX_HEIGHT = 320;
  * alone at its height, except that a window too short for the conversation, with the editor area at its least height,
  * shows only the input until it grows again (see `stackedChatForcedByWindow`). What the chat shows in the end is what its
  * view shows, which shows the conversation when it needs it, such as for a confirmation its input cannot show: the cell
- * and the session header, which hides while only the input shows, follow the view.
+ * follows the view, and the session header stays the top row of the window.
  */
 export class ChatWindowInputOnlyController extends Disposable {
 
 	private readonly _dragging = observableValue<boolean>(this, false);
+	/**
+	 * The height of the chat cell as last measured while it showed only its input: its input measures taller in the
+	 * conversation, so a drag that passes between the two decides against this one height, not one that moves as it does.
+	 */
+	private readonly _inputOnlyCollapsedHeight = observableValue<number | undefined>(this, undefined);
 	private readonly _settle = this._register(new RunOnceScheduler(() => this._settleHeight(), 0));
 	/** Set while the chat shows only its input because the window is too short; not the user's choice, so not kept. */
 	private _forcedByWindow = false;
@@ -117,11 +123,21 @@ export class ChatWindowInputOnlyController extends Disposable {
 			const collapsed = this.collapsedHeight.read(reader);
 			if (!stacked.read(reader) || !collapsed) {
 				chatCell.setConstraints(defaultConstraints);
+				chatCell.setPriority(undefined);
 				return;
 			}
-			// Down to its input while it is dragged; kept at it while it shows only its input.
-			const keptToInput = shownInputOnly.read(reader) && !this._dragging.read(reader);
-			chatCell.setConstraints({ ...defaultConstraints, minimumHeight: collapsed, maximumHeight: keptToInput ? collapsed : defaultConstraints.maximumHeight });
+			// At rest only: as a drag shows only the input, the input still measures as in the conversation for a moment.
+			if (shownInputOnly.read(reader) && !this._dragging.read(reader)) {
+				this._inputOnlyCollapsedHeight.set(collapsed, undefined);
+			}
+			// While dragged, down to the input's height as it shows only the input, so that the drag reaches the point where it does.
+			const minimumHeight = this._dragging.read(reader) ? Math.min(collapsed, this._inputOnlyCollapsedHeight.read(reader) ?? collapsed) : collapsed;
+			// Down to its input, never below. While it shows only its input it keeps that height as the window is resized by
+			// giving way last (low priority), as the main window's chat does, not by a fixed height: one would leave the sash
+			// above it nothing to drag, without a flexible cell beside it such as the terminals'. What a layout changed is
+			// settled once it is done (_settle), and what a drag shows once it lets go (_decide).
+			chatCell.setConstraints({ ...defaultConstraints, minimumHeight });
+			chatCell.setPriority(shownInputOnly.read(reader) ? LayoutPriority.Low : undefined);
 		}));
 
 		// Only a press on a sash of this window's grid drags the split; what shows is decided once it lets go.
@@ -131,6 +147,13 @@ export class ChatWindowInputOnlyController extends Disposable {
 				this._dragging.set(true, undefined);
 			}
 		}, true));
+		// While the sash is dragged, what shows follows the height live: the conversation as soon as the chat is dragged up
+		// past its input, laid out at the height it is dragged to, and only the input as soon as it is dragged back to it.
+		this._register(chatCell.onDidLayout(() => {
+			if (this._dragging.get() && stacked.get()) {
+				this._decideWhileDragging();
+			}
+		}));
 		const release = () => {
 			if (this._dragging.get()) {
 				this._decide();
@@ -162,9 +185,30 @@ export class ChatWindowInputOnlyController extends Disposable {
 		return this._gridHost.getSize(SessionGridCell.Chat)?.height;
 	}
 
+	/** What shows while the chat is dragged, as its height changes (see `decideStackedChatInputOnlyWhileDragging`). */
+	private _decideWhileDragging(): void {
+		const groupHeight = this._chatHeight();
+		const collapsedHeight = this._dragCollapsedHeight();
+		const chatView = this._view.get();
+		if (groupHeight === undefined || !collapsedHeight || !chatView) {
+			return;
+		}
+		const shownInputOnly = this.shownInputOnly.get();
+		const inputOnly = decideStackedChatInputOnlyWhileDragging({ groupHeight, collapsedHeight, inputOnly: shownInputOnly });
+		if (inputOnly !== shownInputOnly && (!inputOnly || chatView.canShowInputOnly.get())) {
+			chatView.setInputOnly(inputOnly);
+		}
+	}
+
+	/** The height a drag decides against: the chat's as it shows only its input (see {@link _inputOnlyCollapsedHeight}). */
+	private _dragCollapsedHeight(): number {
+		return this._inputOnlyCollapsedHeight.get() ?? this.collapsedHeight.get();
+	}
+
+	/** What shows where the drag lets go, which settles the chat at its input or its conversation: the user's choice. */
 	private _decide(): void {
 		const groupHeight = this._chatHeight();
-		const collapsedHeight = this.collapsedHeight.get();
+		const collapsedHeight = this._dragCollapsedHeight();
 		if (groupHeight === undefined || !collapsedHeight) {
 			return;
 		}
@@ -179,6 +223,10 @@ export class ChatWindowInputOnlyController extends Disposable {
 	}
 
 	private _settleHeight(): void {
+		// Not while the split is dragged, which shows the chat at the height it is dragged to; its release settles it.
+		if (this._dragging.get()) {
+			return;
+		}
 		const groupHeight = this._chatHeight();
 		const collapsedHeight = this.collapsedHeight.get();
 		if (groupHeight === undefined || !collapsedHeight || this._gridHost.layout?.mode !== SessionLayoutMode.Stacked) {

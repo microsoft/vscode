@@ -41,7 +41,7 @@ import { IconBadge, NumberBadge } from '../../../workbench/services/activity/com
 import { TestContextViewService } from './testContextViewService.js';
 import '../../../base/browser/ui/tree/media/tree.css';
 import '../../browser/parts/media/sessionView.css';
-import { ChatWindowIdContext, isChatWindowHandle } from '../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TOGGLE_EDITOR_KEY_COMMAND_ID, ChatWindowIdContext, isChatWindowHandle } from '../../services/chatWindow/browser/chatWindowService.js';
 
 interface ITestEntry {
 	readonly id: string;
@@ -586,6 +586,23 @@ suite('Sessions - Session Activity Bar', () => {
 			before: { files: { checked: true, pressed: 'true' }, browser: { checked: false, pressed: null }, terminal: { checked: true, pressed: 'true' } },
 			ran: [TOGGLE_SIDE_PANEL_COMMAND_ID, 'test.browser', TogglePanelAction.ID, TOGGLE_SIDE_PANEL_COMMAND_ID],
 		});
+	});
+
+	test('in a chat window, a checked entry hides the editor area of that window, and the entries of the panel\'s group toggle themselves: never the side panel or the panel of the main window', async () => {
+		const files: ITestEntry = { id: 'test.files', title: 'Files', icon: Codicon.files, group: SessionActivityBarGroup.SidePanel, checked: true };
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel, checked: true };
+		for (const entry of [files, terminal]) {
+			store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { command: { id: entry.id, title: entry.title }, group: entry.group }));
+		}
+		const { label, ranWith, contextKeyService } = createActivityBar(store, [files, terminal]);
+		ChatWindowIdContext.bindTo(contextKeyService).set(7);
+
+		for (const title of ['Files', 'Terminal']) {
+			label(title).click();
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual(ranWith, [[CHAT_WINDOW_TOGGLE_EDITOR_KEY_COMMAND_ID, { chatWindowId: 7 }], ['test.terminal', { chatWindowId: 7 }]]);
 	});
 
 	test('an item of a submenu acts on the chat window its strip is part of, as the entries do; in the main window, without a context', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

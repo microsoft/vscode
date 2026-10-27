@@ -623,6 +623,8 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'sessions.focusSessionInGrid7',
 	'sessions.focusSessionInGrid8',
 	'sessions.focusSessionInGrid9',
+	'sessions.chatWindow.toggleTerminal',
+	'sessions.chatWindow.toggleEditorByKey',
 	'sessionsViewPane.navigatePreviousSession',
 	'sessionsViewPane.navigateNextSession',
 	'workbench.action.nextEditor',
