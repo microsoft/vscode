@@ -47,8 +47,8 @@ const exactPaths = new Set([
 	'scripts/test.sh',
 	'scripts/test.bat',
 	'src/vs/nls.ts',
-	// CSS değişken doğrulama ve şema entegrasyonu için eklenen yollar:
-	'src/vs/editor/common/languages/modes/link.ts', // İhtiyacına göre ilgili dosya yollarıyla güncelleyebilirsin
+	// Paths added for CSS variable validation and schema integration:
+	'src/vs/editor/common/languages/modes/link.ts', 
 ]);
 
 const pathPrefixes = [
@@ -61,7 +61,7 @@ const pathPrefixes = [
 	'src/vs/platform/',
 	'test/unit/electron/',
 	'test/integration/agentHost/',
-	// CSS değişken doğrulama / şema modülleri için prefix desteği:
+	// Prefix support for CSS variable validation / schema modules:
 	'src/vs/editor/common/services/',
 ];
 
