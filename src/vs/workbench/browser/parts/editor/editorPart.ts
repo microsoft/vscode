@@ -315,6 +315,13 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
 
+	/**
+	 * Whether the part is owned by someone else than the editor parts service:
+	 * it is not restored, not part of working sets and does not affect the
+	 * labels of other parts. Its owner is responsible for its lifecycle.
+	 */
+	get isTransient(): boolean { return false; }
+
 	private _willRestoreState = false;
 	get willRestoreState(): boolean { return this._willRestoreState; }
 
