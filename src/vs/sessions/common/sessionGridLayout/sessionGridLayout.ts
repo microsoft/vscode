@@ -73,15 +73,13 @@ export interface ISessionGridLayout {
 	readonly column: SessionColumnPlacement;
 	/** Whether the chat shows only its input. */
 	readonly inputOnly: boolean;
-	/** The cells that are present, in tab and landmark order: chat, side pane, terminals, column. */
+	/** The visible cells in tab and landmark order, which is the topology's leaf order (the visual order). */
 	readonly tabOrder: readonly SessionGridCell[];
 	/** The structure of the topology without visibility: a different key needs the grid rebuilt. */
 	readonly shapeKey: string;
 }
 
 export type SessionGridLayoutChange = 'none' | 'visibility' | 'rebuild';
-
-const tabOrder: readonly SessionGridCell[] = [SessionGridCell.Chat, SessionGridCell.SidePane, SessionGridCell.Terminals, SessionGridCell.Column];
 
 function isBranch(node: SessionGridLayoutNode): node is ISessionGridLayoutBranch {
 	return 'children' in node;
@@ -157,13 +155,12 @@ export function computeSessionGridLayout(state: ISessionGridLayoutState): ISessi
 	}
 
 	const topology = root as ISessionGridLayoutBranch;
-	const present = new Set(collectLeaves(topology).map(leaf => leaf.cell));
 	return {
 		mode,
 		topology,
 		column: placement,
 		inputOnly: mode === SessionLayoutMode.Stacked && state.inputOnly,
-		tabOrder: tabOrder.filter(cell => present.has(cell)),
+		tabOrder: collectLeaves(topology).filter(leaf => leaf.visible).map(leaf => leaf.cell),
 		shapeKey: shapeOf(topology),
 	};
 }

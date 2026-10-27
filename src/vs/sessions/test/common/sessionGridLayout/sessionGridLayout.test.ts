@@ -16,6 +16,13 @@ function render(node: SessionGridLayoutNode): string {
 	return node.cell + (node.visible ? '' : '!');
 }
 
+function visibleCells(node: SessionGridLayoutNode): SessionGridCell[] {
+	if (hasKey(node, { children: true })) {
+		return node.children.flatMap(visibleCells);
+	}
+	return node.visible ? [node.cell] : [];
+}
+
 const modes = [SessionLayoutMode.ChatOnly, SessionLayoutMode.EditorOnly, SessionLayoutMode.Stacked, SessionLayoutMode.SideBySide];
 const positions = [SessionTerminalPosition.FullWidth, SessionTerminalPosition.UnderEditor, SessionTerminalPosition.UnderChat];
 
@@ -110,7 +117,8 @@ suite('Session grid layout', () => {
 			const layout = computeSessionGridLayout(state({ mode, activityBar: false }));
 			assert.strictEqual(layout.column, SessionColumnPlacement.None);
 			const hidden = render(layout.topology).includes('column!');
-			assert.strictEqual(hidden, layout.tabOrder.includes(SessionGridCell.Column), mode);
+			assert.strictEqual(hidden, mode === SessionLayoutMode.Stacked || mode === SessionLayoutMode.EditorOnly, mode);
+			assert.ok(!layout.tabOrder.includes(SessionGridCell.Column), mode);
 		}
 	});
 
@@ -125,10 +133,16 @@ suite('Session grid layout', () => {
 
 	test('L-31 Stacked forces the terminals across the bottom and the position applies again side by side', () => {
 		for (const position of positions) {
-			const before = render(computeSessionGridLayout(state({ mode: SessionLayoutMode.SideBySide, terminalPosition: position })).topology);
-			assert.strictEqual(render(computeSessionGridLayout(state({ mode: SessionLayoutMode.Stacked, terminalPosition: position })).topology), expected[SessionLayoutMode.Stacked][SessionTerminalPosition.FullWidth].topology);
-			assert.strictEqual(render(computeSessionGridLayout(state({ mode: SessionLayoutMode.SideBySide, terminalPosition: position })).topology), before);
+			const stacked = computeSessionGridLayout(state({ mode: SessionLayoutMode.Stacked, terminalPosition: position }));
+			assert.strictEqual(render(stacked.topology), expected[SessionLayoutMode.Stacked][SessionTerminalPosition.FullWidth].topology);
+			const sideBySideAfter = computeSessionGridLayout(state({ mode: SessionLayoutMode.SideBySide, terminalPosition: position }));
+			assert.strictEqual(render(sideBySideAfter.topology), expected[SessionLayoutMode.SideBySide][position].topology);
 		}
+	});
+
+	test('I6 the three Side by Side terminal positions have pairwise distinct topologies', () => {
+		const topologies = positions.map(position => render(computeSessionGridLayout(state({ mode: SessionLayoutMode.SideBySide, terminalPosition: position })).topology));
+		assert.strictEqual(new Set(topologies).size, positions.length);
 	});
 
 	test('L-32 positions share the main window panel alignment vocabulary', () => {
@@ -175,18 +189,15 @@ suite('Session grid layout', () => {
 			};
 			check(layout.topology, undefined);
 			assert.strictEqual(new Set(leaves).size, leaves.length);
-			assert.deepStrictEqual([...leaves].sort(), [...layout.tabOrder].sort());
+			assert.ok(layout.tabOrder.every(cell => leaves.includes(cell)));
 		});
 	});
 
-	test('L-60 tab order is chat, side pane, terminals, strip in every mode', () => {
-		const actual = modes.map(mode => computeSessionGridLayout(state({ mode })).tabOrder);
-		assert.deepStrictEqual(actual, [
-			[SessionGridCell.Chat, SessionGridCell.Terminals],
-			[SessionGridCell.SidePane, SessionGridCell.Terminals, SessionGridCell.Column],
-			[SessionGridCell.Chat, SessionGridCell.SidePane, SessionGridCell.Terminals, SessionGridCell.Column],
-			[SessionGridCell.Chat, SessionGridCell.SidePane, SessionGridCell.Terminals],
-		]);
+	test('L-60 tab order is the visual (topology leaf) order of the visible cells, in every state', () => {
+		eachState(s => {
+			const layout = computeSessionGridLayout(s);
+			assert.deepStrictEqual(layout.tabOrder, visibleCells(layout.topology), JSON.stringify(s));
+		});
 	});
 
 	test('the layout is a pure function of its state', () => {
