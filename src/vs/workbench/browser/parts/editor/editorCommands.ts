@@ -1374,6 +1374,7 @@ function registerOtherEditorCommands(): void {
 				id: TOGGLE_LOCK_GROUP_COMMAND_ID,
 				title: localize2('toggleEditorGroupLock', 'Toggle Editor Group Lock'),
 				category: Categories.View,
+				precondition: EditorPartFixedGroupsContext.toNegated(),
 				f1: true
 			});
 		}
@@ -1388,7 +1389,7 @@ function registerOtherEditorCommands(): void {
 				id: LOCK_GROUP_COMMAND_ID,
 				title: localize2('lockEditorGroup', 'Lock Editor Group'),
 				category: Categories.View,
-				precondition: ActiveEditorGroupLockedContext.toNegated(),
+				precondition: ContextKeyExpr.and(ActiveEditorGroupLockedContext.toNegated(), EditorPartFixedGroupsContext.toNegated()),
 				f1: true
 			});
 		}
@@ -1402,7 +1403,7 @@ function registerOtherEditorCommands(): void {
 			super({
 				id: UNLOCK_GROUP_COMMAND_ID,
 				title: localize2('unlockEditorGroup', 'Unlock Editor Group'),
-				precondition: ActiveEditorGroupLockedContext,
+				precondition: ContextKeyExpr.and(ActiveEditorGroupLockedContext, EditorPartFixedGroupsContext.toNegated()),
 				category: Categories.View,
 				f1: true
 			});
