@@ -1790,7 +1790,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const resolved = await this._resolveWorkingDirectoryForResume(URI.parse(params.session), sessionId, pickedFolderUri);
 
 			const config = this._configurationService.getSessionConfigValues(params.session);
-			if (config?.[SessionConfigKey.Isolation] === 'folder') {
+			if (config?.[SessionConfigKey.Isolation] === 'folder' && !this._stateManager.isEphemeralSession(params.session)) {
 				const session = URI.parse(params.session);
 				const scope = resolveBranchChangesetScopeForSource(this._stateManager, params.chat);
 				const source = resolveBranchChangesetScopeForOwner(this._stateManager, scope.ownerUri)?.sourceUri ?? params.chat;
