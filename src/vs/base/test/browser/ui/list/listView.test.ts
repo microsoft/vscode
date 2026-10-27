@@ -354,6 +354,36 @@ suite('ListView', function () {
 		}
 	});
 
+	test('does not render an existing row again when the estimated render range changes', () => {
+		const rendered: number[] = [];
+		const renderer: IListRenderer<number, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) { return container; },
+			renderElement(value, _index, container) {
+				rendered.push(value);
+				container.textContent = String(value);
+			},
+			disposeTemplate() { }
+		};
+		const list = store.add(new class extends ListView<number> {
+			renderWithEstimatedRange(): void {
+				this.render({ start: 0, end: 1 }, 0, 100, undefined, undefined);
+			}
+		}(document.createElement('div'), {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; },
+		}, [renderer]));
+		list.layout(100, 200);
+		list.splice(0, 0, [1, 2]);
+		const row = list.domElement(1);
+		list.renderWithEstimatedRange();
+
+		assert.deepStrictEqual({ rendered: rendered.sort(), sameRow: list.domElement(1) === row }, {
+			rendered: [1, 2],
+			sameRow: true,
+		});
+	});
+
 	test('preserves existing rows while measuring overestimated appended rows', function () {
 		const container = document.createElement('div');
 		container.style.height = '300px';
@@ -404,6 +434,50 @@ suite('ListView', function () {
 			});
 		} finally {
 			listView.dispose();
+			container.remove();
+		}
+	});
+
+	test('keeps the last row rendered while measuring taller preceding rows with a bottom anchor', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		type Element = { id: number; height: number };
+		const rendered: number[] = [];
+		const delegate: IListVirtualDelegate<Element> = {
+			getHeight: () => 20,
+			getTemplateId: () => 'template',
+			hasDynamicHeight: () => true,
+			getDynamicHeight: element => element.height,
+		};
+		const renderer: IListRenderer<Element, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate: container => container,
+			renderElement(element, _index, container) {
+				rendered.push(element.id);
+				container.textContent = String(element.id);
+			},
+			disposeTemplate() { },
+		};
+		const list = store.add(new ListView(container, delegate, [renderer], { supportDynamicHeights: true }));
+		try {
+			const elements = [{ id: 1, height: 1000 }, { id: 2, height: 2000 }];
+			list.layout(100, 200);
+			list.withScrollAnchorAtBottom(() => list.splice(0, 0, elements));
+			assert.deepStrictEqual({ rendered: rendered.sort(), scrollTop: list.scrollTop, contentHeight: list.contentHeight, last: list.domElement(1)?.textContent }, {
+				rendered: [1, 2], scrollTop: 2900, contentHeight: 3000, last: '2',
+			});
+			const lastRow = list.domElement(1);
+			elements[0].height = 1500;
+			list.withScrollAnchorAtBottom(() => list.updateElementHeight(0, 1500, null));
+			assert.deepStrictEqual({ sameRow: list.domElement(1) === lastRow, scrollTop: list.scrollTop, rendered }, {
+				sameRow: true, scrollTop: 3400, rendered: [1, 2],
+			});
+			list.scrollTop = 0;
+			assert.throws(() => list.withScrollAnchorAtBottom(() => { throw new Error('test'); }), /test/);
+			elements[0].height = 2000;
+			list.updateElementHeight(0, 2000, null);
+			assert.strictEqual(list.scrollTop, 0, 'The bottom anchor must not outlive the operation');
+		} finally {
 			container.remove();
 		}
 	});

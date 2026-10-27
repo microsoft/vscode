@@ -598,6 +598,17 @@ suite('Chat Accessibility Help', () => {
 		}, { readOnlyPreview: true, settingOverride: true, keyboardExpansion: true });
 	});
 
+	test('describes duration-only thinking headers without hiding reasoning details', () => {
+		const help = getAccessibilityHelpText('panelChat', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			duration: help.includes('Completed thinking headers show Thought for followed by the elapsed seconds, with a minimum of 1s'),
+			allStyles: help.includes('in every thinking style and progress layout'),
+			noRequests: help.includes('Headers do not generate summaries or make additional model requests'),
+			details: help.includes('All reasoning headings and content remain available in the expandable details'),
+			legacySetting: help.includes('chat.agent.thinking.generateTitles'),
+		}, { duration: true, allStyles: true, noRequests: true, details: true, legacySetting: false });
+	});
+
 	test('uses the configured Mark as Done wording for nudge help', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, true, ChatSessionArchiveActionWording.MarkAsDone);
 		assert.deepStrictEqual({
@@ -773,6 +784,16 @@ suite('Chat Accessibility Help', () => {
 			fixedWidth: help.includes('fixed-width previews with horizontal scrolling'),
 			previewOnly: help.includes('only changes the preview, not the terminal running the command'),
 		}, { defaultOn: true, disable: true, fixedWidth: true, previewOnly: true });
+	});
+
+	test('documents lazy restored terminal output without hiding accessible content', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			visible: help.includes('Restored terminal output loads when its section is expanded and visible'),
+			keyboard: help.includes('Expanding a section with Enter or Space loads its output immediately'),
+			state: help.includes('Saved expansion choices and error indicators are preserved'),
+			accessible: help.includes('recorded output remains available in the Accessible View without loading the visual terminal'),
+		}, { visible: true, keyboard: true, state: true, accessible: true });
 	});
 
 	test('documents full terminal output in chat surfaces that render terminal tools', () => {

@@ -2362,8 +2362,9 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ThinkingGenerateTitles]: {
 			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.agent.thinking.generateTitles', "Controls whether to use an LLM to generate summary titles for thinking sections."),
+			default: false,
+			description: nls.localize('chat.agent.thinking.generateTitles', "Thinking section headers show elapsed time instead of generated summaries."),
+			deprecationMessage: nls.localize('chat.agent.thinking.generateTitles.deprecated', "Thinking title generation is no longer supported. This setting has no effect."),
 			tags: ['experimental'],
 		},
 		'chat.agent.thinking.collapsedTools': {

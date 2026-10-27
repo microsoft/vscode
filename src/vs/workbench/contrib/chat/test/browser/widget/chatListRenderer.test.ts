@@ -8632,7 +8632,7 @@ suite('ChatListRenderer', () => {
 	for (const incremental of [false, true]) {
 		for (const grouped of [false, true]) {
 			for (const completeResponse of [false, true]) {
-				test(`persistent reasoning promotes one heading without repeating it (incremental=${incremental}, grouped=${grouped}, completeResponse=${completeResponse})`, () => {
+				test(`persistent reasoning keeps headings under its duration header (incremental=${incremental}, grouped=${grouped}, completeResponse=${completeResponse})`, () => {
 					const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
 					configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
 					configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
@@ -8660,9 +8660,9 @@ suite('ChatListRenderer', () => {
 						body: Array.from(template.value.querySelectorAll('.chat-persistent-reasoning .chat-thinking-item p'), paragraph => paragraph.textContent?.trim()),
 					}, {
 						initialTitle: 'Thinking',
-						completedTitle: 'Evaluating code and build processes',
-						ariaLabel: 'Evaluating code and build processes',
-						body: grouped ? ['Check the renderer.', 'Check the build.'] : ['Check the renderer.'],
+						completedTitle: 'Thought for 1s',
+						ariaLabel: 'Thought for 1s',
+						body: grouped ? ['Evaluating code and build processes', 'Check the renderer.', 'Check the build.'] : ['Evaluating code and build processes', 'Check the renderer.'],
 					});
 					if (!completeResponse) {
 						request.response?.complete();
@@ -9982,7 +9982,7 @@ suite('ChatListRenderer', () => {
 				thinking: { title: 'Planning the fix', expanded: 'false', order: ['section', 'progress'] },
 				reading: { title: 'Reading renderer.ts', expanded: 'false', order: ['section', 'progress'] },
 				thinkingAgain: { title: 'Thinking', expanded: 'false', order: ['section', 'progress'] },
-				finished: { title: 'Finished thinking after 4s', expanded: 'false', order: ['section', 'markdown', 'progress'] },
+				finished: { title: 'Thought for 5s', expanded: 'false', order: ['section', 'markdown', 'progress'] },
 				rows: ['reasoning', 'tool', 'reasoning'],
 				toolChains: 0,
 			});
@@ -13632,6 +13632,90 @@ suite('ChatListRenderer', () => {
 	}
 
 	suite('section completion and working progress', () => {
+		for (const sectionMarkers of [false, true]) {
+			test(`completed response bookkeeping checks active sections linearly (sectionMarkers=${sectionMarkers})`, () => {
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+				const sections = 120;
+				for (let index = 0; index < sections; index++) {
+					model.acceptResponseProgress(request, { kind: 'thinking', id: `reasoning-${index}`, value: `Reasoning ${index}` });
+					model.acceptResponseProgress(request, {
+						kind: 'toolInvocationSerialized', toolId: 'task', toolCallId: `subagent-${index}`,
+						source: ToolDataSource.Internal, isComplete: true,
+						invocationMessage: `Review ${index}`, pastTenseMessage: `Reviewed ${index}`,
+						isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+						originMessage: undefined, presentation: undefined,
+						toolSpecificData: { kind: 'subagent', description: `Review ${index}`, hasStarted: true, isActive: false },
+					});
+					if (sectionMarkers) {
+						model.acceptResponseProgress(request, { kind: 'thinking', value: '' });
+					}
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`Result ${index}`) });
+				}
+				request.response!.complete();
+				const thinkingChecks = sinon.spy(ChatThinkingContentPart.prototype, 'getIsActive');
+				const subagentChecks = sinon.spy(ChatSubagentContentPart.prototype, 'getIsActive');
+				renderer.renderElement(node, 0, template);
+				assert.deepStrictEqual({
+					thinkingChecksLinear: thinkingChecks.callCount <= sections * 20,
+					subagentChecksLinear: subagentChecks.callCount <= sections * 5,
+					completeContent: template.value.textContent?.includes(`Result ${sections - 1}`),
+					activeSections: template.renderedParts?.filter(part => part instanceof ChatThinkingContentPart || part instanceof ChatSubagentContentPart).filter(part => part.getIsActive()).length,
+				}, { thinkingChecksLinear: true, subagentChecksLinear: true, completeContent: true, activeSections: 0 });
+			});
+		}
+
+		for (const complete of [false, true]) {
+			test(`coalesces working progress updates from a burst of tool activity (complete=${complete})`, async () => {
+				let progressLookups = 0;
+				const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
+				const chatWidgetService = new class extends mock<IChatWidgetService>() {
+					override getWidgetBySessionResource() {
+						progressLookups++;
+						return undefined;
+					}
+				}();
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatWidgetService, backgroundShellCount });
+				for (let i = 0; i < 50; i++) {
+					model.acceptResponseProgress(request, new ChatToolInvocation(
+						{ invocationMessage: `Reading file ${i}` },
+						{ id: 'read_file', displayName: 'Read File', modelDescription: 'Read a file', source: ToolDataSource.Internal },
+						`read-${i}`, undefined, {},
+					));
+				}
+				if (complete) {
+					request.response!.complete();
+				}
+				renderer.renderElement(node, 0, template);
+				for (let i = 0; i < 50; i++) {
+					backgroundShellCount.set(i + 1, undefined);
+				}
+				progressLookups = 0;
+				await timeout(0);
+				assert.deepStrictEqual({ progressLookups, hasProgress: !!template.value.querySelector('.chat-working-progress') }, {
+					progressLookups: complete ? 0 : 1,
+					hasProgress: !complete,
+				});
+			});
+		}
+
+		test('drops queued progress work when the response template is recycled', async () => {
+			const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
+			let progressLookups = 0;
+			const chatWidgetService = new class extends mock<IChatWidgetService>() {
+				override getWidgetBySessionResource() {
+					progressLookups++;
+					return undefined;
+				}
+			}();
+			const { renderer, template, node } = createPersistentProgressRenderer({ chatWidgetService, backgroundShellCount });
+			renderer.renderElement(node, 0, template);
+			backgroundShellCount.set(1, undefined);
+			renderer.disposeElement(node, 0, template);
+			progressLookups = 0;
+			await timeout(0);
+			assert.strictEqual(progressLookups, 0);
+		});
+
 		for (const tail of ['subagents', 'completedSubagent', 'markdown', 'tool', 'runningTool', 'thinking']) {
 			test(`finishes sections and shows shimmer only after non-subagent content (${tail})`, async () => {
 				const context = createBackgroundSubagentRenderer();

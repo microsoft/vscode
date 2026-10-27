@@ -888,7 +888,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly pendingStickyScrollStateRefresh = this._register(new MutableDisposable<IDisposable>());
 	private readonly templateDataByRow = new WeakMap<HTMLElement, IChatListItemTemplate>();
 	private readonly pendingProgressContent = this._register(new DisposableMap<IChatListItemTemplate, IPendingProgressContent>());
+	private readonly pendingWorkingProgressUpdates = new WeakMap<IChatListItemTemplate, { element: IChatResponseViewModel }>();
 	private readonly thinkingPartOwners = new WeakMap<IChatContentPart, ChatThinkingContentPart>();
+	/** Active thinking in the prefix already visited by each synchronous render pass. */
+	private readonly thinkingRenderPasses = new WeakMap<readonly IChatContentPart[], { endIndex: number; active: ChatThinkingContentPart[] }>();
 	/** Subagent markdown items by the no-content shim that stands in for them, so a re-render can retire the previous revision. */
 	private readonly subagentEditItems = new WeakMap<IChatContentPart, { subagentPart: ChatSubagentContentPart; partId: string }>();
 	private readonly subagentDisclosureObservers = new WeakMap<ChatSubagentContentPart, DisposableMap<string>>();
@@ -2420,13 +2423,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private updateWorkingProgress(templateData: IChatListItemTemplate): void {
-		// Defer mutation of `templateData.renderedParts` (via `removeWorkingProgressContentPart`)
-		// to a microtask. This method is invoked from tool autoruns, which fire synchronously inside
-		// `renderChatContentDiff` while the array is being iterated — splicing it mid-render would
-		// orphan subsequent parts and leave detached DOM nodes referenced from `renderedParts`.
-		// Capture the originating element so we bail out if the template was recycled for a different one.
 		const originalElement = templateData.currentElement;
+		if (!isResponseVM(originalElement) || this._store.isDisposed
+			|| (this.isPersistentProgressEnabled() && (originalElement.isComplete || originalElement.isCanceled))
+			|| this.pendingWorkingProgressUpdates.get(templateData)?.element === originalElement) {
+			return;
+		}
+
+		// Coalesce tool autoruns without mutating renderedParts during renderChatContentDiff.
+		const update = { element: originalElement };
+		this.pendingWorkingProgressUpdates.set(templateData, update);
 		queueMicrotask(() => {
+			if (this.pendingWorkingProgressUpdates.get(templateData) !== update) {
+				return;
+			}
+			this.pendingWorkingProgressUpdates.delete(templateData);
 			if (this._store.isDisposed || templateData.currentElement !== originalElement) {
 				return;
 			}
@@ -2440,11 +2451,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
+		const persistentProgress = this.isPersistentProgressEnabled();
+		if (persistentProgress && (element.isComplete || element.isCanceled)) {
+			return;
+		}
 		const workingProgressPart = this.getWorkingProgressContentPart(templateData);
-		if (this.isPersistentProgressEnabled()) {
-			if (element.isComplete || element.isCanceled) {
-				return;
-			}
+		if (persistentProgress) {
 			const progress = this.getPersistentWorkingProgress(element, annotateSpecialMarkdownContent(element.response.value));
 			if (!workingProgressPart || workingProgressPart.updateWorkingContent(progress.content, progress.isActive, progress.announce, progress.progressStep, progress.showDelayedProgressMessage, progress.imageGeneration, progress.backgroundActivity)) {
 				this.fireItemHeightChange(templateData);
@@ -3443,6 +3455,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let codeBlockStartIndex = 0;
 		let treeStartIndex = 0;
 		let displacedWorkingPart: ChatWorkingProgressContentPart | undefined;
+		const thinkingRenderPass: { endIndex: number; active: ChatThinkingContentPart[] } = { endIndex: 0, active: [] };
 		const renderParts = () => partsToRender.forEach((partToRender, contentIndex) => {
 			// Accumulate counts from the part that ended up at the previous index
 			if (contentIndex > 0) {
@@ -3452,8 +3465,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					if (prevPart instanceof ChatTreeContentPart) {
 						treeStartIndex++;
 					}
+					if (prevPart instanceof ChatThinkingContentPart && prevPart.getIsActive()) {
+						thinkingRenderPass.active.push(prevPart);
+					}
 				}
 			}
+			thinkingRenderPass.endIndex = contentIndex;
 
 			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
 			if (partToRender?.kind === 'progressMessage' && alreadyRenderedPart instanceof ChatProgressContentPart
@@ -3599,7 +3616,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			};
 
 			// combine tool invocations into thinking part if needed. render the tool, but do not replace the working spinner with the new part's dom node since it is already inside the thinking part.
-			const lastThinking = this.getLastThinkingPart(renderedParts.slice(0, contentIndex));
+			const lastThinking = this.getLastThinkingPart(renderedParts, contentIndex);
 			if (lastThinking && (partToRender.kind === 'toolInvocation' || partToRender.kind === 'toolInvocationSerialized' || partToRender.kind === 'markdownContent' || partToRender.kind === 'textEditGroup' || partToRender.kind === 'externalEdit' || partToRender.kind === 'hook') && pinToThinking) {
 				if (alreadyRenderedPart instanceof ChatMarkdownContentPart) {
 					lastThinking.removeEditPillByPartId(alreadyRenderedPart.codeblocksPartId);
@@ -3672,6 +3689,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 			restoreRegroupedToolFocus();
 		});
+		const previousThinkingRenderPass = this.thinkingRenderPasses.get(renderedParts);
+		this.thinkingRenderPasses.set(renderedParts, thinkingRenderPass);
 		try {
 			if (invalidatedThinkingParts.size > 0) {
 				for (const [index, content] of contentForThisTurn.entries()) {
@@ -3685,6 +3704,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}
 			renderParts();
+			if (element.isComplete) {
+				this.finalizeAllSubagentParts(templateData);
+			}
 			for (const { expanded, replacements } of invalidatedThinkingParts.values()) {
 				for (const part of replacements) {
 					if (expanded) {
@@ -3704,6 +3726,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}
 		} finally {
+			if (previousThinkingRenderPass) {
+				this.thinkingRenderPasses.set(renderedParts, previousThinkingRenderPass);
+			} else {
+				this.thinkingRenderPasses.delete(renderedParts);
+			}
 			retainedToolParts.dispose();
 			for (const subagentPart of batchedSubagentParts) {
 				try {
@@ -4298,13 +4325,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return false;
 	}
 
-	private getLastThinkingPart(renderedParts: ReadonlyArray<IChatContentPart> | undefined): ChatThinkingContentPart | undefined {
+	private getLastThinkingPart(renderedParts: ReadonlyArray<IChatContentPart> | undefined, endIndex = renderedParts?.length ?? 0): ChatThinkingContentPart | undefined {
 		if (!renderedParts || renderedParts.length === 0) {
 			return undefined;
 		}
 
+		const renderPass = this.thinkingRenderPasses.get(renderedParts);
+		if (renderPass?.endIndex === endIndex) {
+			while (renderPass.active.length && !renderPass.active.at(-1)!.getIsActive()) {
+				renderPass.active.pop();
+			}
+			return renderPass.active.at(-1);
+		}
+
 		// Search backwards for the most recent active thinking part
-		for (let i = renderedParts.length - 1; i >= 0; i--) {
+		for (let i = Math.min(endIndex, renderedParts.length) - 1; i >= 0; i--) {
 			const part = renderedParts[i];
 			if (part instanceof ChatThinkingContentPart && part.getIsActive()) {
 				return part;
@@ -4315,7 +4350,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private getLastThinkingPartForGroupedItem(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): { part: ChatThinkingContentPart | undefined; separatedFromReasoning: boolean } {
-		const lastThinking = this.getLastThinkingPart(templateData.renderedParts?.slice(0, context.contentIndex));
+		const lastThinking = this.getLastThinkingPart(templateData.renderedParts, context.contentIndex);
 		const displayMode = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly);
 		// Conversation sections keep tool calls with the reasoning around them.
 		if (lastThinking && !context.isConversation && (this.isPersistentProgressEnabled() ? !lastThinking.isToolChain : lastThinking.hasReasoningContent() && shouldStartNewCollapsedThinkingGroup(displayMode, 'reasoning', 'items'))) {
@@ -4562,7 +4597,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private finalizeCurrentThinkingPart(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): void {
-		const lastThinking = this.getLastThinkingPart(templateData.renderedParts?.slice(0, context.contentIndex));
+		const lastThinking = this.getLastThinkingPart(templateData.renderedParts, context.contentIndex);
 		if (lastThinking) {
 			this.finalizeThinkingPart(lastThinking, context, templateData);
 		}
@@ -4591,7 +4626,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext, batchedSubagentParts?: Set<ChatSubagentContentPart>, retainedToolParts?: DisposableMap<string, IDisposable>): IChatContentPart | undefined {
 		try {
 			if (isEmptyThinkingPart(content)) {
-				for (const part of templateData.renderedParts?.slice(0, context.contentIndex) ?? []) {
+				const renderedParts = templateData.renderedParts;
+				const renderPass = renderedParts && this.thinkingRenderPasses.get(renderedParts);
+				const precedingParts = renderPass?.endIndex === context.contentIndex ? [...renderPass.active] : renderedParts?.slice(0, context.contentIndex) ?? [];
+				for (const part of precedingParts) {
 					if (part instanceof ChatThinkingContentPart && part.getIsActive()) {
 						// The marker only ends the reasoning; a conversation section continues with the tool calls that follow.
 						if (context.isConversation) {
@@ -4613,24 +4651,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (context.element.isComplete && !shouldPin) {
 				const elementTemplateData = this.getTemplateDataForRequestId(context.element.id);
 				if (elementTemplateData?.renderedParts) {
-					const lastThinking = this.getLastThinkingPart(elementTemplateData.renderedParts);
-					if (lastThinking?.getIsActive()) {
-						this.finalizeCurrentThinkingPart(context, elementTemplateData);
-					}
-				}
-			}
-
-			// Check if this is subagent content
-			const isSubagentContent = (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized')
-				&& isSubagentToolInvocation(content);
-
-			// Finalize subagent parts for this element when the response is complete.
-			// Note: We don't finalize when non-subagent content arrives because parallel subagents may still be running.
-			// Scoped to the current element to avoid finalizing subagent parts on other responses during scroll re-renders.
-			if (context.element.isComplete && !isSubagentContent) {
-				const elementTemplateData = this.getTemplateDataForRequestId(context.element.id);
-				if (elementTemplateData) {
-					this.finalizeAllSubagentParts(elementTemplateData);
+					this.finalizeCurrentThinkingPart(context, elementTemplateData);
 				}
 			}
 
@@ -5838,8 +5859,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const streamingCompleted = this.isThinkingLookAheadComplete(context, element);
 		const toolChain = !!context.suppressProgressShimmer && !context.isConversation && context.content[context.contentIndex]?.kind !== 'thinking';
 		const thinkingContext = toolChain ? { ...context, isToolChain: true } : context;
-		const renderedPrefix = templateData.renderedParts?.slice(0, context.contentIndex);
-		const lastThinkingPart = this.getLastThinkingPart(renderedPrefix);
+		const lastThinkingPart = this.getLastThinkingPart(templateData.renderedParts, context.contentIndex);
 		if (lastThinkingPart && !context.isConversation && (context.suppressProgressShimmer ? lastThinkingPart.isToolChain !== toolChain
 			: lastThinkingPart.hasGroupedItems() && shouldStartNewCollapsedThinkingGroup(getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly), 'items', 'reasoning'))) {
 			this.finalizeCurrentThinkingPart(context, templateData);
@@ -5848,12 +5868,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// if array, we do a naive part by part rendering for now
 		if (Array.isArray(content.value)) {
 			if (content.value.length < 1) {
-				const lastThinking = this.getLastThinkingPart(renderedPrefix);
+				const lastThinking = this.getLastThinkingPart(templateData.renderedParts, context.contentIndex);
 				lastThinking?.finalizeTitleIfDefault();
 				return this.renderNoContent(other => content.kind === other.kind, lastThinking);
 			}
 			// A conversation section keeps collecting reasoning between response text.
-			let lastPart: IChatContentPart | undefined = context.isConversation ? this.getLastThinkingPart(renderedPrefix) : undefined;
+			let lastPart: IChatContentPart | undefined = context.isConversation ? this.getLastThinkingPart(templateData.renderedParts, context.contentIndex) : undefined;
 			for (const item of content.value) {
 				if (item) {
 					const lastThinkingPart = lastPart instanceof ChatThinkingContentPart && lastPart.getIsActive() ? lastPart : undefined;
@@ -5869,7 +5889,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return lastPart ?? this.renderNoContent(other => content.kind === other.kind);
 			// non-array, handle case where we are currently thinking vs. starting a new thinking part
 		} else {
-			const lastActiveThinking = this.getLastThinkingPart(renderedPrefix);
+			const lastActiveThinking = this.getLastThinkingPart(templateData.renderedParts, context.contentIndex);
 			if (lastActiveThinking) {
 				lastActiveThinking.setupThinkingContainer(content);
 				return lastActiveThinking;
@@ -5883,6 +5903,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
+		this.pendingWorkingProgressUpdates.delete(templateData);
 		templateData.elementDisposables.clear();
 		const ownsElementMappings = this.templateDataByRequestId.get(node.element.id) === templateData;
 
@@ -5937,6 +5958,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	disposeTemplate(templateData: IChatListItemTemplate): void {
+		this.pendingWorkingProgressUpdates.delete(templateData);
 		this.clearRenderedParts(templateData);
 		templateData.templateDisposables.dispose();
 	}
