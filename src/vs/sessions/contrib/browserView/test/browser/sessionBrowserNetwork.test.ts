@@ -217,8 +217,8 @@ suite('SessionBrowserNetworkContribution', () => {
 			editorGroups: { groups: [group] },
 			configuration: new TestConfigurationService({ workbench: { browser: { enableRemoteProxy: true } } }),
 		});
-		const open = (id: string, session: IBrowserViewSessionRequest) => {
-			const input = createInput({ id, url: `http://${id}/`, session });
+		const open = (id: string, session: IBrowserViewSessionRequest, associatedResource?: URI) => {
+			const input = createInput({ id, url: associatedResource?.toString() ?? `http://${id}/`, session, associatedResource });
 			onWillOpenEditor.fire({ editor: input, groupId: 0 });
 			tabs.push(input);
 			return input;
@@ -230,6 +230,8 @@ suite('SessionBrowserNetworkContribution', () => {
 		open('page', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } });
 		open('global', { scope: BrowserViewStorageScope.Global });
 		open('ephemeral', { scope: BrowserViewStorageScope.Ephemeral, network: { authority: hostA } });
+		const file = URI.file('/repo/index.html');
+		open('file', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } }, file);
 		const existing = createInput({ id: 'existing', url: 'http://existing/' });
 		tabs.push(existing);
 		// Activating a tab that is already open does not make it follow the draft.
@@ -239,6 +241,8 @@ suite('SessionBrowserNetworkContribution', () => {
 		onDidReplaceNewDraftSession.fire({ from: draftA, to: draftB });
 		await timeout(0);
 		const afterReplace = tabs.map(tab => [tab.url, tab.session]);
+		const replacedFile = tabs.find(tab => tab.url === file.toString());
+		const fileAssociation = replacedFile && [replacedFile.isDisposed(), replacedFile.associatedResource?.toString()];
 		newSession.set(undefined, undefined);
 		newSession.set(draftC, undefined);
 		open('next', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/other'), network: { authority: hostB } });
@@ -251,10 +255,13 @@ suite('SessionBrowserNetworkContribution', () => {
 				// Global storage never uses a remote network, so the tab is not recreated.
 				['http://global/', { scope: BrowserViewStorageScope.Global }],
 				['http://ephemeral/', { scope: BrowserViewStorageScope.Ephemeral, network: { authority: hostB } }],
+				[file.toString(), { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
 				['http://existing/', undefined],
 			];
-			assert.deepStrictEqual({ afterReplace, afterStart: tabs.map(tab => [tab.url, tab.session]) }, {
+			assert.deepStrictEqual({ afterReplace, fileAssociation, afterStart: tabs.map(tab => [tab.url, tab.session]) }, {
 				afterReplace: moved,
+				// The recreated tab still belongs to its file.
+				fileAssociation: [false, file.toString()],
 				// Starting on the same host and folders changes nothing, and the new draft's tab stays with that draft.
 				afterStart: [...moved, ['http://next/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/other'), network: { authority: hostB } }]],
 			});

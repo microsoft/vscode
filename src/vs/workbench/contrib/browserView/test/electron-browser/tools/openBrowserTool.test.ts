@@ -251,10 +251,11 @@ suite('OpenBrowserTool', () => {
 			);
 
 			const text = result.content.map(part => part.kind === 'text' ? part.value : '').join('');
-			reused[proxySupported ? 'supported' : 'unsupported'] = pages.map(p => p.id).filter(id => text.includes(`[${id}]`));
+			reused[proxySupported ? 'supported' : 'unsupported'] = [...pages.map(p => p.id).filter(id => text.includes(`[${id}]`)), ...text.includes('user\'s local network') ? ['local network notice'] : []];
 		}
 
-		assert.deepStrictEqual(reused, { supported: ['remote-page'], unsupported: ['local-page'] });
+		// Reused local pages tell the model that `localhost` is the user's machine.
+		assert.deepStrictEqual(reused, { supported: ['remote-page'], unsupported: ['local-page', 'local network notice'] });
 	});
 
 	test('rechecks policy before existing-page discovery', async () => {

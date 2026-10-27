@@ -248,6 +248,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 			title: input.title,
 			favicon: input.favicon,
 			session: target,
+			associatedResource: input.associatedResource,
 		});
 		this._trackComposerTab(replacement, session.sessionId);
 		for (const group of this._editorGroupsService.groups) {

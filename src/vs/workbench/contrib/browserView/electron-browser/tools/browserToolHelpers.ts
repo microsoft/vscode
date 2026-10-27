@@ -303,16 +303,17 @@ export function remoteUrlRewriteNotice(originalUrl: string, rewrittenUrl: string
 }
 
 /**
- * A notice for pages opened for a remote network that use the user's local
- * network instead, for example because the agent host cannot proxy browsers.
+ * A notice for pages that use the user's local network although the session
+ * requested a remote one (`requested`), for example because the agent host
+ * cannot proxy browsers. `used` is the network the pages actually use.
  */
-export function localNetworkFallbackNotice(input: BrowserEditorInput): { kind: 'text'; value: string } | undefined {
-	if (!input.network || input.model?.network) {
+export function localNetworkFallbackNotice(requested: IBrowserViewNetwork | undefined, used: IBrowserViewNetwork | undefined): { kind: 'text'; value: string } | undefined {
+	if (!requested || used) {
 		return undefined;
 	}
 	return {
 		kind: 'text',
-		value: 'Note: This page loads from the user\'s local network, not the remote host\'s network, so `localhost` refers to the user\'s machine. Services running on the remote host are not reachable from this page.',
+		value: 'Note: These browser pages load from the user\'s local network, not the remote host\'s network, so `localhost` refers to the user\'s machine. Services running on the remote host are not reachable from them.',
 	};
 }
 

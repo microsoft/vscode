@@ -549,6 +549,45 @@ suite('TunnelProxy', () => {
 		);
 	});
 
+	test('drops a pooled HTTP tunnel once its destination closes it', async () => {
+		const http = await import('http');
+		const net = await import('net');
+		const serverSockets: import('net').Socket[] = [];
+		const server = http.createServer((req, res) => res.end(`OK ${req.url}`));
+		server.on('connection', socket => serverSockets.push(socket));
+		server.listen(0, '127.0.0.1');
+		await new Promise<void>(resolve => server.once('listening', resolve));
+		const port = (server.address() as AddressInfo).port;
+		let connects = 0;
+		const upstreamClosed = new DeferredPromise<void>();
+		const pullProxy = ds.add(new TunnelProxy(async () => {
+			connects++;
+			const socket = net.createConnection({ host: '127.0.0.1', port });
+			await new Promise<void>((resolve, reject) => {
+				socket.once('connect', resolve);
+				socket.once('error', reject);
+			});
+			const stream = pullByteStream(socket);
+			return createTunnelStream({ ...stream, dispose: () => { stream.dispose(); upstreamClosed.complete(); } });
+		}, new NullLogService()));
+		const info = await pullProxy.start();
+
+		const first = await proxyRequest(info, { path: `http://127.0.0.1:${port}/first`, auth: true });
+		// The destination closes the idle keep-alive connection, as its idle timeout would.
+		for (const socket of serverSockets) {
+			socket.end();
+		}
+		const closed = await raceTimeout(upstreamClosed.p.then(() => true), 2000) ?? false;
+		const second = await proxyRequest(info, { path: `http://127.0.0.1:${port}/second`, auth: true });
+		pullProxy.dispose();
+		server.close();
+
+		assert.deepStrictEqual(
+			{ first: [first.statusCode, first.body], closed, second: [second.statusCode, second.body], connects },
+			{ first: [200, 'OK /first'], closed: true, second: [200, 'OK /second'], connects: 2 },
+		);
+	});
+
 	test('closes the upstream stream of a CONNECT tunnel whose client disconnects', async () => {
 		const net = await import('net');
 		// A destination that keeps its side open after the client half-closes, as long-lived servers do.

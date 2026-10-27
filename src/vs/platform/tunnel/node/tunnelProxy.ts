@@ -423,6 +423,9 @@ export class TunnelProxy extends Disposable {
 		}
 
 		this._trackRemoteSocket(tunnelStream);
+		// The http.Agent pools this stream. Like a socket, it must close once the destination stops sending,
+		// or a later request reuses it and gets no response. CONNECT tunnels keep half-open streams.
+		tunnelStream.allowHalfOpen = false;
 
 		if (leftover.byteLength > 0) {
 			tunnelStream.unshift(leftover.buffer);
