@@ -1037,6 +1037,8 @@ export class AgentSubscriptionManager extends Disposable {
 				const snapshot = await this._subscribe(resource);
 				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
 					entry.sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+				} else {
+					this._unsubscribeIfReleased(resource);
 				}
 			} catch (error) {
 				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
@@ -1128,10 +1130,8 @@ export class AgentSubscriptionManager extends Disposable {
 				const snapshot = await this._subscribe(resource);
 				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
 					sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
-				} else if (!this._subscriptions.has(resource)) {
-					// Released while the subscribe was pending: its unsubscribe may have reached the host before this
-					// subscribe did (e.g. a subscribe resent after a reconnect), leaving the host subscribed. Release it.
-					this._tryUnsubscribe(resource);
+				} else {
+					this._unsubscribeIfReleased(resource);
 				}
 			} catch (err) {
 				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
@@ -1177,6 +1177,17 @@ export class AgentSubscriptionManager extends Disposable {
 			entry.sub.clearPending();
 		}
 		entry.sub.dispose();
+	}
+
+	/**
+	 * Called when a subscribe resolves for an entry that is no longer current. If nothing holds the resource any more,
+	 * its unsubscribe may have reached the host before this subscribe did (e.g. a subscribe resent after a reconnect),
+	 * leaving the host subscribed: release it again.
+	 */
+	private _unsubscribeIfReleased(resource: URI): void {
+		if (!this._subscriptions.has(resource)) {
+			this._tryUnsubscribe(resource);
+		}
 	}
 
 	private _tryUnsubscribe(resource: URI): void {

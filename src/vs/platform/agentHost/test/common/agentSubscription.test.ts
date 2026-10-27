@@ -1344,6 +1344,26 @@ suite('AgentSubscriptionManager', () => {
 		held.dispose();
 	});
 
+	test('a refresh that resolves after its last ref was released is unsubscribed again', async () => {
+		const hostSubscribed = new Set<string>();
+		const pending: (() => void)[] = [];
+		const mgr = disposables.add(new AgentSubscriptionManager('c1', () => ++seq, noop, resource => new Promise<IStateSnapshot>(resolve => {
+			const key = resource.toString();
+			pending.push(() => { hostSubscribed.add(key); resolve({ resource: key, state: makeSessionState(key), fromSeq: 0 }); });
+		}), resource => { hostSubscribed.delete(resource.toString()); }));
+		const resource = URI.parse('copilot:/refreshed');
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, resource, 'test');
+		pending.shift()!();
+		await new Promise(r => setTimeout(r, 0));
+
+		const refresh = mgr.refreshSubscription(resource);
+		ref.dispose();
+		pending.shift()!();
+		await refresh;
+
+		assert.deepStrictEqual([...hostSubscribed], []);
+	});
+
 	test('receiveEnvelope routes to root and all active subscriptions', async () => {
 		const mgr = createManager();
 		mgr.handleRootSnapshot(makeRootState(), 0);
