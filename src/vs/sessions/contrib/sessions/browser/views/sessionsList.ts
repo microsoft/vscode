@@ -143,7 +143,7 @@ const SESSION_SHORTCUT_SECTION_TEMPLATE_ID = 'session-shortcut-section';
 const SESSION_SHORTCUT_ROW_HEIGHT = 28;
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
 const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
-/** Shared empty set used as the default "no session hierarchy is hovered/selected" value. */
+/** Shared empty set used when no session hierarchy is selected or focused. */
 const EMPTY_GUIDE_SESSION_IDS: ReadonlySet<string> = new Set();
 const SESSION_GROUP_DEPTH_PROPERTY = '--session-group-depth';
 
@@ -789,10 +789,10 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly compact: () => boolean,
 		private readonly onDidChangeUpdatedAt: () => void,
 		/**
-		 * Session IDs whose hierarchy indent/connector guides should be shown —
-		 * i.e. the session (or one of its chats) is currently hovered or
-		 * selected. Read reactively so guides appear only while the pointer or
-		 * selection is within this exact session's hierarchy.
+		 * Session IDs whose hierarchy indent/connector guides show while the
+		 * pointer is outside the Sessions pane, i.e. the session (or one of its
+		 * chats) is selected or keyboard-focused. While the pointer is over the
+		 * pane, CSS shows every hierarchy's guides.
 		 */
 		private readonly activeGuideSessionIds: IObservable<ReadonlySet<string>> = constObservable(EMPTY_GUIDE_SESSION_IDS),
 		/** How many groups deep the custom group whose rows include a chat row is nested; the row steps in by that many levels. */
@@ -1749,8 +1749,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			template.container.classList.toggle('pinned', isPinned && !isArchived);
 		}));
 
-		// Hierarchy indent/connector guides — visible only while this exact
-		// session (or one of its chat children) is hovered or selected.
+		// Hierarchy indent/connector guides — shown for this session while it (or
+		// one of its chat children) is selected or focused. While the pointer is
+		// over the Sessions pane, CSS shows every hierarchy's guides.
 		template.elementDisposables.add(autorun(reader => {
 			const showGuides = (this.options.activeGuideSessionIds?.read(reader) ?? EMPTY_GUIDE_SESSION_IDS).has(element.sessionId);
 			template.container.classList.toggle('session-hierarchy-guides-visible', showGuides);
@@ -4201,31 +4202,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
 	private readonly collapsedSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
 	/**
-	 * Session IDs whose hierarchy indent/connector guides should be visible:
-	 * the union of the currently-hovered session (if any) and every session
-	 * that is the parent of, or itself, a currently selected or keyboard-focused
-	 * row. Focus is tracked separately from selection because arrow-key
-	 * navigation (via the workbench `list.focusUp`/`list.focusDown` commands)
-	 * moves the tree's focus without changing its selection.
-	 * Hovering, selecting, or focusing a chat child reveals its own parent's
-	 * guides only.
+	 * Session IDs whose hierarchy indent/connector guides show while the pointer
+	 * is outside the Sessions pane: every session that is the parent of, or
+	 * itself, a currently selected or keyboard-focused row. Focus is tracked
+	 * separately from selection because arrow-key navigation (via the workbench
+	 * `list.focusUp`/`list.focusDown` commands) moves the tree's focus without
+	 * changing its selection. While the pointer is over the pane, CSS shows
+	 * every hierarchy's guides.
 	 */
-	private readonly hoveredGuideSessionId = observableValue<string | undefined>(this, undefined);
 	private readonly selectedGuideSessionIds = observableValue<ReadonlySet<string>>(this, EMPTY_GUIDE_SESSION_IDS);
 	private readonly focusedGuideSessionIds = observableValue<ReadonlySet<string>>(this, EMPTY_GUIDE_SESSION_IDS);
 	private readonly activeGuideSessionIds = derived(this, reader => {
-		const hovered = this.hoveredGuideSessionId.read(reader);
 		const selected = this.selectedGuideSessionIds.read(reader);
 		const focused = this.focusedGuideSessionIds.read(reader);
-		if (!hovered && focused.size === 0) {
+		if (focused.size === 0) {
 			return selected;
 		}
 		const ids = new Set(selected);
 		for (const id of focused) {
 			ids.add(id);
-		}
-		if (hovered) {
-			ids.add(hovered);
 		}
 		return ids;
 	});
@@ -4815,8 +4810,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		// Hierarchy guides: resolve any row (a session or one of its chats) to
-		// the session whose guides it belongs to, so hovering/selecting/focusing
-		// a chat child reveals only its own parent's guides, never an unrelated
+		// the session whose guides it belongs to, so selecting/focusing a chat
+		// child reveals only its own parent's guides, never an unrelated
 		// session's.
 		const guideOwnerSessionId = (element: SessionListItem | null): string | undefined => {
 			if (element && isSessionItem(element)) {
@@ -4837,17 +4832,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			return ids;
 		};
-		this._register(this.tree.onMouseOver(e => {
-			this.hoveredGuideSessionId.set(guideOwnerSessionId(e.element), undefined);
-		}));
-		this._register(this.tree.onMouseOut(e => {
-			// Only clear if the pointer left the row that set the hover, i.e. no
-			// unrelated `mouseout` (e.g. bubbling from a child element within the
-			// same row) resets a hover another row's `mouseover` just established.
-			if (guideOwnerSessionId(e.element) === this.hoveredGuideSessionId.get()) {
-				this.hoveredGuideSessionId.set(undefined, undefined);
-			}
-		}));
 		this._register(this.tree.onMouseClick(e => {
 			if (e.element && isSessionGroupItem(e.element) && e.element.comparison && e.browserEvent.button === 0) {
 				this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, e.element.comparison.id);

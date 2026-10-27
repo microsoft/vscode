@@ -10819,7 +10819,7 @@ suite('Sessions - SessionsList', () => {
 
 		suite('hierarchy indent/connector guides', () => {
 
-			function twoSessionContainer(activePeer = false): { readonly container: HTMLElement; readonly session: ISession; readonly other: ISession } {
+			function twoSessionContainer(activePeer = false, compact = false): { readonly container: HTMLElement; readonly session: ISession; readonly other: ISession } {
 				const main = createChat('Main chat');
 				const peer = createChat('Peer chat', ChatOriginKind.User);
 				const base = createTestSession('Session').session;
@@ -10852,9 +10852,11 @@ suite('Sessions - SessionsList', () => {
 					}
 				});
 				const container = harness.createContainer();
+				container.classList.add('agent-sessions-viewpane');
 				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 					grouping: () => SessionsGrouping.Date,
 					sorting: () => SessionsSorting.Created,
+					compact: () => compact,
 					onSessionOpen: () => { },
 					onChatOpen: () => { },
 				}));
@@ -10887,9 +10889,23 @@ suite('Sessions - SessionsList', () => {
 				}
 
 				return {
-					session: !!sessionItem?.classList.contains('session-hierarchy-guides-visible'),
-					chats: ownChats.map(chatItem => chatItem.classList.contains('session-hierarchy-guides-visible')),
+					session: !!sessionItem && isGuideShown(sessionItem),
+					chats: ownChats.map(isGuideShown),
 				};
+			}
+
+			/** Whether a row draws its hierarchy guide, as rendered; rows without a guide still report full opacity. */
+			function isGuideShown(item: Element): boolean {
+				const style = mainWindow.getComputedStyle(item, '::after');
+				return style.content !== 'none' && style.display !== 'none' && style.opacity === '1';
+			}
+
+			function getSessionRow(container: HTMLElement, title: string): HTMLElement {
+				const row = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === title)
+					?.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(row, `Expected a row for session '${title}'`);
+				return row;
 			}
 
 			test('guides are hidden at rest', () => {
@@ -10897,43 +10913,159 @@ suite('Sessions - SessionsList', () => {
 				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: false, chats: [false] });
 			});
 
-			test('hovering the parent session row reveals its own guides only', () => {
+			test('hovering the pane keeps the twistie and row actions to the row under the pointer', () => {
 				const { container } = twoSessionContainer();
-				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
-					.find(item => item.querySelector('.session-title')?.textContent === 'Session');
-				assert.ok(sessionItem);
+				const rowChrome = (title: string) => {
+					const row = getSessionRow(container, title);
+					return {
+						twistie: mainWindow.getComputedStyle(row.querySelector('.session-chat-twistie.collapsible')!).opacity,
+						actions: mainWindow.getComputedStyle(row.querySelector('.session-title-toolbar')!).display,
+					};
+				};
 
-				sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+				container.classList.add('hovered');
+				getSessionRow(container, 'Session').classList.add('hovered');
 
-				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
-				assert.deepStrictEqual(guidesVisible(container, 'Other session'), { session: false, chats: [false] });
+				assert.deepStrictEqual({
+					hovered: rowChrome('Session'),
+					other: rowChrome('Other session'),
+					guides: [guidesVisible(container, 'Session'), guidesVisible(container, 'Other session')],
+				}, {
+					hovered: { twistie: '1', actions: 'block' },
+					other: { twistie: '0', actions: 'none' },
+					guides: [{ session: true, chats: [true] }, { session: true, chats: [true] }],
+				});
 			});
 
-			test('hovering a chat child reveals its parent session hierarchy guides only', () => {
+			for (const compact of [false, true]) {
+				test(`hovering the pane reveals all guides without revealing row controls (${compact ? 'compact' : 'normal'})`, () => {
+					const { container } = twoSessionContainer(false, compact);
+					container.classList.add('hovered');
+					const twisties = [...container.querySelectorAll<HTMLElement>('.session-item')]
+						.map(item => item.closest('.monaco-list-row')?.querySelector<HTMLElement>('.monaco-tl-twistie'))
+						.map(twistie => twistie && mainWindow.getComputedStyle(twistie).opacity);
+
+					assert.deepStrictEqual({
+						session: guidesVisible(container, 'Session'),
+						other: guidesVisible(container, 'Other session'),
+						twisties,
+					}, {
+						session: { session: true, chats: [true] },
+						other: { session: true, chats: [true] },
+						twisties: ['0', '0'],
+					});
+				});
+			}
+
+			test('moving between rows does not hide pane-wide guides', () => {
 				const { container } = twoSessionContainer();
-				const chatItem = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-					.find(item => item.querySelector('.session-chat-title')?.textContent === 'Peer chat');
-				assert.ok(chatItem);
+				container.classList.add('hovered');
+				for (const item of container.querySelectorAll('.session-item, .session-chat-item, .session-section')) {
+					item.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+					item.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+				}
 
-				chatItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-
-				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
-				assert.deepStrictEqual(guidesVisible(container, 'Other session'), { session: false, chats: [false] });
+				assert.deepStrictEqual({
+					session: guidesVisible(container, 'Session'),
+					other: guidesVisible(container, 'Other session'),
+				}, {
+					session: { session: true, chats: [true] },
+					other: { session: true, chats: [true] },
+				});
 			});
 
 			test('moving the pointer away hides the guides again', () => {
 				const { container } = twoSessionContainer();
-				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
-					.find(item => item.querySelector('.session-title')?.textContent === 'Session');
-				assert.ok(sessionItem);
-				const sessionRow = sessionItem.closest<HTMLElement>('.monaco-list-row');
-				assert.ok(sessionRow);
+				container.classList.add('hovered');
+				const hovered = [guidesVisible(container, 'Session'), guidesVisible(container, 'Other session')];
+				container.classList.remove('hovered');
 
-				sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
+				assert.deepStrictEqual({
+					hovered,
+					resting: [guidesVisible(container, 'Session'), guidesVisible(container, 'Other session')],
+				}, {
+					hovered: [{ session: true, chats: [true] }, { session: true, chats: [true] }],
+					resting: [{ session: false, chats: [false] }, { session: false, chats: [false] }],
+				});
+			});
 
-				sessionRow.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
-				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: false, chats: [false] });
+			test('pane hover applies to newly rendered rows after collapsing and expanding a session', () => {
+				const { container } = twoSessionContainer();
+				container.classList.add('hovered');
+				setSessionChatsExpanded(container, false, 'Session');
+				setSessionChatsExpanded(container, true, 'Session');
+
+				assert.deepStrictEqual({
+					session: guidesVisible(container, 'Session'),
+					other: guidesVisible(container, 'Other session'),
+				}, {
+					session: { session: true, chats: [true] },
+					other: { session: true, chats: [true] },
+				});
+			});
+
+			test('pane hover preserves collapsed parents and last-child guide termination', () => {
+				const { container } = twoSessionContainer();
+				container.classList.add('hovered');
+				setSessionChatsExpanded(container, false, 'Other session');
+				const otherItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === 'Other session');
+				const lastChat = container.querySelector<HTMLElement>('.session-chat-item.last-chat');
+				assert.ok(otherItem);
+				assert.ok(lastChat);
+
+				assert.deepStrictEqual({
+					collapsedConnector: mainWindow.getComputedStyle(otherItem, '::after').content,
+					lastChildStem: mainWindow.getComputedStyle(lastChat, '::before').display,
+					lastChildBranch: mainWindow.getComputedStyle(lastChat, '::after').opacity,
+				}, {
+					collapsedConnector: 'none',
+					lastChildStem: 'none',
+					lastChildBranch: '1',
+				});
+			});
+
+			test('pane hover does not add guides to standalone completed chats', () => {
+				const main = createChat('Main chat');
+				const done: IChat = { ...createChat('Done chat', ChatOriginKind.User), isArchived: constObservable(true) };
+				const session: ISession = {
+					...createTestSession('Session').session,
+					chats: constObservable([main, done]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const harness = createListHarness(disposables, [session]);
+				const container = harness.createContainer();
+				container.classList.add('agent-sessions-viewpane', 'hovered');
+				const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				list.setExcludeArchived(false);
+				list.setItemCollapsed({ section: 'archived' }, false);
+				const standalone = container.querySelector<HTMLElement>('.session-chat-item.standalone');
+				assert.ok(standalone);
+
+				assert.deepStrictEqual({
+					stem: mainWindow.getComputedStyle(standalone, '::before').display,
+					branch: mainWindow.getComputedStyle(standalone, '::after').display,
+				}, { stem: 'none', branch: 'none' });
+			});
+
+			test('leaving the pane retains only the selected and focused hierarchy guides', () => {
+				const { container } = twoSessionContainer(true);
+				container.classList.add('hovered');
+				container.classList.remove('hovered');
+
+				assert.deepStrictEqual({
+					session: guidesVisible(container, 'Session'),
+					other: guidesVisible(container, 'Other session'),
+				}, {
+					session: { session: true, chats: [true] },
+					other: { session: false, chats: [false] },
+				});
 			});
 
 			test('selecting the parent session keeps guides visible without hover', () => {
