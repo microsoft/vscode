@@ -10,7 +10,7 @@ import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onb
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
-import { createNewSessionViewRecentTourWhen, createNewSessionViewWorkspaceStep } from './newSessionViewTourShared.js';
+import { createNewSessionViewRecentTourWhen, createNewSessionViewWorkspaceStep, getNewSessionViewMentalModelWorkspaceCopy } from './newSessionViewTourShared.js';
 
 export const NEW_SESSION_VIEW_V2_TOUR_ID = 'sessions.onboarding.newSessionViewV2';
 export const NEW_SESSION_VIEW_V2_VARIATION_TREATMENT = 'onb.newSessionViewV2.variation';
@@ -76,12 +76,7 @@ const mentalModelAndModelsPayload: ISpotlightPayload = {
 	steps: [
 		{
 			...workspaceAndModelWorkspaceStep,
-			title: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.workspace.title', "Pick a project for this session"),
-			description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.workspace.description', "Unlike a normal VS Code window, you aren't locked to one folder. Point this session at any repo or folder—or switch projects anytime without opening a new window."),
-			selectedContent: {
-				title: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.workspace.selected.title', "Pick a project for this session"),
-				description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.workspace.selected.description', "We've selected your current project to get you started. You can point each new session at any repo or folder—all from this window."),
-			},
+			...getNewSessionViewMentalModelWorkspaceCopy(),
 		},
 		{
 			...modelPickerStep,

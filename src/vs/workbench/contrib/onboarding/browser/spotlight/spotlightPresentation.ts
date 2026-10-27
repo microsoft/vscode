@@ -79,6 +79,9 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 				? { action: 'abort', shown: false }
 				: { action: 'skipStep', shown: false };
 		}
+		if (step.skipIfSelected && hasOnboardingTargetSelection(target.element)) {
+			return { action: 'skipStep', shown: false };
+		}
 		const store = new DisposableStore();
 		try {
 			const container = this.layoutService.getContainer(context.targetWindow);
@@ -201,6 +204,11 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 						aborted = true;
 						break;
 					}
+					skippedStepIndexes.add(index);
+					index += direction;
+					continue;
+				}
+				if (step.skipIfSelected && hasOnboardingTargetSelection(target.element)) {
 					skippedStepIndexes.add(index);
 					index += direction;
 					continue;
@@ -367,6 +375,9 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			overlay.setPrimaryActionEnabled(false);
 			try {
 				await step.primaryAction.run(cancellation.token);
+				if (step.primaryAction.advance) {
+					done({ action: 'next', via: 'button' });
+				}
 			} catch (error) {
 				if (!ended) {
 					onUnexpectedError(error);
@@ -385,11 +396,12 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			title: selectedContent?.title ?? step.title,
 			description: selectedContent?.description ?? step.description,
 			nextButtonLabel: step.primaryAction?.label ?? step.nextButtonLabel,
+			endTourLabel: step.endTourLabel,
 			stepIndex: index,
 			stepCount,
 			canGoBack,
 			isLastStep,
-			showEndTour: !!step.primaryAction,
+			showEndTour: !!step.primaryAction || step.endTourLabel !== undefined,
 		};
 
 		const openTarget = step.openTarget === 'ifUnselected' ? !hasSelection : step.openTarget;

@@ -53,14 +53,20 @@ export interface ISpotlightStep {
 	/** Localized primary button label, replacing the default Next or Done. */
 	readonly nextButtonLabel?: string;
 
+	/** Localized label of the button that ends the tour, replacing End Tour. Keeps the button on the last step. */
+	readonly endTourLabel?: string;
+
 	/**
 	 * Explicit action offered instead of Next or Done. Only runs on a button
-	 * click; advancing still requires target selection or `advanceWhen`.
-	 * The token is cancelled when the step ends or its target is replaced.
+	 * click; unless `advance` is set, advancing still requires target selection
+	 * or `advanceWhen`. The token is cancelled when the step ends or its target
+	 * is replaced.
 	 */
 	readonly primaryAction?: {
 		readonly label: string;
 		readonly run: (token: CancellationToken) => Promise<void> | void;
+		/** Advances once `run` completes, for actions that do not select the target. */
+		readonly advance?: boolean;
 	};
 
 	/** Preferred placement of the callout. Defaults to `'auto'`. */
@@ -74,6 +80,9 @@ export interface ISpotlightStep {
 
 	/** Opens the target through its owner; `ifUnselected` only opens controls without a selected value. */
 	readonly openTarget?: boolean | 'ifUnselected';
+
+	/** Skips the step when its target already has a selected value, such as a preselected workspace. */
+	readonly skipIfSelected?: boolean;
 
 	/** Allow the spotlighted element to remain interactive. Defaults to `false`. */
 	readonly allowTargetInteraction?: boolean;
