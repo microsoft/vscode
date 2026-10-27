@@ -13,6 +13,7 @@ import { Action, IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { debounce } from '../../../../base/common/decorators.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
@@ -73,7 +74,7 @@ interface ITrustedUriItem {
 	uri: URI;
 }
 
-class WorkspaceTrustedUrisTable extends Disposable {
+export class WorkspaceTrustedUrisTable extends Disposable {
 	private readonly _onDidAcceptEdit: Emitter<ITrustedUriItem> = this._register(new Emitter<ITrustedUriItem>());
 	readonly onDidAcceptEdit: Event<ITrustedUriItem> = this._onDidAcceptEdit.event;
 
@@ -105,7 +106,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		const tableElement = container.appendChild($('.trusted-uris-table'));
 		const addButtonBarElement = container.appendChild($('.trusted-uris-button-bar'));
 
-		this.table = this.instantiationService.createInstance(
+		this.table = this._register(this.instantiationService.createInstance(
 			WorkbenchTable,
 			'WorkspaceTrust',
 			tableElement,
@@ -162,7 +163,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 					},
 				}
 			}
-		) as WorkbenchTable<ITrustedUriItem>;
+		) as WorkbenchTable<ITrustedUriItem>);
 
 		this._register(this.table.onDidOpen(item => {
 			// default prevented when input box is double clicked #125052
@@ -185,8 +186,12 @@ class WorkspaceTrustedUrisTable extends Disposable {
 				title: localize('selectTrustedUri', "Select Folder To Trust")
 			});
 
-			if (uri) {
-				this.workspaceTrustManagementService.setUrisTrust(uri, true);
+			if (uri?.length) {
+				try {
+					await this.addTrustedUri(uri[0]);
+				} catch (error) {
+					onUnexpectedError(error);
+				}
 			}
 		}));
 
@@ -195,22 +200,37 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		}));
 	}
 
+	private async addTrustedUri(uri: URI): Promise<void> {
+		await this.workspaceTrustManagementService.setUrisTrust([uri], true);
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		// Resolve the folder's own stored (canonical) entry: after adding it, the longest trusted match is that
+		// exact entry, even when canonicalization changed its path. Implicitly trusted (virtual or remote)
+		// folders resolve to themselves and have no row, so unrelated or parent rows are never selected.
+		const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(uri);
+		if (this._store.isDisposed || !trustInfo.trusted) {
+			return;
+		}
+
+		this.selectTrustedUriEntry({ uri: trustInfo.uri, parentOfWorkspaceItem: false });
+	}
+
 	private getIndexOfTrustedUriEntry(item: ITrustedUriItem): number {
-		const index = this.trustedUriEntries.indexOf(item);
-		if (index === -1) {
-			for (let i = 0; i < this.trustedUriEntries.length; i++) {
-				if (this.trustedUriEntries[i].uri === item.uri) {
-					return i;
-				}
+		for (let i = 0; i < this.table.length; i++) {
+			if (this.uriService.extUri.isEqual(this.table.row(i).uri, item.uri)) {
+				return i;
 			}
 		}
 
-		return index;
+		return -1;
 	}
 
 	private selectTrustedUriEntry(item: ITrustedUriItem, focus: boolean = true): void {
 		const index = this.getIndexOfTrustedUriEntry(item);
 		if (index !== -1) {
+			this.table.reveal(index);
 			if (focus) {
 				this.table.domFocus();
 				this.table.setFocus([index]);
@@ -502,14 +522,14 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 		const element = container.appendChild($('.path'));
 		const pathLabel = element.appendChild($('div.path-label'));
 
-		const pathInput = new InputBox(element, this.contextViewService, {
+		const disposables = new DisposableStore();
+		const pathInput = disposables.add(new InputBox(element, this.contextViewService, {
 			validationOptions: {
 				validation: value => this.table.validateUri(value, this.currentItem)
 			},
 			inputBoxStyles: defaultInputBoxStyles
-		});
+		}));
 
-		const disposables = new DisposableStore();
 		const renderDisposables = disposables.add(new DisposableStore());
 
 		return {
