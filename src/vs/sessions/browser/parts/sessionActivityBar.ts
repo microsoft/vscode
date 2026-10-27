@@ -36,6 +36,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { Menus, SessionActivityBarGroup } from '../menus.js';
+import { ISessionLayoutButtonsService, registerSessionLayoutButtonsContextMenu } from '../sessionLayoutButtons.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
@@ -106,6 +107,9 @@ export class SessionActivityBar extends Disposable {
 				return undefined;
 			},
 		}));
+
+		// The Layout menu and its promoted buttons have the context menu of the layout buttons, shared by every window.
+		this._register(instantiationService.invokeFunction(accessor => registerSessionLayoutButtonsContextMenu(toolbar, accessor.get(ISessionLayoutButtonsService), contextMenuService)));
 
 		// In a chat window, its entries act on the chat window of this strip, not on the one that happens to be active.
 		const updateContext = () => {

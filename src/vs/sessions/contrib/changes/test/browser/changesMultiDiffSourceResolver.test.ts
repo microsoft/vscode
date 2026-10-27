@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -53,6 +53,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			}
 		}();
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
+			override getScopedChatResource(): URI | undefined { return undefined; }
 			override getSessionResource(resource: URI): URI | undefined {
 				return resource.toString() === sourceResource.toString() ? sessionResource : undefined;
 			}
@@ -99,6 +100,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			}
 		}();
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
+			override getScopedChatResource(): URI | undefined { return undefined; }
 			override getSessionResource(): URI { return sessionResource; }
 		}();
 		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionsService));
@@ -113,6 +115,52 @@ suite('ChangesMultiDiffSourceResolver', () => {
 
 		assert.deepStrictEqual(observed, [['/workspace/visible.ts'], ['/workspace/updated.ts'], ['/workspace/again.ts']]);
 		assert.strictEqual(chainsCreated, 1);
+	});
+
+	test('publishes the changes of the chat its window shows, whichever chat of its session is active', async () => {
+		const sessionResource = URI.parse('agent-host:test-session');
+		const firstChat = URI.parse('agent-host:test-session/first');
+		const secondChat = URI.parse('agent-host:test-session/second');
+		const sourceResource = URI.parse('changes-multi-diff-source:test-session');
+		const first = upcastPartial<IActiveSession>({ sessionId: 'session', resource: sessionResource, scopedChatResource: firstChat });
+		const second = upcastPartial<IActiveSession>({ sessionId: 'session', resource: sessionResource, scopedChatResource: secondChat });
+		const changesOf = new Map<IActiveSession, readonly ISessionFileChange[]>([[first, [createChange('/workspace/first.ts')]], [second, [createChange('/workspace/second.ts')]]]);
+		const active = observableValue<IActiveSession | undefined>('active', first);
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = active;
+			override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([first, second]);
+			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+		}();
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
+			override getSessionChanges(session: IObservable<IActiveSession | undefined>) {
+				return upcastPartial<IChangesSessionObservables>({
+					resourceObs: constObservable<URI | undefined>(sessionResource),
+					changesObs: derived(reader => changesOf.get(session.read(reader)!) ?? []),
+				});
+			}
+		}();
+		let resolver: IMultiDiffSourceResolver | undefined;
+		const resolverService = new class extends mock<IMultiDiffSourceResolverService>() {
+			override registerResolver(value: IMultiDiffSourceResolver) {
+				resolver = value;
+				return Disposable.None;
+			}
+		}();
+		const sessionChangesService = new class extends mock<ISessionChangesService>() {
+			override getSessionResource(): URI { return sessionResource; }
+			override getScopedChatResource(): URI { return secondChat; }
+		}();
+		disposables.add(new ChangesMultiDiffSourceResolver(changesViewService, resolverService, sessionChangesService, sessionsService));
+		const source = await resolver!.resolveDiffSource(sourceResource);
+		const read = () => source.resources.value.map(item => item.modifiedUri!.path);
+		disposables.add(source.resources.onDidChange(() => { }));
+
+		const firstActive = read();
+		active.set(second, undefined);
+		const secondActive = read();
+		assert.deepStrictEqual({ firstActive, secondActive }, { firstActive: ['/workspace/second.ts'], secondActive: ['/workspace/second.ts'] });
 	});
 
 	test('preserves the previous diff while another session is active', async () => {
@@ -137,6 +185,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			}
 		}();
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
+			override getScopedChatResource(): URI | undefined { return undefined; }
 			override getSessionResource(resource: URI): URI | undefined {
 				return resource.toString() === sourceResource.toString() ? sessionResource : undefined;
 			}
@@ -174,6 +223,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			}(),
 			new class extends mock<ISessionChangesService>() {
 				override getSessionResource() { return sessionResource; }
+				override getScopedChatResource(): URI | undefined { return undefined; }
 			}(),
 			noSessions(),
 		));
@@ -226,6 +276,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 					override registerResolver() { return Disposable.None; }
 				}(),
 				new class extends mock<ISessionChangesService>() {
+					override getScopedChatResource(): URI | undefined { return undefined; }
 					override getSessionResource() { return sessionResource; }
 				}(),
 				noSessions(),

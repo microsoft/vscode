@@ -21,6 +21,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -28,7 +29,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AbstractEditorWithViewState } from '../../../../workbench/browser/parts/editor/editorWithViewState.js';
 import { ResourceLabel } from '../../../../workbench/browser/labels.js';
-import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
+import { IEditorOpenContext, IEditorPane } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -46,6 +47,7 @@ import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../bro
 import { ActiveSessionContextKeys } from '../common/changes.js';
 import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { findSessionByResource } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { IChangesSessionScope, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesActionsBar, createChangesSessionScope } from './changesView.js';
@@ -78,14 +80,16 @@ const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
 };
 
 const CHANGES_LIST_BOTTOM_PADDING_PX = 24;
-class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
+export class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	constructor(
 		private readonly changesObs: IObservable<readonly ISessionFileChange[]>,
 		private readonly scope: IChangesSessionScope,
+		private readonly editor: SessionChangesEditor,
 		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) { }
 
 	createResourceLabel(element: HTMLElement, kind: MultiDiffEditorItemLabelKind, accessoryContainer: HTMLElement): IResourceLabel {
@@ -109,10 +113,26 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 	}
 
 	createToolbarActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
-		if (action.id === CHANGESET_REVIEW_ACTION_ID && action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(ChangesetReviewActionViewItem, action, options);
+		const target = this.getToolbarActionTarget(action);
+		if (target.id === CHANGESET_REVIEW_ACTION_ID && target instanceof MenuItemAction) {
+			return this.instantiationService.createInstance(ChangesetReviewActionViewItem, target, options);
 		}
-		return undefined;
+		return target !== action ? createActionViewItem(this.instantiationService, target, options) : undefined;
+	}
+
+	/**
+	 * The actions of the toolbar of each file run with the file only, which leaves them to act on the active session and
+	 * editor. In the Changes editor of a session other than the main window's, such as in a chat window, they run with
+	 * that session and this editor after the file, `{ session, editor }`, as the session actions take a session.
+	 */
+	private getToolbarActionTarget(action: IAction): IAction {
+		if (!(action instanceof MenuItemAction) || this.scope.session === this.sessionsService.mainWindowActiveSession) {
+			return action;
+		}
+		const { scope, editor } = this;
+		const target: MenuItemAction = Object.create(action);
+		target.run = (...args: unknown[]) => action.run(...args, { session: scope.session.get(), editor } satisfies IChangesEditorFileActionContext);
+		return target;
 	}
 
 	openDiffEditor(original: URI, modified: URI): void {
@@ -302,7 +322,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this.widget = this._register(paneInstantiationService.createInstance(
 			MultiDiffEditorWidget,
 			this.bodyContainer,
-			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs, this._scope),
+			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs, this._scope, this),
 			{
 				variant: variant.get(),
 				diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS,
@@ -574,6 +594,19 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 }
 
 export const CHANGESET_REVIEW_ACTION_ID = 'changeset.review';
+
+/** What the actions of the toolbar of a file of a Changes editor get after the file: the session and editor it shows in. */
+export interface IChangesEditorFileActionContext {
+	readonly session: IActiveSession | undefined;
+	readonly editor: SessionChangesEditor;
+}
+
+/** The editor whose file toolbar an action is invoked from, as {@link IChangesEditorFileActionContext} names it, else the active editor. */
+export function getFileActionEditorPane(editorService: IEditorService, args: readonly unknown[]): IEditorPane | undefined {
+	const editor = (args[1] as Partial<IChangesEditorFileActionContext> | undefined)?.editor;
+	return editor instanceof SessionChangesEditor ? editor : editorService.activeEditorPane;
+}
+
 
 /**
  * Renders the per-file "Mark as Viewed" toggle in the Changes editor file header

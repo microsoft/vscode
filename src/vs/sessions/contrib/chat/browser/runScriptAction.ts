@@ -36,6 +36,7 @@ import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';
+import { SessionTitleBarActionsShownContext } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
 
@@ -842,7 +843,7 @@ MenuRegistry.appendMenuItem(Menus.TitleBarCenterRight, {
 	icon: Codicon.play,
 	group: 'navigation',
 	order: 6,
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext.toNegated())
+	when: ContextKeyExpr.and(SessionTitleBarActionsShownContext, SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext.toNegated())
 });
 
 // Disabled placeholder shown in the titlebar when the active session does not support running scripts
@@ -858,7 +859,7 @@ class RunScriptNotAvailableAction extends Action2 {
 				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 6,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext)
+				when: ContextKeyExpr.and(SessionTitleBarActionsShownContext, SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext)
 			}]
 		});
 	}

@@ -1,0 +1,16 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The editor above the chat (stacked): the panel icons, upside down, so that the pane they show is at the top. */
+.codicon.codicon-session-layout-editor-above,
+.codicon.codicon-session-layout-editor-above-off {
+	transform: rotate(180deg);
+}
+
+/* The chat hidden below the editor (stacked): the status bar icon with its band ghosted, as the off icons show a pane. */
+.codicon.codicon-session-layout-chat-below-off {
+	mask-image: linear-gradient(to bottom, black 66%, rgba(0, 0, 0, 0.3) 66%);
+	mask-origin: content-box;
+}

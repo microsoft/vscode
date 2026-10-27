@@ -18,6 +18,8 @@ export interface ISessionChangesEditorOptions extends IMultiDiffEditorOptions {
 	readonly changesetSelection?:
 	| { readonly kind: 'id'; readonly id: string | undefined }
 	| { readonly kind: 'transient'; readonly changeset: ISessionChangeset };
+	/** The chat of a window of its own that shows the session: the editor is that window's, scoped to that chat. */
+	readonly chatResource?: URI;
 }
 
 /** Owns the identity and presentation state of a session's Changes editor. */
@@ -25,11 +27,17 @@ export interface ISessionChangesService {
 	readonly _serviceBrand: undefined;
 	readonly activeSessionUncommittedChangesCountObs: IObservable<number | undefined>;
 
-	/** Builds the multi-diff source URI that identifies a session's Changes editor. */
-	getChangesEditorResource(sessionResource: URI): URI;
+	/**
+	 * Builds the multi-diff source URI that identifies a session's Changes editor; with `chatResource`, the one of the
+	 * window of its own that shows that chat of the session.
+	 */
+	getChangesEditorResource(sessionResource: URI, chatResource?: URI): URI;
 
 	/** Returns the session identified by a Changes editor resource. */
 	getSessionResource(editorResource: URI): URI | undefined;
+
+	/** Returns the chat a Changes editor resource is scoped to, for an editor of a window that shows that chat. */
+	getScopedChatResource(editorResource: URI): URI | undefined;
 
 	/** Opens the Changes editor for a session. */
 	openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions, group?: PreferredGroup): Promise<IEditorGroup | undefined>;

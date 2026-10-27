@@ -14,7 +14,7 @@ import { ISessionFileChange } from '../../../services/sessions/common/session.js
 import { ChangesViewMode } from '../common/changes.js';
 import { getActiveSessionChanges, IChangesSessionObservables, IChangesViewService } from '../common/changesViewService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { findSessionByResource } from '../../../services/sessions/browser/sessionActionTarget.js';
+import { findSessionByChatOrResource } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -53,9 +53,12 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const sessionResource = this._sessionChangesService.getSessionResource(uri)!;
+		// The editor of a window of its own shows the changes of the chat that window shows, whichever chat of its session
+		// is active.
+		const chatResource = this._sessionChangesService.getScopedChatResource(uri);
 
 		// The per-session chain is created once per resolve; the derived below only selects between it and the shared active one.
-		const sessionObs = derived(reader => findSessionByResource(this._sessionsService, sessionResource, reader));
+		const sessionObs = derived(reader => findSessionByChatOrResource(this._sessionsService, sessionResource, chatResource, reader));
 		let sessionChanges: IChangesSessionObservables | undefined;
 		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[]>({
 			owner: this,

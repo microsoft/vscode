@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
 import { derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -763,31 +763,44 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	}
 
 	private _bindContextKeys(): void {
-		this._register(bindContextKey<boolean>(ChangesetReviewSupportContext, this.contextKeyService, reader => {
-			const changeset = this.activeSessionChangesetObs.read(reader);
-			return changeset?.capabilities?.review === true;
-		}));
-
-		this._register(bindContextKey<string[]>(ChangesetReviewedFilesContext, this.contextKeyService, reader => {
-			const changes = this.activeSessionChangesObs.read(reader);
-
-			return changes
-				.filter(change => change.reviewed)
-				.map(change => getChangesEditorFileResource(change).toString());
-		}));
-
-		const changesetOperationCountObs = derivedObservableWithCache<number>(this, (reader, lastValue) => {
-			const changeset = this.activeSessionChangesetObs.read(reader);
-			if (!changeset) {
-				return lastValue ?? 0;
-			}
-
-			const operations = this.activeSessionChangesetOperationsObs.read(reader);
-			return operations.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset)).length;
-		});
-
-		this._register(bindContextKey<boolean>(ChangesetHasOperationsContext, this.contextKeyService, reader => {
-			return changesetOperationCountObs.read(reader) > 0;
-		}));
+		this._register(bindChangesetContextKeys({
+			changesetObs: this.activeSessionChangesetObs,
+			changesetOperationsObs: this.activeSessionChangesetOperationsObs,
+			changesObs: this.activeSessionChangesObs,
+		}, this.contextKeyService));
 	}
+}
+
+/**
+ * Binds the context keys of the changeset of `changes` that the Changes editor's actions read, such as whether its files
+ * can be marked as viewed, on `contextKeyService`: globally for the main window's session, and on the context key service
+ * of a host that shows another session, such as a chat window.
+ */
+export function bindChangesetContextKeys(changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs' | 'changesObs'>, contextKeyService: IContextKeyService): IDisposable {
+	const store = new DisposableStore();
+	store.add(bindContextKey<boolean>(ChangesetReviewSupportContext, contextKeyService, reader => {
+		const changeset = changes.changesetObs.read(reader);
+		return changeset?.capabilities?.review === true;
+	}));
+
+	store.add(bindContextKey<string[]>(ChangesetReviewedFilesContext, contextKeyService, reader => {
+		return changes.changesObs.read(reader)
+			.filter(change => change.reviewed)
+			.map(change => getChangesEditorFileResource(change).toString());
+	}));
+
+	const changesetOperationCountObs = derivedObservableWithCache<number>(store, (reader, lastValue) => {
+		const changeset = changes.changesetObs.read(reader);
+		if (!changeset) {
+			return lastValue ?? 0;
+		}
+
+		const operations = changes.changesetOperationsObs.read(reader);
+		return operations.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset)).length;
+	});
+
+	store.add(bindContextKey<boolean>(ChangesetHasOperationsContext, contextKeyService, reader => {
+		return changesetOperationCountObs.read(reader) > 0;
+	}));
+	return store;
 }

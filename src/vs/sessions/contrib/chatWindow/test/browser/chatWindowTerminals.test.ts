@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MenuRegistry, isIMenuItem } from '../../../../../platform/actions/common/actions.js';
@@ -18,7 +19,9 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -26,11 +29,11 @@ import { EditorCloseContext, IEditorCloseEvent } from '../../../../../workbench/
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../../../../workbench/contrib/terminal/common/terminal.js';
-import { IEditorGroup, IEditorGroupsService, IEmbeddedEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ICreateEditorPartOptions, IEditorGroup, IEditorGroupsService, IEmbeddedEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { SessionGridCell, SessionLayoutMode, SessionTerminalPosition } from '../../../../common/sessionGridLayout/sessionGridLayout.js';
 import { CHAT_WINDOW_TOGGLE_EDITOR_KEY_COMMAND_ID, CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, ChatWindowHasEditorAreaContext, IChatWindow, IChatWindowKind, IChatWindowService, IChatWindowTerminalHost, SessionLayoutModeContext } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { ChatWindowCellView } from '../../browser/chatWindowGridHost.js';
-import { resolveChatWindowFromContext } from '../../browser/chatWindowService.js';
+import { bindChatWindowContext, createChatWindowContextKeyService, resolveChatWindowFromContext } from '../../browser/chatWindowService.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../browser/chatWindowState.js';
 import { CHAT_WINDOW_ADD_TERMINAL_COMMAND_ID, ChatWindowTerminalPositionMenu } from '../../browser/chatWindowTerminalActions.js';
 import { ChatWindowTerminals, releaseChatWindowTerminalsOnUnload } from '../../browser/chatWindowTerminals.js';
@@ -67,7 +70,7 @@ suite('Chat window terminals', () => {
 
 	const kind: IChatWindowKind = { id: 'test', title: 'Test', defaultLayout: SessionLayoutMode.SideBySide };
 
-	function createEnvironment(options: { handed?: boolean } = {}) {
+	function createEnvironment(options: { handed?: boolean; services?: ServiceCollection } = {}) {
 		const state = new ChatWindowState(kind, true, new ChatWindowDefaults(kind, disposables.add(new InMemoryStorageService())));
 		const group = new TestGroup(10);
 		disposables.add({ dispose: () => group.dispose() });
@@ -75,6 +78,8 @@ suite('Chat window terminals', () => {
 		const onDidRemoveGroup = disposables.add(new Emitter<IEditorGroup>());
 		const onDidActivateGroup = disposables.add(new Emitter<{ group: IEditorGroup }>());
 		const created: IEmbeddedEditorPart[] = [];
+		const createdWith: { readonly services: ServiceCollection | undefined; readonly inWindow: boolean }[] = [];
+		const windowContainer = $('div');
 		const part = new class extends mock<IEmbeddedEditorPart>() {
 			override readonly groups = [group];
 			override readonly activeGroup = group;
@@ -90,7 +95,8 @@ suite('Chat window terminals', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override get parts() { return created; }
-			override createEditorPart() {
+			override createEditorPart(createOptions: ICreateEditorPartOptions) {
+				createdWith.push({ services: createOptions.services, inWindow: (createOptions.container as HTMLElement).parentElement === windowContainer });
 				created.push(part);
 				return part;
 			}
@@ -114,18 +120,21 @@ suite('Chat window terminals', () => {
 			hide: () => calls.push('hide'),
 			release: () => calls.push('release'),
 		};
-		const window = new class extends mock<IChatWindow>() { }();
+		let focused = 0;
+		const window = new class extends mock<IChatWindow>() { override focus() { focused++; } }();
 		let closing = false;
+		const cell = disposables.add(new ChatWindowCellView(SessionGridCell.Terminals, { minimumWidth: 0, maximumWidth: 1000, minimumHeight: 0, maximumHeight: 1000 }));
 		const terminals = disposables.add(instantiationService.createInstance(ChatWindowTerminals, {
 			window,
 			state,
-			cell: disposables.add(new ChatWindowCellView(SessionGridCell.Terminals, { minimumWidth: 0, maximumWidth: 1000, minimumHeight: 0, maximumHeight: 1000 })),
+			cell,
 			parts: [],
 			bindContext: () => { },
 			isClosing: () => closing,
-			container: $('div'),
+			services: options.services,
+			container: windowContainer,
 		}, () => hostAvailable ? host : undefined));
-		return { state, group, terminals, calls, created, setHost: (available: boolean) => hostAvailable = available, setClosing: (value: boolean) => closing = value };
+		return { state, group, terminals, calls, created, createdWith, windowContainer, cell, get focused() { return focused; }, setHost: (available: boolean) => hostAvailable = available, setClosing: (value: boolean) => closing = value };
 	}
 
 	test('a terminal handed to the terminals, such as the terminal of a task, shows in them and shows them; without a host, it does not', async () => {
@@ -137,6 +146,29 @@ suite('Chat window terminals', () => {
 			withoutHost: { shown: false, terminalsShown: false },
 			hidden: { shown: true, terminalsShown: true },
 			calls: ['showTerminal:7:10'],
+		});
+	});
+
+	test('the terminals show only with a terminal in them, and focus in them stays in the window, in its chat, as they hide', async () => {
+		const environment = createEnvironment();
+		const { terminals, group, setHost, calls, windowContainer, cell } = environment;
+		windowContainer.appendChild(cell.element);
+		mainWindow.document.body.appendChild(windowContainer);
+		disposables.add({ dispose: () => windowContainer.remove() });
+		setHost(true);
+		await terminals.setShown(true, false);
+		const handedNothingYet = terminals.hasTerminals.get();
+		group.editors.push(editor());
+		group.onDidModelChangeEmitter.fire({ kind: 0 } as IGroupModelChangeEvent);
+		const withTerminal = terminals.hasTerminals.get();
+		const focusable = append(windowContainer.querySelector<HTMLElement>('.chat-window-terminals')!, $('textarea'));
+		focusable.focus();
+		await terminals.setShown(false, false);
+		assert.deepStrictEqual({ handedNothingYet, withTerminal, calls, focused: environment.focused }, {
+			handedNothingYet: false,
+			withTerminal: true,
+			calls: ['show:10', 'hide'],
+			focused: 1,
 		});
 	});
 
@@ -209,6 +241,14 @@ suite('Chat window terminals', () => {
 		});
 	});
 
+	test('the part of the terminals is created in its window, which it belongs to, with the services of its window, such as the session it acts on', async () => {
+		const services = new ServiceCollection();
+		const { terminals, createdWith, setHost } = createEnvironment({ services });
+		setHost(true);
+		await terminals.setShown(true, false);
+		assert.deepStrictEqual(createdWith.map(candidate => ({ services: candidate.services === services, inWindow: candidate.inWindow })), [{ services: true, inWindow: true }]);
+	});
+
 	test('a terminal opened in the editor area moves to the terminals, which show', async () => {
 		const { state, group, terminals, setHost } = createEnvironment();
 		setHost(true);
@@ -252,6 +292,38 @@ suite('Chat window terminal actions', () => {
 			scoped: true,
 			skipShell: true,
 		});
+	});
+
+	test('the panel key in a chat window, with or without a terminal and wherever the focus is in the window, toggles its terminals, never the main window\'s panel', () => {
+		const iframe = mainWindow.document.createElement('iframe');
+		mainWindow.document.body.appendChild(iframe);
+		disposables.add({ dispose: () => iframe.remove() });
+		const body = iframe.contentDocument!.body;
+		const container = append(body, $('div.container'));
+		const focused = append(container, $('div.focused'));
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		const windowContextKeyService = disposables.add(createChatWindowContextKeyService(contextKeyService, { window: { document: iframe.contentDocument! }, container }));
+		const windowKind: IChatWindowKind = { id: 'test', title: 'Test', defaultLayout: SessionLayoutMode.SideBySide };
+		const state = new ChatWindowState(windowKind, true, new ChatWindowDefaults(windowKind, disposables.add(new InMemoryStorageService())));
+		disposables.add(bindChatWindowContext(windowContextKeyService, { kind: windowKind, windowId: 3, hasEditorArea: true, state, session: constObservable(undefined), editorGroup: constObservable(undefined), editorAreaEditor: constObservable('') }));
+		// The main window's Toggle Panel takes the key wherever no rule of more weight applies.
+		const rules = [
+			{ command: 'workbench.action.togglePanel', weight: KeybindingWeight.WorkbenchContrib, when: undefined },
+			...KeybindingsRegistry.getDefaultKeybindings().filter(rule => rule.command === CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID && (rule.keybinding?.chords[0] as KeyCodeChord | undefined)?.keyCode === KeyCode.KeyJ).map(rule => ({ command: rule.command, weight: rule.weight1, when: rule.when ?? undefined })),
+		];
+		const resolve = (element: HTMLElement) => {
+			const context = contextKeyService.getContext(element);
+			return rules.filter(rule => !rule.when || rule.when.evaluate(context)).sort((a, b) => b.weight - a.weight)[0].command;
+		};
+		const resolved = [false, true].map(withTerminal => {
+			state.setTerminalShown(withTerminal);
+			return { withTerminal, inWindow: resolve(focused), noFocus: resolve(body) };
+		});
+		assert.deepStrictEqual(resolved, [
+			{ withTerminal: false, inWindow: CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, noFocus: CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID },
+			{ withTerminal: true, inWindow: CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, noFocus: CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID },
+		]);
 	});
 
 	test('the terminal actions act on the chat window they are invoked from, and the position is only offered side by side', async () => {

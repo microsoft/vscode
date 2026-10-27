@@ -246,6 +246,15 @@ export const ChatWindowTerminalShownContext = new RawContextKey<boolean>('sessio
 /** Whether the editor group is in the terminals of a chat window. Set in the scope of the terminals. */
 export const ChatWindowTerminalRowContext = new RawContextKey<boolean>('sessions.chatWindowTerminalRow', false, localize('chatWindowTerminalRow', "Whether the editor group is in the terminals of a chat window."));
 
+/** The editor area of a chat window, which shows the session's editors as the main window's editor area does; not its terminals, which show no other editor. */
+export const ChatWindowEditorAreaTitleContext = ContextKeyExpr.and(ChatWindowHasEditorAreaContext, ChatWindowTerminalRowContext.negate())!;
+
+/**
+ * Where the session's editor title actions, such as those of the Changes editor and Run Code Review, show: in the main
+ * window and in the editor area of a chat window; not in its terminals, nor in the Agents window's editor windows.
+ */
+export const SessionEditorTitleWindowContext = ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), ChatWindowEditorAreaTitleContext)!;
+
 /** The {@link SessionLayoutMode} of the chat window. Set in chat windows only. */
 export const SessionLayoutModeContext = new RawContextKey<string>('sessions.layoutMode', SessionLayoutMode.ChatOnly, localize('sessionLayoutMode', "How the window shows its chat and its editor: stacked, sideBySide, editorOnly or chatOnly."));
 
