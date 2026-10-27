@@ -621,6 +621,17 @@ suite('AgentHostRequestService', () => {
 		assert.strictEqual(attempts, 1);
 	});
 
+	test('keeps client certificates out of request-service certificate exports', async () => {
+		const proxyResolver = new TestProxyResolver();
+		let resolverLoads = 0;
+		proxyResolver.loadCertificates = async () => {
+			resolverLoads++;
+			return ['client-ca'];
+		};
+		const certificates = await createService(proxyResolver).loadCertificates();
+		assert.deepStrictEqual({ resolverLoads, includesClient: certificates.includes('client-ca') }, { resolverLoads: 0, includesClient: false });
+	});
+
 	test('forwards proxy and authorization lookups through the client channel', async () => {
 		const calls: unknown[] = [];
 		const requestService = {

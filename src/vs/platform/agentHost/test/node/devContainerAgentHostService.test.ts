@@ -70,6 +70,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly dockerCommands: string[][] = [];
 	dockerEndpoint = 'unix:///var/run/docker.sock';
 	dockerContextExitCode = 0;
+	dockerContextError: Error | undefined;
 	readonly devContainerArgs: string[][] = [];
 	readonly devContainerEnvironments: (NodeJS.ProcessEnv | undefined)[] = [];
 	execEnvironment: NodeJS.ProcessEnv | undefined;
@@ -160,6 +161,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	protected override _runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
 		this.dockerCommands.push([...args]);
 		if (args[0] === 'context') {
+			if (this.dockerContextError) {
+				return Promise.reject(this.dockerContextError);
+			}
 			return Promise.resolve({ stdout: this.dockerEndpoint, stderr: '', code: this.dockerContextExitCode });
 		}
 		if (args[0] === 'exec') {
@@ -391,8 +395,8 @@ suite('Dev Container Agent Host Main Service', () => {
 		{ name: 'TCP Docker host', environment: { DOCKER_HOST: 'tcp://remote.example:2376' }, endpoint: '', forwards: false },
 		{ name: 'forwarded Docker host', environment: { VSCODE_DOCKER_HOST: 'tcp://localhost:1234' }, endpoint: '', forwards: false },
 		{ name: 'active remote context', environment: {}, endpoint: 'ssh://remote.example', forwards: false },
-		{ name: 'explicit remote context overriding a local host', environment: { DOCKER_CONTEXT: 'remote', DOCKER_HOST: 'unix:///var/run/docker.sock' }, endpoint: 'ssh://remote.example', forwards: false },
-		{ name: 'local context overriding a remote host', environment: { DOCKER_CONTEXT: 'desktop-linux', DOCKER_HOST: 'ssh://remote.example' }, endpoint: 'unix:///var/run/docker.sock', forwards: true },
+		{ name: 'remote context overridden by a local host', environment: { DOCKER_CONTEXT: 'remote', DOCKER_HOST: 'unix:///var/run/docker.sock' }, endpoint: 'ssh://remote.example', forwards: true },
+		{ name: 'local context overridden by a remote host', environment: { DOCKER_CONTEXT: 'desktop-linux', DOCKER_HOST: 'ssh://remote.example' }, endpoint: 'unix:///var/run/docker.sock', forwards: false },
 	]) {
 		test(`certificate forwarding with ${name}`, async () => {
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, environment, true, ['LOCAL CA']));
@@ -407,18 +411,24 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	}
 
-	test('does not forward certificates when Docker locality cannot be determined', async () => {
-		const log = new TestLogService();
-		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, true, ['LOCAL CA'], new Set(), '/tmp', log));
-		service.inheritedEnvironment = {};
-		service.dockerContextExitCode = 1;
-		service.endpointSessionId = undefined;
-		const result = await service.connect({ connectionId: 'unknown', workspaceFolder: '/workspace', name: 'Unknown Docker host' });
-		assert.deepStrictEqual({
-			eligible: result.forwardClientCertificates,
-			warned: log.warnings.some(warning => warning.message.includes('not forwarding certificates')),
-		}, { eligible: undefined, warned: true });
-	});
+	for (const failure of ['exit', 'exception'] as const) {
+		test(`does not forward certificates when Docker locality cannot be determined (${failure})`, async () => {
+			const log = new TestLogService();
+			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, true, ['LOCAL CA'], new Set(), '/tmp', log));
+			service.inheritedEnvironment = {};
+			if (failure === 'exit') {
+				service.dockerContextExitCode = 1;
+			} else {
+				service.dockerContextError = new Error('Docker unavailable');
+			}
+			service.endpointSessionId = undefined;
+			const result = await service.connect({ connectionId: `unknown-${failure}`, workspaceFolder: '/workspace', name: 'Unknown Docker host' });
+			assert.deepStrictEqual({
+				eligible: result.forwardClientCertificates,
+				warned: log.warnings.some(warning => warning.message.includes('not forwarding certificates')),
+			}, { eligible: undefined, warned: true });
+		});
+	}
 
 	test('a remote launcher never forwards its host certificates into containers', async () => {
 		const service = store.add(new class extends RemoteDevContainerAgentHostService {

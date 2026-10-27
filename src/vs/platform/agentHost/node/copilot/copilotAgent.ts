@@ -4137,7 +4137,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const appliedProxy = this._readCopilotProxyState();
 			const env = this._createCopilotCliEnvironment(startupConfig.skillCharBudget, scoped !== undefined, appliedProxy, startupConfig.executionSubagent, startupConfig.executionSubagentModel);
 			if (appliedProxy.certificates.length) {
-				await configureNodeExtraCaCerts(env, join(this._environmentService.userDataPath, 'certificates'), appliedProxy.certificates, this._logService);
+				try {
+					await configureNodeExtraCaCerts(env, join(this._environmentService.userDataPath, 'certificates'), appliedProxy.certificates, this._logService);
+				} catch {
+					this._logService.warn('[Copilot] Failed to configure client CA certificates; starting without them.');
+				}
 			}
 			env['COPILOT_HOME'] = this._copilotHomeService.home.fsPath;
 			// Family aliases are host-side (prompt and tool-profile routing) and

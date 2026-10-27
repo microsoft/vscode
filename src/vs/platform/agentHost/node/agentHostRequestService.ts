@@ -14,7 +14,7 @@ import { AbstractRequestService, AuthInfo, Credentials } from '../../request/com
 import { lookupKerberosAuthorization } from '../../request/node/requestService.js';
 import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
 import { redactHeadersForLog, redactSecretsInText, redactUrlForLog } from '../common/logRedaction.js';
-import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
+import { IAgentHostProxyResolver, loadAgentHostCertificates } from './agentHostProxyResolver.js';
 
 const TRANSIENT_ERROR_CODES = new Set([
 	'EAI_AGAIN',
@@ -107,7 +107,8 @@ export class AgentHostRequestService extends AbstractRequestService {
 	}
 
 	override loadCertificates(): Promise<string[]> {
-		return this._proxyResolver.loadCertificates();
+		// Client roots stay in AH networking and Copilot; this API also seeds launcher environments.
+		return loadAgentHostCertificates(this.logService);
 	}
 
 	private async _request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {

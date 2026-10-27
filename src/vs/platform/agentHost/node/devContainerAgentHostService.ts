@@ -1091,20 +1091,29 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 	}
 
 	protected override async _shouldForwardCertificates(token: CancellationToken): Promise<boolean> {
-		const environment = await this._resolveShellEnvironment();
-		if (environment.VSCODE_DOCKER_HOST) {
-			return false;
-		}
-		let host = environment.DOCKER_CONTEXT ? undefined : environment.DOCKER_HOST;
-		if (!host) {
-			const result = await this._runDocker(['context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'], token);
-			if (result.code !== 0 || !result.stdout.trim()) {
-				this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; not forwarding certificates`, result.stderr);
+		try {
+			const environment = await this._resolveShellEnvironment();
+			if (environment.VSCODE_DOCKER_HOST) {
 				return false;
 			}
-			host = result.stdout.trim();
+			// Docker resolves DOCKER_HOST before DOCKER_CONTEXT and the active context.
+			let host = environment.DOCKER_HOST;
+			if (!host) {
+				const result = await this._runDocker(['context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'], token);
+				if (result.code !== 0 || !result.stdout.trim()) {
+					this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; not forwarding certificates`, result.stderr);
+					return false;
+				}
+				host = result.stdout.trim();
+			}
+			return host.startsWith('unix://') || host.startsWith('npipe://');
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; not forwarding certificates`, getErrorMessage(error));
+			return false;
 		}
-		return host.startsWith('unix://') || host.startsWith('npipe://');
 	}
 }
 

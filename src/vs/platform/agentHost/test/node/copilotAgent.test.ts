@@ -12811,6 +12811,29 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('starts the Copilot runtime when the client certificate bundle cannot be written', async () => {
+			const directory = await fs.mkdtemp(join(os.tmpdir(), 'copilot-client-certificate-write-'));
+			const userDataPath = join(directory, 'user-data');
+			await fs.writeFile(userDataPath, '');
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			proxyResolver.clientCertificates = [rootCertificates[0]];
+			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
+			const environment = instantiationService.invokeFunction(accessor => accessor.get(INativeEnvironmentService));
+			const environmentStub = stub(environment, 'userDataPath').value(userDataPath);
+			try {
+				await agent.listChatsToMigrate();
+				assert.deepStrictEqual({
+					starts: client.startCallCount,
+					bundle: getCreatedClientOptions(agent).at(-1)?.env?.NODE_EXTRA_CA_CERTS,
+				}, { starts: 1, bundle: process.env.NODE_EXTRA_CA_CERTS });
+			} finally {
+				await disposeAgent(agent);
+				environmentStub.restore();
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+
 		test('refreshes a running Copilot runtime after reconnect pulls changed client certificates', async () => {
 			const directory = await fs.mkdtemp(join(os.tmpdir(), 'copilot-client-certificates-'));
 			const environmentBefore = { ...process.env };
