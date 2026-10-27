@@ -47,7 +47,7 @@ import { getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorre
 import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
@@ -74,7 +74,7 @@ import { getSessionSandboxConfig } from '../../node/sessionSandbox.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
-import { ActionType, ActionEnvelope, NotificationType, type ChatAction, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, isChatAction, NotificationType, type ChatAction, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, getAgentHostChatId, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionGitHubState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn, readSessionScratchFolders, withSessionScratchFolders } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, McpServerStatus, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment, TerminalClaimKind, type TerminalClaim, type SystemNotificationResponsePart } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -138,6 +138,8 @@ import { creationTimeChatStorageResource } from '../../node/agentHostStateManage
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { editChatListAsOldBuild, editChatStateAsOldBuild } from './sessionStateCompatibilityFixtures.js';
 import type { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import type { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
+import { chatReducer } from '../../common/state/protocol/channels-chat/reducer.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -9338,7 +9340,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('restoring a session whose default chat\'s and peer\'s configs were completed before dispatches nothing and writes nothing', async () => {
+		test('restoring a session whose default chat\'s and peer\'s configs were completed before writes nothing, and publishes only what the default chat takes from its session', async () => {
 			const perSession = createPerSessionDataService();
 			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
 			const sdkMetadata = new Map<string, IAgentChatMetadata>();
@@ -9415,9 +9417,76 @@ suite('AgentService (node dispatcher)', () => {
 				// The default chat publishes what it takes from the session; it stores only what it set itself.
 				before: { defaultChat: { values: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'plan' } }, peer: { values: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive' } } },
 				stored: { defaultChat: { [SessionConfigKey.Mode]: 'plan' }, peer: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive' } },
-				dispatched: [],
+				// The default chat publishes what it takes from its restored session, for subscribers that took its state before.
+				dispatched: ['default'],
 				written: [],
 				after: before,
+			});
+		});
+
+		test('a subscriber of the default chat while its session is restoring ends with its complete config values', async () => {
+			const perSession = createPerSessionDataService();
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const sdkMetadata = new Map<string, IAgentChatMetadata>();
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service,
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb,
+			));
+			const chatMutable = { type: 'string' as const, sessionMutable: true, chatMutable: true };
+			const schema = {
+				type: 'object' as const, properties: {
+					[SessionConfigKey.AutoApprove]: { ...chatMutable, title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'] },
+					[SessionConfigKey.Mode]: { ...chatMutable, title: 'Mode', enum: ['interactive', 'plan', 'autopilot'] },
+				},
+			};
+			const resolving = new DeferredPromise<void>();
+			let holdResolution = false;
+			const resolveStarted = new DeferredPromise<void>();
+			const createAgent = () => disposables.add(new class extends PersistedMockAgent {
+				override async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
+					if (holdResolution) {
+						resolveStarted.complete();
+						await resolving.p;
+					}
+					return { schema, values: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive', ...params.config } };
+				}
+			}('copilotcli', sdkMetadata));
+			const creating = createService();
+			registerTestAgentProvider(creating, createAgent());
+			const session = await creating.createSession({ legacyChatUris: true, provider: 'copilotcli' });
+			const defaultChat = buildDefaultChatUri(session);
+			const state = getStateManager(creating);
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: new Date().toISOString(), message: { text: 'Source', origin: { kind: MessageKind.User } } });
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'source-turn', duration: 1 });
+			getConfigurationService(creating).updateSessionConfig(session.toString(), { [SessionConfigKey.AutoApprove]: 'assisted' });
+			getConfigurationService(creating).updateChatConfig({ session: session.toString(), chat: defaultChat }, { [SessionConfigKey.Mode]: 'plan' });
+			await timeout(0);
+			const complete = state.getChatConfig(defaultChat)?.values;
+			await getTestSessionStateStore(creating).whenIdle(undefined);
+			creating.dispose();
+
+			const restarted = createService();
+			registerTestAgentProvider(restarted, createAgent());
+			holdResolution = true;
+			const restoring = restarted.restoreSession(session);
+			await resolveStarted.p;
+			// Subscribed while the restore waits for the agent's config: its snapshot has the default chat's own values only.
+			const snapshot = await restarted.subscribe(URI.parse(defaultChat), 'client');
+			let subscriber = snapshot.state as ChatState;
+			disposables.add(getStateManager(restarted).onDidEmitEnvelope(envelope => {
+				if (envelope.channel === defaultChat && isChatAction(envelope.action)) {
+					subscriber = chatReducer(subscriber, envelope.action);
+				}
+			}));
+			resolving.complete();
+			await restoring;
+			await timeout(0);
+
+			assert.deepStrictEqual({ taken: (snapshot.state as ChatState).config?.values, complete, subscriber: subscriber.config?.values }, {
+				taken: { [SessionConfigKey.Mode]: 'plan' },
+				complete: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'plan' },
+				subscriber: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'plan' },
 			});
 		});
 
