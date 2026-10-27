@@ -206,7 +206,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	private _nativeRequire: NodeJS.Require | undefined;
 	private _shellEnvironment: Promise<typeof process.env> | undefined;
 	private _dockerExecutable: Promise<string | undefined> | undefined;
-	private _devContainerEnvironment: Promise<typeof process.env> | undefined;
+	private _certificatesFile: Promise<string | undefined> | undefined;
 	private _dockerAvailable: Promise<boolean> | undefined;
 
 	constructor(
@@ -878,19 +878,19 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return environment;
 	}
 
-	protected _resolveDevContainerEnvironment(): Promise<typeof process.env> {
-		this._devContainerEnvironment ??= this._doResolveDevContainerEnvironment();
-		return this._devContainerEnvironment;
-	}
-
-	private async _doResolveDevContainerEnvironment(): Promise<typeof process.env> {
+	protected async _resolveDevContainerEnvironment(): Promise<typeof process.env> {
 		const environment = await this._resolveShellEnvironment();
 		const path = await this._resolveCertificatesFile(environment);
 		return path ? { ...environment, NODE_EXTRA_CA_CERTS: path } : environment;
 	}
 
-	/** Matches Remote Containers: a supplied bundle is used as-is; otherwise system roots are written when enabled. */
-	protected async _resolveCertificatesFile(environment: typeof process.env): Promise<string | undefined> {
+	/** Matches Remote Containers: a supplied bundle is used as-is; otherwise system roots are written once when enabled. */
+	protected _resolveCertificatesFile(environment: typeof process.env): Promise<string | undefined> {
+		this._certificatesFile ??= this._doResolveCertificatesFile(environment);
+		return this._certificatesFile;
+	}
+
+	private async _doResolveCertificatesFile(environment: typeof process.env): Promise<string | undefined> {
 		if (environment.NODE_EXTRA_CA_CERTS && await this._isFile(environment.NODE_EXTRA_CA_CERTS)) {
 			return environment.NODE_EXTRA_CA_CERTS;
 		}
@@ -1136,7 +1136,10 @@ export class RemoteDevContainerAgentHostService extends DevContainerAgentHostSer
 		return Promise.resolve(process.env);
 	}
 
-	/** Shares Copilot's bundle: Agent Host roots already include its `NODE_EXTRA_CA_CERTS` file and connected client roots. */
+	/**
+	 * Refreshes Copilot's shared bundle before each CLI run. Agent Host roots include its `NODE_EXTRA_CA_CERTS` file;
+	 * native roots are loaded once and client roots once per connection.
+	 */
 	protected override async _resolveCertificatesFile(): Promise<string | undefined> {
 		try {
 			return await writeUserDataCertificatesFile(await this._remoteRequestService.loadCertificates(), this._remoteEnvironmentService.userDataPath, this._remoteLogService);

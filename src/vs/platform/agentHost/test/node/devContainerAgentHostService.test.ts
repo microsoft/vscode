@@ -447,9 +447,9 @@ suite('Dev Container Agent Host Main Service', () => {
 		assert.strictEqual(await service.shouldForwardCertificates(), false);
 	});
 
-	test('an Agent Host Dev Container CLI shares the Copilot certificate bundle', async () => {
+	test('an Agent Host Dev Container CLI refreshes the shared Copilot certificate bundle before each run', async () => {
 		const userDataPath = await mkdtemp(join(tmpdir(), 'vscode-dev-container-shared-certificates-'));
-		const [certificateA, certificateB] = rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString());
+		const [certificateA, certificateB, certificateC] = rootCertificates.slice(0, 3).map(certificate => new X509Certificate(certificate).toString());
 		const createService = (load: () => Promise<string[]>) => store.add(new class extends RemoteDevContainerAgentHostService {
 			protected override async _doResolveShellEnvironment(): Promise<typeof process.env> {
 				return { NODE_EXTRA_CA_CERTS: '/supplied.pem' };
@@ -472,10 +472,15 @@ suite('Dev Container Agent Host Main Service', () => {
 			new class extends mock<IGitHubService>() { }(),
 		));
 		try {
-			const shared = await createService(async () => [certificateB, certificateA]).resolveDevContainerEnvironment();
+			let certificates = [certificateB, certificateA];
+			const service = createService(async () => certificates);
+			const first = await service.resolveDevContainerEnvironment();
+			certificates = [certificateC, certificateA];
+			const second = await service.resolveDevContainerEnvironment();
 			const failed = await createService(async () => { throw new Error('unavailable'); }).resolveDevContainerEnvironment();
-			assert.deepStrictEqual({ shared: shared.NODE_EXTRA_CA_CERTS, failed: failed.NODE_EXTRA_CA_CERTS }, {
-				shared: await writeUserDataCertificatesFile([certificateA, certificateB], userDataPath, new NullLogService()),
+			assert.deepStrictEqual({ first: first.NODE_EXTRA_CA_CERTS, second: second.NODE_EXTRA_CA_CERTS, failed: failed.NODE_EXTRA_CA_CERTS }, {
+				first: await writeUserDataCertificatesFile([certificateA, certificateB], userDataPath, new NullLogService()),
+				second: await writeUserDataCertificatesFile([certificateA, certificateC], userDataPath, new NullLogService()),
 				failed: '/supplied.pem',
 			});
 		} finally {
