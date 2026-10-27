@@ -151,6 +151,22 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.identity.record(result, 'runtime');
 	}
 
+	getWorktreeDiskUsageRevision(session: string, worktree: string): Promise<string | undefined> {
+		return this.raw.getWorktreeDiskUsageRevision(this.identity.toStorage(session), worktree);
+	}
+
+	readWorktreeDiskUsage(session: string, worktree: string, revision: string): Promise<number | undefined> {
+		return this.raw.readWorktreeDiskUsage(this.identity.toStorage(session), worktree, revision);
+	}
+
+	writeWorktreeDiskUsage(session: string, worktree: string, revision: string, sizeBytes: number): Promise<void> {
+		return this.raw.writeWorktreeDiskUsage(this.identity.toStorage(session), worktree, revision, sizeBytes);
+	}
+
+	deleteWorktreeDiskUsage(worktree: string): Promise<void> {
+		return this.raw.deleteWorktreeDiskUsage(worktree);
+	}
+
 	async isSessionRegistryEmpty(...[]: Parameters<IAgentHostDatabase['isSessionRegistryEmpty']>): ReturnType<IAgentHostDatabase['isSessionRegistryEmpty']> {
 		const result = await this.raw.isSessionRegistryEmpty();
 		return this.identity.record(result, 'runtime');

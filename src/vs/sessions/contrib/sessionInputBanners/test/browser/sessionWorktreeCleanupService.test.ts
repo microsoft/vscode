@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -29,6 +29,97 @@ import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, SessionWorktreeClean
 
 suite('SessionWorktreeCleanupService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('refreshes the measurement snapshot when an existing session changes', async () => {
+		const updatedAt = observableValue('updatedAt', oldDate());
+		const session = upcastPartial<ISession>({ ...createSession('changed', oldDate()), updatedAt });
+		let scans = 0;
+		const service = disposables.add(createService([session], true, () => ++scans));
+		await service.getWorktrees(0);
+		await service.getWorktrees(0);
+		const unchangedScans = scans;
+		updatedAt.set(new Date(), undefined);
+		const worktrees = await service.getWorktrees(0);
+		assert.deepStrictEqual({ unchangedScans, scans, size: worktrees[0].sizeBytes }, { unchangedScans: 1, scans: 2, size: 2 });
+	});
+
+	test('throttles existing hint triggers to once an hour without a recurring timer', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const hour = 60 * 60 * 1000;
+		const updatedAt = observableValue('updatedAt', oldDate());
+		const changed = upcastPartial<ISession>({ ...createSession('changed', oldDate()), updatedAt });
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionsChangeEvent>());
+		const requests: string[] = [];
+		const service = disposables.add(createService(
+			[changed, createSession('unchanged', oldDate())], true,
+			session => { requests.push(session.sessionId); return 6 * ByteSize.GB; },
+			undefined, undefined, undefined, undefined, undefined, undefined, onDidChangeSessions.event,
+		));
+		try {
+			await service.activate();
+			updatedAt.set(new Date(), undefined);
+			onDidChangeSessions.fire({ added: [], removed: [], changed: [changed] });
+			await timeout(10_001);
+			const beforeHour = [...requests];
+			await timeout(hour - 10_001);
+			const withoutTrigger = [...requests];
+			onDidChangeSessions.fire({ added: [], removed: [], changed: [changed] });
+			await timeout(10_001);
+			const afterTrigger = [...requests];
+			await timeout(hour);
+			assert.deepStrictEqual({ beforeHour, withoutTrigger, afterTrigger, withoutAnotherTrigger: requests }, {
+				beforeHour: ['changed', 'unchanged'],
+				withoutTrigger: ['changed', 'unchanged'],
+				afterTrigger: ['changed', 'unchanged', 'changed', 'unchanged'],
+				withoutAnotherTrigger: ['changed', 'unchanged', 'changed', 'unchanged'],
+			});
+		} finally {
+			service.dispose();
+		}
+	}));
+
+	test('explicitly opening cleanup shows a fresh size for a new active session and on reopening', async () => {
+		const session = createSession('active', new Date(), SessionStatus.InProgress);
+		let requests = 0;
+		const service = disposables.add(createService([session], true, () => ++requests));
+		const first = await service.getWorktrees(0, () => { }, CancellationToken.None, true);
+		const reopened = await service.getWorktrees(0, () => { }, CancellationToken.None, true);
+		assert.deepStrictEqual([first, reopened].map(worktrees => worktrees.map(worktree => ({
+			id: worktree.session.sessionId,
+			sizeBytes: worktree.sizeBytes,
+			state: worktree.cleanupState,
+		}))), [
+			[{ id: 'active', sizeBytes: 1, state: 'running' }],
+			[{ id: 'active', sizeBytes: 2, state: 'running' }],
+		]);
+	});
+
+	test('opening cleanup refreshes changed sessions before the next automatic hint check', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const updatedAt = observableValue('updatedAt', oldDate());
+		const session = upcastPartial<ISession>({ ...createSession('changed', oldDate()), updatedAt });
+		let requests = 0;
+		const service = disposables.add(createService([session], true, () => ++requests));
+		try {
+			await service.activate();
+			updatedAt.set(new Date(), undefined);
+			const worktrees = await service.getWorktrees(0);
+			assert.deepStrictEqual({ requests, size: worktrees[0].sizeBytes }, { requests: 2, size: 2 });
+		} finally {
+			service.dispose();
+		}
+	}));
+
+	test('does not repeatedly restart measurement while an existing session keeps changing', async () => {
+		const updatedAt = observableValue('updatedAt', oldDate());
+		const session = upcastPartial<ISession>({ ...createSession('changed', oldDate()), updatedAt });
+		let requests = 0;
+		const service = disposables.add(createService([session], true, () => {
+			updatedAt.set(new Date(updatedAt.get().getTime() + 1), undefined);
+			return ++requests;
+		}));
+		const first = await service.getWorktrees(0, () => { });
+		const second = await service.getWorktrees(0, () => { });
+		assert.deepStrictEqual({ requests, sizes: [first[0].sizeBytes, second[0].sizeBytes] }, { requests: 2, sizes: [1, 2] });
+	});
 
 	test('uses the existing cleanup suggestion for low disk space with a recent worktree', async () => {
 		const commands: { id: string; args: readonly unknown[] }[] = [];
@@ -953,6 +1044,30 @@ suite('SessionWorktreeCleanupService', () => {
 			{ label: 'fast', sizeBytes: ByteSize.GB, state: 'eligible' },
 		]);
 	}));
+
+	test('reports the full scan total when empty archived worktrees disappear and when cached', async () => {
+		const service = disposables.add(createService(
+			[createSession('empty', oldDate(), SessionStatus.Completed, true), createSession('retained', oldDate())],
+			true,
+			session => session.sessionId === 'empty' ? 0 : ByteSize.GB,
+		));
+		const snapshots: { ids: string[]; scanned: number | undefined; total: number | undefined }[] = [];
+		const record: NonNullable<Parameters<typeof service.getWorktrees>[1]> = (worktrees, progress) => {
+			snapshots.push({ ids: worktrees.map(worktree => worktree.session.sessionId), scanned: progress?.scannedWorktrees, total: progress?.totalWorktrees });
+		};
+		await service.getWorktrees(0, record);
+		await service.getWorktrees(0, record);
+		assert.deepStrictEqual({
+			initial: snapshots[0],
+			completed: snapshots.slice(-2),
+		}, {
+			initial: { ids: ['empty', 'retained'], scanned: 0, total: 2 },
+			completed: [
+				{ ids: ['retained'], scanned: 2, total: 2 },
+				{ ids: ['retained'], scanned: 2, total: 2 },
+			],
+		});
+	});
 
 	test('cancels disk measurement when disposed', async () => {
 		let canceled = false;

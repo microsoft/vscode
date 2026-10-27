@@ -5,13 +5,12 @@
 
 import assert from 'assert';
 import { AuthenticateTargetKind, type AuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
@@ -1455,17 +1454,21 @@ suite('AgentHostClientTools', () => {
 				_meta: { [agentSandboxDiagnosticsMetaKey]: ['Install bubblewrap.'] },
 			});
 			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			const shown = [...inputNotifications.values()].map(notification => {
-				assert.ok(isMarkdownString(notification.description));
-				const rendered = disposables.add(renderMarkdown(notification.description));
-				return {
-					description: rendered.element.textContent?.replace(/\u00a0/g, ' '),
-					sessions: notification.sessionResources?.map(resource => resource.toString()),
-				};
-			});
+			const shown = [...inputNotifications.values()].map(notification => ({
+				description: notification.description,
+				actions: notification.actions.map(action => ({ label: action.label, filled: action.filled })),
+				sessions: notification.sessionResources?.map(resource => resource.toString()),
+			}));
 			session.dispose();
 			assert.deepStrictEqual({ shown, remaining: inputNotifications.size }, {
-				shown: [{ description: 'Install bubblewrap. Troubleshooting Guide | Disable Sandboxing', sessions: [sessionResource.toString()] }],
+				shown: [{
+					description: 'Install bubblewrap.',
+					actions: [
+						{ label: 'Troubleshooting Guide', filled: true },
+						{ label: 'Disable Sandboxing', filled: true },
+					],
+					sessions: [sessionResource.toString()],
+				}],
 				remaining: 0,
 			});
 		});

@@ -1266,6 +1266,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const mcpServerCompatibility = options.mcpServerCompatibility;
 	const marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined = options.pluginMarketplaceMigration ? {
 		onDidChange: Event.None,
+		onDidChangeMarketplaces: Event.None,
 		list: async () => [],
 		add: async (_sessionResource, source) => ({ name: 'vscode-team-kit', source, isDefault: false, managed: false, available: true }),
 		queryMarketplace: async () => ({ items: [], total: 0 }),
@@ -3614,6 +3615,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				label: 'Extensions',
 				icon: Codicon.extensions,
 				description: 'Choose which installed extensions run in the Agents window.',
+				separatorBefore: true,
 				supportsHarness: () => true,
 				getBadge: () => constObservable('Some installed extensions can be enabled in the Agents window.'),
 				create: () => ({ dispose: () => { } }),

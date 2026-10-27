@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { basename, dirname } from '../../../../../../base/common/resources.js';
+import { autorun, constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -27,7 +28,7 @@ import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../
 import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
-import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ChildCustomization, ComponentToState, Customization, CustomizationType, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ChildCustomization, ComponentToState, Customization, CustomizationType, FileEditKind, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -42,6 +43,8 @@ import { GitHubIssue } from '../../../../../../platform/github/common/githubQuer
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { FragmentState, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -54,9 +57,11 @@ import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
 import { IChatImageCarouselService } from '../../../browser/chatImageCarouselService.js';
 import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../common/tools/chatArtifactsService.js';
-import { IChatWidgetService, type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
+import { IChatWidgetService, type IChatWidgetViewModelChangeEvent, type IChatBackgroundActivityPillSections } from '../../../browser/chat.js';
 import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
+import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
+import { WorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
@@ -66,7 +71,7 @@ import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import type { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo } from '../../../browser/widget/input/chatSessionWorkingSet.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
-import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { TestCustomizationJobScheduler } from '../../common/testCustomizationJobScheduler.js';
@@ -156,6 +161,10 @@ suite('AgentHostSessionInputPills', () => {
 	});
 	const createInstantiationService = () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatEditingService, upcastPartial<IChatEditingService>({
+			editingSessionsObs: constObservable([]),
+			getEditingSession: () => undefined,
+		}));
 		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({
 			onDidChangeDefaultClient: Event.None,
 			acquireDefaultAccountClient: () => new Promise(() => { }),
@@ -308,11 +317,17 @@ suite('AgentHostSessionInputPills', () => {
 		store.add(toDisposable(() => persistentContent.remove()));
 		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		let viewModel = upcastPartial<ChatViewModel>({ sessionResource });
+		const editingSessions = observableValue<readonly IChatEditingSession[]>('editingSessions', []);
+		instantiationService.stub(IChatEditingService, upcastPartial<IChatEditingService>({
+			editingSessionsObs: editingSessions,
+			getEditingSession: resource => editingSessions.get().find(session => session.chatSessionResource.toString() === resource.toString()),
+		}));
 		let inputFocused = false;
 		let workingSetChanges: readonly IEditSessionEntryDiff[] | undefined;
 		let workingSetUndo: IChatSessionWorkingSetUndo | undefined;
 		let workingSetKeep: IChatSessionWorkingSetKeep | undefined;
 		let workingSetRegistrations = 0;
+		let backgroundActivityPillSections: IChatBackgroundActivityPillSections | undefined;
 		const widget = upcastPartial<ChatWidget>({
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
@@ -338,6 +353,10 @@ suite('AgentHostSessionInputPills', () => {
 			get viewModel() { return viewModel; },
 			setPersistentContentHeight: () => { },
 			focusInput: () => { inputFocused = true; },
+			registerBackgroundActivityPillSections: sections => {
+				backgroundActivityPillSections = sections;
+				return toDisposable(() => { backgroundActivityPillSections = undefined; });
+			},
 		});
 		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
@@ -423,6 +442,7 @@ suite('AgentHostSessionInputPills', () => {
 			workingSetUndo: () => workingSetUndo,
 			workingSetKeep: () => workingSetKeep,
 			workingSetRegistrations: () => workingSetRegistrations,
+			backgroundActivityPillSections: () => backgroundActivityPillSections,
 			setWorkingSetEnabled: async (enabled: boolean) => {
 				const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 				await configurationService.setUserConfiguration(ChatConfiguration.EditorWorkingSetEnabled, enabled);
@@ -466,9 +486,11 @@ suite('AgentHostSessionInputPills', () => {
 				viewModelChanged.fire({ previousSessionResource, currentSessionResource: resource });
 			},
 			showModel: (model: IChatModel) => {
+				editingSessions.set(model.editingSession ? [model.editingSession] : [], undefined);
 				viewModel = upcastPartial<ChatViewModel>({ sessionResource: viewModel.sessionResource, model });
 				viewModelChanged.fire({ previousSessionResource: viewModel.sessionResource, currentSessionResource: viewModel.sessionResource });
 			},
+			addEditingSession: (session: IChatEditingSession) => editingSessions.set([...editingSessions.get(), session], undefined),
 			inputFocused: () => inputFocused,
 		};
 	}
@@ -761,7 +783,9 @@ suite('AgentHostSessionInputPills', () => {
 			await timeout(0);
 		}
 
-		assert.deepStrictEqual({ singleLabels, multipleLabels, opened }, {
+		const transcriptSections = harness.backgroundActivityPillSections()?.subagents?.get().map(section => ({ title: section.title, entries: section.entries.map(entry => entry.label) }));
+		harness.pills.dispose();
+		assert.deepStrictEqual({ singleLabels, multipleLabels, opened, transcriptSections, afterDispose: harness.backgroundActivityPillSections() }, {
 			singleLabels: ['1 Subagent'],
 			multipleLabels: ['3 Subagents'],
 			opened: [children[0], ...children].map(child => [
@@ -769,6 +793,10 @@ suite('AgentHostSessionInputPills', () => {
 				SIDE_GROUP,
 				{ pinned: true, revealIfOpened: true, title: { preferred: child.title } },
 			]),
+			transcriptSections: [
+				{ title: 'Subagents: In Progress', entries: ['Waiting', 'Running'] },
+			],
+			afterDispose: undefined,
 		});
 	});
 
@@ -794,7 +822,9 @@ suite('AgentHostSessionInputPills', () => {
 			],
 		});
 		const harness = createActivityPills(session);
+		const transcriptEntries = () => harness.backgroundActivityPillSections()?.subagents?.get().flatMap(section => section.entries.map(entry => entry.label));
 		const hiddenByDefault = harness.labels();
+		const inProgressInitially = transcriptEntries();
 		const menu = harness.menu();
 		await menu.find(action => action.id === 'chatInputPills.toggle.subagents')?.run();
 		const labels = harness.labels();
@@ -805,6 +835,7 @@ suite('AgentHostSessionInputPills', () => {
 		assert.ok(options instanceof SubmenuAction);
 		await options.actions.find(action => action.label === 'Show In Progress')?.run();
 		const activeLabels = harness.labels();
+		const inProgressWithPillFiltered = transcriptEntries();
 		const updatedSession = {
 			...session,
 			chats: session.chats.map(chat => ({ ...chat, status: SessionStatus.Idle })),
@@ -815,6 +846,10 @@ suite('AgentHostSessionInputPills', () => {
 		assert.ok(recovery instanceof SubmenuAction);
 		await recovery.actions.find(action => action.label === 'Show All')?.run();
 		const restoredLabels = harness.labels();
+		const inProgressAfterCompletion = transcriptEntries();
+		harness.connection.setState(StateComponents.Session, session);
+		const inProgressAfterResuming = transcriptEntries();
+		harness.connection.setState(StateComponents.Session, updatedSession);
 		harness.showChat(otherChat);
 		const siblingLabels = harness.labels();
 		harness.showChat('vendor-chat:/workers/Running');
@@ -832,6 +867,7 @@ suite('AgentHostSessionInputPills', () => {
 			dropdown: dropdown.map(item => item.label).filter(Boolean),
 			commands: harness.commands,
 			activeLabels,
+			inProgressInitially, inProgressWithPillFiltered, inProgressAfterCompletion, inProgressAfterResuming,
 			filteredLabels,
 			restoredLabels,
 			siblingLabels,
@@ -848,6 +884,10 @@ suite('AgentHostSessionInputPills', () => {
 				args: [{ chatResource: 'vendor-chat:/workers/Waiting', parentSessionResource: harness.sessionResource.toString(), title: 'Waiting' }],
 			}],
 			activeLabels: ['2 Subagents'],
+			inProgressInitially: ['Waiting', 'Running'],
+			inProgressWithPillFiltered: ['Waiting', 'Running'],
+			inProgressAfterCompletion: [],
+			inProgressAfterResuming: ['Waiting', 'Running'],
 			filteredLabels: [],
 			restoredLabels: ['3 Subagents'],
 			siblingLabels: ['1 Subagent'],
@@ -856,6 +896,61 @@ suite('AgentHostSessionInputPills', () => {
 			releasedSubscriptions: true,
 		});
 	});
+
+	for (const opaque of [false, true]) {
+		test(`subagent chats expose their own transcript activity without changing input pills (${opaque ? 'host-advertised' : 'canonical'} identity)`, async () => {
+			const backendSession = URI.parse('vendor:/sessions/42');
+			const mainChat = opaque ? 'vendor-chat:/conversations/main' : buildDefaultChatUri(backendSession);
+			const childResource = (id: string) => opaque ? `vendor-chat:/workers/${id}` : buildSubagentChatUri(backendSession, id);
+			const workerChat = childResource('tool-1');
+			const chats: ChatSummary[] = [
+				{ id: 'tool-1', title: 'Worker', parent: mainChat, status: SessionStatus.InProgress },
+				{ id: 'nested', title: 'Nested worker', parent: workerChat, status: SessionStatus.InProgress },
+				{ id: 'completed', title: 'Completed nested worker', parent: workerChat, status: SessionStatus.Idle },
+				{ id: 'sibling', title: 'Sibling worker', parent: mainChat, status: SessionStatus.InProgress },
+			].map(({ id, title, parent, status }) => ({
+				resource: childResource(id), title, status, modifiedAt: '2026-09-01T00:00:00.000Z',
+				origin: { kind: ChatOriginKind.Tool, chat: parent, toolCallId: id },
+			}));
+			const session = upcastPartial<SessionState>({ defaultChat: mainChat, chats });
+			const shell: BackgroundShellWork = {
+				kind: BackgroundWorkKind.Shell, id: 'shell:child', label: 'Child command', command: 'sleep 30',
+				startedAt: '2026-09-01T00:00:00.000Z',
+			};
+			const harness = createActivityPills(session, upcastPartial<ChatState>({ backgroundWork: [shell] }));
+			harness.visibility.toggle(SessionChatPillKind.Subagents);
+			const editorResource = opaque
+				? getSubagentEditorResource({ chatResource: workerChat, parentSessionResource: harness.sessionResource.toString() })
+				: harness.sessionResource.with({ fragment: 'subagent/tool-1' });
+			assert.ok(editorResource);
+			harness.showSession(editorResource);
+			const activity = () => ({
+				inputPills: harness.labels(),
+				subagents: harness.backgroundActivityPillSections()?.subagents?.get().flatMap(section => section.entries.map(entry => entry.label)).sort(),
+				shells: harness.backgroundActivityPillSections()?.backgroundShells?.get().map(shell => shell.description),
+				chatSubscription: harness.connection.requested.filter(request => request.kind === StateComponents.Chat).at(-1)?.resource.toString(),
+			});
+			const running = activity();
+			await harness.backgroundActivityPillSections()?.subagents?.get()[0]?.entries[0]?.open?.();
+			harness.connection.setState(StateComponents.Session, {
+				...session,
+				chats: chats.map(chat => isEqual(URI.parse(chat.resource), URI.parse(childResource('nested'))) ? { ...chat, status: SessionStatus.Idle } : chat),
+			});
+			harness.connection.setState(StateComponents.Chat, upcastPartial<ChatState>({ backgroundWork: [] }));
+			const finished = activity();
+			harness.showSession(harness.sessionResource);
+
+			assert.deepStrictEqual({ running, finished, parent: activity(), commands: harness.commands }, {
+				running: { inputPills: [], subagents: ['Nested worker'], shells: ['Child command'], chatSubscription: workerChat },
+				finished: { inputPills: [], subagents: [], shells: [], chatSubscription: workerChat },
+				parent: { inputPills: ['2 Subagents'], subagents: ['Sibling worker', 'Worker'], shells: [], chatSubscription: mainChat },
+				commands: [{
+					id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID,
+					args: [{ chatResource: childResource('nested'), parentSessionResource: editorResource.toString(), title: 'Nested worker' }],
+				}],
+			});
+		});
+	}
 
 	test('shows the chat\'s live canvases, reveals the selected canvas, and closes a canvas from its row', async () => {
 		const harness = createActivityPills(upcastPartial<SessionState>({ defaultChat: 'vendor-chat:/main', chats: [] }));
@@ -1383,6 +1478,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: viewModelChanged.event,
 			get viewModel() { return viewModel; },
 			setPersistentContentHeight: () => { },
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		const provisionalChanged = store.add(new Emitter<URI>());
 		let provisionalBackend: URI | undefined;
@@ -1398,6 +1494,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
 		viewModel = upcastPartial<ChatViewModel>({ sessionResource: draft });
@@ -1831,6 +1928,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: () => { },
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeConnections: Event.None,
@@ -1879,6 +1977,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		await timeout(0);
 
@@ -2182,6 +2281,7 @@ suite('AgentHostSessionInputPills', () => {
 				onDidChangeViewModel: Event.None,
 				viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 				setPersistentContentHeight: () => { },
+				registerBackgroundActivityPillSections: () => Disposable.None,
 			});
 			const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 				onDidChangeConnections: Event.None,
@@ -2226,6 +2326,7 @@ suite('AgentHostSessionInputPills', () => {
 				notificationService,
 				instantiationService.get(ICommandService),
 				instantiationService.get(IDialogService),
+				instantiationService.get(IChatEditingService),
 			));
 			const button = persistentContent.querySelector<HTMLElement>('.chat-changes-pill-button');
 			button?.click();
@@ -2845,6 +2946,34 @@ suite('AgentHostSessionInputPills', () => {
 	// Like undoing a file in the editing session's working set, the host doesn't ask to confirm discarding a Working Set file.
 	const discardWorkingSetChanges = (status: ChangesetOperationStatus): ChangesetOperation => ({ id: 'discard-changes', label: 'Discard Changes', scopes: [ChangesetOperationScope.Resource], status });
 
+	test('checkpoint preview observes a lazily created editing session without a view-model change', async () => {
+		const { harness, setOperations } = createSessionWorkingSetPills();
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)], 'shown');
+		await harness.setWorkingSetEnabled(true);
+		const controller = store.add(new AgentHostSnapshotController(harness.sessionResource, 'remote-test', undefined, new NullLogService(), upcastPartial<IFileService>({
+			readFile: async () => upcastPartial<IFileContent>({ value: VSBuffer.fromString('baseline') }),
+		}), store.add(new WorkingCopyService())));
+		harness.showModel(upcastPartial<IChatModel>({}));
+		harness.addEditingSession(controller);
+		const [diff] = harness.workingSetChanges()!;
+		const update = await controller.checkpointReview.prepareRestore([{
+			edits: [{
+				kind: FileEditKind.Edit,
+				resource: diff.modifiedURI,
+				beforeContentUri: diff.originalURI,
+				afterContentUri: diff.modifiedSnapshotURI,
+				undoStopId: 'request',
+			}]
+		}], true, [diff.modifiedURI]);
+		transaction(update);
+		const afterRestore = { changes: harness.workingSetChanges(), pill: harness.labels().some(label => label.includes('File')) };
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)], 'new-edit');
+		assert.deepStrictEqual({ afterRestore, afterNewEdit: harness.workingSetChanges()?.length }, {
+			afterRestore: { changes: [], pill: false },
+			afterNewEdit: 1,
+		});
+	});
+
 	for (const nonce of [undefined, 'opaque-file-nonce']) {
 		test(`echoes an optional file nonce for working-set Keep and Undo (nonce=${nonce})`, async () => {
 			const { harness, setOperations, errors } = createSessionWorkingSetPills();
@@ -3178,6 +3307,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: height => persistentContentHeight = height,
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeConnections: Event.None,
@@ -3214,6 +3344,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 
@@ -3278,6 +3409,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: height => persistentContentHeight = height,
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		const resolutionChanged = new Emitter<void>();
 		let currentConnection = connection;
@@ -3322,6 +3454,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 		const initial = {
@@ -3458,6 +3591,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: () => { },
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeConnections: Event.None,
@@ -3495,6 +3629,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const icon = button?.querySelector<HTMLElement>('.chat-pill-icon');
@@ -3625,6 +3760,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: () => { },
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeConnections: Event.None,
@@ -3675,6 +3811,7 @@ suite('AgentHostSessionInputPills', () => {
 			upcastPartial<INotificationService>({ error: error => errors.push(String(error)) }),
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
 		const copied: string[] = [];
@@ -3780,6 +3917,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: viewModelChanged.event,
 			get viewModel() { return viewModel; },
 			setPersistentContentHeight: height => persistentContentHeight = height,
+			registerBackgroundActivityPillSections: () => Disposable.None,
 		});
 		store.add(new AgentHostSessionInputPills(
 			widget,
@@ -3797,6 +3935,7 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		const showChat = (resource: URI) => {
 			const previousSessionResource = viewModel.sessionResource;
@@ -3859,6 +3998,7 @@ suite('AgentHostSessionInputPills', () => {
 		const persistentContent = document.createElement('div');
 		document.body.appendChild(persistentContent);
 		store.add(toDisposable(() => persistentContent.remove()));
+		let backgroundActivityPillSections: IChatBackgroundActivityPillSections | undefined;
 		const widget = upcastPartial<ChatWidget>({
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
@@ -3867,6 +4007,10 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
 			setPersistentContentHeight: () => { },
+			registerBackgroundActivityPillSections: sections => {
+				backgroundActivityPillSections = sections;
+				return toDisposable(() => { backgroundActivityPillSections = undefined; });
+			},
 		});
 		store.add(new AgentHostSessionInputPills(
 			widget,
@@ -3884,11 +4028,16 @@ suite('AgentHostSessionInputPills', () => {
 			notificationService,
 			instantiationService.get(ICommandService),
 			instantiationService.get(IDialogService),
+			instantiationService.get(IChatEditingService),
 		));
 		const pills = () => Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
 		const running = pills();
+		const transcriptShells = () => backgroundActivityPillSections?.backgroundShells?.get().map(shell => shell.description);
+		const runningTranscriptShells = transcriptShells();
 		connection.setState(StateComponents.Chat, upcastPartial<ChatState>({ backgroundWork: [] }));
 
-		assert.deepStrictEqual({ running, finished: pills() }, { running: ['1 Background Shell'], finished: [] });
+		assert.deepStrictEqual({ running, finished: pills(), runningTranscriptShells, finishedTranscriptShells: transcriptShells() }, {
+			running: ['1 Background Shell'], finished: [], runningTranscriptShells: ['Start dev server'], finishedTranscriptShells: [],
+		});
 	});
 });

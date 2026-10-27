@@ -424,6 +424,8 @@ export interface ICloudSandboxApiService {
 	getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment>;
 	/** Lists the authenticated account's environments without attaching or provisioning compute. */
 	listEnvironments(token: CancellationToken, options?: { readonly refresh?: boolean }): Promise<readonly IMissionControlEnvironment[]>;
+	/** Hard-delete an environment owned by the expected account; managed sandboxes also delete backing compute and storage. */
+	deleteEnvironment(environmentId: string, token: CancellationToken, expectedAccountKey: string): Promise<void>;
 	/** Returns fresh credential-free inventory for the current account without issuing a request. */
 	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined;
 

@@ -577,7 +577,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 			if (reason?.source === 'plugin') {
 				const decision = reason.plugin.enablement?.[0];
 				if (decision) {
-					setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, agentHostSession, reason.plugin, decision.kind, true);
+					await setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, agentHostSession, reason.plugin, decision.kind, true);
 				}
 			}
 			return;

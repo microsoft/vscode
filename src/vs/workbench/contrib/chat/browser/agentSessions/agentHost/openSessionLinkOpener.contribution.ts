@@ -16,16 +16,19 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agentS
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, isDefaultChatLinkId, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_LINK_SCHEME, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../../../platform/dataChannel/common/dataChannel.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService, OpenOptions } from '../../../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
-import { SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IChatRequestOriginService } from '../../../common/chatRequestOrigin.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
 import { getAgentChangesSummary } from '../agentSessionsModel.js';
+import { shouldRevealSessionEditor } from '../agentSessionsOpener.js';
 import { ISessionSummaryHoverData } from '../sessionSummaryHover.js';
 import { ISessionSummaryHoverService } from '../sessionSummaryHoverService.js';
 
@@ -61,6 +64,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 		@IPathService pathService: IPathService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -126,6 +130,13 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		const clientResource = await this._withoutDefaultChatFragment(linkedResource);
 		await this._chatSessionsService.activateChatSessionItemProvider(getChatSessionType(clientResource));
 		const openToSide = options?.openToSide === true;
+		if (!openToSide && this._configurationService.getValue<boolean>(ChatConfiguration.OpenSessionsInEditor)) {
+			const widget = await this._chatWidgetService.openSession(clientResource, ACTIVE_GROUP, {
+				...options?.editorOptions,
+				revealIfOpened: shouldRevealSessionEditor(this._chatWidgetService, clientResource),
+			});
+			return !!widget;
+		}
 		const widget = await this._chatWidgetService.openSession(clientResource, openToSide ? SIDE_GROUP : ChatViewPaneTarget, {
 			...options?.editorOptions,
 			revealIfOpened: !openToSide

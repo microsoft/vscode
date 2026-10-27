@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append, getActiveElement } from '../../../../../base/browser/dom.js';
+import { $, append, getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { HoverStyle, IDelayedHoverOptions, IHoverLifecycleOptions, IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -27,7 +27,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -35,7 +35,7 @@ import { HoverService } from '../../../../../platform/hover/browser/hoverService
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
-import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IListService, ListService, WorkbenchListWidget } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -213,7 +213,17 @@ suite('Artifact Integration Presentation', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IContextKeyService, store.add(instantiation.createInstance(ContextKeyService)));
-		instantiation.stub(IListService, store.add(new ListService()));
+		const lists: WorkbenchListWidget[] = [];
+		instantiation.stub(IListService, store.add(new class extends ListService {
+			override register(widget: WorkbenchListWidget, extraContextKeys?: IContextKey<boolean>[]) {
+				lists.push(widget);
+				const registration = super.register(widget, extraContextKeys);
+				return toDisposable(() => {
+					lists.splice(lists.indexOf(widget), 1);
+					registration.dispose();
+				});
+			}
+		}()));
 		const keybindingService = new class extends MockKeybindingService {
 			override lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
 				return commandId === 'editor.action.accessibilityHelp' ? this.resolveKeybinding(new Keybinding([new KeyCodeChord(false, false, true, false, KeyCode.F1)]))[0] : undefined;
@@ -270,6 +280,8 @@ suite('Artifact Integration Presentation', () => {
 			const acquired: string[] = [];
 			const released: string[] = [];
 			const invoked: { integrationId: string; actionId: string; chat: string }[] = [];
+			const itemActions: { detailsId: string; itemId: string; actionId: string }[] = [];
+			let itemActionResult: Promise<void> | undefined;
 			const configured: { integrationId: string; revision: number; values: Readonly<Record<string, boolean | string>> }[] = [];
 			const authentications: string[] = [];
 			const chat = observableValue('chat', 'invoking-chat');
@@ -340,7 +352,13 @@ suite('Artifact Integration Presentation', () => {
 						throw new Error(`Missing details: ${detailsId}`);
 					}
 					const lifetime = toDisposable(() => released.push(detailsId));
-					return { details: details[detailsId], dispose: () => lifetime.dispose() };
+					return {
+						details: details[detailsId], dispose: () => lifetime.dispose(),
+						runItemAction: async (itemId, actionId) => {
+							itemActions.push({ detailsId, itemId, actionId });
+							await itemActionResult;
+						},
+					};
 				},
 			};
 			const presentation = store.add(instantiation.createInstance(ArtifactIntegrationPresentation, model, reader => chat.read(reader), controller));
@@ -355,7 +373,7 @@ suite('Artifact Integration Presentation', () => {
 			item.render(container);
 			const main = container.querySelector<HTMLElement>('.chat-pill-button')!;
 			return {
-				snapshot, details, presentation, entry, base, container, main, acquired, released, invoked, configured, authentications, chat, cancelled, reconciled, historyRequests,
+				snapshot, details, presentation, entry, base, container, main, acquired, released, invoked, itemActions, configured, authentications, chat, cancelled, reconciled, historyRequests,
 				setHistory: (runs: readonly ArtifactRun[]) => { history = runs; },
 				setHistoryResult: (result: Promise<{ runs: readonly ArtifactRun[]; next?: string }> | undefined) => { historyResult = result; },
 				counts: () => ({ resourceOpens, shellActions }),
@@ -363,10 +381,11 @@ suite('Artifact Integration Presentation', () => {
 				setAuthenticationResult: (result: Promise<void>) => { authenticationResult = result; },
 				setAcquireResult: (result: Promise<void>) => { acquireResult = result; },
 				onInvoke: (callback: () => void) => { onInvoke = callback; },
+				setItemActionResult: (result: Promise<void> | undefined) => { itemActionResult = result; },
 			};
 		}
 		return {
-			host, row, input, controller, contextView, hovers, hoverGroups, shownHovers, sentiment, configuration, errors, openedItems, artifact, instantiation, keybindingService,
+			host, row, input, controller, contextView, hovers, hoverGroups, shownHovers, sentiment, configuration, errors, openedItems, artifact, instantiation, keybindingService, lists,
 			openedChats, revealedActivities, focusedActivities, registerActivityChat, activeSession,
 			setOpenChatResult: (result: Promise<void>) => { openChatResult = result; },
 			contextShows: () => contextShows,
@@ -412,6 +431,8 @@ suite('Artifact Integration Presentation', () => {
 		const data = model.data.get();
 		const summary = {
 			loading: loading.lists.map(list => list.loading),
+			panelLoading: [loading.loading, data.loading],
+			loadingMessages: [loading.message, ...loading.lists.map(list => list.message)],
 			title: data.title, description: data.description, resource: data.resource,
 			lists: data.lists.map(list => ({ id: list.id, title: list.title, items: list.items.map(item => item.label), loading: list.loading })),
 			actions: data.stateActions.map(action => ({ id: action.id, label: action.label, enabled: action.enabled, primary: action.primary })),
@@ -421,7 +442,7 @@ suite('Artifact Integration Presentation', () => {
 			panels: f.host.querySelectorAll('.artifact-integration-panel').length,
 		};
 		assert.deepStrictEqual(summary, {
-			loading: [true, true], title: 'Full title for artifact', description: 'The actual resource description.', resource: 'https://example.test/artifact',
+			loading: [true, true], panelLoading: [true, false], loadingMessages: ['', '', ''], title: 'Full title for artifact', description: 'The actual resource description.', resource: 'https://example.test/artifact',
 			lists: [
 				{ id: artifactViewKey('test', 'checks'), title: 'Checks', items: ['Lint', 'Build'], loading: false },
 				{ id: artifactViewKey('test', 'comments'), title: 'Review threads', items: ['Preserve focus after refresh'], loading: false },
@@ -467,8 +488,8 @@ suite('Artifact Integration Presentation', () => {
 		const commands: string[] = [];
 		const data: IArtifactDetailsViewData = {
 			title: 'Deployment', resource: 'https://example.test/deployment', icon: { id: 'package' }, titleDescription: 'Ready to deploy',
-			description: 'Deploy the selected revision.', message: '',
-			lists: [{ id: 'health', title: 'Health', icon: { id: 'pulse' }, description: 'Checks in the target environment.', message: 'No failures.', loading: false, items: [], openItem: () => { commands.push('openItem'); } }],
+			description: 'Deploy the selected revision.', message: '', loading: false,
+			lists: [{ id: 'health', title: 'Health', icon: { id: 'pulse' }, description: 'Checks in the target environment.', message: 'No failures.', loading: false, items: [], itemActions: new Map(), openItem: () => { commands.push('openItem'); } }],
 			selectedList: 'health',
 			stateActions: [{ id: 'deploy', label: 'Deploy', primary: true, enabled: true, run: () => { commands.push('deploy'); } }],
 			generalActions: [{ id: 'copy', label: 'Copy Link', run: () => { commands.push('copy'); } }],
@@ -477,7 +498,7 @@ suite('Artifact Integration Presentation', () => {
 				rules: [{ id: 'autoDeploy', label: 'Deploy When Healthy', description: 'Wait for healthy checks.', checked: false, disabled: false, pending: false, setEnabled: async value => { commands.push(`rule:${value}`); } }],
 				setExpanded: expanded => { commands.push(`expand:${expanded}`); }, setEnabled: async value => { commands.push(`group:${value}`); },
 			}],
-			activities: { expanded: false, items: [], summary: '0 loaded', message: '', setExpanded: () => { } }, sections: [], accessibleText: 'Deployment\nHealth\nDeploy\nAutopilot',
+			activities: { expanded: false, loading: false, items: [], summary: '0 loaded', message: '', setExpanded: () => { } }, sections: [], accessibleText: 'Deployment\nHealth\nDeploy\nAutopilot',
 			openResource: () => { commands.push('open'); }, selectList: id => { commands.push(`select:${id}`); },
 		};
 		const input = observableValue<IArtifactDetailsViewData>('static panel data', data);
@@ -816,6 +837,32 @@ suite('Artifact Integration Presentation', () => {
 			}, { requests: [undefined, 'entry-10'], firstPageCount: 50, totalCount: 60, newest: 'Fix CI: Completed', summaries: ['50 loaded', '60 loaded'], moreHidden: true });
 		});
 
+		test('loading activity history remains accessible without adding a message or moving existing rows', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			const recent = activity(a, 'recent');
+			setActivities(a, [recent]);
+			const history = new DeferredPromise<{ runs: readonly ArtifactRun[] }>();
+			a.setHistoryResult(history.p);
+			const panel = await open(f, a);
+			const activities = panel.querySelector<HTMLElement>('.artifact-activities')!;
+			const initiallyBusy = activities.getAttribute('aria-busy');
+			await expand(f, panel);
+			const bounds = () => {
+				const panelBounds = panel.getBoundingClientRect();
+				const rowBounds = rows(panel)[0].getBoundingClientRect();
+				const message = panel.querySelector<HTMLElement>('.artifact-activities-message')!;
+				return { top: panelBounds.top, height: panelBounds.height, rowTop: rowBounds.top, busy: activities.getAttribute('aria-busy'), message: message.textContent, hidden: message.hidden };
+			};
+			const loading = bounds();
+			await history.complete({ runs: [recent] });
+			await settle(f);
+			assert.deepStrictEqual({ initiallyBusy, loading, loaded: bounds() }, {
+				initiallyBusy: 'false',
+				loading: { ...loading, busy: 'true', message: '', hidden: true }, loaded: { ...loading, busy: 'false', message: '', hidden: true },
+			});
+		});
+
 		test('retains recent activity on load failures and offers an explicit retry', async () => {
 			const f = fixture();
 			const a = f.artifact();
@@ -833,8 +880,9 @@ suite('Artifact Integration Presentation', () => {
 			await settle(f);
 			assert.deepStrictEqual({
 				message, retained, requests: a.historyRequests,
+				busy: panel.querySelector('.artifact-activities')?.getAttribute('aria-busy'),
 				errorHidden: panel.querySelector<HTMLElement>('.artifact-activities-message')?.hidden,
-			}, { message: 'Could not load activities: History offline', retained: 1, requests: [undefined, undefined], errorHidden: true });
+			}, { message: 'Could not load activities: History offline', retained: 1, requests: [undefined, undefined], busy: 'false', errorHidden: true });
 		});
 
 		test('ignores history completed after switching to another artifact', async () => {
@@ -949,7 +997,7 @@ suite('Artifact Integration Presentation', () => {
 		await settle(f);
 		const checkRow = panel.querySelector<HTMLElement>('.monaco-list-row')!;
 		const check = { label: checkRow.querySelector('.artifact-details-item-label')?.textContent, height: checkRow.getBoundingClientRect().height, accessibleState: checkRow.getAttribute('aria-label') };
-		const hover = f.hovers.get(panel.querySelector<HTMLElement>('.artifact-details-item')!);
+		const hover = f.hovers.get(panel.querySelector<HTMLElement>('.artifact-details-item-labels')!);
 		const hoverOptions = typeof hover === 'function' ? hover() : hover;
 		panel.querySelectorAll<HTMLElement>('[role="tab"]')[1].click();
 		await settle(f);
@@ -1258,6 +1306,79 @@ suite('Artifact Integration Presentation', () => {
 		]);
 	});
 
+	test('refreshing artifact details does not add loading messages or move the panel and its rows', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		const panel = await open(f, a, 0);
+		const list = panel.querySelector<HTMLElement>('[role="tabpanel"]:not([hidden])')!;
+		const geometry = () => [panel, ...list.querySelectorAll<HTMLElement>('.artifact-details-item')].map(element => {
+			const { top, height } = element.getBoundingClientRect();
+			return { top, height };
+		});
+		const original = a.snapshot.get();
+		const originalDetails = Object.values(a.details).map(details => details.get());
+		const before = geometry();
+		const results = [];
+		for (const loading of [true, false, true, false]) {
+			transaction(tx => {
+				a.snapshot.set({
+					...original, contributions: original.contributions.map(contribution => ({
+						...contribution, view: { ...contribution.view, availability: { kind: loading ? 'loading' : 'available' } },
+					})),
+				}, tx);
+				Object.values(a.details).forEach((details, index) => {
+					details.set({ ...originalDetails[index], availability: { kind: loading ? 'loading' : 'available' } }, tx);
+				});
+			});
+			await settle(f);
+			results.push({
+				geometry: geometry(), busy: list.getAttribute('aria-busy'),
+				messages: [...panel.querySelectorAll<HTMLElement>('.artifact-details-availability, .artifact-state-list-message')].map(message => ({ text: message.textContent, hidden: message.hidden })),
+			});
+		}
+		assert.deepStrictEqual(results, [true, false, true, false].map(loading => ({
+			geometry: before, busy: String(loading), messages: Array.from({ length: 3 }, () => ({ text: '', hidden: true })),
+		})));
+	});
+
+	for (const withLists of [false, true]) {
+		test(`main and contribution loading remains accessible ${withLists ? 'with available lists' : 'without lists'}`, async () => {
+			const f = fixture();
+			const a = f.artifact();
+			if (!withLists) {
+				updateContribution(a, contribution => ({ ...contribution, view: { ...contribution.view, lists: [], sections: [] } }));
+			}
+			const acquisition = new DeferredPromise<void>();
+			a.setAcquireResult(acquisition.p);
+			const panel = await open(f, a);
+			const state = () => {
+				const message = panel.querySelector<HTMLElement>('.artifact-details-availability')!;
+				return {
+					busy: panel.getAttribute('aria-busy'), message: message.textContent, hidden: message.hidden,
+					lists: [...panel.querySelectorAll<HTMLElement>('[role="tabpanel"]')].map(list => list.getAttribute('aria-busy')),
+				};
+			};
+			const states = [state()];
+			await acquisition.complete();
+			await settle(f);
+			states.push(state());
+			for (const kind of ['loading', 'available'] as const) {
+				a.details.main.set({ ...a.details.main.get(), availability: { kind } }, undefined);
+				await settle(f);
+				states.push(state());
+			}
+			for (const kind of ['loading', 'available'] as const) {
+				updateContribution(a, contribution => ({ ...contribution, view: { ...contribution.view, availability: { kind } } }));
+				await settle(f);
+				states.push(state());
+			}
+			assert.deepStrictEqual(states, [true, false, true, false, true, false].map((loading, index) => ({
+				busy: String(loading), message: '', hidden: true,
+				lists: withLists ? [String(index === 0), String(index === 0)] : [],
+			})));
+		});
+	}
+
 	test('refresh does not reclaim focus after the user moves to another control', async () => {
 		const f = fixture();
 		const a = f.artifact();
@@ -1353,6 +1474,214 @@ suite('Artifact Integration Presentation', () => {
 		await settle(f);
 		assert.deepStrictEqual({ invoked: a.invoked, configured: a.configured, disabled: button(panel, 'Fix CI').getAttribute('aria-disabled') },
 			{ invoked: [{ integrationId: 'test', actionId: 'fix', chat: 'second-chat' }], configured: [], disabled: 'true' });
+	});
+
+	test('list rows float their item actions, which run on that item without opening it or closing the panel', async () => {
+		const f = fixture();
+		f.host.style.width = '470px';
+		const a = f.artifact();
+		a.details.checks.set({
+			...a.details.checks.get(), itemActions: [{ id: 'rerun', label: 'Rerun Check', iconId: 'debug-rerun' }],
+			items: a.details.checks.get().items.map(item => ({ ...item, actions: ['rerun'] })),
+		}, undefined);
+		const details = store.add(f.instantiation.createInstance(ArtifactDetailsModel, a.presentation, () => { }));
+		const finish = new DeferredPromise<void>();
+		a.setItemActionResult(finish.p);
+		// The status section focuses the checks list and its first row, which reveals that row's actions.
+		const panel = await open(f, a, 0);
+		const rows = () => [...panel.querySelectorAll<HTMLElement>('[role="tabpanel"]:not([hidden]) .artifact-details-item')].map(row => {
+			const actions = row.querySelector<HTMLElement>('.artifact-details-item-actions')!;
+			const bounds = row.getBoundingClientRect();
+			const actionBounds = actions.getBoundingClientRect();
+			const visible = mainWindow.getComputedStyle(actions).display !== 'none';
+			return {
+				label: row.querySelector('.artifact-details-item-label')?.textContent, visible,
+				actions: [...row.querySelectorAll<HTMLElement>('.action-label')].map(action => [action.getAttribute('aria-label'), action.classList.contains('disabled')]),
+				...visible ? {
+					trailing: actionBounds.left >= row.querySelector('.artifact-details-item-labels')!.getBoundingClientRect().right && actionBounds.right <= bounds.right,
+					centered: Math.abs((actionBounds.top + actionBounds.bottom) / 2 - (bounds.top + bounds.bottom) / 2) <= 1,
+				} : {},
+			};
+		});
+		const before = rows();
+		const action = panel.querySelector<HTMLElement>('.artifact-details-item-actions .action-label')!;
+		action.focus();
+		const focused = getActiveElement() === action;
+		action.click();
+		await settle(f);
+		const running = rows();
+		const focusKept = focused && getActiveElement() === panel.querySelector('.artifact-details-item-actions .action-label') && !action.isConnected;
+		await finish.complete();
+		await settle(f);
+		assert.deepStrictEqual({
+			before, running, after: rows(), focusKept, calls: a.itemActions, invoked: a.invoked, opened: f.openedItems, open: f.controller.selected.get() === a.presentation,
+			accessible: details.data.get().accessibleText.split('\n').filter(line => line.startsWith('Lint')),
+		}, {
+			before: [
+				{ label: 'Lint', visible: true, actions: [['Rerun Check', false]], trailing: true, centered: true },
+				{ label: 'Build', visible: false, actions: [['Rerun Check', false]] },
+			],
+			// Only the targeted item is busy; the same action stays available on other items.
+			running: [
+				{ label: 'Lint', visible: true, actions: [['Rerun Check. Running', true]], trailing: true, centered: true },
+				{ label: 'Build', visible: false, actions: [['Rerun Check', false]] },
+			],
+			after: [
+				{ label: 'Lint', visible: true, actions: [['Rerun Check', false]], trailing: true, centered: true },
+				{ label: 'Build', visible: false, actions: [['Rerun Check', false]] },
+			],
+			focusKept: true,
+			calls: [{ detailsId: 'checks', itemId: 'lint', actionId: 'rerun' }], invoked: [], opened: [], open: true,
+			accessible: ['Lint: Failed (actions: Rerun Check)'],
+		});
+	});
+
+	test('revealing rerun actions and their loading spinner keeps the row icon and label vertically centered', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		withRerunActions(a);
+		const finish = new DeferredPromise<void>();
+		a.setItemActionResult(finish.p);
+		const panel = await open(f, a, 0);
+		panel.focus();
+		const row = itemRow(panel, 'Build');
+		const bounds = () => {
+			const rowBounds = row.getBoundingClientRect();
+			return ['.artifact-details-item-icon', '.artifact-details-item-label'].map(selector => {
+				const element = row.querySelector<HTMLElement>(selector)!.getBoundingClientRect();
+				return { top: element.top - rowBounds.top, height: element.height };
+			});
+		};
+		const idle = bounds();
+		row.classList.add('hovered');
+		const hovered = bounds();
+		row.classList.remove('hovered');
+		row.classList.add('focused');
+		const focused = bounds();
+		row.querySelector<HTMLElement>('.artifact-details-item-actions .action-label')!.click();
+		await settle(f);
+		const spinner = !!row.querySelector('.codicon-loading.codicon-modifier-spin');
+		const running = bounds();
+		await finish.complete();
+		await settle(f);
+		assert.deepStrictEqual({ hovered, focused, running, completed: bounds(), spinner }, {
+			hovered: idle, focused: idle, running: idle, completed: idle, spinner: true,
+		});
+	});
+
+	test('resolving a comment removes its row as soon as the provider reports it, and focus moves to the next comment', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		const first = a.details.comments.get().items[0];
+		a.details.comments.set({
+			...a.details.comments.get(), itemActions: [{ id: 'resolve', label: 'Resolve Comment', iconId: 'check' }],
+			items: [first, { ...first, id: 'second', label: 'Cover keyboard navigation' }].map(item => ({ ...item, actions: ['resolve'] })),
+		}, undefined);
+		const result = new DeferredPromise<void>();
+		a.setItemActionResult(result.p);
+		const panel = await open(f, a, 1);
+		const action = panel.querySelector<HTMLElement>('[role="tabpanel"]:not([hidden]) .artifact-details-item-actions .action-label')!;
+		action.focus();
+		action.click();
+		a.details.comments.set({ ...a.details.comments.get(), items: a.details.comments.get().items.slice(1) }, undefined);
+		await settle(f);
+		await result.complete();
+		await settle(f);
+		const list = panel.querySelector<HTMLElement>('[role="tabpanel"]:not([hidden]) .monaco-list')!;
+		assert.deepStrictEqual({
+			rows: [...list.querySelectorAll('.artifact-details-item-label')].map(label => label.textContent),
+			focus: getActiveElement() === list, focusedRow: list.querySelector('.monaco-list-row.focused .artifact-details-item-label')?.textContent,
+			open: f.controller.selected.get() === a.presentation, errors: f.errors,
+		}, { rows: ['Cover keyboard navigation'], focus: true, focusedRow: 'Cover keyboard navigation', open: true, errors: [] });
+	});
+
+	function withRerunActions(a: Artifact): void {
+		a.details.checks.set({
+			...a.details.checks.get(), itemActions: [{ id: 'rerun', label: 'Rerun Check', iconId: 'debug-rerun' }],
+			items: a.details.checks.get().items.map(item => ({ ...item, actions: ['rerun'] })),
+		}, undefined);
+	}
+
+	function itemRow(panel: HTMLElement, label: string): HTMLElement {
+		const row = [...panel.querySelectorAll<HTMLElement>('[role="tabpanel"]:not([hidden]) .monaco-list-row')].find(row => row.querySelector('.artifact-details-item-label')?.textContent === label);
+		assert.ok(row, `Missing row: ${label}`);
+		return row;
+	}
+
+	/** Moves list focus like the Down Arrow keybinding, which workbench lists handle through commands. */
+	function focusNextRow(f: Fixture, panel: HTMLElement): void {
+		const element = panel.querySelector('[role="tabpanel"]:not([hidden]) .monaco-list');
+		const list = f.lists.find(list => list.getHTMLElement() === element);
+		assert.ok(list);
+		list.focusNext();
+	}
+
+	test('only the focused row\'s actions are in the tab order, even when another row is selected and shows its actions', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		withRerunActions(a);
+		const panel = await open(f, a, 0);
+		itemRow(panel, 'Lint').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await settle(f);
+		focusNextRow(f, panel);
+		await settle(f);
+		const rows = ['Lint', 'Build'].map(label => {
+			const row = itemRow(panel, label);
+			const action = row.querySelector<HTMLElement>('.artifact-details-item-actions .action-label')!;
+			return {
+				label, selected: row.classList.contains('selected'), focused: row.classList.contains('focused'),
+				visible: mainWindow.getComputedStyle(row.querySelector('.artifact-details-item-actions')!).display !== 'none', tabIndex: action.tabIndex,
+			};
+		});
+		assert.deepStrictEqual(rows, [
+			{ label: 'Lint', selected: true, focused: false, visible: true, tabIndex: -1 },
+			{ label: 'Build', selected: false, focused: true, visible: true, tabIndex: 0 },
+		]);
+	});
+
+	test('a focused row action follows its item when the list reorders', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		withRerunActions(a);
+		const panel = await open(f, a, 0);
+		focusNextRow(f, panel);
+		await settle(f);
+		itemRow(panel, 'Build').querySelector<HTMLElement>('.artifact-details-item-actions .action-label')!.focus();
+		a.details.checks.set({ ...a.details.checks.get(), items: [...a.details.checks.get().items].reverse() }, undefined);
+		await settle(f);
+		const active = getActiveElement();
+		assert.ok(isHTMLElement(active));
+		const focusedRow = active.closest('.monaco-list-row')?.querySelector('.artifact-details-item-label')?.textContent;
+		active.click();
+		await settle(f);
+		assert.deepStrictEqual({
+			order: [...panel.querySelectorAll('[role="tabpanel"]:not([hidden]) .artifact-details-item-label')].map(label => label.textContent),
+			focusedRow, action: active.getAttribute('aria-label'), calls: a.itemActions,
+		}, {
+			order: ['Build', 'Lint'], focusedRow: 'Build', action: 'Rerun Check',
+			calls: [{ detailsId: 'checks', itemId: 'build', actionId: 'rerun' }],
+		});
+	});
+
+	test('item action failures are reported and leave the action available', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		a.details.comments.set({
+			...a.details.comments.get(), itemActions: [{ id: 'resolve', label: 'Resolve Comment', iconId: 'check' }],
+			items: a.details.comments.get().items.map(item => ({ ...item, actions: ['resolve'] })),
+		}, undefined);
+		const result = new DeferredPromise<void>();
+		a.setItemActionResult(result.p);
+		const panel = await open(f, a, 1);
+		panel.querySelector<HTMLElement>('[role="tabpanel"]:not([hidden]) .artifact-details-item-actions .action-label')!.click();
+		await result.error(new Error('This review thread is already resolved.'));
+		await settle(f);
+		const action = panel.querySelector<HTMLElement>('[role="tabpanel"]:not([hidden]) .artifact-details-item-actions .action-label')!;
+		assert.deepStrictEqual({ calls: a.itemActions, errors: f.errors, action: [action.getAttribute('aria-label'), action.classList.contains('disabled')] }, {
+			calls: [{ detailsId: 'comments', itemId: 'review', actionId: 'resolve' }],
+			errors: ['The artifact operation failed: This review thread is already resolved.'],
+			action: ['Resolve Comment', false],
+		});
 	});
 
 	test('native actions dismiss before invocation so confirmation dialogs own focus', async () => {

@@ -49,7 +49,7 @@ suite('pluginListWidget', () => {
 		]);
 	});
 
-	test('renders the effective state when an enablement write is rejected', () => {
+	test('renders the effective state when an enablement write is rejected', async () => {
 		const model: IEnablementModel = {
 			readEnabled: () => ContributionEnablementState.DisabledProfile,
 			readProfileEnabled: () => false,
@@ -58,7 +58,9 @@ suite('pluginListWidget', () => {
 		};
 
 		assert.strictEqual(
-			setPluginEnablementAndReadEffective(model, 'plugin', ContributionEnablementState.EnabledProfile),
+			await setPluginEnablementAndReadEffective(model, new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file('/plugins/plugin');
+			}(), ContributionEnablementState.EnabledProfile),
 			ContributionEnablementState.DisabledProfile,
 		);
 	});

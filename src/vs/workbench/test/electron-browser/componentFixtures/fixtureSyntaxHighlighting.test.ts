@@ -19,8 +19,8 @@ import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { editorForeground } from '../../../../platform/theme/common/colors/editorColors.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
 import { ExtensionData } from '../../../services/themes/common/workbenchThemeService.js';
-import { fixtureResourceUri, readFixtureTextResource } from './fixtureResourceLoader.js';
-import { registerFixtureLanguages, registerFixtureSyntaxHighlighting } from './fixtureSyntaxHighlighting.js';
+import { fixtureResourceUri, readFixtureTextResource } from '../../browser/componentFixtures/fixtureResourceLoader.js';
+import { registerFixtureLanguages, registerFixtureSyntaxHighlighting } from '../../browser/componentFixtures/fixtureSyntaxHighlighting.js';
 
 suite('Component fixture TextMate syntax highlighting', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

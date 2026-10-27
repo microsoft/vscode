@@ -59,6 +59,7 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { isRemoteAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 
@@ -1417,7 +1418,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const newSessionOptionGroups = isUntitledChatSession(sessionResource)
 			? await raceCancellationError(this.getNewChatSessionInputState(resolvedType, sessionResource), token)
 			: undefined;
-		if (isUntitledChatSession(sessionResource) && (newSessionOptionGroups || resolvedType.startsWith('agent-host-'))) {
+		if (isUntitledChatSession(sessionResource) && (newSessionOptionGroups || resolvedType.startsWith('agent-host-') || isRemoteAgentHostSessionType(resolvedType))) {
 			const options: ChatSessionOptionsMap = new Map();
 			for (const group of newSessionOptionGroups ?? []) {
 				const selected = group.selected ?? group.items.find(item => item.default) ?? group.items[0];
