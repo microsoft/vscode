@@ -16,14 +16,14 @@ export const enum SessionLayoutMode {
 }
 
 /** Where the terminals show. Full Width matches the panel alignment "justify" of the main window, Under Chat matches "center". */
-export const enum ChatTerminalPosition {
+export const enum SessionTerminalPosition {
 	FullWidth = 'fullWidth',
 	UnderChat = 'underChat',
 	UnderEditor = 'underEditor',
 }
 
 /** The cells of a window. */
-export const enum ChatLayoutCell {
+export const enum SessionGridCell {
 	Chat = 'chat',
 	SidePane = 'sidePane',
 	Terminals = 'terminals',
@@ -32,7 +32,7 @@ export const enum ChatLayoutCell {
 }
 
 /** Where the Session Activity Bar shows. */
-export const enum ChatColumnPlacement {
+export const enum SessionColumnPlacement {
 	/** Not as a cell: it is hidden, or it shows inside the chat. */
 	None = 'none',
 	/** A cell at the right of the editor and the chat, as tall as the window, past the terminals. */
@@ -41,57 +41,55 @@ export const enum ChatColumnPlacement {
 	BesideEditor = 'besideEditor',
 }
 
-export interface IChatLayoutState {
-	/** The mode to show. A docked window has no Side by Side, it shows Stacked instead. */
+export interface ISessionGridLayoutState {
+	/** The mode to show. */
 	readonly mode: SessionLayoutMode;
-	readonly terminalPosition: ChatTerminalPosition;
+	readonly terminalPosition: SessionTerminalPosition;
 	readonly terminalsVisible: boolean;
 	/** Whether the Session Activity Bar is on and has something to show. */
 	readonly activityBar: boolean;
-	/** Whether the window is docked into another window. */
-	readonly docked: boolean;
 	/** Whether the chat is dragged down to its input (Stacked only). */
 	readonly inputOnly: boolean;
 }
 
-export interface IChatLayoutLeaf {
-	readonly cell: ChatLayoutCell;
+export interface ISessionGridLayoutLeaf {
+	readonly cell: SessionGridCell;
 	readonly visible: boolean;
 }
 
-export interface IChatLayoutBranch {
+export interface ISessionGridLayoutBranch {
 	/** `row` lays its children out side by side, `column` one above the other. */
 	readonly orientation: 'row' | 'column';
-	readonly children: readonly ChatLayoutNode[];
+	readonly children: readonly SessionGridLayoutNode[];
 }
 
-export type ChatLayoutNode = IChatLayoutLeaf | IChatLayoutBranch;
+export type SessionGridLayoutNode = ISessionGridLayoutLeaf | ISessionGridLayoutBranch;
 
 export interface IChatLayout {
-	/** The mode shown, which differs from the requested one for a docked window. */
+	/** The mode shown. */
 	readonly mode: SessionLayoutMode;
 	/** The cells of the window. Hidden cells stay in the tree so that showing them is not a move. */
-	readonly topology: IChatLayoutBranch;
-	readonly column: ChatColumnPlacement;
+	readonly topology: ISessionGridLayoutBranch;
+	readonly column: SessionColumnPlacement;
 	/** Whether the chat shows only its input. */
 	readonly inputOnly: boolean;
 	/** The cells that are present, in tab and landmark order: chat, side pane, terminals, column. */
-	readonly tabOrder: readonly ChatLayoutCell[];
+	readonly tabOrder: readonly SessionGridCell[];
 	/** The structure of the topology without visibility: a different key needs the grid rebuilt. */
 	readonly shapeKey: string;
 }
 
-export type ChatLayoutChange = 'none' | 'visibility' | 'rebuild';
+export type SessionGridLayoutChange = 'none' | 'visibility' | 'rebuild';
 
-const tabOrder: readonly ChatLayoutCell[] = [ChatLayoutCell.Chat, ChatLayoutCell.SidePane, ChatLayoutCell.Terminals, ChatLayoutCell.Column];
+const tabOrder: readonly SessionGridCell[] = [SessionGridCell.Chat, SessionGridCell.SidePane, SessionGridCell.Terminals, SessionGridCell.Column];
 
-function isBranch(node: ChatLayoutNode): node is IChatLayoutBranch {
+function isBranch(node: SessionGridLayoutNode): node is ISessionGridLayoutBranch {
 	return 'children' in node;
 }
 
 /** Builds a branch without nesting a branch of the same orientation, or keeping a branch of a single child. */
-function branch(orientation: 'row' | 'column', ...children: ChatLayoutNode[]): ChatLayoutNode {
-	const flat: ChatLayoutNode[] = [];
+function branch(orientation: 'row' | 'column', ...children: SessionGridLayoutNode[]): SessionGridLayoutNode {
+	const flat: SessionGridLayoutNode[] = [];
 	for (const child of children) {
 		if (isBranch(child) && child.orientation === orientation) {
 			flat.push(...child.children);
@@ -102,11 +100,11 @@ function branch(orientation: 'row' | 'column', ...children: ChatLayoutNode[]): C
 	return flat.length === 1 ? flat[0] : { orientation, children: flat };
 }
 
-function shapeOf(node: ChatLayoutNode): string {
+function shapeOf(node: SessionGridLayoutNode): string {
 	return isBranch(node) ? `${node.orientation}[${node.children.map(shapeOf).join(',')}]` : node.cell;
 }
 
-function collectLeaves(node: ChatLayoutNode, into: IChatLayoutLeaf[] = []): IChatLayoutLeaf[] {
+function collectLeaves(node: SessionGridLayoutNode, into: ISessionGridLayoutLeaf[] = []): ISessionGridLayoutLeaf[] {
 	if (isBranch(node)) {
 		node.children.forEach(child => collectLeaves(child, into));
 	} else {
@@ -120,28 +118,28 @@ function collectLeaves(node: ChatLayoutNode, into: IChatLayoutLeaf[] = []): ICha
  * whether the chat shows only its input. It is the single source of these rules for every window that lays out a chat
  * and its editor, as a pure function of the state: no DOM, no grid reads, no history.
  */
-export function computeChatLayout(state: IChatLayoutState): IChatLayout {
-	const mode = state.docked && state.mode === SessionLayoutMode.SideBySide ? SessionLayoutMode.Stacked : state.mode;
-	const chat: ChatLayoutNode = { cell: ChatLayoutCell.Chat, visible: true };
-	const sidePane: ChatLayoutNode = { cell: ChatLayoutCell.SidePane, visible: true };
-	const terminals: ChatLayoutNode = { cell: ChatLayoutCell.Terminals, visible: state.terminalsVisible };
-	const column: ChatLayoutNode = { cell: ChatLayoutCell.Column, visible: state.activityBar };
+export function computeSessionGridLayout(state: ISessionGridLayoutState): IChatLayout {
+	const mode = state.mode;
+	const chat: SessionGridLayoutNode = { cell: SessionGridCell.Chat, visible: true };
+	const sidePane: SessionGridLayoutNode = { cell: SessionGridCell.SidePane, visible: true };
+	const terminals: SessionGridLayoutNode = { cell: SessionGridCell.Terminals, visible: state.terminalsVisible };
+	const column: SessionGridLayoutNode = { cell: SessionGridCell.Column, visible: state.activityBar };
 
-	let root: ChatLayoutNode;
-	let placement = ChatColumnPlacement.None;
+	let root: SessionGridLayoutNode;
+	let placement = SessionColumnPlacement.None;
 	switch (mode) {
 		case SessionLayoutMode.ChatOnly:
 			root = branch('column', chat, terminals);
 			break;
 		case SessionLayoutMode.SideBySide:
 			switch (state.terminalPosition) {
-				case ChatTerminalPosition.FullWidth:
+				case SessionTerminalPosition.FullWidth:
 					root = branch('column', branch('row', chat, sidePane), terminals);
 					break;
-				case ChatTerminalPosition.UnderChat:
+				case SessionTerminalPosition.UnderChat:
 					root = branch('row', branch('column', chat, terminals), sidePane);
 					break;
-				case ChatTerminalPosition.UnderEditor:
+				case SessionTerminalPosition.UnderEditor:
 					root = branch('row', chat, branch('column', sidePane, terminals));
 					break;
 			}
@@ -149,18 +147,16 @@ export function computeChatLayout(state: IChatLayoutState): IChatLayout {
 		case SessionLayoutMode.Stacked:
 			// The terminals are always across the bottom of the editor and the chat, and the column runs past them.
 			root = branch('row', branch('column', sidePane, chat, terminals), column);
-			placement = state.activityBar ? ChatColumnPlacement.Full : ChatColumnPlacement.None;
+			placement = state.activityBar ? SessionColumnPlacement.Full : SessionColumnPlacement.None;
 			break;
 		case SessionLayoutMode.EditorOnly:
-			// Without the chat, the terminals under the chat are beside the editor, and the column keeps the editor's height.
-			root = state.terminalPosition === ChatTerminalPosition.UnderChat
-				? branch('row', terminals, sidePane, column)
-				: branch('column', branch('row', sidePane, column), terminals);
-			placement = state.activityBar ? ChatColumnPlacement.BesideEditor : ChatColumnPlacement.None;
+			// Without the chat the terminal position does not apply: the terminals are across the bottom and the column stops above them.
+			root = branch('column', branch('row', sidePane, column), terminals);
+			placement = state.activityBar ? SessionColumnPlacement.BesideEditor : SessionColumnPlacement.None;
 			break;
 	}
 
-	const topology = root as IChatLayoutBranch;
+	const topology = root as ISessionGridLayoutBranch;
 	const present = new Set(collectLeaves(topology).map(leaf => leaf.cell));
 	return {
 		mode,
@@ -176,7 +172,7 @@ export function computeChatLayout(state: IChatLayoutState): IChatLayout {
  * What a host needs to do for a new layout: nothing, only show or hide cells (no cell moves), or rebuild its grid from the
  * new topology, keeping the views and carrying sizes over by cell.
  */
-export function diffChatLayout(previous: IChatLayout | undefined, next: IChatLayout): ChatLayoutChange {
+export function diffSessionGridLayout(previous: IChatLayout | undefined, next: IChatLayout): SessionGridLayoutChange {
 	if (!previous || previous.shapeKey !== next.shapeKey) {
 		return 'rebuild';
 	}
@@ -186,10 +182,18 @@ export function diffChatLayout(previous: IChatLayout | undefined, next: IChatLay
 }
 
 /** The panel alignment of the main window that matches a terminal position, if there is one. */
-export function getPanelAlignmentOfTerminalPosition(position: ChatTerminalPosition): 'justify' | 'center' | undefined {
+export function getPanelAlignmentOfTerminalPosition(position: SessionTerminalPosition): 'justify' | 'center' | undefined {
 	switch (position) {
-		case ChatTerminalPosition.FullWidth: return 'justify';
-		case ChatTerminalPosition.UnderChat: return 'center';
-		case ChatTerminalPosition.UnderEditor: return undefined;
+		case SessionTerminalPosition.FullWidth: return 'justify';
+		case SessionTerminalPosition.UnderChat: return 'center';
+		case SessionTerminalPosition.UnderEditor: return undefined;
 	}
+}
+
+/**
+ * The mode to use when the requested one is not available. Without an editor only Chat only is available.
+ * Docked windows are out of scope for now, so this is the only rule.
+ */
+export function resolveSessionLayoutMode(requested: SessionLayoutMode, hasEditor: boolean): SessionLayoutMode {
+	return hasEditor ? requested : SessionLayoutMode.ChatOnly;
 }
