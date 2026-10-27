@@ -65,7 +65,7 @@ export interface ISessionGridLayoutBranch {
 
 export type SessionGridLayoutNode = ISessionGridLayoutLeaf | ISessionGridLayoutBranch;
 
-export interface IChatLayout {
+export interface ISessionGridLayout {
 	/** The mode shown. */
 	readonly mode: SessionLayoutMode;
 	/** The cells of the window. Hidden cells stay in the tree so that showing them is not a move. */
@@ -118,7 +118,7 @@ function collectLeaves(node: SessionGridLayoutNode, into: ISessionGridLayoutLeaf
  * whether the chat shows only its input. It is the single source of these rules for every window that lays out a chat
  * and its editor, as a pure function of the state: no DOM, no grid reads, no history.
  */
-export function computeSessionGridLayout(state: ISessionGridLayoutState): IChatLayout {
+export function computeSessionGridLayout(state: ISessionGridLayoutState): ISessionGridLayout {
 	const mode = state.mode;
 	const chat: SessionGridLayoutNode = { cell: SessionGridCell.Chat, visible: true };
 	const sidePane: SessionGridLayoutNode = { cell: SessionGridCell.SidePane, visible: true };
@@ -169,16 +169,17 @@ export function computeSessionGridLayout(state: ISessionGridLayoutState): IChatL
 }
 
 /**
- * What a host needs to do for a new layout: nothing, only show or hide cells (no cell moves), or rebuild its grid from the
+ * What a host needs to do for a new layout: nothing, only show or hide cells or the chat's input-only state (no cell moves), or rebuild its grid from the
  * new topology, keeping the views and carrying sizes over by cell.
  */
-export function diffSessionGridLayout(previous: IChatLayout | undefined, next: IChatLayout): SessionGridLayoutChange {
+export function diffSessionGridLayout(previous: ISessionGridLayout | undefined, next: ISessionGridLayout): SessionGridLayoutChange {
 	if (!previous || previous.shapeKey !== next.shapeKey) {
 		return 'rebuild';
 	}
 	const before = collectLeaves(previous.topology);
 	const after = collectLeaves(next.topology);
-	return after.some((leaf, index) => leaf.visible !== before[index].visible) ? 'visibility' : 'none';
+	const changed = previous.inputOnly !== next.inputOnly || after.some((leaf, index) => leaf.visible !== before[index].visible);
+	return changed ? 'visibility' : 'none';
 }
 
 /** The panel alignment of the main window that matches a terminal position, if there is one. */

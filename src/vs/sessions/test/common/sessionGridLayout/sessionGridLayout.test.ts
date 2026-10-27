@@ -146,6 +146,8 @@ suite('Session grid layout', () => {
 			const terminalsToggled = computeSessionGridLayout({ ...s, terminalsVisible: !s.terminalsVisible });
 			assert.strictEqual(diffSessionGridLayout(shown, terminalsToggled), 'visibility', JSON.stringify(s));
 			assert.strictEqual(diffSessionGridLayout(shown, computeSessionGridLayout({ ...s })), 'none');
+			const inputOnlyToggled = computeSessionGridLayout({ ...s, inputOnly: !s.inputOnly });
+			assert.strictEqual(diffSessionGridLayout(shown, inputOnlyToggled), shown.inputOnly === inputOnlyToggled.inputOnly ? 'none' : 'visibility', JSON.stringify(s));
 		});
 	});
 
