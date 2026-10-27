@@ -370,6 +370,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	 * takes the session's values of the properties it has not set, and publishes them so its values are complete.
 	 */
 	private readonly _inheritedChatKeys = new Map<ProtocolURI, Set<string>>();
+	/** Sessions whose config is being restored (see {@link restoreSessionConfig}). */
+	private readonly _restoringSessions = new Set<ProtocolURI>();
 	/** A default chat's own values, by its published values. */
 	private readonly _ownValues = new WeakMap<object, Record<string, unknown>>();
 	/** How many live seeds carry their own schema. */
@@ -866,6 +868,12 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		if (!force && current && equals(current, next)) {
 			return;
 		}
+		if (!force && this._restoringSessions.has(session)) {
+			// Restored: its own values are unchanged and persisted already; publishing what it takes from its session changes
+			// no effective value, so it needs no action, broadcast or write.
+			this._stateManager.setRestoredChatConfig(chat, { values: next });
+			return;
+		}
 		const action = { type: ActionType.ChatConfigChanged as const, config: next, replace: true };
 		chatConfigCompletionActions.add(action);
 		this._stateManager.dispatchServerAction(chat, action);
@@ -964,8 +972,14 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	/** Reconciles restored selections with current policy before notifying live provider runtimes. */
 	restoreSessionConfig(session: ProtocolURI, config: SessionConfigState): void {
 		this._stateManager.setSessionConfig(session, config);
-		// Chats restored from an older build's overlay of their own values take their complete values now.
-		this.completeChatConfigs(session);
+		// Chats restored from an older build's overlay of their own values take their complete values now. The default
+		// chat's restored values are its own; what it takes from its session is seeded, never dispatched or written again.
+		this._restoringSessions.add(session);
+		try {
+			this.completeChatConfigs(session);
+		} finally {
+			this._restoringSessions.delete(session);
+		}
 		this._clearSandboxRejectedSelections(session, () => true, true);
 		if (!this._publishSessionSandboxPolicy(session)) {
 			this._fireSessionConfigChange({

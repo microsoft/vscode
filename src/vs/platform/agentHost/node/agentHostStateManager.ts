@@ -889,6 +889,22 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
+	 * Sets a restored chat's published config without an action, while its session is being restored: before any
+	 * snapshot of it is taken, so subscribers see it in their snapshot. Fires no change event: its effective config
+	 * is unchanged (see `AgentConfigurationService.restoreSessionConfig`).
+	 */
+	setRestoredChatConfig(chat: URI, config: ChatConfigState): void {
+		const entry = this._chatEntries.get(chat);
+		if (!entry) {
+			return;
+		}
+		entry.config = config;
+		if (entry.state) {
+			entry.state = { ...entry.state, config };
+		}
+	}
+
+	/**
 	 * Sets or clears the own config schema of a registered chat whose agent starts or stops differing from its session's
 	 * because it moves between sessions of different agents. Host bookkeeping only: the chat's subscribers learn it from
 	 * the `chat/moved` the move publishes. A chat whose state is not materialized publishes it when it is opened.

@@ -137,6 +137,7 @@ import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY
 import { creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { editChatListAsOldBuild, editChatStateAsOldBuild } from './sessionStateCompatibilityFixtures.js';
+import type { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -9334,6 +9335,89 @@ suite('AgentService (node dispatcher)', () => {
 				defaultChat: { values: { autoApprove: 'autoApprove' } },
 				fork: { values: { autoApprove: 'autoApprove' } },
 				plain: { values: { autoApprove: 'assisted' } },
+			});
+		});
+
+		test('restoring a session whose default chat\'s and peer\'s configs were completed before dispatches nothing and writes nothing', async () => {
+			const perSession = createPerSessionDataService();
+			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
+			const sdkMetadata = new Map<string, IAgentChatMetadata>();
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service,
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDb,
+			));
+			const createAgent = () => disposables.add(new class extends PersistedMockAgent {
+				override async createChat(_session: URI, _chat: URI): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}('copilotcli', sdkMetadata));
+			const chatMutable = { type: 'string' as const, sessionMutable: true, chatMutable: true };
+			const config = {
+				schema: {
+					type: 'object' as const, properties: {
+						[SessionConfigKey.AutoApprove]: { ...chatMutable, title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'] },
+						[SessionConfigKey.Mode]: { ...chatMutable, title: 'Mode', enum: ['interactive', 'plan', 'autopilot'] },
+						[SessionConfigKey.Isolation]: { type: 'string' as const, title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: true },
+					},
+				},
+				values: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.Isolation]: 'folder' },
+			};
+			const creating = createService();
+			registerTestAgentProvider(creating, createAgent());
+			const session = await creating.createSession({ legacyChatUris: true, provider: 'copilotcli' });
+			const defaultChat = buildDefaultChatUri(session);
+			const state = getStateManager(creating);
+			(getConfigurationService(creating) as AgentConfigurationService).restoreSessionConfig(session.toString(), config);
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: new Date().toISOString(), message: { text: 'Source', origin: { kind: MessageKind.User } } });
+			state.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'source-turn', duration: 1 });
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+			await creating.createChat(session, peer);
+			// A session-level picker change, persisted as the session's values; the peer keeps its own (complete) values.
+			getConfigurationService(creating).updateSessionConfig(session.toString(), { [SessionConfigKey.AutoApprove]: 'assisted' });
+			// The default chat sets one property itself; it takes the session's others (Decision A).
+			getConfigurationService(creating).updateChatConfig({ session: session.toString(), chat: defaultChat }, { [SessionConfigKey.Mode]: 'plan' });
+			await timeout(0);
+			const before = { defaultChat: state.getChatConfig(defaultChat), peer: state.getChatConfig(peer.toString()) };
+			await getTestSessionStateStore(creating).whenIdle(undefined);
+			const stored = { defaultChat: await getTestSessionStateStore(creating).chatRows.getChatConfig(session, URI.parse(defaultChat)), peer: await getTestSessionStateStore(creating).chatRows.getChatConfig(session, peer) };
+			creating.dispose();
+
+			const restarted = createService();
+			registerTestAgentProvider(restarted, createAgent());
+			const restoredState = getStateManager(restarted);
+			const dispatched: string[] = [];
+			disposables.add(restoredState.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChatConfigChanged) {
+					dispatched.push(envelope.channel === defaultChat ? 'default' : envelope.channel === peer.toString() ? 'peer' : envelope.channel);
+				}
+			}));
+			const rows = getTestSessionStateStore(restarted).chatRows;
+			const setChatConfig = rows.setChatConfig;
+			const written: string[] = [];
+			rows.setChatConfig = (owner, chat, values) => {
+				written.push(chat.toString() === defaultChat ? 'default' : chat.toString() === peer.toString() ? 'peer' : chat.toString());
+				return setChatConfig.call(rows, owner, chat, values);
+			};
+			await restarted.restoreSession(session);
+			// The provider's resolved schema; the values are the persisted ones.
+			(getConfigurationService(restarted) as AgentConfigurationService).restoreSessionConfig(session.toString(), { schema: config.schema, values: restoredState.getSessionState(session.toString())!.config!.values });
+			await timeout(0);
+			await getTestSessionStateStore(restarted).whenIdle(undefined);
+
+			assert.deepStrictEqual({
+				before,
+				stored,
+				dispatched,
+				written,
+				after: { defaultChat: restoredState.getChatConfig(defaultChat), peer: restoredState.getChatConfig(peer.toString()) },
+			}, {
+				// The default chat publishes what it takes from the session; it stores only what it set itself.
+				before: { defaultChat: { values: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'plan' } }, peer: { values: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive' } } },
+				stored: { defaultChat: { [SessionConfigKey.Mode]: 'plan' }, peer: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive' } },
+				dispatched: [],
+				written: [],
+				after: before,
 			});
 		});
 
