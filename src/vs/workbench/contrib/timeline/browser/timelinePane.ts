@@ -432,6 +432,11 @@ export class TimelinePane extends ViewPane {
 		if (e.affectsConfiguration('timeline.pageOnScroll')) {
 			this._pageOnScroll = undefined;
 		}
+
+		// Items representing a resource show its file decorations as configured when rendered
+		if (e.affectsConfiguration('explorer.decorations')) {
+			this.tree?.rerender();
+		}
 	}
 
 	private onActiveEditorChanged() {
@@ -1451,7 +1456,9 @@ export class TimelineTreeRenderer extends Disposable implements ITreeRenderer<Tr
 				hideIcon: !hasFileIcon,
 				fileDecorations: this.configurationService.getValue<{ colors: boolean; badges: boolean }>('explorer.decorations'),
 				title: tooltip,
-				matches
+				matches,
+				// File names are shown as is, e.g. `$(check).txt` is not rendered as an icon
+				supportIcons: false
 			});
 		} else {
 			template.resourceLabel.setResource({ name: item.label, description: item.description }, {

@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProgressService, Progress } from '../../../../../platform/progress/common/progress.js';
@@ -35,6 +36,7 @@ interface TestTimelinePane {
 	loadTimelineForSource: TimelinePane['loadTimelineForSource'];
 	onProvidersChanged: TimelinePane['onProvidersChanged'];
 	onEditableChanged: TimelinePane['onEditableChanged'];
+	onConfigurationChanged: TimelinePane['onConfigurationChanged'];
 	onTimelineChanged: TimelinePane['onTimelineChanged'];
 	onSelectionChanged: TimelinePane['onSelectionChanged'];
 	loadMore: TimelinePane['loadMore'];
@@ -255,6 +257,16 @@ suite('TimelinePane', () => {
 		assert.deepStrictEqual(requests.map(request => [request.source, request.options.cursor]), [['B', undefined], ['B', undefined]]);
 	});
 
+	test('re-renders items when the file decoration settings change', () => {
+		const { pane, treeCalls } = createPane();
+		const change = (key: string) => upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (section: string) => section === key });
+
+		pane.onConfigurationChanged(change('timeline.pageOnScroll'));
+		pane.onConfigurationChanged(change('explorer.decorations'));
+
+		assert.deepStrictEqual(treeCalls, ['rerender']);
+	});
+
 	test('re-renders the inline actions of items entering or leaving a multi-selection', async () => {
 		const { pane, results, treeCalls, setSelection } = createPane();
 		await addPageableProvider(pane, results);
@@ -367,7 +379,9 @@ suite('TimelineTreeRenderer', () => {
 		const { renderer, themeService } = createRenderer();
 		const rendered = {
 			label: render(renderer, { label: 'Commit', resourceUri: resource }),
+			labelWithIcon: render(renderer, { label: '$(check) Commit' }),
 			derived: render(renderer, { resourceUri: resource }),
+			derivedWithIconSyntax: render(renderer, { resourceUri: URI.file('/folder/$(check).txt') }),
 			derivedWithIcon: render(renderer, { resourceUri: resource, themeIcon: { id: 'git-commit' } }),
 			derivedWithFileIcon: render(renderer, { resourceUri: resource, themeIcon: { id: 'file' } }),
 			empty: render(renderer, {}),
@@ -376,7 +390,9 @@ suite('TimelineTreeRenderer', () => {
 
 		assert.deepStrictEqual({ ...rendered, derivedWithoutFileIconTheme: render(renderer, { resourceUri: resource }) }, {
 			label: { label: 'Commit', icon: 'custom-view-tree-node-item-icon', fileIcon: false, decoration: false },
+			labelWithIcon: { label: ' Commit', icon: 'custom-view-tree-node-item-icon', fileIcon: false, decoration: false },
 			derived: { label: 'derived.txt', icon: '', fileIcon: true, decoration: true },
+			derivedWithIconSyntax: { label: '$(check).txt', icon: '', fileIcon: true, decoration: false },
 			derivedWithIcon: { label: 'derived.txt', icon: 'custom-view-tree-node-item-icon codicon codicon-git-commit', fileIcon: false, decoration: true },
 			derivedWithFileIcon: { label: 'derived.txt', icon: '', fileIcon: true, decoration: true },
 			empty: { label: '', icon: 'custom-view-tree-node-item-icon', fileIcon: false, decoration: false },
