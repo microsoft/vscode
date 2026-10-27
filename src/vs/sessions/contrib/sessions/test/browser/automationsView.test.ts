@@ -4588,7 +4588,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider);
 		disposables.add(provider);
 		assert.deepStrictEqual(provider.provideContent().split('\n').filter(line => line.includes('Show in Sessions List')), [
-			'Run sessions are listed here rather than in the Sessions list. Open a run\'s context menu and choose Show in Sessions List to also list its session there, or Hide from Sessions List to list it only here again, even after later messages. The sessions.list.showRepliedAutomationSessions setting controls whether sending a message in a run\'s session also shows it in the Sessions list.',
+			'Run sessions are listed here rather than in the Sessions list. Open a run\'s context menu and choose Show in Sessions List to also list its session there, or Hide from Sessions List to list it only here again, even after later messages. The sessions.list.showAutomationSessions setting controls when run sessions automatically also appear in the Sessions list: always, after you send a message in one, or never.',
 		]);
 	});
 

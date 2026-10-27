@@ -5,12 +5,16 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { equalSets } from '../../../../base/common/collections.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IReader, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, IReader, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
 import { ISession, SessionStatus } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 export const enum SessionListModelChangeKind {
@@ -60,9 +64,10 @@ export interface ISessionsListModelService {
 	// -- Automation sessions --
 
 	/**
-	 * Whether the session belongs in the sessions list. Automation sessions are
-	 * only listed in Automations until {@link showAutomationSessions} adds them;
-	 * every other session belongs in the list. List filters still apply.
+	 * Whether the session belongs in the sessions list. Every session that is not
+	 * an automation session does. An automation session does when the user showed
+	 * it, or when {@link SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING} lists every
+	 * automation session and the user did not hide it. List filters still apply.
 	 */
 	isSessionListed(session: ISession, reader?: IReader): boolean;
 
@@ -144,8 +149,9 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	private readonly _pinnedSessionIds: Set<string>;
 	private readonly _shownAutomationSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
-	/** Automation sessions the user hid from the list; a later message must not show them again. */
-	private readonly _hiddenAutomationSessionIds: Set<string>;
+	/** Automation sessions the user hid from the list; neither a later message nor the setting shows them again. */
+	private readonly _hiddenAutomationSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
+	private readonly _automationSessionsMode: IObservable<AutomationSessionsListMode>;
 	private readonly _sortOverrides: Record<SessionSortMode, Map<string, number>>;
 	private readonly _updatedDefaultPlacements: Map<string, number | null>;
 	private readonly _legacyReadSessionIds: Set<string> | undefined;
@@ -154,12 +160,23 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
 		this._pinnedSessionIds = this.loadSet(SessionsListModelService.PINNED_SESSIONS_KEY);
 		this._shownAutomationSessionIds.set(this.loadSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY), undefined);
-		this._hiddenAutomationSessionIds = this.loadSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY);
+		this._hiddenAutomationSessionIds.set(this.loadSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY), undefined);
+		this._automationSessionsMode = observableConfigValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.AfterReply, configurationService);
+		this._register(runOnChange(this._automationSessionsMode, (mode, previous) => {
+			if ((mode === AutomationSessionsListMode.Always) !== (previous === AutomationSessionsListMode.Always)) {
+				const shown = this._shownAutomationSessionIds.get();
+				const hidden = this._hiddenAutomationSessionIds.get();
+				this.fireChanges(this.sessionsManagementService.getSessions()
+					.filter(session => session.isAutomation?.get() && !shown.has(session.sessionId) && !hidden.has(session.sessionId))
+					.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing })));
+			}
+		}));
 		this._sortOverrides = this.loadSortOverrides();
 		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
 		this.storageService.remove(SessionsListModelService.RETIRED_CHAT_ORDER_KEY, StorageScope.PROFILE);
@@ -240,63 +257,60 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	// -- Automation sessions --
 
 	isSessionListed(session: ISession, reader?: IReader): boolean {
-		return !session.isAutomation?.read(reader) || this._shownAutomationSessionIds.read(reader).has(session.sessionId);
+		if (!session.isAutomation?.read(reader)) {
+			return true;
+		}
+		if (this._hiddenAutomationSessionIds.read(reader).has(session.sessionId)) {
+			return false;
+		}
+		return this._shownAutomationSessionIds.read(reader).has(session.sessionId)
+			|| this._automationSessionsMode.read(reader) === AutomationSessionsListMode.Always;
 	}
 
 	showAutomationSessions(sessions: readonly ISession[]): void {
-		const sessionIds = sessions.map(session => session.sessionId);
-		this.setAutomationSessionsHidden(sessionIds, false);
-		this.fireChanges(this.setAutomationSessionsShown(sessionIds, true));
+		this.fireChanges(this.updateAutomationListing(sessions, (shown, hidden, sessionId) => {
+			shown.add(sessionId);
+			hidden.delete(sessionId);
+		}));
 	}
 
 	showRepliedAutomationSession(session: ISession): void {
-		if (!this._hiddenAutomationSessionIds.has(session.sessionId)) {
-			this.fireChanges(this.setAutomationSessionsShown([session.sessionId], true));
+		if (!this._hiddenAutomationSessionIds.get().has(session.sessionId)) {
+			this.fireChanges(this.updateAutomationListing([session], (shown, _hidden, sessionId) => shown.add(sessionId)));
 		}
 	}
 
 	hideAutomationSessions(sessions: readonly ISession[]): void {
-		const sessionIds = sessions.map(session => session.sessionId);
-		this.setAutomationSessionsHidden(sessionIds, true);
-		this.fireChanges(this.setAutomationSessionsShown(sessionIds, false));
+		this.fireChanges(this.updateAutomationListing(sessions, (shown, hidden, sessionId) => {
+			shown.delete(sessionId);
+			hidden.add(sessionId);
+		}));
 	}
 
-	private setAutomationSessionsHidden(sessionIds: readonly string[], hidden: boolean): void {
-		let changed = false;
-		for (const sessionId of sessionIds) {
-			if (this._hiddenAutomationSessionIds.has(sessionId) !== hidden) {
-				changed = true;
-				if (hidden) {
-					this._hiddenAutomationSessionIds.add(sessionId);
-				} else {
-					this._hiddenAutomationSessionIds.delete(sessionId);
-				}
+	/** Applies `update` to each session's explicit listing state, persists it, and returns the sessions whose listing changed. */
+	private updateAutomationListing(sessions: readonly ISession[], update: (shown: Set<string>, hidden: Set<string>, sessionId: string) => void): ISessionListModelChangeEvent['changes'] {
+		const unique = [...new Map(sessions.map(session => [session.sessionId, session])).values()];
+		const wasListed = unique.map(session => this.isSessionListed(session));
+		const previousShown = this._shownAutomationSessionIds.get();
+		const previousHidden = this._hiddenAutomationSessionIds.get();
+		const shown = new Set(previousShown);
+		const hidden = new Set(previousHidden);
+		for (const session of unique) {
+			update(shown, hidden, session.sessionId);
+		}
+		transaction(tx => {
+			if (!equalSets(shown, previousShown)) {
+				this._shownAutomationSessionIds.set(shown, tx);
+				this.saveSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY, shown);
 			}
-		}
-		if (changed) {
-			this.saveSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY, this._hiddenAutomationSessionIds);
-		}
-	}
-
-	private setAutomationSessionsShown(sessionIds: readonly string[], shown: boolean): ISessionListModelChangeEvent['changes'] {
-		const ids = new Set(this._shownAutomationSessionIds.get());
-		const changes: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
-		for (const sessionId of sessionIds) {
-			if (ids.has(sessionId) === shown) {
-				continue;
+			if (!equalSets(hidden, previousHidden)) {
+				this._hiddenAutomationSessionIds.set(hidden, tx);
+				this.saveSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY, hidden);
 			}
-			if (shown) {
-				ids.add(sessionId);
-			} else {
-				ids.delete(sessionId);
-			}
-			changes.push({ sessionId, kind: SessionListModelChangeKind.AutomationListing });
-		}
-		if (changes.length > 0) {
-			this._shownAutomationSessionIds.set(ids, undefined);
-			this.saveSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY, ids);
-		}
-		return changes;
+		});
+		return unique
+			.filter((session, index) => this.isSessionListed(session) !== wasListed[index])
+			.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing }));
 	}
 
 	private fireChanges(changes: ISessionListModelChangeEvent['changes']): void {
@@ -467,8 +481,10 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
 			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned });
 		}
-		changes.push(...this.setAutomationSessionsShown([session.sessionId], false));
-		this.setAutomationSessionsHidden([session.sessionId], false);
+		changes.push(...this.updateAutomationListing([session], (shown, hidden, sessionId) => {
+			shown.delete(sessionId);
+			hidden.delete(sessionId);
+		}));
 		let sortChanged = false;
 		if (this._sortOverrides.created.delete(session.sessionId)) {
 			sortChanged = true;

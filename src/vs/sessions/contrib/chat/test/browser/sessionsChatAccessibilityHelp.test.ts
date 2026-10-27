@@ -36,7 +36,7 @@ import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_REPLIED_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
@@ -508,7 +508,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.deepStrictEqual({ disabled: getAutomationHelp(false), enabled: getAutomationHelp(true) }, {
 			disabled: [],
-			enabled: [`Automation sessions are listed in Automations rather than in the Sessions list. To also list one in the Sessions list, open its context menu<keybinding:editor.action.showContextMenu> in Automations and choose Show in Sessions List. The ${SESSIONS_LIST_SHOW_REPLIED_AUTOMATION_SESSIONS_SETTING} setting controls whether sending a message in an automation session also lists it in the Sessions list. To list it only in Automations again, open its context menu in the Sessions list and choose Hide from Sessions List; later messages do not list it again.`],
+			enabled: [`Automation sessions are listed in Automations rather than in the Sessions list. To also list one in the Sessions list, open its context menu<keybinding:editor.action.showContextMenu> in Automations and choose Show in Sessions List. The ${SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING} setting controls when automation sessions automatically also appear in the Sessions list: always, after you send a message in one, or never. To list it only in Automations again, open its context menu in the Sessions list and choose Hide from Sessions List; neither later messages nor the setting list it again.`],
 		});
 	});
 

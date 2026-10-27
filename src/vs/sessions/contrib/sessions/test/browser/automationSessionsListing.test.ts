@@ -15,7 +15,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IChatRequestAcceptedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { SESSIONS_LIST_SHOW_REPLIED_AUTOMATION_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -25,8 +25,8 @@ import { createTestSession } from './sessionsListTestUtils.js';
 suite('AutomationSessionsListingContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const enabled of [true, false]) {
-		test(`shows an automation session once the user sends a message in it when the setting is ${enabled ? 'on' : 'off'}`, () => {
+	for (const mode of [AutomationSessionsListMode.Always, AutomationSessionsListMode.AfterReply, AutomationSessionsListMode.Never]) {
+		test(`shows an automation session once the user sends a message in it only when the setting is afterReply (${mode})`, () => {
 			const automation: ISession = { ...createTestSession('Automation').session, isAutomation: constObservable(true) };
 			const regular = createTestSession('Regular').session;
 			const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
@@ -47,7 +47,7 @@ suite('AutomationSessionsListingContribution', () => {
 					shown.push(session.sessionId);
 				}
 			});
-			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [SESSIONS_LIST_SHOW_REPLIED_AUTOMATION_SESSIONS_SETTING]: enabled }));
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: mode }));
 			instantiationService.stub(ITelemetryService, telemetryService);
 			disposables.add(instantiationService.createInstance(AutomationSessionsListingContribution));
 			const accept = (chatSessionResource: URI) => accepted.fire({ chatSessionResource, isNewSession: false });
@@ -60,8 +60,8 @@ suite('AutomationSessionsListingContribution', () => {
 
 			assert.deepStrictEqual({ beforeAutomation, shown, triggers: telemetryService.triggers }, {
 				beforeAutomation: { shown: [], triggers: [] },
-				shown: enabled ? ['Automation', 'Automation'] : [],
-				triggers: [`config.${SESSIONS_LIST_SHOW_REPLIED_AUTOMATION_SESSIONS_SETTING}`],
+				shown: mode === AutomationSessionsListMode.AfterReply ? ['Automation', 'Automation'] : [],
+				triggers: [`config.${SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING}`],
 			});
 		});
 	}

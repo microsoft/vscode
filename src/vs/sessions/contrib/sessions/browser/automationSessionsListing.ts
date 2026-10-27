@@ -9,14 +9,15 @@ import { logSettingExperimentTrigger } from '../../../../platform/telemetry/comm
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { SESSIONS_LIST_SHOW_REPLIED_AUTOMATION_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /**
  * Shows an automation session in the sessions list once the user sends a message
- * in it. The automation's own prompts never reach this window's chat service, so
- * an accepted request that is neither system-initiated nor hidden is the user's.
+ * in it, when {@link SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING} is `afterReply`.
+ * The automation's own prompts never reach this window's chat service, so an
+ * accepted request that is neither system-initiated nor hidden is the user's.
  */
 export class AutomationSessionsListingContribution extends Disposable implements IWorkbenchContribution {
 
@@ -35,8 +36,8 @@ export class AutomationSessionsListingContribution extends Disposable implements
 			if (!session?.isAutomation?.get()) {
 				return;
 			}
-			logSettingExperimentTrigger(telemetryService, SESSIONS_LIST_SHOW_REPLIED_AUTOMATION_SESSIONS_SETTING);
-			if (configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_REPLIED_AUTOMATION_SESSIONS_SETTING)) {
+			logSettingExperimentTrigger(telemetryService, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING);
+			if (configurationService.getValue<AutomationSessionsListMode>(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING) === AutomationSessionsListMode.AfterReply) {
 				sessionsListModelService.showRepliedAutomationSession(session);
 			}
 		}));
