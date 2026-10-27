@@ -2566,6 +2566,23 @@ suite('EditorGroupsService', () => {
 		});
 	});
 
+	test('maximizeGroup keeps an initially inactive group at its minimum size maximized', async function () {
+		const [part] = await createPart();
+		const group1 = part.activeGroup;
+		const group2 = part.addGroup(group1, GroupDirection.RIGHT);
+		part.activateGroup(group2);
+		part.layout(group1.minimumWidth + group2.minimumWidth, 800, 0, 0); // the target at its minimum size, which activating would otherwise expand
+		const atMinimum = part.getSize(group1).width === group1.minimumWidth;
+
+		part.maximizeGroup(group1, [group2.id]);
+
+		assert.deepStrictEqual({ atMinimum, maximized: part.hasMaximizedGroup(), activeGroup: part.activeGroup === group1 }, {
+			atMinimum: true,
+			maximized: true,
+			activeGroup: true,
+		});
+	});
+
 	test('setViewColumnGroup sets the view column group until disposed, replaced or the group is removed', async function () {
 		const [part] = await createPart();
 		const group1 = part.activeGroup;

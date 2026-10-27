@@ -812,8 +812,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 
 		try {
-			if (this.hasMaximizedGroup() && this.maximizedVisibleGroups.has(group)) {
-				return; // shown beside the maximized group: unmaximizing or expanding it would exit the maximized view
+			if (this.hasMaximizedGroup() && this.maximizedVisibleGroups.size > 0 && (this.maximizedVisibleGroups.has(group) || this.isGroupMaximized(group))) {
+				return; // maximized with groups kept visible beside it: unmaximizing or expanding would exit the maximized view
 			}
 
 			if (this.hasMaximizedGroup() && !this.isGroupMaximized(group)) {
