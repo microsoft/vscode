@@ -2421,12 +2421,19 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	// TODO@BenV: Move automation-specific code into an AutomationSectionRenderer subclass.
 	readonly automationStatus = derived(this, reader => {
 		const automationSessions = this.automationSessions.read(reader);
-		// A run whose session the Sessions list shows reports its status on that row instead.
+		// A run whose session the Sessions list shows reports its status on that row instead,
+		// unless the row cannot: a cloud run can still be active while its session reports it finished.
 		const runs = this.automationService.runs.read(reader).map(run => {
 			const sessionResource = run.sessionResource;
 			const session = sessionResource && automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
 			return { status: run.status, session };
-		}).filter(({ session }) => !session || !this.isSessionListed(session, reader));
+		}).filter(({ status, session }) => {
+			if (!session || !this.isSessionListed(session, reader)) {
+				return true;
+			}
+			const sessionStatus = session.status.read(reader);
+			return (status === 'pending' || status === 'running') && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput;
+		});
 
 		// NeedsInput takes priority: any running automation whose session is waiting for input.
 		if (runs.some(({ status, session }) => status === 'running' && session?.status.read(reader) === SessionStatus.NeedsInput)) {

@@ -1472,7 +1472,7 @@ suite('Sessions - SessionsList', () => {
 			assert.strictEqual(renderer.automationStatus.get(), SessionStatus.InProgress);
 		});
 
-		test('ignores runs whose session the Sessions list shows', () => {
+		test('ignores runs whose session the Sessions list shows while that row reflects the run', () => {
 			const needsInput = createSession('needs-input', { resource: URI.parse('test-session:/needs-input') });
 			const unread = createSession('unread', { isRead: false, resource: URI.parse('test-session:/unread') });
 			const needsInputStatus = needsInput.status as ReturnType<typeof observableValue<SessionStatus>>;
@@ -1515,10 +1515,14 @@ suite('Sessions - SessionsList', () => {
 			listed.set(new Set(['unread']), undefined);
 			listed.set(new Set(['needs-input', 'unread']), undefined);
 			runs.set([...runs.get(), run('pending', 'pending')], undefined);
+			runs.set(runs.get().filter(({ id }) => id !== 'pending'), undefined);
+			needsInputStatus.set(SessionStatus.Completed, undefined);
 
 			assert.deepStrictEqual(statuses, [
 				SessionStatus.NeedsInput,
 				SessionStatus.Completed,
+				undefined,
+				SessionStatus.InProgress,
 				undefined,
 				SessionStatus.InProgress,
 				undefined,
