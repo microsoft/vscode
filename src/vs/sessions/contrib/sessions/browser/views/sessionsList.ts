@@ -169,6 +169,8 @@ export const NEW_SESSION_IN_ENVIRONMENT_ACTION_ID = 'sessionsView.sectionNewSess
 export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.showEmptyDefaultGroups';
 export const SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING = 'sessions.list.showUnreadInCollapsedSections';
 export const SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING = 'sessions.list.showArchivedByDefault';
+/** Controls whether the rows within a section are indented to show their hierarchy below the section header. */
+export const SESSIONS_LIST_INDENT_ITEMS_SETTING = 'sessions.list.indentItems';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
@@ -4370,6 +4372,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
 		this.listContainer.classList.toggle('compact', this.isCompact());
+		this.updateIndentItems();
 		const markSectionFocusFromPointer = (element: HTMLElement) => this._register(DOM.addDisposableListener(element, DOM.EventType.POINTER_DOWN, () => {
 			element.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
 		}));
@@ -4409,6 +4412,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING) || e.affectsConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) || e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
 				this.update();
+			}
+			if (e.affectsConfiguration(SESSIONS_LIST_INDENT_ITEMS_SETTING)) {
+				this.updateIndentItems();
 			}
 		}));
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
@@ -6195,6 +6201,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	setCompact(): void {
 		this.listContainer.classList.toggle('compact', this.isCompact());
 		this.update();
+	}
+
+	private updateIndentItems(): void {
+		this.listContainer.classList.toggle('indent-items', this.configurationService.getValue<boolean>(SESSIONS_LIST_INDENT_ITEMS_SETTING) === true);
 	}
 
 	focus(): void {

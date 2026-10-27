@@ -1346,6 +1346,15 @@
  */
 .sessions-list-control {
 	--session-group-indent: calc(var(--vscode-codiconFontSize, 16px) + var(--vscode-spacing-size60));
+
+	/*
+	 * `sessions.list.indentItems` steps every row within a section in by one
+	 * level, and nested custom groups by the same level, so the list reads as a
+	 * hierarchy below its section headers.
+	 */
+	&.indent-items {
+		--session-group-indent: calc(var(--vscode-spacing-size240) + var(--vscode-spacing-size60));
+	}
 }
 
 .session-item,
@@ -1355,6 +1364,10 @@
 .session-show-more,
 .session-placeholder {
 	margin-left: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px));
+}
+
+.sessions-list-control.indent-items :is(.session-item, .session-chat-item, .session-show-more, .session-placeholder) {
+	margin-left: calc((var(--session-group-depth, 0) + 1) * var(--session-group-indent, 0px));
 }
 
 /* Session groups render like sections, with an inline name editor. */

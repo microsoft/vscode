@@ -20,7 +20,7 @@ import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListStateMigrationContribution } from './views/sessionsList.js';
+import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListStateMigrationContribution } from './views/sessionsList.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import { SessionsListToolsContribution } from './sessionsListTools.js';
 import './sessionDetailsAction.js';
@@ -149,6 +149,13 @@ export const sessionsConfiguration = {
 			],
 			description: localize('sessions.list.showAutomationSessions', "Controls when automation sessions automatically also appear in the sessions list. They always remain in Automations. Use Show in Sessions List or Hide from Sessions List in a session's context menu to override this for that session."),
 			default: AutomationSessionsListMode.AfterReply,
+			experiment: { mode: 'auto' }
+		},
+		[SESSIONS_LIST_INDENT_ITEMS_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental', 'advanced'],
+			description: localize('sessions.list.indentItems', "Controls whether sessions and other rows in the sessions list are indented below their section header to show the list's hierarchy."),
+			default: false,
 			experiment: { mode: 'auto' }
 		},
 		[SESSIONS_CHAT_TABS_SETTING]: {

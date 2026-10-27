@@ -12,7 +12,7 @@ import { ISessionEnvironment, SessionStatus } from '../../../../services/session
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { getTestSessionResource } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
-import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
+import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
 
 //#region Data
@@ -646,6 +646,24 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['Release work lists its subgroups Hotfixes and Docs, each stepped in one level, above its own session. Hotfixes lists its Urgent subgroup, stepped in another level, above its session, and each session lines up with its own group header. The empty Docs subgroup shows a stepped-in "No session" placeholder. Triage and the vscode-docs workspace section follow at the top level.'],
+	}),
+	SessionsList_NestedGroups_IndentItems: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 520 },
+		settings: { [SESSIONS_LIST_INDENT_ITEMS_SETTING]: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With indented items, every session and the "No session" placeholder starts one level to the right of its group or workspace section header. Subgroups Hotfixes and Docs start where the sessions of Release work start, and Urgent and its session step in one level further, so each level of the hierarchy is indented by the same amount.'],
+	}),
+	SessionsList_NestedChatHierarchies_IndentItems: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+		interaction: { hovered: 'pane' },
+		settings: { [SESSIONS_LIST_INDENT_ITEMS_SETTING]: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With indented items, the sessions and their nested chats start one level to the right of the vscode-tools section header. The hierarchy guides still run from each session icon into the rounded branches to its nested chats.'],
 	}),
 	SessionsList_NestedGroups_DateGrouping: defineSessionsListFixture({
 		sessions: NESTED_GROUP_SESSIONS,
