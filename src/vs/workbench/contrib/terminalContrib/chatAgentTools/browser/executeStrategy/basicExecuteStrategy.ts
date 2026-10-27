@@ -10,6 +10,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../.
 import { isNumber } from '../../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { PromptInputState } from '../../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { ITerminalLogService, type ITerminalLaunchError } from '../../../../../../platform/terminal/common/terminal.js';
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
@@ -132,7 +133,11 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// via `promoteToFullCommand()`, while `onCommandFinished` creates
 			// another. Both share the same xterm `IMarker` from
 			// `commandStartMarker`.
-			const staleMarker = this._commandDetection.executingCommandObject?.marker;
+			//
+			// Only capture it when a command is actually executing. At an idle
+			// prompt the command we are about to send finishes with that same
+			// marker, so filtering it would drop our own finished event.
+			const staleMarker = this._isCommandExecuting() ? this._commandDetection.executingCommandObject?.marker : undefined;
 			const onCommandFinishedFiltered = staleMarker
 				? Event.filter(this._commandDetection.onCommandFinished, e => e.marker !== staleMarker, store)
 				: this._commandDetection.onCommandFinished;
@@ -197,7 +202,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// can be misinterpreted by the shell as cancelling the command we are
 			// about to send via sendText, producing spurious "Command exited with
 			// code 130" results for what should be the next, unrelated command.
-			if (this._commandDetection.executingCommandObject !== undefined) {
+			if (this._isCommandExecuting()) {
 				this._log('Previous command still executing, sending SIGINT before retrying');
 				await this._instance.sendText('\x03', false);
 				await waitForIdle(this._instance.onData, 100);
@@ -309,6 +314,15 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 		} finally {
 			this._executionStores.delete(store);
 		}
+	}
+
+	/**
+	 * Whether shell integration reports a command that is actually executing. `executingCommandObject`
+	 * alone is not enough as it is defined from the command start (B) sequence on, including while the
+	 * prompt is idle; the prompt input model only enters the execute state once the command executes.
+	 */
+	private _isCommandExecuting(): boolean {
+		return this._commandDetection.executingCommandObject !== undefined && this._commandDetection.promptInputModel.state === PromptInputState.Execute;
 	}
 
 	private _log(message: string) {
