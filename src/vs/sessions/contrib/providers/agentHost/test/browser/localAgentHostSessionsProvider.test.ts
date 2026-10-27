@@ -12493,6 +12493,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 				return defaultChat;
 			}
 
+			test('subscribes no chat of a visible session\'s catalog with chats on their own agents on, as with them off, also across a reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const peerSubscribes = async (gate: boolean) => {
+					const rawId = `fanout-${gate}`;
+					const configurationService = gate ? enableChatProviders() : new TestConfigurationService();
+					setHostGate(gate);
+					const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+					const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+					const provider = createProvider(disposables, agentHost, undefined, { configurationService, visibleSessions, activeSession });
+					const session = setupMultiChatSession(provider, rawId);
+					const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+					// Unopened chats, half of them archived, one on another agent.
+					setupCatalog(rawId, Array.from({ length: 6 }, (_, i) => ({
+						...makeChatSummary(buildChatUri(sessionUri, `peer-${i}`), `Peer ${i}`, i % 2 ? ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived : ProtocolSessionStatus.Idle),
+						...(i === 1 ? { provider: 'otheragent' } : {}),
+					})));
+					await timeout(0);
+					const shown = upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat });
+					visibleSessions.set([shown], undefined);
+					activeSession.set(shown, undefined);
+					await timeout(0);
+					agentHost.fireAgentHostExit();
+					agentHost.fireAgentHostStart();
+					await timeout(100);
+					return agentHost.wireOps.filter(op => op.startsWith('subscribe:') && op.includes(`${rawId}/peer-`)).length;
+				};
+
+				assert.deepStrictEqual({ off: await peerSubscribes(false), on: await peerSubscribes(true) }, { off: 0, on: 0 });
+			}));
+
 			test('stops advertising chat harnesses when the host turns its gate off after the handshake', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				const provider = createProvider(disposables, agentHost, undefined, { configurationService: enableChatProviders() });
 				const session = setupMultiChatSession(provider, 'harness-gate-flip');

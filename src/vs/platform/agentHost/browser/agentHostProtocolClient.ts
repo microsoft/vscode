@@ -339,6 +339,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _transportListeners = this._register(new MutableDisposable<DisposableStore>());
 	/** The next reconnect sends `initialize` instead of `reconnect`, so the host decides its capabilities again. */
 	private _freshInitializeRequested = false;
+	/** Whether to name the chat subscriptions held once the re-initialize for chats with their own agents connects. */
+	private _describeChatSubscriptionsOnReconnect = false;
 	/** Whether this connection already re-initialized for `multipleChatProviders` since the host's gate last turned on. */
 	private _reinitializedForChatProviders = false;
 	private readonly _connectionAuthority: string;
@@ -1570,7 +1572,29 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * setting was off then. At most once until the host's gate or the setting
 	 * turns off again, so it never loops; nothing happens with the setting off.
 	 */
+	/**
+	 * The chat subscriptions this client holds, by holder: every one is restored after a re-initialize, so this
+	 * names the components that make a re-initialize restore many chats.
+	 */
+	private _describeChatSubscriptions(): string {
+		const holders = new Map<string, number>();
+		let count = 0;
+		for (const subscription of this._subscriptionManager.getActiveSubscriptions()) {
+			if (subscription.kind === StateComponents.Chat) {
+				count++;
+				for (const holder of subscription.holders) {
+					holders.set(holder.owner, (holders.get(holder.owner) ?? 0) + holder.count);
+				}
+			}
+		}
+		return `${count} chat subscription(s) held by: ${[...holders].map(([owner, holderCount]) => `${owner}=${holderCount}`).join(', ') || 'none'}`;
+	}
+
 	private _maybeReinitializeForChatProviders(): void {
+		if (this._describeChatSubscriptionsOnReconnect && this._state.kind === AgentHostClientState.Connected) {
+			this._describeChatSubscriptionsOnReconnect = false;
+			this._logService.info(`[RemoteAgentHostProtocol] ${this._address} re-initialized for chats with their own agents with ${this._describeChatSubscriptions()}.`);
+		}
 		if (this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) !== true) {
 			this._reinitializedForChatProviders = false;
 			return;
@@ -1590,7 +1614,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		this._reinitializedForChatProviders = true;
 		this._freshInitializeRequested = true;
-		this._logService.info(`[RemoteAgentHostProtocol] ${this._address} enabled chats with their own agents after the handshake; re-initializing.`);
+		this._logService.info(`[RemoteAgentHostProtocol] ${this._address} enabled chats with their own agents after the handshake; re-initializing with ${this._describeChatSubscriptions()}.`);
+		this._describeChatSubscriptionsOnReconnect = true;
 		// Disposing the listeners closes the transport; route the close through the soft-reconnect path, as the watchdog does.
 		this._transportListeners.clear();
 		this._handleTransportClose();
