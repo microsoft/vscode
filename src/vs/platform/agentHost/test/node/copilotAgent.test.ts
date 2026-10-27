@@ -17044,6 +17044,41 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('changing from a long-context model to Auto resets the stale context tier', async () => {
+			const client = new TestCopilotClient([], [longContextModel, { id: 'auto', name: 'Auto' }]);
+			let capturedConfig: CopilotCreateSessionOptions | undefined;
+			const sdkSession = new MockCopilotSession();
+			client.createSession = async config => {
+				capturedConfig = config;
+				return sdkSession as unknown as CopilotSession;
+			};
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+				const result = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'long-context-to-auto'),
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'claude-sonnet', config: { contextSize: '1000000' } },
+				});
+				const chat = defaultChatUri(result.session);
+				const context = exactChatContext(result.session, chat, result.session);
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, context);
+				await agent.chats.changeModel(chat, { id: 'auto', config: { tier: 'hydrafusion' } }, context);
+
+				assert.deepStrictEqual({
+					initialContextTier: capturedConfig?.contextTier,
+					modelCalls: sdkSession.setModelCalls.map(([model, options]) => [model, options?.contextTier]),
+				}, {
+					initialContextTier: 'long_context',
+					modelCalls: [['auto', 'default']],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	test('the Sunburst setting never exposes image models in the chat model catalog', async () => {
@@ -25791,10 +25826,10 @@ suite('CopilotAgent', () => {
 					storedAfterRejection: await database.object.getMetadata('copilot.model'),
 				}, {
 					modelCalls: [
-						['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: 'efficiency' }],
-						['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: 'balance' }],
-						['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: null }],
-						['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: 'intelligence' }],
+						['auto', { reasoningEffort: undefined, contextTier: 'default', autoTier: 'efficiency' }],
+						['auto', { reasoningEffort: undefined, contextTier: 'default', autoTier: 'balance' }],
+						['auto', { reasoningEffort: undefined, contextTier: 'default', autoTier: null }],
+						['auto', { reasoningEffort: undefined, contextTier: 'default', autoTier: 'intelligence' }],
 					],
 					storedModels: selections.map(model => JSON.stringify(model)),
 					storedAfterRejection: JSON.stringify({ id: 'auto' }),
@@ -25839,11 +25874,11 @@ suite('CopilotAgent', () => {
 					persisted: chatBackings(agent).get(chatA.toString())?.model,
 				}, {
 					aModels: [
-						{ id: 'auto', effort: undefined, tier: undefined, autoTier: 'intelligence' },
-						{ id: 'auto', effort: undefined, tier: undefined, autoTier: 'balance' },
-						{ id: 'auto', effort: undefined, tier: undefined, autoTier: null },
+						{ id: 'auto', effort: undefined, tier: 'default', autoTier: 'intelligence' },
+						{ id: 'auto', effort: undefined, tier: 'default', autoTier: 'balance' },
+						{ id: 'auto', effort: undefined, tier: 'default', autoTier: null },
 						{ id: 'gpt-5', effort: undefined, tier: undefined },
-						{ id: 'auto', effort: undefined, tier: undefined, autoTier: null },
+						{ id: 'auto', effort: undefined, tier: 'default', autoTier: null },
 					],
 					bModels: [],
 					changes: selections.map(model => JSON.stringify({ sdkSessionId: 'sdk-a', model })),
@@ -25938,7 +25973,7 @@ suite('CopilotAgent', () => {
 					}, {
 						callsWhileInitializing: 0, initialTier: { autoTier: 'intelligence' },
 						sentTiers: ['intelligence', selectedTier],
-						modelCalls: [['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: selectedTier }]],
+						modelCalls: [['auto', { reasoningEffort: undefined, contextTier: 'default', autoTier: selectedTier }]],
 						stored: explicit,
 					});
 				} finally {
@@ -27796,7 +27831,7 @@ suite('CopilotAgent', () => {
 			};
 			try {
 				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'refresh-turn');
-				assert.deepStrictEqual(events, [`setModel ${JSON.stringify(['auto', 'high', undefined, 'intelligence', selection])}`, 'send hello']);
+				assert.deepStrictEqual(events, [`setModel ${JSON.stringify(['auto', 'high', 'default', 'intelligence', selection])}`, 'send hello']);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -27864,7 +27899,7 @@ suite('CopilotAgent', () => {
 						sends: replacement.sendCalls, resumes: replacement.resumeCalls,
 					}, {
 						blocked: { sends: [], resumes: [] }, launches: 1,
-						calls: Array.from({ length: 2 }, () => ['auto', undefined, undefined, 'intelligence', selection]),
+						calls: Array.from({ length: 2 }, () => ['auto', undefined, 'default', 'intelligence', selection]),
 						sends: retry === 'send' ? ['retry', 'after success'] : ['after success'],
 						resumes: retry === 'resume' ? ['retry-turn'] : [],
 					});
@@ -27888,7 +27923,7 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					calls: replacement.modelCalls, sends: replacement.sendCalls,
 				}, {
-					calls: [['auto', undefined, undefined, 'balance', selection]], sends: ['retry'],
+					calls: [['auto', undefined, 'default', 'balance', selection]], sends: ['retry'],
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -27912,8 +27947,8 @@ suite('CopilotAgent', () => {
 					calls: replacement.modelCalls, sends: replacement.sendCalls,
 				}, {
 					calls: [
-						['auto', undefined, undefined, 'intelligence', selection],
-						['auto', undefined, undefined, 'balance', next],
+						['auto', undefined, 'default', 'intelligence', selection],
+						['auto', undefined, 'default', 'balance', next],
 					],
 					sends: ['new selection'],
 				});
@@ -27938,8 +27973,8 @@ suite('CopilotAgent', () => {
 					assert.deepStrictEqual({
 						before: previous.modelCalls, after: replacement.modelCalls, resumes: replacement.resumeCalls,
 					}, {
-						before: [['auto', 'low', undefined, 'efficiency', selection]],
-						after: [['auto', removeOverride ? 'medium' : 'high', undefined, removeOverride ? 'intelligence' : 'balance', selection]],
+						before: [['auto', 'low', 'default', 'efficiency', selection]],
+						after: [['auto', removeOverride ? 'medium' : 'high', 'default', removeOverride ? 'intelligence' : 'balance', selection]],
 						resumes: ['refresh-turn'],
 					});
 				} finally {
@@ -27959,8 +27994,8 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					before: previous.modelCalls, after: replacement.modelCalls,
 				}, {
-					before: [['auto', undefined, undefined, 'intelligence', selection]],
-					after: [['auto', undefined, undefined, undefined, selection]],
+					before: [['auto', undefined, 'default', 'intelligence', selection]],
+					after: [['auto', undefined, 'default', undefined, selection]],
 				});
 			} finally {
 				await disposeAgent(agent);
