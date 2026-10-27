@@ -36,6 +36,7 @@
  * an unrelated catalog bump; captures still record it for review.
  */
 
+import { createHash } from 'crypto';
 import { hasKey } from '../../../../../../base/common/types.js';
 import type { IReadableAnthropicRequest } from './capiWireCodec.js';
 import { normalizeShellToolNameForCapture } from './shellToolNames.js';
@@ -213,9 +214,27 @@ function stableStringify(value: unknown): string {
 	return JSON.stringify(value) ?? 'null';
 }
 
-/** Compares two projections, ignoring object key order. */
+/**
+ * `${sha256:<64 lowercase hex characters>}` pins an entire private message after
+ * portable projection without publishing its body. Every projected byte still
+ * has to match; roles and ordering remain asserted. Diagnostics use the same digest.
+ */
+function applyExpectedContentDigests(expected: IProjectedModelRequest, actual: IProjectedModelRequest): IProjectedModelRequest {
+	return {
+		...actual,
+		messages: actual.messages.map((message, index) => {
+			const expectedContent = expected.messages[index]?.content;
+			if (typeof expectedContent === 'string' && /^\$\{sha256:[0-9a-f]{64}\}$/.test(expectedContent) && typeof message.content === 'string') {
+				return { ...message, content: `\${sha256:${createHash('sha256').update(message.content).digest('hex')}}` };
+			}
+			return message;
+		}),
+	};
+}
+
+/** Compares two projections, ignoring object key order and honoring exact private-content fingerprints. */
 export function modelRequestsMatch(expected: IProjectedModelRequest, actual: IProjectedModelRequest): boolean {
-	return stableStringify(expected) === stableStringify(actual);
+	return stableStringify(expected) === stableStringify(applyExpectedContentDigests(expected, actual));
 }
 
 /**
@@ -228,6 +247,6 @@ export function formatModelRequestMismatch(turnIndex: number, expected: IProject
 	return [
 		`model request #${turnIndex + 1} does not match the recorded request in the fixture`,
 		`  expected (recorded): ${stableStringify(expected)}`,
-		`  actual (live):       ${stableStringify(actual)}`,
+		`  actual (live):       ${stableStringify(applyExpectedContentDigests(expected, actual))}`,
 	].join('\n');
 }
