@@ -54,28 +54,30 @@
 
 .extensions-viewlet > .header > .notification-container {
 	margin-top: 10px;
-	display: flex;
-	flex-wrap: wrap;
-	align-items: flex-start;
-	gap: 4px 0;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40) 0 var(--vscode-spacing-size80);
 }
 
 .extensions-viewlet > .header .notification-container .message-container {
 	display: flex;
-	padding-left: 4px;
-	flex: 1 1 0;
-	min-width: 200px;
+	grid-column: 1;
+	grid-row: 1;
+	gap: var(--vscode-spacing-size80);
+	padding-left: var(--vscode-spacing-size40);
+	min-width: 0;
 }
 
 .extensions-viewlet > .header .notification-container .message-container .codicon {
 	flex-shrink: 0;
-	padding-right: 5px;
 	padding-top: 2px;
 }
 
 .extensions-viewlet > .header .notification-container .message-container .message-text {
 	flex: 1;
 	min-width: 0;
+	overflow-wrap: anywhere;
 }
 
 .extensions-viewlet .notification-container .message-container .message-text .message p {
@@ -95,7 +97,6 @@
 
 .extensions-viewlet .notification-container .message-text-action {
 	cursor: pointer;
-	margin-left: 5px;
 	color: var(--vscode-textLink-foreground);
 	text-decoration: underline;
 }
@@ -105,18 +106,11 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.extensions-viewlet .notification-container .message-action-button {
-	cursor: pointer;
-	padding: 1px 6px;
-	border-radius: var(--vscode-cornerRadius-small);
-	font-size: 11px;
-	color: var(--vscode-button-foreground);
-	background-color: var(--vscode-button-background);
-	white-space: nowrap;
-}
-
-.extensions-viewlet .notification-container .message-action-button:hover {
-	background-color: var(--vscode-button-hoverBackground);
+.extensions-viewlet .notification-container .monaco-button.message-action-button {
+	width: auto;
+	max-width: 100%;
+	min-width: 0;
+	overflow-wrap: anywhere;
 }
 
 .extensions-viewlet .notification-container .message-action-button:focus-visible {
@@ -125,20 +119,27 @@
 }
 
 .extensions-viewlet .notification-container .notification-actions {
+	grid-column: 1 / -1;
+	grid-row: 2;
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
-	gap: 4px;
-	margin-left: 24px;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	margin-left: calc(var(--vscode-spacing-size40) + var(--vscode-codiconFontSize) + var(--vscode-spacing-size80));
 }
 
-.extensions-viewlet .notification-container .notification-actions .dismiss-action {
+.extensions-viewlet .notification-container > .dismiss-action {
+	grid-column: 2;
+	grid-row: 1;
+	align-self: start;
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);
 	padding: 2px;
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.extensions-viewlet .notification-container .notification-actions .dismiss-action:hover {
+.extensions-viewlet .notification-container > .dismiss-action:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 

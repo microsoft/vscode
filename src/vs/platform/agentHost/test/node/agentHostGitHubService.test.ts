@@ -25,6 +25,33 @@ import { getGitHubClientInternals } from '../../../github/test/common/githubClie
 suite('Agent Host GitHub clients', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('repository reauthorization refreshes same-token credentials without replacing the account client', async () => {
+		const endpoint = createTestGitHubEndpointService();
+		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [endpoint.getRepoResource()]; }
+			override async authenticate() { return true; }
+		}();
+		const params = { resource: endpoint.getRepoResource().resource, scopes: ['repo'], token: 'same-token' };
+		await authentication.authenticate(params, [provider]);
+		let requests = 0;
+		const service = store.add(new AgentHostGitHubService({
+			fetch: async () => { requests++; return Response.json({ id: 101 }); },
+		}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const signal = new AbortController().signal;
+		const client = store.add(service.acquireRepositoryClient(signal)).object;
+		const first = await client.credentials.getCredential(signal);
+		await authentication.authenticate(params, [provider]);
+		const second = await client.credentials.getCredential(signal);
+		assert.deepStrictEqual({
+			sameClient: store.add(service.acquireRepositoryClient(signal)).object === client,
+			sameAccount: first.account.accountId === second.account.accountId,
+			aborted: first.signal.aborted,
+			generation: second.generation,
+			requests,
+		}, { sameClient: true, sameAccount: true, aborted: true, generation: 2, requests: 2 });
+	});
+
 	test('concurrent peer chats preserve their exact credential sources', async () => {
 		const endpoint = createTestGitHubEndpointService();
 		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));

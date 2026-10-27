@@ -18,39 +18,13 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../common/sessionsTelemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ManagedReconnectAgentHostContribution } from './managedReconnectAgentHostContribution.js';
+import { disconnectSSHEntry } from './remoteHostOptions.js';
 
 const SSH_RECONNECT_PERIODIC_INTERVAL_MS = 60_000;
 
 /** Returns whether an SSH reconnect failure requires pausing retries. */
 export function shouldPauseSSHReconnectAfterFailure(err: unknown): boolean {
 	return isCancellationError(err) || isSSHHostKeyDeniedError(err);
-}
-
-/** Returns the SSH service's stable key for a configured connection. */
-export function sshConnectionKey(connection: IRemoteAgentHostSSHConnection): string {
-	return connection.sshConfigHost
-		? `ssh:${connection.sshConfigHost}`
-		: `${connection.user ?? connection.hostName}@${connection.hostName}:${connection.port ?? 22}`;
-}
-
-/**
- * Disconnect an SSH-backed remote agent host at the user's request.
- *
- * Order matters. `sshService.disconnect` is what drops the persisted SSH
- * entry, and that entry is what makes the address "desired" during
- * reconciliation. Tearing the connection down first fires
- * `onDidChangeConnections` while the entry is still stored, so reconciliation
- * sees a desired-but-disconnected host and immediately re-dials it — the host
- * reappears moments after the user removed it. Dropping the entry first makes
- * the address undesired, so the teardown's own reconcile is a no-op.
- */
-export async function disconnectSSHEntry(
-	connection: IRemoteAgentHostSSHConnection,
-	remoteAgentHostService: Pick<IRemoteAgentHostService, 'removeRemoteAgentHost'>,
-	sshService: Pick<ISSHRemoteAgentHostService, 'disconnect'>,
-): Promise<void> {
-	await sshService.disconnect(sshConnectionKey(connection));
-	await remoteAgentHostService.removeRemoteAgentHost(connection.address);
 }
 
 export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribution implements IWorkbenchContribution {
@@ -71,6 +45,7 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 	) {
 		super(remoteAgentHostService, configurationService, logService, instantiationService, sessionsProvidersService, notificationService);
 
+		this._register(this._remoteAgentHostService.onDidChangeConfiguredEntries(() => this._reconcile()));
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
 			this._resumeSSHReconnects();
 			this._reconcile();

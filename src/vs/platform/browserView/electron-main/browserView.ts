@@ -7,7 +7,7 @@ import { screen, WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation } from '../common/browserView.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -120,6 +120,9 @@ export class BrowserView extends Disposable {
 	private readonly _onDidChangeAudiences = this._register(new Emitter<IBrowserViewAudience[]>());
 	readonly onDidChangeAudiences: Event<IBrowserViewAudience[]> = this._onDidChangeAudiences.event;
 
+	private readonly _onDidRequestOpenExternal = this._register(new Emitter<string>());
+	readonly onDidRequestOpenExternal: Event<string> = this._onDidRequestOpenExternal.event;
+
 	constructor(
 		public readonly id: string,
 		public readonly host: IBrowserViewHost,
@@ -183,7 +186,14 @@ export class BrowserView extends Disposable {
 		this._ownerWindow.win?.contentView.addChildView(this._view);
 
 		this._view.webContents.setWindowOpenHandler((details) => {
-			if (this.presentation === BrowserViewPresentation.Unlisted) {
+			const { action, consumeUserGesture } = getBrowserViewPopupAction(this.presentation, details.url, this.hasRecentUserGesture());
+			if (action !== 'integrated') {
+				if (consumeUserGesture) {
+					this._lastUserGestureTimestamp = -Infinity;
+				}
+				if (action === 'external') {
+					this._onDidRequestOpenExternal.fire(details.url);
+				}
 				return { action: 'deny' };
 			}
 			const location = (() => {
@@ -551,14 +561,21 @@ export class BrowserView extends Disposable {
 			case NewPageLocation.Background:
 				return true;
 			case NewPageLocation.NewWindow:
-				// Each user gesture allows one popup window within 1 second
-				if (this._lastUserGestureTimestamp > Date.now() - 1000) {
-					this._lastUserGestureTimestamp = -Infinity;
-					return true;
-				}
-
-				return false;
+				return this.consumeUserGesture();
 		}
+	}
+
+	private consumeUserGesture(): boolean {
+		// Each user gesture allows one popup window within 1 second.
+		if (this.hasRecentUserGesture()) {
+			this._lastUserGestureTimestamp = -Infinity;
+			return true;
+		}
+		return false;
+	}
+
+	private hasRecentUserGesture(): boolean {
+		return this._lastUserGestureTimestamp > Date.now() - 1000;
 	}
 
 	/**
@@ -627,13 +644,12 @@ export class BrowserView extends Disposable {
 			lastFavicon: this._lastFavicon,
 			lastError: this._lastError,
 			certificateError: this.session.trust.getCertificateError(url),
-			storageScope: this.session.storageScope,
+			session: this.session.options,
 			sandboxSessionId: this.session.sandboxSessionId,
 			storageKeys: { ...this.session.history.storageKeys, ...this.session.permissions.storageKeys },
 			permissions: this.session.permissions.serialize(),
 			browserZoomIndex: this._browserZoomIndex,
 			elementSelectionState: this.inspector.elementSelectionState,
-			network: this.session.network,
 			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
 			device: this.emulator.device,
 			audiences: [...this._audiences]

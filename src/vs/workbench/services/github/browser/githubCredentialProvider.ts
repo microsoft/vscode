@@ -134,6 +134,7 @@ export function getWorkbenchMissionControlOptions(providerId: string, enterprise
 		endpoint: {
 			apiBaseUri: `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents`,
 			feedApiBaseUri: `${deriveGitHubEndpoints(undefined).apiBaseUri}/cmc_internal/api/agents`,
+			identityApiBaseUri: `${deriveGitHubEndpoints(undefined).apiBaseUri}/cmc_internal/api/agents`,
 			integrationId: COPILOT_INTEGRATION_ID,
 		},
 	} : undefined;

@@ -28,6 +28,9 @@ import { claudeAgentAttributes as promptClaudeAgentAttributes, getAttributeDefin
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
+import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
+import { getEffectiveAgentFileToolAvailability, resolveAgentFileToolIdentifiers, resolveAgentFileTools } from './promptToolResolver.js';
+import { getEffectiveAgentFileSkillAvailability, resolveAgentFileSkillIdentifiers, resolveAgentFileSkills } from './promptSkillResolver.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -51,6 +54,7 @@ export class PromptValidator {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPathService private readonly pathService: IPathService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
+		@ILogService private readonly logService: ILogService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -299,7 +303,7 @@ export class PromptValidator {
 
 			case PromptsType.agent: {
 				if (isGithubCopilotAgent) {
-					this.validateCopilotAgent(attributes, target, report);
+					await this.validateCopilotAgent(attributes, target, report);
 					break;
 				}
 				this.validateTarget(attributes, report);
@@ -389,37 +393,163 @@ export class PromptValidator {
 		}
 	}
 
-	private validateCopilotAgent(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): void {
-		this.validateCopilotModel(attributes, report);
+	private async validateCopilotAgent(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): Promise<void> {
+		this.validateCopilotModel(attributes, target, report);
+		this.validateCopilotReasoningEffort(attributes, target, report);
 		this.validateCopilotModelPolicy(attributes, report);
 		this.validateCopilotInfer(attributes, report);
 		this.validateHooks(attributes, target, report);
 		this.validateGithubPermissions(attributes, report, false);
 		this.validateCopilotMcpServers(attributes, report);
+		await this.validateCopilotTools(attributes, target, report);
+		await this.validateCopilotSkills(attributes, target, report);
 	}
 
-	private validateCopilotModel(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+	private async validateCopilotTools(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): Promise<void> {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
+		if (!attribute || attribute.value.type !== 'sequence') {
+			return;
+		}
+		const catalogue = await resolveAgentFileTools(target, this.customizationHarnessService, this.logService, CancellationToken.None);
+		for (const item of attribute.value.items) {
+			if (item.type !== 'scalar') {
+				continue;
+			}
+			if (!catalogue.isResolved) {
+				continue;
+			}
+			const matches = resolveAgentFileToolIdentifiers(item.value, catalogue.tools);
+			const availability = getEffectiveAgentFileToolAvailability(matches);
+			if (!availability) {
+				const localTool = this.languageModelToolsService.getToolByFullReferenceName(item.value);
+				report(localTool && isToolSet(localTool)
+					? toMarker(
+						localize('promptValidator.copilotToolSetUnsupported', "Tool set '{0}' is not supported by the GitHub Copilot harness. List individual tools instead.", item.value),
+						item.range,
+						MarkerSeverity.Hint,
+						[MarkerTag.Unnecessary],
+					)
+					: toMarker(
+						localize('promptValidator.copilotToolUnknown', "Tool '{0}' is not recognized by the matching GitHub Copilot harness.", item.value),
+						item.range,
+						MarkerSeverity.Hint,
+						[MarkerTag.Unnecessary],
+					));
+			} else if (availability === 'disabled') {
+				report(toMarker(
+					localize('promptValidator.copilotToolDisabled', "Tool '{0}' is recognized but disabled for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			} else if (availability === 'unavailable') {
+				report(toMarker(
+					localize('promptValidator.copilotToolUnavailable', "Tool '{0}' is recognized but currently unavailable for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			}
+		}
+	}
+
+	private async validateCopilotSkills(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): Promise<void> {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.skills);
+		if (!attribute || attribute.value.type !== 'sequence') {
+			return;
+		}
+		const catalogue = await resolveAgentFileSkills(target, this.customizationHarnessService, this.logService, CancellationToken.None);
+		if (!catalogue.isResolved) {
+			return;
+		}
+		for (const item of attribute.value.items) {
+			if (item.type !== 'scalar') {
+				continue;
+			}
+			const availability = getEffectiveAgentFileSkillAvailability(resolveAgentFileSkillIdentifiers(item.value, catalogue.skills));
+			if (!availability) {
+				report(toMarker(
+					localize('promptValidator.copilotSkillUnknown', "Skill '{0}' is not recognized by the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			} else if (availability === 'disabled') {
+				report(toMarker(
+					localize('promptValidator.copilotSkillDisabled', "Skill '{0}' is recognized but disabled for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			} else if (availability === 'unavailable') {
+				report(toMarker(
+					localize('promptValidator.copilotSkillUnavailable', "Skill '{0}' is recognized but currently unavailable for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			}
+		}
+	}
+
+	private validateCopilotModel(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): void {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.model);
 		if (!attribute) {
 			return;
 		}
+		const modelValues: IScalarValue[] = [];
 		if (attribute.value.type === 'scalar') {
 			if (attribute.value.value.trim().length === 0) {
 				report(toMarker(localize('promptValidator.modelMustBeNonEmpty', "The 'model' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+			} else {
+				modelValues.push(attribute.value);
 			}
+		} else if (attribute.value.type !== 'sequence') {
 			return;
-		}
-		if (attribute.value.type !== 'sequence') {
-			return;
-		}
-		if (attribute.value.items.length === 0) {
+		} else if (attribute.value.items.length === 0) {
 			report(toMarker(localize('promptValidator.modelArrayMustNotBeEmpty', "The 'model' array must not be empty."), attribute.value.range, MarkerSeverity.Error));
 			return;
-		}
-		for (const item of attribute.value.items) {
-			if (item.type === 'scalar' && item.value.trim().length === 0) {
-				report(toMarker(localize('promptValidator.modelArrayItemMustBeNonEmpty', "Model names in the array must be non-empty strings."), item.range, MarkerSeverity.Error));
+		} else {
+			for (const item of attribute.value.items) {
+				if (item.type === 'scalar' && item.value.trim().length === 0) {
+					report(toMarker(localize('promptValidator.modelArrayItemMustBeNonEmpty', "Model names in the array must be non-empty strings."), item.range, MarkerSeverity.Error));
+				} else if (item.type === 'scalar') {
+					modelValues.push(item);
+				}
 			}
+		}
+
+		const catalogue = resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService);
+		if (!catalogue.isResolved) {
+			return;
+		}
+		for (const model of modelValues) {
+			if (!resolveAgentFileModelIdentifier(model.value, catalogue.models)) {
+				report(toMarker(localize('promptValidator.copilotModelUnavailable', "Model '{0}' is not available for the GitHub Copilot harness.", model.value), model.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+			}
+		}
+	}
+
+	private validateCopilotReasoningEffort(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): void {
+		const effort = attributes.find(attribute => attribute.key === PromptHeaderAttributes.reasoningEffort);
+		const modelAttribute = attributes.find(attribute => attribute.key === PromptHeaderAttributes.model);
+		if (effort?.value.type !== 'scalar' || !modelAttribute) {
+			return;
+		}
+		const selectedModelValues = modelAttribute.value.type === 'scalar'
+			? [modelAttribute.value.value]
+			: modelAttribute.value.type === 'sequence'
+				? modelAttribute.value.items.filter((item): item is IScalarValue => item.type === 'scalar').map(item => item.value)
+				: [];
+		const catalogue = resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService);
+		if (!catalogue.isResolved) {
+			return;
+		}
+		const selectedModels = selectedModelValues
+			.flatMap(model => resolveAgentFileModelIdentifiers(model, catalogue.models));
+		const allowedEfforts = new Set(selectedModels.flatMap(model => getAgentFileModelReasoningEfforts(model)));
+		if (allowedEfforts.size > 0 && !allowedEfforts.has(effort.value.value)) {
+			report(toMarker(localize('promptValidator.copilotReasoningEffortUnavailable', "Reasoning effort '{0}' is not supported by the selected model.", effort.value.value), effort.value.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 		}
 	}
 
@@ -1593,15 +1723,6 @@ export function getAttributeDescription(attributeName: string, promptType: Promp
 	}
 	return undefined;
 }
-
-// The list of tools known to be used by GitHub Copilot custom agents
-export const knownGithubCopilotTools = [
-	{ name: SpecedToolAliases.execute, description: localize('githubCopilot.execute', 'Execute commands') },
-	{ name: SpecedToolAliases.read, description: localize('githubCopilot.read', 'Read files') },
-	{ name: SpecedToolAliases.edit, description: localize('githubCopilot.edit', 'Edit files') },
-	{ name: SpecedToolAliases.search, description: localize('githubCopilot.search', 'Search files') },
-	{ name: SpecedToolAliases.agent, description: localize('githubCopilot.agent', 'Use subagents') },
-];
 
 export interface IValueEntry {
 	readonly name: string;

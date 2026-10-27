@@ -32,6 +32,9 @@ import { deepClone } from '../../../base/common/objects.js';
 import '../common/agentHostStarter.config.contribution.js';
 import { AgentHostAhpJsonlLoggingEnvVar } from '../common/ahpJsonlLogger.js';
 
+/** The distributed notification macOS posts when it changes which apps it trusts for Accessibility. */
+const MacAccessibilityTrustChangedNotification = 'com.apple.accessibility.api';
+
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
@@ -113,10 +116,14 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 				systemPreferences.subscribeWorkspaceNotification('NSWorkspaceWillSleepNotification', () => this._setSystemFullyAwake(false)),
 				systemPreferences.subscribeWorkspaceNotification('NSWorkspaceDidWakeNotification', () => this._setSystemFullyAwake(true)),
 			];
+			// macOS posts this distributed notification whenever it changes which apps it trusts for Accessibility,
+			// e.g. when the user turns on Copilot Computer Use in System Settings. The Agent Host can't observe it.
+			const accessibilityTrustSubscription = systemPreferences.subscribeNotification(MacAccessibilityTrustChangedNotification, () => this._reportAccessibilityTrustChange());
 			this._register(toDisposable(() => {
 				for (const subscription of subscriptions) {
 					systemPreferences.unsubscribeWorkspaceNotification(subscription);
 				}
+				systemPreferences.unsubscribeNotification(accessibilityTrustSubscription);
 			}));
 		}
 	}
@@ -298,6 +305,13 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	private _reportSystemFullyAwake(): void {
 		void this._managementService?.setSystemFullyAwake(this._systemFullyAwake).catch(error => {
 			this._logService.warn(`AgentHostStarter: failed to report system wake state: ${toErrorMessage(error)}`);
+		});
+	}
+
+	private _reportAccessibilityTrustChange(): void {
+		// A host that isn't running has no setup waiting for the change.
+		void this._managementService?.reportMacAccessibilityTrustChange().catch(error => {
+			this._logService.warn(`AgentHostStarter: failed to report an Accessibility permission change: ${toErrorMessage(error)}`);
 		});
 	}
 

@@ -14,11 +14,11 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { join, sep } from '../../../../../base/common/path.js';
+import { generateUuid, isUUID } from '../../../../../base/common/uuid.js';
+import { basename, dirname, join, sep } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -213,6 +213,7 @@ interface ICreateAgentOptions {
 	readonly database?: TestSessionDatabase;
 	readonly checkpointService?: IAgentHostCheckpointService;
 	readonly customizationEnablementService?: IAgentHostCustomizationEnablementService;
+	readonly userHome?: URI;
 }
 
 class TestCodexLogService extends NullLogService {
@@ -271,12 +272,20 @@ class TestCodexConfigurationService extends AgentConfigurationService {
 	}
 }
 
+function createUserHome(disposables: Pick<DisposableStore, 'add'>): URI {
+	// Match fsPath's drive-letter casing in the case-sensitive in-memory filesystem.
+	const userHome = URI.parse(URI.file(fs.mkdtempSync(join(os.tmpdir(), 'vscode-codex-test-home-'))).toString());
+	disposables.add(toDisposable(() => fs.rmSync(userHome.fsPath, { recursive: true, force: true, maxRetries: 3 })));
+	return userHome;
+}
+
 async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: ICreateAgentOptions = {}): Promise<CodexAgent> {
 	const models = [{ id: 'gpt-test', name: 'GPT Test', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 	const instantiationService = new TestInstantiationService();
 	const logService = new TestCodexLogService();
 	const fileService = disposables.add(new TestCodexFileService(logService));
-	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+	disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new TestCodexConfigurationService(stateManager, logService, options.sessionConfig));
 	instantiationService.stub(ISessionDataService, createSessionDataService(options.database));
@@ -306,7 +315,12 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	});
 	instantiationService.stub(IAgentHostSessionTitleSignal, { _serviceBrand: undefined, onDidChangeSessionTitle: Event.None });
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
-	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
+	const userHome = options.userHome ?? createUserHome(disposables);
+	if (isWindows) {
+		// FileService assumes drive roots exist; seed the fake filesystem using a provider-native path.
+		await fileSystemProvider.mkdir(URI.from({ scheme: Schemas.inMemory, path: userHome.path.slice(0, 3) }));
+	}
+	instantiationService.stub(INativeEnvironmentService, { userHome });
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, options.telemetryService ?? NullTelemetryService);
@@ -1120,7 +1134,8 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('immediately releases, restores, and sends a workspace-less peer before metadata flushes', async () => {
-		const agent = await createAgent(disposables);
+		const userHome = createUserHome(disposables);
+		const agent = await createAgent(disposables, { userHome });
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
 		const metadataWrite = new DeferredPromise<void>();
@@ -1206,6 +1221,17 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.strictEqual(fs.existsSync(managedDirectory.fsPath), false);
 		await metadataWrite.complete(undefined);
 		peer.exit();
+
+		const directoryName = basename(start.params.cwd!);
+		assert.deepStrictEqual({
+			scratchRoot: dirname(start.params.cwd!),
+			independentChatDirectory: directoryName.startsWith('chat-') && isUUID(directoryName.slice('chat-'.length)),
+			resumeCwd: resume.params.cwd,
+		}, {
+			scratchRoot: join(userHome.fsPath, '.copilot', 'chats'),
+			independentChatDirectory: true,
+			resumeCwd: start.params.cwd,
+		});
 	});
 
 	test('cold chat restore waits for model refresh before validating its provider-qualified model', async () => {
@@ -4375,7 +4401,9 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('fork from a workspace-less session owns an independent managed directory', async () => {
+		const userHome = createUserHome(disposables);
 		const agent = await createAgent(disposables, {
+			userHome,
 			sessionConfig: {
 				[CodexSessionConfigKey.PermissionsPreset]: 'default',
 				[CodexSessionConfigKey.NetworkAccessEnabled]: true,
@@ -4393,9 +4421,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const source = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const sourceChat = defaultChatOf(source.session);
 		const sourceEntry = agent['_sessions'].get(AgentSession.id(source.session))!;
-		// A workspace-less session is not prewarmed (there is no directory to
-		// start a thread in yet), so its first send materializes the thread in
-		// the managed temp folder Codex creates for it.
+		// The first send materializes a workspace-less session in its owned scratch directory.
 		const sending = agent.chats.sendMessage(sourceChat, 'hello', undefined, undefined, 'turn-1');
 		const start = await readNextRequest(peer.outbound);
 		assert.strictEqual(start.params.config?.['features.default_mode_request_user_input'], true);
@@ -4503,6 +4529,18 @@ suite('CodexAgent prewarm eviction', () => {
 		await disposingFork;
 		assert.strictEqual(fs.existsSync(forkDirectory), false);
 		peer.exit();
+
+		const directoryName = basename(forkDirectory);
+		const scratchRoot = join(userHome.fsPath, '.copilot', 'chats');
+		assert.deepStrictEqual({
+			sourceCwd: start.params.cwd,
+			forkScratchRoot: dirname(forkDirectory),
+			independentForkDirectory: directoryName.startsWith('fork-') && isUUID(directoryName.slice('fork-'.length)),
+		}, {
+			sourceCwd: join(scratchRoot, AgentSession.id(source.session)),
+			forkScratchRoot: scratchRoot,
+			independentForkDirectory: true,
+		});
 	});
 
 	test('workspace-less turns honor the full-access permissions preset', async () => {
@@ -5222,7 +5260,7 @@ suite('CodexAgent managed working directory ownership', () => {
 		} as never;
 
 		// A workspace-less session defers its backing until the first send.
-		// `_materialize` mints the managed temp folder and records it on the
+		// `_materialize` mints the managed scratch directory and records it on the
 		// session *before* issuing `thread/start`; if that request fails, the
 		// folder is left behind with no thread id ever assigned. A retry that
 		// supplies a real, host-selected folder must abandon that stale

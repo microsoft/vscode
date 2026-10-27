@@ -36,6 +36,9 @@ import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
+import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
@@ -204,6 +207,8 @@ export class SessionTypePicker extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	protected _triggerElement: HTMLElement | undefined;
+	private _triggerSlot: HTMLElement | undefined;
+	private _triggerAction: IAction | undefined;
 	private readonly _isVisible = observableValue(this, false);
 	readonly isVisible: IObservable<boolean> = this._isVisible;
 
@@ -221,8 +226,9 @@ export class SessionTypePicker extends Disposable {
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IHoverService private readonly hoverService: IHoverService,
+		@IHoverService _hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -537,7 +543,7 @@ export class SessionTypePicker extends Disposable {
 		);
 	}
 
-	render(container: HTMLElement, options?: { className?: string; readonly before?: Node | null }): void {
+	render(container: HTMLElement, options?: { className?: string; hoverDelegate?: IHoverDelegate; readonly before?: Node | null }): void {
 		this._renderDisposables.clear();
 
 		const slot = dom.$('.sessions-chat-picker-slot');
@@ -550,16 +556,22 @@ export class SessionTypePicker extends Disposable {
 		}
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
-		const trigger = dom.append(slot, dom.$('a.action-label'));
+		const { trigger, action } = createSessionPickerToolbar(this._renderDisposables, slot, this.instantiationService,
+			this._options?.focusCommand?.id ?? 'sessions.sessionTypePicker', localize('sessionTypePicker.choose', "Choose Harness"),
+			() => this._showPicker(), options?.hoverDelegate);
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
 		trigger.setAttribute('aria-haspopup', 'listbox');
 		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
+		this._triggerSlot = slot;
+		this._triggerAction = action;
 		this._renderDisposables.add({
 			dispose: () => {
 				if (this._triggerElement === trigger) {
 					this._triggerElement = undefined;
+					this._triggerSlot = undefined;
+					this._triggerAction = undefined;
 				}
 			},
 		});
@@ -585,7 +597,7 @@ export class SessionTypePicker extends Disposable {
 				this._options.focusCommand.enabled,
 				this.commandService,
 				this.contextMenuService,
-				this.hoverService,
+				action,
 				this.keybindingService,
 			);
 		}
@@ -599,7 +611,7 @@ export class SessionTypePicker extends Disposable {
 		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
-			if (e.key === 'Enter' || e.key === ' ') {
+			if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
 				dom.EventHelper.stop(e, true);
 				this._showPicker();
 			}
@@ -929,18 +941,22 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
+		this._triggerSlot?.toggleAttribute('hidden', this._folderSessionTypes.length === 0);
 		dom.clearNode(this._triggerElement);
 
 		if (this._folderSessionTypes.length === 0 || this._isHiddenPeerChatPicker()) {
 			this._triggerElement.classList.add('hidden');
-			this._triggerElement.parentElement?.classList.remove('disabled');
+			this._triggerSlot?.classList.remove('disabled');
 			this._isVisible.set(false, undefined);
 			return;
 		}
 
 		const disabled = this._folderSessionTypes.length === 1 && this._pickServedByFolder(this._picked) && !this._getVisibleAdditionalAction();
 		this._triggerElement.classList.remove('hidden');
-		this._triggerElement.parentElement?.classList.toggle('disabled', disabled);
+		this._triggerSlot?.classList.toggle('disabled', disabled);
+		if (this._triggerAction) {
+			this._triggerAction.enabled = !disabled;
+		}
 		this._triggerElement.tabIndex = disabled ? -1 : 0;
 		this._triggerElement.setAttribute('aria-disabled', String(disabled));
 		this._isVisible.set(!disabled, undefined);

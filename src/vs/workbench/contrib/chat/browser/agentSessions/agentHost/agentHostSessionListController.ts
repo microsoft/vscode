@@ -57,6 +57,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		private readonly _sessionListStore: AgentHostSessionListStore,
 		private readonly _description: string | undefined,
 		private readonly _connectionAuthority: string,
+		private readonly _useSessionTitleForDefaultChat: boolean,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
@@ -285,12 +286,11 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		const peerChats = summary.chats.filter(chat =>
 			chat !== defaultChat &&
 			chat.interactivity !== ChatInteractivity.Hidden &&
-			chat.origin?.kind !== ChatOriginKind.Tool &&
-			chat.origin?.kind !== ChatOriginKind.SideChat
+			chat.origin?.kind !== ChatOriginKind.Tool
 		);
 		return this._makeItem(resource, {
 			...base,
-			title: defaultChat?.title || summary.title,
+			title: this._useSessionTitleForDefaultChat ? summary.title : defaultChat?.title || summary.title,
 			children: peerChats.length ? peerChats.map(chat => this._makeItem(resource, {
 				title: chat.title || summary.title,
 				workingDirectory: base.workingDirectory,

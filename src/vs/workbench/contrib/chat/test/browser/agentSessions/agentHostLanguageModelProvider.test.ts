@@ -85,6 +85,141 @@ suite('AgentHostLanguageModelProvider', () => {
 		});
 	});
 
+	test('fills matching Copilot billing from the additional catalog without overriding host metadata', async () => {
+		const provider = createProvider();
+		const schema = { type: 'object' as const, properties: { reasoningEffort: { type: 'string' as const, title: 'Effort', enum: ['low', 'high'], readOnly: true } } };
+		provider.updateModels([
+			{ ...makeModel('missing-prices'), provider: 'copilot', configSchema: schema },
+			{ ...makeModel('host-prices', { inputCost: 0, multiplierNumeric: 2 }), provider: 'copilot' },
+			{ ...makeModel('direct', { modelGroupId: 'anthropic' }), provider: 'copilot' },
+			{ ...makeModel('other-provider'), provider: 'other' },
+			{ ...makeModel('disabled'), provider: 'copilot', policyState: PolicyState.Disabled },
+			{ ...makeModel('auto'), provider: 'copilot' },
+		]);
+		provider.updateAdditionalModels(['missing-prices', 'host-prices', 'direct', 'other-provider', 'disabled', 'auto'].map(id => ({
+			...makeModel(id, { inputCost: 5, outputCost: 20, multiplierNumeric: 3 }),
+			provider: 'copilot', name: 'Catalog name', maxContextWindow: 1_000_000,
+		})));
+		const read = async () => (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None)).map(({ metadata }) => ({
+			id: metadata.id, inputCost: metadata.inputCost, outputCost: metadata.outputCost, multiplier: metadata.multiplierNumeric,
+		}));
+		const enriched = await read();
+		const [first] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		provider.updateAdditionalModels([]);
+		const cleared = await read();
+		assert.deepStrictEqual({
+			enriched, cleared,
+			host: { name: first.metadata.name, context: first.metadata.maxContextWindowTokens, efforts: first.metadata.configurationSchema?.properties?.reasoningEffort.enum, readOnly: first.metadata.configurationSchema?.properties?.reasoningEffort.readOnly },
+		}, {
+			enriched: [
+				{ id: 'missing-prices', inputCost: 5, outputCost: 20, multiplier: 3 },
+				{ id: 'host-prices', inputCost: 0, outputCost: 20, multiplier: 2 },
+				{ id: 'direct', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+				{ id: 'other-provider', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+				{ id: 'auto', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+			],
+			cleared: [
+				{ id: 'missing-prices', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+				{ id: 'host-prices', inputCost: 0, outputCost: undefined, multiplier: 2 },
+				{ id: 'direct', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+				{ id: 'other-provider', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+				{ id: 'auto', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+			],
+			host: { name: 'missing-prices', context: undefined, efforts: ['low', 'high'], readOnly: true },
+		});
+	});
+
+	const cloudContextModel: SessionModelInfo = {
+		id: 'context-model', provider: 'copilot', name: 'Cloud Model',
+		configSchema: {
+			type: 'object',
+			properties: { contextTier: { type: 'string', title: 'Context Size', enum: ['default', 'long_context'], enumLabels: ['272K', '1M'], default: 'default' } },
+		},
+	};
+	const hostContextModel: SessionModelInfo = {
+		...cloudContextModel,
+		configSchema: {
+			type: 'object', required: ['contextTier'],
+			properties: { contextTier: { type: 'string', title: 'Host context', enum: ['default', 'long_context'], enumLabels: ['Default', 'Long context'], enumDescriptions: ['Standard window', 'Extended window'], default: 'long_context', readOnly: true } },
+		},
+		_meta: withAgentManagedModelDefaults(withAgentModelConfigurationDefaults(undefined, ['contextTier']), { model: true, keys: ['contextTier'] }),
+	};
+
+	for (const values of [['long_context', 'default'], ['default']]) {
+		test(`maps Cloud context labels by host tier without changing configuration: ${values.join(', ')}`, async () => {
+			const provider = createProvider();
+			const schema = hostContextModel.configSchema!;
+			provider.updateModels([{
+				...hostContextModel,
+				configSchema: {
+					...schema,
+					properties: {
+						contextTier: {
+							...schema.properties.contextTier, enum: values, default: values[0],
+							enumLabels: values.map(value => value === 'default' ? 'Default' : 'Long context'),
+							enumDescriptions: values.map(value => value === 'default' ? 'Standard window' : 'Extended window'),
+						},
+					},
+				},
+			}]);
+			const [before] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			provider.updateAdditionalModels([cloudContextModel]);
+			const [after] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			assert.deepStrictEqual(after.metadata, {
+				...before.metadata,
+				configurationSchema: {
+					...before.metadata.configurationSchema,
+					properties: { contextTier: { ...before.metadata.configurationSchema?.properties?.contextTier, enumItemLabels: values.map(value => value === 'default' ? '272K' : '1M') } },
+				},
+			});
+		});
+	}
+
+	test('keeps host context labels when Cloud catalogue enrichment is incompatible', async () => {
+		const hostSchema = hostContextModel.configSchema!;
+		const cloudSchema = cloudContextModel.configSchema!;
+		const scenarios: { name: string; host: SessionModelInfo; catalog: SessionModelInfo[] }[] = [
+			{ name: 'missing catalogue', host: hostContextModel, catalog: [] },
+			{ name: 'different model', host: hostContextModel, catalog: [{ ...cloudContextModel, id: 'other-model' }] },
+			{ name: 'different provider', host: hostContextModel, catalog: [{ ...cloudContextModel, provider: 'other' }] },
+			{ name: 'non-Cloud provider', host: { ...hostContextModel, provider: 'other', _meta: { modelGroupId: 'copilot' } }, catalog: [{ ...cloudContextModel, provider: 'other', _meta: { modelGroupId: 'copilot' } }] },
+			{ name: 'direct host billing', host: { ...hostContextModel, _meta: { modelGroupId: 'anthropic' } }, catalog: [cloudContextModel] },
+			{ name: 'direct catalogue billing', host: hostContextModel, catalog: [{ ...cloudContextModel, _meta: { modelGroupId: 'anthropic' } }] },
+			{ name: 'no named catalogue tiers', host: hostContextModel, catalog: [{ ...cloudContextModel, configSchema: undefined }] },
+			{ name: 'incomplete catalogue labels', host: hostContextModel, catalog: [{ ...cloudContextModel, configSchema: { ...cloudSchema, properties: { contextTier: { ...cloudSchema.properties.contextTier, enumLabels: ['272K'] } } } }] },
+			{ name: 'incompatible catalogue type', host: hostContextModel, catalog: [{ ...cloudContextModel, configSchema: { ...cloudSchema, properties: { contextTier: { ...cloudSchema.properties.contextTier, type: 'number' } } } }] },
+			{ name: 'unknown host tier', host: { ...hostContextModel, configSchema: { ...hostSchema, properties: { contextTier: { ...hostSchema.properties.contextTier, enum: ['default', 'custom'] } } } }, catalog: [cloudContextModel] },
+			{ name: 'incompatible host type', host: { ...hostContextModel, configSchema: { ...hostSchema, properties: { contextTier: { ...hostSchema.properties.contextTier, type: 'number', enum: [0, 1] } } } }, catalog: [cloudContextModel] },
+			{ name: 'no host tiers', host: { ...hostContextModel, configSchema: undefined }, catalog: [cloudContextModel] },
+			{ name: 'numeric host context', host: { ...hostContextModel, configSchema: { type: 'object', properties: { contextSize: { type: 'number', title: 'Context size', enum: [128_000, 256_000], enumLabels: ['128K', '256K'] } } } }, catalog: [cloudContextModel] },
+			{ name: 'disabled host model', host: { ...hostContextModel, policyState: PolicyState.Disabled }, catalog: [cloudContextModel] },
+		];
+		for (const scenario of scenarios) {
+			const provider = createProvider();
+			provider.updateModels([scenario.host]);
+			const [before] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			provider.updateAdditionalModels(scenario.catalog);
+			const [after] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			assert.deepStrictEqual(after, before, scenario.name);
+		}
+	});
+
+	test('refreshes Cloud numeric labels and restores host labels when the catalogue clears', async () => {
+		const provider = createProvider();
+		provider.updateModels([hostContextModel]);
+		const readLabels = async () => (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.configurationSchema?.properties?.contextTier.enumItemLabels;
+		const before = await readLabels();
+		provider.updateAdditionalModels([cloudContextModel]);
+		const connected = await readLabels();
+		const schema = cloudContextModel.configSchema!;
+		provider.updateAdditionalModels([{ ...cloudContextModel, configSchema: { ...schema, properties: { contextTier: { ...schema.properties.contextTier, enumLabels: ['300K', '2M'] } } } }]);
+		const refreshed = await readLabels();
+		provider.updateAdditionalModels([]);
+		assert.deepStrictEqual({ before, connected, refreshed, cleared: await readLabels(), hostLabels: hostContextModel.configSchema?.properties.contextTier.enumLabels }, {
+			before: ['Default', 'Long context'], connected: ['272K', '1M'], refreshed: ['300K', '2M'], cleared: ['Default', 'Long context'], hostLabels: ['Default', 'Long context'],
+		});
+	});
+
 	test('groups native autoTier without inventing a default or losing fast', async () => {
 		const provider = createProvider();
 		provider.updateModels([{
@@ -223,7 +358,7 @@ suite('AgentHostLanguageModelProvider', () => {
 
 	test('renders the auto-mode discount as the Auto model detail, leaving it out of the tooltip', async () => {
 		const provider = createProvider();
-		provider.updateModels([makeModel('auto', { discountPercent: 10 }), makeModel('gpt-5')]);
+		provider.updateModels([makeModel('auto', { discountPercent: 10, multiplierNumeric: 0.9 }), makeModel('gpt-5', { multiplierNumeric: 2 })]);
 
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		const auto = infos.find(m => m.metadata.id === 'auto');
@@ -231,6 +366,9 @@ suite('AgentHostLanguageModelProvider', () => {
 
 		assert.strictEqual(auto?.metadata.detail, '10% discount');
 		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, 10);
+		assert.deepStrictEqual({ autoPricing: auto?.metadata.pricing, autoMultiplier: auto?.metadata.multiplierNumeric, concretePricing: concrete?.metadata.pricing }, {
+			autoPricing: undefined, autoMultiplier: undefined, concretePricing: '2x',
+		});
 		// The picker describes the discount from `autoModelDiscountPercent`, alongside Auto's tiers.
 		assert.strictEqual(auto?.metadata.tooltip, ILanguageModelChatMetadata.getAutoModelDescription());
 
@@ -240,11 +378,11 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(concrete?.metadata.autoModelDiscountPercent, undefined);
 	});
 
-	test('presents Auto as Fusion, a research preview, only when its host marks it so', async () => {
+	test('presents Auto as Fusion only when its host marks it so', async () => {
 		const provider = createProvider();
 		provider.updateModels([
-			{ ...makeModel('auto', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: false })), name: 'Copilot Fusion' },
-			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: false })) },
+			{ ...makeModel('auto', withAgentModelFusionMeta(undefined)), name: 'Copilot Fusion' },
+			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined)) },
 		]);
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		const fusionOf = async (meta?: Record<string, unknown>) => {
@@ -255,15 +393,29 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.deepStrictEqual({
 			models: infos.map(m => ({ name: m.metadata.name, fusion: m.metadata.autoModelFusion, detail: m.metadata.detail, tooltip: m.metadata.tooltip })),
 			plain: await fusionOf(),
-			malformed: [await fusionOf({ 'vscode.chat.fusion': {} }), await fusionOf({ 'vscode.chat.fusion': { balanceUsesHydraFusion: 'true' } })],
+			malformed: [await fusionOf({ 'vscode.chat.fusion': true }), await fusionOf({ 'vscode.chat.fusion': 'fusion' })],
 		}, {
 			models: [
-				{ name: 'Copilot Fusion', fusion: { balanceUsesHydraFusion: false }, detail: 'Research preview', tooltip: 'Copilot Fusion chooses models and workflows based on your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
+				{ name: 'Copilot Fusion', fusion: true, detail: undefined, tooltip: 'Copilot Fusion selects a single model or orchestrates multiple models to complete your task. [Learn more](https://aka.ms/vscode-copilot-fusion)' },
 				{ name: 'gpt-5', fusion: undefined, detail: undefined, tooltip: undefined },
 			],
 			plain: undefined,
 			malformed: [undefined, undefined],
 		});
+	});
+
+	test('carries the tier Fusion\'s host pins for inline chat, only on Fusion and only when well-formed', async () => {
+		const inlineTierOf = async (id: string, meta: Record<string, unknown> | undefined) => {
+			const host = createProvider();
+			host.updateModels([makeModel(id, meta)]);
+			return (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.autoModelFusionInlineChatTier;
+		};
+		assert.deepStrictEqual({
+			pinned: await inlineTierOf('auto', withAgentModelFusionMeta(undefined, 'fast')),
+			notPinned: await inlineTierOf('auto', withAgentModelFusionMeta(undefined)),
+			notAuto: await inlineTierOf('gpt-5', withAgentModelFusionMeta(undefined, 'fast')),
+			malformed: await inlineTierOf('auto', { 'vscode.chat.fusion': { inlineChatTier: 1 } }),
+		}, { pinned: 'fast', notPinned: undefined, notAuto: undefined, malformed: undefined });
 	});
 
 	test('lists the provider\'s unavailable Auto tiers as disabled entries in the provider\'s order', async () => {
@@ -308,7 +460,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		});
 	});
 
-	test('passes the service\'s tier promotions to Fusion, which then shows no discount of its own', async () => {
+	test('Fusion\'s discount comes only from the service\'s running tier promotions, never from Auto\'s own discount', async () => {
 		const day = 24 * 60 * 60 * 1000;
 		const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
 		const configSchema: SessionModelInfo['configSchema'] = {
@@ -319,10 +471,10 @@ suite('AgentHostLanguageModelProvider', () => {
 		const presented = async (fusion: boolean, promotions: IAgentModelAutoTierPromotion[]) => {
 			const provider = createProvider();
 			let meta = withAgentModelAutoTierPromotionsMeta({ discountPercent: 10 }, promotions);
-			meta = fusion ? withAgentModelFusionMeta(meta, { balanceUsesHydraFusion: false }) : meta;
+			meta = fusion ? withAgentModelFusionMeta(meta) : meta;
 			provider.updateModels([{ ...makeModel('auto', meta), configSchema }]);
 			const { metadata } = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
-			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => `${promotion.id}${promotion.upcoming ? ' (upcoming)' : ''}`) };
+			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => promotion.id) };
 		};
 
 		assert.deepStrictEqual({
@@ -330,12 +482,14 @@ suite('AgentHostLanguageModelProvider', () => {
 			upcoming: await presented(true, [{ ...running, startsAt: iso(day), endsAt: iso(2 * day) }]),
 			ended: await presented(true, [{ ...running, startsAt: iso(-2 * day), endsAt: iso(-day) }]),
 			oneTier: await presented(true, [{ ...running, tierIds: ['hydrafusion'] }]),
+			none: await presented(true, []),
 			notFusion: await presented(false, [running]),
 		}, {
 			running: { detail: '30% discount', discount: undefined, promotions: ['launch'] },
-			upcoming: { detail: 'Research preview', discount: undefined, promotions: ['launch (upcoming)'] },
-			ended: { detail: '10% discount', discount: 10, promotions: undefined },
-			oneTier: { detail: 'Research preview', discount: undefined, promotions: ['launch'] },
+			upcoming: { detail: undefined, discount: undefined, promotions: undefined },
+			ended: { detail: undefined, discount: undefined, promotions: undefined },
+			oneTier: { detail: undefined, discount: undefined, promotions: ['launch'] },
+			none: { detail: undefined, discount: undefined, promotions: undefined },
 			notFusion: { detail: '10% discount', discount: 10, promotions: undefined },
 		});
 	});

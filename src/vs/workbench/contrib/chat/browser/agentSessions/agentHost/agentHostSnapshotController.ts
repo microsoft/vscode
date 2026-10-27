@@ -3,23 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../../../base/common/async.js';
+import { Promises, Sequencer } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, disposableObservableValue, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { localize } from '../../../../../../nls.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { FileEditKind, ToolCallStatus, type ISessionFileDiff, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IChatProgress, IChatWorkspaceEdit } from '../../../common/chatService/chatService.js';
 import { ChatEditingSessionState, IChatEditingSession, IEditSessionDiffStats, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits } from '../../../common/editing/chatEditingService.js';
 import { IChatRequestDisablement, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { AgentHostEditReview } from './agentHostEditReview.js';
+import { AgentHostCheckpointReview } from './agentHostCheckpointReview.js';
 import { fileEditsToExternalEdits, type IToolCallFileEdit } from './stateToProgressAdapter.js';
+
+const NO_ENTRIES: readonly IModifiedFileEntry[] = [];
 
 /**
  * One checkpoint per request. Accumulates the before/after content URIs of
@@ -47,8 +54,10 @@ interface IAgentHostCheckpoint {
  *   viewers can resolve historical content)
  *
  * Everything else is a no-op / empty observable / `undefined`. In particular:
- * - `entries` is always empty → the global accept/reject UI doesn't appear
- * - no diff computation, no multi-diff editor, no streaming-edits APIs
+ * - `entries` is empty unless an {@link AgentHostEditReview} is attached
+ *   (`chat.editor.workingSet.enabled`); then they are the files of the
+ *   session's Working Set, which the editor's keep/undo UI shows
+ * - no streaming-edits APIs: the agent host writes files itself
  *
  * Undo/redo granularity is per-request: every request occupies one checkpoint
  * regardless of how many tool calls it ran. The `stopId` parameters on
@@ -60,11 +69,19 @@ interface IAgentHostCheckpoint {
  */
 export class AgentHostSnapshotController extends Disposable implements IChatEditingSession {
 
-	readonly supportsKeepUndo = false;
-	readonly isGlobalEditingSession = false;
+	readonly checkpointReview: AgentHostCheckpointReview;
+	private readonly _review = this._register(disposableObservableValue<AgentHostEditReview | undefined>(this, undefined));
+	private readonly _reviewBinding = this._register(new MutableDisposable());
+
+	/** True when the edits of this chat can be kept or undone. */
+	readonly supportsKeepUndo = this._review.map(review => review !== undefined);
+
+	/** A reviewing session participates in the editor's keep/undo overlay, like local chat. */
+	readonly isGlobalEditingSession = this.supportsKeepUndo;
 
 	readonly state: IObservable<ChatEditingSessionState> = constObservable(ChatEditingSessionState.Idle);
-	readonly entries: IObservable<readonly IModifiedFileEntry[]> = constObservable([]);
+	readonly entries: IObservable<readonly IModifiedFileEntry[]> = derived(this, reader => this._review.read(reader)?.entries.read(reader) ?? NO_ENTRIES);
+	readonly additionalReviewFiles = derived(this, reader => this._review.read(reader)?.fileChanges.read(reader) ?? []);
 
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]> = derivedOpts(
 		{ equalsFn: (a, b) => a.length === b.length && a.every((v, i) => v.requestId === b[i].requestId) },
@@ -97,8 +114,25 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		} | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 	) {
 		super();
+		this.checkpointReview = this._register(new AgentHostCheckpointReview(_fileService, _logService));
+	}
+
+	// ---- Keep / Undo review -------------------------------------------------
+
+	/** Owns editor review while enabled, releasing it immediately when the preference changes. */
+	attachReview(enabled: IObservable<boolean>, createReview: () => AgentHostEditReview): void {
+		this._reviewBinding.value = autorun(reader => {
+			const review = enabled.read(reader) ? createReview() : undefined;
+			review?.setCheckpointReview(this.checkpointReview);
+			this._review.set(review, undefined);
+		});
+	}
+
+	get review(): AgentHostEditReview | undefined {
+		return this._review.get();
 	}
 
 	// ---- Hydration from protocol state --------------------------------------
@@ -249,21 +283,43 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		const crossed = this._checkpoints.slice(Math.min(currentIdx, targetIdx) + 1, Math.max(currentIdx, targetIdx) + 1);
 		// A failed fetch must leave every file and the checkpoint cursor at the original boundary.
 		await Promise.all(crossed.map(checkpoint => this._resolveCheckpointEdits(checkpoint)));
-		if (targetIdx < currentIdx) {
-			// Undo forward checkpoints
-			for (let i = currentIdx; i > targetIdx; i--) {
-				await this._writeCheckpointContent(this._checkpoints[i], 'before');
+		const undo = targetIdx < currentIdx;
+		const affectedResources = crossed.flatMap(checkpoint => checkpoint.edits.flatMap(edit => edit.originalResource ? [edit.resource, edit.originalResource] : [edit.resource]));
+		const updateReview = await this.checkpointReview.prepareRestore(
+			undo ? this._checkpoints.slice(targetIdx + 1) : crossed,
+			undo,
+			affectedResources,
+		);
+		const getDirtyError = () => {
+			const resource = affectedResources.find(resource => this._workingCopyService.isDirty(resource));
+			return resource ? new Error(localize('agentHostSnapshot.dirtyFile', "Save or revert unsaved changes to '{0}' before restoring a checkpoint.", basename(resource))) : undefined;
+		};
+		const beforeRestoreError = getDirtyError();
+		if (beforeRestoreError) {
+			throw beforeRestoreError;
+		}
+		const failures: Error[] = [];
+		for (const checkpoint of undo ? [...crossed].reverse() : crossed) {
+			try {
+				await this._writeCheckpointContent(checkpoint, undo ? 'before' : 'after');
+			} catch (error) {
+				failures.push(error instanceof Error ? error : new Error(String(error)));
 			}
-		} else if (targetIdx > currentIdx) {
-			// Redo to reach the target
-			for (let i = currentIdx + 1; i <= targetIdx; i++) {
-				await this._writeCheckpointContent(this._checkpoints[i], 'after');
-			}
+		}
+		const afterRestoreError = getDirtyError();
+		if (afterRestoreError) {
+			failures.push(afterRestoreError);
 		}
 
 		transaction(tx => {
 			this._currentCheckpointIndex.set(targetIdx, tx);
+			if (!undo || failures.length === 0) {
+				updateReview(tx);
+			}
 		});
+		if (failures.length > 0) {
+			throw new Error(localize('agentHostSnapshot.restoreFailed', "Could not restore every file. Use Undo or Redo to recover the checkpoint. {0}", failures.map(error => error.message).join(' ')));
+		}
 	}
 
 	getSnapshotUri(requestId: string, uri: URI, _stopId: string | undefined): URI | undefined {
@@ -320,13 +376,29 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		return !!cp && (cp.edits.length > 0 || (this._turnEdits?.getChanges(requestId)?.read(reader).length ?? 0) > 0);
 	}
 
+	// ---- Keep / Undo, delegated to the review when attached -----------------
+
+	async show(previousChanges?: boolean): Promise<void> {
+		await this._review.get()?.show(this, previousChanges);
+	}
+	getEntry(uri: URI): IModifiedFileEntry | undefined {
+		return this._review.get()?.getEntry(uri);
+	}
+	async resolveEntry(uri: URI): Promise<IModifiedFileEntry | undefined> {
+		return this._review.get()?.resolveEntry(uri);
+	}
+	readEntry(uri: URI, reader: IReader): IModifiedFileEntry | undefined {
+		return this._review.read(reader)?.readEntry(uri, reader);
+	}
+	async accept(...uris: URI[]): Promise<void> {
+		await this._review.get()?.accept(...uris);
+	}
+	async reject(...uris: URI[]): Promise<void> {
+		await this._review.get()?.reject(...uris);
+	}
+
 	// ---- Unsupported / no-op (agent host owns edits server-side) ------------
 
-	async show(_previousChanges?: boolean): Promise<void> { /* no-op */ }
-	getEntry(_uri: URI): IModifiedFileEntry | undefined { return undefined; }
-	readEntry(_uri: URI, _reader: IReader): IModifiedFileEntry | undefined { return undefined; }
-	async accept(..._uris: URI[]): Promise<void> { /* no-op */ }
-	async reject(..._uris: URI[]): Promise<void> { /* no-op */ }
 	getEntryDiffBetweenStops(_uri: URI, _requestId: string | undefined, _stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined { return undefined; }
 	getEntryDiffBetweenRequests(_uri: URI, _startRequestId: string, _stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> { return constObservable(undefined); }
 	getDiffsForFilesInSession(): IObservable<readonly IEditSessionEntryDiff[]> { return constObservable([]); }
@@ -357,6 +429,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	}
 
 	override dispose(): void {
+		this._review.set(undefined, undefined);
 		this._onDidDispose.fire();
 		super.dispose();
 	}
@@ -395,27 +468,24 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 					// Undoing this edit
 					switch (edit.kind) {
 						case FileEditKind.Create:
-							await this._fileService.del(edit.resource);
+							await this._deleteCheckpointFile(edit.resource);
 							break;
 						case FileEditKind.Delete:
 							if (edit.beforeContentUri) {
-								const content = await this._fileService.readFile(edit.beforeContentUri);
-								await this._fileService.writeFile(edit.resource, content.value);
+								await this._writeCheckpointFile(edit.resource, edit.beforeContentUri);
 							}
 							break;
 						case FileEditKind.Rename:
 							if (edit.originalResource) {
-								await this._fileService.move(edit.resource, edit.originalResource, true);
+								await this._moveCheckpointFile(edit.resource, edit.originalResource, edit.beforeContentUri);
 							}
 							if (edit.beforeContentUri && edit.originalResource) {
-								const content = await this._fileService.readFile(edit.beforeContentUri);
-								await this._fileService.writeFile(edit.originalResource, content.value);
+								await this._writeCheckpointFile(edit.originalResource, edit.beforeContentUri);
 							}
 							break;
 						case FileEditKind.Edit:
 							if (edit.beforeContentUri) {
-								const content = await this._fileService.readFile(edit.beforeContentUri);
-								await this._fileService.writeFile(edit.resource, content.value);
+								await this._writeCheckpointFile(edit.resource, edit.beforeContentUri);
 							}
 							break;
 					}
@@ -424,35 +494,86 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 					switch (edit.kind) {
 						case FileEditKind.Create:
 							if (edit.afterContentUri) {
-								const content = await this._fileService.readFile(edit.afterContentUri);
-								await this._fileService.writeFile(edit.resource, content.value);
+								await this._writeCheckpointFile(edit.resource, edit.afterContentUri);
 							}
 							break;
 						case FileEditKind.Delete:
-							await this._fileService.del(edit.resource);
+							await this._deleteCheckpointFile(edit.resource);
 							break;
 						case FileEditKind.Rename:
 							if (edit.originalResource) {
-								await this._fileService.move(edit.originalResource, edit.resource, true);
+								await this._moveCheckpointFile(edit.originalResource, edit.resource, edit.afterContentUri);
 							}
 							if (edit.afterContentUri) {
-								const content = await this._fileService.readFile(edit.afterContentUri);
-								await this._fileService.writeFile(edit.resource, content.value);
+								await this._writeCheckpointFile(edit.resource, edit.afterContentUri);
 							}
 							break;
 						case FileEditKind.Edit:
 							if (edit.afterContentUri) {
-								const content = await this._fileService.readFile(edit.afterContentUri);
-								await this._fileService.writeFile(edit.resource, content.value);
+								await this._writeCheckpointFile(edit.resource, edit.afterContentUri);
 							}
 							break;
 					}
 				}
 			} catch (err) {
 				this._logService.warn(`[AgentHostSnapshotController] Failed to ${direction === 'before' ? 'undo' : 'redo'} ${edit.kind} for ${edit.resource.toString()}`, err);
+				throw err;
 			}
 		});
-		await Promise.all(ops);
+		await Promises.settled(ops);
+	}
+
+	private async _readCheckpointFile(resource: URI): Promise<VSBuffer | undefined> {
+		try {
+			return (await this._fileService.readFile(resource)).value;
+		} catch (error) {
+			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				return undefined;
+			}
+			throw error;
+		}
+	}
+
+	private async _writeCheckpointFile(resource: URI, snapshot: URI): Promise<void> {
+		const content = (await this._fileService.readFile(snapshot)).value;
+		if (!(await this._readCheckpointFile(resource))?.equals(content)) {
+			await this._fileService.writeFile(resource, content);
+		}
+	}
+
+	private async _deleteCheckpointFile(resource: URI): Promise<void> {
+		try {
+			await this._fileService.del(resource);
+		} catch (error) {
+			if (!(error instanceof FileOperationError) || error.fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				throw error;
+			}
+			if (await this._checkpointFileExists(resource)) {
+				throw new Error(localize('agentHostSnapshot.deleteFailed', "Could not delete '{0}'.", basename(resource)), { cause: error });
+			}
+		}
+	}
+
+	private async _checkpointFileExists(resource: URI): Promise<boolean> {
+		try {
+			await this._fileService.resolve(resource);
+			return true;
+		} catch (error) {
+			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				return false;
+			}
+			throw error;
+		}
+	}
+
+	private async _moveCheckpointFile(source: URI, target: URI, snapshot: URI | undefined): Promise<void> {
+		if (snapshot && !await this._checkpointFileExists(source)) {
+			const expected = (await this._fileService.readFile(snapshot)).value;
+			if ((await this._readCheckpointFile(target))?.equals(expected)) {
+				return;
+			}
+		}
+		await this._fileService.move(source, target, true);
 	}
 }
 

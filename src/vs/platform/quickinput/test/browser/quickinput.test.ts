@@ -5,6 +5,12 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { IconSelectBox } from '../../../../base/browser/ui/icons/iconSelectBox.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCodeChord } from '../../../../base/common/keybindings.js';
+import { OS } from '../../../../base/common/platform.js';
 import { unthemedInboxStyles } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget.js';
@@ -20,7 +26,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { backButton, QuickPick } from '../../browser/quickInput.js';
-import { IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
+import { IQuickInput, IQuickInputService, IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
+import { CommandsRegistry } from '../../../commands/common/commands.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
@@ -30,7 +37,10 @@ import { IContextViewService } from '../../../contextview/browser/contextView.js
 import { IListService, ListService } from '../../../list/browser/listService.js';
 import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../contextkey/browser/contextKeyService.js';
-import { NoMatchingKb } from '../../../keybinding/common/keybindingResolver.js';
+import { KeybindingResolver, NoMatchingKb, ResultKind } from '../../../keybinding/common/keybindingResolver.js';
+import { KeybindingsRegistry } from '../../../keybinding/common/keybindingsRegistry.js';
+import { ResolvedKeybindingItem } from '../../../keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../keybinding/common/usLayoutResolvedKeybinding.js';
 import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
 import { ContextViewService } from '../../../contextview/browser/contextViewService.js';
 import { IAccessibilityService } from '../../../accessibility/common/accessibility.js';
@@ -55,13 +65,14 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let controller: QuickInputController;
 	let fixture: HTMLElement;
+	let instantiationService: TestInstantiationService;
 
 	setup(() => {
 		fixture = document.createElement('div');
 		mainWindow.document.body.appendChild(fixture);
 		store.add(toDisposable(() => fixture.remove()));
 
-		const instantiationService = new TestInstantiationService();
+		instantiationService = new TestInstantiationService();
 
 		// Stub the services the quick input controller needs to function
 		instantiationService.stub(IThemeService, new TestThemeService());
@@ -126,6 +137,118 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 	teardown(() => {
 		sinon.restore();
+	});
+
+	test('custom content stays above standard picker rows through updates and reopen', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick());
+		const content = mainWindow.document.createElement('div');
+		const input = mainWindow.document.createElement('input');
+		content.append(input);
+		const quickInput: IQuickInput = picker;
+		quickInput.widget = content;
+		picker.hideInput = true;
+		picker.items = [{ label: 'Reset to default' }];
+		picker.show();
+		input.focus();
+		picker.items = [{ label: 'Updated row' }];
+		const host = fixture.querySelector('.quick-input-html-widget')!;
+		const list = fixture.querySelector('.quick-input-list')!;
+		const focusedDuringUpdate = mainWindow.document.activeElement === input;
+		const aboveList = !!(content.compareDocumentPosition(list) & mainWindow.Node.DOCUMENT_POSITION_FOLLOWING);
+		const row = list.querySelector('.label-name')?.textContent;
+		picker.hide();
+		picker.show();
+		assert.deepStrictEqual({
+			focusedDuringUpdate,
+			aboveList,
+			reattached: host.firstElementChild === content,
+			row,
+		}, { focusedDuringUpdate: true, aboveList: true, reattached: true, row: 'Updated row' });
+	});
+
+	test('quick widgets retain their content when shown again', () => {
+		const picker = store.add(controller.createQuickWidget());
+		const content = mainWindow.document.createElement('div');
+		picker.widget = content;
+		picker.show();
+		picker.hide();
+		picker.show();
+		assert.strictEqual(fixture.querySelector('.quick-input-html-widget')?.firstElementChild, content);
+	});
+
+	test('modified icon-search caret keys do not activate host quick-pick navigation bindings', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick());
+		const grid = store.add(new IconSelectBox({ icons: [Codicon.rocket], inputBoxStyles: unthemedInboxStyles }));
+		picker.widget = grid.domNode;
+		picker.hideInput = true;
+		picker.itemActivation = ItemActivation.NONE;
+		picker.items = [{ label: 'Reset to default' }];
+		instantiationService.stub(IQuickInputService, { currentQuickInput: picker });
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		contextKeyService.createKey('inQuickInput', true);
+		contextKeyService.createKey('quickInputType', 'quickPick');
+		const bindings = KeybindingsRegistry.getDefaultKeybindings().filter(binding =>
+			binding.command === 'quickInput.first' || binding.command === 'quickInput.last');
+		const resolver = new KeybindingResolver(bindings.flatMap(binding => binding.keybinding
+			? USLayoutResolvedKeybinding.resolveKeybinding(binding.keybinding, OS).map(keybinding =>
+				new ResolvedKeybindingItem(keybinding, binding.command, binding.commandArgs, binding.when ?? undefined, true, null, false))
+			: []), [], () => { });
+		const hostCommands: string[] = [];
+		store.add(addDisposableListener(fixture, EventType.KEY_DOWN, event => {
+			const key = new StandardKeyboardEvent(event);
+			const dispatch = USLayoutResolvedKeybinding.getDispatchStr(new KeyCodeChord(key.ctrlKey, key.shiftKey, key.altKey, key.metaKey, key.keyCode));
+			if (!dispatch) {
+				return;
+			}
+			const result = resolver.resolve(contextKeyService.getContext(event.target as HTMLElement), [], dispatch);
+			if (result.kind === ResultKind.KbFound && result.commandId) {
+				const command = CommandsRegistry.getCommand(result.commandId)!;
+				hostCommands.push(result.commandId);
+				instantiationService.invokeFunction(command.handler);
+				event.preventDefault();
+			}
+		}));
+		picker.show();
+		const input = grid.domNode.querySelector<HTMLInputElement>('input')!;
+		input.value = 'rocket';
+		grid.focus();
+		const dispatch = (key: string, keyCode: number) => {
+			const event = new KeyboardEvent('keydown', { key, keyCode, ctrlKey: true, bubbles: true, cancelable: true });
+			input.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		const prevented = [dispatch('Home', 36), dispatch('End', 35)];
+		const isolatedCommands = [...hostCommands];
+		const isolatedActive = picker.activeItems.map(item => item.label);
+		const unprotected = mainWindow.document.createElement('input');
+		grid.domNode.parentElement!.append(unprotected);
+		unprotected.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', keyCode: 36, ctrlKey: true, bubbles: true, cancelable: true }));
+		unprotected.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', keyCode: 35, ctrlKey: true, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({ prevented, isolatedCommands, isolatedActive, hostCommands, hostActive: picker.activeItems.map(item => item.label) }, {
+			prevented: [false, false],
+			isolatedCommands: [],
+			isolatedActive: [],
+			hostCommands: ['quickInput.first', 'quickInput.last'],
+			hostActive: ['Reset to default'],
+		});
+	});
+
+	test('a leading separator divides custom content from picker rows, but stays hidden without content', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.widget = mainWindow.document.createElement('div');
+		picker.items = [{ type: 'separator' }, { label: 'Reset to default' }];
+		picker.show();
+		const entry = fixture.querySelector<HTMLElement>('.quick-input-list-entry')!;
+		const withContent = mainWindow.getComputedStyle(entry).borderTopStyle;
+		picker.widget = undefined;
+		assert.deepStrictEqual({
+			withContent,
+			withoutContent: mainWindow.getComputedStyle(entry).borderTopStyle,
+			contentMarker: fixture.querySelector('.quick-input-widget')?.classList.contains('has-custom-widget'),
+		}, { withContent: 'solid', withoutContent: 'none', contentMarker: false });
 	});
 
 	test('close motion requires modern UI with motion enabled', () => {

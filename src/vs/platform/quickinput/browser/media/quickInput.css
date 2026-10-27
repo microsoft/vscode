@@ -256,7 +256,7 @@
 	border-radius: 3px;
 }
 
-.quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
+.quick-input-widget:not(.has-custom-widget) .quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
 	border-top-style: none;
 }
 

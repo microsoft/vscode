@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentConnection, IAgentHostNetworkDiagnosticsInfo } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
@@ -49,6 +50,7 @@ import { ISessionConfigProvider, ISessionsProvider } from '../../../../../servic
 import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
 import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker.js';
+import '../../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
 import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../chat/browser/media/chatInput.css';
 
@@ -201,6 +203,7 @@ suite('AgentHostModePicker', () => {
 		instantiationService.stub(IChatPhoneInputPresenter, { enabled: phone });
 		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: undefined });
 		instantiationService.stub(IAgentHostEnablementService, { enabled: constObservable(true), managedSandboxEnforced, managedSandboxAllowsBypass: constObservable(false) });
+		instantiationService.set(IManagedSettingsService, new NullManagedSettingsService());
 
 		const picker = store.add(instantiationService.createInstance(AgentHostModePicker, session));
 		const permissionDelegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, session));
@@ -562,6 +565,18 @@ suite('AgentHostModePicker', () => {
 		}, { sameModeButton: true, samePermissionsButton: true, mode: 'Plan', permissions: 'Assisted permissions', focusPreserved: true });
 	});
 
+	test('ignores configuration changes from other sessions', () => {
+		const { trigger, config, configChanged } = setup();
+		const modeButton = trigger.querySelector<HTMLElement>('.agent-host-mode-button')!;
+		config.values.mode = 'plan';
+
+		configChanged.fire('another-session');
+		const afterOtherSession = modeButton.textContent;
+		configChanged.fire('test-session');
+
+		assert.deepStrictEqual({ afterOtherSession, afterOwnSession: modeButton.textContent }, { afterOtherSession: 'Interactive', afterOwnSession: 'Plan' });
+	});
+
 	test('opens permission settings from the gear without changing session configuration', async () => {
 		const { trigger, actionWidget, settingsRequests, writes } = setup();
 		trigger.click();
@@ -615,13 +630,13 @@ suite('AgentHostModePicker', () => {
 		const items = actionWidget.items;
 		await actionWidget.select('Assisted permissions');
 		assert.deepStrictEqual({
-			levels: items.filter(item => item.detail).map(item => ({ label: item.label, disabled: item.disabled, badge: item.badge })),
+			levels: items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? '')).map(item => ({ label: item.label, disabled: item.disabled, badge: item.badge })),
 			sandboxDisabled: items.find(item => item.standaloneToggle)?.standaloneToggle?.disabled,
 			writes,
 		}, {
 			levels: [
 				{ label: 'Manual permissions', disabled: false, badge: undefined },
-				{ label: 'Assisted permissions', disabled: true, badge: 'New' },
+				{ label: 'Assisted permissions', disabled: true, badge: undefined },
 				{ label: 'Allow all', disabled: true, badge: undefined },
 			],
 			sandboxDisabled: true,
@@ -658,6 +673,37 @@ suite('AgentHostModePicker', () => {
 
 		assert.deepStrictEqual(writes, []);
 	});
+
+	for (const policyRestricted of [false, true]) {
+		test(`shows host-withheld permissions as explained disabled rows and closes when the report changes (${policyRestricted ? 'known policy' : 'unattributed'})`, async () => {
+			const { trigger, actionWidget, config, configChanged, writes } = setup(true, true, policyRestricted);
+			config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+			config.values.availableApprovalModes = ['default'];
+			configChanged.fire('test-session');
+			trigger.click();
+			const levels = actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? ''))
+				.map(item => ({ label: item.label, disabled: !!item.disabled, badge: item.badge, description: typeof item.description === 'object' ? item.description.value : item.description }));
+			await actionWidget.select('Allow all');
+			trigger.click();
+			const openBeforeRemoval = actionWidget.isVisible;
+			config.values.availableApprovalModes = ['default', 'assisted', 'autoApprove'];
+			configChanged.fire('test-session');
+			const description = policyRestricted && !isWeb
+				? '$(briefcase) Disabled by policy'
+				: 'Unavailable';
+
+			assert.deepStrictEqual({ levels, openBeforeRemoval, openAfterRemoval: actionWidget.isVisible, writes }, {
+				levels: [
+					{ label: 'Manual permissions', disabled: false, badge: undefined, description: undefined },
+					{ label: 'Assisted permissions', disabled: true, badge: undefined, description },
+					{ label: 'Allow all', disabled: true, badge: undefined, description },
+				],
+				openBeforeRemoval: true,
+				openAfterRemoval: false,
+				writes: [],
+			});
+		});
+	}
 
 	test('always shows the shield on the sandbox toggle row', async () => {
 		const { trigger, actionWidget, configuration } = setup();

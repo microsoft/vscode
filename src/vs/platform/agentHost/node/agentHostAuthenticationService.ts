@@ -31,6 +31,8 @@ export const IAgentHostAuthenticationController = createDecorator<IAgentHostAuth
 export interface IAgentHostAuthenticationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeAuthToken: Event<IAgentHostAuthTokenChangeEvent>;
+	/** Accepted authentication, including same-token reauthorization when the source supports it. */
+	readonly onDidAuthenticate?: Event<IAgentHostAuthTokenRequest>;
 	getAuthToken(request: IAgentHostAuthTokenRequest, source?: IAgentHostCredentialSource): string | undefined;
 	getAuthAccount(request: IAgentHostAuthTokenRequest): IAgentAuthenticationAccount | undefined;
 	getSessionCredentialSource(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
@@ -80,6 +82,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	private readonly _revocations = new Map<string, number>();
 	private readonly _onDidChangeAuthToken = this._register(new Emitter<IAgentHostAuthTokenChangeEvent>());
 	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
+	private readonly _onDidAuthenticate = this._register(new Emitter<IAgentHostAuthTokenRequest>());
+	/** Accepted authentication or revocation, including reauthorization of an unchanged token. */
+	readonly onDidAuthenticate = this._onDidAuthenticate.event;
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -210,6 +215,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		const token = this._tokens.get(key)?.token;
 		if (!params.target && (previousToken !== token || authenticationAccountId(previous?.account) !== authenticationAccountId(this._tokens.get(key)?.account))) {
 			this._onDidChangeAuthToken.fire({ resource: params.resource, scopes, token });
+		}
+		if (authenticated || previousToken !== token) {
+			this._onDidAuthenticate.fire({ resource: params.resource, scopes });
 		}
 		return { authenticated };
 	}

@@ -18,12 +18,14 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 
 class TestNewChatInSessionWidget extends NewChatInSessionWidget {
 	send(query: string, background: boolean): Promise<boolean> {
@@ -78,7 +80,9 @@ suite('NewChatInSessionWidget', () => {
 			new class extends mock<IFileDialogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),
 			new class extends mock<ISessionsService>() { override readonly activeSession = constObservable<IActiveSession | undefined>(session); }(),
-			new class extends mock<IStorageService>() { }(),
+			store.add(new InMemoryStorageService()),
+			new TestAccessibilityService(),
+			new class extends mock<IFileService>() { }(),
 		));
 		store.add(autorun(reader => { Reflect.get(widget, '_workspaceSupport').read(reader); }));
 
@@ -95,6 +99,7 @@ suite('NewChatInSessionWidget', () => {
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: constObservable(session),
 			_workspaceSupport: constObservable(undefined),
+			_chat: constObservable(undefined),
 			_store: { isDisposed: false },
 			logService: new NullLogService(),
 			sessionsService: new class extends mock<ISessionsService>() {
@@ -123,6 +128,7 @@ suite('NewChatInSessionWidget', () => {
 		const deleted: string[] = [];
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: constObservable(session),
+			_chat: constObservable(undefined),
 			logService: new NullLogService(),
 			sessionsService: new class extends mock<ISessionsService>() {
 				override async openNewChatInSession(_session: IActiveSession, options?: ICreateNewChatInSessionOptions): Promise<void> {
@@ -159,6 +165,7 @@ suite('NewChatInSessionWidget', () => {
 		let finishOpen!: () => void;
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: activeSession,
+			_chat: constObservable(undefined),
 			logService: new NullLogService(),
 			sessionsService: new class extends mock<ISessionsService>() {
 				override openNewChatInSession(_session: IActiveSession, options?: ICreateNewChatInSessionOptions): Promise<void> {
@@ -242,6 +249,7 @@ suite('NewChatInSessionWidget', () => {
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: constObservable(session),
 			_workspaceSupport: constObservable(undefined),
+			_chat: constObservable(undefined),
 			_store: { isDisposed: false },
 			logService: new NullLogService(),
 			sessionsService: new class extends mock<ISessionsService>() {

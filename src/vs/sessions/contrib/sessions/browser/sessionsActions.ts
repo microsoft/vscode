@@ -43,6 +43,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGroupsService } from '../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -65,7 +66,7 @@ import { logSessionsInteraction, SessionsInteractionSource } from '../../../comm
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemHasMoveDestinationContext, SessionChatItemIsUntitledContext, SessionItemHasMoveDestinationContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
@@ -75,7 +76,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { ChatMoveSettingId } from '../../../../platform/agentHost/common/agentHostChatMove.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { isChatMoveDndEnabled, runSessionsListMove, SessionsListMove } from './views/sessionsListChatMove.js';
+import { getChatMoveDestinations, getSessionMoveDestinations, isChatMoveDndEnabled, ISessionsListMoveDestination, runSessionsListMove, SessionsListMove } from './views/sessionsListChatMove.js';
 
 export const NEW_SESSION_BUTTON_STYLE_SETTING = 'sessions.newSessionButton.style';
 export const NEW_SESSION_BUTTON_STYLE_TREATMENT = 'agentSessionsNewSessionButtonStyle';
@@ -674,13 +675,13 @@ registerAction2(class RenameChatAction extends Action2 {
 			},
 			menu: [{
 				id: Menus.SessionChatItemContext,
-				group: '1_chat',
+				group: '4_manage',
 				order: 1,
 				when: ContextKeyExpr.and(SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext.negate()),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
-				group: 'secondary/1_session',
-				order: 20,
+				group: 'secondary/4_manage',
+				order: 10,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext.negate()),
 			}))],
 		});
@@ -721,7 +722,7 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 			f1: false,
 			menu: {
 				id: Menus.SessionChatItemContext,
-				group: '1_chat',
+				group: 'navigation',
 				order: 2,
 			},
 		});
@@ -746,13 +747,12 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: PROMOTE_CHAT_TO_SESSION_ACTION_ID,
-			title: localize2('promoteChatToSession', "Promote to Session"),
+			title: localize2('moveChatToNewSession', "Move to New Session"),
 			f1: false,
 			menu: [{
 				id: Menus.SessionChatItemContext,
-				// Its own group, between the chat's actions and Delete.
-				group: '1_move',
-				order: 1,
+				group: '2_organize',
+				order: 3,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionChatItemCanMoveContext),
 			}],
 		});
@@ -765,15 +765,142 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 			return false;
 		}
 		const move: SessionsListMove = { kind: 'chat', session: context.session, chat: context.chat, destination: { kind: 'newSession' } };
-		// Like a drop on the list, reveal and select the new session in the list once it shows it.
-		const revealMoved = getSessionsList(accessor)?.watchMoveForReveal(move);
-		let moved = false;
-		try {
-			moved = await runSessionsListMove(move, sessionsManagementService, accessor.get(INotificationService), accessor.get(ILogService));
-		} finally {
-			revealMoved?.(moved);
+		const viewsService = accessor.get(IViewsService);
+		const sessionsList = getSessionsList(accessor);
+		// Like a drop on the list, report the move in the list's notice when the list shows, and reveal and select the
+		// new session in the list once it shows it.
+		return runSessionsListMove(move, sessionsManagementService, accessor.get(INotificationService), accessor.get(ILogService), {
+			notice: viewsService.isViewVisible(SessionsViewId) ? viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification : undefined,
+			watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
+			placementServices: { sessionsListModelService: accessor.get(ISessionsListModelService), sessionGroupsService: accessor.get(ISessionGroupsService) },
+		});
+	}
+});
+
+/** The label of both "move into another session" commands; the quick pick's title says which kind of move it is. */
+const MOVE_TO_SESSION_LABEL = localize2('moveToSession', "Move to Session...");
+
+export const MOVE_CHAT_TO_SESSION_ACTION_ID = 'sessions.list.moveChatToSession';
+export const MOVE_SESSION_INTO_SESSION_ACTION_ID = 'sessions.list.moveSessionIntoSession';
+
+interface IMoveDestinationPickItem extends IQuickPickItem {
+	readonly destination: ISessionsListMoveDestination;
+}
+
+/** Lets the user pick the session to move into, the most recently updated first. Resolves to `undefined` when cancelled. */
+async function pickMoveDestination(quickInputService: IQuickInputService, destinations: readonly ISessionsListMoveDestination[], title: string, placeHolder: string): Promise<ISessionsListMoveDestination | undefined> {
+	const items: IMoveDestinationPickItem[] = [...destinations]
+		.sort((a, b) => b.session.updatedAt.get().getTime() - a.session.updatedAt.get().getTime())
+		.map(destination => {
+			const chatCount = destination.session.chats.get().length;
+			return {
+				label: destination.session.title.get(),
+				description: destination.session.workspace.get()?.label,
+				detail: chatCount === 1 ? localize('moveToSession.oneChat', "1 chat") : localize('moveToSession.chats', "{0} chats", chatCount),
+				destination,
+			};
+		});
+	const picked = await quickInputService.pick(items, { title, placeHolder, matchOnDescription: true, matchOnDetail: true });
+	return picked?.destination;
+}
+
+/** Captures what a move needs from the accessor, which is not valid after the destination pick. */
+function getMoveRunner(accessor: ServicesAccessor): (move: SessionsListMove) => Promise<boolean> {
+	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const notificationService = accessor.get(INotificationService);
+	const logService = accessor.get(ILogService);
+	const viewsService = accessor.get(IViewsService);
+	const sessionsList = getSessionsList(accessor);
+	const placementServices = { sessionsListModelService: accessor.get(ISessionsListModelService), sessionGroupsService: accessor.get(ISessionGroupsService) };
+	return move => runSessionsListMove(move, sessionsManagementService, notificationService, logService, {
+		notice: viewsService.isViewVisible(SessionsViewId) ? viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification : undefined,
+		watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
+		placementServices,
+	});
+}
+
+registerAction2(class MoveChatToSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: MOVE_CHAT_TO_SESSION_ACTION_ID,
+			title: MOVE_TO_SESSION_LABEL,
+			f1: false,
+			menu: [{
+				id: Menus.SessionChatItemContext,
+				group: '1_move',
+				order: 2,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionChatItemCanMoveContext, SessionChatItemHasMoveDestinationContext),
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<boolean> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const runMove = getMoveRunner(accessor);
+		if (!context || !isChatMoveDndEnabled(accessor.get(IConfigurationService), accessor.get(IChatEntitlementService))) {
+			return false;
 		}
-		return moved;
+		const destinations = getChatMoveDestinations(context.session, context.chat, sessionsManagementService.getSessions(), sessionsManagementService);
+		if (!destinations.length) {
+			return false;
+		}
+		const title = context.chat.title.get();
+		const destination = await pickMoveDestination(quickInputService, destinations,
+			localize('moveChatToSession.title', "Move '{0}' to Session", title),
+			localize('moveChatToSession.placeholder', "Select the session to move '{0}' into; it becomes the session's last chat", title));
+		if (!destination) {
+			return false;
+		}
+		// The pick is asynchronous: check the destination still takes the chat.
+		const current = getChatMoveDestinations(context.session, context.chat, sessionsManagementService.getSessions(), sessionsManagementService).find(candidate => candidate.session === destination.session);
+		if (!current) {
+			return false;
+		}
+		return runMove({ kind: 'chat', session: context.session, chat: context.chat, destination: { kind: 'session', session: current.session, after: current.after } });
+	}
+});
+
+registerAction2(class MoveSessionIntoSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: MOVE_SESSION_INTO_SESSION_ACTION_ID,
+			title: MOVE_TO_SESSION_LABEL,
+			f1: false,
+			precondition: SessionItemIsMultiSelectionContext.negate(),
+			menu: [{
+				id: MenuId.SessionItemContextMenu,
+				group: '1_move',
+				order: 1,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionItemHasMoveDestinationContext),
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<boolean> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const runMove = getMoveRunner(accessor);
+		const session = Array.isArray(context) ? (context.length === 1 ? context[0] : undefined) : context;
+		if (!session || !isChatMoveDndEnabled(accessor.get(IConfigurationService), accessor.get(IChatEntitlementService))) {
+			return false;
+		}
+		const destinations = getSessionMoveDestinations(session, sessionsManagementService.getSessions(), sessionsManagementService);
+		if (!destinations.length) {
+			return false;
+		}
+		const title = session.title.get();
+		const destination = await pickMoveDestination(quickInputService, destinations,
+			localize('moveSessionIntoSession.title', "Move '{0}' into Session", title),
+			localize('moveSessionIntoSession.placeholder', "Select the session to nest '{0}' under; it becomes the session's last chat", title));
+		if (!destination) {
+			return false;
+		}
+		const current = getSessionMoveDestinations(session, sessionsManagementService.getSessions(), sessionsManagementService).find(candidate => candidate.session === destination.session);
+		if (!current) {
+			return false;
+		}
+		return runMove({ kind: 'session', session, destination: current.session, after: current.after });
 	}
 });
 
@@ -786,8 +913,8 @@ registerAction2(class DeleteSessionListChatAction extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.SessionChatItemContext,
-				group: '2_delete',
-				order: 1,
+				group: '4_manage',
+				order: 2,
 				when: SessionChatItemCanDeleteContext,
 			}, {
 				id: Menus.SessionChatItemToolbar,
@@ -832,11 +959,11 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				id: Menus.SessionItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate()),
+				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate(), SessionItemIsCloudContext.negate()),
 			}, {
 				id: Menus.SessionItemContextMenu,
-				group: '1_newChat',
-				order: 0,
+				group: 'navigation',
+				order: 2,
 				when: ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate()),
 			}],
 		});
@@ -945,8 +1072,8 @@ registerAction2(class CloseChatAction extends Action2 {
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				when: ContextKeyExpr.and(SessionHeaderShowsChatContext, SessionActiveChatIsClosableContext),
-				group: 'secondary/4_pin',
-				order: 15,
+				group: 'secondary/0_pane',
+				order: 10,
 			}))],
 		});
 	}
@@ -1066,8 +1193,8 @@ registerAction2(class DeleteChatAction extends Action2 {
 			},
 			menu: SessionHeaderMenus.map(id => ({
 				id,
-				group: 'secondary/1_session',
-				order: 30,
+				group: 'secondary/4_manage',
+				order: 20,
 				when: ContextKeyExpr.and(SessionHeaderTargetsChatContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext),
 			})),
 		});
@@ -1466,7 +1593,7 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
 		this._register(this.hoverService.setupDelayedHover(button.element, () => ({
 			content: this.getHoverContent(getKeybinding()?.getLabel() ?? undefined),
-			appearance: { compact: true },
+			appearance: { compact: true, showPointer: true },
 			position: { hoverPosition: HoverPosition.BELOW },
 		})));
 
@@ -1804,8 +1931,8 @@ for (const menu of SessionHeaderMenus) {
 		submenu: Menus.SessionConversations,
 		title: localize2('chatCompositeBar.sideChats', "Side Chats"),
 		icon: Codicon.commentDiscussion,
-		group: 'secondary/2_chats',
-		order: 10,
+		group: 'secondary/0_pane',
+		order: 40,
 		when: ContextKeyExpr.and(
 			SessionIsCreatedContext,
 			SessionIsArchivedContext.negate(),
@@ -1816,8 +1943,8 @@ for (const menu of SessionHeaderMenus) {
 	MenuRegistry.appendMenuItem(menu, {
 		submenu: Menus.SessionChatTabs,
 		title: localize2('chatCompositeBar.showChatTabs', "Show Chat Tabs"),
-		group: 'secondary/3_tabs',
-		order: 10,
+		group: 'secondary/0_pane',
+		order: 50,
 		when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
 	});
 }
@@ -1878,7 +2005,7 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsStickyContext, SessionIsArchivedContext.negate(), SessionHeaderShowsChatContext.negate()),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
-				group: 'secondary/4_pin',
+				group: 'secondary/2_organize',
 				order: 10,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate(), SessionHeaderShowsChatContext.negate()),
 			}))],
@@ -1911,7 +2038,7 @@ registerAction2(class TogglePinChatAction extends Action2 {
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionHeaderActiveChatIsPinnedContext, SessionIsArchivedContext.negate()),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
-				group: 'secondary/4_pin',
+				group: 'secondary/2_organize',
 				order: 10,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionHeaderShowsChatContext, SessionIsArchivedContext.negate()),
 			}))],
@@ -1944,8 +2071,8 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 			},
 			menu: SessionHeaderMenus.map(id => ({
 				id,
-				group: 'secondary/1_session',
-				order: 20,
+				group: 'secondary/4_manage',
+				order: 10,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsRenameContext, SessionHeaderShowsChatContext.negate(), SessionIsArchivedContext.negate()),
 			})),
 		});
@@ -1999,8 +2126,8 @@ registerAction2(class CloseSessionAction extends Action2 {
 					ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
 					SessionHeaderShowsChatContext.negate(),
 				),
-				group: 'secondary/4_pin',
-				order: 15,
+				group: 'secondary/0_pane',
+				order: 10,
 			}))],
 		});
 	}
@@ -2031,7 +2158,7 @@ for (const menu of SessionHeaderMenus) {
 	MenuRegistry.appendMenuItem(menu, {
 		submenu: Menus.SessionGridLayout,
 		title: localize('sessionGridLayout', "Session Layout"),
-		group: 'secondary/4_pin',
+		group: 'secondary/0_pane',
 		order: 30,
 		when: sessionGridWhen,
 	});
@@ -2110,12 +2237,12 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 			toggled: {
 				condition: SessionIsMaximizedContext,
 				icon: Codicon.screenNormal,
-				title: localize('chatCompositeBar.unmaximize', "Restore"),
+				title: localize('chatCompositeBar.unmaximize', "Restore Size"),
 			},
 			menu: SessionHeaderMenus.map(id => ({
 				id,
 				when: sessionGridWhen,
-				group: 'secondary/4_pin',
+				group: 'secondary/0_pane',
 				order: 20,
 			})),
 		});

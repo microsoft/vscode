@@ -8,6 +8,7 @@ import { readUsageInfoMeta, type UsageInfoMeta, type IAgentContextUsage, type IA
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
@@ -19,6 +20,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
+import { isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
@@ -34,6 +36,7 @@ import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachmen
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { isAgentMergeMessage } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { readArtifactIntegrationNotice, readArtifactIntegrationRequest } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
@@ -65,6 +68,7 @@ import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, type IAgentHostManagedPluginRetryTarget } from './agentHostManagedPluginRetry.js';
+import { getComputerUseActivationCardText, getComputerUseSetupCardText } from './computerUseSetup.js';
 
 export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
@@ -365,6 +369,34 @@ export function inputRequestResponsePartToProgress(part: InputRequestResponsePar
 		};
 	}
 
+	if (readComputerUseSetupCard(inputReq)) {
+		// A settled record of the setup; its steps are the host's business, not the transcript's.
+		const { title, message } = getComputerUseSetupCardText();
+		return {
+			kind: 'elicitationSerialized',
+			title,
+			message: new MarkdownString(message),
+			subtitle: '',
+			source: undefined,
+			state: part.response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
+			isHidden: false,
+		};
+	}
+
+	const computerUseActivation = readComputerUseActivationCard(inputReq);
+	if (computerUseActivation) {
+		const { title, message } = getComputerUseActivationCardText(computerUseActivation.reason);
+		return {
+			kind: 'elicitationSerialized',
+			title,
+			message: new MarkdownString(message),
+			subtitle: '',
+			source: undefined,
+			state: isComputerUseActivationAccepted(part.response, inputReq.answers) ? ElicitationState.Accepted : ElicitationState.Rejected,
+			isHidden: false,
+		};
+	}
+
 	const carousel = createInputRequestCarousel(inputReq, connectionAuthority);
 	const answers = part.response === ChatInputResponseKind.Accept
 		? convertProtocolAnswers(inputReq.answers)
@@ -601,6 +633,14 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	const markdown = typeof value === 'string'
 		? new MarkdownString(stripSystemNotificationWrapper(value))
 		: { ...value, value: stripSystemNotificationWrapper(value.value) };
+	const artifactNotice = readArtifactIntegrationNotice({ _meta });
+	if (artifactNotice) {
+		const icon = artifactNotice.iconId ? ThemeIcon.fromString(`$(${artifactNotice.iconId})`) : undefined;
+		return {
+			kind: 'systemNotification', content: markdown, collapsible: true, renderInlineTiming: true,
+			icon: artifactNotice.kind === 'disabled' ? Codicon.circleSlash : icon ?? Codicon.link,
+		};
+	}
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
 			// The workflow selection only names the HydraFusion model for the response footer; it is not shown.
@@ -1195,6 +1235,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		const origin = messageToRequestOrigin(backendSession, turn.message, participantId, connectionAuthority);
 		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
 		const requestSource = messageToRequestSource(turn.message);
+		const artifactRequest = readArtifactIntegrationRequest(turn.message);
 		// A message runs as a terminal command when it starts with the host's
 		// advertised prefix and has a non-empty command after it (mirroring the
 		// host-side bang parser, where a lone `!` is forwarded to the agent).
@@ -1216,6 +1257,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 				systemInitiatedLabel: readMessageSystemInitiatedLabel(turn.message),
 			} : {}),
 			...(requestSource !== undefined ? { requestSource } : {}),
+			...(artifactRequest ? { artifactRequest } : {}),
 			...(isTerminalRequest ? {
 				isTerminalRequest: true,
 			} : {}),
@@ -1308,6 +1350,9 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 export function messageToRequestSource(message: Message): ChatRequestSource | undefined {
 	if (message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message)) {
 		return 'agentMerge';
+	}
+	if (readArtifactIntegrationRequest(message)) {
+		return 'artifactIntegration';
 	}
 	return undefined;
 }

@@ -9,6 +9,7 @@ import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
@@ -17,7 +18,7 @@ import { IContextKeyService } from '../../../../../../../platform/contextkey/com
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { IModelPickerComparison } from './modelPickerComparison.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
@@ -32,6 +33,8 @@ export interface IModelPickerPresentationOptions {
 
 export interface IModelPickerDelegate {
 	readonly comparison?: IModelPickerComparison;
+	/** Whether a committed comparison is currently being submitted. */
+	readonly comparisonBusy?: IObservable<boolean>;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	/**
@@ -254,20 +257,39 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		const hover = organizationDefaultDescription
 			? localize('chat.modelPicker.organizationDefaultHover', "{0}\n\n{1}", label, organizationDefaultDescription)
 			: label;
-		return this._appendComparisonAction(hover);
+		const fusionDescription = selectedModel?.metadata.autoModelFusion || this._pickerWidget.fusionDisplayName ? ILanguageModelChatMetadata.getAutoModelDescription(true) : undefined;
+		if (!fusionDescription) {
+			return this._appendComparisonAction(hover);
+		}
+		// Copilot Fusion's description carries a Learn more link, so it is rendered as Markdown.
+		const comparisonAction = this._getComparisonAction();
+		const markdown = new MarkdownString().appendMarkdown(escapeMarkdownSyntaxTokens(hover)).appendMarkdown('\n\n').appendMarkdown(fusionDescription);
+		if (comparisonAction) {
+			markdown.appendMarkdown('\n\n').appendMarkdown(escapeMarkdownSyntaxTokens(comparisonAction));
+		}
+		return {
+			markdown,
+			markdownNotSupportedFallback: this._appendComparisonAction(localize('chat.modelPicker.fusionHover', "{0}\n\n{1}", hover, ILanguageModelChatMetadata.getFusionSummary())),
+		};
 	}
 
 	private _appendComparisonAction(hover: string): string {
+		const action = this._getComparisonAction();
+		return action ? localize('chat.modelPicker.comparisonActionHover', "{0}\n\n{1}", hover, action) : hover;
+	}
+
+	private _getComparisonAction(): string | undefined {
 		const comparison = this.delegate.comparison;
 		if (!comparison?.available.get() || !comparison.label) {
-			return hover;
+			return undefined;
 		}
 		const keybinding = comparison.startCommandId
 			? this.keybindingService.lookupKeybinding(comparison.startCommandId, this._contextKeyService)?.getLabel()
 			: undefined;
-		const action = keybinding
+		const label = keybinding
 			? localize('chat.modelPicker.comparisonActionWithKeybinding', "{0} ({1})", comparison.label, keybinding)
 			: comparison.label;
-		return localize('chat.modelPicker.comparisonActionHover', "{0}\n\n{1}", hover, action);
+		const description = comparison.description?.get();
+		return description ? localize('chat.modelPicker.comparisonDescription', "{0}\n\n{1}", label, description) : label;
 	}
 }

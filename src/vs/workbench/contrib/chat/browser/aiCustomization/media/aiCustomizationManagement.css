@@ -183,6 +183,17 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+.ai-customization-management-editor .section-list-item.section-separator-before::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: var(--vscode-spacing-size80);
+	right: var(--vscode-spacing-size80);
+	height: var(--vscode-strokeThickness);
+	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+	pointer-events: none;
+}
+
 .ai-customization-management-editor .monaco-list .monaco-list-row.section-list-item.selected .section-count {
 	color: inherit;
 }
@@ -205,6 +216,17 @@
 	min-width: 14px;
 	text-align: right;
 	line-height: 16px;
+}
+
+/* Signals that a section needs attention, such as suggestions to review. */
+.ai-customization-management-editor .section-list-item .section-badge {
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-activityBarBadge-background);
 }
 
 /* Content area */
@@ -1335,6 +1357,91 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
+.ai-customization-management-editor .copilot-customizations-tree .monaco-list-row .copilot-customization-tree-item:hover {
+	background: transparent;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-item {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	height: 100%;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-item.readonly {
+	cursor: default;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-text {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-label {
+	overflow: hidden;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 18px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-detail {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 14px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-source-link,
+.ai-customization-management-editor .copilot-customization-tree-detail-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-source-link {
+	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-detail-separator {
+	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .copilot-canvas-tree-item .copilot-customization-tree-label {
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.ai-customization-management-editor .copilot-customization-tree-item.disabled .copilot-customization-tree-text {
+	opacity: 0.6;
+}
+
+.ai-customization-management-editor .copilot-customizations-tree .monaco-list-row:is(.selected, .focused) .copilot-customization-tree-detail {
+	color: inherit;
+}
+
+.ai-customization-management-editor .copilot-customizations-tree .monaco-list-row:is(.selected, .focused) .copilot-customization-tree-source-link.source-link {
+	color: var(--vscode-textLink-foreground);
+}
+
+.ai-customization-management-editor .copilot-customization-tree-actions {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-left: auto;
+}
+
 .ai-customization-management-editor .tools-inventory-section {
 	display: flex;
 	flex-direction: column;
@@ -1736,6 +1843,18 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 }
 
+/* The theme focus color clashes with the warning card, so the outline follows the link's own color. */
+.ai-customization-management-editor .mcp-detail-diagnostic-card.warning .mcp-detail-migration-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid currentColor;
+	outline-offset: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-xSmall);
+}
+
+.hc-black .ai-customization-management-editor .mcp-detail-diagnostic-card.warning .mcp-detail-migration-link:focus-visible,
+.hc-light .ai-customization-management-editor .mcp-detail-diagnostic-card.warning .mcp-detail-migration-link:focus-visible {
+	outline-color: var(--vscode-focusBorder);
+}
+
 /* Embedded plugin detail view */
 .ai-customization-management-editor .marketplace-detail-container,
 .ai-customization-management-editor .plugin-detail-container,
@@ -1952,6 +2071,8 @@ per-word capitalization does not survive translation. */
 	padding: var(--vscode-spacing-size400) 0 var(--vscode-spacing-size160);
 	min-width: 0;
 	box-sizing: border-box;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail.embedded-mcp-detail {
@@ -2821,6 +2942,7 @@ per-word capitalization does not survive translation. */
 }
 
 .mcp-server-item .mcp-server-source-path.source-link,
+.copilot-customization-tree-source-link.source-link,
 .tools-list-connected-row .source-link {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
@@ -2828,12 +2950,14 @@ per-word capitalization does not survive translation. */
 }
 
 .mcp-server-item .mcp-server-source-path.source-link:hover,
+.copilot-customization-tree-source-link.source-link:hover,
 .tools-list-connected-row .source-link:hover {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
 }
 
 .mcp-server-item .mcp-server-source-path.source-link:focus-visible,
+.copilot-customization-tree-source-link.source-link:focus-visible,
 .tools-list-connected-row .source-link:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
@@ -3140,6 +3264,7 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-list-item-description,
+.plugin-list-widget .plugin-list-item-location,
 .plugin-list-widget .plugin-list-item-source,
 .plugin-list-widget .plugin-list-item-metadata {
 	font-size: var(--vscode-agents-fontSize-body2);
@@ -3559,11 +3684,13 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-card-icon-button.monaco-button:not(.disabled),
-.ai-customization-group-header .plugin-card-icon-button.monaco-button:not(.disabled) {
+.ai-customization-group-header .plugin-card-icon-button.monaco-button:not(.disabled),
+.copilot-customization-tree-actions .plugin-card-icon-button.monaco-button:not(.disabled) {
 	cursor: pointer;
 }
 
-.ai-customization-group-header .plugin-card-icon-button.monaco-button {
+.ai-customization-group-header .plugin-card-icon-button.monaco-button,
+.copilot-customization-tree-actions .plugin-card-icon-button.monaco-button {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -3577,7 +3704,8 @@ per-word capitalization does not survive translation. */
 	border-color: transparent;
 }
 
-.ai-customization-group-header .plugin-card-icon-button.monaco-button:hover {
+.ai-customization-group-header .plugin-card-icon-button.monaco-button:hover,
+.copilot-customization-tree-actions .plugin-card-icon-button.monaco-button:hover {
 	background: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 	border-color: transparent;
@@ -3699,6 +3827,16 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .editor-back-button:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
+}
+
+/*
+ * Opening a detail page moves focus to one of its header controls. Show the ring only for keyboard
+ * navigation: the editor is marked with .pointer-focus while the latest input was a pointer, because
+ * focus moved from script after clicking a Monaco list row still matches :focus-visible.
+ */
+.ai-customization-management-editor.pointer-focus .editor-header :is(.monaco-button, .editor-back-button):focus,
+.ai-customization-management-editor.pointer-focus .embedded-detail-header :is(.monaco-button, .editor-back-button):focus {
+	outline: none;
 }
 
 .ai-customization-management-editor .editor-back-button:hover:not(:disabled) {
@@ -3931,6 +4069,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link,
+.ai-customization-management-editor .migration-guidance-detail .editor-item-path.source-link,
 .ai-customization-management-editor .customization-detail-mode .editor-item-path.source-link {
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
@@ -3938,6 +4077,8 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:hover,
 .ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:active,
+.ai-customization-management-editor .migration-guidance-detail .editor-item-path.source-link:hover,
+.ai-customization-management-editor .migration-guidance-detail .editor-item-path.source-link:active,
 .ai-customization-management-editor .customization-detail-mode .editor-item-path.source-link:hover,
 .ai-customization-management-editor .customization-detail-mode .editor-item-path.source-link:active {
 	color: var(--vscode-textLink-activeForeground);
@@ -3945,13 +4086,15 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:focus-visible,
+.ai-customization-management-editor .migration-guidance-detail .editor-item-path.source-link:focus-visible,
 .ai-customization-management-editor .customization-detail-mode .editor-item-path.source-link:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: var(--vscode-strokeThickness);
 }
 
 /* A provider name reads as prose rather than a file path, so it keeps the proportional description font. */
-.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.provenance {
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.provenance,
+.ai-customization-management-editor .migration-guidance-detail .editor-item-path.provenance {
 	font-family: inherit;
 }
 

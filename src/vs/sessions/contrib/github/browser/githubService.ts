@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGitHubChangedFile, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage, IGitHubRepository } from '../common/types.js';
+import { IGitHubChangedFile, IGitHubPullRequestChanges, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage, IGitHubRepository } from '../common/types.js';
 import { GitHubApiClient } from './githubApiClient.js';
 import { GitHubPullRequestModel, GitHubPullRequestModelReferenceCollection } from './models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel, GitHubPullRequestReviewThreadsModelReferenceCollection } from './models/githubPullRequestReviewThreadsModel.js';
@@ -81,6 +81,11 @@ export interface IGitHubService {
 	 */
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]>;
 	getPullRequestChangedFiles(owner: string, repo: string, pullRequestNumber: number): Promise<readonly IGitHubChangedFile[]>;
+	/**
+	 * List the files a pull request changes along with its current title and
+	 * the merge base and head commits that bound its diff.
+	 */
+	getPullRequestChanges(owner: string, repo: string, pullRequestNumber: number): Promise<IGitHubPullRequestChanges>;
 	getFileContent(owner: string, repo: string, path: string, ref: string): Promise<string>;
 
 	/** List one page of open pull requests, ordered by most recently updated. */
@@ -296,6 +301,10 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	getPullRequestChangedFiles(owner: string, repo: string, pullRequestNumber: number): Promise<readonly IGitHubChangedFile[]> {
 		return this._pullRequestFetcher.getChangedFiles(owner, repo, pullRequestNumber);
+	}
+
+	getPullRequestChanges(owner: string, repo: string, pullRequestNumber: number): Promise<IGitHubPullRequestChanges> {
+		return this._pullRequestFetcher.getChanges(owner, repo, pullRequestNumber);
 	}
 
 	async getFileContent(owner: string, repo: string, path: string, ref: string): Promise<string> {

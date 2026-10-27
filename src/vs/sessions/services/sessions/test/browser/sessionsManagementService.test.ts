@@ -14,7 +14,7 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -44,9 +44,11 @@ import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -1867,7 +1869,9 @@ suite('SessionsManagementService', () => {
 
 		for (const registerBeforeManagement of [true, false]) {
 			test(`routes existing environment sessions without advertising their backends (${registerBeforeManagement ? 'initial' : 'late'} registration)`, async () => {
-				const providers = disposables.add(new SessionsProvidersService());
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+				const providers = disposables.add(instantiationService.createInstance(SessionsProvidersService));
 				const cloudSession = stubSession({ sessionId: 'cloud:draft', providerId: 'cloud' });
 				const workspace = upcastPartial<ISessionWorkspace>({ uri: URI.file('/repository') });
 				const cloud = new class extends TestSessionsProvider {
@@ -6110,6 +6114,46 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('an explicit source harness override does not query an unrelated session resource', () => {
+		const folderUri = URI.parse('test:///source');
+		const session = stubSession({ sessionId: 'container-session', providerId: 'test' });
+		let sourceLookups = 0;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return upcastPartial<ISessionWorkspace>({ uri: folderUri }); }
+			override getNewSessionTarget() {
+				sourceLookups++;
+				return undefined;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const target = inheritableSessionTarget(service, { providerId: 'test', sessionType: 'test' }, folderUri);
+		assert.deepStrictEqual({ target, sourceLookups }, { target: { providerId: 'test', sessionTypeId: 'test' }, sourceLookups: 0 });
+	});
+
+	for (const available of [true, false]) {
+		test(`inheritableSessionTarget uses an available provider creation workspace (${available})`, () => {
+			const session = stubSession({ sessionId: 'backend-session', providerId: 'test', sessionType: 'backend' });
+			const executionFolder = URI.parse('test:///execution');
+			const sourceFolder = URI.parse('test:///repository');
+			const creationTarget = { providerId: 'creator', sessionTypeId: 'test', folderUri: sourceFolder };
+			const backend = new class extends TestSessionsProvider {
+				override getNewSessionTarget(resource: URI) {
+					return isEqual(resource, session.resource) ? creationTarget : undefined;
+				}
+				override getSessionTypes(): ISessionType[] { return []; }
+			}(session);
+			const creator = new class extends TestSessionsProvider {
+				override readonly id = 'creator';
+				override resolveWorkspace(folder: URI): ISessionWorkspace | undefined {
+					return isEqual(folder, sourceFolder) ? upcastPartial<ISessionWorkspace>({ uri: sourceFolder }) : undefined;
+				}
+				override getSessionTypes(): ISessionType[] { return available ? [...this.sessionTypes] : []; }
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, [backend, creator]);
+			assert.deepStrictEqual(inheritableSessionTarget(service, session, executionFolder), available ? creationTarget : {});
+		});
+	}
+
 	test('a New Session gesture whose harness is hidden still creates on the fallback provider', async () => {
 		// End-to-end shape of the Agents-window bug: an extension-host session is
 		// open, its harness has since been hidden (`hideExtensionHost`), and the
@@ -8226,6 +8270,19 @@ suite('SessionsManagementService', () => {
 		function chat(session: string, id: string): IChat {
 			return { ...stubChat, resource: URI.parse(`test:///${session}#${id}`), title: constObservable(id), status: constObservable(SessionStatus.Completed) };
 		}
+
+		test('an untitled chat that has not sent a message cannot be moved even when its provider allows it', () => {
+			const main = chat('A', 'main');
+			const unsent: IChat = { ...chat('A', 'unsent'), status: constObservable(SessionStatus.Untitled) };
+			const sent = chat('A', 'sent');
+			const sessionA = stubSession({ sessionId: 'A', providerId: 'test', chats: constObservable([main, unsent, sent]), mainChat: constObservable(main) });
+			const provider = new class extends TestSessionsProvider {
+				override canMoveChat(): boolean { return true; }
+			}(sessionA);
+			const { service } = createSessionsManagementService(sessionA, disposables, provider);
+
+			assert.deepStrictEqual([main, unsent, sent].map(candidate => service.canMoveChat(sessionA, candidate)), [true, false, true]);
+		});
 
 		test('routes chat and session moves to the owning provider with the provider\'s session ids and chat resources', async () => {
 			const main = chat('A', 'main'), peer = chat('A', 'peer'), mainB = chat('B', 'main');

@@ -22,6 +22,7 @@ const groupExternalSessionsProperty = configurationRegistry.getConfigurationProp
 const externalApplicationBadgeProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING];
 const externalApplicationBadgeShowFromProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING];
 const showArchivedByDefaultProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING];
+const sessionsSettingKeys = Object.keys(configurationRegistry.getConfigurationProperties()).filter(key => key.startsWith('sessions.'));
 
 suite('Sessions Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,7 +57,7 @@ suite('Sessions Contribution', () => {
 		});
 	});
 
-	test('shows the external application badge prefix by default with an advanced automatic experiment', () => {
+	test('hides the external application badge prefix by default with an advanced automatic experiment', () => {
 		assert.deepStrictEqual({
 			type: externalApplicationBadgeShowFromProperty.type,
 			default: externalApplicationBadgeShowFromProperty.default,
@@ -64,10 +65,15 @@ suite('Sessions Contribution', () => {
 			experiment: externalApplicationBadgeShowFromProperty.experiment,
 		}, {
 			type: 'boolean',
-			default: true,
+			default: false,
 			tags: ['experimental', 'advanced', 'onExP'],
 			experiment: { mode: 'auto' },
 		});
+	});
+
+	test('does not nest any sessions setting under another setting, which the configuration model would ignore', () => {
+		const nested = sessionsSettingKeys.filter(key => sessionsSettingKeys.some(parent => key.startsWith(`${parent}.`)));
+		assert.deepStrictEqual(nested, []);
 	});
 
 	test('disables collapsed section status indicators by default with automatic experiments', () => {

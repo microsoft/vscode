@@ -209,3 +209,13 @@ export interface PullRequestSubscription extends IDisposable {
 	update(options: PullRequestSubscriptionOptions): void;
 	refresh(fragment?: PullRequestFragment, token?: CancellationToken, options?: PullRequestRefreshOptions): Promise<void>;
 }
+
+export function firstCredentialFailure(snapshot: PullRequestSnapshot, fragments: readonly PullRequestFragment[]): { readonly id: string; readonly kind: 'authentication' | 'authorization'; readonly message: string } | undefined {
+	for (const fragment of fragments) {
+		const error = snapshot[fragment].error;
+		if (error?.kind === 'authentication' || error?.kind === 'authorization') {
+			return { id: `${fragment}:${error.kind}`, kind: error.kind, message: error.message };
+		}
+	}
+	return undefined;
+}

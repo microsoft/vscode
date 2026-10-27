@@ -33,20 +33,22 @@ suite('MultiDiffEditor Actions', () => {
 			const menu = action.desc.menu;
 			assert.ok(menu && !Array.isArray(menu));
 			const toggled = action.desc.toggled;
-			return { id: action.desc.id, submenu: menu.id.id, group: menu.group, order: menu.order, toggled: toggled && (hasKey(toggled, { condition: true }) ? toggled.condition : toggled).serialize() };
+			return { id: action.desc.id, submenu: menu.id.id, group: menu.group, order: menu.order, toggled: toggled && (hasKey(toggled, { condition: true }) ? toggled.condition : toggled).serialize(), preconditionKeys: action.desc.precondition?.keys().sort() };
 		});
 		const toggle = new ToggleFileListAction().desc;
 		assert.ok(toggle.menu && !Array.isArray(toggle.menu));
+		// The view mode and position stay available in the Agents window, which contributes the submenu to its own editor title menu.
+		const preconditionKeys = ['activeEditor', 'config.multiDiffEditor.experimental.fileList', 'multiDiffEditorFileListAvailable'];
 		assert.deepStrictEqual({ group: submenu.group, icon: toggle.icon, toggleOrder: toggle.menu.order, togglePreconditionKeys: toggle.precondition?.keys().sort(), entries }, {
 			group: 'z_files',
 			icon: { id: 'list-flat' },
 			toggleOrder: 100001,
 			togglePreconditionKeys: ['activeEditor', 'config.multiDiffEditor.experimental.fileList', 'isSessionsWindow', 'multiDiffEditorFileListAvailable'],
 			entries: [
-				{ id: 'multiDiffEditor.viewFileListAsList', submenu: submenu.submenu.id, group: '1_view', order: 1, toggled: 'multiDiffEditorFileListViewMode == \'list\'' },
-				{ id: 'multiDiffEditor.viewFileListAsTree', submenu: submenu.submenu.id, group: '1_view', order: 2, toggled: 'multiDiffEditorFileListViewMode == \'tree\'' },
-				{ id: 'multiDiffEditor.positionFileListLeft', submenu: submenu.submenu.id, group: '2_position', order: 1, toggled: 'multiDiffEditorFileListPosition == \'left\'' },
-				{ id: 'multiDiffEditor.positionFileListRight', submenu: submenu.submenu.id, group: '2_position', order: 2, toggled: 'multiDiffEditorFileListPosition == \'right\'' },
+				{ id: 'multiDiffEditor.viewFileListAsList', submenu: submenu.submenu.id, group: '1_view', order: 1, toggled: 'multiDiffEditorFileListViewMode == \'list\'', preconditionKeys },
+				{ id: 'multiDiffEditor.viewFileListAsTree', submenu: submenu.submenu.id, group: '1_view', order: 2, toggled: 'multiDiffEditorFileListViewMode == \'tree\'', preconditionKeys },
+				{ id: 'multiDiffEditor.positionFileListLeft', submenu: submenu.submenu.id, group: '2_position', order: 1, toggled: 'multiDiffEditorFileListPosition == \'left\'', preconditionKeys },
+				{ id: 'multiDiffEditor.positionFileListRight', submenu: submenu.submenu.id, group: '2_position', order: 2, toggled: 'multiDiffEditorFileListPosition == \'right\'', preconditionKeys },
 			],
 		});
 	});

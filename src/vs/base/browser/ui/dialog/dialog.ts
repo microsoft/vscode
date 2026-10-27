@@ -64,6 +64,8 @@ export interface IDialogOptions {
 	readonly renderBody?: (container: HTMLElement) => void;
 	readonly renderFooter?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
+	/** Renders an icon of the owner's, such as an app's image, in place of {@link icon} and the {@link type}'s codicon. */
+	readonly renderIcon?: (container: HTMLElement) => void;
 	readonly buttonOptions?: Array<undefined | { sublabel?: string; styleButton?: (button: IButton) => void }>;
 	readonly primaryButtonDropdown?: IButtonWithDropdownOptions;
 	readonly disableCloseAction?: boolean;
@@ -183,6 +185,10 @@ export class Dialog extends Disposable {
 		const messageRowElement = this.element.appendChild($('.dialog-message-row'));
 		this.iconElement = messageRowElement.appendChild($('#monaco-dialog-icon.dialog-icon'));
 		this.iconElement.setAttribute('aria-label', this.getIconAriaLabel());
+		if (this.options.renderIcon) {
+			this.iconElement.classList.add('custom-icon');
+			this.options.renderIcon(this.iconElement);
+		}
 		this.messageContainer = messageRowElement.appendChild($('.dialog-message-container'));
 
 		const hasDetail = !!this.options.detail || !!this.options.detailElement;
@@ -471,6 +477,12 @@ export class Dialog extends Disposable {
 						}
 					}
 
+					if (focusableElements.length === 0) {
+						// Nothing to move focus to, so it stays inside the dialog
+						EventHelper.stop(e, true);
+						return;
+					}
+
 					// Focus next element (with wrapping)
 					if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
 						const newFocusedIndex = (focusedIndex + 1) % focusableElements.length;
@@ -533,7 +545,9 @@ export class Dialog extends Disposable {
 
 			this.iconElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.dialogError), ...ThemeIcon.asClassNameArray(Codicon.dialogWarning), ...ThemeIcon.asClassNameArray(Codicon.dialogInfo), ...ThemeIcon.asClassNameArray(Codicon.loading), spinModifierClassName);
 
-			if (this.options.icon) {
+			if (this.options.renderIcon) {
+				// The owner rendered the icon.
+			} else if (this.options.icon) {
 				this.iconElement.classList.add(...ThemeIcon.asClassNameArray(this.options.icon));
 			} else {
 				switch (this.options.type) {

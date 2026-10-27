@@ -29,7 +29,7 @@ import { Action, IAction, Separator } from '../../../../../base/common/actions.j
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
@@ -37,6 +37,7 @@ import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plug
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
+import { MiddleEllipsisPathLabel } from './aiCustomizationListWidgetUtils.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
@@ -258,9 +259,10 @@ interface IPluginInstalledItemTemplateData {
 	readonly syncToggleContainer: HTMLElement;
 	readonly name: HTMLElement;
 	readonly source: HTMLElement;
-	readonly description: HTMLElement;
+	readonly location: MiddleEllipsisPathLabel;
 	readonly metadata: HTMLElement;
 	readonly actions: HTMLElement;
+	readonly templateDisposables: DisposableStore;
 	readonly disposables: DisposableStore;
 	currentItemId: string | undefined;
 }
@@ -284,11 +286,12 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		const source = DOM.append(nameRow, $('.inline-badge.plugin-source-badge'));
-		const description = DOM.append(details, $('.plugin-list-item-description'));
+		const templateDisposables = new DisposableStore();
+		const location = templateDisposables.add(new MiddleEllipsisPathLabel(DOM.append(details, $('.plugin-list-item-location'))));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
 
-		const template = { container, syncToggleContainer, name, source, description, metadata, actions, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, syncToggleContainer, name, source, location, metadata, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -302,12 +305,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		templateData.source.title = element.item.marketplace ? '' : localize('pluginLocalSourceTooltip', "Installed from a local source");
 		templateData.source.style.display = element.item.marketplace ? 'none' : '';
 
-		if (element.item.description) {
-			templateData.description.textContent = truncateToFirstLine(element.item.description);
-			templateData.description.style.display = '';
-		} else {
-			templateData.description.style.display = 'none';
-		}
+		templateData.location.set(element.item.location ?? '');
 		templateData.metadata.textContent = getInstalledPluginMetadata(element.item);
 		templateData.metadata.style.display = templateData.metadata.textContent ? '' : 'none';
 
@@ -352,6 +350,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 	disposeTemplate(templateData: IPluginInstalledItemTemplateData): void {
 		this._templates.delete(templateData);
 		templateData.disposables.dispose();
+		templateData.templateDisposables.dispose();
 	}
 }
 
@@ -617,14 +616,22 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 
 //#region Helpers
 
-function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
+export function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
 	// Use `||` (not `??`) so an empty `label` also falls back to the URI basename.
 	// The items model's `getPluginCount` dedupes against this same fallback; using
 	// `??` here would silently break dedup for plugins whose label is `''`.
 	const name = plugin.label || basename(plugin.uri);
-	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
+	const location = labelService.getUriLabel(dirname(plugin.uri), { relative: true });
+	const description = plugin.fromMarketplace?.description ?? location;
 	const marketplace = plugin.fromMarketplace?.marketplace;
-	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };
+	return { kind: AgentPluginItemKind.Installed, name, description, location, marketplace, plugin };
+}
+
+/**
+ * Returns whether an installed plugin's name, description, or location matches a lowercase query.
+ */
+export function installedPluginMatchesQuery(item: IInstalledPluginItem, query: string): boolean {
+	return [item.name, item.description, item.location].some(value => value?.toLowerCase().includes(query));
 }
 
 function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePluginItem {
@@ -736,9 +743,9 @@ export function getToggledPluginEnablementState(state: ContributionEnablementSta
 	}
 }
 
-export function setPluginEnablementAndReadEffective(model: IEnablementModel, key: string, state: ContributionEnablementState): ContributionEnablementState {
-	model.setEnabled(key, state);
-	return model.readEnabled(key);
+export async function setPluginEnablementAndReadEffective(model: IEnablementModel, plugin: IAgentPlugin, state: ContributionEnablementState): Promise<ContributionEnablementState> {
+	await setAgentPluginEnablement(plugin, model, state);
+	return model.readEnabled(plugin.uri.toString());
 }
 
 //#endregion
@@ -1244,7 +1251,7 @@ export class PluginListWidget extends Disposable {
 		return this.marketplaceBrowsingAvailable;
 	}
 
-	private buildAddActions(): readonly ICustomizationItemAction[] {
+	getAddActions(): readonly ICustomizationItemAction[] {
 		return [
 			...this.pluginActions,
 			{
@@ -1300,15 +1307,15 @@ export class PluginListWidget extends Disposable {
 			return element.label;
 		}
 		const name = formatDisplayName(element.item.name);
+		if (element.type === 'plugin-item') {
+			const details = [element.item.location, getInstalledPluginMetadata(element.item)].filter(detail => !!detail);
+			const withDetails = details.reduce((label, detail) => localize('pluginInstalledItemAriaLabelWithDetail', "{0}. {1}", label, detail), name);
+			return derived(this, reader => isContributionEnabled(element.item.plugin.enablement.read(reader))
+				? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withDetails)
+				: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withDetails));
+		}
 		const description = element.item.description ? truncateToFirstLine(element.item.description) : undefined;
 		const nameAndDescription = description ? localize('pluginItemAriaLabel', "{0}. {1}", name, description) : name;
-		if (element.type === 'plugin-item') {
-			const metadata = getInstalledPluginMetadata(element.item);
-			const withMetadata = metadata ? localize('pluginInstalledItemAriaLabelWithMetadata', "{0}. {1}", nameAndDescription, metadata) : nameAndDescription;
-			return derived(this, reader => isContributionEnabled(element.item.plugin.enablement.read(reader))
-				? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withMetadata)
-				: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withMetadata));
-		}
 		if (element.type === 'remote-item') {
 			const statusLabel = getRemotePluginStatusLabel(element.item);
 			return statusLabel
@@ -1356,16 +1363,22 @@ export class PluginListWidget extends Disposable {
 			row.classList.toggle('disabled', !checked);
 		};
 		disposables.add(autorun(reader => update(item.plugin.enablement.read(reader), getPluginPolicyEnablement(item.plugin, reader))));
-		disposables.add(toggle.onChange(() => {
+		disposables.add(toggle.onChange(async () => {
 			const policyEnablement = getPluginPolicyEnablement(item.plugin);
 			if (policyEnablement !== undefined) {
 				update(renderedState, policyEnablement);
 				return;
 			}
 			const nextState = getToggledPluginEnablementState(renderedState);
-			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
-			update(effectiveState, getPluginPolicyEnablement(item.plugin));
-			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			toggle.disabled = true;
+			try {
+				await setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin, nextState);
+				status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			} catch (error) {
+				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
+			} finally {
+				update(item.plugin.enablement.get(), getPluginPolicyEnablement(item.plugin));
+			}
 		}));
 
 		const more = disposables.add(new Button(actions, {
@@ -1548,7 +1561,7 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private renderPluginAddAction(container: HTMLElement, disposables: DisposableStore): void {
-		const actions = this.buildAddActions();
+		const actions = this.getAddActions();
 		const [primary, ...secondary] = actions;
 		if (!primary) {
 			return;
@@ -1714,8 +1727,8 @@ export class PluginListWidget extends Disposable {
 			source.title = localize('pluginLocalSourceTooltip', "Installed from a local source");
 		}
 
-		const description = DOM.append(details, $('.plugin-list-item-description'));
-		description.textContent = truncateToFirstLine(item.description || localize('pluginNoDescription', "No description provided."));
+		const location = this.cardDisposables.add(new MiddleEllipsisPathLabel(DOM.append(details, $('.plugin-list-item-location'))));
+		location.set(item.location ?? '');
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		metadata.textContent = getInstalledPluginMetadata(item);
 		metadata.style.display = metadata.textContent ? '' : 'none';
@@ -1768,16 +1781,22 @@ export class PluginListWidget extends Disposable {
 			const state = item.plugin.enablement.read(reader);
 			update(state, getPluginPolicyEnablement(item.plugin, reader));
 		}));
-		this.cardDisposables.add(toggle.onChange(() => {
+		this.cardDisposables.add(toggle.onChange(async () => {
 			const policyEnablement = getPluginPolicyEnablement(item.plugin);
 			if (policyEnablement !== undefined) {
 				update(renderedState, policyEnablement);
 				return;
 			}
 			const nextState = getToggledPluginEnablementState(renderedState);
-			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
-			update(effectiveState, getPluginPolicyEnablement(item.plugin));
-			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			toggle.disabled = true;
+			try {
+				await setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin, nextState);
+				status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			} catch (error) {
+				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
+			} finally {
+				update(item.plugin.enablement.get(), getPluginPolicyEnablement(item.plugin));
+			}
 		}));
 		return switchElement;
 	}
@@ -2018,7 +2037,7 @@ export class PluginListWidget extends Disposable {
 				const allPlugins = this.agentPluginService.plugins.get();
 				const installedItems = allPlugins
 					.map(p => installedPluginToItem(p, this.labelService))
-					.filter(item => item.name.toLowerCase().includes(query) || item.description.toLowerCase().includes(query))
+					.filter(item => installedPluginMatchesQuery(item, query))
 					.sort(compareInstalledPluginItems);
 				const remoteItems = [...await this.getRemotePluginItems(query)];
 				if (!this.isCurrentMarketplaceRequest(cts, query, browseMode)) {
@@ -2075,7 +2094,7 @@ export class PluginListWidget extends Disposable {
 			}
 			const installedItems = this.agentPluginService.plugins.get()
 				.map(p => installedPluginToItem(p, this.labelService))
-				.filter(item => item.name.toLowerCase().includes(query) || item.description.toLowerCase().includes(query))
+				.filter(item => installedPluginMatchesQuery(item, query))
 				.sort(compareInstalledPluginItems);
 			const remoteItems = [...await this.getRemotePluginItems(query)];
 			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
@@ -2167,10 +2186,7 @@ export class PluginListWidget extends Disposable {
 
 		this.installedItems = allPlugins
 			.map(p => installedPluginToItem(p, this.labelService))
-			.filter(item => !query ||
-				item.name.toLowerCase().includes(query) ||
-				item.description.toLowerCase().includes(query)
-			)
+			.filter(item => !query || installedPluginMatchesQuery(item, query))
 			.sort(compareInstalledPluginItems);
 
 		if (!query) {

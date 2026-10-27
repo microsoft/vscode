@@ -117,15 +117,10 @@ export function getAutoModeTierLabel(tier: string): string {
 	}
 }
 
-export function isFusionNamedAutoModeTier(tier: string): boolean {
-	return tier === 'balance' || tier === 'intelligence' || tier === 'hydrafusion' || tier === 'hydrafusion-max';
-}
-
-/** Localized picker label for a routing profile when Auto is presented as Fusion, which names the runtime's balance tier Standard, its intelligence or HydraFusion tier High, and HydraFusion Max Max. */
+/** Localized picker label for a routing profile when Auto is presented as Copilot Fusion, which names the balance tier Standard, HydraFusion High, and HydraFusion Max Max. */
 export function getFusionAutoModeTierLabel(tier: string): string {
 	switch (tier) {
 		case 'balance': return localize('autoModeTier.fusionStandard', "Standard");
-		case 'intelligence':
 		case 'hydrafusion': return localize('autoModeTier.fusionHigh', "High");
 		case 'hydrafusion-max': return localize('autoModeTier.fusionMax', "Max");
 		default: return getAutoModeTierLabel(tier);

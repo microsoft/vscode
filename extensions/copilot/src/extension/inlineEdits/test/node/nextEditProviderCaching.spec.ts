@@ -10,7 +10,7 @@ import { InMemoryConfigurationService } from '../../../../platform/configuration
 import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
 import { NullGitExtensionService } from '../../../../platform/git/common/nullGitExtensionService';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
-import { ModelConfiguration, PromptingStrategy, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { ModelConfiguration, PromptingStrategy, PromptMemoryOptions, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { ObservableGit } from '../../../../platform/inlineEdits/common/observableGit';
@@ -44,12 +44,12 @@ import { ILlmNESTelemetry, NextEditProviderTelemetryBuilder } from '../../node/n
 const testModelName = 'test-patch-model';
 const testModelConfig = JSON.stringify({ promptingStrategy: 'patchBased02' });
 
-function createModelService(rejectedEditMemoryEnabled = false, promptingStrategy = PromptingStrategy.PatchBased02): IInlineEditsModelService {
+function createModelService(rejectedEditMemoryEnabled = false, promptingStrategy = PromptingStrategy.PatchBased02, memory: PromptMemoryOptions = { rejectedEdits: rejectedEditMemoryEnabled ? RejectedEditsMemoryMode.DiffWithTags : undefined }): IInlineEditsModelService {
 	const modelConfiguration: ModelConfiguration = {
 		modelName: testModelName,
 		promptingStrategy,
 		includeTagsInCurrentFile: false,
-		memory: { rejectedEdits: rejectedEditMemoryEnabled ? RejectedEditsMemoryMode.DiffWithTags : undefined },
+		memory,
 		lintOptions: undefined,
 	};
 	return {
@@ -552,7 +552,7 @@ describe('NextEditProvider Caching', () => {
 		return { provider, getCallCount: () => callCount, whenFirstStreamEnded: firstStreamEnded.p };
 	}
 
-	async function runCrossFileScenario(options?: { activeDocWindow?: OffsetRange; disposeTargetBeforeSecondRequest?: boolean; mutateTargetBeforeSecondRequest?: boolean; disableEditorChangeTrigger?: boolean; rejectedEditMemoryEnabled?: boolean; promptingStrategy?: PromptingStrategy; rejectFirstSuggestion?: boolean }) {
+	async function runCrossFileScenario(options?: { activeDocWindow?: OffsetRange; disposeTargetBeforeSecondRequest?: boolean; mutateTargetBeforeSecondRequest?: boolean; disableEditorChangeTrigger?: boolean; rejectedEditMemoryEnabled?: boolean; promptingStrategy?: PromptingStrategy; rejectFirstSuggestion?: boolean; memory?: PromptMemoryOptions; wasFullyVisible?: boolean }) {
 		const obsWorkspace = new MutableObservableWorkspace();
 		const obsGit = new ObservableGit(gitExtensionService);
 
@@ -569,7 +569,7 @@ describe('NextEditProvider Caching', () => {
 		const { provider: statelessNextEditProvider, getCallCount, whenFirstStreamEnded } = createCrossFileStatelessProvider(docBId, targetEdit, options?.activeDocWindow);
 
 		const historyTracker = new NesXtabHistoryTracker(obsWorkspace, undefined, scenarioConfigService, expService);
-		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), historyTracker, undefined, createModelService(options?.rejectedEditMemoryEnabled, options?.promptingStrategy), scenarioConfigService, snippyService, logService, expService, requestLogger);
+		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), historyTracker, undefined, createModelService(options?.rejectedEditMemoryEnabled, options?.promptingStrategy, options?.memory), scenarioConfigService, snippyService, logService, expService, requestLogger);
 
 		const docB = obsWorkspace.addDocument({ id: docBId, initialValue: ['export function helper() {', '\treturn 1;', '}'].join('\n') });
 		const docA = obsWorkspace.addDocument({ id: docAId, initialValue: ['class Point {', '\tconstructor(', '\t\tprivate readonly x: number,', '\t) { }', '}'].join('\n') });
@@ -606,7 +606,7 @@ describe('NextEditProvider Caching', () => {
 			vi.useFakeTimers();
 			nextEditProvider.handleShown(first);
 			vi.advanceTimersByTime(1001);
-			nextEditProvider.handleRejection(docA.id, first);
+			nextEditProvider.handleRejection(docA.id, first, { wasFullyVisible: options?.wasFullyVisible });
 			vi.useRealTimers();
 		}
 		const rejectedEditHistory = historyTracker.getRejectedEditHistory();
@@ -684,6 +684,25 @@ describe('NextEditProvider Caching', () => {
 				hunks: [{ oldLines: ['\treturn 1;'], newLines: ['\treturn 42;'] }],
 			}],
 			disabled: [],
+		});
+	});
+
+	it('skips partially visible rejections in every memory mode only when rejectedEditsOnlyFullyVisible is set', async () => {
+		const countRecorded = async (rejectedEdits: RejectedEditsMemoryMode, rejectedEditsOnlyFullyVisible?: boolean) => {
+			const { rejectedEditHistory } = await runCrossFileScenario({ memory: { rejectedEdits, rejectedEditsOnlyFullyVisible }, rejectFirstSuggestion: true, wasFullyVisible: false });
+			return rejectedEditHistory.length;
+		};
+
+		expect({
+			diffWithTags: await countRecorded(RejectedEditsMemoryMode.DiffWithTags),
+			appliedThenUndone: await countRecorded(RejectedEditsMemoryMode.AppliedThenUndone),
+			diffWithTagsOnlyFullyVisible: await countRecorded(RejectedEditsMemoryMode.DiffWithTags, true),
+			appliedThenUndoneOnlyFullyVisible: await countRecorded(RejectedEditsMemoryMode.AppliedThenUndone, true),
+		}).toEqual({
+			diffWithTags: 1,
+			appliedThenUndone: 1,
+			diffWithTagsOnlyFullyVisible: 0,
+			appliedThenUndoneOnlyFullyVisible: 0,
 		});
 	});
 
