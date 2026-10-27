@@ -228,6 +228,18 @@ configurationRegistry.registerConfiguration({
 			tags: ['preview'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostCanvasesEnabledConfigKey },
+			policy: {
+				name: 'ChatCanvases',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.144',
+				value: policyData => policyData.chat_preview_features_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'chat.canvases.enabled.policy',
+						value: nls.localize('chat.canvases.enabled.policy', "Controls whether Copilot sessions can use Canvases to present interactive content."),
+					},
+				},
+			},
 		},
 		[AgentHostAutoAttachPullRequestsSettingId]: {
 			type: 'boolean',

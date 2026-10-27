@@ -399,6 +399,9 @@ const _allApiProposals = {
 	notebookVariableProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookVariableProvider.d.ts',
 	},
+	notificationTelemetry: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notificationTelemetry.d.ts',
+	},
 	portsAttributes: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.portsAttributes.d.ts',
 	},

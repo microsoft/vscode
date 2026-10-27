@@ -441,6 +441,12 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	updateSessionModifiedTimes(updates: readonly IAgentHostDatabaseModifiedTimeUpdate[]): Promise<void>;
 	getSession(session: string): Promise<IAgentHostDatabaseSession | undefined>;
 	listSessions(): Promise<readonly IAgentHostDatabaseSession[]>;
+	/** Revision of a worktree's session and any recorded co-owners, for disk usage caching. */
+	getWorktreeDiskUsageRevision(session: string, worktree: string): Promise<string | undefined>;
+	readWorktreeDiskUsage(session: string, worktree: string, revision: string): Promise<number | undefined>;
+	writeWorktreeDiskUsage(session: string, worktree: string, revision: string, sizeBytes: number): Promise<void>;
+	/** Invalidates every owner's cached size after observing live work in the checkout. */
+	deleteWorktreeDiskUsage(worktree: string): Promise<void>;
 	isSessionRegistryEmpty(): Promise<boolean>;
 	/**
 	 * @deprecated superseded by per-provider {@link isProviderBackfilled}.
@@ -1129,6 +1135,7 @@ const provisionalSessionKeyPrefix = 'sessionProvisional:';
 const CHATS_MOVED_METADATA_KEY = 'chatsV2Moved';
 /** Prefixes a moved chat's attachment copy record (Block 4b), `chatAttachmentCopy:<chat>`. */
 const CHAT_ATTACHMENT_COPY_KEY_PREFIX = 'chatAttachmentCopy:';
+const WORKTREE_DISK_USAGE_KEY_PREFIX = 'worktreeDiskUsage:';
 
 function decodeChatAttachmentCopy(value: string): IAgentHostChatAttachmentCopy | undefined {
 	let parsed: { readonly origin?: unknown; readonly storage?: unknown; readonly copied?: unknown; readonly complete?: unknown } | null;
@@ -1180,6 +1187,63 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	/** A plain database stores every session as addressed, so there is no storage spelling to map. */
 	toRuntimeSession(session: string): string {
 		return session;
+	}
+
+	async getWorktreeDiskUsageRevision(session: string, worktree: string): Promise<string | undefined> {
+		const rows = await all(await this._ensureDatabase(), `SELECT
+			v.session_uri, s.modified_time, v.session_generation, v.source_revision,
+			v.modified_time AS catalog_modified_time,
+			state.revision, state.rows_revision, chats.revision AS chats_revision
+			FROM sessions_v2 v
+			LEFT JOIN sessions s ON s.session_uri = v.session_uri
+			LEFT JOIN session_state state ON state.session_uri = v.session_uri
+			LEFT JOIN session_chat_catalogs chats ON chats.session_uri = v.session_uri
+			WHERE v.session_uri = ? OR v.session_uri IN (
+				SELECT session_uri FROM worktree_co_owners WHERE worktree_path = ?
+			)
+			ORDER BY v.session_uri`, [session, worktree]);
+		return rows.some(row => row.session_uri === session) ? stableStringify(rows) : undefined;
+	}
+
+	async readWorktreeDiskUsage(session: string, worktree: string, revision: string): Promise<number | undefined> {
+		const row = await get(await this._ensureDatabase(), `SELECT value FROM metadata
+			WHERE key = ? AND EXISTS (
+				SELECT 1 FROM sessions_v2 WHERE session_uri = json_extract(metadata.value, '$.session')
+				AND (session_uri = ? OR session_uri IN (
+					SELECT session_uri FROM worktree_co_owners WHERE worktree_path = ?
+				))
+			)`, [WORKTREE_DISK_USAGE_KEY_PREFIX + worktree, session, worktree]);
+		if (!row) {
+			return undefined;
+		}
+		const value: { readonly revision?: unknown; readonly sizeBytes?: unknown } | null = JSON.parse(row.value as string);
+		if (typeof value?.revision !== 'string' || typeof value.sizeBytes !== 'number' || !Number.isSafeInteger(value.sizeBytes) || value.sizeBytes < 0) {
+			throw new Error('Invalid stored worktree disk usage');
+		}
+		return value.revision === revision ? value.sizeBytes : undefined;
+	}
+
+	async writeWorktreeDiskUsage(session: string, worktree: string, revision: string, sizeBytes: number): Promise<void> {
+		if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 0) {
+			throw new RangeError('Invalid worktree disk usage');
+		}
+		await this._transactionSequencer.queue(async () => {
+			await run(await this._ensureDatabase(), `INSERT INTO metadata (key, value)
+				SELECT ?, ? FROM sessions_v2 WHERE session_uri = ?
+				ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+				[WORKTREE_DISK_USAGE_KEY_PREFIX + worktree, JSON.stringify({ session, revision, sizeBytes }), session]);
+		});
+	}
+
+	async deleteWorktreeDiskUsage(worktree: string): Promise<void> {
+		await this._transactionSequencer.queue(async () => {
+			await run(await this._ensureDatabase(), 'DELETE FROM metadata WHERE key = ?', [WORKTREE_DISK_USAGE_KEY_PREFIX + worktree]);
+		});
+	}
+
+	private async _deleteSessionWorktreeDiskUsage(database: Database, session: string): Promise<void> {
+		await run(database, `DELETE FROM metadata WHERE key >= ? AND key < ? AND json_extract(value, '$.session') = ?`,
+			[WORKTREE_DISK_USAGE_KEY_PREFIX, 'worktreeDiskUsage;', session]);
 	}
 
 	/** Reads the storage identity records under `prefix` with an indexed key-range scan. */
@@ -1292,6 +1356,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 		await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [sessionChatCatalogLegacyMirrorKey(session), sessionChatCatalogOlderBuildChatStateKey(session)]);
 		await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
+		await this._deleteSessionWorktreeDiskUsage(database, session);
 		await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
 		await this._tombstoneOwnedChats(database, session);
 		await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
@@ -1521,6 +1586,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(exclusion.session)]);
 					await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [sessionChatCatalogLegacyMirrorKey(exclusion.session), sessionChatCatalogOlderBuildChatStateKey(exclusion.session)]);
 					await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + exclusion.session]);
+					await this._deleteSessionWorktreeDiskUsage(database, exclusion.session);
 					await this._tombstoneOwnedChats(database, exclusion.session);
 					await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [exclusion.session]);
 					await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [exclusion.session]);
@@ -1710,6 +1776,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [sessionChatCatalogLegacyMirrorKey(session), sessionChatCatalogOlderBuildChatStateKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
+				await this._deleteSessionWorktreeDiskUsage(database, session);
 				await deleteSessionStateRows(this._sessionStateConnection(database), session);
 				await exec(database, 'COMMIT');
 			} catch (error) {
@@ -1883,6 +1950,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [sessionChatCatalogLegacyMirrorKey(session), sessionChatCatalogOlderBuildChatStateKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
+				await this._deleteSessionWorktreeDiskUsage(database, session);
 				await deleteSessionStateRows(this._sessionStateConnection(database), session);
 				await exec(database, 'COMMIT');
 			} catch (error) {
@@ -4343,10 +4411,13 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await exec(database, 'PRAGMA foreign_keys = ON');
 					const versionRow = await get(database, 'PRAGMA user_version', []);
 					const currentVersion = await normalizePreReleaseCatalogSchema(database, (versionRow?.user_version as number | undefined) ?? 0);
-					for (const migration of migrations) {
-						if (migration.version > currentVersion) {
-							await exec(database, 'BEGIN TRANSACTION');
-							try {
+					const pendingMigrations = migrations.filter(migration => migration.version > currentVersion);
+					if (pendingMigrations.length > 0) {
+						// One transaction for all pending migrations: every commit flushes the disk, so a
+						// commit per migration multiplies a fresh profile's startup time when flushes are slow.
+						await exec(database, 'BEGIN TRANSACTION');
+						try {
+							for (const migration of pendingMigrations) {
 								if (migration.version === 14 || migration.version === PROJECTED_REVISION_MIGRATION_VERSION) {
 									await migrateChatV2Schema(database);
 								} else if (migration.version === CHAT_ORIGIN_MIGRATION_VERSION) {
@@ -4355,11 +4426,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 									await exec(database, migration.sql);
 								}
 								await exec(database, `PRAGMA user_version = ${migration.version}`);
-								await exec(database, 'COMMIT');
-							} catch (error) {
-								await exec(database, 'ROLLBACK');
-								throw error;
 							}
+							await exec(database, 'COMMIT');
+						} catch (error) {
+							await exec(database, 'ROLLBACK');
+							throw error;
 						}
 					}
 					if (currentVersion >= 14) {

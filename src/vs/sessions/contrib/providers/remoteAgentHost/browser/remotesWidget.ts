@@ -54,14 +54,14 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 		documentation: { label: localize('remotes.docs.wsl', "Install WSL"), href: WSL_INSTALL_DOCS_URL },
 	},
 	tunnel: {
-		label: localize('remotes.empty.tunnels', "No tunnels found for this account."),
-		description: localize('remotes.empty.tunnels.description', "Enable a tunnel on another computer, then sign in with the same account."),
-		documentation: { label: localize('remotes.docs.tunnels', "Remote Tunnels Guide"), href: 'https://aka.ms/vscode-agent-tunnel' },
+		label: localize('remotes.empty.tunnels', "No dev tunnels found for this account."),
+		description: localize('remotes.empty.tunnels.description', "Enable a dev tunnel on another computer, then sign in with the same account."),
+		documentation: { label: localize('remotes.docs.tunnels', "Dev Tunnels Guide"), href: 'https://aka.ms/vscode-agent-tunnel' },
 	},
 	environment: {
-		label: localize('remotes.empty.environments', "No environments available."),
+		label: localize('remotes.empty.environments', "No GitHub environments available."),
 		description: localize('remotes.empty.environments.description', "Sign in to GitHub and enable environment sharing on another machine."),
-		documentation: { label: localize('remotes.docs.environments', "Environments Setup Guide"), href: 'https://aka.ms/vscode-agent-environments' },
+		documentation: { label: localize('remotes.docs.environments', "GitHub Environments Setup Guide"), href: 'https://aka.ms/vscode-agent-environments' },
 	},
 	devContainer: {
 		label: localize('remotes.empty.devContainers', "No Dev Containers found."),
@@ -152,7 +152,7 @@ export class RemotesWidget extends Disposable {
 		}));
 		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
 
-		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Connection, Actions.");
+		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Status, Actions.");
 		const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
@@ -160,8 +160,8 @@ export class RemotesWidget extends Disposable {
 		const columnDefinitions = [
 			{ id: 'gutter', label: '', weight: 0, minimumWidth: 64, maximumWidth: 64 },
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.8, minimumWidth: 220 },
-			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 144 },
-			{ id: 'actions', label: '', weight: 0, minimumWidth: 72, maximumWidth: 72 },
+			{ id: 'connection', label: localize('remotes.connectionColumn', "Status"), weight: 0.2, minimumWidth: 144 },
+			{ id: 'actions', label: '', weight: 0, minimumWidth: 144, maximumWidth: 144 },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
@@ -268,9 +268,15 @@ export class RemotesWidget extends Disposable {
 			} else if (action === 'connect') {
 				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
 			} else if (action === 'rename') {
-				void this.renameRemote(entry.remote.id);
-			} else if (action === 'delete' && entry.remote.kind === 'environment' && entry.remote.canRemove) {
-				void this.deleteEnvironment(entry.remote.id);
+				void this.manageRemote(entry.remote.id, 'rename');
+			} else if (action === 'copyAddress') {
+				void this.copyAddress(entry.remote.id);
+			} else if (action === 'locationPreference' && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh')) {
+				void this.manageRemote(entry.remote.id, 'locationPreference');
+			} else if (action === 'updateServer') {
+				void this.manageRemote(entry.remote.id, 'updateServer');
+			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh') && entry.remote.canDelete)) {
+				void this.deleteRemote(entry.remote.id, entry.remote.kind);
 			}
 		}
 	}
@@ -474,14 +480,32 @@ export class RemotesWidget extends Disposable {
 		this.layout();
 	}
 
-	private async renameRemote(id: string): Promise<void> {
+	private async copyAddress(id: string): Promise<void> {
+		try {
+			await this.model.copyAddress(id);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.notificationService.error(error);
+			}
+		}
+	}
+
+	private async manageRemote(id: string, action: 'rename' | 'locationPreference' | 'updateServer'): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
+		const focusedAction = dom.getActiveElement();
+		const restoreFocus = dom.isHTMLElement(focusedAction) && this.domNode.contains(focusedAction) && focusedAction.closest<HTMLElement>('[data-remote-id]')?.dataset.remoteId === id;
 		this.pendingActions.add(id);
 		this.render();
 		try {
-			await this.model.rename(id);
+			if (action === 'locationPreference') {
+				await this.model.changePreferredAgentLocation(id);
+			} else if (action === 'updateServer') {
+				await this.model.updateServer(id);
+			} else {
+				await this.model.rename(id);
+			}
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this.notificationService.error(error);
@@ -493,7 +517,8 @@ export class RemotesWidget extends Disposable {
 				const active = dom.getActiveElement();
 				const activeRow = dom.isHTMLElement(active) && this.domNode.contains(active) ? active.closest<HTMLElement>('[data-remote-id]') : undefined;
 				const index = this.rows.findIndex(row => row.id === id);
-				if (activeRow && activeRow.dataset.remoteId !== id && index >= 0) {
+				if (index >= 0 && (activeRow && activeRow.dataset.remoteId !== id
+					|| restoreFocus && !focusedAction?.isConnected && active === this.domNode.ownerDocument.body)) {
 					this.table.setFocus([index]);
 					this.table.domFocus();
 				}
@@ -501,7 +526,7 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private async deleteEnvironment(id: string): Promise<void> {
+	private async deleteRemote(id: string, kind: 'environment' | 'tunnel' | 'ssh'): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
@@ -510,7 +535,13 @@ export class RemotesWidget extends Disposable {
 		this.pendingActions.add(id);
 		this.render();
 		try {
-			await this.model.remove(id);
+			if (kind === 'tunnel') {
+				await this.model.deleteTunnel(id);
+			} else if (kind === 'ssh') {
+				await this.model.deleteSSHHost(id);
+			} else {
+				await this.model.remove(id);
+			}
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this.notificationService.error(error);
@@ -552,7 +583,7 @@ export class RemotesWidget extends Disposable {
 		const name = remote.pickerUnavailableReason
 			? localize('remotes.unavailablePickerName', "{0} (not shown in Environment picker: {1})", remote.name, remote.pickerUnavailableReason)
 			: remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from Environment picker)", remote.name) : remote.name;
-		let label = localize('remotes.accessibleRow', "{0}. Connection: {1}", name,
+		let label = localize('remotes.accessibleRow', "{0}. Status: {1}", name,
 			getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
 		const error = remote.lastConnectionError;
 		if (!this.pendingConnections.has(remote.id) && error) {

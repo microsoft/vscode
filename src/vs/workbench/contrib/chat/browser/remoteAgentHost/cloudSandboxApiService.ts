@@ -63,6 +63,7 @@ import { AuthenticationSession, IAuthenticationService } from '../../../../servi
 import { getCloudSandboxTaskCreationPath, ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
 import { type CloudSandboxLifecycleFailurePoint, type CloudSandboxLifecycleOperation } from './cloudSandboxLifecycleTelemetry.js';
 import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
+import { createCloudSandboxContextTierSchema } from './cloudSandboxSessionConfig.js';
 import { CloudSandboxIdentityTokenProvider, ICloudSandboxIdentityTokenResponse } from './cloudSandboxIdentityTokenProvider.js';
 import { RATE_LIMIT_MAX_RETRIES, RATE_LIMIT_WAIT_BUDGET_MS, rateLimitDelay, retryAfterSeconds } from './cloudSandboxRateLimit.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
@@ -1492,6 +1493,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const context = await this._request(`${this._tasksBaseUrl()}/swe/models`, 'mc.models.list', 'listModels', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+			'X-GitHub-Api-Version': '2026-06-01',
 		}, token, DISCOVERY_TIMEOUT_MS);
 		if (!isSuccess(context)) {
 			await this._throwForStatus('model catalog', context);
@@ -1510,6 +1512,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			if (model.model_picker_enabled === false || model.policy?.state === 'disabled') {
 				continue;
 			}
+			const billing = normalizeCAPIBilling(model.billing);
+			const contextTier = createCloudSandboxContextTierSchema(billing);
 			models.push({
 				id: model.id,
 				name: model.name,
@@ -1518,16 +1522,19 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				maxPromptTokens: model.capabilities?.limits?.max_prompt_tokens,
 				maxOutputTokens: model.capabilities?.limits?.max_output_tokens,
 				supportsVision: model.capabilities?.supports?.vision,
-				_meta: createPricingMetaFromBilling(normalizeCAPIBilling(model.billing), model.model_picker_price_category, model.model_picker_category),
-				...(efforts?.length ? {
+				_meta: createPricingMetaFromBilling(billing, model.model_picker_price_category, model.model_picker_category),
+				...(efforts?.length || contextTier ? {
 					configSchema: {
 						type: 'object',
 						properties: {
-							reasoningEffort: {
-								type: 'string',
-								title: localize('cloudSandbox.reasoningEffort', "Reasoning Effort"),
-								enum: [...efforts],
-							},
+							...(efforts?.length ? {
+								reasoningEffort: {
+									type: 'string',
+									title: localize('cloudSandbox.reasoningEffort', "Effort Level"),
+									enum: [...efforts],
+								}
+							} : {}),
+							...(contextTier ? { contextTier } : {}),
 						},
 					},
 				} : {}),

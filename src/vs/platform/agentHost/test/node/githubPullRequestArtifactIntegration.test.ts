@@ -320,7 +320,7 @@ suite('GitHub pull request artifact integration', () => {
 		});
 	}));
 
-	test('checks and comments retain list icons with empty data and no pill sections', () => run(async store => {
+	test('omits empty checks summaries while retaining checks and comments lists', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const snapshot = {
 			...base,
@@ -328,17 +328,77 @@ suite('GitHub pull request artifact integration', () => {
 			reviewThreads: { ...base.reviewThreads, value: [] },
 		};
 		const f = await fixture(store, snapshot);
+		const details = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'checks'));
 		const icons = () => f.model.snapshot.get().contributions[0].view.lists?.map(list => [list.id, list.icon]);
 		const empty = icons();
+		const emptySections = f.model.snapshot.get().contributions[0].view.sections;
+		const emptyTitle = details.details.get().title;
 		f.snapshot.set({ ...snapshot, checks: { status: 'loading', complete: false } }, undefined);
 		const loading = icons();
+		const loadingSections = f.model.snapshot.get().contributions[0].view.sections;
+		const loadingTitle = details.details.get().title;
 		f.snapshot.set({ ...snapshot, core: { ...snapshot.core, value: { ...snapshot.core.value!, state: 'merged' } } }, undefined);
 		assert.deepStrictEqual({
+			emptySections, emptyTitle, loadingSections, loadingTitle,
 			empty, loading, merged: icons(), sections: f.model.snapshot.get().contributions[0].view.sections,
 		}, {
+			emptySections: [], emptyTitle: 'Checks', loadingSections: [], loadingTitle: 'Checks',
 			empty: [['checks', { id: 'checklist' }], ['comments', { id: 'comment-discussion' }]],
 			loading: [['checks', { id: 'checklist' }], ['comments', { id: 'comment-discussion' }]],
 			merged: [['checks', { id: 'checklist' }], ['comments', { id: 'comment-discussion' }]], sections: [],
+		});
+	}));
+
+	test('shows merge conflicts independently of checks and links to branch repair details', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const snapshot = {
+			...base,
+			checks: { ...base.checks, value: { ...base.checks.value!, checks: [] } },
+			mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeable: 'CONFLICTING' as const } },
+		};
+		const f = await fixture(store, snapshot);
+		const details = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'main'));
+		const initial = {
+			sections: f.model.snapshot.get().contributions[0].view.sections,
+			repairLink: details.details.get().links.find(link => link.kind === 'action' && link.actionId === 'resolveConflicts'),
+			repairEnabled: f.model.snapshot.get().contributions[0].view.stateActions.find(action => action.id === 'resolveConflicts')?.enabled,
+		};
+		const sections = () => f.model.snapshot.get().contributions[0].view.sections.map(section => section.id);
+		f.snapshot.set({ ...snapshot, checks: base.checks }, undefined);
+		const withChecks = sections();
+		f.snapshot.set({ ...snapshot, checks: { status: 'loading', complete: false } }, undefined);
+		const withoutChecks = sections();
+		const refreshing = [];
+		for (const status of ['loading', 'stale'] as const) {
+			f.snapshot.set({ ...snapshot, mergeability: { ...snapshot.mergeability, status, complete: false } }, undefined);
+			refreshing.push(sections());
+		}
+		const hidden = [];
+		for (const state of ['closed', 'merged'] as const) {
+			f.snapshot.set({ ...snapshot, core: { ...snapshot.core, value: { ...snapshot.core.value!, state } } }, undefined);
+			hidden.push(sections());
+		}
+		f.snapshot.set({ ...snapshot, core: { status: 'loading', complete: false } }, undefined);
+		hidden.push(sections());
+		f.snapshot.set({ ...snapshot, core: { ...snapshot.core, value: { ...snapshot.core.value!, headSha: 'new-head' } } }, undefined);
+		hidden.push(sections());
+		f.snapshot.set({
+			...snapshot, mergeability: { ...snapshot.mergeability, status: 'error', error: { kind: 'server', message: 'Mergeability is unavailable.' } },
+		}, undefined);
+		hidden.push(sections());
+		f.snapshot.set({ ...snapshot, mergeability: base.mergeability }, undefined);
+		hidden.push(sections());
+		assert.deepStrictEqual({ initial, withChecks, withoutChecks, refreshing, hidden }, {
+			initial: {
+				sections: [{
+					id: 'conflicts', detailsId: 'main', icon: { id: 'git-compare', colorId: 'editorWarning.foreground' },
+					label: 'Conflicts', description: 'This pull request has merge conflicts.',
+				}],
+				repairLink: { kind: 'action', actionId: 'resolveConflicts' },
+				repairEnabled: true,
+			},
+			withChecks: ['checks', 'conflicts'], withoutChecks: ['conflicts'],
+			refreshing: [['conflicts'], ['conflicts']], hidden: [[], [], [], [], [], []],
 		});
 	}));
 
@@ -808,10 +868,17 @@ suite('GitHub pull request artifact integration', () => {
 		});
 		const details = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'checks'));
 		assert.deepStrictEqual({
-			summary: f.model.snapshot.get().contributions[0].view.sections.find(section => section.id === 'checks')?.icon,
+			summary: f.model.snapshot.get().contributions[0].view.sections.find(section => section.id === 'checks'),
+			title: details.details.get().title,
 			items: details.details.get().items.map(item => ({ id: item.id, icon: item.icon })),
 		}, {
-			summary: { id: 'error-compact', colorId: 'errorForeground' },
+			summary: {
+				id: 'checks', detailsId: 'checks',
+				icon: { id: 'error-compact', colorId: 'errorForeground' },
+				label: '2/4',
+				description: '2 of 4 checks completed without failure; 1 failed; 1 skipped.',
+			},
+			title: 'Checks (2/4)',
 			items: [
 				{ id: 'pending', icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' } },
 				{ id: 'failed', icon: { id: 'error-compact', colorId: 'errorForeground' } },
@@ -887,12 +954,12 @@ suite('GitHub pull request artifact integration', () => {
 			};
 			f.snapshot.set(snapshot, undefined);
 			const section = f.model.snapshot.get().contributions[0].view.sections.find(section => section.id === 'checks');
-			states.push({ icon: section?.icon, label: section?.label, title: details.details.get().title, checksReady: arePullRequestArtifactChecksReady(snapshot) });
+			states.push({ icon: section?.icon, label: section?.label, description: section?.description, title: details.details.get().title, checksReady: arePullRequestArtifactChecksReady(snapshot) });
 		}
 		assert.deepStrictEqual(states, [
-			{ icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' }, label: '0/1', title: 'Checks (0/1)', checksReady: false },
-			{ icon: { id: 'pass-filled-compact', colorId: 'charts.green' }, label: '1/1', title: 'Checks (1/1)', checksReady: true },
-			{ icon: { id: 'skip', colorId: 'descriptionForeground' }, label: '0/1', title: 'Checks (0/1)', checksReady: true },
+			{ icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' }, label: '0/1', description: '0 of 1 checks passed; 0 failed.', title: 'Checks (0/1)', checksReady: false },
+			{ icon: { id: 'pass-filled-compact', colorId: 'charts.green' }, label: '1/1', description: '1 of 1 checks passed; 0 failed.', title: 'Checks (1/1)', checksReady: true },
+			{ icon: { id: 'skip', colorId: 'descriptionForeground' }, label: '1/1', description: '1 of 1 checks completed without failure; 0 failed; 1 skipped.', title: 'Checks (1/1)', checksReady: true },
 		]);
 	}));
 
@@ -1271,6 +1338,116 @@ suite('GitHub pull request artifact integration', () => {
 		assert.deepStrictEqual({ beforeSync, afterSync: f.mutations }, { beforeSync: [], afterSync: ['ready'] });
 	}));
 
+	test('refreshes immediately on enablement and repairs failing CI while an approval check is pending', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, base);
+		f.onRefresh(() => {
+			f.snapshot.set({
+				...base, checks: {
+					...base.checks, value: {
+						...base.checks.value!, checks: [
+							{ id: 'ci', name: 'CI', type: 'checkRun', status: 'COMPLETED', conclusion: 'FAILURE' },
+							{ id: 'approval', name: 'Awaiting approvals', type: 'checkRun', status: 'IN_PROGRESS' },
+						]
+					}
+				},
+			}, undefined);
+		});
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
+		await timeout(200);
+
+		assert.deepStrictEqual({
+			prompts: f.prompts.length,
+			actions: f.service.ledger.state.get().runs.map(run => [run.actionId, run.state]),
+		}, { prompts: 1, actions: [['fixCI', 'running']] });
+	}));
+
+	test('polls fresh state every 60 seconds across core refresh reactivation and stops when disabled', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, base);
+		const refreshTimes: number[] = [];
+		const enabledAt = Date.now();
+		f.onRefresh(() => { refreshTimes.push(Date.now() - enabledAt); });
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
+		await timeout(30_000);
+		f.snapshot.set({ ...base, core: { ...base.core, status: 'loading', complete: false } }, undefined);
+		await timeout(1_000);
+		f.snapshot.set({ ...base }, undefined);
+		await timeout(28_999);
+		const beforeFirstPoll = [...refreshTimes];
+		await timeout(1);
+		const afterFirstPoll = [...refreshTimes];
+		f.onRefresh(() => {
+			refreshTimes.push(Date.now() - enabledAt);
+			f.snapshot.set({
+				...base, checks: {
+					...base.checks, value: {
+						...base.checks.value!, checks: [
+							{ id: 'ci', name: 'CI', type: 'checkRun', status: 'COMPLETED', conclusion: 'FAILURE' },
+						]
+					}
+				},
+			}, undefined);
+		});
+		await timeout(59_999);
+		const beforeSecondPoll = f.prompts.length;
+		await timeout(201);
+		const afterSecondPoll = { prompts: f.prompts.length, refreshedAt: refreshTimes[2] };
+		await f.finishPrompt();
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 1, { fixCI: false });
+		const refreshCount = refreshTimes.length;
+		await timeout(61_000);
+
+		assert.deepStrictEqual({
+			beforeFirstPoll, afterFirstPoll, beforeSecondPoll, afterSecondPoll,
+			refreshesAfterDisablement: refreshTimes.length - refreshCount,
+		}, {
+			beforeFirstPoll: [50], afterFirstPoll: [50, 60_000], beforeSecondPoll: 0,
+			afterSecondPoll: { prompts: 1, refreshedAt: 120_000 }, refreshesAfterDisablement: 0,
+		});
+	}));
+
+	test('refresh invalidation does not loop when automation reactivates', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, base);
+		const refreshTimes: number[] = [];
+		const enabledAt = Date.now();
+		f.onRefresh(async () => {
+			refreshTimes.push(Date.now() - enabledAt);
+			f.snapshot.set({ ...base, core: { ...base.core, status: 'loading', complete: false } }, undefined);
+			await timeout(1);
+			f.snapshot.set(base, undefined);
+		});
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
+		await timeout(180_500);
+
+		assert.deepStrictEqual({ refreshTimes, prompts: f.prompts.length }, { refreshTimes: [50, 60_000, 120_000, 180_000], prompts: 0 });
+	}));
+
+	test('polls immediately after an overdue core refresh and stops when disposed', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, base);
+		const refreshTimes: number[] = [];
+		const enabledAt = Date.now();
+		f.onRefresh(() => { refreshTimes.push(Date.now() - enabledAt); });
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
+		await timeout(30_000);
+		f.snapshot.set({ ...base, core: { ...base.core, status: 'loading', complete: false } }, undefined);
+		await timeout(31_000);
+		const whileLoading = [...refreshTimes];
+		f.snapshot.set(base, undefined);
+		await timeout(59_999);
+		const beforeNextPoll = [...refreshTimes];
+		await timeout(1);
+		const afterNextPoll = [...refreshTimes];
+		f.service.dispose();
+		await timeout(61_000);
+
+		assert.deepStrictEqual({ whileLoading, beforeNextPoll, afterNextPoll, afterDisposal: refreshTimes }, {
+			whileLoading: [50], beforeNextPoll: [50, 61_000], afterNextPoll: [50, 61_000, 121_000], afterDisposal: [50, 61_000, 121_000],
+		});
+	}));
+
 	test('retries unresolved repair objectives with fresh state and a bounded attempt budget', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, {
@@ -1285,11 +1462,11 @@ suite('GitHub pull request artifact integration', () => {
 		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
 		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.state === 'running'));
 		await f.finishPrompt();
-		await timeout(20_000);
+		await timeout(10 * 60_000 - 1_000);
 		const beforeBackoff = f.prompts.length;
-		await timeout(11_000);
+		await timeout(1_000);
 		await f.finishPrompt('failed');
-		await timeout(31_000);
+		await timeout(10 * 60_000);
 		await f.finishPrompt();
 		await waitForState(f.model.snapshot, snapshot => snapshot.contributions[0].configuration.values.fixCI === false);
 		const runs = f.service.ledger.state.get().runs;
@@ -1302,6 +1479,44 @@ suite('GitHub pull request artifact integration', () => {
 			reason: 'Turned off after 3 unsuccessful attempts. Review the last run before enabling this automation again.',
 		});
 	}));
+
+	for (const progress of ['new head', 'new failure', 'resolved blocker'] as const) {
+		test(`starts a new repair without the unchanged cooldown after a ${progress}`, () => run(async store => {
+			const base = createPullRequestArtifactSnapshot();
+			const failing = {
+				...base, checks: {
+					...base.checks, value: {
+						...base.checks.value!, checks: [
+							{ id: 'ci', name: 'CI', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
+							{ id: 'lint', name: 'Lint', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
+						]
+					}
+				}
+			};
+			const f = await fixture(store, failing);
+			await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
+			await waitForState(f.service.ledger.state, state => state.runs.some(run => run.state === 'running'));
+			await f.finishPrompt();
+			if (progress === 'new head') {
+				f.snapshot.set({
+					...failing,
+					core: { ...base.core, value: { ...base.core.value!, headSha: 'new-head' } },
+					checks: { ...failing.checks, headSha: 'new-head', value: { ...failing.checks.value, headSha: 'new-head' } },
+				}, undefined);
+			} else {
+				const checks = progress === 'new failure' ? [...failing.checks.value.checks,
+				{ id: 'test', name: 'Test', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
+				] : failing.checks.value.checks.map(check => check.id === 'ci' ? { ...check, conclusion: 'SUCCESS' } : check);
+				f.snapshot.set({ ...failing, checks: { ...failing.checks, value: { ...failing.checks.value, checks } } }, undefined);
+			}
+			await timeout(200);
+
+			assert.deepStrictEqual({
+				prompts: f.prompts.length,
+				retries: f.service.ledger.state.get().runs.map(run => run.retryOf),
+			}, { prompts: 2, retries: [undefined, undefined] });
+		}));
+	}
 
 	test('enabling both repair rules waits for an idle chat and runs comments then CI without duplicate prompts', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
@@ -1353,7 +1568,7 @@ suite('GitHub pull request artifact integration', () => {
 		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.state === 'running'));
 		await f.finishPrompt();
 		f.onRefresh(() => { f.snapshot.set(base, undefined); });
-		await timeout(31_000);
+		await timeout(10 * 60_000 + 100);
 		assert.deepStrictEqual({ prompts: f.prompts.length, enabled: f.model.snapshot.get().contributions[0].configuration.values.fixCI }, { prompts: 1, enabled: true });
 	}));
 

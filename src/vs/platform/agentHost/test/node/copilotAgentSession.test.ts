@@ -19,6 +19,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { join, sep } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -7797,6 +7798,36 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('refreshes runtime slash commands and signals plugin changes when managed plugins become ready', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		let pluginChanges = 0;
+		disposables.add(session.onDidChangeRuntimePlugins(() => pluginChanges++));
+		mockSession.commandListResult = { commands: [{ name: 'env', kind: 'builtin', description: 'Show loaded environment details', allowDuringAgentExecution: true }] };
+		const before = (await session.getRuntimeSlashCommands()).map(command => command.name);
+
+		mockSession.commandListResult = {
+			commands: [
+				{ name: 'env', kind: 'builtin', description: 'Show loaded environment details', allowDuringAgentExecution: true },
+				{ name: 'eval:setup', kind: 'skill', description: 'Set up evals', allowDuringAgentExecution: false },
+			],
+		};
+		mockSession.fire('session.info', { infoType: 'managed_plugins_complete', message: 'Plugins required by your organization admin are ready.' }, { agentId: 'agent-1' });
+		const afterSubagentEvent = (await session.getRuntimeSlashCommands()).map(command => command.name);
+		mockSession.fire('session.info', { infoType: 'managed_plugins_complete', message: 'Plugins required by your organization admin are ready.' });
+
+		assert.deepStrictEqual({
+			before,
+			afterSubagentEvent,
+			afterComplete: (await session.getRuntimeSlashCommands()).map(command => command.name),
+			pluginChanges,
+		}, {
+			before: ['sandbox', 'env'],
+			afterSubagentEvent: ['sandbox', 'env'],
+			afterComplete: ['sandbox', 'env', 'eval:setup'],
+			pluginChanges: 1,
+		});
+	});
+
 	test('`/review` invokes runtime command when listed', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = {
@@ -13744,11 +13775,69 @@ suite('CopilotAgentSession', () => {
 		});
 
 		for (const platform of ['linux', 'darwin', 'win32'] as const) {
+			for (const resume of [false, true]) {
+				test(`sandbox launch and first turn: grants read-only access to applied plugin resources on ${platform} (resume=${resume})`, async () => {
+					const pluginDir = URI.file('/extensions/fixture extension/plugin');
+					const resourceDir = URI.file('/plugins/projected');
+					const snapshot = createPluginSnapshot(pluginDir, resourceDir, URI.from({ scheme: Schemas.vscodeRemote, authority: 'other-host', path: '/plugins/remote' }));
+					const { session, runtime, mockSession } = await createAgentSession(disposables, {
+						platform,
+						resume,
+						clientSnapshot: {
+							...snapshot,
+							plugins: snapshot.plugins.map((plugin, index) => index === 1 ? { ...plugin, pluginDir: undefined, resourceDir } : plugin),
+						},
+						rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+					});
+					const launchConfig = runtime.getLaunchSandboxConfig();
+					await session.send('hello', undefined, 'turn-1');
+
+					const native = (path: string) => platform === 'win32' ? path.replace(/\//g, '\\') : path;
+					assert.deepStrictEqual({
+						launchFilesystem: launchConfig?.userPolicy?.filesystem,
+						firstTurnConfig: mockSession.sandboxConfigUpdates.at(-1),
+					}, {
+						launchFilesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR, pluginDir.fsPath, resourceDir.fsPath].map(native) },
+						firstTurnConfig: launchConfig,
+					});
+				});
+			}
+
+			test(`per-request sandbox: preserves denies and write grants for applied plugin directories on ${platform}`, async () => {
+				const deniedPlugin = URI.file('/plugins/denied');
+				const writablePlugin = URI.file('/plugins/writable');
+				const readonlyPlugin = URI.file('/plugins/readonly');
+				const { session, mockSession } = await createAgentSession(disposables, {
+					platform,
+					clientSnapshot: createPluginSnapshot(deniedPlugin, writablePlugin, readonlyPlugin, readonlyPlugin),
+					rootValues: {
+						[AgentHostSandboxConfigKey.Sandbox]: {
+							[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+							[AgentHostSandboxKey.UserConfiguredPaths]: {
+								deniedPaths: [deniedPlugin.fsPath],
+								readwritePaths: [writablePlugin.fsPath],
+								readonlyPaths: [readonlyPlugin.fsPath],
+							},
+						},
+					},
+				});
+				await session.send('hello', undefined, 'turn-1');
+
+				const native = (path: string) => platform === 'win32' ? path.replace(/\//g, '\\') : path;
+				assert.deepStrictEqual((mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig).userPolicy?.filesystem, {
+					deniedPaths: [native(deniedPlugin.fsPath)],
+					readwritePaths: [native(writablePlugin.fsPath)],
+					readonlyPaths: [readonlyPlugin.fsPath, TEST_SESSION_ATTACHMENTS_DIR].map(native),
+				});
+			});
+
 			test(`per-request sandbox: skips extra read grants under managed readonly paths on ${platform}`, async () => {
 				const sandboxPolicy: { enabled: boolean; readonlyPaths?: string[] } = { enabled: true };
+				const pluginDir = URI.file('/plugins/active');
 				const { session, mockSession } = await createAgentSession(disposables, {
 					platform,
 					sandboxPolicy,
+					clientSnapshot: createPluginSnapshot(pluginDir),
 					rootValues: {
 						[AgentHostSandboxConfigKey.Sandbox]: {
 							[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
@@ -13764,11 +13853,12 @@ suite('CopilotAgentSession', () => {
 					paths.push(applied.userPolicy?.filesystem?.readonlyPaths);
 				}
 				const attachmentsPath = platform === 'win32' ? TEST_SESSION_ATTACHMENTS_DIR.replace(/\//g, '\\') : TEST_SESSION_ATTACHMENTS_DIR;
+				const pluginPath = platform === 'win32' ? pluginDir.fsPath.replace(/\//g, '\\') : pluginDir.fsPath;
 				assert.deepStrictEqual(paths, [
-					['local-reference', attachmentsPath],
+					['local-reference', attachmentsPath, pluginPath],
 					['managed-reference'],
 					undefined,
-					['local-reference', attachmentsPath],
+					['local-reference', attachmentsPath, pluginPath],
 				]);
 			});
 
@@ -31478,6 +31568,87 @@ Use the attached image as context.
 					type: ActionType.ChatToolCallAuthResolved,
 					turnId: 'turn-auth',
 					toolCallId: 'tool-auth',
+				}],
+			});
+		});
+
+		test('MCP tool call started while authentication is pending transitions to auth required', async () => {
+			const { session, mockSession, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-auth');
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'auth-tool',
+				serverName: 'github',
+				serverUrl: 'https://api.githubcopilot.com/mcp/',
+				reason: 'upscope',
+				resourceMetadata: JSON.stringify({
+					resource: 'https://api.githubcopilot.com/mcp/',
+					resource_name: 'GitHub MCP Server',
+					authorization_servers: ['https://github.com/login/oauth'],
+					scopes_supported: ['repo', 'notifications'],
+				}),
+				wwwAuthenticateParams: { scope: 'repo notifications', error: 'insufficient_scope' },
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+
+			for (const serverName of ['github', 'slack']) {
+				mockSession.fire('tool.execution_start', {
+					toolCallId: `tool-${serverName}`,
+					toolName: 'mcp_tool',
+					mcpServerName: serverName,
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+			}
+
+			const beforeResolve = reduceTurnSignals(signals, 'turn-auth').activeTurn?.responseParts
+				.filter(part => part.kind === ResponsePartKind.ToolCall)
+				.map(part => ({
+					toolCallId: part.toolCall.toolCallId,
+					status: part.toolCall.status,
+					...(part.toolCall.status === ToolCallStatus.AuthRequired ? { auth: part.toolCall.auth } : {}),
+				}));
+			const resolved = await session.resolveMcpAuthentication({
+				resource: 'https://api.githubcopilot.com/mcp/',
+				scopes: ['repo', 'notifications'],
+				token: 'token',
+			});
+			const authResult = await authPromise;
+			const resolvedPart = reduceTurnSignals(signals, 'turn-auth').activeTurn?.responseParts
+				.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tool-github');
+			const afterResolve = getActions(signals)
+				.filter(action => action.type === ActionType.ChatToolCallAuthResolved)
+				.map(action => action.type === ActionType.ChatToolCallAuthResolved ? action : undefined);
+
+			assert.deepStrictEqual({
+				beforeResolve,
+				resolved,
+				authResult,
+				afterResolveStatus: resolvedPart?.kind === ResponsePartKind.ToolCall ? resolvedPart.toolCall.status : undefined,
+				afterResolve,
+			}, {
+				beforeResolve: [{
+					toolCallId: 'tool-github',
+					status: ToolCallStatus.AuthRequired,
+					auth: {
+						reason: McpAuthRequiredReason.InsufficientScope,
+						resource: {
+							resource: 'https://api.githubcopilot.com/mcp/',
+							resource_name: 'GitHub MCP Server',
+							authorization_servers: ['https://github.com/login/oauth'],
+							scopes_supported: ['repo', 'notifications'],
+						},
+						requiredScopes: ['repo', 'notifications'],
+						description: 'insufficient_scope',
+					},
+				}, {
+					toolCallId: 'tool-slack',
+					status: ToolCallStatus.Running,
+				}],
+				resolved: true,
+				authResult: { kind: 'token', accessToken: 'token' },
+				afterResolveStatus: ToolCallStatus.Running,
+				afterResolve: [{
+					type: ActionType.ChatToolCallAuthResolved,
+					turnId: 'turn-auth',
+					toolCallId: 'tool-github',
 				}],
 			});
 		});

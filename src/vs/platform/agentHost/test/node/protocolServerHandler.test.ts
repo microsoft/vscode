@@ -13,6 +13,7 @@ import sodium from 'libsodium-wrappers';
 import { lstat, mkdir, mkdtemp, opendir, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { AgentHostWorktreeDiskUsageService } from '../../node/worktreeDiskUsage.js';
+import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
@@ -234,10 +235,10 @@ class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
 class MockAgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 	sessionWorktreeCleanup?: IAgentService['sessionWorktreeCleanup'];
-	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService());
+	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService(undefined, new class extends mock<IAgentHostDatabase>() { }(), new class extends mock<AgentHostStateManager>() { }()));
 
-	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
-		return this._worktreeDiskUsage.measure(root, token);
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
+		return this._worktreeDiskUsage.measure(root, token, session);
 	}
 	readonly handledActions: (SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction)[] = [];
 	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
@@ -2371,6 +2372,21 @@ suite('ProtocolServerHandler', () => {
 			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, result: { sizeBytes: allocatedBytes } });
 		});
 
+		test('routes the advertised session identity to the host size cache', async () => {
+			const sessions: (string | undefined)[] = [];
+			agentService.measureWorktreeDiskUsage = async (_root, _token, session) => {
+				sessions.push(session?.toString());
+				return allocatedBytes;
+			};
+			const transport = connectClient('worktree-cache');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'cached', session: 'other-host:/opaque/session',
+			}));
+			await response;
+			assert.deepStrictEqual(sessions, ['other-host:/opaque/session']);
+		});
+
 		test('allows a protocol measurement to finish after thirty seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			agentService.measureWorktreeDiskUsage = async (_uri, token) => {
 				await raceCancellationError(timeout(30_000), token);
@@ -2409,7 +2425,7 @@ suite('ProtocolServerHandler', () => {
 						active--;
 					}
 				},
-			}));
+			}, new class extends mock<IAgentHostDatabase>() { }(), stateManager));
 			agentService.measureWorktreeDiskUsage = (uri, token) => sharedMeasurements.measure(uri, token);
 			const secondServer = disposables.add(new MockProtocolServer());
 			disposables.add(new ProtocolServerHandler(

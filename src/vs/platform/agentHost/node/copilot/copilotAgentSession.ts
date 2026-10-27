@@ -85,7 +85,7 @@ import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotMod
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
-import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotWorkingDirectoryTrust, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotWorkingDirectoryTrust, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
@@ -1986,6 +1986,13 @@ export class CopilotAgentSession extends Disposable {
 	readonly onMcpNotification = this._onMcpNotification.event;
 	private readonly _onDidRequireAuth = this._register(new Emitter<void>());
 	readonly onDidRequireAuth = this._onDidRequireAuth.event;
+	/**
+	 * Fires when the runtime finishes preparing organization-required plugins,
+	 * which it installs in the background after the session starts. Their
+	 * skills, agents and commands are only visible to discovery afterwards.
+	 */
+	private readonly _onDidChangeRuntimePlugins = this._register(new Emitter<void>());
+	readonly onDidChangeRuntimePlugins = this._onDidChangeRuntimePlugins.event;
 
 	/** In-flight server and MCP App sampling executions, keyed by their SDK cancellation handle. */
 	private readonly _pendingMcpSamplings = new Set<string>();
@@ -2140,6 +2147,7 @@ export class CopilotAgentSession extends Disposable {
 			rotateCertificate: (getConfig, scopeId) => options.sandboxCertificate.rotate(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
 			removeCertificate: async (scopeId, validate) => { await options.sandboxCertificate.remove(this._launchPlan.client.rpc.sandbox.proxyCa, scopeId, validate); },
 			getShellInitDirectory: () => this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
+			getAppliedPluginDirectories: () => this._appliedPluginDirectories,
 			shellManager: options.shellManager,
 			onDidChangeRuntimeConfig: () => this._recordRuntimeMutation('sandboxUpdate'),
 		}));
@@ -3897,6 +3905,14 @@ export class CopilotAgentSession extends Disposable {
 		return this._launchPlan.workspaceless === true;
 	}
 
+	/** How this chat's surface scopes its runtime, so a runtime that replaces it keeps the same scope. */
+	get surface(): CopilotChatSurface {
+		return {
+			...(this._launchPlan.hasScopedEditSurface ? { hasScopedEditSurface: true } : {}),
+			...(this._launchPlan.isInlineChatSurface ? { isInlineChatSurface: true } : {}),
+		};
+	}
+
 	get customizationDirectory(): URI | undefined {
 		return this._customizationDirectory;
 	}
@@ -5214,8 +5230,13 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _adoptPendingMcpAuthentication(serverName: string): Promise<void> | undefined {
+		const pendingRequests = this._attachActiveMcpToolCallsToPendingAuthentication(serverName);
+		return pendingRequests.length ? Promise.all(pendingRequests.map(pending => pending.completion)).then(() => undefined) : undefined;
+	}
+
+	private _attachActiveMcpToolCallsToPendingAuthentication(serverName: string): IPendingMcpAuthRequest[] {
 		const toolCalls = this._activeMcpToolCalls(serverName);
-		const completions: Promise<McpAuthResult | null | undefined>[] = [];
+		const pendingRequests: IPendingMcpAuthRequest[] = [];
 		for (const [requestId, pending] of this._pendingMcpAuthRequests.entries()) {
 			if (pending.serverName !== serverName || !pending.completion) {
 				continue;
@@ -5235,9 +5256,9 @@ export class CopilotAgentSession extends Disposable {
 					}, toolCall.parentToolCallId);
 				}
 			}
-			completions.push(pending.completion);
+			pendingRequests.push(pending);
 		}
-		return completions.length ? Promise.all(completions).then(() => undefined) : undefined;
+		return pendingRequests;
 	}
 
 	private async _handleMcpAuthRequest(request: McpAuthRequest): Promise<McpAuthResult | null | undefined> {
@@ -9316,6 +9337,10 @@ export class CopilotAgentSession extends Disposable {
 			} else {
 				this._emitAction(ready, parentToolCallId);
 			}
+
+			if (mcpServerName) {
+				this._attachActiveMcpToolCallsToPendingAuthentication(mcpServerName);
+			}
 		};
 		this._surfaceProvisionalFusionToolStart = handleToolStart;
 		store.add(wrapper.onToolStart(e => {
@@ -11729,6 +11754,8 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (e.data.infoType === MANAGED_PLUGINS_COMPLETE_EVENT_TYPE && !e.agentId) {
 				this._unshownManagedPluginFailure = undefined;
+				this._slashCommandProvider.clearCache();
+				this._onDidChangeRuntimePlugins.fire();
 			}
 		}));
 
