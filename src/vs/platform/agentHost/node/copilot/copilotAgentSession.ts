@@ -5230,7 +5230,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 			if (pending.copilotConnectorLookup) {
-				await pending.copilotConnectorLookup;
+				await Promise.race([pending.copilotConnectorLookup, pending.completion]);
 				if (this._pendingMcpAuthRequests.getMetadata(requestId) !== pending) {
 					continue;
 				}
