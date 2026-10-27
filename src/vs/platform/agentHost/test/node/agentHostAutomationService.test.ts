@@ -587,6 +587,62 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
+	test('merges concurrent deletion members and receipts every accepted request', async () => {
+		const automation = createAction().resource;
+		const run: AutomationRunState = {
+			resource: 'ahp-automation-run:/concurrent-delete',
+			automation,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString(), completedAt: new Date(0).toISOString() },
+			sessions: ['ahp-session:/first'],
+			primarySession: 'ahp-session:/first',
+		};
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			runs: [run],
+			runProviders: { [run.resource]: 'codex' },
+		});
+		await storageService.whenIdle();
+		const firstStarted = new DeferredPromise<void>();
+		const releaseFirst = new DeferredPromise<void>();
+		const deleted: string[] = [];
+		const service = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider ?? 'codex',
+			deleteSession: async session => {
+				if (session.toString() === 'ahp-session:/first') {
+					firstStarted.complete();
+					await releaseFirst.p;
+				}
+				deleted.push(session.toString());
+			},
+		});
+		await service.handleConfigurationChanged();
+
+		const first = service.deleteAutomation(automation, true, [], 'request-first');
+		await firstStarted.p;
+		const second = service.deleteAutomation(automation, true, [URI.parse('ahp-session:/second')], 'request-second');
+		releaseFirst.complete();
+		const [firstResult, secondResult] = await Promise.all([first, second]);
+		service.dispose();
+		const restarted = createService();
+		const firstReceipt = await restarted.deleteAutomation(automation, true, [], 'request-first');
+		const secondReceipt = await restarted.deleteAutomation(automation, true, [], 'request-second');
+
+		assert.deepStrictEqual({
+			deleted,
+			firstResult,
+			secondResult,
+			firstReceipt,
+			secondReceipt,
+		}, {
+			deleted: ['ahp-session:/first', 'ahp-session:/second'],
+			firstResult: ['ahp-session:/first', 'ahp-session:/second'],
+			secondResult: ['ahp-session:/first', 'ahp-session:/second'],
+			firstReceipt: ['ahp-session:/first', 'ahp-session:/second'],
+			secondReceipt: ['ahp-session:/first', 'ahp-session:/second'],
+		});
+	});
+
 	test('history deletion does not block unrelated Automation mutations', async () => {
 		const automation = createAction().resource;
 		const session = URI.parse('ahp-session:/slow-delete');
