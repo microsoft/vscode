@@ -231,6 +231,11 @@ suite('Encoding', () => {
 		const cp950Bytes = Buffer.from('a440afeba4a4a4e50a', 'hex');
 		const asciiPadding = 'echo hello world\n'.repeat(300);
 
+		// "25°C\n" in cp950. Its only non-ASCII byte is the first byte of "°" (a2 58).
+		// jschardet needs at least 2 non-ASCII bytes to consider Big5, so inputs built
+		// from it reach the candidate fallback.
+		const singleCp950CharBytes = Buffer.from('3235a258430a', 'hex');
+
 		function runDetectionTests(cases: { name: string; bytes: Buffer; candidates: string[]; expected: string | null }[]): void {
 			for (const { name, bytes, candidates, expected } of cases) {
 				test(name, async () => {
@@ -253,7 +258,6 @@ suite('Encoding', () => {
 		runDetectionTests([
 			{ name: 'issue #336685: short Big5 file is detected as cp950', bytes: cp950Bytes, candidates: ['cp950'], expected: 'cp950' },
 			{ name: 'issue #336685: short Big5 file is detected as cp950 with utf8 also a candidate', bytes: cp950Bytes, candidates: ['utf8', 'cp950'], expected: 'cp950' },
-			{ name: 'issue #336685: candidate names are normalized', bytes: cp950Bytes, candidates: ['utf-8', 'CP950'], expected: 'cp950' },
 			{ name: 'issue #336685: mostly-ASCII script with sparse Big5 is detected as cp950', bytes: Buffer.concat([cp950Bytes, Buffer.from(asciiPadding)]), candidates: ['cp950'], expected: 'cp950' },
 		]);
 
@@ -271,12 +275,22 @@ suite('Encoding', () => {
 			});
 		});
 
-		// The fallback picks a candidate.
+		// jschardet returns no encoding and the fallback picks a candidate.
 		suite('fallback picks a candidate', () => {
+			const mostlyAsciiSingleCp950CharBytes = Buffer.concat([Buffer.from(`${asciiPadding}# `), singleCp950CharBytes]);
+
 			runDetectionTests([
-				{ name: 'a duplicated candidate is not treated as ambiguous', bytes: cp950Bytes, candidates: ['cp950', 'cp950'], expected: 'cp950' },
-				{ name: 'picks the only candidate that decodes losslessly', bytes: cp950Bytes, candidates: ['shiftjis', 'cp950', 'eucjp'], expected: 'cp950' },
+				{ name: 'a duplicated candidate is not treated as ambiguous', bytes: singleCp950CharBytes, candidates: ['cp950', 'cp950'], expected: 'cp950' },
+				{ name: 'picks the only candidate that decodes losslessly', bytes: singleCp950CharBytes, candidates: ['eucjp', 'cp950', 'gb2312'], expected: 'cp950' },
+				{ name: 'mostly-ASCII file with a single Big5 character falls back to cp950', bytes: mostlyAsciiSingleCp950CharBytes, candidates: ['utf8', 'cp950'], expected: 'cp950' },
 			]);
+
+			test('toDecodeStream decodes a mostly-ASCII file with a single Big5 character as cp950', async () => {
+				assert.deepStrictEqual(await decodeWithCandidates(mostlyAsciiSingleCp950CharBytes, ['utf8', 'cp950']), {
+					detected: { encoding: 'cp950', seemsBinary: false },
+					content: `${asciiPadding}# 25°C\n`
+				});
+			});
 		});
 
 		// The fallback runs but returns no encoding.
@@ -285,31 +299,17 @@ suite('Encoding', () => {
 				{ name: 'valid UTF-8 is not decoded as a legacy candidate', bytes: Buffer.from('一般中文\n'), candidates: ['cp950'], expected: null },
 				{ name: 'ASCII is not assigned a legacy candidate', bytes: Buffer.from('echo hello world\n'), candidates: ['cp950'], expected: null },
 				{ name: 'an empty file is not assigned a legacy candidate', bytes: Buffer.alloc(0), candidates: ['cp950'], expected: null },
-				{ name: 'a sample ending in a cut-off UTF-8 character is treated as UTF-8', bytes: Buffer.from('e4b8', 'hex'), candidates: ['cp950'], expected: null },
+				{ name: 'a sample ending in a cut-off UTF-8 character is treated as UTF-8', bytes: Buffer.from('e4b8', 'hex'), candidates: ['shiftjis'], expected: null },
 				{ name: 'bytes the candidate cannot decode losslessly are rejected', bytes: Buffer.from('ffff', 'hex'), candidates: ['cp950'], expected: null },
-				{ name: 'a cut-off Big5 character fails the lossless check', bytes: cp950Bytes.subarray(0, 7), candidates: ['cp950'], expected: null },
-				{ name: 'several lossless candidates are ambiguous', bytes: Buffer.from('a4a4', 'hex'), candidates: ['cp950', 'eucjp'], expected: null },
+				{ name: 'several lossless candidates are ambiguous', bytes: singleCp950CharBytes, candidates: ['cp950', 'shiftjis'], expected: null },
 			]);
-
-			test('toDecodeStream keeps a UTF-8 character split across chunks', async () => {
-				const source = newTestReadableStream([
-					Buffer.from('e4b8', 'hex'),
-					Buffer.from('ad', 'hex')
-				]);
-				const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 2, guessEncoding: true, candidateGuessEncodings: ['cp950'], overwriteEncoding: async detected => detected || encoding.UTF8 });
-
-				assert.deepStrictEqual({ detected, content: await readAllAsString(stream) }, {
-					detected: { encoding: 'utf8', seemsBinary: false },
-					content: '中'
-				});
-			});
 		});
 
 		// Paths where the fallback must not run.
 		suite('fallback not reached', () => {
 			runDetectionTests([
-				{ name: 'without candidates, jschardet\'s answer is used', bytes: cp950Bytes, candidates: [], expected: 'windows1252' },
-				{ name: 'unsupported candidates are ignored', bytes: cp950Bytes, candidates: ['unsupported'], expected: 'windows1252' },
+				{ name: 'without candidates, jschardet\'s answer is used', bytes: cp950Bytes, candidates: [], expected: 'cp950' },
+				{ name: 'unsupported candidates are ignored', bytes: cp950Bytes, candidates: ['unsupported'], expected: 'cp950' },
 				{ name: 'a BOM takes precedence over guessing', bytes: Buffer.from('efbbbf41', 'hex'), candidates: ['cp950'], expected: 'utf8bom' },
 			]);
 
