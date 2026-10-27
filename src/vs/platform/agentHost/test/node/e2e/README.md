@@ -648,6 +648,10 @@ Everything else — i.e. the model endpoints `/v1/messages` and `/responses` —
 
 ## Troubleshooting
 
+### Unrecorded `GET /json/version` or `GET /json/list`
+
+Local debugger discovery (for example dbgjs) probes listening HTTP ports to find DevTools targets, including the replay proxy's port. These requests are not provider traffic. The proxy responds with HTTP 404 before record/replay processing, so probes neither enter fixtures nor cause teardown cache misses. Other unknown endpoints and unrecorded model requests still fail strict replay.
+
 ### `[capi-replay] N cache miss(es): POST <endpoint> (call #K) — no recorded response`
 
 The SDK made a model call the fixture doesn't have. Causes:
