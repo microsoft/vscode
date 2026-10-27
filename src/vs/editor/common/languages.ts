@@ -1773,15 +1773,18 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
+/** @internal */
 export interface StructuralDiffTextChange {
 	readonly originalRange: IRange;
 	readonly modifiedRange: IRange;
 }
 
+/** @internal */
 export interface StructuralDiffContext {
 	readonly changes: readonly StructuralDiffTextChange[];
 }
 
+/** @internal */
 export interface StructuralDiffEntity {
 	readonly name: string;
 	readonly detail?: string;
@@ -1791,6 +1794,7 @@ export interface StructuralDiffEntity {
 	readonly selectionRange?: IRange;
 }
 
+/** @internal */
 export enum StructuralDiffClassification {
 	Declaration = 1,
 	Header = 2,
@@ -1799,10 +1803,12 @@ export enum StructuralDiffClassification {
 	Other = 5,
 }
 
+/** @internal */
 export enum StructuralDiffTag {
 	Test = 1,
 }
 
+/** @internal */
 export interface StructuralDiffCoverage {
 	readonly textChangeIndex: number;
 	readonly range: IRange;
@@ -1810,6 +1816,7 @@ export interface StructuralDiffCoverage {
 	readonly tags?: readonly StructuralDiffTag[];
 }
 
+/** @internal */
 export interface StructuralDiffNode {
 	readonly id: string;
 	readonly original?: StructuralDiffEntity;
@@ -1819,11 +1826,13 @@ export interface StructuralDiffNode {
 	readonly children: readonly StructuralDiffNode[];
 }
 
+/** @internal */
 export interface StructuralDiff {
 	readonly root: StructuralDiffNode;
 	readonly isIncomplete: boolean;
 }
 
+/** @internal */
 export interface StructuralDiffProvider {
 	provideStructuralDiff(originalModel: model.ITextModel, modifiedModel: model.ITextModel, context: StructuralDiffContext, token: CancellationToken): ProviderResult<StructuralDiff>;
 }

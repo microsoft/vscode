@@ -75,8 +75,11 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { SCMInputWidget } from './scmInput.js';
+import { SCM_STRUCTURAL_DIFF_ID_PREFIX, SCMStructuralDiffElement, SCMStructuralDiffModel, getSCMStructuralDiffAriaLabel, getSCMStructuralDiffLabel, isSCMStructuralDiffElement } from '../common/scmStructuralDiff.js';
+import { SCMStructuralDiffRenderer, openSCMStructuralDiff } from './scmStructuralDiffRenderer.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 
-type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>;
+type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup> | SCMStructuralDiffElement;
 
 function processResourceFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
 	if (!filterData) {
@@ -692,6 +695,8 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return ActionButtonRenderer.TEMPLATE_ID;
 		} else if (isSCMResourceGroup(element)) {
 			return ResourceGroupRenderer.TEMPLATE_ID;
+		} else if (isSCMStructuralDiffElement(element)) {
+			return SCMStructuralDiffRenderer.TEMPLATE_ID;
 		} else if (isSCMResource(element) || isSCMResourceNode(element)) {
 			return ResourceRenderer.TEMPLATE_ID;
 		} else {
@@ -754,6 +759,12 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 			return isSCMResourceGroup(other) ? 0 : -1;
 		}
 
+		if (isSCMStructuralDiffElement(one) || isSCMStructuralDiffElement(other)) {
+			return isSCMStructuralDiffElement(one) && isSCMStructuralDiffElement(other)
+				? one.order - other.order
+				: isSCMStructuralDiffElement(one) ? 1 : -1;
+		}
+
 		// Resource (List)
 		if (this.viewMode() === ViewMode.List) {
 			// FileName
@@ -804,7 +815,9 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 	) { }
 
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string } | { toString(): string }[] | undefined {
-		if (ResourceTree.isResourceNode(element)) {
+		if (isSCMStructuralDiffElement(element)) {
+			return getSCMStructuralDiffLabel(element);
+		} else if (ResourceTree.isResourceNode(element)) {
 			return element.name;
 		} else if (isSCMRepository(element) || isSCMInput(element) || isSCMActionButton(element)) {
 			return undefined;
@@ -834,7 +847,9 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 }
 
 function getSCMResourceId(element: TreeElement): string {
-	if (isSCMRepository(element)) {
+	if (isSCMStructuralDiffElement(element)) {
+		return element.id;
+	} else if (isSCMRepository(element)) {
 		const provider = element.provider;
 		return `repo:${provider.id}`;
 	} else if (isSCMInput(element)) {
@@ -879,7 +894,9 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 	}
 
 	getAriaLabel(element: TreeElement): string {
-		if (ResourceTree.isResourceNode(element)) {
+		if (isSCMStructuralDiffElement(element)) {
+			return getSCMStructuralDiffAriaLabel(element);
+		} else if (ResourceTree.isResourceNode(element)) {
 			return this.labelService.getUriLabel(element.uri, { relative: true, noPrefix: true }) || element.name;
 		} else if (isSCMRepository(element)) {
 			return `${element.provider.name} ${element.provider.label}`;
@@ -1432,6 +1449,7 @@ export class SCMViewPane extends ViewPane {
 	private scmProviderHasRootUriContextKey: IContextKey<boolean>;
 
 	private readonly disposables = new DisposableStore();
+	private readonly structuralDiff: SCMStructuralDiffModel;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1453,6 +1471,8 @@ export class SCMViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 	) {
 		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		this.structuralDiff = this.disposables.add(instantiationService.createInstance(SCMStructuralDiffModel));
 
 		// View mode and sort key
 		this._viewMode = this.getViewMode();
@@ -1572,6 +1592,7 @@ export class SCMViewPane extends ViewPane {
 					this.updateRepositoryCollapseAllContextKeys();
 				});
 			} else {
+				this.structuralDiff.clear();
 				this.visibilityDisposables.clear();
 				this.onDidChangeVisibleRepositories({ added: Iterable.empty(), removed: [...this.items.keys()] });
 				this.treeScrollTop = this.tree.scrollTop;
@@ -1607,7 +1628,7 @@ export class SCMViewPane extends ViewPane {
 		resourceActionRunner.onWillRun(() => this.tree.domFocus(), this, this.disposables);
 		this.disposables.add(resourceActionRunner);
 
-		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode);
+		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, this.structuralDiff);
 		this.disposables.add(treeDataSource);
 
 		const compressionEnabled = observableConfigValue('scm.compactFolders', true, this.configurationService);
@@ -1623,7 +1644,8 @@ export class SCMViewPane extends ViewPane {
 				this.actionButtonRenderer,
 				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMTitle, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService), resourceActionRunner),
-				this.disposables.add(this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), resourceActionRunner))
+				this.disposables.add(this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), resourceActionRunner)),
+				new SCMStructuralDiffRenderer(),
 			],
 			treeDataSource,
 			{
@@ -1642,6 +1664,8 @@ export class SCMViewPane extends ViewPane {
 					return !(isSCMRepository(e) || isSCMResourceGroup(e) || isSCMResourceNode(e));
 				},
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
+				expandOnlyOnTwistieClick: element => isSCMResource(element) || isSCMStructuralDiffElement(element)
+					|| this.configurationService.getValue<string>('workbench.tree.expandMode') === 'doubleClick',
 				twistieAdditionalCssClass: (e: unknown) => {
 					if (isSCMActionButton(e) || isSCMInput(e)) {
 						return 'force-no-twistie';
@@ -1654,6 +1678,13 @@ export class SCMViewPane extends ViewPane {
 		this.disposables.add(this.tree);
 
 		this.tree.onDidOpen(this.open, this, this.disposables);
+		this.structuralDiff.onDidChange(resource => this.updateStructuralChildren(resource), this, this.disposables);
+		this.tree.onDidChangeCollapseState(e => {
+			const element = e.node.element?.element;
+			if (e.node.collapsed && isSCMResource(element)) {
+				this.structuralDiff.release(element);
+			}
+		}, this, this.disposables);
 		this.tree.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer, this.disposables);
 		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element?.element), this.disposables)(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
@@ -1701,6 +1732,18 @@ export class SCMViewPane extends ViewPane {
 		} else if (isSCMResourceGroup(e.element)) {
 			const provider = e.element.provider;
 			const repository = Iterable.find(this.scmService.repositories, r => r.provider === provider);
+			if (repository) {
+				this.scmViewService.focus(repository);
+			}
+			return;
+		} else if (isSCMStructuralDiffElement(e.element)) {
+			const element = e.element;
+			if (element.type === 'structuralDiffStatus' || !this.structuralDiff.isCurrent(element)) {
+				return;
+			}
+			const resource = element.resource;
+			await openSCMStructuralDiff(element, e.editorOptions, this.editorService, () => this.structuralDiff.isCurrent(element), e.sideBySide);
+			const repository = Iterable.find(this.scmService.repositories, repository => repository.provider === resource.resourceGroup.provider);
 			if (repository) {
 				this.scmViewService.focus(repository);
 			}
@@ -1763,8 +1806,11 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		// Do not set focus/selection when the resource is already focused and selected
-		if (this.tree.getFocus().some(e => isSCMResource(e) && this.uriIdentityService.extUri.isEqual(e.sourceUri, uri)) &&
-			this.tree.getSelection().some(e => isSCMResource(e) && this.uriIdentityService.extUri.isEqual(e.sourceUri, uri))) {
+		const representsResource = (element: TreeElement) => {
+			const resource = isSCMResource(element) ? element : isSCMStructuralDiffElement(element) ? element.resource : undefined;
+			return resource !== undefined && this.uriIdentityService.extUri.isEqual(resource.sourceUri, uri);
+		};
+		if (this.tree.getFocus().some(representsResource) && this.tree.getSelection().some(representsResource)) {
 			return;
 		}
 
@@ -1817,6 +1863,7 @@ export class SCMViewPane extends ViewPane {
 			const onDidChangeResourceGroups = () => {
 				for (const [resourceGroup] of resourceGroupDisposables) {
 					if (!repository.provider.groups.includes(resourceGroup)) {
+						this.structuralDiff.invalidateGroup(resourceGroup);
 						resourceGroupDisposables.deleteAndDispose(resourceGroup);
 					}
 				}
@@ -1826,7 +1873,10 @@ export class SCMViewPane extends ViewPane {
 						const disposableStore = new DisposableStore();
 
 						disposableStore.add(resourceGroup.onDidChange(() => this.updateChildren(repository)));
-						disposableStore.add(resourceGroup.onDidChangeResources(() => this.updateChildren(repository)));
+						disposableStore.add(resourceGroup.onDidChangeResources(() => {
+							this.structuralDiff.invalidateGroup(resourceGroup);
+							this.updateChildren(repository);
+						}));
 						resourceGroupDisposables.set(resourceGroup, disposableStore);
 					}
 				}
@@ -1840,6 +1890,7 @@ export class SCMViewPane extends ViewPane {
 
 		// Removed repositories
 		for (const repository of removed) {
+			this.structuralDiff.invalidateProvider(repository.provider);
 			this.items.deleteAndDispose(repository);
 		}
 
@@ -1860,6 +1911,9 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		const element = e.element;
+		if (isSCMStructuralDiffElement(element)) {
+			return;
+		}
 		let context: unknown = element;
 		let actions: IAction[] = [];
 
@@ -1973,8 +2027,30 @@ export class SCMViewPane extends ViewPane {
 
 	private storeTreeViewState() {
 		if (this.tree) {
-			this.storageService.store('scm.viewState2', JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			const state = this.tree.getViewState();
+			const isPersistent = (id: string) => !id.startsWith(SCM_STRUCTURAL_DIFF_ID_PREFIX);
+			this.storageService.store('scm.viewState2', JSON.stringify({
+				...state,
+				focus: state.focus?.filter(isPersistent),
+				selection: state.selection?.filter(isPersistent),
+				expanded: state.expanded?.filter(isPersistent),
+			}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
+	}
+
+	private updateStructuralChildren(resource: ISCMResource | undefined): void {
+		if (!this.isBodyVisible()) {
+			return;
+		}
+		if (!resource) {
+			this.updateChildren();
+			return;
+		}
+		this.treeOperationSequencer.queue(async () => {
+			if (this.tree.hasNode(resource)) {
+				await this.tree.updateChildren(resource, true, true);
+			}
+		}).catch(onUnexpectedError);
 	}
 
 	private updateChildren(element?: ISCMRepository) {
@@ -2186,9 +2262,10 @@ export class SCMViewPane extends ViewPane {
 	}
 }
 
-class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewService, TreeElement> {
+export class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewService, TreeElement> {
 	constructor(
 		private readonly viewMode: () => ViewMode,
+		private readonly structuralDiff: SCMStructuralDiffModel,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService
 	) {
@@ -2252,13 +2329,19 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 			}
 
 			return children;
+		} else if (isSCMResource(inputOrElement)) {
+			return this.structuralDiff.getChildren(inputOrElement);
+		} else if (isSCMStructuralDiffElement(inputOrElement)) {
+			return inputOrElement.type === 'structuralDiff' ? inputOrElement.children : [];
 		}
 
 		return [];
 	}
 
 	getParent(element: TreeElement): ISCMViewService | TreeElement {
-		if (isSCMResourceNode(element)) {
+		if (isSCMStructuralDiffElement(element)) {
+			return element.parent;
+		} else if (isSCMResourceNode(element)) {
 			if (element.parent === element.context.resourceTree.root) {
 				return element.context;
 			} else if (element.parent) {
@@ -2313,7 +2396,9 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 		} else if (isSCMResourceGroup(inputOrElement)) {
 			return true;
 		} else if (isSCMResource(inputOrElement)) {
-			return false;
+			return this.structuralDiff.hasChildren(inputOrElement);
+		} else if (isSCMStructuralDiffElement(inputOrElement)) {
+			return inputOrElement.type === 'structuralDiff' && inputOrElement.children.length > 0;
 		} else if (ResourceTree.isResourceNode(inputOrElement)) {
 			return inputOrElement.childrenCount > 0;
 		} else {

@@ -123,6 +123,8 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 		content.push(localize('scm-msg3', "Once the Source Control view is opened you can:"));
 		content.push(localize('scm-msg4', " - Use the up/down arrow keys to navigate the list of repositories, resource groups and resources."));
 		content.push(localize('scm-msg5', " - Use the Space key to expand or collapse a resource group."));
+		content.push(localize('scm-structural-msg1', " - Files with a structural diff provider can be expanded with the right arrow key to show changed symbols. Use the left arrow key to collapse them."));
+		content.push(localize('scm-structural-msg2', " - Press Enter on a changed symbol to open its file diff at that symbol. Deleted symbols open on the original side. File-level actions continue to apply to file rows."));
 
 		// Source Control Graph
 		content.push(localize('scm-graph-msg1', "Use the \"Source Control: Focus on Source Control Graph View\" command to open the Source Control Graph view."));
