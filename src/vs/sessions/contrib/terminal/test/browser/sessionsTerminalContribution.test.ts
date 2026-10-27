@@ -2363,6 +2363,8 @@ suite('Sessions Terminal - Session Activity Bar', () => {
 	test('shows the terminal before the panel toggle in the panel group of the session activity bar', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(isIMenuItem)
 			.filter(item => item.group === SessionActivityBarGroup.Panel)
+			// The entries of chat windows show only in chat windows.
+			.filter(item => !item.when?.keys().includes('sessions.chatWindowHasEditorArea'))
 			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 		const terminal = items.find(item => item.command.id === TerminalCommandId.Focus);
 		const evaluate = (expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>) => expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;

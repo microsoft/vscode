@@ -7,14 +7,14 @@ import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isNative } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { DeepPartial } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -23,6 +23,7 @@ import { hasCustomTitlebar } from '../../../../platform/window/common/window.js'
 import { IEditorGroupViewOptions } from '../../../../workbench/browser/parts/editor/editor.js';
 import { IAuxiliaryTitlebarPart } from '../../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { EditorCloseContext, EditorsOrder, GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
+import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../../../workbench/services/editor/browser/editorPartWindowBinding.js';
@@ -40,7 +41,7 @@ import { IsQuickChatSessionContext, SessionWorkspaceIsVirtualContext } from '../
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { computeSessionGridLayout, SessionGridCell, SessionLayoutMode, SessionTerminalPosition } from '../../../common/sessionGridLayout/sessionGridLayout.js';
-import { ChatWindowContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowHasEditorContext, ChatWindowHasSessionActivityBarContext, ChatWindowHasSessionHeaderContext, ChatWindowIdContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalPositionContext, ChatWindowTerminalShownContext, IChatWindow, IChatWindowContent, IChatWindowEditorArea, IChatWindowHandle, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, isChatWindowHandle, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowHasEditorContext, ChatWindowHasSessionActivityBarContext, ChatWindowHasSessionHeaderContext, ChatWindowIdContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalPositionContext, ChatWindowTerminalShownContext, IChatWindow, IChatWindowContent, IChatWindowEditorArea, IChatWindowHandle, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost, isChatWindowHandle, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ISessionsPartService, IWindowSessionViewHost } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
@@ -50,6 +51,7 @@ import { ChatModelHold, closeChatWindowsOfGoneChats, followReplacedWindowSession
 import { deserializeChatWindowEditors, serializeChatWindowEditors } from './chatWindowEditors.js';
 import { ChatWindowCellView, ChatWindowCellSizing, ChatWindowGridHost, IChatWindowCellConstraints } from './chatWindowGridHost.js';
 import { ChatWindowInputOnlyController } from './chatWindowInputOnly.js';
+import { ChatWindowTerminals, releaseChatWindowTerminalsOnUnload } from './chatWindowTerminals.js';
 import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from './chatWindowState.js';
 
 /** The size of a chat window, unless its kind has one. */
@@ -139,6 +141,15 @@ export function createChatWindowSessionViewHost(focusWindow: () => void, focusCh
 	};
 }
 
+/**
+ * The context of a chat window, scoped to the body of its document rather than to its container: keys pressed while no
+ * element of the window has focus, such as after its terminals hid, resolve in the chat window's context, so that its
+ * keybindings, and never the main window's for the same keys, apply.
+ */
+export function createChatWindowContextKeyService(contextKeyService: IContextKeyService, auxiliaryWindow: { readonly window: { readonly document: Document }; readonly container: HTMLElement }): IScopedContextKeyService {
+	return contextKeyService.createScoped(auxiliaryWindow.window.document.body);
+}
+
 /** What the chat window binds for its menus, keybindings and title bar on a context key service of its own. */
 interface IChatWindowContextValues {
 	readonly kind: IChatWindowKind;
@@ -156,6 +167,8 @@ interface IChatWindowContextValues {
  */
 export function bindChatWindowContext(contextKeyService: IContextKeyService, values: IChatWindowContextValues): IDisposable {
 	const store = new DisposableStore();
+	// An auxiliary window: what applies to the main window only, such as its panel and side panel toggles, does not apply here.
+	IsAuxiliaryWindowContext.bindTo(contextKeyService).set(true);
 	ChatWindowContext.bindTo(contextKeyService).set(values.kind.id);
 	ChatWindowIdContext.bindTo(contextKeyService).set(values.windowId);
 	ChatWindowHasSessionHeaderContext.bindTo(contextKeyService).set(values.kind.showSessionHeader ?? true);
@@ -230,6 +243,8 @@ class ChatWindow implements IChatWindow {
 
 	readonly terminalShown: IObservable<boolean>;
 
+	private _terminals: ChatWindowTerminals | undefined;
+
 	private _closed = false;
 	/** Set while it closes, so that editors closing with it do not change its layout. */
 	closing = false;
@@ -259,6 +274,24 @@ class ChatWindow implements IChatWindow {
 	get inputOnly(): IObservable<boolean> { return this.state.inputOnly; }
 	get terminalPosition(): IObservable<SessionTerminalPosition> { return this.state.terminalPosition; }
 	get editorGroup(): IEditorGroup | undefined { return this.editorArea?.activeGroup; }
+	get terminalGroup(): IObservable<IEditorGroup | undefined> { return this._terminals?.group ?? constObservable(undefined); }
+	get terminals(): ChatWindowTerminals | undefined { return this._terminals; }
+
+	attachTerminals(terminals: ChatWindowTerminals): void {
+		this._terminals = terminals;
+	}
+
+	setTerminalShown(shown: boolean, options?: { readonly focus?: boolean }): Promise<void> {
+		return this._terminals?.setShown(shown, options?.focus ?? false) ?? Promise.resolve();
+	}
+
+	addTerminal(): Promise<void> {
+		return this._terminals?.addTerminal() ?? Promise.resolve();
+	}
+
+	showTerminal(instanceId: number): Promise<boolean> {
+		return this._terminals?.showTerminal(instanceId) ?? Promise.resolve(false);
+	}
 
 	setSession(session: IActiveSession | undefined): void {
 		this._session.set(session, undefined);
@@ -316,8 +349,11 @@ class ChatWindow implements IChatWindow {
 			return true;
 		}
 		this.closing = true;
+		// Its terminals keep running for its session: closing their part would end them.
+		this._terminals?.release();
 		if (!this._closeParts()) {
 			this.closing = false;
+			this._terminals?.reclaim();
 			return false;
 		}
 		this.auxiliaryWindow.window.close();
@@ -337,6 +373,25 @@ class ChatWindow implements IChatWindow {
 	}
 }
 
+/**
+ * The chat window an action acts on: the one its context names by handle, or whose editor parts (`partsOf`) hold the
+ * editor group its context names, such as the editor title toolbar of its terminals; without either, such as from a
+ * keybinding or the Command Palette, the chat window whose window is active.
+ */
+export function resolveChatWindowFromContext<T extends { readonly windowId: number }>(windows: readonly T[], partsOf: (window: T) => readonly ({ readonly groups: readonly { readonly id: number }[] } | undefined)[], context: unknown, activeWindowId: number): T | undefined {
+	if (isChatWindowHandle(context)) {
+		return windows.find(window => window.windowId === context.chatWindowId);
+	}
+	const groupId = (context as { readonly groupId?: unknown } | undefined)?.groupId;
+	if (typeof groupId === 'number') {
+		const window = windows.find(candidate => partsOf(candidate).some(part => part?.groups.some(group => group.id === groupId)));
+		if (window) {
+			return window;
+		}
+	}
+	return windows.find(window => window.windowId === activeWindowId);
+}
+
 export class ChatWindowService extends Disposable implements IChatWindowService {
 
 	declare readonly _serviceBrand: undefined;
@@ -350,6 +405,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 	/** What each chat window holds on to while its view binds to the chat: the loaded model of the chat; see {@link ChatModelHold}. */
 	private readonly _heldChats = new Map<ChatWindow, ChatModelHold>();
+
+	private _terminalHost: IChatWindowTerminalHost | undefined;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -390,11 +447,20 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	}
 
 	resolveWindow(context: unknown): IChatWindow | undefined {
-		if (isChatWindowHandle(context)) {
-			return this.getWindow(context.chatWindowId);
+		return resolveChatWindowFromContext(this._windows.get(), window => [window.editorArea, window.terminals?.part], context, getActiveWindow().vscodeWindowId);
+	}
+
+	registerTerminalHost(host: IChatWindowTerminalHost): IDisposable {
+		this._terminalHost = host;
+		// Terminals restored before it registered.
+		for (const window of this._windows.get()) {
+			window.terminals?.showAgain();
 		}
-		// Without a handle, such as from a keybinding or the Command Palette: the chat window whose window is active.
-		return this.getWindow(getActiveWindow().vscodeWindowId);
+		return toDisposable(() => {
+			if (this._terminalHost === host) {
+				this._terminalHost = undefined;
+			}
+		});
 	}
 
 	/** The chat a window shows: the one asked for, or the main chat of its session. */
@@ -446,7 +512,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		container.classList.add('chat-window');
 
 		// The window's own context, which its title bar, its chat and its Session Activity Bar are scoped to.
-		const windowContextKeyService = disposables.add(this._contextKeyService.createScoped(container));
+		const windowContextKeyService = disposables.add(createChatWindowContextKeyService(this._contextKeyService, auxiliaryWindow));
 
 		// The editor area, created first: the title bar shows its editors' title, and what the chat opens goes to it.
 		const parts: IEmbeddedEditorPart[] = [];
@@ -481,6 +547,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		// closing with the window must not change its layout.
 		let unloading = false;
 		disposables.add(auxiliaryWindow.onUnload(() => unloading = true));
+		// Its terminals keep running for its session as it closes, and not before: closing their part would end them.
+		disposables.add(releaseChatWindowTerminalsOnUnload(auxiliaryWindow, () => window.terminals));
 		disposables.add(bindEditorPartsToWindow(auxiliaryWindow, parts, this._editorGroupsService));
 
 		// What the chat opens, such as files and its changes, opens in the editor area.
@@ -613,6 +681,19 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 		const window = new ChatWindow(state, auxiliaryWindow, editorArea, sessionView, content, sessionObs, () => parts.every(part => part.close()));
 		window.attachInputOnly(inputOnly);
+		const terminals = disposables.add(this._instantiationService.createInstance(ChatWindowTerminals, {
+			window,
+			state,
+			cell: cells.get(SessionGridCell.Terminals)!,
+			parts,
+			bindContext: contextKeyService => disposables.add(bindChatWindowContext(contextKeyService, contextValues)),
+			isClosing: () => window.closing || unloading || disposables.isDisposed,
+			container,
+		}, () => this._terminalHost));
+		window.attachTerminals(terminals);
+		if (editorArea) {
+			disposables.add(terminals.trackEditorArea(editorArea));
+		}
 
 		if (editorArea) {
 			const part = editorArea;
@@ -665,7 +746,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			}
 		}
 		if (options?.showTerminal && hasEditorArea) {
-			state.setTerminalShown(true);
+			void terminals.setShown(true, false);
 		}
 		return window;
 	}
