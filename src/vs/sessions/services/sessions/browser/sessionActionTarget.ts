@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IChatWindowService, isChatWindowHandle } from '../../chatWindow/browser/chatWindowService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IReader } from '../../../../base/common/observable.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -26,6 +27,16 @@ export function findSessionByResource(sessionsService: ISessionsService, resourc
 }
 
 /**
+ * Finds the session of the window of its own that shows `chatResource`, whichever chat of its session is active;
+ * without such a window, the session shown for `resource` as {@link findSessionByResource} finds it.
+ */
+export function findSessionByChatOrResource(sessionsService: ISessionsService, resource: URI, chatResource: URI | undefined, reader?: IReader): IActiveSession | undefined {
+	const key = chatResource?.toString();
+	return (key !== undefined ? sessionsService.windowSessions.read(reader).find(session => session.scopedChatResource?.toString() === key) : undefined)
+		?? findSessionByResource(sessionsService, resource, reader);
+}
+
+/**
  * Resolves the session a session action operates on from the argument the
  * action was invoked with: a session, a `{ session }` context, or the resource
  * of a visible session. Without an argument the action falls back to the
@@ -36,6 +47,10 @@ export function findSessionByResource(sessionsService: ISessionsService, resourc
 export function resolveSessionActionTarget(accessor: ServicesAccessor, arg?: unknown): IActiveSession | undefined {
 	if (isSession(arg)) {
 		return arg;
+	}
+	if (isChatWindowHandle(arg)) {
+		// From a chat window: the session of that window, not the one that happens to be active.
+		return accessor.get(IChatWindowService).getWindow(arg.chatWindowId)?.session.get();
 	}
 	const sessionsService = accessor.get(ISessionsService);
 	const activeSession = sessionsService.activeSession.get();

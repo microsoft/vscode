@@ -14,11 +14,13 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { EditorCloseContext, GroupModelChangeKind, IEditorCloseEvent } from '../../../../../workbench/common/editor.js';
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
-import { IEditorGroup, IEmbeddedEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ICreateEditorPartOptions, IEditorGroup, IEditorGroupsService, IEmbeddedEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
 import { SessionLayoutMode, SessionTerminalPosition } from '../../../../common/sessionGridLayout/sessionGridLayout.js';
 import { ChatWindowContext, ChatWindowEditorGroupContext, ChatWindowIdContext, ChatWindowTerminalPositionContext, IChatWindowKind, SessionLayoutModeContext } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { bindChatWindowContext, chatWindowPartOptions, createChatWindowSessionViewHost, trackEditorAreaEditors } from '../../browser/chatWindowService.js';
+import { bindChatWindowContext, chatWindowPartOptions, createChatWindowEditorArea, createChatWindowServices, createChatWindowSessionViewHost, trackEditorAreaEditors } from '../../browser/chatWindowService.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../browser/chatWindowState.js';
 
 suite('Chat window', () => {
@@ -101,5 +103,21 @@ suite('Chat window', () => {
 			{ doubleClickTabToToggleEditorGroupSizes: 'off' },
 			{ doubleClickTabToToggleEditorGroupSizes: 'off', showTabs: 'single' },
 		]);
+	});
+	test('its editor area is created in its window, which it belongs to, and it and the editors and actions in it act on the window\'s session, not on the main window\'s', () => {
+		const session = observableValue<IActiveSession | undefined>('session', undefined);
+		const scope: ISessionScope = { _serviceBrand: undefined, session };
+		let services: ServiceCollection | undefined;
+		let inWindow = false;
+		const windowContainer = $('div');
+		const editorGroupsService = new class extends mock<IEditorGroupsService>() {
+			override createEditorPart(options: ICreateEditorPartOptions) {
+				services = options.services;
+				inWindow = (options.container as HTMLElement).parentElement === windowContainer;
+				return new class extends mock<IEmbeddedEditorPart>() { }();
+			}
+		}();
+		createChatWindowEditorArea(editorGroupsService, windowContainer, createChatWindowServices(scope));
+		assert.deepStrictEqual({ scope: (services?.get(ISessionScope) as ISessionScope | undefined)?.session === session, inWindow }, { scope: true, inWindow: true });
 	});
 });

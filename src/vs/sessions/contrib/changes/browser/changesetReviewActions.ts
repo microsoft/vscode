@@ -15,7 +15,7 @@ import { getChangesOfSession, IChangesViewService } from '../common/changesViewS
 import { findChangesEditorFileChange, getChangesEditorFileResource } from './changesEditorLabels.js';
 import { SessionChangesFileResourceContext } from './changesMultiDiffSourceResolver.js';
 import { ChangesetReviewedFilesContext, ChangesetReviewSupportContext } from './changesViewService.js';
-import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor } from './sessionChangesEditor.js';
+import { CHANGESET_REVIEW_ACTION_ID, getFileActionEditorPane, SessionChangesEditor } from './sessionChangesEditor.js';
 
 export class ChangesetReviewAction extends Action2 {
 	constructor() {
@@ -63,7 +63,7 @@ export class ChangesetReviewAction extends Action2 {
 			return;
 		}
 
-		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+		const activeEditorPane = getFileActionEditorPane(accessor.get(IEditorService), args);
 		const fileResource = getChangesEditorFileResource(change);
 		const review = !change.reviewed;
 

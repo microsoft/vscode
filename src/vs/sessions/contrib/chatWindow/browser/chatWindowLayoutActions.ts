@@ -8,14 +8,16 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { registerLayoutButtons, SessionLayoutButton, sessionLayoutModeTitles } from '../../../browser/sessionLayoutButtons.js';
+import { SessionActivityBarLayoutActionsContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { SessionLayoutMode } from '../../../common/sessionGridLayout/sessionGridLayout.js';
-import { CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowContext, ChatWindowHasEditorAreaContext, IChatWindow, IChatWindowService, SessionLayoutModeContext, SessionSplitLayoutContext } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowContext, ChatWindowHasEditorAreaContext, ChatWindowHasSessionActivityBarContext, IChatWindow, IChatWindowService, SessionLayoutModeContext, SessionSplitLayoutContext } from '../../../services/chatWindow/browser/chatWindowService.js';
 
 /** A layout mode as offered to the user. */
 export interface IChatWindowLayoutModeChoice {
@@ -31,26 +33,22 @@ export interface IChatWindowLayoutModeChoice {
 export const chatWindowLayoutModeChoices: readonly IChatWindowLayoutModeChoice[] = [{
 	mode: SessionLayoutMode.ChatOnly,
 	id: 'sessions.chatWindow.showChatOnly',
-	title: localize2('chatWindowLayoutChatOnly', "Show Chat Only"),
-	shortTitle: localize('chatWindowLayoutChatOnly.short', "Chat Only"),
+	...sessionLayoutModeTitles[SessionLayoutMode.ChatOnly],
 	icon: Codicon.layoutSidebarLeft,
 }, {
 	mode: SessionLayoutMode.EditorOnly,
 	id: 'sessions.chatWindow.showEditorOnly',
-	title: localize2('chatWindowLayoutEditorOnly', "Show Editor Only"),
-	shortTitle: localize('chatWindowLayoutEditorOnly.short', "Editor Only"),
+	...sessionLayoutModeTitles[SessionLayoutMode.EditorOnly],
 	icon: Codicon.layoutSidebarRight,
 }, {
 	mode: SessionLayoutMode.Stacked,
 	id: 'sessions.chatWindow.showEditorAboveChat',
-	title: localize2('chatWindowLayoutStacked', "Show Chat and Editor Stacked"),
-	shortTitle: localize('chatWindowLayoutStacked.short', "Stacked"),
+	...sessionLayoutModeTitles[SessionLayoutMode.Stacked],
 	icon: Codicon.splitVertical,
 }, {
 	mode: SessionLayoutMode.SideBySide,
 	id: 'sessions.chatWindow.showSideBySide',
-	title: localize2('chatWindowLayoutSideBySide', "Show Chat and Editor Side by Side"),
-	shortTitle: localize('chatWindowLayoutSideBySide.short', "Side by Side"),
+	...sessionLayoutModeTitles[SessionLayoutMode.SideBySide],
 	icon: Codicon.splitHorizontal,
 }];
 
@@ -212,14 +210,28 @@ registerAction2(class ToggleChatWindowConversationAction extends Action2 {
 	}
 });
 
-// The Layout menu in the title bar of a chat window, which reads the layout it shows.
-for (const choice of chatWindowLayoutModeChoices) {
-	MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
-		submenu: Menus.ChatWindowLayout,
-		title: localize('chatWindowLayoutMenu', "Layout: {0}", choice.shortTitle),
-		icon: Codicon.layout,
-		group: 'navigation',
-		order: -1,
-		when: ContextKeyExpr.and(ChatWindowLayoutContext, SessionLayoutModeContext.isEqualTo(choice.mode)),
-	});
-}
+// One entry point to the Layout menu of a chat window: in its title bar, or in its Session Activity Bar while the strip shows
+// the layout actions, as the main window's does. The Layout menu ends the layout actions, after the buttons the user shows.
+const ChatWindowStripLayoutContext = ContextKeyExpr.and(ChatWindowHasSessionActivityBarContext, SessionActivityBarLayoutActionsContext)!;
+const ChatWindowTitleBarLayoutContext = ContextKeyExpr.or(ChatWindowHasSessionActivityBarContext.negate(), SessionActivityBarLayoutActionsContext.negate())!;
+const CHAT_WINDOW_LAYOUT_MENU_ORDER = 100;
+// The Layout menu, and the buttons of its actions that the user promoted, in every window shared with the main window's.
+registerLayoutButtons({
+	layoutMenu: Menus.ChatWindowLayout,
+	layoutMenuTitles: chatWindowLayoutModeChoices.map(choice => ({ title: localize('chatWindowLayoutMenu', "Layout: {0}", choice.shortTitle), when: SessionLayoutModeContext.isEqualTo(choice.mode) })),
+	buttonMenus: [
+		{ menu: Menus.ChatWindowTitleBarLayout, group: 'navigation', order: 0, when: ChatWindowTitleBarLayoutContext },
+		{ menu: Menus.SessionActivityBar, group: SessionActivityBarGroup.ChatWindowLayout, order: CHAT_WINDOW_LAYOUT_MENU_ORDER, when: ChatWindowStripLayoutContext },
+	],
+	when: ChatWindowLayoutContext,
+	commandIds: {
+		[SessionLayoutButton.Chat]: TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID,
+		[SessionLayoutButton.Editor]: CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID,
+		[SessionLayoutButton.Arrangement]: TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID,
+	},
+	state: {
+		chatShown: SessionLayoutModeContext.notEqualsTo(SessionLayoutMode.EditorOnly),
+		editorShown: SessionLayoutModeContext.notEqualsTo(SessionLayoutMode.ChatOnly),
+		stacked: SessionSplitLayoutContext.isEqualTo(SessionLayoutMode.Stacked),
+	},
+});

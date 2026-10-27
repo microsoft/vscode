@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -14,6 +14,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { IChangesSessionScope } from '../common/changesViewService.js';
 import { bindSessionActionContextKeys } from './sessionActionContextKeys.js';
+import { bindChangesetContextKeys } from './changesViewService.js';
 
 /**
  * Creates an instantiation service whose context key service evaluates the
@@ -24,14 +25,25 @@ import { bindSessionActionContextKeys } from './sessionActionContextKeys.js';
 export function createSessionActionsInstantiationService(instantiationService: IInstantiationService, container: HTMLElement, scope: IChangesSessionScope): { readonly instantiationService: IInstantiationService; readonly store: DisposableStore } {
 	const store = new DisposableStore();
 	const scopedContextKeyService = store.add(instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService)).createScoped(container));
-	store.add(autorun(reader => setActiveSessionContextKeys(scope.session.read(reader), scopedContextKeyService, reader)));
+	store.add(bindSessionScopeContextKeys(instantiationService, scope, scopedContextKeyService));
+	return { instantiationService: instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]), store), store };
+}
+
+/**
+ * Binds the context keys that the session actions, and the menus that show them, read for the session of `scope` on
+ * `contextKeyService`, in place of those of the active session it would otherwise inherit.
+ */
+export function bindSessionScopeContextKeys(instantiationService: IInstantiationService, scope: IChangesSessionScope, contextKeyService: IContextKeyService): IDisposable {
+	const store = new DisposableStore();
+	store.add(autorun(reader => setActiveSessionContextKeys(scope.session.read(reader), contextKeyService, reader)));
 	// Every key the host's menus read must be bound for the scoped session, or it is inherited from the active one.
-	store.add(bindHasWorktreeAndRepositoryContextKey(scopedContextKeyService, scope.session));
-	store.add(instantiationService.invokeFunction(accessor => bindIsAgentHostSessionContextKey(scopedContextKeyService, scope.session, accessor.get(ISessionsProvidersService))));
+	store.add(bindHasWorktreeAndRepositoryContextKey(contextKeyService, scope.session));
+	store.add(instantiationService.invokeFunction(accessor => bindIsAgentHostSessionContextKey(contextKeyService, scope.session, accessor.get(ISessionsProvidersService))));
+	store.add(bindChangesetContextKeys(scope.changes, contextKeyService));
 	store.add(instantiationService.invokeFunction(accessor => bindSessionActionContextKeys(instantiationService, {
 		session: scope.session,
 		changes: scope.changes,
 		pullRequest: accessor.get(IGitHubService).getSessionPullRequest(scope.session),
-	}, scopedContextKeyService)));
-	return { instantiationService: instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]), store), store };
+	}, contextKeyService)));
+	return store;
 }

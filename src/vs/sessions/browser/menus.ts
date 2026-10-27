@@ -33,6 +33,11 @@ export const Menus = {
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
 	/** The Layout menu of a chat window: how it shows its chat and its editor area. */
 	ChatWindowLayout: new MenuId('SessionsChatWindowLayout'),
+	/**
+	 * The layout actions in the title bar of a chat window: its Layout menu, and a button for each of its actions, hidden
+	 * until the user shows it from the context menu of the buttons.
+	 */
+	ChatWindowTitleBarLayout: new MenuId('SessionsChatWindowTitleBarLayout'),
 	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
@@ -95,6 +100,8 @@ export const Menus = {
 	SessionGroupContext: new MenuId('SessionsSessionGroupContext'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
+	/** The actions at the right of the header row of an editor in the editor area of a chat window, such as of the Changes editor. */
+	SessionsEditorHeaderSecondary: new MenuId('SessionsEditorHeaderSecondary'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
@@ -144,6 +151,8 @@ export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarT
 
 /** The groups of {@link Menus.SessionActivityBar}, top to bottom, each set apart by a separator. */
 export const SessionActivityBarGroup = {
+	/** The layout actions of a chat window, at the top of its Session Activity Bar while it shows the layout actions. */
+	ChatWindowLayout: '0_chatWindowLayout',
 	/** The side panel toggle, followed by the entries that open its tabs. */
 	SidePanel: '1_sidePanel',
 	/** The terminal, followed by the panel toggle. */

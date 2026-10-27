@@ -40,6 +40,7 @@ suite('Session Actions Host', () => {
 			changes: upcastPartial<IChangesSessionObservables>({
 				changesObs: constObservable([]),
 				changesetsLoadingObs: constObservable(false),
+				changesetOperationsObs: constObservable([]),
 				loadingObs: constObservable(false),
 				changesetObs: constObservable(changeset),
 				stateObs: constObservable(upcastPartial<ActiveSessionState>({ hasOpenPullRequest: true })),
@@ -70,6 +71,7 @@ suite('Session Actions Host', () => {
 			changes: upcastPartial<IChangesSessionObservables>({
 				changesObs: constObservable([]),
 				changesetsLoadingObs: constObservable(false),
+				changesetOperationsObs: constObservable([]),
 				loadingObs: constObservable(false),
 				changesetObs: constObservable(undefined),
 				stateObs: constObservable(upcastPartial<ActiveSessionState>({})),
