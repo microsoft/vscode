@@ -780,7 +780,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.WINDOW,
 			description: localize('sessions.chat.experimental.newSessionComposerLayout', "Controls whether the new-session composer groups workspace, repository, and harness controls above the chat input. This setting only applies when the unified workspace picker is enabled."),
 			tags: ['experimental'],
-			experiment: { mode: 'auto' },
 		},
 		[WORKSPACE_OPT_OUT_SETTING]: {
 			type: 'boolean',
