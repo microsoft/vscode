@@ -518,6 +518,35 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * Find out if the editor layout is currently centered.
 	 */
 	isLayoutCentered(): boolean;
+
+	/**
+	 * Hides the title of a group of the part: its tabs, or the
+	 * label of its editor, and its actions, so its editor fills it.
+	 * For a group whose editor shows its own chrome, while other
+	 * groups of the part show tabs. Shows the title again when the
+	 * returned disposable is disposed.
+	 */
+	hideGroupTitle(group: IEditorGroup | GroupIdentifier): IDisposable;
+
+	/**
+	 * Maximizes `group` as {@link IEditorGroupsContainer.arrangeGroups} with {@link GroupsArrangement.MAXIMIZE} does,
+	 * but keeps `visibleGroups` shown beside it.
+	 */
+	maximizeGroup(group: IEditorGroup | GroupIdentifier, visibleGroups: readonly (IEditorGroup | GroupIdentifier)[]): void;
+
+	/**
+	 * The group of the part that numbered view columns, such as an extension's
+	 * `ViewColumn.One`, open in while the part is the active one, rather than
+	 * the groups of the main part; see {@link setViewColumnGroup}.
+	 */
+	readonly viewColumnGroup: IEditorGroup | undefined;
+
+	/**
+	 * Makes numbered view columns open in `group` of the part while it is the
+	 * active part, such as a window with one editor area beside other content.
+	 * Undone when the returned disposable is disposed.
+	 */
+	setViewColumnGroup(group: IEditorGroup): IDisposable;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {
@@ -678,7 +707,18 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Opens a new window with a full editor part instantiated
 	 * in there at the optional position and size on screen.
 	 */
-	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle>; compact?: boolean; alwaysOnTop?: boolean }): Promise<IAuxiliaryEditorPart>;
+	createAuxiliaryEditorPart(options?: {
+		bounds?: Partial<IRectangle>;
+		compact?: boolean;
+		alwaysOnTop?: boolean;
+		/**
+		 * Keeps the part out of working sets and window restore: saving
+		 * them does not capture it, and applying a working set leaves it
+		 * open. For windows that their owner manages, such as one that
+		 * shows a chat.
+		 */
+		excludeFromWorkingSets?: boolean;
+	}): Promise<IAuxiliaryEditorPart>;
 
 	/**
 	 * Creates a modal editor part that shows in a modal overlay

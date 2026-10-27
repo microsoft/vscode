@@ -331,6 +331,9 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	openEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined>;
 
 	relayout(): void;
+
+	/** Hides the title of the group, so its editor fills it; see `IEditorPart.hideGroupTitle`. */
+	setTitleHidden(hidden: boolean): void;
 }
 
 export function fillActiveEditorSelection(group: IEditorGroup, expectedActiveEditor: EditorInput, options: IEditorOptions): IEditorOptions {
