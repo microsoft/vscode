@@ -1086,46 +1086,6 @@ suite('autoAuthenticateMcpServer', () => {
 			authenticateRequests: allowed ? [{ target: mcpAuthenticationTarget, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }] : [],
 		})));
 	});
-
-	test('never looks up sessions or forwards an MCP token for a Copilot Connector scope challenge', async () => {
-		const sessionRequests: (readonly string[] | undefined)[] = [];
-		const authenticateRequests: string[] = [];
-		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IAuthenticationService, createMockAuthService({
-			getSessions: async (_providerId, scopes) => {
-				sessionRequests.push(scopes);
-				return [{ id: 'narrow', scopes: ['write:plugin_gateway_connections'], accessToken: 'narrow-token', account: { id: 'account-id', label: 'Account' } }];
-			},
-		}));
-		instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
-		instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
-		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
-		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(ILabelService, { getHostLabel: () => 'Host' });
-		const connection = new class extends mock<IAgentConnection>() {
-			override async authenticate(request: { resource: string; scopes?: readonly string[]; token: string }) {
-				authenticateRequests.push(request.resource);
-				return { authenticated: true };
-			}
-		}();
-		const resource = { resource: 'https://api.github.com/copilot-connectors/api/v1/connectors/kusto/mcp', authorization_servers: ['https://github.com/login/oauth'] };
-		const silent = await instantiationService.invokeFunction(autoAuthenticateMcpServer, connection, { scheme: 'vscode-agent-host', authority: '' }, 'connector-kusto', {
-			resource,
-			requiredScopes: ['write:plugin_gateway_connections'],
-		}, mcpAuthenticationTarget);
-		const interactive = await instantiationService.invokeFunction(resolveMcpServerAuthentication, resource, {
-			allowInteraction: true,
-			logPrefix: '[AgentHost]',
-			target: mcpAuthenticationTarget,
-			mcpServerId: agentHostMcpServerId('', 'connector-kusto', resource.resource),
-			mcpServerName: 'Kusto',
-			mcpServerUrl: resource.resource,
-			scopes: ['write:plugin_gateway_connections'],
-			authenticate: request => connection.authenticate(request),
-		});
-		assert.deepStrictEqual({ silent, interactive, sessionRequests, authenticateRequests }, { silent: false, interactive: false, sessionRequests: [], authenticateRequests: [] });
-	});
 });
 
 suite('resolveMcpServerAuthentication', () => {

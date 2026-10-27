@@ -860,34 +860,46 @@ suite('AbstractAgentHostCustomizationService', () => {
 			return { sut, operations, notifications };
 		}
 
-		for (const [identification, meta, refreshed] of [
-			['published Connector name', withMcpServerConnectorNameMeta(undefined, 'workiqmcp'), 'workiqmcp'],
-			['Connector-scope challenge', undefined, undefined],
-		] as const) {
-			test(`signs in through Connector authorization by ${identification} and forwards no MCP token`, async () => {
-				const readStatus = captureStatus();
-				const session = URI.parse('vscode-agent-session:///session-1');
-				const target = new FakeTarget([connectorAuthRequired(meta)]);
-				const { sut, operations, notifications } = createConnectorSut(sut => {
-					sut.updateTarget(target, [{ ...connectorAuthRequired(meta), state: { kind: McpServerStatus.Starting } }]);
-					sut.updateTarget(target, [{ ...connectorAuthRequired(meta), state: { kind: McpServerStatus.Ready } }]);
-				});
-				sut.setTarget(session, target);
-				const silent = sut.getMcpServers(session).map(server => ({ authenticating: server.authenticating, connectorName: server.connectorName }));
-				target.onAuthenticate = request => operations.push(`authenticate:${request.resource}`);
-
-				const result = await sut.authenticateMcpServer(session, 'workiq');
-				assert.deepStrictEqual({ silent, result, status: readStatus(), operations, starts: target.startCalls, tokens: target.authenticateCalls.map(call => [call.resource, call.token]), notifications }, {
-					silent: [{ authenticating: false, connectorName: meta ? 'workiqmcp' : undefined }],
-					result: true,
-					status: 'Authenticated connector-workiq.',
-					operations: ['authorize', 'authenticate:https://api.github.com', `refresh:${refreshed}`],
-					starts: [],
-					tokens: [['https://api.github.com', 'connector-token']],
-					notifications: [],
-				});
+		test('signs in through Connector authorization when the host reports the Connector and forwards no MCP token', async () => {
+			const meta = withMcpServerConnectorNameMeta(undefined, 'workiqmcp');
+			const readStatus = captureStatus();
+			const session = URI.parse('vscode-agent-session:///session-1');
+			const target = new FakeTarget([connectorAuthRequired(meta)]);
+			const { sut, operations, notifications } = createConnectorSut(sut => {
+				sut.updateTarget(target, [{ ...connectorAuthRequired(meta), state: { kind: McpServerStatus.Starting } }]);
+				sut.updateTarget(target, [{ ...connectorAuthRequired(meta), state: { kind: McpServerStatus.Ready } }]);
 			});
-		}
+			sut.setTarget(session, target);
+			const silent = sut.getMcpServers(session).map(server => ({ authenticating: server.authenticating, connectorName: server.connectorName }));
+			target.onAuthenticate = request => operations.push(`authenticate:${request.resource}`);
+
+			const result = await sut.authenticateMcpServer(session, 'workiq');
+			assert.deepStrictEqual({ silent, result, status: readStatus(), operations, starts: target.startCalls, tokens: target.authenticateCalls.map(call => [call.resource, call.token]), notifications }, {
+				silent: [{ authenticating: false, connectorName: 'workiqmcp' }],
+				result: true,
+				status: 'Authenticated connector-workiq.',
+				operations: ['authorize', 'authenticate:https://api.github.com', 'refresh:workiqmcp'],
+				starts: [],
+				tokens: [['https://api.github.com', 'connector-token']],
+				notifications: [],
+			});
+		});
+
+		test('signs a server the host does not report as a Connector in with its own MCP token, even when its challenge asks for the Connector scope', async () => {
+			const session = URI.parse('vscode-agent-session:///session-1');
+			const target = new FakeTarget([connectorAuthRequired(withMcpServerSourceMeta(undefined, 'builtin'))]);
+			const { sut, operations, notifications } = createConnectorSut(() => { });
+			sut.setTarget(session, target);
+			sut.setMcpAuthenticationVerificationTimeout(0);
+
+			await sut.authenticateMcpServer(session, 'workiq');
+			assert.deepStrictEqual({ operations, starts: target.startCalls, tokens: target.authenticateCalls.map(call => [call.resource, call.token]), notifications }, {
+				operations: [],
+				starts: ['workiq'],
+				tokens: [[connectorUrl, 'connector-token']],
+				notifications: [],
+			});
+		});
 
 		for (const release of ['timeout', 'disposal'] as const) {
 			test(`releases Sign In on ${release} while the Connector refresh is still pending`, async () => {
@@ -940,7 +952,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 			test(`announces Connector authorization ${cancelled ? 'cancellation' : 'errors through one notification'}`, async () => {
 				const readStatus = captureStatus();
 				const session = URI.parse('vscode-agent-session:///session-1');
-				const target = new FakeTarget([connectorAuthRequired(undefined)]);
+				const target = new FakeTarget([connectorAuthRequired(withMcpServerConnectorNameMeta(undefined, 'workiqmcp'))]);
 				const { sut, operations, notifications } = createConnectorSut(() => assert.fail('Must not refresh after failed authorization'), cancelled ? new CancellationError() : new Error('Sign-in failed'));
 				sut.setTarget(session, target);
 

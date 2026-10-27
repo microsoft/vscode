@@ -30536,6 +30536,50 @@ Use the attached image as context.
 				});
 			});
 
+			for (const reported of [false, true]) {
+				test(`resolves Connector ownership from the runtime before launch reconciliation, not from the challenge scopes (reported: ${reported})`, async () => {
+					const serverUrl = 'https://api.githubcopilot.com/mcp/readonly';
+					const requiredScopes = ['read:user', 'user:email', 'write:plugin_gateway_connections', 'repo'];
+					const { session, mockSession, runtime, waitForSignal } = await createAgentSession(disposables, {
+						rootValues,
+						configureMockSession: mock => {
+							mock.mcpListResult = { servers: [{ name: 'github-mcp-server', status: 'connected', source: reported ? 'managed' : 'builtin', url: serverUrl }] };
+							if (reported) {
+								mock.connectorStatus = {
+									...mock.connectorStatus,
+									runtimeServers: [{ connectorName: 'github', runtimeServerId: 'github-mcp-server', status: 'needs_auth' }],
+								};
+							}
+						},
+					});
+
+					const auth = runtime.handleMcpAuthRequest({
+						requestId: 'github-auth',
+						serverName: 'github-mcp-server',
+						serverUrl,
+						reason: 'upscope',
+						wwwAuthenticateParams: { scope: requiredScopes.join(' '), error: 'insufficient_scope' },
+					}, { sessionId: mockSession.sessionId });
+					await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated)
+						&& session.topLevelMcpCustomizations().some(server => server.state.kind === McpServerStatus.AuthRequired));
+					const [server] = session.topLevelMcpCustomizations();
+					const resolved = await session.resolveMcpAuthentication({ resource: serverUrl, scopes: requiredScopes, token: 'github-token' });
+					const connectorName = readMcpServerConnectorName(session.topLevelMcpCustomizations()[0]);
+					if (!resolved) {
+						session.cancelMcpServerAuthentication(server.id);
+					}
+
+					assert.deepStrictEqual({
+						connectorName,
+						resolved,
+						auth: await auth,
+						reconciles: mockSession.connectorReconcileCalls.length,
+					}, reported
+						? { connectorName: 'github', resolved: false, auth: { kind: 'cancelled' }, reconciles: 0 }
+						: { connectorName: undefined, resolved: true, auth: { kind: 'token', accessToken: 'github-token' }, reconciles: 0 });
+				});
+			}
+
 			test('restores the Connector authentication challenge when a forced refresh is cancelled before reconciliation', async () => {
 				const serverUrl = 'https://api.github.com/copilot-connectors/api/v1/connectors/workiqmcp/mcp';
 				const { session, mockSession, runtime, waitForSignal } = await createAgentSession(disposables, {

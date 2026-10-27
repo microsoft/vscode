@@ -111,6 +111,19 @@ export async function reconcileCopilotConnectors(
 	};
 }
 
+/**
+ * Reads the runtime's authoritative Connector state without reconciling, which would restart Connector servers.
+ * Returns `undefined` when the runtime cannot report it.
+ */
+export async function readCopilotConnectorServers(session: CopilotSession, logService: ILogService): Promise<ICopilotConnectorServers | undefined> {
+	try {
+		return copilotConnectorServers(await session.rpc.connectors.getStatus());
+	} catch (error) {
+		logService.warn(`[Copilot:${session.sessionId}] Unable to read the current Connector state: ${getErrorMessage(error)}`);
+		return undefined;
+	}
+}
+
 function copilotConnectorServers(status: ConnectorStatus): ICopilotConnectorServers {
 	const names = new Map(status.catalog?.connectors.map(connector => [connector.name, connector.displayName.trim() || connector.name]));
 	return {

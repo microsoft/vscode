@@ -51,7 +51,7 @@ import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShel
 import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
-import { reconcileCopilotConnectors, type ICopilotConnectorServer, type ICopilotConnectorServers } from './copilotConnectors.js';
+import { readCopilotConnectorServers, reconcileCopilotConnectors, type ICopilotConnectorServer, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { copilotConnectorsScope } from '../../../github/common/connectors/connectors.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
@@ -232,7 +232,12 @@ interface IPendingMcpAuthRequest {
 	 * credential, so a forwarded MCP token never satisfies it; the request is cancelled after Connector
 	 * authorization rebinds that credential and the Connector is reconciled.
 	 */
-	readonly copilotConnector: boolean;
+	copilotConnector: boolean;
+	/**
+	 * Settles once the runtime's Connector state has been read for a server it had not yet reported, updating
+	 * {@link copilotConnector}. A forwarded MCP token waits for it.
+	 */
+	copilotConnectorLookup?: Promise<void>;
 	completion?: Promise<McpAuthResult | null | undefined>;
 }
 
@@ -5171,12 +5176,34 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	/** Whether the runtime has reported this server as owned by a Copilot Connector. */
+	private _isCopilotConnectorServer(serverName: string): boolean {
+		return this._copilotConnectorServers.has(serverName);
+	}
+
 	/**
-	 * Whether a server is owned by a Copilot Connector, either as reported by Connector reconciliation or, when
-	 * that is unavailable, because its challenge asks for the Connector authorization scope.
+	 * Whether the runtime's Connector state must be read to classify this server: Connectors are enabled for the
+	 * session and the runtime has not yet reported the server as Connector-owned.
 	 */
-	private _isCopilotConnectorServer(serverName: string, requiredScopes: readonly string[] = []): boolean {
-		return this._copilotConnectorServers.has(serverName) || requiredScopes.includes(copilotConnectorsScope);
+	private _needsCopilotConnectorOwnershipLookup(serverName: string): boolean {
+		return !this._isCopilotConnectorServer(serverName) && !this.isDisposed && !!this._wrapper
+			&& this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
+	}
+
+	/**
+	 * Reads Connector ownership from the runtime's authoritative Connector state without waiting for launch-time
+	 * reconciliation, which restarts Connector servers. A server the runtime does not report is never
+	 * Connector-owned, whatever its challenge asks for: once the session credential has the Connector scope, any
+	 * GitHub-backed server, such as the built-in GitHub MCP server, includes that scope when stepping it up.
+	 */
+	private async _readCopilotConnectorOwnership(serverName: string): Promise<boolean> {
+		const wrapper = this._wrapper;
+		const connectorServers = await readCopilotConnectorServers(wrapper.session, this._logService);
+		if (!connectorServers?.servers.has(serverName) || this.isDisposed || this._wrapper !== wrapper) {
+			return this._isCopilotConnectorServer(serverName);
+		}
+		this._setCopilotConnectorServers(connectorServers);
+		return true;
 	}
 
 	/**
@@ -5198,6 +5225,12 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (this._launchConnectorReconcile) {
 				await this._launchConnectorReconcile;
+				if (this._pendingMcpAuthRequests.getMetadata(requestId) !== pending) {
+					continue;
+				}
+			}
+			if (pending.copilotConnectorLookup) {
+				await pending.copilotConnectorLookup;
 				if (this._pendingMcpAuthRequests.getMetadata(requestId) !== pending) {
 					continue;
 				}
@@ -5294,7 +5327,7 @@ export class CopilotAgentSession extends Disposable {
 		this._mcpLifecycleVersion++;
 		this._mcpAwaitingOAuthReconnect.delete(request.serverName);
 		const toolCalls = this._activeMcpToolCalls(request.serverName);
-		const copilotConnector = this._isCopilotConnectorServer(request.serverName, requiredScopes);
+		const copilotConnector = this._isCopilotConnectorServer(request.serverName);
 		const pending: IPendingMcpAuthRequest = {
 			serverName: request.serverName,
 			resource,
@@ -5328,6 +5361,15 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(copilotConnector
 			? `[Copilot:${this.sessionId}] Connector-owned MCP server '${request.serverName}' requires Copilot Connector authorization of the session account (${request.reason})`
 			: `[Copilot:${this.sessionId}] MCP server '${request.serverName}' requires authentication for ${resource.resource}`);
+		if (!copilotConnector && this._needsCopilotConnectorOwnershipLookup(request.serverName)) {
+			pending.copilotConnectorLookup = this._readCopilotConnectorOwnership(request.serverName).then(owned => {
+				if (owned && this._pendingMcpAuthRequests.getMetadata(request.requestId) === pending) {
+					pending.copilotConnector = true;
+					this._disableMcpTokenCompletion(request.serverName, request.requestId);
+					this._logService.info(`[Copilot:${this.sessionId}] Connector-owned MCP server '${request.serverName}' requires Copilot Connector authorization of the session account (${request.reason})`);
+				}
+			});
+		}
 		try {
 			const outcome = await result;
 			if (outcome && hasKey(outcome, { kind: true }) && outcome.kind === 'cancelled' && this._lastMcpAuthRequirements.get(request.serverName)?.requestId === request.requestId) {

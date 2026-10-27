@@ -1080,15 +1080,6 @@ async function forceAuthenticationInteractively(
 }
 
 /**
- * Whether an MCP authentication requirement belongs to a Copilot Connector. Connector-owned servers authenticate
- * with the session's GitHub credential, so their challenge asks for the Connector authorization scope and a
- * per-server MCP token never satisfies it.
- */
-export function isCopilotConnectorMcpAuthentication(requiredScopes: readonly string[] | undefined): boolean {
-	return requiredScopes?.includes(copilotConnectorsScope) === true;
-}
-
-/**
  * Forwards the GitHub Copilot credential of the account that authorized Copilot Connectors, without prompting and
  * preferring that account's session that also grants the Connector scope. Connector-owned servers use this
  * credential, so this is how an authorization of the account reaches them. Never falls back to another account.
@@ -1140,11 +1131,6 @@ export async function resolveMcpServerAuthentication(
 	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
 	const dynamicAuthenticationProviderStorageService = accessor.get(IDynamicAuthenticationProviderStorageService);
 	const logService = accessor.get(ILogService);
-	if (isCopilotConnectorMcpAuthentication(options.scopes)) {
-		// A narrow token would be ignored for the Connector and retried indefinitely; Connector authorization owns this.
-		logService.info(`${options.logPrefix} Not forwarding an MCP token for Connector-owned server ${options.mcpServerName}; it requires Copilot Connector authorization`);
-		return false;
-	}
 	let authorizationServerMetadataFetcher = options.authorizationServerMetadataFetcher;
 	if (!authorizationServerMetadataFetcher) {
 		const metadataService = accessor.get(IAgentHostMcpOAuthMetadataService);

@@ -41,7 +41,7 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
-import { resolveMcpServerAuthentication, agentHostMcpServerId, autoAuthenticateMcpServer, authenticateCopilotConnectorCredential, isCopilotConnectorMcpAuthentication, type IAgentHostAuthenticateRequest } from './agentHostAuth.js';
+import { resolveMcpServerAuthentication, agentHostMcpServerId, autoAuthenticateMcpServer, authenticateCopilotConnectorCredential, type IAgentHostAuthenticateRequest } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IMcpService } from '../../../../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
@@ -713,10 +713,13 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	}
 }
 
-/** Whether a server is owned by a Copilot Connector, by host metadata or by its Connector-scope challenge. */
+/**
+ * Whether the host reports a server as owned by a Copilot Connector. The host resolves this from the runtime's
+ * Connector state before publishing an authentication requirement, so a challenge's scopes never decide it: any
+ * GitHub-backed server, such as the built-in GitHub MCP server, may ask for the Connector scope.
+ */
 function isCopilotConnectorMcpServer(server: McpServerCustomization): boolean {
-	return readMcpServerConnectorName(server) !== undefined
-		|| server.state.kind === McpServerStatus.AuthRequired && isCopilotConnectorMcpAuthentication(server.state.requiredScopes);
+	return readMcpServerConnectorName(server) !== undefined;
 }
 
 /** Runs Copilot Connector authorization for a Connector-owned MCP server on behalf of its Sign In. */
