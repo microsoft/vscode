@@ -19,7 +19,8 @@ import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, 
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema, readAgentMergeInjectedConfiguration, withoutAgentMergeElevation } from '../common/agentMerge.js';
 import { chatMoveRootConfigSchema } from '../common/agentHostChatMove.js';
-import { chatProvidersRootConfigSchema } from '../common/agentHostChatProviders.js';
+import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../common/agentHostChatProviders.js';
+import { AgentHostMultipleChatProvidersEnabledEnvVar } from '../common/agentService.js';
 import { automationRootConfigSchema } from '../common/automationConfig.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
@@ -146,6 +147,18 @@ export function isChatOwnConfigUnchanged(action: object): boolean {
 /** Whether `action` only completes a chat's values or publishes what a default chat takes from its session. */
 export function isChatConfigCompletion(action: object): boolean {
 	return chatConfigCompletionActions.has(action);
+}
+
+/**
+ * Seeds the host's root `multipleChatProviders.enabled` from {@link AgentHostMultipleChatProvidersEnabledEnvVar}, which
+ * the local starters set when the setting is on, before the host's first handshake: the first `initialize` then
+ * advertises `multipleChatProviders` and the client needn't re-initialize. Only turns it on: the client's mirror of the
+ * setting stays authoritative afterwards, and with the setting off nothing is forwarded, so nothing changes.
+ */
+export function seedMultipleChatProvidersFromEnvironment(configurationService: IAgentConfigurationService, env: Readonly<Record<string, string | undefined>>): void {
+	if (env[AgentHostMultipleChatProvidersEnabledEnvVar] === 'true' && configurationService.getRootValue(chatProvidersRootConfigSchema, ChatProvidersConfigKey.Enabled) !== true) {
+		configurationService.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
+	}
 }
 
 /** The config values a chat being created starts with, live until the chat is registered. */

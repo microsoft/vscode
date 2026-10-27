@@ -18,8 +18,10 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentSessionUri, ChatOriginKind, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
-import { AgentConfigurationService, getEffectiveWorkingDirectories, getEffectiveWorkingDirectory, getSessionSummaryWorkingDirectories } from '../../node/agentConfigurationService.js';
+import { AgentConfigurationService, seedMultipleChatProvidersFromEnvironment, getEffectiveWorkingDirectories, getEffectiveWorkingDirectory, getSessionSummaryWorkingDirectories } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../../common/agentHostChatProviders.js';
+import { AgentHostMultipleChatProvidersEnabledEnvVar, buildAgentSdkEnv } from '../../common/agentService.js';
 
 suite('AgentConfigurationService', () => {
 
@@ -643,5 +645,23 @@ suite('AgentConfigurationService', () => {
 		};
 
 		assert.deepStrictEqual(getAgentCustomizationSettingsEntries(manager.rootState).map(entry => entry.provider), ['valid']);
+	});
+
+	test('a local host is seeded with chats with their own agents from its starter\'s environment, only when the setting is on', () => {
+		const sdkEnv = (multipleChatProvidersEnabled: boolean | undefined, inherited: Record<string, string | undefined> = {}) => buildAgentSdkEnv({ multipleChatProvidersEnabled }, inherited)[AgentHostMultipleChatProvidersEnabledEnvVar];
+		const seeded = (env: Record<string, string | undefined>) => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const configuration = disposables.add(new AgentConfigurationService(stateManager, new NullLogService()));
+			seedMultipleChatProvidersFromEnvironment(configuration, env);
+			return configuration.getRootValue(chatProvidersRootConfigSchema, ChatProvidersConfigKey.Enabled);
+		};
+		assert.deepStrictEqual({
+			starter: [sdkEnv(true), sdkEnv(false), sdkEnv(undefined), sdkEnv(true, { [AgentHostMultipleChatProvidersEnabledEnvVar]: 'false' })],
+			host: [seeded({ [AgentHostMultipleChatProvidersEnabledEnvVar]: 'true' }), seeded({}), seeded({ [AgentHostMultipleChatProvidersEnabledEnvVar]: 'false' })],
+		}, {
+			// Forwarded only when on; a developer's own value wins.
+			starter: ['true', undefined, undefined, undefined],
+			host: [true, undefined, undefined],
+		});
 	});
 });

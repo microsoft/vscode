@@ -27,6 +27,8 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import type { AgentService } from '../../node/agentService.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { disposeTestSessionStateDatabases } from './chatMetadataTestHelpers.js';
+import { seedMultipleChatProvidersFromEnvironment } from '../../node/agentConfigurationService.js';
+import { AgentHostMultipleChatProvidersEnabledEnvVar } from '../../common/agentService.js';
 import { createTestAgentService, getTestAgentHostDatabase, getTestSessionStateStore, getTestAgentHostProviderService, getTestAgentServiceComposition, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { MockAgent } from './mockAgent.js';
 
@@ -600,6 +602,14 @@ suite('AgentService - chats with their own agent', () => {
 			copilotCreatedChat: false,
 			configs: [{ mode: 'plan' }],
 		});
+	});
+
+	test('a host seeded from its starter\'s environment allows chats with their own agents before any client mirrors the setting', async () => {
+		const { service } = createService(false);
+		const before = service.multipleChatProvidersEnabled;
+		seedMultipleChatProvidersFromEnvironment(getTestAgentServiceComposition(service).configurationService, { [AgentHostMultipleChatProvidersEnabledEnvVar]: 'true' });
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+		assert.deepStrictEqual({ before, after: service.multipleChatProvidersEnabled, created: await rejection(service.createChat(session, URI.parse(buildChatUri(session, 'second')), { provider: 'second' })) }, { before: false, after: true, created: undefined });
 	});
 
 	test('a stale record naming the session\'s own agent is ignored and deleted on restore: the chat follows its session', async () => {
