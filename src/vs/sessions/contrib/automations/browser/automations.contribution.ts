@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { observableFromPromise } from '../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -16,7 +19,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -32,6 +35,9 @@ import { ProviderAutomationService } from './providerAutomationService.js';
 import { AutomationToolsContribution } from './automationTools.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../../../platform/agentHost/common/automationConfig.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../sessions/browser/automationsConstants.js';
 
 const initialProvidersSettled = observableFromPromise(
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored.then(() => true)
@@ -63,6 +69,8 @@ registerAction2(class RunAutomationAction extends Action2 {
 		const logService = accessor.get(ILogService);
 		const providersService = accessor.get(ISessionsProvidersService);
 		const notificationService = accessor.get(INotificationService);
+		const sessionsService = accessor.get(ISessionsService);
+		const customViewService = accessor.get(ICustomViewService);
 		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true
 			&& !configurationService.getValue<boolean>(ChatAIDisabledSettingId);
 		if (!isEnabled()) {
@@ -70,10 +78,12 @@ registerAction2(class RunAutomationAction extends Action2 {
 		}
 
 		const loadPicks = async (): Promise<IQuickPickItem[]> => {
-			try {
-				await automationService.refresh?.();
-			} catch (error) {
-				logService.warn('[RunAutomationAction] Failed to refresh automations', error);
+			if (automationService.catalogueState.get() !== 'ready' && automationService.automations.get().length === 0) {
+				try {
+					await automationService.refresh?.();
+				} catch (error) {
+					logService.warn('[RunAutomationAction] Failed to refresh automations', error);
+				}
 			}
 			const picks = automationService.automations.get()
 				.filter(automation => automationService.canRunAutomation(automation.id))
@@ -99,11 +109,39 @@ registerAction2(class RunAutomationAction extends Action2 {
 			return;
 		}
 		const dispatch = await automationRunner.runOnce(automation).whenDispatched;
-		if (dispatch.kind === 'accepted' || dispatch.kind === 'started') {
-			notificationService.info(localize('automationRunRequested', "Run requested for automation '{0}'. Check Automations for run history.", automation.name));
-		} else if (dispatch.kind === 'alreadyRunning') {
-			notificationService.info(localize('automationAlreadyRunning', "Automation '{0}' is already running.", automation.name));
+		if (dispatch.kind !== 'accepted' && dispatch.kind !== 'started' && dispatch.kind !== 'alreadyRunning') {
+			return;
 		}
+		const sessionResource = dispatch.kind === 'started' ? dispatch.sessionResource
+			: dispatch.kind === 'alreadyRunning' ? dispatch.activeRun.sessionResource : undefined;
+		const notification = notificationService.prompt(Severity.Info,
+			dispatch.kind === 'alreadyRunning'
+				? localize('automationAlreadyRunning', "Automation '{0}' is already running.", automation.name)
+				: localize('automationRunRequested', "Run requested for automation '{0}'.", automation.name),
+			[{
+				label: sessionResource ? localize('openAutomationRun', "Open Run") : localize('showAutomations', "Show Automations"),
+				run: async () => {
+					if (!isEnabled()) {
+						return;
+					}
+					try {
+						if (sessionResource) {
+							await sessionsService.openSession(sessionResource, { preserveFocus: false, source: 'automation' });
+						} else {
+							customViewService.showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
+						}
+					} catch (error) {
+						logService.error('[RunAutomationAction] Failed to open automation run', error);
+						notificationService.error(localize('automationRunOpenFailed', "Failed to open automation run: {0}", getErrorMessage(error)));
+					}
+				},
+			}]);
+		const disposables = new DisposableStore();
+		disposables.add(Event.once(notification.onDidClose)(() => disposables.dispose()));
+		disposableTimeout(() => {
+			disposables.dispose();
+			notification.close();
+		}, 10_000, disposables);
 	}
 });
 

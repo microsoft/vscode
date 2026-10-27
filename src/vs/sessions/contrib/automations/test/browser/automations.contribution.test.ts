@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { useFakeTimers } from 'sinon';
+import { Emitter } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -18,16 +21,19 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { INotificationHandle, INotificationService, IPromptChoice, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IAutomationDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { IOpenSessionOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../sessions/browser/automationsConstants.js';
 
 import '../../browser/automations.contribution.js';
 
@@ -71,24 +77,44 @@ suite('Automations Contribution', () => {
 			createdAt: '2026-01-01T00:00:00.000Z',
 			updatedAt: '2026-01-01T00:00:00.000Z',
 		};
+		const automationRun: IAutomationRun = {
+			id: 'local:run',
+			automationId: automation.id,
+			status: 'running',
+			trigger: 'manual',
+			sessionResource: URI.parse('agent-host-copilot:/run'),
+			startedAt: '2026-01-01T00:00:00.000Z',
+		};
 
 		function setup(automations: readonly IAutomationDescriptor[] = [automation]) {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true });
 			const catalogue = observableValue<readonly IAutomationDescriptor[]>('automations', automations);
+			const catalogueState = observableValue<AutomationCatalogueState>('catalogueState', 'ready');
 			const runnable = new Set(automations.map(item => item.id));
 			const state = {
 				picks: [] as IQuickPickItem[],
 				calls: [] as IAutomationDescriptor[],
 				notifications: [] as string[],
+				choices: [] as IPromptChoice[],
+				severity: undefined as Severity | undefined,
+				closed: 0,
+				openedSessions: [] as { resource: URI; options: IOpenSessionOptions | undefined }[],
+				openedViews: [] as string[],
+				openSession: async () => { },
 				select: (items: IQuickPickItem[]): IQuickPickItem | undefined => items[0],
+				refreshCalls: 0,
 				refresh: async () => { },
 				dispatch: { kind: 'accepted' } as IAutomationRunDispatch,
 			};
 			instantiationService.stub(IConfigurationService, configurationService);
 			instantiationService.stub(IAutomationService, upcastPartial<IAutomationService>({
 				automations: catalogue,
-				refresh: () => state.refresh(),
+				catalogueState,
+				refresh: () => {
+					state.refreshCalls++;
+					return state.refresh();
+				},
 				getAutomation: id => catalogue.get().find(item => item.id === id),
 				canRunAutomation: id => runnable.has(id),
 			}));
@@ -109,9 +135,42 @@ suite('Automations Contribution', () => {
 			instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
 				getProvider: <T extends ISessionsProvider>(id: string) => upcastPartial<ISessionsProvider>({ label: id === 'local' ? 'Local' : 'Remote' }) as T,
 			}));
-			instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ info: message => { state.notifications.push(String(message)); } }));
+			store.add(toDisposable(() => notification.close()));
+			const onDidClose = store.add(new Emitter<void>());
+			let closed = false;
+			const notification = upcastPartial<INotificationHandle>({
+				onDidClose: onDidClose.event,
+				close: () => {
+					state.closed++;
+					if (!closed) {
+						closed = true;
+						onDidClose.fire();
+					}
+				},
+			});
+			instantiationService.stub(INotificationService, upcastPartial<INotificationService>({
+				prompt: (severity, message, choices) => {
+					state.severity = severity;
+					state.notifications.push(String(message));
+					state.choices = choices;
+					return notification;
+				},
+				error: message => {
+					state.notifications.push(String(message));
+					return notification;
+				},
+			}));
+			instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+				openSession: async (resource, options) => {
+					state.openedSessions.push({ resource, options });
+					await state.openSession();
+				},
+			}));
+			instantiationService.stub(ICustomViewService, upcastPartial<ICustomViewService>({
+				showCustomView: id => { state.openedViews.push(id); },
+			}));
 			const run = () => instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler);
-			return { state, catalogue, runnable, configurationService, run };
+			return { state, catalogue, catalogueState, runnable, configurationService, notification, run };
 		}
 
 		test('is listed as Chat: Run Automation... only when chat and automations are enabled', () => {
@@ -132,15 +191,18 @@ suite('Automations Contribution', () => {
 			});
 		});
 
-		test('refreshes, filters unavailable automations, and runs the selected identity without waiting for completion', async () => {
+		test('loads a missing catalogue, filters unavailable automations, and runs the selected identity without waiting for completion', async () => {
 			const remote = { ...automation, id: 'remote:review', target: { ...automation.target, providerId: 'remote' } };
-			const { state, catalogue, run } = setup([automation, remote]);
+			const { state, catalogue, catalogueState, run } = setup([automation, remote]);
+			catalogue.set([], undefined);
+			catalogueState.set('loading', undefined);
 			state.refresh = async () => catalogue.set([automation, remote, { ...automation, id: 'unavailable' }], undefined);
 			state.select = items => items[1];
 			await run();
 			assert.deepStrictEqual({
 				picks: state.picks.map(({ id, label, description, detail }) => ({ id, label, description, detail })),
 				calls: state.calls,
+				refreshCalls: state.refreshCalls,
 				notifications: state.notifications,
 			}, {
 				picks: [
@@ -148,19 +210,110 @@ suite('Automations Contribution', () => {
 					{ id: remote.id, label: 'Review', description: 'Remote · /workspace', detail: remote.prompt },
 				],
 				calls: [remote],
-				notifications: ['Run requested for automation \'Review\'. Check Automations for run history.'],
+				refreshCalls: 1,
+				notifications: ['Run requested for automation \'Review\'.'],
 			});
+		});
+
+		for (const status of ['ready', 'loading', 'unavailable', 'error'] as const) {
+			test(`uses cached automations without refreshing when catalogue state is ${status}`, async () => {
+				const { state, catalogueState, run } = setup();
+				catalogueState.set(status, undefined);
+				await run();
+				assert.deepStrictEqual({
+					refreshCalls: state.refreshCalls,
+					picks: state.picks.map(item => item.id),
+					calls: state.calls,
+				}, { refreshCalls: 0, picks: [automation.id], calls: [automation] });
+			});
+		}
+
+		for (const kind of ['started', 'alreadyRunning'] as const) {
+			test(`offers to open the exact ${kind} run without opening it automatically`, async () => {
+				const { state, run } = setup();
+				state.dispatch = kind === 'started'
+					? { kind, run: automationRun, sessionResource: automationRun.sessionResource! }
+					: { kind, activeRun: automationRun };
+				await run();
+				assert.deepStrictEqual(state.openedSessions, []);
+				await state.choices[0].run();
+				assert.deepStrictEqual({
+					severity: state.severity,
+					labels: state.choices.map(choice => choice.label),
+					sessions: state.openedSessions,
+					views: state.openedViews,
+				}, {
+					severity: Severity.Info,
+					labels: ['Open Run'],
+					sessions: [{ resource: automationRun.sessionResource, options: { preserveFocus: false, source: 'automation' } }],
+					views: [],
+				});
+			});
+		}
+
+		test('opens Automations when an accepted request has no correlated run', async () => {
+			const { state, run } = setup();
+			await run();
+			await state.choices[0].run();
+			assert.deepStrictEqual({
+				labels: state.choices.map(choice => choice.label),
+				sessions: state.openedSessions,
+				views: state.openedViews,
+			}, { labels: ['Show Automations'], sessions: [], views: [AUTOMATIONS_CUSTOM_VIEW_ID] });
+		});
+
+		test('dismisses the notification after exactly ten seconds', async () => {
+			const clock = useFakeTimers();
+			try {
+				const { state, run } = setup();
+				await run();
+				clock.tick(9_999);
+				const beforeTimeout = state.closed;
+				clock.tick(1);
+				assert.deepStrictEqual({ beforeTimeout, afterTimeout: state.closed }, { beforeTimeout: 0, afterTimeout: 1 });
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('closing the notification cancels its dismissal timer', async () => {
+			const clock = useFakeTimers();
+			try {
+				const { state, notification, run } = setup();
+				await run();
+				notification.close();
+				clock.tick(10_000);
+				assert.strictEqual(state.closed, 1);
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('reports an error if the run cannot be opened', async () => {
+			const { state, run } = setup();
+			state.dispatch = { kind: 'started', run: automationRun, sessionResource: automationRun.sessionResource! };
+			state.openSession = async () => { throw new Error('Session unavailable'); };
+			await run();
+			await state.choices[0].run();
+			assert.deepStrictEqual(state.notifications, [
+				'Run requested for automation \'Review\'.',
+				'Failed to open automation run: Session unavailable',
+			]);
 		});
 
 		test('a failed provider refresh does not block runnable automations', async () => {
 			const unavailable = { ...automation, id: 'unavailable' };
-			const { state, runnable, run } = setup([automation, unavailable]);
+			const { state, catalogue, catalogueState, runnable, run } = setup([automation, unavailable]);
+			catalogue.set([], undefined);
+			catalogueState.set('error', undefined);
 			state.refresh = async () => {
+				catalogue.set([automation, unavailable], undefined);
 				runnable.delete(unavailable.id);
 				throw new Error('Provider refresh failed');
 			};
 			await run();
-			assert.deepStrictEqual({ picks: state.picks.map(item => item.id), calls: state.calls }, {
+			assert.deepStrictEqual({ refreshCalls: state.refreshCalls, picks: state.picks.map(item => item.id), calls: state.calls }, {
+				refreshCalls: 1,
 				picks: [automation.id],
 				calls: [automation],
 			});
@@ -184,10 +337,11 @@ suite('Automations Contribution', () => {
 			assert.deepStrictEqual(state.calls, []);
 		});
 
-		test('an empty catalogue shows a non-pickable explanation', async () => {
+		test('a loaded empty catalogue shows a non-pickable explanation without refreshing', async () => {
 			const { state, run } = setup([]);
 			await run();
-			assert.deepStrictEqual({ picks: state.picks, calls: state.calls }, {
+			assert.deepStrictEqual({ refreshCalls: state.refreshCalls, picks: state.picks, calls: state.calls }, {
+				refreshCalls: 0,
 				picks: [{ label: 'No automations are currently available to run.', pickable: false }],
 				calls: [],
 			});
