@@ -181,7 +181,7 @@ function getNodeStartTestCase(testCase: string): [string, number[], number[], nu
 			case '❌':
 				rejectedTests.push(i);
 				break;
-			//Location used for the assertions (begining of the node we want to detect)
+			//Location used for the assertions (beginning of the node we want to detect)
 			case '🔵':
 				expectedResult = i;
 				break;
@@ -199,7 +199,7 @@ function getNodeStartTestCase(testCase: string): [string, number[], number[], nu
  * Helper function for testing `getNodeStart`
  *
  * To use this, pass a language ID and a string containing a snippet of source code, and use
- * 🔵 for a location that's used for assertion ( begining of the node we want to detect)
+ * 🔵 for a location that's used for assertion ( beginning of the node we want to detect)
  * 🟢 for cursor positions at which `getNodeStart` should return the position 🔵,
  * and ❌ for cursor positions where it shouldn't.
  */
@@ -215,7 +215,7 @@ async function testGetNodeStart(languageId: string, testCase: string) {
 		assert.notStrictEqual(
 			start,
 			expected_result,
-			`Should not get begining of the scope - tested offset: ${offset}`
+			`Should not get beginning of the scope - tested offset: ${offset}`
 		);
 	}
 }

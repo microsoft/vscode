@@ -1323,7 +1323,7 @@ forInlineChatIntent((strategy, nonExtensionConfigurations, suffix) => {
 
 	ssuite({ title: `fix${suffix}`, subtitle: 'pylint', location: 'inline' }, () => {
 
-		stest({ description: 'unecessary parenthesis', language: 'python', nonExtensionConfigurations }, (testingServiceCollection) => {
+		stest({ description: 'unnecessary parenthesis', language: 'python', nonExtensionConfigurations }, (testingServiceCollection) => {
 			return simulateInlineChatWithStrategy(strategy, testingServiceCollection, {
 				files: [fromFixture('fixing/python/pylint_unecessary_parenthesis.py')],
 				queries: [

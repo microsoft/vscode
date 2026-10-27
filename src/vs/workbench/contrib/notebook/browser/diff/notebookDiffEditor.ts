@@ -946,7 +946,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	getLayoutInfo(): NotebookLayoutInfo {
 		if (!this._list) {
-			throw new Error('Editor is not initalized successfully');
+			throw new Error('Editor is not initialized successfully');
 		}
 
 		return {
