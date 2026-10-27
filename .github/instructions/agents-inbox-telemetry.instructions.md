@@ -58,6 +58,8 @@ without changing that shared primitive (and getting privacy/security sign‑off)
 
 ### Whole‑window / cross‑surface
 
+The Inbox contribution enables `agents/activeContextChanged` only while `chat.agentSessions.inbox.enabled` is true and AI features are visible. Disabling either resets the tracker and cancels pending blur events without emitting more activity; reenabling starts a fresh trajectory. Other existing Agents-window telemetry is unchanged.
+
 | Event | Emitted when | Key fields |
 |---|---|---|
 | `agents/activeContextChanged` | Focus moves between window surfaces | `surface` (inbox/automations/customization/…), `cause`, `previousSurface`, `previousDwellMs` |

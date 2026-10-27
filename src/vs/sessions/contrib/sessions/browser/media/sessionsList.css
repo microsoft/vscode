@@ -1256,11 +1256,6 @@
 		font-weight: var(--vscode-fontWeight-semiBold);
 	}
 
-	&.session-section-customizations .session-section-count {
-		font-size: var(--vscode-fontSize-label2);
-		font-weight: var(--vscode-fontWeight-regular);
-	}
-
 	.session-section-keybinding {
 		display: none;
 		flex-shrink: 0;

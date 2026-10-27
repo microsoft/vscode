@@ -52,6 +52,9 @@ export interface IAgentsSurfaceContext {
 export interface IAgentsActivityService {
 	readonly _serviceBrand: undefined;
 
+	/** Enables tracking for the owning feature, or resets it without emitting when disabled. */
+	setEnabled(enabled: boolean): void;
+
 	/**
 	 * Report that a surface gained focus / became the active context. Emits a bounded
 	 * `agents/activeContextChanged` transition from the previously active surface, carrying the
@@ -106,17 +109,33 @@ export class AgentsActivityService extends Disposable implements IAgentsActivity
 	private activeSurface: AgentsSurface = 'none';
 	private activeContext: IAgentsSurfaceContext | undefined;
 	private activeSince = Date.now();
+	private enabled = false;
 	private readonly pendingBlur = this._register(new MutableDisposable());
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
-		// Start checkpoint so a dropped first transition does not corrupt the trajectory.
-		this.emit('none', 'none', 'open', undefined, 0);
+	}
+
+	setEnabled(enabled: boolean): void {
+		if (this.enabled === enabled) {
+			return;
+		}
+		this.enabled = enabled;
+		this.pendingBlur.clear();
+		this.activeSurface = 'none';
+		this.activeContext = undefined;
+		this.activeSince = Date.now();
+		if (enabled) {
+			this.emit('none', 'none', 'open', undefined, 0);
+		}
 	}
 
 	reportActiveSurface(surface: AgentsSurface, context?: IAgentsSurfaceContext): void {
+		if (!this.enabled) {
+			return;
+		}
 		this.pendingBlur.clear();
 		if (surface === this.activeSurface && sameContext(context, this.activeContext)) {
 			return;
@@ -132,7 +151,7 @@ export class AgentsActivityService extends Disposable implements IAgentsActivity
 	}
 
 	reportSurfaceBlurred(surface: AgentsSurface): void {
-		if (surface !== this.activeSurface) {
+		if (!this.enabled || surface !== this.activeSurface) {
 			return;
 		}
 		// Debounce: focus commonly moves to another surface within the same tick; only treat this

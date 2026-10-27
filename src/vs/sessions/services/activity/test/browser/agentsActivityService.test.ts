@@ -15,22 +15,58 @@ suite('AgentsActivityService', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(): { service: AgentsActivityService; events: { readonly eventName: string; readonly data: Record<string, unknown> }[] } {
+	function createService(enabled = true): { service: AgentsActivityService; events: { readonly eventName: string; readonly data: Record<string, unknown> }[] } {
 		const events: { readonly eventName: string; readonly data: Record<string, unknown> }[] = [];
 		const telemetryService = upcastPartial<ITelemetryService>({
 			publicLog2: ((eventName: string, data?: Record<string, unknown>) => { events.push({ eventName, data: data ?? {} }); }) as ITelemetryService['publicLog2'],
 		});
 		const service = disposables.add(new AgentsActivityService(telemetryService));
+		service.setEnabled(enabled);
 		return { service, events };
 	}
 
-	test('emits a start checkpoint on construction', () => {
+	test('emits a start checkpoint when enabled', () => {
 		const { events } = createService();
 		assert.strictEqual(events.length, 1);
 		assert.strictEqual(events[0].eventName, 'agents/activeContextChanged');
 		assert.strictEqual(events[0].data.transitionCause, 'open');
 		assert.strictEqual(events[0].data.fromSurface, 'none');
 		assert.strictEqual(events[0].data.toSurface, 'none');
+	});
+
+	test('does not track other surfaces while disabled', async () => {
+		const { service, events } = createService(false);
+		service.reportActiveSurface('automations');
+		service.reportSurfaceBlurred('automations');
+		service.reportActiveSurface('customization');
+		service.reportSurfaceBlurred('customization');
+		await new Promise(resolve => setTimeout(resolve, 5));
+		assert.deepStrictEqual(events, []);
+	});
+
+	test('disabling cancels pending blur and reenabling starts a fresh trajectory', async () => {
+		const { service, events } = createService();
+		service.reportActiveSurface('automations');
+		service.reportSurfaceBlurred('automations');
+		service.setEnabled(false);
+		service.reportActiveSurface('customization');
+		await new Promise(resolve => setTimeout(resolve, 5));
+		const disabledEventCount = events.length;
+		service.setEnabled(true);
+		service.setEnabled(true);
+		service.reportActiveSurface('customization');
+		assert.deepStrictEqual({
+			disabledEventCount,
+			transitions: events.map(event => [event.data.fromSurface, event.data.toSurface, event.data.transitionCause]),
+		}, {
+			disabledEventCount: 2,
+			transitions: [
+				['none', 'none', 'open'],
+				['none', 'automations', 'focus'],
+				['none', 'none', 'open'],
+				['none', 'customization', 'focus'],
+			],
+		});
 	});
 
 	test('emits focus then switch transitions with previous-surface dwell', () => {

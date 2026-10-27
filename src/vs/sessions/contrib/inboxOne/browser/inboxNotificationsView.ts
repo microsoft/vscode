@@ -28,6 +28,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -1301,7 +1302,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 			message: part.message,
 			questions: [...part.questions],
 		};
-		const carouselWidget = store.add(this.instantiationService.createInstance(
+		const host = container.appendChild($('.inbox-notifications-chat-part-host.interactive-session'));
+		const scopedContextKeyService = store.add(this.contextKeyService.createScoped(host));
+		const scopedInstantiationService = store.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		const carouselWidget = store.add(scopedInstantiationService.createInstance(
 			ChatQuestionCarouselPart,
 			carousel,
 			this.createChatContentPartRenderContext(),
@@ -1313,7 +1317,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 				},
 			},
 		));
-		const host = container.appendChild($('.inbox-notifications-chat-part-host.interactive-session'));
 		const inputPartHost = host.appendChild($('.interactive-input-part'));
 		const widgetContainer = inputPartHost.appendChild($('.chat-question-carousel-widget-container'));
 		widgetContainer.appendChild(carouselWidget.domNode);

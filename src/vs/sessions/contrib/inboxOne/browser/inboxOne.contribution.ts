@@ -9,8 +9,10 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -23,6 +25,8 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IAgentsActivityService } from '../../../services/activity/browser/agentsActivityService.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { InboxNotificationsView } from './inboxNotificationsView.js';
 import { InboxNotificationsService } from './inboxNotificationsService.js';
@@ -68,30 +72,37 @@ class ChatInboxEnabledContextContribution extends Disposable implements IWorkben
 
 registerWorkbenchContribution2(ChatInboxEnabledContextContribution.ID, ChatInboxEnabledContextContribution, WorkbenchPhase.BlockStartup);
 
-class InboxNotificationsCustomViewContribution extends Disposable implements IWorkbenchContribution {
+export class InboxNotificationsCustomViewContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsInboxNotificationsView';
 
 	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ICustomViewService customViewService: ICustomViewService,
+		@IAgentsActivityService agentsActivityService: IAgentsActivityService,
 	) {
 		super();
 
-		this._register(customViewService.registerCustomView({
-			id: INBOX_NOTIFICATIONS_VIEW_ID,
-			ctor: new SyncDescriptor(InboxNotificationsView),
-		}, {
-			restore: contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) === true
-				&& contextKeyService.getContextKeyValue<boolean>(ChatInboxEnabledContext.key) === true,
-		}));
-
-		const inboxVisibilityContextKeys = new Set([ChatContextKeys.enabled.key, ChatInboxEnabledContext.key]);
-		this._register(contextKeyService.onDidChangeContext(event => {
-			if (event.affectsSome(inboxVisibilityContextKeys)
-				&& !(contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) && contextKeyService.getContextKeyValue<boolean>(ChatInboxEnabledContext.key))
-				&& customViewService.activeCustomView.get()?.id === INBOX_NOTIFICATIONS_VIEW_ID) {
-				customViewService.hideCustomView();
+		const inboxEnabled = observableConfigValue(CHAT_INBOX_ENABLED_SETTING, false, configurationService);
+		const enabled = derived(this, reader => inboxEnabled.read(reader) && !chatEntitlementService.sentimentObs.read(reader).hidden);
+		const viewRegistration = this._register(new MutableDisposable());
+		let restore = enabled.get();
+		this._register(toDisposable(() => agentsActivityService.setEnabled(false)));
+		this._register(autorun(reader => {
+			const isEnabled = enabled.read(reader);
+			agentsActivityService.setEnabled(isEnabled);
+			if (isEnabled) {
+				viewRegistration.value = customViewService.registerCustomView({
+					id: INBOX_NOTIFICATIONS_VIEW_ID,
+					ctor: new SyncDescriptor(InboxNotificationsView),
+				}, { restore });
+				restore = false;
+			} else {
+				if (customViewService.activeCustomView.read(undefined)?.id === INBOX_NOTIFICATIONS_VIEW_ID) {
+					customViewService.hideCustomView();
+				}
+				viewRegistration.clear();
 			}
 		}));
 	}

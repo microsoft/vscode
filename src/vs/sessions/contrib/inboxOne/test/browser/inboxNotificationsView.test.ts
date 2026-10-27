@@ -16,6 +16,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -25,6 +26,7 @@ import { IStorageService, InMemoryStorageService } from '../../../../../platform
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselPart } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IAgentsActivityService } from '../../../../services/activity/browser/agentsActivityService.js';
@@ -45,6 +47,7 @@ suite('InboxNotificationsView', () => {
 			resizeObserver?: typeof ResizeObserver;
 			previewRequests?: string[];
 			events?: string[];
+			contextKeyService?: IContextKeyService;
 		} = {},
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -62,7 +65,7 @@ suite('InboxNotificationsView', () => {
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(ISessionsService, {});
 		instantiationService.stub(ISessionsManagementService, {});
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IContextKeyService, options.contextKeyService ?? new MockContextKeyService());
 		instantiationService.stub(IContextMenuService, {});
 		instantiationService.stub(IOnboardingScenarioService, {});
 		instantiationService.stub(INotificationService, {});
@@ -196,6 +199,45 @@ suite('InboxNotificationsView', () => {
 		}, { observesList: true, observesViewport: true, scrollHeight: 600, scrollTop: 50 });
 		view.dispose();
 		assert.strictEqual(observer.targets.size, 0);
+	});
+
+	test('question cards isolate their context keys from the window and other cards', () => {
+		const scopes: IContextKeyService[] = [];
+		class RecordingContextKeyService extends ContextKeyService {
+			override createScoped(domNode: HTMLElement) {
+				const scoped = super.createScoped(domNode);
+				scopes.push(scoped);
+				return scoped;
+			}
+		}
+		const contextKeyService = disposables.add(new RecordingContextKeyService(new TestConfigurationService()));
+		const items: IInboxNotificationItem[] = ['first', 'second'].map(id => ({
+			id, kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
+			title: id, description: id, timestamp: 1, actions: [],
+			needsInputPart: {
+				kind: 'questionCarousel', chatResource: URI.parse(`test:///chat/${id}`), requestId: id,
+				resolveId: id, allowSkip: true, questions: [],
+			},
+		}));
+		const { view, container, instantiationService } = createView(constObservable(items), { contextKeyService });
+		instantiationService.stubInstance(ChatQuestionCarouselPart, {
+			domNode: document.createElement('div'), onDidChangeHeight: Event.None, dispose: () => { },
+		});
+		view.render(container);
+		const [first, second] = scopes.slice(-2);
+		ChatContextKeys.inChatQuestionCarousel.bindTo(first).set(true);
+		ChatContextKeys.chatQuestionCarouselHasTerminal.bindTo(first).set(true);
+		ChatContextKeys.inChatQuestionCarousel.bindTo(second).reset();
+		assert.deepStrictEqual({
+			windowQuestion: contextKeyService.getContextKeyValue(ChatContextKeys.inChatQuestionCarousel.key),
+			windowTerminal: contextKeyService.getContextKeyValue(ChatContextKeys.chatQuestionCarouselHasTerminal.key),
+			firstQuestion: first.getContextKeyValue(ChatContextKeys.inChatQuestionCarousel.key),
+			firstTerminal: first.getContextKeyValue(ChatContextKeys.chatQuestionCarouselHasTerminal.key),
+			secondQuestion: second.getContextKeyValue(ChatContextKeys.inChatQuestionCarousel.key),
+		}, {
+			windowQuestion: undefined, windowTerminal: undefined,
+			firstQuestion: true, firstTerminal: true, secondQuestion: false,
+		});
 	});
 
 	test('Done explains that only the notification is dismissed', () => {
