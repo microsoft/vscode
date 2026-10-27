@@ -334,6 +334,18 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				this._writeHistoryDeletionRequests([...this._requireHistoryDeletionRequests().filter(candidate => candidate.resource !== resource), request]);
 				await this._storageService.flush();
 			}
+			try {
+				mutationGuard?.();
+				if (this._store.isDisposed) {
+					throw new CancellationError();
+				}
+			} catch (error) {
+				if (request && !pending) {
+					this._writeHistoryDeletionRequests(this._requireHistoryDeletionRequests().filter(candidate => candidate.requestId !== request.requestId));
+					await this._storageService.flush();
+				}
+				throw error;
+			}
 			await this._doExecuteHistoryDeletion(resource, true, cleanup, request);
 		});
 	}

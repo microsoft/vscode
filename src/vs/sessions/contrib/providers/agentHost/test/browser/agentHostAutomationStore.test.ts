@@ -1265,6 +1265,52 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	test('rechecks deletion guard after journaling and retires an unsent request', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, true) }, undefined);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const automation = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
+		const flushStarted = new DeferredPromise<void>();
+		const releaseFlush = new DeferredPromise<void>();
+		let flushes = 0;
+		storage.flush = async () => {
+			flushes++;
+			if (flushes === 1) {
+				flushStarted.complete();
+				await releaseFlush.p;
+			}
+		};
+		let permitted = true;
+		let guardChecks = 0;
+		const deletion = store.deleteAutomation(automation.id, () => {
+			guardChecks++;
+			if (!permitted) {
+				throw new Error('Mutation cancelled');
+			}
+		});
+		await flushStarted.p;
+		permitted = false;
+		releaseFlush.complete();
+
+		await assert.rejects(deletion, /Mutation cancelled/);
+		store.dispose();
+		disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			guardChecks,
+			flushes,
+			requests: connection.historyDeletes,
+			pending: storage.get('agentHostAutomation.legacyRunArchive.local-agent-host.pendingDeletion', StorageScope.APPLICATION),
+		}, {
+			guardChecks: 2,
+			flushes: 2,
+			requests: [],
+			pending: undefined,
+		});
+	});
+
 	test('resumes acknowledged archive cleanup after a local flush failure', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
