@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir, userInfo } from 'os';
 import { join, posix, win32 } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -122,6 +122,106 @@ suite('CapiReplayProxy path normalization', () => {
 			}
 		} finally {
 			await recorder.stop();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('expands workdir file URI placeholders as file URIs', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-workdir-uri-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		const workDir = 'C:\\Temp\\workspace folder';
+		writeFileSync(fixturePath, [
+			'version: 1',
+			'dialect: anthropic',
+			'exchanges:',
+			'  - request:',
+			'      model: claude-sonnet-5',
+			'      system: ${system}',
+			'      messages:',
+			'        - role: user',
+			'          content: attach',
+			'    response:',
+			'      content:',
+			'        - type: tool_use',
+			'          id: toolu_1',
+			'          name: set_workspace',
+			'          input:',
+			'            workspaceFolder: file://${workdir}',
+			'      stopReason: tool_use',
+		].join('\n'));
+		const replay = new CapiReplayProxy({ fixturePath, mode: 'replay', workDir });
+		try {
+			const response = await fetch(`${await replay.start()}/v1/messages`, {
+				method: 'POST',
+				body: JSON.stringify({
+					model: 'claude-sonnet-5',
+					system: 'system',
+					messages: [{ role: 'user', content: 'attach' }],
+				}),
+			});
+			const content = aggregateAnthropicSse(await response.text())?.content;
+			assert.deepStrictEqual(content?.map(block => block.type === 'tool_use' ? block.input : undefined), [{
+				workspaceFolder: URI.file(workDir).toString(),
+			}]);
+			replay.assertNoReplayMismatches();
+		} finally {
+			await replay.stop();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('preserves authored backslashes after a placeholder path in prose and embedded JSON', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-authored-backslashes-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		const original = 'Inspect ${workdir}/file.txt then preserve expression=a\\b and literal=a\\nb and quoted="\\u0061".';
+		const formats = [
+			(text: string) => text,
+			(text: string) => `Context:\n${JSON.stringify({ message: text }, null, 2)}`,
+		];
+		const request = (text: string) => JSON.stringify({
+			model: 'claude-sonnet-5',
+			system: 'system',
+			messages: [{ role: 'user', content: text }],
+		});
+		try {
+			for (const format of formats) {
+				const recorder = new CapiReplayProxy({
+					fixturePath,
+					mode: 'record',
+					recordingModelResponse: {
+						status: 200,
+						headers: { 'content-type': 'text/event-stream' },
+						body: anthropicMessageToSse({ content: [{ type: 'text', text: 'done' }], stopReason: 'end_turn' }),
+					},
+				});
+				try {
+					await (await fetch(`${await recorder.start()}/v1/messages`, { method: 'POST', body: request(format(original)) })).text();
+					await recorder.stop();
+					const variants = [
+						original,
+						original.replace('${workdir}/file.txt', '${workdir}\\file.txt'),
+						original.replace('expression=a\\b', 'expression=a/b'),
+						original.replace('literal=a\\nb', 'literal=a/nb'),
+						original.replace('"\\u0061"', '"a"'),
+					];
+					for (const [index, text] of variants.entries()) {
+						const replay = new CapiReplayProxy({ fixturePath, mode: 'replay' });
+						try {
+							await (await fetch(`${await replay.start()}/v1/messages`, { method: 'POST', body: request(format(text)) })).text();
+							if (index < 2) {
+								replay.assertNoReplayMismatches();
+							} else {
+								assert.throws(() => replay.assertNoReplayMismatches(), /model request mismatch/);
+							}
+						} finally {
+							await replay.close();
+						}
+					}
+				} finally {
+					await recorder.stop();
+				}
+			}
+		} finally {
 			rmSync(directory, { recursive: true, force: true });
 		}
 	});

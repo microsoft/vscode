@@ -6,7 +6,7 @@
 import './media/globalCompositeBar.css';
 import { localize } from '../../../nls.js';
 import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../common/activity.js';
+import { ACCOUNTS_ACTIVITY_ID, ACCOUNTS_SHARED_SIGN_IN_GROUP, GLOBAL_ACTIVITY_ID } from '../../common/activity.js';
 import { IActivityService } from '../../services/activity/common/activity.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, Disposable } from '../../../base/common/lifecycle.js';
@@ -373,6 +373,11 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	}
 
 	private async doInitialize(): Promise<void> {
+		// Resolve extension-host-backed GitHub state before exposing agent-specific accounts.
+		await this.defaultAccountService.getDefaultAccount();
+		if (this._store.isDisposed) {
+			return;
+		}
 		const providerIds = this.authenticationService.getProviderIds();
 		const results = await Promise.allSettled(providerIds.map(providerId => this.addAccountsFromProvider(providerId)));
 
@@ -462,9 +467,9 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		const dynamicProviders = providers.filter(providerId => this.authenticationService.isDynamicAuthenticationProvider(providerId));
 
 		if (!this.initialized) {
-			const noAccountsAvailableAction = disposables.add(new Action('noAccountsAvailable', localize('loading', "Loading..."), undefined, false));
-			menus.push(noAccountsAvailableAction);
+			menus.push(disposables.add(new Action('noAccountsAvailable', localize('loading', "Loading..."), undefined, false)));
 		} else {
+
 			for (const providerId of registeredProviders) {
 				const provider = this.authenticationService.getProvider(providerId);
 				const accounts = this.groupedAccounts.get(providerId);
@@ -580,7 +585,21 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			}
 		}
 
-		const codexAccountActions = createCodexAccountMenuActions(this.codexAccountService, shouldShowCodexAccount(this.configurationService, false));
+		const sharedAccountCommandGroups = otherCommands.filter(([group]) => group === ACCOUNTS_SHARED_SIGN_IN_GROUP);
+		const remainingCommandGroups = otherCommands.filter(([group]) => group !== ACCOUNTS_SHARED_SIGN_IN_GROUP);
+		const appendCommandGroups = (groups: typeof otherCommands) => {
+			for (const [, actions] of groups) {
+				if (menus.length && actions.length) {
+					menus.push(new Separator());
+				}
+				menus = menus.concat(actions);
+			}
+		};
+		appendCommandGroups(sharedAccountCommandGroups);
+
+		const codexAccountActions = this.initialized
+			? createCodexAccountMenuActions(this.codexAccountService, shouldShowCodexAccount(this.configurationService, false))
+			: [];
 		if (codexAccountActions.length) {
 			if (menus.length) {
 				menus.push(new Separator());
@@ -590,17 +609,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			}
 		}
 
-		if (menus.length && otherCommands.length) {
-			menus.push(new Separator());
-		}
-
-		otherCommands.forEach((group, i) => {
-			const actions = group[1];
-			menus = menus.concat(actions);
-			if (i !== otherCommands.length - 1) {
-				menus.push(new Separator());
-			}
-		});
+		appendCommandGroups(remainingCommandGroups);
 
 		return menus;
 	}

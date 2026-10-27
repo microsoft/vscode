@@ -13,7 +13,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -40,7 +40,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { chatEditingSessionIsReady, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
 import { IChatProgress, IChatWorkspaceEdit } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
@@ -150,7 +150,8 @@ function createOpeningEditCodeBlock(uri: URI, isNotebook: boolean, undoStopId: s
 
 
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
-	readonly supportsKeepUndo = false;
+	readonly supportsKeepUndo = constObservable(false);
+	readonly isGlobalEditingSession: IObservable<boolean>;
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
 	private readonly _timeline: IChatEditingCheckpointTimeline;
 
@@ -205,7 +206,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	constructor(
 		readonly chatSessionResource: URI,
-		readonly isGlobalEditingSession: boolean,
+		isGlobalEditingSession: boolean,
 		private _lookupExternalEntry: (uri: URI) => AbstractChatEditingModifiedFileEntry | undefined,
 		transferFrom: IChatEditingSession | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -224,6 +225,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+		this.isGlobalEditingSession = constObservable(isGlobalEditingSession);
 		this._timeline = this._instantiationService.createInstance(
 			ChatEditingCheckpointTimelineImpl,
 			chatSessionResource,
@@ -277,7 +279,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				if (entry instanceof ChatEditingModifiedNotebookEntry) {
 					await entry.restoreModifiedModelFromSnapshot(content);
 				} else {
-					await entry.acceptAgentEdits(uri, [{ range: new Range(1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER), text: content }], true, undefined);
+					await entry.acceptAgentEdits(uri, [{ range: new Range(1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER), text: content }], true, undefined, {});
 				}
 
 				if (state !== ModifiedFileEntryState.Modified) {
@@ -553,24 +555,24 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		let didComplete = false;
 
 		return {
-			pushText: (edits, isLastEdits) => {
+			pushText: (edits, isLastEdits, metadata) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptEdits(resource, edits, isLastEdits, responseModel);
+						await this._acceptEdits(resource, edits, isLastEdits, responseModel, metadata);
 					}
 				});
 			},
-			pushNotebookCellText: (cell, edits, isLastEdits) => {
+			pushNotebookCellText: (cell, edits, isLastEdits, metadata) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptEdits(cell, edits, isLastEdits, responseModel);
+						await this._acceptEdits(cell, edits, isLastEdits, responseModel, metadata);
 					}
 				});
 			},
-			pushNotebook: (edits, isLastEdits) => {
+			pushNotebook: (edits, isLastEdits, metadata) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptEdits(resource, edits, isLastEdits, responseModel);
+						await this._acceptEdits(resource, edits, isLastEdits, responseModel, metadata);
 					}
 				});
 			},
@@ -582,7 +584,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				didComplete = true;
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptEdits(resource, [], true, responseModel);
+						await this._acceptEdits(resource, [], true, responseModel, {});
 						await this._resolve(responseModel.requestId, inUndoStop, resource);
 						completePromise.complete();
 					}
@@ -1028,7 +1030,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
-	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel, metadata: IChatEditMetadata): Promise<void> {
 		const entry = await this._getOrCreateModifiedFileEntry(resource, NotExistBehavior.Create, this._getTelemetryInfoForModel(responseModel));
 
 		// Record edit operations in the timeline if there are actual edits
@@ -1036,7 +1038,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			this._recordEditOperations(entry, resource, textEdits, responseModel);
 		}
 
-		await entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
+		await entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel, metadata);
 	}
 
 	private _getTelemetryInfoForModel(responseModel: IChatResponseModel): IModifiedEntryTelemetryInfo {

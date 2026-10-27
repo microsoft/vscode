@@ -10,13 +10,13 @@ import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { supportsAgentHostAutonomousAutomations } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
-import type { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationUnavailableError, type AutomationCatalogueState, type AutomationMutationGuard, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import type { AutomationTarget, IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationUnavailableError, type AutomationCatalogueState, type AutomationMutationGuard, type AutomationUnavailableReasonCode, type IAutomationCustomizationChoice, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper, type IAgentHostAutomationConnection } from './agentHostAutomationStore.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 
-type AutomationConnectionState = 'disconnected' | 'initializing' | 'disabled' | 'unsupported' | 'incompatible' | 'connected';
+type AutomationConnectionState = AutomationUnavailableReasonCode | 'connected';
 
 /**
  * Stable Automation facade for one Sessions provider across connection, capability, and enablement changes.
@@ -35,6 +35,10 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 	readonly catalogueState: IObservable<AutomationCatalogueState> = derived(this, reader => this.currentStore.read(reader)?.catalogueState.read(reader)
 		?? (this.connectionState.read(reader) === 'initializing' ? 'loading' : 'unavailable'));
 	readonly canCreateAutomation = derived(this, reader => this.currentStore.read(reader)?.canCreateAutomation.read(reader) ?? false);
+	readonly unavailableReasonCode = derived(this, reader => {
+		const state = this.connectionState.read(reader);
+		return state === 'connected' ? undefined : state;
+	});
 	readonly unavailableReason = derived(this, reader => {
 		switch (this.connectionState.read(reader)) {
 			case 'disconnected':
@@ -104,6 +108,10 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 
 	getAutomation(id: string): IAutomationDescriptor | undefined {
 		return this.currentStore.get()?.getAutomation(id);
+	}
+
+	async getCustomizationChoices(target: AutomationTarget, existingId: string | undefined, token: CancellationToken): Promise<readonly IAutomationCustomizationChoice[] | undefined> {
+		return this.currentStore.get()?.getCustomizationChoices(target, existingId, token);
 	}
 
 	canRunAutomation(id: string): boolean {

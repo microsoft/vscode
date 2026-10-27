@@ -109,6 +109,6 @@ export function activate(
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
 
-export function deactivate() {
-	fs.rmSync(temp.instanceTempDir.value, { recursive: true, force: true });
+export async function deactivate(): Promise<void> {
+	await fs.promises.rm(temp.instanceTempDir.value, { recursive: true, force: true });
 }

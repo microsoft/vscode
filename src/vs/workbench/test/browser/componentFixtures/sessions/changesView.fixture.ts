@@ -37,7 +37,7 @@ import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChan
 // eslint-disable-next-line local/code-import-patterns
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SinglePaneChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
+import { DesktopChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService, SessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -158,7 +158,7 @@ const changesViewContainer: ViewContainer = {
 const changesViewDescriptor: IViewDescriptor = {
 	id: CHANGES_VIEW_ID,
 	name: localize2('fixtureChangesView', 'Changes'),
-	ctorDescriptor: new SyncDescriptor(SinglePaneChangesViewPane),
+	ctorDescriptor: new SyncDescriptor(DesktopChangesViewPane),
 	containerIcon: Codicon.gitCompare,
 };
 
@@ -274,7 +274,13 @@ function createSession(options: IChangesViewFixtureOptions): IActiveSession {
 		supportsRename: true,
 	};
 	const changesets = [createChangeset(options.changes)];
-	const chat = new class extends mock<IChat>() { }();
+	// A chat without its own folders shares the session's workspace.
+	const workspace = constObservable(createWorkspace());
+	const chat = new class extends mock<IChat>() {
+		override readonly changes = constObservable(options.changes);
+		override readonly changesets = constObservable(changesets);
+		override readonly workspace = workspace;
+	}();
 
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = 'fixture:changes-view';
@@ -283,12 +289,10 @@ function createSession(options: IChangesViewFixtureOptions): IActiveSession {
 		override readonly sessionType = 'fixture';
 		override readonly icon = Codicon.account;
 		override readonly createdAt = new Date('2026-05-14T12:00:00Z');
-		override readonly workspace = constObservable(createWorkspace());
+		override readonly workspace = workspace;
 		override readonly title = constObservable('Changes view fixture');
 		override readonly updatedAt = constObservable(new Date('2026-05-14T12:30:00Z'));
 		override readonly status = constObservable(SessionStatus.Completed);
-		override readonly changes = constObservable(options.changes);
-		override readonly changesets = constObservable(changesets);
 		override readonly modelId = constObservable(undefined);
 		override readonly mode = constObservable(undefined);
 		override readonly loading = constObservable(false);
@@ -360,7 +364,6 @@ function createGitHubService(checks: readonly IGitHubCICheck[] | undefined): IGi
 		override readonly activeSessionPullRequestObs = constObservable(undefined);
 		override readonly activeSessionPullRequestCIObs = constObservable(createCIModel(checks));
 		override readonly activeSessionPullRequestReviewThreadsObs = constObservable(undefined);
-		override createRepositoryModelReference(): ReturnType<IGitHubService['createRepositoryModelReference']> { throw new Error('Not implemented in fixture.'); }
 		override createPullRequestModelReference(): ReturnType<IGitHubService['createPullRequestModelReference']> { throw new Error('Not implemented in fixture.'); }
 		override createPullRequestReviewThreadsModelReference(): ReturnType<IGitHubService['createPullRequestReviewThreadsModelReference']> { throw new Error('Not implemented in fixture.'); }
 		override createPullRequestCIModelReference(): ReturnType<IGitHubService['createPullRequestCIModelReference']> { throw new Error('Not implemented in fixture.'); }
@@ -447,7 +450,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 		},
 	});
 
-	const view = disposableStore.add(instantiationService.createInstance(SinglePaneChangesViewPane, {
+	const view = disposableStore.add(instantiationService.createInstance(DesktopChangesViewPane, {
 		id: CHANGES_VIEW_ID,
 		title: 'Changes',
 		minimumBodySize: 0,

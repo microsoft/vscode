@@ -5,10 +5,13 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getFeedbackSessionCandidates } from '../../browser/agentFeedbackEditorUtils.js';
+import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { getFeedbackSessionCandidates, getSessionChangeForResource } from '../../browser/agentFeedbackEditorUtils.js';
+import { IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 
-suite('getFeedbackSessionCandidates', () => {
+suite('AgentFeedbackEditorUtils', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -60,5 +63,19 @@ suite('getFeedbackSessionCandidates', () => {
 			'/workspace/modified/file0.ts',
 			'/workspace/original/file1.ts',
 		]);
+	});
+
+	test('finds changes through the active-chat feedback projection', () => {
+		const activeChatChange = upcastPartial<ISessionFileChange>({
+			modifiedUri: URI.file('/workspace/active-chat.ts'),
+		});
+		const feedbackService = upcastPartial<IAgentFeedbackService>({
+			getChatChanges: () => [activeChatChange],
+		});
+
+		assert.strictEqual(
+			getSessionChangeForResource(sessionA, URI.file('/workspace/active-chat.ts'), feedbackService),
+			activeChatChange,
+		);
 	});
 });

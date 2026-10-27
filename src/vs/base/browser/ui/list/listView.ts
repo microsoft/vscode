@@ -726,12 +726,16 @@ export class ListView<T> implements IListView<T> {
 		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => Range.intersect(renderRange, r)).reverse();
 		const insertedItems: IItem<T>[] = [];
 
-		for (const range of insertRanges) {
+		insert: for (const range of insertRanges) {
 			for (let i = range.end - 1; i >= range.start; i--) {
 				const item = this.items[i];
 				const rows = rowsToDispose.get(item.templateId);
 				const row = rows?.pop();
 				this.insertItemInDOM(i, row);
+				if (!item.row) {
+					// Rendering recycled this row, invalidating the remaining insertion ranges.
+					break insert;
+				}
 				insertedItems.push(item);
 			}
 		}
@@ -935,19 +939,31 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		const insertedItems: IItem<T>[] = [];
+		const insertRows = () => {
+			for (const range of rangesToInsert) {
+				for (let i = range.end - 1; i >= range.start; i--) {
+					this.insertItemInDOM(i);
+					insertedItems.push(this.items[i]);
+				}
+			}
+		};
+		// Measuring new rows can reveal a row that the estimated scroll position would otherwise recycle.
+		const insertBeforeRemove = this.supportDynamicHeights && rangesToInsert.some(range =>
+			this.items.slice(range.start, range.end).some(item => this.shouldProbeDynamicHeight(item)));
 
 		this.cache.transact(() => {
+			if (insertBeforeRemove) {
+				insertRows();
+			}
+
 			for (const range of rangesToRemove) {
 				for (let i = range.start; i < range.end; i++) {
 					this.removeItemFromDOM(i, onScroll);
 				}
 			}
 
-			for (const range of rangesToInsert) {
-				for (let i = range.end - 1; i >= range.start; i--) {
-					this.insertItemInDOM(i);
-					insertedItems.push(this.items[i]);
-				}
+			if (!insertBeforeRemove) {
+				insertRows();
 			}
 		});
 
@@ -1020,6 +1036,11 @@ export class ListView<T> implements IListView<T> {
 
 		if (!alreadyRendered) {
 			renderer.renderElement(item.element, index, item.row.templateData, { height: item.size });
+		}
+
+		// Rendering can synchronously recycle the row, for example when the viewport collapses.
+		if (!item.row) {
+			return;
 		}
 
 		const uri = this.dnd.getDragURI(item.element);
@@ -1743,6 +1764,7 @@ export class ListView<T> implements IListView<T> {
 
 		const { row } = this.cache.alloc(item.templateId);
 		row.domNode.style.height = '';
+		row.domNode.dataset.index = String(index);
 		this.rowsContainer.appendChild(row.domNode);
 
 		const renderer = this.renderers.get(item.templateId);
@@ -1767,7 +1789,8 @@ export class ListView<T> implements IListView<T> {
 		const diffs = new Array<number>(range.end - range.start).fill(0);
 		const measurements: IDynamicHeightMeasurement<T>[] = [];
 
-		for (let index = range.start; index < range.end; index++) {
+		// Re-check `this.items.length` each iteration so a reentrant splice that shrinks the model mid-loop cannot read out of bounds.
+		for (let index = range.start; index < range.end && index < this.items.length; index++) {
 			const item = this.items[index];
 			const delegateHeightDiff = this.probeDynamicHeightFromDelegate(item);
 			if (delegateHeightDiff !== undefined) {
@@ -1791,6 +1814,7 @@ export class ListView<T> implements IListView<T> {
 			measurements.push(measurement);
 
 			row.domNode.style.height = '';
+			row.domNode.dataset.index = String(index);
 			this.rowsContainer.appendChild(row.domNode);
 
 			const renderer = this.renderers.get(item.templateId);

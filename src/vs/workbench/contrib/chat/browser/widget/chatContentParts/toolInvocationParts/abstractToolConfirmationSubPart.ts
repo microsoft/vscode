@@ -23,6 +23,7 @@ import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatCo
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IRenderFileWidgetsOptions } from '../chatInlineAnchorWidget.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { isMcpToolInvocation } from './chatToolPartUtilities.js';
 import { createApprovalReasonBadge, createToolRiskBadge } from './toolRiskBadgeHelper.js';
 
 /**
@@ -220,7 +221,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 					label: localize('skip', "Skip"),
 					tooltip: skipTooltip,
 					data: () => {
-						this.confirmWith(toolInvocation, { type: ToolConfirmKind.Skipped });
+						this.confirmWith(toolInvocation, { type: ToolConfirmKind.Skipped, source: 'user' });
 					},
 					isSecondary: true,
 				}
@@ -242,7 +243,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 			this.context,
 			{
 				title: this.getTitle(),
-				icon: tool?.icon && 'id' in tool.icon ? tool.icon : Codicon.tools,
+				icon: isMcpToolInvocation(toolInvocation) ? Codicon.mcp : tool?.icon && 'id' in tool.icon ? tool.icon : Codicon.tools,
 				subtitle: config.subtitle,
 				buttons,
 				message: contentElement,

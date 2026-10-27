@@ -57,6 +57,12 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 	private readonly categoryDescriptions: IPromptLaunchersCategoryDescription[] = [
 		{
+			id: AICustomizationManagementSection.Marketplace,
+			label: localize('customizationMarketplace', "Marketplace"),
+			icon: Codicon.search,
+			description: localize('customizationMarketplaceDesc', "Discover skills, MCP servers, and plugins for your agents. Review their sources before installing."),
+		},
+		{
 			id: AICustomizationManagementSection.Agents,
 			label: localize('agents', "Agents"),
 			icon: agentIcon,
@@ -95,6 +101,12 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			label: localize('plugins', "Plugins"),
 			icon: pluginIcon,
 			description: localize('pluginsDesc', "Install reusable packages that extend the agent. Plugins can add tools, skills, agents, hooks, and MCP servers."),
+		},
+		{
+			id: AICustomizationManagementSection.Canvases,
+			label: localize('copilotCanvases', "Canvases"),
+			icon: Codicon.preview,
+			description: localize('copilotCanvasesDesc', "Review interactive canvases declared for Copilot chats visible in this window."),
 		},
 		{
 			id: AICustomizationManagementSection.Tools,

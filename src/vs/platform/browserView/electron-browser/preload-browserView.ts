@@ -84,6 +84,11 @@ function init() {
 			return;
 		}
 
+		// Never handle Insert (or Help, which can be emitted by Ctrl+Insert on Mac) as keybindings.
+		if (event.key === 'Insert' || event.key === 'Help') {
+			return;
+		}
+
 		const isMac = navigator.platform.indexOf('Mac') >= 0;
 
 		// Alt+Key special character handling (Alt + Numpad keys on Windows/Linux, Alt + any key on Mac)

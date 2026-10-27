@@ -24,12 +24,15 @@ export const enum SessionListModelChangeKind {
  */
 export type SessionSortMode = 'created' | 'updated';
 
+export type SessionSortEntry = Pick<ISession, 'sessionId' | 'createdAt' | 'updatedAt'>;
+
 export interface ISessionListModelChangeEvent {
 	readonly changes: ReadonlyArray<{ readonly sessionId: string; readonly kind: SessionListModelChangeKind }>;
 }
 
 /**
  * Service that manages UI-only state for sessions: pinned and manual sort order.
+ * The order of a session's nested chats is owned by its provider, never by the list.
  *
  * This state is purely local (persisted in storage) and not synced to providers.
  * Extracted from SessionsList so it can be consumed by any component (title bar,
@@ -65,10 +68,10 @@ export interface ISessionsListModelService {
 	 * timestamp (`createdAt` for `'created'`, `updatedAt` for `'updated'`).
 	 * Sessions are displayed in descending order of this value.
 	 */
-	getSortKey(session: ISession, mode: SessionSortMode): number;
+	getSortKey(session: SessionSortEntry, mode: SessionSortMode): number;
 
 	/** The natural (non-overridden) sort key for a session in the given mode. */
-	getNaturalSortKey(session: ISession, mode: SessionSortMode): number;
+	getNaturalSortKey(session: SessionSortEntry, mode: SessionSortMode): number;
 
 	/** Whether the session has a manual sort override in the given mode. */
 	hasSortOverride(sessionId: string, mode: SessionSortMode): boolean;
@@ -88,10 +91,10 @@ export interface ISessionsListModelService {
 	 * all surfaces stay in sync.
 	 *
 	 * Note: when motion is allowed, surfaces that host a {@link SessionStatusIcon}
-	 * (sessions list, session header) render a pixel spinner for the
-	 * `InProgress`/`NeedsInput` states instead of consulting this method; the
-	 * icons returned here are the reduced-motion fallbacks (and the glyphs used by
-	 * surfaces that don't host the widget, such as the sessions picker).
+	 * (sessions list, session header) render a pixel spinner for `InProgress`.
+	 * Other states, including the pulsing report-question icon for `NeedsInput`, use the
+	 * icon returned here. Surfaces that don't host the widget, such as the
+	 * sessions picker, also use these icons.
 	 */
 	getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon): ThemeIcon;
 }
@@ -105,6 +108,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
 	private static readonly SORT_OVERRIDES_KEY = 'sessionsListControl.sortOverrides';
 	private static readonly UPDATED_DEFAULT_PLACEMENTS_KEY = 'sessionsListControl.updatedDefaultPlacements';
+	/** Retired: a list-owned order of nested chats, which conflicted with the order their provider owns. */
+	private static readonly RETIRED_CHAT_ORDER_KEY = 'sessionsListControl.chatOrder';
 	private static readonly LEGACY_READ_SESSIONS_KEY = 'sessionsListControl.readSessions';
 	private static readonly READ_MIGRATION_DONE_KEY = 'sessionsListControl.readMigrationDone';
 	private static readonly UNREAD_DEFAULT_CUTOFF = new Date('2026-05-12T00:00:00.000Z');
@@ -127,6 +132,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._pinnedSessionIds = this.loadSet(SessionsListModelService.PINNED_SESSIONS_KEY);
 		this._sortOverrides = this.loadSortOverrides();
 		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
+		this.storageService.remove(SessionsListModelService.RETIRED_CHAT_ORDER_KEY, StorageScope.PROFILE);
 		const legacyRead = this.loadSet(SessionsListModelService.LEGACY_READ_SESSIONS_KEY);
 		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
 		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
@@ -281,11 +287,11 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		return changed;
 	}
 
-	getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
+	getNaturalSortKey(session: SessionSortEntry, mode: SessionSortMode): number {
 		return mode === 'updated' ? session.updatedAt.get().getTime() : session.createdAt.getTime();
 	}
 
-	getSortKey(session: ISession, mode: SessionSortMode): number {
+	getSortKey(session: SessionSortEntry, mode: SessionSortMode): number {
 		const override = this._sortOverrides[mode].get(session.sessionId);
 		return override ?? this.getNaturalSortKey(session, mode);
 	}
@@ -338,7 +344,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			case SessionStatus.InProgress:
 				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 			case SessionStatus.NeedsInput:
-				return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
+				return { ...Codicon.reportQuestion, color: themeColorFromId('list.warningForeground') };
 			case SessionStatus.Error:
 				return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:
@@ -348,7 +354,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				if (!isRead) {
 					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 				}
-				if (completedStateIcon) {
+				if (status === SessionStatus.Completed && completedStateIcon) {
 					return completedStateIcon;
 				}
 				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };

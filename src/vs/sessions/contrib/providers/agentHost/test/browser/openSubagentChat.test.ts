@@ -10,7 +10,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { buildSubagentChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
@@ -20,6 +20,9 @@ import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../.
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { OpenSubagentChatActionViewItem, OpenSubagentChatActionViewItemContribution, shouldShowSubagentModel } from '../../browser/openSubagentChat.js';
@@ -41,14 +44,26 @@ suite('OpenSubagentChatActionViewItemContribution', () => {
 				const chat = upcastPartial<IChat>({ resource: resource.with({ fragment: 'subagent/launch' }) });
 				const session = upcastPartial<IActiveSession>({
 					sessionId: 'session',
+					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 					resource,
 					chats: constObservable([chat]),
 				});
 				const otherSession = upcastPartial<IActiveSession>({
 					sessionId: 'other',
+					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 					resource: resource.with({ path: '/other' }),
 					chats: constObservable([upcastPartial<IChat>({ resource: chat.resource.with({ path: '/other' }) })]),
 				});
+				// The host records each session's own subagent chat.
+				const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getBackendChatResource: chatResource => URI.parse(buildSubagentChatUri(`copilot:${chatResource.path}`, 'launch')),
+				});
+				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+					override getProvider<T extends ISessionsProvider>(): T | undefined {
+						return provider as T | undefined;
+					}
+				}());
 				const opened: { toSide: boolean; sessionId: string; resource: URI; referenceChatResource?: URI }[] = [];
 				instantiationService.stub(ISessionsService, {
 					activeSession: constObservable(otherSession),
@@ -79,6 +94,48 @@ suite('OpenSubagentChatActionViewItemContribution', () => {
 			});
 		}
 	}
+
+	test('opens a nested activity link beside the source without opening its enclosing subagent', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(ILanguageModelsService, {
+			onDidChangeLanguageModels: Event.None,
+			lookupLanguageModel: () => undefined,
+		});
+		const resource = URI.parse('agent-host-copilotcli:/session');
+		const parent = upcastPartial<IChat>({ resource: URI.parse('vendor-chat:/workers/parent') });
+		const nested = upcastPartial<IChat>({ resource: URI.parse('vendor-chat:/workers/nested?revision=2') });
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'session',
+			resource,
+			chats: constObservable([parent, nested]),
+		});
+		const opened: Parameters<ISessionsService['openChatToSide']>[] = [];
+		instantiationService.stub(ISessionsService, {
+			activeSession: constObservable(session),
+			visibleSessions: constObservable([session]),
+			openChatToSide: async (...args) => { opened.push(args); },
+		});
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
+		store.add(instantiationService.createInstance(OpenSubagentChatActionViewItemContribution));
+		const command = CommandsRegistry.getCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
+		assert.ok(command);
+		const action = store.add(new Action('openSubagent', 'Open Subagent', undefined, true,
+			context => instantiationService.invokeFunction(command.handler, context)));
+		const item = store.add(instantiationService.createInstance(OpenSubagentChatActionViewItem, {
+			chatResource: parent.resource.toString(), parentSessionResource: resource.toString(),
+			isActive: true, activeToolLabel: 'Subagent: Nested review', activeToolCallId: 'nested',
+			activeToolSubagent: { title: 'Nested review', chatResource: nested.resource.toString(), isChatAvailable: true },
+		}, action, {}, false));
+		const container = document.createElement('div');
+		item.render(container);
+		const link = container.querySelector<HTMLElement>('.chat-subagent-pill-active-tool .monaco-link');
+		assert.ok(link);
+		const didRun = Event.toPromise(item.actionRunner.onDidRun);
+		link.click();
+		await didRun;
+
+		assert.deepStrictEqual(opened, [[session, nested.resource, { referenceChatResource: URI.parse(resource.toString()) }]]);
+	});
 });
 
 suite('OpenSubagentChatActionViewItem', () => {
@@ -149,7 +206,7 @@ suite('OpenSubagentChatActionViewItem', () => {
 			enabled: viewItem.action.enabled,
 			sourceActionEnabled: action.enabled,
 			hidden: container.classList.contains('hidden'),
-			ariaHidden: container.getAttribute('aria-hidden'),
+			ariaHidden: container.querySelector('.chat-subagent-pill-content')?.getAttribute('aria-hidden'),
 			modelHidden: container.querySelector('.chat-subagent-pill-model')?.classList.contains('hidden'),
 		}, {
 			enabled: false,
@@ -193,14 +250,16 @@ suite('OpenSubagentChatActionViewItem', () => {
 		const container = document.createElement('div');
 		viewItem.render(container);
 
+		const button = container.querySelector<HTMLElement>('.chat-subagent-pill-content');
+		assert.ok(button);
 		const dragStart = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
-		container.dispatchEvent(dragStart);
+		button.dispatchEvent(dragStart);
 		const keyDown = new KeyboardEvent(EventType.KEY_DOWN, { key: 'Enter', altKey: true, bubbles: true, cancelable: true });
 		Object.defineProperty(keyDown, 'keyCode', { value: 13 });
-		container.dispatchEvent(keyDown);
+		button.dispatchEvent(keyDown);
 
 		assert.deepStrictEqual({
-			draggable: container.draggable,
+			draggable: button.draggable,
 			dragPrevented: dragStart.defaultPrevented,
 			dragResource,
 			openContext,
@@ -239,7 +298,7 @@ suite('OpenSubagentChatActionViewItem', () => {
 
 		const withActiveTool = {
 			tooltip: viewItem.tooltip,
-			ariaLabel: container.getAttribute('aria-label'),
+			ariaLabel: container.querySelector('.chat-subagent-pill-content')?.getAttribute('aria-label'),
 		};
 		viewItem.setActionContext({ chatResource: 'ahp-chat://subagent/session/tool-call' });
 
@@ -247,7 +306,7 @@ suite('OpenSubagentChatActionViewItem', () => {
 			withActiveTool,
 			withoutActiveTool: {
 				tooltip: viewItem.tooltip,
-				ariaLabel: container.getAttribute('aria-label'),
+				ariaLabel: container.querySelector('.chat-subagent-pill-content')?.getAttribute('aria-label'),
 			},
 		}, {
 			withActiveTool: {
@@ -294,7 +353,7 @@ suite('OpenSubagentChatActionViewItem', () => {
 		assert.deepStrictEqual({
 			modelHidden: container.querySelector('.chat-subagent-pill-model')?.classList.contains('hidden'),
 			tooltip: viewItem.tooltip,
-			ariaLabel: container.getAttribute('aria-label'),
+			ariaLabel: container.querySelector('.chat-subagent-pill-content')?.getAttribute('aria-label'),
 		}, {
 			modelHidden: true,
 			tooltip: 'Open Subagent\nModel: GPT-5.6 Sol',
@@ -339,7 +398,7 @@ suite('OpenSubagentChatActionViewItem', () => {
 			text: creditsElement?.textContent,
 			hidden: creditsElement?.classList.contains('hidden'),
 			tooltip: viewItem.tooltip,
-			ariaLabel: container.getAttribute('aria-label'),
+			ariaLabel: container.querySelector('.chat-subagent-pill-content')?.getAttribute('aria-label'),
 		};
 
 		// A subagent that bills nothing should not carry an empty cost readout.

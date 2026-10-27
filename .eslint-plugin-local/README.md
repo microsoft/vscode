@@ -110,6 +110,28 @@ rules: {
 
 In these cases make sure to update the `meta.schema` property on your rule with the JSON schema for the arguments. You can access these arguments using `context.options` in the rule `create` function
 
+## Agent host metadata boundary
+
+`local/code-no-private-agent-host-meta-import` keeps `src/vs/platform/agentHost/common/meta/copilotd/` and `meta/vscode/` private. Feature code must import domain helpers and portable types from top-level `meta/*.ts` modules, even for type-only imports. Top-level modules can adapt either private implementation; each private implementation can import only its own private folder. Files under `test/` directories may import raw metadata for parsing/vector tests, and `build/agentHost/generateCopilotMetadata.ts` may access the generated schema.
+
+The rule checks static imports, re-exports, import types, literal dynamic imports, and literal `require` calls, resolving relative paths and `vs/` aliases. Run its tests with `node --test .eslint-plugin-local/tests/code-no-private-agent-host-meta-import.test.ts`.
+
+
+## Asynchronous production filesystem operations
+
+`local/code-no-sync-fs` rejects synchronous Node filesystem calls in core and built-in extension production code, including `original-fs` and the synchronous `pfs` helpers. It follows named and namespace imports, local aliases, destructuring, literal `require`/dynamic imports, and `createRequire` bindings. Tests, development scripts, top-level `src/` bootstrap files, the Electron main entry point, the AMD loader, and the isolated desktop/server CLI and Git askpass entry points are excluded by the ESLint configuration.
+
+The configuration also excludes the synchronous helper implementations in `pfs.ts` and designated core startup/shutdown files: `wait.ts`, `remoteExtensionHostAgentServer.ts`, `server.main.ts`, `extHostCLIServer.ts`, `extHostExtensionService.ts`, and `extHostStoragePaths.ts`. These are exact-file exclusions, not directory exclusions; production callers of synchronous `pfs` helpers remain checked.
+
+**Do not disable this rule unless absolutely necessary.** Synchronous filesystem calls block the event loop and can stall unrelated work throughout the process. Use `fs/promises` or the existing asynchronous filesystem helpers; difficulty propagating `async` is not by itself a justification for disabling the rule.
+
+Existing suppressions document audited legacy constraints and deferred work, not permission to add more synchronous calls. Outside the designated startup/shutdown exclusions, an unavoidable exception must be limited to the call site, with an explanatory `eslint-disable-next-line local/code-no-sync-fs -- ...` comment stating why asynchronous I/O cannot be used. Do not exempt additional runtime services. Deferred runtime conversions must identify the contract or ordering that needs review.
+
+Justifications must explain the concrete failure or lifecycle constraint an async replacement would introduce, not merely describe the synchronous operation. Temporary migration TODOs must name the readiness, sequencing, or ownership change needed to remove the suppression; they do not establish that synchronous I/O is permanently required.
+
+Run the rule and configuration tests with `node --test .eslint-plugin-local/tests/code-no-sync-fs.test.ts`. Custom rule tests also run in CI through `npm run test-build-scripts`.
+
+(Written by Copilot)
 
 ## Adding fixes to custom rules
 Fixes are a useful way to mechanically fix basic linting issues, such as auto inserting semicolons. These fixes typically work at the AST level, so they are a more reliable way to perform bulk fixes compared to find/replaces.
@@ -120,6 +142,16 @@ To add a fix for a custom rule:
 
 2. When reporting an error in the rule, also include a `fix`. This is a function that takes a `fixer` argument and returns one or more fixes.
 
-See the [Double quoted to single quoted string covert fix](https://github.com/microsoft/vscode/blob/b074375e1884ae01033967bf0bbceeaa4795354a/.eslint-plugin-local/code-no-unexternalized-strings.ts#L128) for an example. The ESLint docs also have [details on adding fixes and the fixer api](https://eslint.org/docs/latest/extend/custom-rules#applying-fixes)
+See the [Double quoted to single quoted string conversion fix](https://github.com/microsoft/vscode/blob/b074375e1884ae01033967bf0bbceeaa4795354a/.eslint-plugin-local/code-no-unexternalized-strings.ts#L128) for an example. The ESLint docs also have [details on adding fixes and the fixer API](https://eslint.org/docs/latest/extend/custom-rules#applying-fixes).
 
-The fixes can be run using `npx eslint --fix` in the VS Code repo
+The fixes can be run using `npx eslint --fix` in the VS Code repo.
+
+## Tests nested inside tests
+
+`local/code-no-nested-test` reports a `test(...)` or `suite(...)` declared inside the body of another test. Mocha only collects tests while a suite runs, so a test registered from within a running test is silently dropped and never runs. This is almost always a misplaced closing brace. Only Mocha's globals are checked: a local helper named `test` is ignored, and so is anything imported from `node:test`, which runs a nested test as a subtest. Run its tests with `node --test .eslint-plugin-local/tests/code-no-nested-test.test.ts`.
+
+## Polling a timer in a loop
+
+`local/code-no-timeout-polling-loop` reports loops in unit tests that wait for a state change by sleeping on a timer, for example `for (let i = 0; i < 100 && !done; i++) { await timeout(1); }`, `while (!done) { await new Promise(r => setTimeout(r, 5)); }`, or a fixed number of `await timeout(0)` ticks. Such a loop's time budget depends on timer clamping (about 4ms for nested timers in Electron) and machine load, so it is flaky on slow or oversubscribed machines. A bounded loop that runs out also continues silently with stale state, so the test fails later at an unrelated assertion. Await a signal for the state change instead: a `DeferredPromise`, `Event.toPromise(...)`, `waitForState(...)`, or the promise of the operation itself. For code driven by timers, use `runWithFakedTimers`.
+
+Only loops that do nothing but wait are reported: the body consists solely of awaited sleeps (`timeout`, `sleep`, `delay`, `wait`, the awaited `setTimeout` of `timers/promises`, or a `new Promise` whose executor only resolves on a `setTimeout`), exit guards such as `if (done) { break; }`, and declarations or assignments of reads such as `const state = await db.read();`. Calls count as reads only by name (`get…`, `is…`, `has…`, `find`, `filter` and similar); any other call counts as work. Loops that do work between sleeps or before a `continue`, such as streaming mock data or a parameterized test, are not reported. Loops within a `runWithFakedTimers` callback, where time is virtual, are not reported either, unless the callback passes `useFakeTimers: false`. The rule is enabled for `src/vs/**/*.test.ts`. Files that already polled when it was introduced are listed in its `exclude` option and should be removed from the list once they are fixed. Run its tests with `node --test .eslint-plugin-local/tests/code-no-timeout-polling-loop.test.ts`.

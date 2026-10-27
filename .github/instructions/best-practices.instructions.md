@@ -11,6 +11,7 @@ applyTo: src/vs/**
 - Render actions inside a toolbar rather than by hand. Prefer `MenuWorkbenchToolBar` (`vs/platform/actions/browser/toolbar.ts`): give it a `MenuId` so actions can be contributed from anywhere (contributions, other components) without coupling.
 - Use `WorkbenchToolBar` when you need explicit control over which actions render and where separators go.
 - Never add a separator while rendering an action. Add separators with the existing `Separator` class (`vs/base/common/actions.ts`).
+- When adding or changing context menu entries (the `group`/`order` of menu contributions or hand-built context menu actions), follow the [`context-menus` skill](../skills/context-menus/SKILL.md) for group order and placement.
 - If a `MenuWorkbenchToolBar` lives in a widget/view that can be rendered multiple times at once, give the toolbar a scoped `IContextKeyService` which is scoped to the dom element of that widget/view and set the context keys per individual widget/view instance.
 
 ## Editor/Session Actions
@@ -18,6 +19,7 @@ applyTo: src/vs/**
 - Don't assume the action runs on the active editor/session. An action (e.g. one contributed to some editor or session related toolbar) can be triggered for an editor/session that isn't active. The `run` method receives arguments describing the invocation context (such as the originating editor group or the originating session).
 - Resolve editor action arguments with `resolveCommandsContext` (`vs/workbench/browser/parts/editor/editorCommandsContext.ts`) to get the correct editor(s) instead of reading `editorService.activeEditor`.
 - Support multi-selection. The resolved editor actions context can contain several editors (e.g. multi-selected tabs).
+- For every action contributed to the Sessions list context menu, explicitly handle multi-selection: apply the action to all selected sessions when that behavior is meaningful; otherwise keep the action visible but disable it while multiple sessions are selected. Use the action's precondition or enablement with `SessionItemIsMultiSelectionContext.negate()` (or the equivalent `!sessionItem.isMultiSelection` extension expression) rather than hiding it with a menu `when` clause.
 
 ## Context Keys
 

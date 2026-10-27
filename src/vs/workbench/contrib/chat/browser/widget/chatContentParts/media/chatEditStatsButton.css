@@ -8,12 +8,14 @@
 	display: inline-flex;
 	align-items: center;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	margin-block: calc(-1 * var(--vscode-spacing-size20));
 	margin-left: var(--vscode-spacing-sizeNone);
 	border-radius: var(--vscode-cornerRadius-small);
 	gap: var(--vscode-spacing-size40);
 	background: transparent;
 	color: inherit;
 	line-height: 1.5em;
+	flex-shrink: 0;
 	cursor: pointer;
 
 	> .label-added {
@@ -41,11 +43,11 @@
 }
 
 .interactive-session .interactive-response .value .completed-response-summary.chat-completed-response-with-edits {
-	> .monaco-icon-button {
-		padding-right: var(--vscode-spacing-size20);
-	}
+	display: flex;
+	align-items: center;
 
-	> .chat-collapsible-hover-chevron {
-		vertical-align: middle;
+	> .monaco-icon-button {
+		min-width: 0;
+		padding-right: var(--vscode-spacing-size20);
 	}
 }

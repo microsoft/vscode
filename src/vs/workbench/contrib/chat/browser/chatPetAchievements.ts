@@ -26,6 +26,7 @@ export const ChatPetAchievementIds = {
 	McpServerPresent: 'mcpServerPresent',
 	InstructionPresent: 'instructionPresent',
 	ImageRequest: 'imageRequest',
+	Blobby: 'blobby',
 } as const;
 
 export type ChatPetAchievementId = typeof ChatPetAchievementIds[keyof typeof ChatPetAchievementIds];
@@ -66,13 +67,14 @@ export interface IChatPetAchievement {
 	readonly title: string;
 	readonly description: string;
 	readonly hint: string;
-	readonly accessories: readonly [IChatPetAccessory];
+	readonly accessories: readonly [] | readonly [IChatPetAccessory];
+	readonly colorCustomization?: boolean;
 	readonly enabled: boolean;
 }
 
 export type ChatPetAchievementPresentation =
 	| { readonly locked: true; readonly id: ChatPetAchievementId; readonly hint: string; readonly rewardLabels: readonly string[] }
-	| { readonly locked: false; readonly id: ChatPetAchievementId; readonly title: string; readonly description: string; readonly accessories: readonly IChatPetAccessory[] };
+	| { readonly locked: false; readonly id: ChatPetAchievementId; readonly title: string; readonly description: string; readonly accessories: readonly IChatPetAccessory[]; readonly rewardLabels: readonly string[] };
 
 const enabledChatPetAchievements: readonly IChatPetAchievement[] = [
 	{
@@ -270,6 +272,15 @@ const enabledChatPetAchievements: readonly IChatPetAchievement[] = [
 			coversAntennae: true,
 		}],
 	},
+	{
+		id: ChatPetAchievementIds.Blobby,
+		title: localize('chatPet.achievement.blobby.title', "True Name"),
+		description: localize('chatPet.achievement.blobby.description', "Blob the Builder? Blobby McBlobface? Nope, my name is Blobby."),
+		hint: localize('chatPet.achievement.blobby.hint', "This little blob has a name. Try calling it in Chat."),
+		enabled: true,
+		accessories: [],
+		colorCustomization: true,
+	},
 ];
 
 export const disabledChatPetAchievements: readonly IChatPetAchievement[] = [
@@ -416,6 +427,7 @@ export function getChatPetCustomizationAchievementIds(
 }
 
 export function getChatPetAchievementPresentation(achievement: IChatPetAchievement, unlocked: boolean): ChatPetAchievementPresentation {
+	const rewardLabels = getChatPetAchievementRewardLabels(achievement);
 	return unlocked
 		? {
 			locked: false,
@@ -423,13 +435,20 @@ export function getChatPetAchievementPresentation(achievement: IChatPetAchieveme
 			title: achievement.title,
 			description: achievement.description,
 			accessories: achievement.accessories,
+			rewardLabels,
 		}
 		: {
 			locked: true,
 			id: achievement.id,
 			hint: achievement.hint,
-			rewardLabels: achievement.accessories.map(accessory => accessory.label),
+			rewardLabels,
 		};
+}
+
+export function getChatPetAchievementRewardLabels(achievement: IChatPetAchievement): readonly string[] {
+	return achievement.colorCustomization
+		? [localize('chatPet.achievement.colorCustomization', "Color Customization")]
+		: achievement.accessories.map(accessory => accessory.label);
 }
 
 export function getUnlockedChatPetAccessories(unlockedAchievements: readonly ChatPetAchievementId[]): readonly IChatPetAccessory[] {

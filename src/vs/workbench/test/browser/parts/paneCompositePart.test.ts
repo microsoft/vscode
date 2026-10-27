@@ -157,8 +157,8 @@ suite('Pane composite part layout', () => {
 				outerEdges: { left: true, right: true, top: false, bottom: true },
 			},
 			floatingCompact: {
-				height: 'calc(100% - 4px)',
-				contentDimension: { width: 290.4, height: 194.4 },
+				height: 'calc(100% + 0px)',
+				contentDimension: { width: 298.4, height: 198.4 },
 				outerEdges: { left: true, right: true, top: false, bottom: true },
 			},
 			restoredClassic: {

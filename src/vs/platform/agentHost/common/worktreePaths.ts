@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename } from '../../../base/common/path.js';
-import { isEqual, isEqualOrParent, normalizePath } from '../../../base/common/resources.js';
+import { basename as resourceBasename, dirname, isEqual, isEqualOrParent, joinPath, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 
 /**
@@ -36,4 +36,22 @@ export function isWorktreeUnderRepository(candidate: URI, repositoryRoot: URI): 
 	const worktreesRoot = normalizePath(getWorktreesRoot(repositoryRoot));
 	const normalizedCandidate = normalizePath(candidate);
 	return isEqualOrParent(normalizedCandidate, worktreesRoot) && !isEqual(normalizedCandidate, worktreesRoot);
+}
+
+/**
+ * The repository a VS Code-created worktree belongs to, derived from its
+ * location under the repository's {@link getWorktreesRoot} (e.g.
+ * `/src/vscode.worktrees/task` → `/src/vscode`), or `undefined` when
+ * `worktree` is not directly under a `<repo>.worktrees` directory. Path-based,
+ * so it applies to mapped remote URIs as well.
+ */
+export function getRepositoryRootFromWorktree(worktree: URI): URI | undefined {
+	const worktreesRoot = dirname(worktree);
+	const worktreesRootName = resourceBasename(worktreesRoot);
+	const suffix = '.worktrees';
+	if (!worktreesRootName.endsWith(suffix) || isEqual(worktreesRoot, worktree)) {
+		return undefined;
+	}
+	const repositoryName = worktreesRootName.slice(0, -suffix.length);
+	return repositoryName ? joinPath(dirname(worktreesRoot), repositoryName) : undefined;
 }

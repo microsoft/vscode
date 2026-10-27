@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
+import { CODEX_COPILOT_MODEL_PROVIDER } from '../../common/codexModelSelection.js';
 import type { IAgentHostNativeOTelConfig } from '../../common/otel/agentHostOTelService.js';
 import type { ThreadResumeParams } from './protocol/generated/v2/ThreadResumeParams.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
@@ -14,27 +15,38 @@ const CODEX_VSCODE_RUNTIME_PERMISSION_PROFILE = 'vscode-runtime';
 const CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE = 'vscode-workspace-network';
 const CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE = 'vscode-workspace-read-only';
 
-function codexWorkspaceFileSystemPermissions(platform: NodeJS.Platform, binaryPath?: string): Record<string, string> {
+type CodexFileSystemPermissions = Record<string, string | Record<string, string>>;
+
+/**
+ * Custom POSIX profiles start with Codex's empty restricted policy. Inheriting
+ * `:workspace` grants root reads, but explicitly denying them keeps even approved
+ * `require_escalated` commands sandboxed. Grant only the intended baseline access.
+ */
+function codexWorkspaceFileSystemPermissions(platform: NodeJS.Platform, binaryPath?: string): CodexFileSystemPermissions {
 	return platform === 'win32' ? {} : {
-		':root': 'deny',
 		':minimal': 'read',
+		':workspace_roots': { '.': 'write', '.git': 'read', '.agents': 'read', '.codex': 'read' },
 		':tmpdir': 'write',
-		':slash_tmp': platform === 'linux' ? 'read' : 'deny',
+		...(platform === 'linux' ? { ':slash_tmp': 'read' } : {}),
 		...(platform === 'linux' && binaryPath ? { [binaryPath]: 'read' } : {}),
 	};
 }
 
+function serializeFileSystemPermissions(permissions: CodexFileSystemPermissions): string {
+	return `{ ${Object.entries(permissions).map(([path, access]) => `${JSON.stringify(path)} = ${typeof access === 'string' ? JSON.stringify(access) : serializeFileSystemPermissions(access)}`).join(', ')} }`;
+}
+
 export function codexPermissionProfileOverrides(binaryPath: string, platform: NodeJS.Platform = process.platform): string[] {
 	const baseProfile = platform === 'linux' ? CODEX_VSCODE_RUNTIME_PERMISSION_PROFILE : CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE;
-	const fileSystemOverride = platform === 'win32'
-		? ''
-		: `, filesystem = { ${Object.entries(codexWorkspaceFileSystemPermissions(platform, binaryPath)).map(([path, access]) => `${JSON.stringify(path)} = ${JSON.stringify(access)}`).join(', ')} }`;
+	const baseProfilePermissions = platform === 'win32'
+		? 'extends = ":workspace"'
+		: `filesystem = ${serializeFileSystemPermissions(codexWorkspaceFileSystemPermissions(platform, binaryPath))}`;
 	const readOnlyProfile = platform === 'win32'
 		? `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = ":read-only" }`
 		: `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", filesystem = { ":workspace_roots" = { "." = "read" } } }`;
 	return [
 		`default_permissions="${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}"`,
-		`permissions.${baseProfile}={ extends = ":workspace"${fileSystemOverride}, network = { enabled = false } }`,
+		`permissions.${baseProfile}={ ${baseProfilePermissions}, network = { enabled = false } }`,
 		...(platform === 'linux' ? [`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}={ extends = "${baseProfile}" }`] : []),
 		`permissions.${CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", network = { enabled = true } }`,
 		readOnlyProfile,
@@ -72,6 +84,16 @@ export interface ICodexLaunchConfig {
 
 export const CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY = 'features.default_mode_request_user_input';
 
+/**
+ * Copilot's Responses endpoint rejects Codex's inherited fast/priority tier.
+ * Send `serviceTier: null` to Codex's app-server to clear that inherited tier;
+ * Codex then omits `service_tier` from the outbound Responses request.
+ * Omit the override for native providers to preserve the user's service tier.
+ */
+export function codexServiceTierOverride(modelProvider: string | undefined): Pick<ThreadResumeParams, 'serviceTier'> {
+	return modelProvider === CODEX_COPILOT_MODEL_PROVIDER ? { serviceTier: null } : {};
+}
+
 export function buildCodexResumeParams(
 	model: { readonly modelProvider: string; readonly modelId: string },
 	threadId: string,
@@ -92,6 +114,7 @@ export function buildCodexResumeParams(
 		threadId,
 		model: model.modelId,
 		modelProvider: model.modelProvider,
+		...codexServiceTierOverride(model.modelProvider),
 		...(workingDirectories?.length ? {
 			cwd: workingDirectories[0],
 			runtimeWorkspaceRoots: [...workingDirectories],
@@ -116,12 +139,12 @@ export function buildCodexLaunchConfig(
 	}
 	env.OPENAI_API_KEY = proxy.nonce;
 	const overrides = [
-		`model_providers.vscode-proxy.name="VS Code Proxy"`,
-		`model_providers.vscode-proxy.base_url="${proxy.baseUrl}/v1"`,
-		`model_providers.vscode-proxy.wire_api="responses"`,
-		`model_providers.vscode-proxy.env_key="OPENAI_API_KEY"`,
-		`model_providers.vscode-proxy.requires_openai_auth=false`,
-		`model_providers.vscode-proxy.supports_websockets=false`,
+		`model_providers.${CODEX_COPILOT_MODEL_PROVIDER}.name="VS Code Proxy"`,
+		`model_providers.${CODEX_COPILOT_MODEL_PROVIDER}.base_url="${proxy.baseUrl}/v1"`,
+		`model_providers.${CODEX_COPILOT_MODEL_PROVIDER}.wire_api="responses"`,
+		`model_providers.${CODEX_COPILOT_MODEL_PROVIDER}.env_key="OPENAI_API_KEY"`,
+		`model_providers.${CODEX_COPILOT_MODEL_PROVIDER}.requires_openai_auth=false`,
+		`model_providers.${CODEX_COPILOT_MODEL_PROVIDER}.supports_websockets=false`,
 		// Codex filters its shell tool's env through `shell_environment_policy`,
 		// so pin the marker there too — a user policy (e.g. `inherit = "core"`)
 		// would otherwise drop it.
@@ -135,7 +158,8 @@ export function buildCodexLaunchConfig(
 	const telemetryOverrides = codexTelemetryOverrides(telemetry);
 	return {
 		env,
-		args: ['app-server', ...overrides.flatMap(value => ['-c', value]), ...extraArgs, ...permissionOverrides.flatMap(value => ['-c', value]), ...telemetryOverrides.flatMap(value => ['-c', value])],
+		// The snapshot parser resolves paths against the runtime cwd. Codex otherwise emits repository-relative paths.
+		args: ['app-server', ...overrides.flatMap(value => ['-c', value]), ...extraArgs, '-c', 'features.cwd_relative_turn_diffs=true', ...permissionOverrides.flatMap(value => ['-c', value]), ...telemetryOverrides.flatMap(value => ['-c', value])],
 	};
 }
 

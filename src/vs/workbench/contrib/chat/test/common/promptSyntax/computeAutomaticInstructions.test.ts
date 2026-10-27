@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
@@ -51,6 +52,8 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { MockChatSessionsService } from '../mockChatSessionsService.js';
 
 suite('ComputeAutomaticInstructions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,6 +71,7 @@ suite('ComputeAutomaticInstructions', () => {
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
+		instaService.stub(IChatSessionsService, new MockChatSessionsService());
 		instaService.stub(ILogService, new NullLogService());
 
 		workspaceContextService = new TestContextService();
@@ -981,6 +985,7 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.ok(telemetryEvent, 'Should emit telemetry event');
 			const data = telemetryEvent.data as InstructionsCollectionEvent;
 			assert.deepStrictEqual(data, {
+				provider: undefined,
 				applyingInstructionsCount: 1,
 				referencedInstructionsCount: 0,
 				agentInstructionsCount: 2,
@@ -2188,9 +2193,9 @@ suite('ComputeAutomaticInstructions', () => {
 				onCancellationRequested: Event.None
 			};
 
-			// Should handle cancellation gracefully
-			await contextComputer.collect(variables, cancelledToken);
-			assert.ok(true, 'Should handle cancellation without errors');
+			// Cancellation surfaces as an error rather than an empty result, so it
+			// can never be mistaken for "no instructions" and cached.
+			await assert.rejects(contextComputer.collect(variables, cancelledToken), CancellationError);
 		});
 	});
 

@@ -4,15 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SplitView, Sizing } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Workbench } from '../../../../browser/workbench.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { getCustomizationsPresentation, SessionsView } from '../../browser/views/sessionsView.js';
+import { SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import '../../browser/media/sessionsViewPane.css';
 
 const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerEditorTabHeightClass') as (this: {
@@ -23,16 +30,44 @@ const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerE
 	};
 	_register<T extends IDisposable>(disposable: T): T;
 }) => void;
+const handleSessionOpened = Reflect.get(SessionsView.prototype, '_handleSessionOpened') as (this: {
+	readonly sessionComparisonService: { getComparisonForSession(resource: URI): ISessionComparison | undefined };
+	readonly sessionsService: { readonly visibleSessions: IObservable<readonly (ISession | undefined)[]> };
+	readonly layoutService: { hideSidePane(): void; mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
+}, session: ISession) => void;
 const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: {
-	readonly headerRow: HTMLElement;
-	readonly headerLabel: HTMLElement;
-	readonly headerActions: HTMLElement;
+	readonly sessionsHeaders: ReadonlySet<{
+		readonly row: HTMLElement;
+		readonly label: HTMLElement;
+		readonly actions: HTMLElement;
+	}>;
 	readonly layoutService: { readonly mainContainer: HTMLElement };
 	readonly isFindWidgetOpen: boolean;
 }) => void;
 
 suite('Sessions - SessionsViewPane', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('offers and selects environment grouping in the mobile sheet', async () => {
+		const container = mainWindow.document.createElement('div');
+		const selected = new DeferredPromise<SessionsGrouping>();
+		const host = {
+			layoutService: { mainContainer: container },
+			currentGrouping: SessionsGrouping.Environment,
+			currentSorting: SessionsSorting.Created,
+			setGrouping: (grouping: SessionsGrouping) => selected.complete(grouping),
+			setSorting: () => assert.fail('Expected grouping selection'),
+		};
+		const openSheet = Reflect.get(SessionsView.prototype, 'openSortGroupSheet') as (this: typeof host) => void;
+		openSheet.call(host);
+		const option = [...container.querySelectorAll<HTMLButtonElement>('.mobile-sort-group-sheet-item')]
+			.find(row => row.textContent?.trim() === 'Group by Environment');
+		assert.ok(option);
+		const checked = option.getAttribute('aria-selected');
+		option.click();
+
+		assert.deepStrictEqual({ checked, selected: await selected.p }, { checked: 'true', selected: SessionsGrouping.Environment });
+	});
 
 	test('selects control and treatment presentations only when AI UI is visible on desktop', () => {
 		assert.deepStrictEqual({
@@ -71,10 +106,14 @@ suite('Sessions - SessionsViewPane', () => {
 				focusAutomations: () => calls.push('focusControlAutomations'),
 				focus: () => calls.push('focusSessions'),
 			};
+			const rearrangeContextValues: boolean[] = [];
 			const host = {
 				customizationsPresentation: presentation,
+				customizationsNavigationVisible: { set: () => { } },
+				sessionsListRearrangeContext: { set: (value: boolean) => rearrangeContextValues.push(value) },
 				_customizationsWidget: presentation === 'control' ? widget : undefined,
 				sessionsControl,
+				updateHeaderLayout: () => calls.push('updateHeader'),
 				removeCustomizationsPane: () => {
 					calls.push('removePane');
 					host._customizationsWidget = undefined;
@@ -85,6 +124,7 @@ suite('Sessions - SessionsViewPane', () => {
 				},
 				layoutSidebarSplitView: () => calls.push('layout'),
 				calls,
+				rearrangeContextValues,
 			};
 			return host;
 		}
@@ -100,14 +140,21 @@ suite('Sessions - SessionsViewPane', () => {
 			controlCustomizations: controlCustomizations.calls,
 			treatmentAutomations: treatmentAutomations.calls,
 			hiddenCustomizations: hiddenCustomizations.calls,
+			rearrangeContextValues: [
+				controlCustomizations.rearrangeContextValues,
+				treatmentAutomations.rearrangeContextValues,
+				hiddenCustomizations.rearrangeContextValues,
+			],
 		}, {
 			controlCustomizations: [
+				'updateHeader',
 				'updateTreeNavigation',
 				'removePane',
 				'focusTreatmentCustomizations',
 				'layout',
 			],
 			treatmentAutomations: [
+				'updateHeader',
 				'updateTreeNavigation',
 				'removePane',
 				'createPane',
@@ -115,11 +162,13 @@ suite('Sessions - SessionsViewPane', () => {
 				'layout',
 			],
 			hiddenCustomizations: [
+				'updateHeader',
 				'updateTreeNavigation',
 				'removePane',
 				'focusSessions',
 				'layout',
 			],
+			rearrangeContextValues: [[true], [false], [false]],
 		});
 	});
 
@@ -267,7 +316,61 @@ suite('Sessions - SessionsViewPane', () => {
 		}
 	});
 
-	test('keeps the Sessions title visible during a zero-width sticky header handoff', () => {
+	test('hides session details only when an active comparison participant is opened', () => {
+		const attempt = upcastPartial<ISession>({ sessionId: 'attempt', resource: URI.parse('test:/attempt') });
+		const judge = upcastPartial<ISession>({ sessionId: 'judge', resource: URI.parse('test:/judge') });
+		const comparison: ISessionComparison = {
+			id: 'comparison',
+			groupId: 'group',
+			title: 'Compare',
+			createdAt: 1,
+			workspace: URI.file('/workspace'),
+			prompt: 'Implement',
+			participants: [
+				{
+					id: 'attempt',
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'test', label: 'Test' },
+					sessionResource: attempt.resource,
+				},
+				{
+					id: 'judge',
+					role: SessionComparisonParticipantRole.Judge,
+					harness: { providerId: 'test', sessionTypeId: 'test', label: 'Test' },
+					sessionResource: judge.resource,
+				},
+			],
+		};
+		let hideSidePaneCalls = 0;
+		let currentComparison: ISessionComparison | undefined = comparison;
+		const visibleSessions = observableValue<readonly ISession[]>('visibleSessions', [attempt, judge]);
+		const host = {
+			sessionComparisonService: {
+				getComparisonForSession: () => currentComparison,
+			},
+			sessionsService: { visibleSessions },
+			layoutService: {
+				hideSidePane: () => hideSidePaneCalls++,
+				mainContainer: mainWindow.document.createElement('div'),
+				setPartHidden: () => { },
+			},
+		};
+
+		handleSessionOpened.call(host, attempt);
+		handleSessionOpened.call(host, judge);
+		// A cancelled or superseded open leaves the participant hidden, so the side pane stays.
+		visibleSessions.set([], undefined);
+		handleSessionOpened.call(host, attempt);
+		visibleSessions.set([attempt, judge], undefined);
+		currentComparison = { ...comparison, archivedAt: 1 };
+		handleSessionOpened.call(host, attempt);
+		currentComparison = undefined;
+		handleSessionOpened.call(host, attempt);
+
+		assert.strictEqual(hideSidePaneCalls, 2);
+	});
+
+	test('keeps the Sessions title visible while measuring a narrow header', () => {
 		const mainContainer = mainWindow.document.createElement('div');
 		const headerRow = mainWindow.document.createElement('div');
 		const headerLabel = mainWindow.document.createElement('div');
@@ -277,9 +380,12 @@ suite('Sessions - SessionsViewPane', () => {
 		Object.defineProperty(headerRow, 'clientWidth', { configurable: true, value: 0 });
 		Object.defineProperty(headerLabel, 'clientWidth', { configurable: true, value: 0 });
 		const host = {
-			headerRow,
-			headerLabel,
-			headerActions,
+			sessionsHeaders: new Set([{
+				row: headerRow,
+				label: headerLabel,
+				actions: headerActions,
+				toolbar: undefined,
+			}]),
 			layoutService: { mainContainer },
 			isFindWidgetOpen: false,
 		};

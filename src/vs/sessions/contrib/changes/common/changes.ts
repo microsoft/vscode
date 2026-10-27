@@ -51,7 +51,6 @@ export const ChangesContextKeys = {
 export const ActiveSessionContextKeys = {
 	IsolationMode: new RawContextKey<IsolationMode>('sessions.isolationMode', IsolationMode.Workspace),
 	HasChanges: new RawContextKey<boolean>('sessions.hasChanges', false),
-	HasSelectableChangesets: new RawContextKey<boolean>('sessions.hasSelectableChangesets', false),
 	HasGitRepository: new RawContextKey<boolean>('sessions.hasGitRepository', true),
 	HasUpstream: new RawContextKey<boolean>('sessions.hasUpstream', false),
 	HasIncomingChanges: new RawContextKey<boolean>('sessions.hasIncomingChanges', false),

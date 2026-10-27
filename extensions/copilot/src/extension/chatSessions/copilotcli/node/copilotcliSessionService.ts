@@ -802,7 +802,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 		allOptions.systemMessage = systemMessage;
 		allOptions.sessionCapabilities = new Set(['plan-mode', 'memory', 'cli-documentation', 'ask-user', 'interactive-mode', 'system-notifications']);
-		if (options.reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
+		if (options.reasoningEffort) {
 			allOptions.reasoningEffort = options.reasoningEffort;
 		}
 		if (options.contextTier) {
@@ -826,8 +826,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const fileSystemSetting = rawFileSystemSetting && typeof rawFileSystemSetting === 'object'
 			? rawFileSystemSetting as IAgentSandboxFileSystemSettings
 			: undefined;
-		const allowedHosts = readStringArraySetting(this.configurationService, 'chat.agent.allowedNetworkDomains');
-		const blockedHosts = readStringArraySetting(this.configurationService, 'chat.agent.deniedNetworkDomains');
+		const allowedHosts = readStringArraySetting(this.configurationService, 'chat.agent.sandbox.network.allowedDomains');
+		const blockedHosts = readStringArraySetting(this.configurationService, 'chat.agent.sandbox.network.deniedDomains');
 		return buildSandboxConfigForCLI(process.platform, sandboxSetting, fileSystemSetting, { allowedHosts, blockedHosts });
 	}
 

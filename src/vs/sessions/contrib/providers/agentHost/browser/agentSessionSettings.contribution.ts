@@ -13,7 +13,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
-import { SessionProviderIdContext } from '../../../../common/contextkeys.js';
+import { SessionItemIsMultiSelectionContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { agentSessionSettingsUri, AGENT_SESSION_SETTINGS_SCHEME, AgentSessionSettingsFileSystemProvider, AgentSessionSettingsSchemaRegistrar } from './agentSessionSettingsFileSystemProvider.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
@@ -54,6 +54,7 @@ registerAction2(class OpenSessionSettingsAction extends Action2 {
 		super({
 			id: 'sessionsViewPane.openSessionSettings',
 			title: localize2('openSessionSettings', "Open Session Settings"),
+			precondition: SessionItemIsMultiSelectionContext.negate(),
 			menu: [{
 				id: Menus.SessionItemSettings,
 				group: 'navigation',

@@ -168,10 +168,11 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		});
 		const browserConfig = vscode.workspace.getConfiguration('workbench.browser');
 		const agentConfig = vscode.workspace.getConfiguration('chat.agent');
+		const agentNetworkConfig = vscode.workspace.getConfiguration('chat.agent.sandbox.network');
 
 		try {
-			await agentConfig.update('allowedNetworkDomains', ['*'], vscode.ConfigurationTarget.Global);
-			await agentConfig.update('deniedNetworkDomains', ['localhost'], vscode.ConfigurationTarget.Global);
+			await agentNetworkConfig.update('allowedDomains', ['*'], vscode.ConfigurationTarget.Global);
+			await agentNetworkConfig.update('deniedDomains', ['localhost'], vscode.ConfigurationTarget.Global);
 			await agentConfig.update('networkFilter', true, vscode.ConfigurationTarget.Global);
 
 			await browserConfig.update('dataStorage', 'global', vscode.ConfigurationTarget.Global);
@@ -187,7 +188,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			await browserConfig.update('dataStorage', 'agent', vscode.ConfigurationTarget.Global);
 			const agentSetTab = await vscode.window.openBrowserTab(`http://127.0.0.1:${port}/set-agent`);
 
-			await waitForCondition(() => agentSetTab.title.startsWith('agent-cookie-set'));
+			await waitForCondition(() => agentSetTab.title.startsWith('agent-cookie-set'), 600);
 			assert.ok(agentSetTab.title.startsWith('agent-cookie-set'), `Expected Agent page to load, got title "${agentSetTab.title}"`);
 
 			const output = await invokeTool('open_browser_page', {
@@ -233,8 +234,8 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		} finally {
 			await browserConfig.update('dataStorage', undefined, vscode.ConfigurationTarget.Global);
 			await agentConfig.update('networkFilter', undefined, vscode.ConfigurationTarget.Global);
-			await agentConfig.update('allowedNetworkDomains', undefined, vscode.ConfigurationTarget.Global);
-			await agentConfig.update('deniedNetworkDomains', undefined, vscode.ConfigurationTarget.Global);
+			await agentNetworkConfig.update('allowedDomains', undefined, vscode.ConfigurationTarget.Global);
+			await agentNetworkConfig.update('deniedDomains', undefined, vscode.ConfigurationTarget.Global);
 			await Promise.all(vscode.window.browserTabs.map(tab => tab.close()));
 			await new Promise<void>((resolve, reject) => {
 				server.close(error => error ? reject(error) : resolve());

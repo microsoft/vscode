@@ -10,7 +10,7 @@ import { AgentHostClientConnectionKind } from './agentHostTelemetry.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from './ahpJsonlLogger.js';
 import { type IEstablishedTransport, ReconnectingTransport } from './reconnectingTransport.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from './state/sessionProtocol.js';
-import type { IProtocolTransport } from './state/sessionTransport.js';
+import { parseProtocolMessage, type IProtocolTransport } from './state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from './transportConstants.js';
 
 /**
@@ -30,6 +30,8 @@ export interface IRelayMessage {
  */
 export interface IRelayChannel {
 	readonly onDidRelayMessage: Event<IRelayMessage>;
+	/** Fires with a connection ID while that relay receives part of a message. Local relays use {@link Event.None}. */
+	readonly onDidRelayActivity: Event<string /* connectionId */>;
 	readonly onDidRelayClose: Event<string /* connectionId */>;
 	relaySend(connectionId: string, message: string): Promise<void>;
 }
@@ -40,7 +42,7 @@ export interface IRelayChannel {
 export interface IRelayConnectionHandle {
 	/** Identifier of the freshly established relay channel. */
 	readonly connectionId: string;
-	/** Tear down this relay channel. Invoked when the transport is disposed. */
+	/** Releases a late-established relay after its logical client has closed. */
 	close?(): Promise<void>;
 }
 
@@ -56,6 +58,9 @@ export class RelayTransport extends Disposable implements IProtocolTransport {
 
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
+
+	private readonly _onDidReceiveData = this._register(new Emitter<void>());
+	readonly onDidReceiveData = this._onDidReceiveData.event;
 
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
@@ -80,7 +85,7 @@ export class RelayTransport extends Disposable implements IProtocolTransport {
 			if (this._connectionId !== undefined && msg.connectionId === this._connectionId) {
 				let parsed: ProtocolMessage;
 				try {
-					parsed = JSON.parse(msg.data) as ProtocolMessage;
+					parsed = parseProtocolMessage(msg.data);
 				} catch (err) {
 					this._malformedFrames++;
 					if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {
@@ -98,6 +103,12 @@ export class RelayTransport extends Disposable implements IProtocolTransport {
 				}
 				this._ahpLogger?.log(parsed, 's2c', getAhpLogByteLength(msg.data));
 				this._onMessage.fire(parsed);
+			}
+		}));
+
+		this._register(this._channel.onDidRelayActivity((activeId: string) => {
+			if (this._connectionId !== undefined && activeId === this._connectionId) {
+				this._onDidReceiveData.fire();
 			}
 		}));
 

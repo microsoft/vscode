@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from '../../../services/sessions/common/session.js';
@@ -27,6 +27,15 @@ export interface ActiveSessionState {
 }
 
 export const IChangesViewService = createDecorator<IChangesViewService>('changesViewService');
+
+/**
+ * Resolves the changeset shown when there is no explicit selection: the
+ * changeset marked as default, otherwise the first enabled changeset.
+ */
+export function findDefaultChangeset(changesets: readonly ISessionChangeset[], reader: IReader): ISessionChangeset | undefined {
+	return changesets.find(c => c.isDefault.read(reader))
+		?? changesets.find(c => c.isEnabled.read(reader));
+}
 
 export interface IChangesViewSectionCollapseState {
 	readonly checks: boolean;

@@ -12,6 +12,11 @@ import { tokenizeSSHPathList } from '../common/sshConfigParsing.js';
 /** A failure to resolve configured trust files must not fall back to default known-hosts settings. */
 export class SSHKnownHostsResolutionError extends Error { }
 
+const unsupportedHostKeyDirectives = new Map([
+	['knownhostscommand', 'KnownHostsCommand'],
+	['revokedhostkeys', 'RevokedHostKeys'],
+]);
+
 async function isKnownHostsFile(path: string): Promise<boolean> {
 	try {
 		return (await fsp.stat(path.replace(/^~/, homedir()))).isFile();
@@ -27,8 +32,17 @@ async function isKnownHostsFile(path: string): Promise<boolean> {
 /** Recovers paths whose quotes were lost by `ssh -G`, rejecting overlapping filesystem matches. */
 export async function resolveSSHKnownHostsFiles(stdout: string, isFile: (path: string) => Promise<boolean> = isKnownHostsFile): Promise<{ userKnownHostsFiles: string[]; globalKnownHostsFiles: string[] }> {
 	const lists = new Map<string, string>();
-	for (const match of stdout.matchAll(/^(?<key>userknownhostsfile|globalknownhostsfile) (?<value>.*)$/gmi)) {
-		lists.set(match.groups!.key.toLowerCase(), match.groups!.value.trim());
+	for (const match of stdout.matchAll(/^(?<key>userknownhostsfile|globalknownhostsfile|knownhostscommand|revokedhostkeys) (?<value>.*)$/gmi)) {
+		const key = match.groups!.key.toLowerCase();
+		const value = match.groups!.value.trim();
+		const directive = unsupportedHostKeyDirectives.get(key);
+		if (directive && value.toLowerCase() !== 'none') {
+			throw new SSHKnownHostsResolutionError(localize(
+				'sshUnsupportedHostKeyDirective',
+				"SSH configuration directive {0} is not supported for remote agent host connections.",
+				directive));
+		}
+		lists.set(key, value);
 	}
 
 	const resolvePaths = async (value: string): Promise<string[]> => {

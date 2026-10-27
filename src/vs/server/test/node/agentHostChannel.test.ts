@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import type { Client, IPCServer } from '../../../base/parts/ipc/common/ipc.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
+import type { IAgentHostIpcConnectionOptions } from '../../../platform/agentHost/common/agentService.js';
 import { AgentHostChannel, IAgentHostUpstreamEndpoint, IUpstreamConnection, UnavailableAgentHostChannel } from '../../node/agentHostChannel.js';
 
 class TestLogService extends NullLogService {
@@ -27,12 +29,14 @@ class FakeUpstream extends Disposable implements IUpstreamConnection {
 	readonly onClose: Event<void> = this._onClose.event;
 
 	readonly sentFrames: string[] = [];
+	readonly connectOptions: (IAgentHostIpcConnectionOptions | undefined)[] = [];
 	connectResult: Promise<void> = Promise.resolve();
 	connectCount = 0;
 	disposed = false;
 
-	async connect(): Promise<void> {
+	async connect(options?: IAgentHostIpcConnectionOptions): Promise<void> {
 		this.connectCount++;
+		this.connectOptions.push(options);
 		await this.connectResult;
 	}
 
@@ -156,6 +160,63 @@ suite('AgentHostChannel', () => {
 		assert.strictEqual(resolveCount, 1);
 	});
 
+	test('passes the resolver environment to the server-owned launch on each connection', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		const options: (IAgentHostIpcConnectionOptions | undefined)[] = [];
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			async connectionOptions => {
+				options.push(connectionOptions);
+				return { socketPath: 'agent-host.sock' };
+			},
+			new NullLogService(),
+			() => ds.add(new FakeUpstream()),
+		));
+		channel.listen('first', 'frame');
+		const beforeConnect = options.length;
+		await channel.call('first', 'connect', {
+			env: { GITHUB_TOKEN: 'codespace-token', GH_TOKEN: null, EMPTY: '' },
+			debugEnv: { Github_Token: 'debug-token' },
+		});
+		await channel.call('second', 'connect', { env: { GITHUB_TOKEN: 'refreshed-codespace-token' } });
+		await channel.call('third', 'connect');
+
+		assert.deepStrictEqual({ beforeConnect, options }, {
+			beforeConnect: 0,
+			options: [
+				{ env: { GITHUB_TOKEN: 'codespace-token', GH_TOKEN: null, EMPTY: '' }, debugEnv: { Github_Token: 'debug-token' } },
+				{ env: { GITHUB_TOKEN: 'refreshed-codespace-token' } },
+				undefined,
+			],
+		});
+	});
+
+	test('does not forward the resolver environment to an externally managed upstream', async () => {
+		const { channel, upstreams } = createChannel();
+		await channel.call('renderer', 'connect', { env: { GITHUB_TOKEN: 'codespace-token' }, debugEnv: { GITHUB_TOKEN: 'debug-token' } });
+
+		assert.deepStrictEqual(upstreams.get('upstream-0')!.connectOptions, [undefined]);
+	});
+
+	test('rejects malformed connection environments before starting the host', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		let resolveCount = 0;
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			async () => {
+				resolveCount++;
+				return { socketPath: 'agent-host.sock' };
+			},
+			new NullLogService(),
+			() => ds.add(new FakeUpstream()),
+		));
+
+		for (const options of [null, [], 'secret', { env: null }, { env: [] }, { env: 'secret' }, { env: { GITHUB_TOKEN: 123 } }, { debugEnv: null }, { debugEnv: [] }, { debugEnv: 'secret' }, { debugEnv: { GITHUB_TOKEN: 123 } }]) {
+			await assert.rejects(channel.call('renderer', 'connect', options), /Invalid agent host connection environment/);
+		}
+		assert.strictEqual(resolveCount, 0);
+	});
+
 	test('does not log the upstream connection token', async () => {
 		const ipc = ds.add(new FakeIPCServer());
 		const logService = new TestLogService();
@@ -169,7 +230,7 @@ suite('AgentHostChannel', () => {
 		channel.listen('renderer', 'frame');
 		assert.deepStrictEqual(logService.infos, []);
 
-		await channel.call('renderer', 'connect');
+		await channel.call('renderer', 'connect', { env: { GITHUB_TOKEN: 'secret-environment-token' } });
 
 		assert.deepStrictEqual(logService.infos, [
 			'[AgentHostChannel] Renderer ctx=renderer requested connect to upstream',
@@ -177,31 +238,42 @@ suite('AgentHostChannel', () => {
 		]);
 	});
 
-	test('shares deferred endpoint resolution between renderer contexts', async () => {
-		const ipc = ds.add(new FakeIPCServer());
-		let resolveCount = 0;
-		let resolveEndpoint!: (endpoint: IAgentHostUpstreamEndpoint) => void;
-		const endpoint = new Promise<IAgentHostUpstreamEndpoint>(resolve => resolveEndpoint = resolve);
-		const channel = ds.add(new AgentHostChannel<string>(
-			ipc as unknown as IPCServer<string>,
-			() => {
-				resolveCount++;
-				return endpoint;
-			},
-			new NullLogService(),
-			() => ds.add(new FakeUpstream()),
-		));
+	for (const initialToken of [undefined, 'stale-codespace-token']) {
+		test(`applies concurrent renderer environments when the first token is ${initialToken ? 'stale' : 'absent'}`, async () => {
+			const ipc = ds.add(new FakeIPCServer());
+			const endpoint = new DeferredPromise<IAgentHostUpstreamEndpoint>();
+			const environments: IAgentHostIpcConnectionOptions['env'][] = [];
+			let upstreamCount = 0;
+			const channel = ds.add(new AgentHostChannel<string>(
+				ipc as unknown as IPCServer<string>,
+				options => {
+					environments.push(options?.env);
+					return endpoint.p;
+				},
+				new NullLogService(),
+				() => {
+					upstreamCount++;
+					return ds.add(new FakeUpstream());
+				},
+			));
+			const initialOptions = initialToken ? { env: { GITHUB_TOKEN: initialToken } } : undefined;
+			const refreshedEnvironment = { GITHUB_TOKEN: 'refreshed-codespace-token', GH_TOKEN: null, EMPTY: '' };
+			const connect = Promise.all([
+				channel.call('editor', 'connect', initialOptions),
+				channel.call('agents', 'connect', { env: refreshedEnvironment }),
+			]);
+			await Promise.resolve();
+			const beforeReady = { environments: [...environments], upstreamCount };
 
-		const connect = Promise.all([
-			channel.call('first', 'connect'),
-			channel.call('second', 'connect'),
-		]);
-		await Promise.resolve();
-		assert.strictEqual(resolveCount, 1);
+			await endpoint.complete({ socketPath: 'agent-host.sock' });
+			await connect;
 
-		resolveEndpoint({ socketPath: 'agent-host.sock' });
-		await connect;
-	});
+			assert.deepStrictEqual({ beforeReady, upstreamCount }, {
+				beforeReady: { environments: [initialOptions?.env, refreshedEnvironment], upstreamCount: 0 },
+				upstreamCount: 2,
+			});
+		});
+	}
 
 	test('surfaces deferred endpoint resolution failures and allows retry', async () => {
 		const ipc = ds.add(new FakeIPCServer());

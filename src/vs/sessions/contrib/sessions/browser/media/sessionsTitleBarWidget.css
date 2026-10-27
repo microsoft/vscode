@@ -76,19 +76,12 @@
 	overflow: hidden;
 }
 
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-session {
-	flex: 0 1 auto;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
 	flex-shrink: 0;
 }
 
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace-group {
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace-group,
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-branch-group {
 	display: flex;
 	align-items: center;
 	flex: 0 1 auto;
@@ -97,8 +90,9 @@
 	overflow: hidden;
 }
 
-/* Workspace name shown beside its icon. */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace {
+/* Workspace and branch names shown beside their icons. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace,
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-branch {
 	display: flex;
 	align-items: center;
 	flex: 0 1 auto;
@@ -109,7 +103,8 @@
 	white-space: nowrap;
 }
 
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace-icon {
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace-icon,
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-branch-icon {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;

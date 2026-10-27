@@ -10,12 +10,9 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { createSha256Hash } from '../../../util/common/crypto';
-import { extractCodeBlocks } from '../../../util/common/markdown';
-import { mapFindFirst } from '../../../util/vs/base/common/arraysFind';
 import { DeferredPromise, raceCancellation } from '../../../util/vs/base/common/async';
 import { CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
 import { Disposable, toDisposable } from '../../../util/vs/base/common/lifecycle';
-import { cloneAndChange } from '../../../util/vs/base/common/objects';
 import { StopWatch } from '../../../util/vs/base/common/stopwatch';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -23,7 +20,8 @@ import { ChatLocation as VsCodeChatLocation } from '../../../vscodeTypes';
 import { Conversation, Turn } from '../../prompt/common/conversation';
 import { McpToolCallingLoop } from './mcpToolCallingLoop';
 import { McpPickRef } from './mcpToolCallingTools';
-import { IInstallableMcpServer, IMcpServerVariable, IMcpStdioServerConfiguration, NuGetMcpSetup } from './nuget';
+import { IInstallableMcpServer, IMcpServerConfiguration, IMcpServerVariable, NuGetMcpSetup } from './nuget';
+import { extractMcpConfiguration, McpTargetFormat, validateMcpInputReferences } from './mcpConfigurationGeneration';
 
 export type PackageType = 'npm' | 'pip' | 'docker' | 'nuget';
 
@@ -31,6 +29,7 @@ export interface IValidatePackageArgs {
 	type: PackageType;
 	name: string;
 	targetConfig: JsonSchema;
+	targetFormat?: McpTargetFormat;
 }
 
 interface PromptStringInputInfo {
@@ -69,14 +68,15 @@ export type ValidatePackageResult =
 
 type AssistedServerConfiguration = {
 	type: 'assisted';
-	name?: string;
-	server: any;
+	format: McpTargetFormat;
+	name: string;
+	server: Record<string, unknown>;
 	inputs: PromptStringInputInfo[];
 	inputValues: Record<string, string> | undefined;
 } | {
 	type: 'mapped';
-	name?: string;
-	server: Omit<IMcpStdioServerConfiguration, 'type'>;
+	name: string;
+	server: IMcpServerConfiguration;
 	inputs?: IMcpServerVariable[];
 };
 
@@ -165,7 +165,7 @@ export class McpSetupCommands extends Disposable {
 			const sw = new StopWatch();
 			const result = await McpSetupCommands.validatePackageRegistry(args, this.logService, this.fetcherService);
 			if (result.state === 'ok') {
-				this.enqueuePendingSetup(args, result, sw);
+				await this.enqueuePendingSetup(args, result, sw);
 			}
 
 			/* __GDPR__
@@ -213,9 +213,13 @@ export class McpSetupCommands extends Disposable {
 	}
 
 	private async enqueuePendingSetup(validateArgs: IValidatePackageArgs, pendingArgs: IPendingSetupArgs, sw: StopWatch) {
+		const format = validateArgs.targetFormat ?? 'vscode';
+		if (!['vscode', 'workspaceRoot', 'copilotGlobal'].includes(format) || !validateArgs.targetConfig) {
+			throw new Error(vscode.l10n.t("Unsupported MCP setup destination. Update VS Code and the Copilot extension and try again."));
+		}
 		const cts = new CancellationTokenSource();
 		const canPrompt = new DeferredPromise<void>();
-		const pickRef = new McpPickRef(raceCancellation(canPrompt.p, cts.token));
+		const pickRef = new McpPickRef(raceCancellation(canPrompt.p, cts.token), format);
 
 		// we start doing the prompt in the background so the first call is speedy
 		const done = (async () => {
@@ -234,7 +238,7 @@ Error: ${error}`);
 					return {
 						type: 'mapped' as const,
 						name: pendingArgs.name,
-						server: mcpServer.config as Omit<IMcpStdioServerConfiguration, 'type'>,
+						server: mcpServer.config,
 						inputs: mcpServer.inputs
 					};
 				}
@@ -265,6 +269,7 @@ Error: ${error}`);
 				},
 				props: {
 					targetSchema: validateArgs.targetConfig,
+					targetFormat: format,
 					packageName: pendingArgs.name, // prefer the resolved name, not the input
 					packageVersion: pendingArgs.version,
 					packageType: validateArgs.type,
@@ -279,38 +284,26 @@ Error: ${error}`);
 				return undefined;
 			}
 
-			const { name, ...server } = mapFindFirst(extractCodeBlocks(toolCallLoopResult.response.value), block => {
-				try {
-					const j = JSON.parse(block.code);
-
-					// Unwrap if the model returns `mcpServers` in a wrapper object
-					if (j && typeof j === 'object' && j.hasOwnProperty('mcpServers')) {
-						const [name, obj] = Object.entries(j.mcpServers)[0] as [string, object];
-						return { ...obj, name };
-					}
-
-					return j;
-				} catch {
-					return undefined;
-				}
-			});
+			let generated: ReturnType<typeof extractMcpConfiguration>;
+			try {
+				generated = extractMcpConfiguration(toolCallLoopResult.response.value, validateArgs.targetConfig);
+				validateMcpInputReferences(generated.server, pickRef.references, format);
+			} catch {
+				this.logService.warn(`MCP setup generation failed validation for destination ${format}.`);
+				throw new Error(vscode.l10n.t("The generated MCP configuration does not match the selected destination. Try again or add the server manually."));
+			}
 
 			const inputs: PromptStringInputInfo[] = [];
 			let inputValues: Record<string, string> | undefined;
-			const extracted = cloneAndChange(server, value => {
-				if (typeof value === 'string') {
-					const fromInput = pickRef.picks.find(p => p.choice === value);
-					if (fromInput) {
-						inputs.push({ id: fromInput.id, type: 'promptString', description: fromInput.title });
-						inputValues ??= {};
-						const replacement = '${input:' + fromInput.id + '}';
-						inputValues[replacement] = value;
-						return replacement;
-					}
+			if (format !== 'copilotGlobal') {
+				for (const pick of pickRef.picks) {
+					inputs.push({ id: pick.id, type: 'promptString', description: pick.title, password: true });
+					inputValues ??= {};
+					inputValues['${input:' + pick.id + '}'] = pick.choice;
 				}
-			});
+			}
 
-			return { type: 'assisted' as const, name, server: extracted, inputs, inputValues };
+			return { type: 'assisted' as const, format, ...generated, inputs, inputValues };
 		})().finally(() => {
 			cts.dispose();
 			pickRef.dispose();
@@ -318,6 +311,8 @@ Error: ${error}`);
 
 		this.pendingSetup?.cts.dispose(true);
 		this.pendingSetup = { cts, canPrompt, done, validateArgs, pendingArgs, stopwatch: sw };
+		// The flow command awaits this promise after consent, which may never be given.
+		done.catch(() => { /* Reported when the flow command awaits the result. */ });
 	}
 
 	public static async validatePackageRegistry(args: { type: PackageType; name: string }, logService: ILogService, fetcherService: IFetcherService): Promise<ValidatePackageResult> {

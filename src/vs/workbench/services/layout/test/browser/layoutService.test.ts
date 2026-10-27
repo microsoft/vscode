@@ -46,7 +46,7 @@ suite('LayoutService - floating panel spacing', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses density-specific inter-card gaps', () => {
+	test('uses density-specific inter-card and perimeter gaps', () => {
 		const compactLayoutService = new TestLayoutService();
 		compactLayoutService.isModernUICompact = () => true;
 
@@ -54,14 +54,16 @@ suite('LayoutService - floating panel spacing', () => {
 			leadingMargin: FLOATING_PANEL_MARGIN,
 			trailingMargin: FLOATING_PANEL_INNER_MARGIN,
 			gap: FLOATING_PANEL_MARGIN + FLOATING_PANEL_INNER_MARGIN,
+			outerMargin: getFloatingPanelOuterMargin(new TestLayoutService()),
 			compactMargin: getFloatingPanelMargin(compactLayoutService),
 			compactOuterMargin: getFloatingPanelOuterMargin(compactLayoutService),
 		}, {
 			leadingMargin: 4,
 			trailingMargin: 0,
 			gap: 4,
-			compactMargin: COMPACT_FLOATING_PANEL_MARGIN,
-			compactOuterMargin: 4,
+			outerMargin: 4,
+			compactMargin: 0,
+			compactOuterMargin: 0,
 		});
 	});
 });
@@ -200,8 +202,7 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 			compactJustifiedPanel: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.LEFT, true, 'justify'),
 			compactJustifiedPanelSideBarRight: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, true, 'justify'),
 		}, {
-			// The default density uses the same 4px for the window-edge perimeter as for the
-			// gap between cards; only compact distinguishes them.
+			// The default density keeps its 4px perimeter and inter-card gaps.
 			activityBarLeft: { left: 4, right: 4 },
 			activityBarRight: { left: 4, right: 0 },
 			secondarySideBarOnly: { left: 4, right: 4 },
@@ -367,7 +368,7 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 		});
 	});
 
-	test('compact density keeps internal seams flush and reserves the outer cluster gutter', () => {
+	test('compact density keeps internal seams and window edges flush', () => {
 		assert.deepStrictEqual({
 			atWindowEdges: margins(Parts.PANEL_PART, service => {
 				service.modernUICompact = true;
@@ -386,9 +387,9 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 				service.visibleParts.add(Parts.PANEL_PART);
 			}),
 		}, {
-			atWindowEdges: { top: COMPACT_FLOATING_PANEL_OUTER_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
-			betweenTitleAndStatusBars: { top: FLOATING_PANEL_INNER_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
-			betweenEditorAndStatusBar: { top: COMPACT_FLOATING_PANEL_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			atWindowEdges: { top: 0, bottom: 0 },
+			betweenTitleAndStatusBars: { top: 0, bottom: 0 },
+			betweenEditorAndStatusBar: { top: 0, bottom: 0 },
 		});
 	});
 });
@@ -443,7 +444,7 @@ suite('LayoutService - getFloatingEditorVerticalMargins', () => {
 		});
 	});
 
-	test('compact density attaches to title chrome and preserves the lower perimeter gutter', () => {
+	test('compact density sits flush against window chrome', () => {
 		assert.deepStrictEqual({
 			betweenTitleAndStatusBars: margins(service => {
 				service.modernUICompact = true;
@@ -454,8 +455,8 @@ suite('LayoutService - getFloatingEditorVerticalMargins', () => {
 				service.visibleParts.delete(Parts.STATUSBAR_PART);
 			}),
 		}, {
-			betweenTitleAndStatusBars: { top: FLOATING_PANEL_INNER_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
-			atWindowEdges: { top: COMPACT_FLOATING_PANEL_OUTER_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			betweenTitleAndStatusBars: { top: 0, bottom: 0 },
+			atWindowEdges: { top: 0, bottom: 0 },
 		});
 	});
 });

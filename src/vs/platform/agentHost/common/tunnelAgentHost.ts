@@ -6,8 +6,17 @@
 import { Event } from '../../../base/common/event.js';
 import type { ConnectionDiagnosticObserver } from './connectionDiagnostics.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { localize } from '../../../nls.js';
 
 export const ITunnelAgentHostService = createDecorator<ITunnelAgentHostService>('tunnelAgentHostService');
+
+/** Silent discovery has no usable token for a configured authentication provider. */
+export class TunnelAuthenticationRequiredError extends Error {
+	constructor(readonly authProvider: 'github' | 'microsoft') {
+		super(localize('tunnelAgentHost.authenticationRequired', "Sign in to allow access to your tunnels."));
+		this.name = 'TunnelAuthenticationRequiredError';
+	}
+}
 
 /**
  * IPC channel name for the shared-process tunnel service.
@@ -369,6 +378,9 @@ export interface ITunnelAgentHostMainService {
 	/** Fires when a message is received from a remote agent host via the tunnel relay. */
 	readonly onDidRelayMessage: Event<ITunnelRelayMessage>;
 
+	/** Fires with a connection ID while that tunnel relay receives part of a message. */
+	readonly onDidRelayActivity: Event<string /* connectionId */>;
+
 	/** Fires when a relay connection to a remote agent host closes. */
 	readonly onDidRelayClose: Event<string /* connectionId */>;
 
@@ -552,6 +564,8 @@ export interface ITunnelAgentHostService {
 	 * Returns `undefined` if no cached session is available.
 	 */
 	getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined>;
+	/** Requests the configured tunnel permissions without connecting to a host. */
+	signIn?(authProvider: 'github' | 'microsoft'): Promise<void>;
 }
 
 /** Information about an actively hosted tunnel. */

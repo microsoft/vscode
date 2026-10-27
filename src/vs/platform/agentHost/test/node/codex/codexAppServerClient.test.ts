@@ -150,6 +150,28 @@ suite('CodexAppServerClient', () => {
 		}
 	});
 
+	test('request preserves omitted and supplied optional params', async () => {
+		const peer = makeFakePeer();
+		const client = new CodexAppServerClient(peer.transport);
+		try {
+			const sent: object[] = [];
+			for (const params of [undefined, { excludeResetCreditDetails: true }]) {
+				const response = client.request('account/rateLimits/read', params);
+				const message = await readNextMessage(peer.outbound) as { id: number };
+				sent.push(message);
+				peer.push({ id: message.id, result: {} });
+				await response;
+			}
+			assert.deepStrictEqual(sent, [
+				{ id: 1, method: 'account/rateLimits/read' },
+				{ id: 2, method: 'account/rateLimits/read', params: { excludeResetCreditDetails: true } },
+			]);
+		} finally {
+			client.dispose();
+			peer.dispose();
+		}
+	});
+
 	test('request includes W3C trace context when provided', async () => {
 		const peer = makeFakePeer();
 		const client = new CodexAppServerClient(peer.transport);

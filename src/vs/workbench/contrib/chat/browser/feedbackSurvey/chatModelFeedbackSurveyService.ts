@@ -165,7 +165,7 @@ export class ChatModelFeedbackSurveyService extends Disposable implements IChatM
 
 		void this.resolveConfig();
 		this._register(this.assignmentService.onDidRefetchAssignments(() => void this.resolveConfig()));
-		this._register(this.chatService.onDidDisposeSession(e => this.forgetSessions(e.sessionResources)));
+		this._register(this.chatService.onDidDisposeSession(e => this.forgetSessions(e.sessionResources, e.reason === 'cleared')));
 	}
 
 	private async resolveConfig(): Promise<void> {
@@ -418,11 +418,13 @@ export class ChatModelFeedbackSurveyService extends Disposable implements IChatM
 		return false;
 	}
 
-	/** Releases everything held for sessions that have gone away. */
-	private forgetSessions(sessionResources: readonly URI[]): void {
+	/** Releases response state on unload and session prompt budgets on deletion. */
+	private forgetSessions(sessionResources: readonly URI[], clearPromptCounts: boolean): void {
 		for (const sessionResource of sessionResources) {
 			const session = sessionResource.toString();
-			this._sessionPromptCounts.delete(session);
+			if (clearPromptCounts) {
+				this._sessionPromptCounts.delete(session);
+			}
 			this._lastSurveyedResponse.delete(session);
 			for (const [key, state] of [...this._states]) {
 				if (state.sessionResource.toString() === session) {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createPullRequestHover } from '../../browser/pullRequestHover.js';
 import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.js';
@@ -45,6 +46,31 @@ suite('createPullRequestHover', () => {
 
 		const arrow = element.querySelector('.sessions-pr-hover-branch-arrow');
 		assert.strictEqual(arrow?.getAttribute('aria-hidden'), 'true');
+	});
+
+	test('uses the themed link foreground instead of the browser anchor color', () => {
+		const { element } = createPullRequestHover({
+			owner: 'owner',
+			repo: 'repo',
+			number: 1,
+			repositoryHref: 'https://example.com',
+			referenceHref: 'https://example.com/1',
+			pullRequest: makePullRequest(),
+			density: 'default',
+		});
+		element.style.setProperty('--vscode-textLink-foreground', 'rgb(12, 34, 56)');
+		document.body.append(element);
+		const repository = element.querySelector<HTMLElement>('.sessions-pr-hover-repository');
+		const reference = element.querySelector<HTMLElement>('.sessions-pr-hover-reference');
+
+		assert.deepStrictEqual({
+			repository: repository && mainWindow.getComputedStyle(repository).color,
+			reference: reference && mainWindow.getComputedStyle(reference).color,
+		}, {
+			repository: 'rgb(12, 34, 56)',
+			reference: 'rgb(12, 34, 56)',
+		});
+		element.remove();
 	});
 
 	test('activating a branch pill stops the click from bubbling to an ancestor list row', () => {

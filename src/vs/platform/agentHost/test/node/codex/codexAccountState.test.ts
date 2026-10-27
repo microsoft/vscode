@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse } from '../../../node/codex/codexAccountState.js';
+import { codexAccountRateLimitsFromResponse, codexAccountStateFromResponse } from '../../../node/codex/codexAccountState.js';
 import type { RateLimitWindow } from '../../../node/codex/protocol/generated/v2/RateLimitWindow.js';
 
 suite('CodexAccountState', () => {
@@ -13,42 +13,43 @@ suite('CodexAccountState', () => {
 
 	test('maps ChatGPT identities as human accounts', () => {
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: 'private@example.com', planType: 'plus' }, requiresOpenaiAuth: true }),
+			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: 'private@example.com', planType: 'plus' }, requiresOpenaiAuth: true, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'private@example.com', planType: 'plus', requiresOpenaiAuth: true },
 		);
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: null, planType: 'team' }, requiresOpenaiAuth: true }),
+			codexAccountStateFromResponse({ account: { type: 'chatgpt', email: null, planType: 'team' }, requiresOpenaiAuth: true, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: undefined, planType: 'team', requiresOpenaiAuth: true },
 		);
 	});
 
 	test('distinguishes required sign-in from providers without OpenAI auth', () => {
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: true }),
+			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: true, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'signedOut', requiresOpenaiAuth: true },
 		);
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: false }),
+			codexAccountStateFromResponse({ account: null, requiresOpenaiAuth: false, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'unavailable', requiresOpenaiAuth: false },
 		);
 	});
 
 	test('does not classify API key or Bedrock credentials as human accounts', () => {
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: { type: 'apiKey' }, requiresOpenaiAuth: true }),
+			codexAccountStateFromResponse({ account: { type: 'apiKey' }, requiresOpenaiAuth: true, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'unavailable', authType: 'apiKey', requiresOpenaiAuth: true },
 		);
 		assert.deepStrictEqual(
-			codexAccountStateFromResponse({ account: { type: 'amazonBedrock', usesCodexManagedCredentials: true }, requiresOpenaiAuth: false }),
+			codexAccountStateFromResponse({ account: { type: 'amazonBedrock', usesCodexManagedCredentials: true }, requiresOpenaiAuth: false, workspaceRouting: null }),
 			{ usageSource: 'openai', status: 'unavailable', authType: 'other', requiresOpenaiAuth: false },
 		);
 	});
 
-	test('prefers the Codex weekly rate-limit window', () => {
-		assert.deepStrictEqual(codexAccountRateLimitFromResponse({
+	test('preserves both Codex rate-limit windows with the weekly summary first', () => {
+		assert.deepStrictEqual(codexAccountRateLimitsFromResponse({
 			rateLimits: {
 				limitId: null,
 				limitName: null,
+				normalModelSlug: null,
 				primary: { usedPercent: 12, windowDurationMins: 300, resetsAt: 100 },
 				secondary: null,
 				credits: null,
@@ -57,10 +58,12 @@ suite('CodexAccountState', () => {
 				planType: null,
 				rateLimitReachedType: null,
 			},
+			ordinaryUsageAllowed: null,
 			rateLimitsByLimitId: {
 				codex: {
 					limitId: 'codex',
 					limitName: 'Codex',
+					normalModelSlug: null,
 					primary: { usedPercent: 21, windowDurationMins: 300, resetsAt: 200 },
 					secondary: { usedPercent: 42.4, windowDurationMins: 7 * 24 * 60, resetsAt: 300 },
 					credits: null,
@@ -73,18 +76,23 @@ suite('CodexAccountState', () => {
 			rateLimitResetCredits: null,
 			accountId: null,
 			rateLimitUpsell: null,
-		}), {
+		}), [{
 			usedPercent: 42.4,
 			windowDurationMins: 7 * 24 * 60,
 			resetsAt: 300,
-		});
+		}, {
+			usedPercent: 21,
+			windowDurationMins: 300,
+			resetsAt: 200,
+		}]);
 	});
 
 	test('falls back to available rate-limit data', () => {
-		assert.deepStrictEqual(codexAccountRateLimitFromResponse({
+		assert.deepStrictEqual(codexAccountRateLimitsFromResponse({
 			rateLimits: {
 				limitId: null,
 				limitName: null,
+				normalModelSlug: null,
 				primary: { usedPercent: 42.4, windowDurationMins: null, resetsAt: null },
 				secondary: null,
 				credits: null,
@@ -93,11 +101,12 @@ suite('CodexAccountState', () => {
 				planType: null,
 				rateLimitReachedType: null,
 			},
+			ordinaryUsageAllowed: null,
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
 			accountId: null,
 			rateLimitUpsell: null,
-		}), { usedPercent: 42.4, windowDurationMins: undefined, resetsAt: undefined });
+		}), [{ usedPercent: 42.4, windowDurationMins: undefined, resetsAt: undefined }]);
 	});
 
 	test('rejects invalid rate-limit samples before caching', () => {
@@ -107,20 +116,22 @@ suite('CodexAccountState', () => {
 			...[-1, 0, NaN, Infinity].map(windowDurationMins => ({ ...window, windowDurationMins })),
 			...[-1, 0, NaN, Infinity].map(resetsAt => ({ ...window, resetsAt })),
 		];
-		assert.deepStrictEqual(invalidWindows.map(primary => codexAccountRateLimitFromResponse({
+		assert.deepStrictEqual(invalidWindows.map(primary => codexAccountRateLimitsFromResponse({
 			rateLimits: {
-				limitId: null, limitName: null, primary, secondary: null, credits: null,
+				limitId: null, limitName: null, normalModelSlug: null, primary, secondary: null, credits: null,
 				individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null,
 			},
+			ordinaryUsageAllowed: null,
 			rateLimitsByLimitId: null, rateLimitResetCredits: null, accountId: null, rateLimitUpsell: null,
-		})), invalidWindows.map(() => undefined));
+		})), invalidWindows.map(() => []));
 	});
 
 	test('falls back when the Codex bucket has no windows', () => {
-		assert.deepStrictEqual(codexAccountRateLimitFromResponse({
+		assert.deepStrictEqual(codexAccountRateLimitsFromResponse({
 			rateLimits: {
 				limitId: null,
 				limitName: null,
+				normalModelSlug: null,
 				primary: { usedPercent: 30, windowDurationMins: 10080, resetsAt: 400 },
 				secondary: null,
 				credits: null,
@@ -129,10 +140,12 @@ suite('CodexAccountState', () => {
 				planType: null,
 				rateLimitReachedType: null,
 			},
+			ordinaryUsageAllowed: null,
 			rateLimitsByLimitId: {
 				codex: {
 					limitId: 'codex',
 					limitName: 'Codex',
+					normalModelSlug: null,
 					primary: null,
 					secondary: null,
 					credits: null,
@@ -145,6 +158,28 @@ suite('CodexAccountState', () => {
 			rateLimitResetCredits: null,
 			accountId: null,
 			rateLimitUpsell: null,
-		}), { usedPercent: 30, windowDurationMins: 10080, resetsAt: 400 });
+		}), [{ usedPercent: 30, windowDurationMins: 10080, resetsAt: 400 }]);
+	});
+
+	test('omits missing or invalid windows without losing a valid five-hour limit', () => {
+		assert.deepStrictEqual([null, { usedPercent: 0, windowDurationMins: 300, resetsAt: null }].map(primary => codexAccountRateLimitsFromResponse({
+			rateLimits: {
+				limitId: null,
+				limitName: null,
+				normalModelSlug: null,
+				primary,
+				secondary: { usedPercent: NaN, windowDurationMins: 10080, resetsAt: 400 },
+				credits: null,
+				individualLimit: null,
+				spendControlReached: null,
+				planType: null,
+				rateLimitReachedType: null,
+			},
+			ordinaryUsageAllowed: null,
+			rateLimitsByLimitId: null,
+			rateLimitResetCredits: null,
+			accountId: null,
+			rateLimitUpsell: null,
+		})), [[], [{ usedPercent: 0, windowDurationMins: 300, resetsAt: undefined }]]);
 	});
 });
