@@ -70,7 +70,7 @@ import { ICopilotHomeService } from '../../../environment/common/copilotHome.js'
 import { CopilotCustomizationInstallations } from './customizations/copilotCustomizationInstallations.js';
 import { ISessionDataService, SESSION_DB_FILENAME, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
-import { configureNodeExtraCaCerts } from '../../../request/node/certificates.js';
+import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
@@ -4138,7 +4138,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const env = this._createCopilotCliEnvironment(startupConfig.skillCharBudget, scoped !== undefined, appliedProxy, startupConfig.executionSubagent, startupConfig.executionSubagentModel);
 			if (appliedProxy.certificates.length) {
 				try {
-					await configureNodeExtraCaCerts(env, join(this._environmentService.userDataPath, 'certificates'), appliedProxy.certificates, this._logService);
+					const path = await writeUserDataCertificatesFile(await this._proxyResolver.loadCertificates(), this._environmentService.userDataPath, this._logService);
+					if (path) {
+						env['NODE_EXTRA_CA_CERTS'] = path;
+					}
 				} catch {
 					this._logService.warn('[Copilot] Failed to configure client CA certificates; starting without them.');
 				}

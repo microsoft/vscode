@@ -75,6 +75,7 @@ export interface IAgentHostProxyResolver {
 	setClientCertificates(clientId: string, certificates: readonly string[]): void;
 	registerCertificateProvider(clientId: string, load: (() => Promise<readonly string[]>) | undefined): IDisposable;
 	loadClientCertificates(): Promise<readonly string[]>;
+	/** Loads native roots, including this process's `NODE_EXTRA_CA_CERTS` bundle, once and combines them with cached client roots. */
 	loadCertificates(): Promise<string[]>;
 
 	/** Register a renderer connection. Disposing the result removes it. */
@@ -113,6 +114,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	private readonly _certificateProviders = this._register(new DisposableMap<string, IClientCertificateProvider>());
 	private _certificateProviderGeneration = 0;
 	private _clientCertificates: readonly string[] = [];
+	private _nativeCertificates: Promise<string[]> | undefined;
 	private _configurationValues: Record<string, unknown> = {};
 	private _proxyResolver: { readonly params: ProxyAgentParams; readonly resolver: ReturnType<typeof createProxyResolver> } | undefined;
 	private _fetch: typeof globalThis.fetch | undefined;
@@ -208,11 +210,23 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	}
 
 	async loadCertificates(): Promise<string[]> {
+		if (!this._nativeCertificates) {
+			const nativeCertificates = this._nativeCertificates = this._loadNativeCertificates();
+			nativeCertificates.catch(() => {
+				if (this._nativeCertificates === nativeCertificates) {
+					this._nativeCertificates = undefined;
+				}
+			});
+		}
 		const [nativeCertificates, clientCertificates] = await Promise.all([
-			loadAgentHostCertificates(this._logService),
+			this._nativeCertificates,
 			this.loadClientCertificates(),
 		]);
 		return [...nativeCertificates, ...clientCertificates];
+	}
+
+	protected _loadNativeCertificates(): Promise<string[]> {
+		return loadAgentHostCertificates(this._logService);
 	}
 
 	private _readConfigurationValues(): Record<string, unknown> {

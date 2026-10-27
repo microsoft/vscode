@@ -210,6 +210,25 @@ suite('AgentHostProxyResolver', () => {
 		assert.deepStrictEqual(await resolver.loadClientCertificates(), [new X509Certificate(rootCertificates[1]).toString()]);
 	});
 
+	test('loads native certificates once and shares them with the current client roots', async () => {
+		let nativeLoads = 0;
+		const resolver = disposables.add(new class extends AgentHostProxyResolver {
+			protected override async _loadNativeCertificates(): Promise<string[]> {
+				nativeLoads++;
+				return ['native-ca'];
+			}
+		}(createAgentConfigurationService(disposables), new NullLogService()));
+		const [first, second] = rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString());
+		disposables.add(resolver.registerCertificateProvider('client', async () => [first]));
+		const initial = await Promise.all([resolver.loadCertificates(), resolver.loadCertificates()]);
+		disposables.add(resolver.registerCertificateProvider('client', async () => [second]));
+		assert.deepStrictEqual({ initial, reconnected: await resolver.loadCertificates(), nativeLoads }, {
+			initial: [['native-ca', first], ['native-ca', first]],
+			reconnected: ['native-ca', second],
+			nativeLoads: 1,
+		});
+	});
+
 	test('retains only client certificates in memory and combines them with native trust for AH requests', async () => {
 		const configurationService = createAgentConfigurationService(disposables);
 		const resolver = disposables.add(new AgentHostProxyResolver(configurationService, new NullLogService()));

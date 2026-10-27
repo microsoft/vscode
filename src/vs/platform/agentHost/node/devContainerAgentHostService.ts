@@ -28,7 +28,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IRequestService } from '../../request/common/request.js';
-import { writeCertificatesFile } from '../../request/node/certificates.js';
+import { writeCertificatesFile, writeUserDataCertificatesFile } from '../../request/node/certificates.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDiscoveredDevContainer, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
@@ -847,7 +847,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	protected abstract _resolveUserShellEnvironment(): Promise<typeof process.env>;
-	protected abstract _useSystemCertificates(): boolean;
+
+	protected _useSystemCertificates(): boolean {
+		return true;
+	}
 
 	protected async _shouldForwardCertificates(_token: CancellationToken): Promise<boolean> {
 		return false;
@@ -882,21 +885,20 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	private async _doResolveDevContainerEnvironment(): Promise<typeof process.env> {
 		const environment = await this._resolveShellEnvironment();
+		const path = await this._resolveCertificatesFile(environment);
+		return path ? { ...environment, NODE_EXTRA_CA_CERTS: path } : environment;
+	}
+
+	/** Matches Remote Containers: a supplied bundle is used as-is; otherwise system roots are written when enabled. */
+	protected async _resolveCertificatesFile(environment: typeof process.env): Promise<string | undefined> {
 		if (environment.NODE_EXTRA_CA_CERTS && await this._isFile(environment.NODE_EXTRA_CA_CERTS)) {
-			return environment;
+			return environment.NODE_EXTRA_CA_CERTS;
 		}
 		if (!this._useSystemCertificates()) {
-			return environment;
+			return undefined;
 		}
 		const certificates = await this._requestService.loadCertificates();
-		if (certificates.length === 0) {
-			return environment;
-		}
-		const path = await this._writeCertificatesFile(certificates);
-		return {
-			...environment,
-			...(path ? { NODE_EXTRA_CA_CERTS: path } : {}),
-		};
+		return certificates.length ? this._writeCertificatesFile(certificates) : undefined;
 	}
 
 	protected async _isFile(path: string): Promise<boolean> {
@@ -1119,12 +1121,29 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 
 /** Standalone hosts inherit the environment of their SSH, tunnel, or CLI launcher. */
 export class RemoteDevContainerAgentHostService extends DevContainerAgentHostService {
+	constructor(
+		@ILogService private readonly _remoteLogService: ILogService,
+		@IProductService productService: IProductService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@INativeEnvironmentService private readonly _remoteEnvironmentService: INativeEnvironmentService,
+		@IRequestService private readonly _remoteRequestService: IRequestService,
+		@IGitHubService gitHubService: IGitHubService,
+	) {
+		super(_remoteLogService, productService, telemetryService, _remoteEnvironmentService, _remoteRequestService, gitHubService);
+	}
+
 	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {
 		return Promise.resolve(process.env);
 	}
 
-	protected override _useSystemCertificates(): boolean {
-		return true;
+	/** Shares Copilot's bundle: Agent Host roots already include its `NODE_EXTRA_CA_CERTS` file and connected client roots. */
+	protected override async _resolveCertificatesFile(): Promise<string | undefined> {
+		try {
+			return await writeUserDataCertificatesFile(await this._remoteRequestService.loadCertificates(), this._remoteEnvironmentService.userDataPath, this._remoteLogService);
+		} catch (error) {
+			this._remoteLogService.warn(`${LOG_PREFIX} Failed to configure CA certificates for the Dev Container CLI`, getErrorMessage(error));
+			return undefined;
+		}
 	}
 }
 

@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash, randomUUID, X509Certificate } from 'crypto';
-import { chmod, lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'fs/promises';
+import { chmod, lstat, mkdir, rename, rm, writeFile } from 'fs/promises';
 import { join } from '../../../base/common/path.js';
-import { IProcessEnvironment } from '../../../base/common/platform.js';
 import { ILogService } from '../../log/common/log.js';
 
 /** Canonicalizes PEM certificates and bundles, skipping malformed entries without logging their contents. */
@@ -30,28 +29,9 @@ export function normalizeCertificates(certificates: readonly string[], logServic
 	return [...normalized].sort();
 }
 
-/** Combines supplied certificates with an existing bundle without modifying the original file. */
-export async function configureNodeExtraCaCerts(environment: IProcessEnvironment, directory: string, certificates: readonly string[], logService: ILogService): Promise<void> {
-	if (!certificates.length) {
-		return;
-	}
-	let combined = certificates;
-	const existing = environment.NODE_EXTRA_CA_CERTS;
-	if (existing) {
-		try {
-			if ((await stat(existing)).isFile()) {
-				combined = [await readFile(existing, 'utf8'), ...certificates];
-			}
-		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && (error as NodeJS.ErrnoException).code !== 'ENOTDIR') {
-				throw error;
-			}
-		}
-	}
-	const path = await writeCertificatesFile(combined, directory, logService);
-	if (path) {
-		environment.NODE_EXTRA_CA_CERTS = path;
-	}
+/** Publishes certificates for child processes that read `NODE_EXTRA_CA_CERTS`, sharing one content-addressed file per certificate set. */
+export function writeUserDataCertificatesFile(certificates: readonly string[], userDataPath: string, logService: ILogService): Promise<string | undefined> {
+	return writeCertificatesFile(certificates, join(userDataPath, 'certificates'), logService);
 }
 
 /** Publishes a content-addressed PEM bundle atomically in a caller-owned cache directory. */

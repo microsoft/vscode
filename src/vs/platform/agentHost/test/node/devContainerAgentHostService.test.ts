@@ -27,6 +27,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
 import { IRequestService } from '../../../request/common/request.js';
+import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
@@ -444,6 +445,42 @@ suite('Dev Container Agent Host Main Service', () => {
 			new class extends mock<IGitHubService>() { }(),
 		));
 		assert.strictEqual(await service.shouldForwardCertificates(), false);
+	});
+
+	test('an Agent Host Dev Container CLI shares the Copilot certificate bundle', async () => {
+		const userDataPath = await mkdtemp(join(tmpdir(), 'vscode-dev-container-shared-certificates-'));
+		const [certificateA, certificateB] = rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString());
+		const createService = (load: () => Promise<string[]>) => store.add(new class extends RemoteDevContainerAgentHostService {
+			protected override async _doResolveShellEnvironment(): Promise<typeof process.env> {
+				return { NODE_EXTRA_CA_CERTS: '/supplied.pem' };
+			}
+			resolveDevContainerEnvironment(): Promise<typeof process.env> {
+				return this._resolveDevContainerEnvironment();
+			}
+		}(
+			new NullLogService(),
+			new class extends mock<IProductService>() { }(),
+			NullTelemetryService,
+			new class extends mock<INativeEnvironmentService>() {
+				override readonly userDataPath = userDataPath;
+			}(),
+			new class extends mock<IRequestService>() {
+				override loadCertificates(): Promise<string[]> {
+					return load();
+				}
+			}(),
+			new class extends mock<IGitHubService>() { }(),
+		));
+		try {
+			const shared = await createService(async () => [certificateB, certificateA]).resolveDevContainerEnvironment();
+			const failed = await createService(async () => { throw new Error('unavailable'); }).resolveDevContainerEnvironment();
+			assert.deepStrictEqual({ shared: shared.NODE_EXTRA_CA_CERTS, failed: failed.NODE_EXTRA_CA_CERTS }, {
+				shared: await writeUserDataCertificatesFile([certificateA, certificateB], userDataPath, new NullLogService()),
+				failed: '/supplied.pem',
+			});
+		} finally {
+			await rm(userDataPath, { recursive: true, force: true });
+		}
 	});
 
 	test('discovers modern, legacy and volume Dev Containers without starting them', async () => {

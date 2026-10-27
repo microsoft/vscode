@@ -12840,8 +12840,12 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const logService = new NullLogService();
 			const proxyConfiguration = disposables.add(new AgentConfigurationService(disposables.add(new AgentHostStateManager(logService)), logService));
-			const proxyResolver = disposables.add(new AgentHostProxyResolver(proxyConfiguration, logService));
-			const certificates = rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString());
+			const certificates = rootCertificates.slice(0, 3).map(certificate => new X509Certificate(certificate).toString());
+			const proxyResolver = disposables.add(new class extends AgentHostProxyResolver {
+				protected override async _loadNativeCertificates(): Promise<string[]> {
+					return [certificates[2]];
+				}
+			}(proxyConfiguration, logService));
 			disposables.add(proxyResolver.registerCertificateProvider('client', async () => [certificates[0]]));
 			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
 			const environmentService = instantiationService.invokeFunction(accessor => accessor.get(INativeEnvironmentService));
@@ -12863,9 +12867,16 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					firstContent,
 					secondContent: await fs.readFile(secondPath, 'utf8'),
+					sharedDirectory: [firstPath, secondPath].every(path => path.startsWith(join(directory, 'certificates'))),
 					distinctBundles: firstPath !== secondPath,
 					environmentUnchanged: JSON.stringify(process.env) === JSON.stringify(environmentBefore),
-				}, { firstContent: certificates[0], secondContent: certificates[1], distinctBundles: true, environmentUnchanged: true });
+				}, {
+					firstContent: [certificates[0], certificates[2]].sort().join('\n'),
+					secondContent: [certificates[1], certificates[2]].sort().join('\n'),
+					sharedDirectory: true,
+					distinctBundles: true,
+					environmentUnchanged: true,
+				});
 			} finally {
 				await disposeAgent(agent);
 				environmentStub.restore();

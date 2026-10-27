@@ -6,16 +6,15 @@
 import assert from 'assert';
 import { spawnSync } from 'child_process';
 import { createHash, X509Certificate } from 'crypto';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { rootCertificates } from 'tls';
-import { basename, join } from '../../../../base/common/path.js';
-import { IProcessEnvironment } from '../../../../base/common/platform.js';
+import { basename, dirname, join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { configureNodeExtraCaCerts, normalizeCertificates, writeCertificatesFile } from '../../node/certificates.js';
+import { normalizeCertificates, writeCertificatesFile, writeUserDataCertificatesFile } from '../../node/certificates.js';
 
-const [certificateA, certificateB, certificateC] = rootCertificates.slice(0, 3).map(certificate => new X509Certificate(certificate).toString());
+const [certificateA, certificateB] = rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString());
 const invalidCertificate = '-----BEGIN CERTIFICATE-----\ninvalid-secret-certificate\n-----END CERTIFICATE-----';
 
 class TestLogService extends NullLogService {
@@ -39,70 +38,17 @@ suite('Certificate bundles', () => {
 		await rm(directory, { recursive: true, force: true });
 	});
 
-	test('merges the client certificates without modifying the user-supplied bundle', async () => {
-		const path = join(directory, 'custom.pem');
-		await writeFile(path, certificateA);
-		const environment = { NODE_EXTRA_CA_CERTS: path };
-		const certificates = Object.freeze([certificateB]);
-		await configureNodeExtraCaCerts(environment, directory, certificates, logService);
-		assert.deepStrictEqual({
-			newPath: environment.NODE_EXTRA_CA_CERTS !== path,
-			combined: await readFile(environment.NODE_EXTRA_CA_CERTS, 'utf8'),
-			original: await readFile(path, 'utf8'),
-			certificates,
-		}, {
-			newPath: true,
-			combined: [certificateA, certificateB].sort().join('\n'),
-			original: certificateA,
-			certificates: [certificateB],
+	test('shares one user-data bundle for equivalent certificate sets', async () => {
+		const paths = await Promise.all([
+			writeUserDataCertificatesFile([certificateA, certificateB], directory, logService),
+			writeUserDataCertificatesFile([certificateB, certificateA, certificateB], directory, logService),
+		]);
+		assert.ok(paths[0]);
+		assert.deepStrictEqual({ samePath: paths[0] === paths[1], directory: basename(dirname(paths[0])), content: await readFile(paths[0], 'utf8') }, {
+			samePath: true,
+			directory: 'certificates',
+			content: [certificateA, certificateB].sort().join('\n'),
 		});
-	});
-
-	test('reuses the combined bundle for identical launches and includes updates to the user bundle', async () => {
-		const path = join(directory, 'custom.pem');
-		await writeFile(path, certificateA);
-		const environments = [{ NODE_EXTRA_CA_CERTS: path }, { NODE_EXTRA_CA_CERTS: path }, { NODE_EXTRA_CA_CERTS: path }];
-		await configureNodeExtraCaCerts(environments[0], directory, [certificateB], logService);
-		await configureNodeExtraCaCerts(environments[1], directory, [certificateB], logService);
-		await writeFile(path, certificateC);
-		await configureNodeExtraCaCerts(environments[2], directory, [certificateB], logService);
-		assert.deepStrictEqual({
-			reused: environments[0].NODE_EXTRA_CA_CERTS === environments[1].NODE_EXTRA_CA_CERTS,
-			updated: environments[0].NODE_EXTRA_CA_CERTS !== environments[2].NODE_EXTRA_CA_CERTS,
-			content: await readFile(environments[2].NODE_EXTRA_CA_CERTS, 'utf8'),
-		}, {
-			reused: true,
-			updated: true,
-			content: [certificateB, certificateC].sort().join('\n'),
-		});
-	});
-
-	test('leaves an existing bundle and environment unchanged when no client certificates are supplied', async () => {
-		const path = join(directory, 'custom.pem');
-		await writeFile(path, certificateA);
-		const environment = { NODE_EXTRA_CA_CERTS: path };
-		await configureNodeExtraCaCerts(environment, directory, [], logService);
-		assert.deepStrictEqual({ environment, entries: await readdir(directory) }, { environment: { NODE_EXTRA_CA_CERTS: path }, entries: ['custom.pem'] });
-	});
-
-	test('propagates bundle write failures without changing the environment or user bundle', async () => {
-		const path = join(directory, 'custom.pem');
-		await writeFile(path, certificateA);
-		const environment = { NODE_EXTRA_CA_CERTS: path };
-		await assert.rejects(configureNodeExtraCaCerts(environment, path, [certificateB], logService));
-		assert.deepStrictEqual({ environment, original: await readFile(path, 'utf8') }, { environment: { NODE_EXTRA_CA_CERTS: path }, original: certificateA });
-	});
-
-	test('replaces a missing bundle and combines all supplied certificates', async () => {
-		const environment = { NODE_EXTRA_CA_CERTS: join(directory, 'missing.pem') };
-		await configureNodeExtraCaCerts(environment, directory, [certificateB, certificateA], logService);
-		assert.strictEqual(await readFile(environment.NODE_EXTRA_CA_CERTS, 'utf8'), [certificateA, certificateB].sort().join('\n'));
-	});
-
-	test('does not set an environment variable when there are no certificates', async () => {
-		const environment: IProcessEnvironment = {};
-		await configureNodeExtraCaCerts(environment, directory, [], logService);
-		assert.deepStrictEqual({ environment, entries: await readdir(directory) }, { environment: {}, entries: [] });
 	});
 
 	test('uses immutable content-addressed files and tolerates concurrent writers', async () => {
@@ -155,40 +101,19 @@ suite('Certificate bundles', () => {
 		});
 	});
 
-	test('skips invalid existing-bundle entries and deduplicates valid roots across both sources', async () => {
-		const path = join(directory, 'custom.pem');
-		const original = `${certificateB}\n${invalidCertificate}\n${certificateA}`;
-		await writeFile(path, original);
-		const environment = { NODE_EXTRA_CA_CERTS: path };
-		await configureNodeExtraCaCerts(environment, directory, [certificateA, certificateC], logService);
+	test('does not create an empty bundle when all certificates are invalid', async () => {
 		assert.deepStrictEqual({
-			content: await readFile(environment.NODE_EXTRA_CA_CERTS, 'utf8'),
-			original: await readFile(path, 'utf8'),
-			warnings: logService.warnings,
-		}, {
-			content: [certificateA, certificateB, certificateC].sort().join('\n'),
-			original,
-			warnings: ['[Certificates] Ignored 1 invalid CA certificate(s).'],
-		});
-	});
-
-	test('does not create an empty bundle or change the environment when all certificates are invalid', async () => {
-		const environment: IProcessEnvironment = {};
-		await configureNodeExtraCaCerts(environment, directory, [invalidCertificate], logService);
-		assert.deepStrictEqual({
-			environment,
+			path: await writeCertificatesFile([invalidCertificate], directory, logService),
 			files: await readdir(directory),
 			warnings: logService.warnings,
-		}, { environment: {}, files: [], warnings: ['[Certificates] Ignored 1 invalid CA certificate(s).'] });
+		}, { path: undefined, files: [], warnings: ['[Certificates] Ignored 1 invalid CA certificate(s).'] });
 	});
 
-	test('a child Node process trusts both the original and forwarded certificates', async () => {
-		const path = join(directory, 'custom.pem');
-		await writeFile(path, `${certificateA}\n${invalidCertificate}`);
-		const environment = { NODE_EXTRA_CA_CERTS: path };
-		await configureNodeExtraCaCerts(environment, directory, [certificateB, certificateA], logService);
+	test('a child Node process trusts the valid certificates in the shared bundle', async () => {
+		const path = await writeUserDataCertificatesFile([`${certificateA}\n${invalidCertificate}`, certificateB], directory, logService);
+		assert.ok(path);
 		const child = spawnSync(process.execPath, ['-e', 'process.stdout.write(JSON.stringify(require(\'tls\').getCACertificates(\'extra\').map(cert => new (require(\'crypto\').X509Certificate)(cert).fingerprint256)))'], {
-			env: { ...process.env, ...environment, ELECTRON_RUN_AS_NODE: '1' },
+			env: { ...process.env, NODE_EXTRA_CA_CERTS: path, ELECTRON_RUN_AS_NODE: '1' },
 			encoding: 'utf8',
 			timeout: 10000,
 		});
