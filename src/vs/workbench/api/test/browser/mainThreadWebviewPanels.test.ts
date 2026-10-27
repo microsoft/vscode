@@ -9,7 +9,7 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { extUriIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { mock } from '../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
@@ -22,12 +22,13 @@ import { UriIdentityService } from '../../../../platform/uriIdentity/common/uriI
 import { getResourceToLoad } from '../../../contrib/webview/browser/resourceLoading.js';
 import { IOverlayWebview, WebviewContentOptions, WebviewExtensionDescription } from '../../../contrib/webview/browser/webview.js';
 import { WebviewInput } from '../../../contrib/webviewPanel/browser/webviewEditorInput.js';
-import { IWebviewWorkbenchService } from '../../../contrib/webviewPanel/browser/webviewWorkbenchService.js';
+import { IWebViewShowOptions, IWebviewWorkbenchService } from '../../../contrib/webviewPanel/browser/webviewWorkbenchService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { TestEditorGroupsService, TestEditorService } from '../../../test/browser/workbenchTestServices.js';
 import { MainThreadWebviewPanels } from '../../browser/mainThreadWebviewPanels.js';
 import { MainThreadWebviews } from '../../browser/mainThreadWebviews.js';
-import { ExtHostWebviewPanelsShape, IWebviewContentOptions } from '../../common/extHost.protocol.js';
+import { ExtHostWebviewPanelsShape, IWebviewContentOptions, WebviewPanelShowOptions } from '../../common/extHost.protocol.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 suite('MainThreadWebviewPanels', () => {
@@ -180,5 +181,77 @@ suite('MainThreadWebviewPanels', () => {
 		const roots = [URI.joinPath(oldLocation, 'dist')];
 		const { webview } = await restore(roots, { id: extensionId });
 		assert.strictEqual(webview.contentOptions.localResourceRoots, roots);
+	});
+});
+
+suite('MainThreadWebviewPanels - view column target group', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function openInColumn(activeIsMain: boolean, viewColumnGroup: IEditorGroup | undefined, showOptions: WebviewPanelShowOptions): IWebViewShowOptions | undefined {
+		const mainGroups = [upcastPartial<IEditorGroup>({ id: 1 }), upcastPartial<IEditorGroup>({ id: 2 })];
+		const auxiliaryGroup = upcastPartial<IEditorGroup>({ id: 10 });
+		const mainPart = upcastPartial<IEditorPart>({ viewColumnGroup: undefined });
+		const auxiliaryPart = upcastPartial<IEditorPart>({ viewColumnGroup });
+		const activeGroup = activeIsMain ? mainGroups[0] : auxiliaryGroup;
+
+		const groupsService = upcastPartial<IEditorGroupsService>({
+			count: 3,
+			onDidAddGroup: Event.None,
+			onDidRemoveGroup: Event.None,
+			onDidMoveGroup: Event.None,
+			activeGroup,
+			mainPart,
+			getPart: () => activeIsMain ? mainPart : auxiliaryPart,
+			getGroups: () => [...mainGroups, auxiliaryGroup],
+		});
+
+		let openedWith: IWebViewShowOptions | undefined;
+		const panels = store.add(new MainThreadWebviewPanels(
+			SingleProxyRPCProtocol(new class extends mock<ExtHostWebviewPanelsShape>() { }),
+			new class extends mock<MainThreadWebviews>() {
+				override addWebview() { }
+			},
+			new TestConfigurationService(),
+			groupsService,
+			store.add(new TestEditorService()),
+			new class extends mock<IExtensionService>() { },
+			store.add(new InMemoryStorageService()),
+			new class extends mock<IWebviewWorkbenchService>() {
+				override onDidChangeActiveWebviewEditor = Event.None;
+				override registerResolver() { return Disposable.None; }
+				override openWebview(_init: unknown, _viewType: string, _title: string, _iconPath: unknown, options: IWebViewShowOptions) {
+					openedWith = options;
+					return store.add(new WebviewInput({ viewType: 'test', providedId: 'test', name: 'Test', iconPath: undefined }, new class extends mock<IOverlayWebview>() {
+						override onDidDispose = Event.None;
+						override dispose() { }
+					}, new TestThemeService()));
+				}
+			},
+			store.add(new UriIdentityService(store.add(new FileService(new NullLogService())))),
+		));
+
+		const extension = new ExtensionIdentifier('publisher.extension');
+		panels.$createWebviewPanel(
+			{ id: extension, location: URI.file('/extensions/publisher.extension-1.0.0') },
+			'handle',
+			'test',
+			{ title: 'Test', webviewOptions: {}, panelOptions: {}, serializeBuffersForPostMessage: false },
+			showOptions,
+		);
+		return openedWith;
+	}
+
+	const viewColumnGroup = upcastPartial<IEditorGroup>({ id: 11 });
+
+	test('numbered view column targets the view column group of the active part', () => {
+		assert.deepStrictEqual(openInColumn(false, viewColumnGroup, { viewColumn: 1 }), { preserveFocus: false, group: 11 });
+	});
+
+	test('numbered view column keeps indexing all groups when the active part is the main part', () => {
+		assert.deepStrictEqual(openInColumn(true, viewColumnGroup, { viewColumn: 1 }), { preserveFocus: false, group: 2 });
+	});
+
+	test('numbered view column keeps indexing all groups when the active part registered no view column group', () => {
+		assert.deepStrictEqual(openInColumn(false, undefined, { viewColumn: 2 }), { preserveFocus: false, group: 10 });
 	});
 });
