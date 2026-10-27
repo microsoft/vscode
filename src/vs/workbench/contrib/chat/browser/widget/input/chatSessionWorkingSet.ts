@@ -256,12 +256,9 @@ export class ChatSessionWorkingSet extends Disposable {
 		const fileMenu = this._register(menuService.createMenu(MenuId.ChatEditingWidgetModifiedFilesToolbar, scopedContextKeyService, { eventDebounceDelay: 0 }));
 		const fileMenuChanged = observableSignalFromEvent(this, fileMenu.onDidChange);
 		this._fileList = this._register(renderChangesSummaryFileList(listContainer, this._diffs, scopedInstantiationService, this._editorService, configurationService, {
-			openEditor: (diff, inDiffEditor, options, sideBySide) => {
-				if (inDiffEditor) {
-					void this._openFileDiff(diff, options, sideBySide).catch(onUnexpectedError);
-				} else {
-					void this._editorService.openEditor({ resource: diff.modifiedURI, options }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-				}
+			openEditor: (diff, _inDiffEditor, options, sideBySide) => {
+				const resource = diff.isDeleted ? diff.originalURI : diff.modifiedURI;
+				void this._editorService.openEditor({ resource, options }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			},
 			ariaLabel: localize('chat.sessionWorkingSet.list', "Session changes"),
 			rowActionIcons: true,
