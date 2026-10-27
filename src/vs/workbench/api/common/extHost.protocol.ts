@@ -68,7 +68,7 @@ import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineRefe
 import { IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/attachments/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
 import { IPreparedToolInvocation, IStreamedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolProgressStep, IToolResult, ToolDataSource } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IPromptFileContext, IPromptFileResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
@@ -1482,6 +1482,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 	$reportResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>): Promise<void>;
 	$reportResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
 	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]>;
+	$getLanguageModelChatMetadata(modelId: string): Promise<ILanguageModelChatMetadata | undefined>;
 	$countTokens(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
 	$cancelLanguageModelChatRequest(requestId: number): void;
 	$fileIsIgnored(uri: UriComponents, token: CancellationToken): Promise<boolean>;

@@ -18,7 +18,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { resizeImage } from '../../contrib/chat/browser/chatImageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
-import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -214,6 +214,10 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]> {
 		return this._chatProviderService.selectLanguageModels(selector);
+	}
+
+	async $getLanguageModelChatMetadata(modelId: string): Promise<ILanguageModelChatMetadata | undefined> {
+		return this._chatProviderService.lookupLanguageModel(modelId);
 	}
 
 	async $tryStartChatRequest(extension: ExtensionIdentifier, modelIdentifier: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<void> {

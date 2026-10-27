@@ -14,7 +14,7 @@ import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
 import { ILanguageModelIgnoredFilesService } from '../../../contrib/chat/common/ignoredFiles.js';
-import { ILanguageModelChatProvider, ILanguageModelsService, IChatMessage } from '../../../contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatProvider, ILanguageModelsService, IChatMessage } from '../../../contrib/chat/common/languageModels.js';
 import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
 import { TestExtensionService, TestProductService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadLanguageModels } from '../../browser/mainThreadLanguageModels.js';
@@ -24,6 +24,34 @@ import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 suite('MainThreadLanguageModels', function () {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('looks up cross-host model metadata in the shared catalog and observes removal', async () => {
+		const metadata: ILanguageModelChatMetadata = {
+			extension: new ExtensionIdentifier('test.provider'),
+			id: 'model', name: 'model', vendor: 'test', version: '1', family: 'test',
+			maxInputTokens: 1000, maxOutputTokens: 1000, isDefaultForLocation: {},
+		};
+		const catalog = new Map([['test/model', metadata]]);
+		const languageModelsService = new class extends mock<ILanguageModelsService>() {
+			override readonly onDidChangeLanguageModels = disposables.add(new Emitter<string>()).event;
+			override getLanguageModelIds(): string[] { return [...catalog.keys()]; }
+			override lookupLanguageModel(identifier: string) { return catalog.get(identifier); }
+		};
+		const mainThread = disposables.add(new MainThreadLanguageModels(
+			SingleProxyRPCProtocol({}),
+			languageModelsService,
+			new NullLogService(),
+			TestProductService,
+			new class extends mock<IAuthenticationService>() { },
+			new class extends mock<IAuthenticationAccessService>() { },
+			new TestExtensionService(),
+			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+		));
+
+		assert.strictEqual(await mainThread.$getLanguageModelChatMetadata('test/model'), metadata);
+		catalog.delete('test/model');
+		assert.strictEqual(await mainThread.$getLanguageModelChatMetadata('test/model'), undefined);
+	});
 
 	test('bridges onDidChangeLanguageModels to $onChatModelsChange when the model id set changes', async () => {
 		const store = disposables.add(new DisposableStore());
