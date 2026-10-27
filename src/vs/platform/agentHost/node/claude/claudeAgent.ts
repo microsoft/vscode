@@ -26,7 +26,6 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { IAgentSdkDownloader } from '../agentSdkDownloader.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
@@ -717,8 +716,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * provider-qualified model bypasses this and routes on its own provider.
 	 */
 	private _defaultTransportMode(): ClaudeTransportMode {
-		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
-		return resolveClaudeTransportMode({ allowSignedOutWhenUsable, hasGitHubToken: this._proxyHandle !== undefined, hasExistingSetup: this._nativeAccountSetUp });
+		return resolveClaudeTransportMode({ hasGitHubToken: this._proxyHandle !== undefined, hasExistingSetup: this._nativeAccountSetUp });
 	}
 
 	/**
@@ -873,19 +871,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._githubToken = token;
 		this._logService.info('[Claude] Auth token updated');
 		oldHandle?.dispose();
-		// Blank the catalog only on a *replacement*: a different account can have
-		// different model entitlements, so don't retain the previous list if
-		// enumeration for the new token fails.
-		//
-		// A first sign-in (no `oldHandle`) must NOT blank. It has no superseded
-		// account to drop, and the catalog it would clear is native-only — the
-		// bootstrap list, which is account-independent and stays valid. Blanking
-		// there publishes an empty catalog for the length of the refresh, which the
-		// window gate reads as `SessionTypeAuthRequirement.Unusable` (an agent with
-		// no models is unusable). That closes the `allowSignedOutWhenUsable` gate
-		// mid-startup and forces the sign-in dialog on a user who is already signed
-		// in — the GitHub session resolves before the Copilot default account does,
-		// so the welcome flow still believes it is signed out.
+		// A replacement invalidates the previous account's catalog; first sign-in must preserve the native catalog.
 		if (oldHandle) {
 			this._models.set([], undefined);
 		}

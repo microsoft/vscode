@@ -16567,9 +16567,9 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('BYOK models make Copilot authentication optional only while signed-out operation is enabled', async () => {
+	test('BYOK models make Copilot authentication optional without configuration', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
-		const { agent, configurationService } = createTestAgentContext(disposables, { byokBridgeRegistry });
+		const { agent } = createTestAgentContext(disposables, { byokBridgeRegistry });
 		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
 		const connection: IByokLmBridgeConnection = {
 			chat: async () => ({ output: [] }),
@@ -16582,8 +16582,6 @@ suite('CopilotAgent', () => {
 		try {
 			const initiallyRequired = copilotRequired();
 			const initiallyReady = agent.isReadyForAutomation(undefined);
-			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
-			const requiredWithoutByok = copilotRequired();
 			modelSnapshots.fire([{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' }]);
 			await waitForState(agent.models, models => models.length === 1);
 			const optionalWithByok = copilotRequired();
@@ -16593,25 +16591,19 @@ suite('CopilotAgent', () => {
 			modelSnapshots.fire([]);
 			await waitForState(agent.models, models => models.length === 0);
 			const requiredAfterHide = copilotRequired();
-			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: false });
-			const requiredAfterDisable = copilotRequired();
 
 			assert.deepStrictEqual({
 				initiallyRequired,
-				requiredWithoutByok,
 				optionalWithByok,
 				requiredAfterHide,
-				requiredAfterDisable,
 				initiallyReady,
 				readyWithByok,
 				copilotStillBlocked,
 				readyAfterHide: agent.isReadyForAutomation(selectedModel),
 			}, {
 				initiallyRequired: true,
-				requiredWithoutByok: true,
 				optionalWithByok: false,
 				requiredAfterHide: true,
-				requiredAfterDisable: true,
 				initiallyReady: false,
 				readyWithByok: true,
 				copilotStillBlocked: true,
@@ -16628,7 +16620,6 @@ suite('CopilotAgent', () => {
 			copilotClient: new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]),
 			byokBridgeRegistry,
 			rootConfig: {
-				[AgentHostConfigKey.AllowSignedOutWhenUsable]: true,
 				[CopilotCliConfigKey.HydraFusion]: true,
 				[CopilotCliConfigKey.HydraFusionV2]: true,
 			},
@@ -16674,7 +16665,6 @@ suite('CopilotAgent', () => {
 			copilotClient: client,
 			byokBridgeRegistry,
 			rootConfig: {
-				[AgentHostConfigKey.AllowSignedOutWhenUsable]: true,
 				[CopilotCliConfigKey.DynamicAutoTiers]: true,
 				[CopilotCliConfigKey.HydraFusion]: true,
 				[CopilotCliConfigKey.HydraFusionV2]: true,

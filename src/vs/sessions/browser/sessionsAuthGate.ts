@@ -3,11 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../base/common/event.js';
-import { IObservable, observableFromEvent } from '../../base/common/observable.js';
 import { isWeb } from '../../base/common/platform.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../platform/agentHost/common/agentService.js';
-import type { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { SessionTypeAuthRequirement } from '../services/sessions/common/session.js';
 
 /**
@@ -19,7 +15,7 @@ import { SessionTypeAuthRequirement } from '../services/sessions/common/session.
  * - The **window gate** is the last-resort, window-level block that forces
  *   sign-in before *any* of the sessions UI is shown (backed by
  *   `SessionsWelcomeVisibleContext`). Historically unconditional; it now lifts
- *   when the opt-in is enabled and at least one registered session type does not
+ *   on desktop when at least one registered session type does not
  *   require GitHub. Note the *editor* window is untouched by all of this — its
  *   chat-setup modal already offers a "Don't sign in" escape hatch, and it is
  *   that missing escape hatch in the Agents window (a non-dismissible modal) that
@@ -30,17 +26,8 @@ import { SessionTypeAuthRequirement } from '../services/sessions/common/session.
  *   work: once the window is open, each type answers for itself.
  *
  * Session types update as native credentials come and go. The window gate must
- * therefore use the live requirements rather than treating the experimentation
- * opt-in itself as proof that a provider can run signed out.
+ * therefore use the live requirements to determine whether a provider can run signed out.
  */
-
-/**
- * Whether the `chat.agentHost.allowSignedOutWhenUsable` experimentation opt-in
- * is enabled in a desktop window. Web always requires sign-in.
- */
-export function isAllowSignedOutWhenUsableEnabled(configurationService: IConfigurationService): boolean {
-	return !isWeb && configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
-}
 
 /**
  * The **window gate**: whether the Agents window must force GitHub sign-in before
@@ -56,11 +43,11 @@ export const enum SignedOutWindowGate {
 	ForceGitHubSignIn,
 }
 
-export function resolveSignedOutWindowGate(allowSignedOutWhenUsable: boolean, authRequirements: readonly SessionTypeAuthRequirement[], canInitializeWithoutGitHub = false): SignedOutWindowGate {
+export function resolveSignedOutWindowGate(authRequirements: readonly SessionTypeAuthRequirement[], canInitializeWithoutGitHub = false): SignedOutWindowGate {
 	if (canInitializeWithoutGitHub) {
 		return authRequirements.length === 0 ? SignedOutWindowGate.Unresolved : SignedOutWindowGate.Proceed;
 	}
-	if (!allowSignedOutWhenUsable) {
+	if (isWeb) {
 		return SignedOutWindowGate.ForceGitHubSignIn;
 	}
 	if (authRequirements.length === 0) {
@@ -72,8 +59,8 @@ export function resolveSignedOutWindowGate(allowSignedOutWhenUsable: boolean, au
 }
 
 /** Whether the GitHub workspace group should offer sign-in. */
-export function shouldShowGitHubWorkspaceGroupSignIn(signedIn: boolean, allowSignedOutWhenUsable: boolean): boolean {
-	return !signedIn && allowSignedOutWhenUsable;
+export function shouldShowGitHubWorkspaceGroupSignIn(signedIn: boolean): boolean {
+	return !signedIn && !isWeb;
 }
 
 /**
@@ -106,14 +93,4 @@ export function conditionalAuthState(accountResolved: boolean, signedIn: boolean
 		return ConditionalAuthState.Unresolved;
 	}
 	return signedIn ? ConditionalAuthState.SignedIn : ConditionalAuthState.SignedOut;
-}
-
-/**
- * Observe the setting that permits the Agents window to proceed without forcing
- * GitHub sign-in when a session type can operate that way.
- */
-export function observeAllowSignedOutWhenUsable(configurationService: IConfigurationService): IObservable<boolean> {
-	return observableFromEvent(
-		Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(AgentHostAllowSignedOutWhenUsableSettingId)),
-		() => isAllowSignedOutWhenUsableEnabled(configurationService));
 }
