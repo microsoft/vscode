@@ -221,9 +221,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): HTMLElement {
+		const context: IEditorCommandsContext = { groupId: this.groupView.id };
 		const control = this._register(this.instantiationService.createInstance(EditorAddTabControl, parent, menuId, this.contextKeyService, {
 			before,
-			keybindingProvider: action => this.getKeybinding(action)
+			keybindingProvider: action => this.getKeybinding(action),
+			context
 		}));
 		if (onDidChangeVisibility) {
 			this._register(control.onDidChangeVisibility(onDidChangeVisibility));

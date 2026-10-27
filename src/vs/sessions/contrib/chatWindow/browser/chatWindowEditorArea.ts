@@ -86,12 +86,15 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 	editorId: BrowserEditorInput.EDITOR_ID,
 	order: 3,
 	async open(accessor, _window, group) {
+		// Services are read before the first await, after which the accessor is no longer valid.
+		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
 		// An existing browser tab is activated in place; otherwise a new one opens, with its URL input focused.
 		const existing = group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).find(editor => editor instanceof BrowserEditorInput);
 		const browserInput = existing ?? accessor.get(IBrowserViewWorkbenchService).getOrCreateLazy({ id: generateUuid() });
-		const editorPane = await accessor.get(IEditorService).openEditor(browserInput, undefined, group);
+		const editorPane = await editorService.openEditor(browserInput, undefined, group);
 		if (editorPane && !browserInput.url) {
-			await accessor.get(ICommandService).executeCommand(BrowserViewCommandId.FocusUrlInput, editorPane);
+			await commandService.executeCommand(BrowserViewCommandId.FocusUrlInput, editorPane);
 		}
 	},
 }];

@@ -15,6 +15,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDnd.js';
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -4123,4 +4126,25 @@ suite('MultiEditorTabsControl', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+	test('runs the Add Tab entries with the group of its tabs bar, so that they act on that group rather than on the active one', () => {
+		const ran: unknown[][] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(_id: string, ...args: unknown[]): Promise<R> { ran.push(args); return undefined as R; }
+		}());
+		let shownMenu: IContextMenuDelegate | undefined;
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void { shownMenu = delegate; }
+		}());
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.addTab.context') });
+
+		container.querySelector<HTMLElement>('.tabs-bar-add-tab .action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true }));
+		const [entry] = shownMenu?.getActions() ?? [];
+		entry?.run(shownMenu?.getActionsContext?.());
+
+		assert.deepStrictEqual(ran, [[{ groupId: groupView.id }]]);
+	});
 });
