@@ -9,10 +9,10 @@ import { getPnpmCommand } from './pnpm.ts';
 
 const rootDir = path.resolve(import.meta.dirname, '..', '..');
 
-function runPnpm(args: ReadonlyArray<string>) {
+function runPnpm(args: ReadonlyArray<string>, env: NodeJS.ProcessEnv = process.env) {
 	const pnpm = getPnpmCommand();
 	return new Promise<void>((resolve, reject) => {
-		const child = spawn(pnpm.command, [...pnpm.args, ...args], { cwd: rootDir, stdio: 'inherit', env: process.env, shell: pnpm.shell });
+		const child = spawn(pnpm.command, [...pnpm.args, ...args], { cwd: rootDir, stdio: 'inherit', env, shell: pnpm.shell });
 		child.on('exit', err => !err ? resolve() : process.exit(err ?? 1));
 		child.on('error', reject);
 	});
@@ -29,7 +29,9 @@ async function exists(subdir: string) {
 
 async function ensureNodeModules() {
 	if (!(await exists('node_modules'))) {
-		await runPnpm(['install', '--frozen-lockfile']);
+		// pnpm doesn't pass --frozen-lockfile on to the installs of the separate install roots that
+		// the postinstall runs; the environment variable reaches them.
+		await runPnpm(['install', '--frozen-lockfile'], { ...process.env, PNPM_CONFIG_FROZEN_LOCKFILE: 'true' });
 	}
 }
 
