@@ -581,7 +581,7 @@ suite('AgentHostProtocolClient', () => {
 					reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
 				},
 				new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService,
-				workspaceTrustEnablementService, trust.management, trust.request, defaultAccountService,
+				workspaceTrustEnablementService, trust.management, trust.request,
 			));
 			return { client, connections };
 		}
