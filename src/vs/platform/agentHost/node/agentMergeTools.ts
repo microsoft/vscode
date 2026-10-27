@@ -253,9 +253,9 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 						? 'Annotation detail limit: only three bounded annotation summaries are exposed; additional annotation content is unavailable through this tool.' : null,
 					logAvailability: unreported ? 'This check suite failed without reporting a check run, so it has no logs or annotations. A GitHub Actions workflow does that when it fails to start, such as with an invalid workflow file.'
 						: !run ? 'No workflow run is available for this check on the authorized head.'
-						: !hasKnownRunAttempt(run) ? 'The workflow attempt is unknown. Pinned log evidence is unavailable.'
-							: jobs.some(candidate => candidate.run.id === run.id) ? 'See corresponding job entries.'
-								: 'No failed jobs are available for this workflow attempt.',
+							: !hasKnownRunAttempt(run) ? 'The workflow attempt is unknown. Pinned log evidence is unavailable.'
+								: jobs.some(candidate => candidate.run.id === run.id) ? 'See corresponding job entries.'
+									: 'No failed jobs are available for this workflow attempt.',
 				};
 			} else {
 				const { run, job, runAttempt } = jobs[index - checks.length];
