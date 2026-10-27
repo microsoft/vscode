@@ -688,9 +688,32 @@ export class PlaywrightDriver {
 
 	async close() {
 
-		// Stop tracing
+		// Electron: ask the application to quit right away. Playwright's `close()`
+		// below only quits the application after all pending trace writes have been
+		// flushed to disk, which can take tens of seconds on slow disks. By then
+		// `Code#exit()` has already force killed the application, skipping its
+		// graceful shutdown (https://github.com/microsoft/vscode/issues/344456).
+		let exited = false;
+		if ('browserWindow' in this.application) {
+			const application = this.application;
+			const whenExited = new Promise<void>(resolve => application.once('close', () => resolve()));
+			try {
+				await measureAndLog(() => application.evaluate(({ app }) => app.quit()), 'app.quit()', this.options.logger);
+
+				// Wait for the application to exit before the cleanup below: Playwright's
+				// `close()` quits the application again, and a second quit while VS Code is
+				// still shutting down terminates it right away, because VS Code only defers
+				// the first `will-quit` event.
+				await measureAndLog(() => whenExited, 'wait for application exit', this.options.logger);
+				exited = true;
+			} catch (error) {
+				this.options.logger.log(`Error quitting application (${error})`);
+			}
+		}
+
+		// Stop tracing (it can no longer be stopped once the application has exited)
 		try {
-			if (this.options.tracing) {
+			if (this.options.tracing && !exited) {
 				await measureAndLog(() => this.context.tracing.stop(), 'stop tracing', this.options.logger);
 			}
 		} catch (error) {

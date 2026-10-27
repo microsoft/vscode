@@ -22,7 +22,7 @@ The new-session composer offers comparison setup in the model picker, behind `se
 | Structured recommendation | visible grouped Judge session and `completeAttemptComparison` tool |
 
 Comparison records are persisted in profile storage. Session and chat resources remain provider-owned identities. Each terminal attempt snapshots the producer-measured first-turn duration from the Agent Host protocol and the provider-reported input-plus-output token total used by the Judge result; cost is not recorded. Comparison telemetry records that duration, while analytical token totals come from provider-native OTel chat spans correlated by the same hashed comparison identifier and attempt index.
-The Sessions group service persists the comparison's session membership so the hierarchy survives window reloads.
+The Sessions group service persists the comparison's session membership and optional custom-group parent so the hierarchy survives window reloads. The Sessions list orders each comparison as one entry alongside ordinary sessions, using the comparison creation time or latest participant update and list-owned manual sort keys. Moving the comparison parent preserves all participant membership and their role-based display order.
 Comparison groups use the standard bulk Mark All as Done action, confirmation, and Undo. Once all participants are archived, the comparison service retires the comparison and removes its automatically created group. Bulk Undo restores the comparison group and membership for restored sessions; manually created groups are not automatically removed. Membership reconciliation respects sessions explicitly assigned to another group, including sessions independently restored before Undo.
 
 ## Participant hierarchy

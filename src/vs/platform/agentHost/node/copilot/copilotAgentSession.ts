@@ -2147,6 +2147,7 @@ export class CopilotAgentSession extends Disposable {
 			rotateCertificate: (getConfig, scopeId) => options.sandboxCertificate.rotate(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
 			removeCertificate: async (scopeId, validate) => { await options.sandboxCertificate.remove(this._launchPlan.client.rpc.sandbox.proxyCa, scopeId, validate); },
 			getShellInitDirectory: () => this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
+			getAppliedPluginDirectories: () => this._appliedPluginDirectories,
 			shellManager: options.shellManager,
 			onDidChangeRuntimeConfig: () => this._recordRuntimeMutation('sandboxUpdate'),
 		}));
@@ -5229,8 +5230,13 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _adoptPendingMcpAuthentication(serverName: string): Promise<void> | undefined {
+		const pendingRequests = this._attachActiveMcpToolCallsToPendingAuthentication(serverName);
+		return pendingRequests.length ? Promise.all(pendingRequests.map(pending => pending.completion)).then(() => undefined) : undefined;
+	}
+
+	private _attachActiveMcpToolCallsToPendingAuthentication(serverName: string): IPendingMcpAuthRequest[] {
 		const toolCalls = this._activeMcpToolCalls(serverName);
-		const completions: Promise<McpAuthResult | null | undefined>[] = [];
+		const pendingRequests: IPendingMcpAuthRequest[] = [];
 		for (const [requestId, pending] of this._pendingMcpAuthRequests.entries()) {
 			if (pending.serverName !== serverName || !pending.completion) {
 				continue;
@@ -5250,9 +5256,9 @@ export class CopilotAgentSession extends Disposable {
 					}, toolCall.parentToolCallId);
 				}
 			}
-			completions.push(pending.completion);
+			pendingRequests.push(pending);
 		}
-		return completions.length ? Promise.all(completions).then(() => undefined) : undefined;
+		return pendingRequests;
 	}
 
 	private async _handleMcpAuthRequest(request: McpAuthRequest): Promise<McpAuthResult | null | undefined> {
@@ -9330,6 +9336,10 @@ export class CopilotAgentSession extends Disposable {
 				tracked.pendingImageReady = ready;
 			} else {
 				this._emitAction(ready, parentToolCallId);
+			}
+
+			if (mcpServerName) {
+				this._attachActiveMcpToolCallsToPendingAuthentication(mcpServerName);
 			}
 		};
 		this._surfaceProvisionalFusionToolStart = handleToolStart;

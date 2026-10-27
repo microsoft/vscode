@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isAzurePipelinesDefinition } from '../detect-changes/detect.ts';
+
 interface IChangedFile {
 	readonly filename: string;
 	readonly previous_filename?: string;
@@ -70,13 +72,17 @@ const fullProfilePrefixes = [
 ];
 
 function requiresFullProfile(path: string): boolean {
+	// Only the product builds run the Azure Pipelines definitions under build/.
+	if (isAzurePipelinesDefinition(path)) {
+		return false;
+	}
 	return fullProfilePaths.has(path)
 		|| fullProfilePrefixes.some(prefix => path.startsWith(prefix))
 		|| /(^|\/)(package(-lock)?\.json|npm-shrinkwrap\.json)$/.test(path);
 }
 
 function affectsAgentHostE2E(path: string): boolean {
-	if (path.endsWith('.md')) {
+	if (path.endsWith('.md') || isAzurePipelinesDefinition(path)) {
 		return false;
 	}
 	return exactPaths.has(path) || pathPrefixes.some(prefix => path.startsWith(prefix));

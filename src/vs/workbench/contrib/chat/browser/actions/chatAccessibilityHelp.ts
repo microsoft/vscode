@@ -90,6 +90,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	if (type !== 'inlineChat') {
 		content.push(getChatInputSessionLinkAccessibilityHelp());
 	}
+	if (!isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat') {
+		content.push(localize('chat.agentPickerInAttachContext', "When {0} is enabled, the default Agent picker is in Add Context. Open Add Context and choose Agent to change agents. Non-default selections remain visible in the toolbar; selecting the default Agent moves the picker back into Add Context and returns focus to the input. The Open Agent Picker shortcut{1} still opens the picker.", ChatConfiguration.AgentsPickerInAttachContextMenu, '<keybinding:workbench.action.chat.openModePicker>'));
+	}
 	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
 	if (hasSessionWorkingSet) {
 		const headingActions = !sessionWorkingSetReviewEnabled
@@ -97,7 +100,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			: sessionWorkingSetUndo
 				? localize('chat.sessionWorkingSet.headingKeepUndo', "The Keep, Undo, and View All Edits buttons after the heading keep or undo the changes to every file in the working set, or open all of them in a diff editor. Undo in the heading asks for confirmation.")
 				: localize('chat.sessionWorkingSet.headingKeep', "The Keep and View All Edits buttons after the heading keep the changes to every file in the working set, or open all of them in a diff editor.");
-		content.push(localize('chat.sessionWorkingSet', "The working set above the input lists changes across the whole session instead of showing a Changes pill. Use Tab or Shift+Tab to reach its heading and press Enter or Space to expand or collapse it. {0} Use Tab to reach the file list, Up and Down Arrow to choose a file, and Enter to open it. Files open in a live review diff by default, following the chat.editing.openChangedFileInDiffEditor setting. Hold Alt when opening a file to reverse that preference. Each file announces its path and added and removed line counts.", headingActions));
+		content.push(localize('chat.sessionWorkingSet', "The working set above the input lists changes across the whole session instead of showing a Changes pill. Use Tab or Shift+Tab to reach its heading and press Enter or Space to expand or collapse it. {0} Use Tab to reach the file list, Up and Down Arrow to choose a file, and Enter to open it in a regular editor at its first edit. Each file announces its path and added and removed line counts.", headingActions));
 		content.push(!sessionWorkingSetReviewEnabled
 			? localize('chat.sessionWorkingSet.fileView', "To inspect the chosen file's changes, press Tab to reach Open Changes in Diff Editor, then Enter or Space.")
 			: sessionWorkingSetUndo
@@ -171,6 +174,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			content.push(localize('workbench.action.chat.openAgentHostFolderPicker', 'When starting an agent session in a multi-root workspace, you can choose which root folder it runs in by invoking the Folder command{0}, then selecting a folder from the list.', '<keybinding:workbench.action.chat.openAgentHostFolderPicker>'));
 			content.push(localize('chat.agentHostApprovalsPicker', 'When an agent session exposes approval presets, use Tab to reach the Approvals picker and choose how it handles workspace access, commands, and the internet.'));
 			content.push(localize('chat.agentHostSandboxPolicy', "In Copilot agent-host sessions, use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report."));
+			content.push(localize('chat.agentHostSandboxDiagnostics', "When a sandbox dependency warning appears above the input, use Tab to reach Troubleshooting Guide or, when permitted, Disable Sandboxing. Press Enter or Space to activate the button. Disable Sandboxing turns sandboxing off for this session and in settings; organization policy still applies."));
 			content.push(getModePickerAccessibilityHelp());
 		}
 		if (sessionStatusPillsSupported) {
@@ -257,7 +261,8 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		if (stickyPromptHeaderShown) {
 			content.push(localize('chat.stickyPromptHeader', 'The prompt you have scrolled past is pinned to the top of the transcript. Activate its title to jump back to that prompt.'));
 		}
-		content.push(localize('workbench.action.chat.announceConfirmation', 'To focus pending chat confirmation dialogs, invoke the Focus Chat Confirmation Status command{0}.', '<keybinding:workbench.action.chat.focusConfirmation>'));
+		content.push(localize('workbench.action.chat.announceConfirmation', "To focus pending chat confirmation dialogs or MCP authentication prompts, invoke the Chat: Focus Chat Confirmation command{0}. Use Tab to reach a button and Enter or Space to activate it. Invoke the command again to return to the chat input.", '<keybinding:workbench.action.chat.focusConfirmation>'));
+		content.push(localize('chat.mcpAuthenticationProgress', "After you activate Authenticate, authentication progress and its outcome are announced. Errors are announced through notifications. An incomplete or cancelled attempt is not reported as a success."));
 		content.push(localize('chat.sandboxPathGrant', "When a sandbox confirmation offers path access, review the granted path and whether it allows reading or reading and writing. A grant may cover a folder rather than only the blocked file. The header asks to add access to user sandbox settings and retry. Allow saves access in your user settings and retries inside the sandbox. These settings are shared with connected agent hosts across workspaces and sessions. Skip declines access. Use Tab to reach these choices."));
 		content.push(localize('chat.showHiddenTerminals', 'If there are any hidden chat terminals, you can view them by invoking the View Hidden Chat Terminals command{0}.', '<keybinding:workbench.action.terminal.chat.viewHiddenChatTerminals>'));
 		content.push(localize('chat.focusMostRecentTerminal', 'To focus the last chat terminal that ran a tool, invoke the Focus Most Recent Chat Terminal command{0}.', `<keybinding:${TerminalContribCommandId.FocusMostRecentChatTerminal}>`));

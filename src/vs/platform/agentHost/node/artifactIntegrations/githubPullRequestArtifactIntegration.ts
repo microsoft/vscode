@@ -15,12 +15,13 @@ import { autorun, derived, IObservable, IReader, observableSignalFromEvent, obse
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ArtifactAction, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactGroupPresentation, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactAction, ArtifactActionRejectedError, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactGroupPresentation, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactConfigurationConflictError, ArtifactRetryLimitError } from '../../../artifactIntegrations/common/artifactIntegrationStore.js';
 import { firstCredentialFailure, FragmentState, GitHubFragmentError, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestReviewThread, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { GitHubRequestError, isSamlEnforcementError } from '../../../github/common/githubTransport.js';
+import { ApiRequestError, MutationUncertainError } from '../../../github/common/missionControl/missionControlClient.js';
 import { isPullRequestFeedbackAuthor } from '../../../github/common/pullRequestFeedback.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -78,6 +79,15 @@ async function withSignal<T>(token: CancellationToken, operation: (signal: Abort
 	}
 }
 
+/**
+ * Whether a pull request mutation's own response refused it, such as a merge after the base branch moved. GitHub did
+ * not apply such a request, whereas other failures may have taken effect and must be reconciled.
+ */
+function isRefusedMutation(error: unknown): error is GitHubRequestError {
+	return error instanceof GitHubRequestError && !(error instanceof MutationUncertainError) && !(error instanceof ApiRequestError && error.outcome === 'indeterminate')
+		&& error.statusCode !== undefined && error.statusCode >= 400 && error.statusCode < 500;
+}
+
 function credentialScope(ref: PullRequestRef | { readonly host: string; readonly accountId: string }, source?: IAgentHostCredentialSource): string {
 	return JSON.stringify([ref.host.toLowerCase(), ref.accountId, ...(source ? [getCapturedCredentialSourceKey(source)] : [])]);
 }
@@ -128,6 +138,26 @@ class GitHubPullRequestArtifactResource extends Disposable {
 
 	withAuthentication<T>(operation: () => Promise<T>, token: CancellationToken): Promise<T> {
 		return withAuthenticationRecovery(operation, this.target.owner, token, error => this.requireAuthentication(error));
+	}
+
+	/**
+	 * Runs a native mutation with authentication recovery. A refusal in the mutation's own response is reported as an
+	 * {@link ArtifactActionRejectedError}, since it cannot have taken effect; every other failure stays uncertain.
+	 */
+	async mutate<T>(mutation: () => Promise<T>, token: CancellationToken): Promise<T> {
+		let refused = false;
+		try {
+			return await this.withAuthentication(async () => {
+				try {
+					return await mutation();
+				} catch (error) {
+					refused = isRefusedMutation(error);
+					throw error;
+				}
+			}, token);
+		} catch (error) {
+			throw refused ? new ArtifactActionRejectedError(toErrorMessage(error)) : error;
+		}
 	}
 
 	private interests() {
@@ -288,7 +318,8 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 type Checkout = { readonly chat: string; readonly directory: string; readonly commit: string; readonly dirty: boolean };
 type WorkspaceState = { readonly kind: 'ready'; readonly checkout: Checkout } | { readonly kind: 'unavailable'; readonly reason: string };
 type RepairCheckpoint = { readonly runId: string; readonly chat: string; readonly directory: string; readonly commit: string };
-type MutationCheckpoint = { readonly runId: string; readonly headSha: string };
+/** `operation` is recorded immediately before a merge or enqueue is dispatched; older checkpoints lack it. */
+type MutationCheckpoint = { readonly runId: string; readonly headSha: string; readonly operation?: 'merge' | 'enqueue' };
 type Checkpoint = { readonly version: 1; readonly generation: number; readonly repair: RepairCheckpoint | null; readonly mutation: MutationCheckpoint | null };
 
 function readCheckpoint(value: ArtifactJsonValue | undefined): Checkpoint {
@@ -315,11 +346,11 @@ function readCheckpoint(value: ArtifactJsonValue | undefined): Checkpoint {
 		if (!isArtifactDataObject(value.mutation)) {
 			throw new Error('Invalid GitHub pull request mutation checkpoint');
 		}
-		const { runId, headSha } = value.mutation;
-		if (typeof runId !== 'string' || typeof headSha !== 'string') {
+		const { runId, headSha, operation } = value.mutation;
+		if (typeof runId !== 'string' || typeof headSha !== 'string' || (operation !== undefined && operation !== 'merge' && operation !== 'enqueue')) {
 			throw new Error('Invalid GitHub pull request mutation checkpoint');
 		}
-		mutation = { runId, headSha };
+		mutation = operation ? { runId, headSha, operation } : { runId, headSha };
 	}
 	return { version: 1, generation: value.generation, repair, mutation };
 }
@@ -563,9 +594,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 					title: main ? snapshot.core.value?.title ?? `#${this.resource.target.number}` : detailsId === 'checks'
 						? checks.length ? localize('prArtifact.checksTitle', "Checks ({0}/{1})", completedWithoutFailure, checks.length) : localize('prArtifact.checks', "Checks")
 						: localize('prArtifact.commentsTitle', "Comments ({0})", threads.length),
-					description: main ? snapshot.core.value?.body : total > 200
+					description: main ? undefined : total > 200
 						? localize('prArtifact.detailsDescriptionPage', "{0}\nShowing {1}-{2} of {3}.", description, start + 1, Math.min(start + 200, total), total) : description,
-					descriptionFormat: main ? 'markdown' : undefined,
 					links: ids.flatMap(id => [
 						...view.stateActions.some(action => action.id === id) ? [{ kind: 'action' as const, actionId: id }] : [],
 						{ kind: 'automation' as const, optionId: id },
@@ -759,7 +789,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	private async refreshWorkspaces(): Promise<void> {
 		const revision = ++this.workspaceRevision;
 		const core = this.resource.snapshot.get().core.value;
-		if (!core) {
+		if (!core || core.state !== 'open') {
+			this.workspaces.set({}, undefined);
 			return;
 		}
 		const workspaces: Record<string, WorkspaceState> = {};
@@ -771,7 +802,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				workspaces[chat.resource] = { kind: 'unavailable', reason: toErrorMessage(error) };
 			}
 		}));
-		if (!this._store.isDisposed && revision === this.workspaceRevision && this.resource.snapshot.get().core.value?.headSha === core.headSha) {
+		const currentCore = this.resource.snapshot.get().core.value;
+		if (!this._store.isDisposed && revision === this.workspaceRevision && currentCore?.state === 'open' && currentCore.headSha === core.headSha) {
 			this.workspaces.set(workspaces, undefined);
 			this.automationError.set(undefined, undefined);
 		}
@@ -884,7 +916,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 									return { kind: 'skipped', reason: localize('prArtifact.authorizationChanged', "The action's authorization changed before it could run.") };
 								}
 								const pullRequestId = current.core.value.id;
-								await this.resource.withAuthentication(() => this.resource.withApiClient(signal, api => api.pullRequests.markReadyForReview(pullRequestId, signal, { caller })), token);
+								await this.resource.mutate(() => this.resource.withApiClient(signal, api => api.pullRequests.markReadyForReview(pullRequestId, signal, { caller })), token);
 								this.github.pullRequests.invalidatePullRequest(this.resource.ref, ['core', 'mergeability']);
 								return { kind: 'completed', summary: localize('prArtifact.markedReady', "Pull request marked ready for review.") };
 							}
@@ -895,20 +927,22 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 							if (context.run.source === 'automation' && !await this.unchangedForMerge()) {
 								return { kind: 'skipped', reason: localize('prArtifact.repairsChanged', "The checkout changed or could not be verified. Review it before enabling automatic merging again.") };
 							}
+							const mergeability = preparation.snapshot.mergeability.value!;
+							const method = mergeability.mergeQueueRequired ? undefined : (['SQUASH', 'MERGE', 'REBASE'] as const).find(method => mergeability.allowedMergeMethods.includes(method));
+							if (!mergeability.mergeQueueRequired && !method) {
+								throw new Error(localize('prArtifact.noMergeMethod', "The repository does not allow a supported merge method."));
+							}
+							// Reconciliation can only rule out an effect when it knows which mutation was dispatched.
+							await this.writeCheckpoint(previous => ({ ...previous, mutation: { runId: context.run.id, headSha, operation: method ? 'merge' : 'enqueue' } }));
 							if (!this.isInvocationCurrent(context, token)) {
 								return { kind: 'skipped', reason: localize('prArtifact.authorizationChanged', "The action's authorization changed before it could run.") };
 							}
-							const mergeability = preparation.snapshot.mergeability.value!;
 							const authorization = { confirmed: true as const, authorizationId: runId };
-							if (mergeability.mergeQueueRequired) {
-								await this.resource.withAuthentication(() => this.github.mutations.enqueue(preparation, authorization, signal), token);
+							if (!method) {
+								await this.resource.mutate(() => this.github.mutations.enqueue(preparation, authorization, signal), token);
 								return { kind: 'completed', summary: localize('prArtifact.enqueued', "Pull request added to the merge queue.") };
 							}
-							const method = (['SQUASH', 'MERGE', 'REBASE'] as const).find(method => mergeability.allowedMergeMethods.includes(method));
-							if (!method) {
-								throw new Error(localize('prArtifact.noMergeMethod', "The repository does not allow a supported merge method."));
-							}
-							await this.resource.withAuthentication(() => this.github.mutations.merge(preparation, { method, authorization }, signal), token);
+							await this.resource.mutate(() => this.github.mutations.merge(preparation, { method, authorization }, signal), token);
 							return { kind: 'completed', summary: localize('prArtifact.mergeCompleted', "Pull request merged.") };
 						}),
 					},
@@ -921,6 +955,12 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 					&& (id === 'markReady' ? !snapshot.core.value.draft : snapshot.core.value.state === 'merged'
 						|| (isCurrentPullRequestFragment(snapshot.mergeability, mutation.headSha) && !!snapshot.mergeability.value.mergeQueueEntryId))) {
 					return { kind: 'completed', summary: localize('prArtifact.reconciled', "GitHub confirmed the pull request action's result.") };
+				}
+				// A direct merge takes effect when GitHub accepts it and cannot be undone, so a pull request that is still open
+				// at the same head was not merged. Queue entries can leave again, and older checkpoints did not record the operation.
+				if (id === 'merge' && mutation?.runId === context.run.id && mutation.operation === 'merge' && isCurrentPullRequestFragment(snapshot.core)
+					&& snapshot.core.value.state === 'open' && snapshot.core.value.headSha === mutation.headSha) {
+					return { kind: 'notExecuted' };
 				}
 				return { kind: 'indeterminate', reason: localize('prArtifact.uncertain', "GitHub has not confirmed this action's outcome. It will not be repeated automatically.") };
 			},

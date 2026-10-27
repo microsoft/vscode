@@ -21,6 +21,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullPolicyService } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import '../../../../../workbench/contrib/chat/browser/agentSessionsConfiguration.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
 import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayoutEnabled, isSessionEnvironmentPickerEnabled, isSessionWorkspaceOptOutEnabled } from '../../browser/newChatWidget.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
@@ -110,6 +111,7 @@ suite('New session composer layout', () => {
 
 	test('can be configured in Agents settings', () => {
 		assert.deepStrictEqual({
+			layoutDefault: experimentalNewSessionComposerLayoutProperty.default,
 			layoutScope: experimentalNewSessionComposerLayoutProperty.scope,
 			optionsDefault: newSessionComposerOptionsExpandedProperty.default,
 			optionsScope: newSessionComposerOptionsExpandedProperty.scope,
@@ -117,6 +119,7 @@ suite('New session composer layout', () => {
 			agentsPickerScope: agentsPickerInAttachContextMenuProperty.scope,
 			agentsPickerExperiment: agentsPickerInAttachContextMenuProperty.experiment,
 		}, {
+			layoutDefault: true,
 			layoutScope: ConfigurationScope.WINDOW,
 			optionsDefault: true,
 			optionsScope: ConfigurationScope.APPLICATION,

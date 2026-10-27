@@ -115,6 +115,14 @@ function isRustCrate(path: string): boolean {
 }
 
 /**
+ * The Azure Pipelines definitions, which only the product builds run. In pull requests, only the build script tests of
+ * Compile & Hygiene read them. The scripts next to them are not definitions: some of them run in the pull request jobs.
+ */
+export function isAzurePipelinesDefinition(path: string): boolean {
+	return path.startsWith('build/azure-pipelines/') && /\.ya?ml$/.test(path);
+}
+
+/**
  * Built-in extensions whose files the core unit tests read: the component fixtures load the themes and
  * these grammars. build/lib/test/detectChanges.test.ts fails when a test starts reading another extension.
  */
@@ -129,17 +137,26 @@ const coreTestRules: readonly ICoreTestRule[] = [
 	{
 		// Electron, node.js and browser unit tests load only the core sources and their test fixtures.
 		output: 'unit-tests',
-		canSkip: path => isDocumentation(path) || isRustCrate(path) || isExtensionNotReadByUnitTests(path),
+		canSkip: path => isDocumentation(path) || isRustCrate(path) || isAzurePipelinesDefinition(path) || isExtensionNotReadByUnitTests(path),
 	},
 	{
 		// The browser integration and smoke tests do not load the Copilot extension.
 		output: 'browser-integration',
-		canSkip: path => isDocumentation(path) || isRustCrate(path) || path.startsWith('extensions/copilot/'),
+		canSkip: path => isDocumentation(path) || isRustCrate(path) || isAzurePipelinesDefinition(path) || path.startsWith('extensions/copilot/'),
 	},
 	{
 		// The Electron integration, Electron smoke and remote tests exercise the built-in extensions.
 		output: 'product-tests',
-		canSkip: path => isDocumentation(path) || isRustCrate(path),
+		canSkip: path => isDocumentation(path) || isRustCrate(path) || isAzurePipelinesDefinition(path),
+	},
+	{
+		// The Monaco Editor checks also package Markdown files, such as build/monaco/README-npm.md.
+		output: 'monaco-editor',
+		canSkip: isAzurePipelinesDefinition,
+	},
+	{
+		output: 'telemetry',
+		canSkip: isAzurePipelinesDefinition,
 	},
 ];
 

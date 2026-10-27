@@ -4938,6 +4938,37 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('refetches the session list after its connection reconnects', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const reconnected = disposables.add(new Emitter<void>());
+			const store = createSessionListStore(disposables, instantiationService, {
+				onDidNotification: agentHostService.onDidNotification,
+				onDidReconnect: reconnected.event,
+				listSessions: () => agentHostService.listSessions(),
+				disposeChat: chat => agentHostService.disposeChat(chat),
+				disposeSession: session => agentHostService.disposeSession(session),
+				dispatch: (channel, action) => agentHostService.dispatch(channel, action),
+			});
+			const controller = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', store, undefined, 'local', false));
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'early'), startTime: 1000, modifiedTime: 2000, summary: 'Early session' });
+			await controller.refresh(CancellationToken.None);
+
+			// Created on the host while this client was disconnected, so no notification arrives.
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'offline'), startTime: 3000, modifiedTime: 4000, summary: 'Created while offline' });
+			await controller.refresh(CancellationToken.None);
+			const beforeReconnect = controller.items.map(item => item.label);
+
+			reconnected.fire();
+			await store.refresh(CancellationToken.None);
+			assert.deepStrictEqual({
+				beforeReconnect,
+				afterReconnect: controller.items.map(item => item.label).sort(),
+			}, {
+				beforeReconnect: ['Early session'],
+				afterReconnect: ['Created while offline', 'Early session'],
+			});
+		});
+
 		test('refresh marks archived sessions as archived items', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 

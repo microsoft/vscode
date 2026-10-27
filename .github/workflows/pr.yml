@@ -43,6 +43,8 @@ jobs:
       unit-tests: ${{ steps.detect.outputs.unit-tests }}
       browser-integration: ${{ steps.detect.outputs.browser-integration }}
       product-tests: ${{ steps.detect.outputs.product-tests }}
+      monaco-editor: ${{ steps.detect.outputs.monaco-editor }}
+      telemetry: ${{ steps.detect.outputs.telemetry }}
       agent-host-e2e: ${{ steps.detect-agent-host-e2e.outputs.affected }}
       agent-host-test-profile: ${{ steps.detect-agent-host-e2e.outputs.profile }}
       agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
@@ -121,7 +123,7 @@ jobs:
       - name: Upload test plan
         if: steps.plan.outputs.select == 'true'
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-plan
           path: .build/test-plan
@@ -202,6 +204,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   # Keep these checks first after Detect Changes so they appear at the top of the job group.
+  # Compile & Hygiene always runs: its build script tests also check the Azure Pipelines
+  # definitions, which no other job of this workflow reads.
   compile:
     name: Compile & Hygiene
     needs: changes
@@ -314,7 +318,7 @@ jobs:
   monaco-editor:
     name: Monaco Editor
     needs: changes
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.monaco-editor == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions: {}
@@ -399,7 +403,7 @@ jobs:
   telemetry:
     name: Telemetry
     needs: changes
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.telemetry == 'true') }}
     runs-on: ubuntu-latest
     permissions: {}
     steps:
@@ -679,7 +683,7 @@ jobs:
 
       - name: Upload simulation output
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: copilot-simulation-output-linux-${{ github.run_attempt }}
           path: extensions/copilot/.simulation-archive/simulation.tgz
@@ -763,7 +767,7 @@ jobs:
     name: chat-lib - Test (Linux)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -778,7 +782,7 @@ jobs:
     name: chat-lib - Test (macOS)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: macos-latest
+    runs-on: macos-26
     timeout-minutes: 30
     permissions:
       contents: read
@@ -793,7 +797,7 @@ jobs:
     name: chat-lib - Test (Windows)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 30
     permissions:
       contents: read

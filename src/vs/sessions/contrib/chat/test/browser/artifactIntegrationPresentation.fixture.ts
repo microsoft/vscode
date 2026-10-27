@@ -288,7 +288,6 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 	const details: Record<string, ArtifactDetails> = {
 		overview: {
 			availability, title: 'Preserve keyboard focus between chats',
-			description: 'Keep the focused control stable when a session receives new activity. This change preserves the selected artifact, list position, and keyboard destination while background checks complete.\n\nThe details panel shares the composer width and leaves the conversation and draft in place. It also restores focus after dismissal and supports narrow windows.',
 			facts: [{ id: 'branches', label: 'Branches', value: 'fix/chat-focus into main' }],
 			links: [], items: [], completeness: 'complete',
 		},

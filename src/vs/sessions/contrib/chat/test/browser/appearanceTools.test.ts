@@ -37,6 +37,7 @@ import { ISessionsChatBackgroundService } from '../../../../services/chatBackgro
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SetChatBackgroundTool } from '../../browser/chatBackgroundTool.js';
 import { GetThemeColorsTool } from '../../browser/getThemeColorsTool.js';
+import { ScreenshotWindowTool } from '../../browser/screenshotWindowTool.js';
 import { AgenticPromptsService, BUILTIN_SKILLS_URI } from '../../browser/promptsService.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../../common/constants.js';
 import '../../browser/chat.contribution.js';
@@ -152,7 +153,7 @@ suite('Sessions - Appearance tools', () => {
 		});
 	});
 
-	test('gates both tool descriptions on the same setting', async () => {
+	test('gates all tool descriptions on the same setting', async () => {
 		const t = await setup(true);
 		t.instantiationService.stub(ISessionsChatBackgroundService, {});
 		t.instantiationService.stub(ISessionsManagementService, {});
@@ -161,6 +162,7 @@ suite('Sessions - Appearance tools', () => {
 		const tools = [
 			t.instantiationService.createInstance(GetThemeColorsTool),
 			t.instantiationService.createInstance(SetChatBackgroundTool, () => joinPath(BUILTIN_SKILLS_URI, 'imports')),
+			t.instantiationService.createInstance(ScreenshotWindowTool),
 		];
 		const available = () => tools.map(tool => t.context.contextMatchesRules(tool.getToolData().when));
 		const enabled = available();
@@ -169,9 +171,9 @@ suite('Sessions - Appearance tools', () => {
 		await t.setEnabled(true);
 
 		assert.deepStrictEqual({ enabled, disabled, reenabled: available() }, {
-			enabled: [true, true],
-			disabled: [false, false],
-			reenabled: [true, true],
+			enabled: [true, true, true],
+			disabled: [false, false, false],
+			reenabled: [true, true, true],
 		});
 	});
 
