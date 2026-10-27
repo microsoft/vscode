@@ -856,6 +856,22 @@ suite('Artifact Integration Presentation', () => {
 			}, { requests: [undefined, 'entry-10'], firstPageCount: 50, totalCount: 60, newest: 'Fix CI: Completed', summaries: ['50 loaded', '60 loaded'], moreHidden: true });
 		});
 
+		test('discovers older activity past history that was all skipped', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			const older = activity(a, 'older', { createdAt: 0, updatedAt: 0, state: 'failed' });
+			const skipped = Array.from({ length: 60 }, (_, index) => activity(a, `skipped-${index}`, { createdAt: index + 1, updatedAt: index + 1, state: 'skipped', dispatched: false }));
+			a.setHistory([older, ...skipped]);
+			setActivities(a, skipped.slice(-50));
+			const panel = await open(f, a);
+			const hidden = panel.querySelector<HTMLElement>('.artifact-activities')!.hidden;
+			await expand(f, panel);
+			assert.deepStrictEqual({
+				hidden, labels: rows(panel).map(row => row.querySelector('.artifact-activity-label')?.textContent),
+				requests: a.historyRequests, moreHidden: panel.querySelector<HTMLElement>('.artifact-activities-more')?.hidden,
+			}, { hidden: false, labels: ['Fix CI: Failed'], requests: [undefined, 'skipped-10'], moreHidden: true });
+		});
+
 		test('loading activity history remains accessible without adding a message or moving existing rows', async () => {
 			const f = fixture();
 			const a = f.artifact();
