@@ -24,7 +24,17 @@ function findNodeModulesFiles(location: string, inNodeModules: boolean, result: 
 
 		let stat: fs.Stats;
 		try {
-			stat = fs.statSync(path.join(ROOT, entryPath));
+			stat = fs.lstatSync(path.join(ROOT, entryPath));
+			if (stat.isSymbolicLink()) {
+				stat = fs.statSync(path.join(ROOT, entryPath));
+				// pnpm links the workspace members into the root node_modules (as junctions on
+				// Windows, which lstat also reports as links). Following them would archive the
+				// members' folders, and through `vscode-extensions` (the extensions folder) every
+				// extension's node_modules, a second time. Nothing loads a member through them.
+				if (inNodeModules && stat.isDirectory()) {
+					continue;
+				}
+			}
 		} catch (err) {
 			continue;
 		}
