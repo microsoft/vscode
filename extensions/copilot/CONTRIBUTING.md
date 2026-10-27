@@ -99,6 +99,8 @@ npm run test:extension
 
 Finally, there are **simulation tests**. These tests reach out to Copilot API endpoints, invoke LLMs and require expensive computations to run. Each test runs 10 times, to accommodate for the stochastic nature of LLMs themselves. The results of all runs of all tests are snapshotted in the baseline file, [`test/simulation/baseline.json`](test/simulation/baseline.json), which encodes the quality of the test suite at any given point in time.
 
+The legacy panel intent-routing and multi-file Edit-mode simulation suites have been retired. Panel chat now runs through the Agent Host Protocol; add panel end-to-end coverage to the [Agent Host E2E tests](../../src/vs/platform/agentHost/test/node/e2e/README.md). Inline/editor simulations and shared tool, notebook, and prompt tests remain in this suite.
+
 Because LLM results are both random and costly, they are cached within the repo in `test/simulation/cache`. This means rerunning the simulation tests and benefiting from the cache will make the test run be both faster as well as deterministic.
 
 You can run the simulation tests with:
