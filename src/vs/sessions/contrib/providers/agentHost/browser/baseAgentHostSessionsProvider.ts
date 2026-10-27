@@ -7236,7 +7236,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			await connection.moveSession(source.backendUri, destination.backendUri, backendAfter);
 		} catch (error) {
-			throw toChatMoveError(error, { chatSharesFolder: false, crossAgent: this._baseConfigurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true });
+			throw toChatMoveError(error, { chatSharesFolder: false });
 		}
 	}
 
@@ -7274,7 +7274,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw toChatMoveError(error, {
 				chatSharesFolder: source.chatSharesScratchFolder(chatUri),
 				toNewSession: backendDestination.kind === 'newSession',
-				crossAgent: this._baseConfigurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true,
 			});
 		}
 	}

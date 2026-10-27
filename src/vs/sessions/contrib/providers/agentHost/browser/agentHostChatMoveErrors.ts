@@ -56,33 +56,6 @@ export interface IChatMoveRefusalContext {
 	readonly chatSharesFolder: boolean;
 	/** Whether the chat was moved into a new session. */
 	readonly toNewSession?: boolean;
-	/** Whether chats may move into sessions of other agents, so a refusal by agent isn't about agents having to match. */
-	readonly crossAgent?: boolean;
-}
-
-/**
- * Explanations of refusals the host tells apart by more than {@link AgentChatMoveRefusal}: why the chat's agent can't
- * take it where it was moved.
- */
-export const enum ChatMoveAgentRefusal {
-	/** The chat's agent can't work in a session of the destination's agent. */
-	CannotHost = 'cannotHost',
-	/** The chat's agent couldn't describe its settings for the move; trying again may help. */
-	SettingsUnavailable = 'settingsUnavailable',
-	/** The chat has no conversation of its own yet to take into a new session. */
-	NoConversation = 'noConversation',
-}
-
-/** A user-facing explanation of a {@link ChatMoveAgentRefusal}. */
-export function getChatMoveAgentRefusalMessage(refusal: ChatMoveAgentRefusal): string {
-	switch (refusal) {
-		case ChatMoveAgentRefusal.CannotHost:
-			return localize('chatMoveRefusal.agentCannotHost', "This chat's agent can't work in that session.");
-		case ChatMoveAgentRefusal.SettingsUnavailable:
-			return localize('chatMoveRefusal.agentSettingsUnavailable', "The chat's agent couldn't load its settings. Try again.");
-		case ChatMoveAgentRefusal.NoConversation:
-			return localize('chatMoveRefusal.noConversation', "This chat has no conversation of its own yet, so it can't be moved into a new session.");
-	}
 }
 
 /**
@@ -91,14 +64,9 @@ export function getChatMoveAgentRefusalMessage(refusal: ChatMoveAgentRefusal): s
  */
 export function getChatMoveRefusalMessage(reason: AgentChatMoveRefusal, context: IChatMoveRefusalContext): string {
 	const { chatSharesFolder } = context;
-	if (reason === AgentChatMoveRefusal.DifferentProvider && context.crossAgent) {
-		// Chats may move between agents: the refusal is about the chat's agent and the destination.
-		return getChatMoveAgentRefusalMessage(ChatMoveAgentRefusal.CannotHost);
-	}
 	if (reason === AgentChatMoveRefusal.Unsupported && context.toNewSession) {
-		// The host refuses a new session for a chat without a conversation of its own and for an agent that couldn't
-		// describe its settings alike, so neither is claimed until it tells them apart.
-		return localize('chatMoveRefusal.unsupportedNewSession', "This chat can't be moved into a new session.");
+		// Refusing a new session, the host means the chat has no conversation of its own to take into it.
+		return localize('chatMoveRefusal.noConversation', "This chat has no conversation of its own yet, so it can't be moved into a new session.");
 	}
 	switch (reason) {
 		case AgentChatMoveRefusal.Disabled:
@@ -110,7 +78,7 @@ export function getChatMoveRefusalMessage(reason: AgentChatMoveRefusal, context:
 		case AgentChatMoveRefusal.InvalidAnchor:
 			return localize('chatMoveRefusal.invalidAnchor', "The chat can't be placed at that position.");
 		case AgentChatMoveRefusal.DifferentProvider:
-			return localize('chatMoveRefusal.differentProvider', "Chats can only move between sessions of the same agent.");
+			return localize('chatMoveRefusal.differentProvider', "Chats can only move between sessions of the same agent. Pick a session that uses this chat's agent.");
 		case AgentChatMoveRefusal.SessionArchived:
 			return localize('chatMoveRefusal.sessionArchived', "Chats can't be moved into or out of an archived session.");
 		case AgentChatMoveRefusal.SessionNotReady:
@@ -144,7 +112,7 @@ export function getChatMoveRefusalMessage(reason: AgentChatMoveRefusal, context:
 		case AgentChatMoveRefusal.AgentUnavailable:
 			return localize('chatMoveRefusal.agentUnavailable', "This chat's agent is unavailable or disabled. Enable it to move the chat.");
 		case AgentChatMoveRefusal.AgentWithoutChats:
-			return localize('chatMoveRefusal.agentWithoutChats', "The destination session's agent can't host chats of other agents. Pick a session whose agent supports multiple chats.");
+			return localize('chatMoveRefusal.agentWithoutChats', "The destination session's agent can't host chats of other agents, or this chat's agent can't join one. Pick a session whose agent supports multiple chats, or one of this chat's agent.");
 		case AgentChatMoveRefusal.AgentConfigUnavailable:
 			return localize('chatMoveRefusal.agentConfigUnavailable', "This chat's agent couldn't load its settings for the move. Try again.");
 	}
