@@ -16,7 +16,7 @@ import { TestContext } from './context.js';
 const galleryUrlPattern = /^https:\/\/[^/]*(\.vsassets\.io|marketplace\.visualstudio\.com)\//i;
 
 /** Request headers that are not replayed by the Node-side gallery probe: credentials, HTTP/2 pseudo-headers and connection-level headers. */
-const unreplayedHeaderPattern = /^(:|cookie$|authorization$|host$|connection$|keep-alive$|transfer-encoding$|upgrade$|content-length$|accept-encoding$)/i;
+const unreplayedHeaderPattern = /^(:|cookie$|authorization$|proxy-authorization$|host$|connection$|keep-alive$|transfer-encoding$|upgrade$|content-length$|accept-encoding$)/i;
 
 /** Response headers that are not saved, since they can carry session credentials. */
 const unsavedResponseHeaderPattern = /^set-cookie$/i;
@@ -397,6 +397,7 @@ export class UITest {
 	private monitorGalleryRequests(page: Page) {
 		const failures: GalleryRequestFailure[] = [];
 		const probes = new Map<string, Promise<GalleryProbe>>();
+		const headerReads: Promise<void>[] = [];
 		const probe = (request: Request) => {
 			const key = `${request.method()} ${request.url()}`;
 			if (!probes.has(key) && probes.size < maxGalleryProbes) {
@@ -417,22 +418,26 @@ export class UITest {
 				this.context.log(`Gallery request returned ${response.status()}: ${request.method()} ${response.url()}`);
 				const failure: GalleryRequestFailure = { time: new Date().toISOString(), method: request.method(), url: response.url(), status: response.status() };
 				failures.push(failure);
-				response.allHeaders().then(headers => failure.responseHeaders = savedResponseHeaders(Object.entries(headers)), () => { });
+				headerReads.push(response.allHeaders().then(headers => { failure.responseHeaders = savedResponseHeaders(Object.entries(headers)); }, () => { }));
 				probe(request);
 			}
 		};
 
 		page.on('requestfailed', onRequestFailed);
 		page.on('response', onResponse);
+		const dispose = () => {
+			page.off('requestfailed', onRequestFailed);
+			page.off('response', onResponse);
+		};
 		return {
 			save: async () => {
+				// Stop recording first, so the saved failures match the replays and their headers are complete.
+				dispose();
+				await Promise.all(headerReads);
 				const replays = await Promise.all(probes.values());
 				this.context.writeDiagnostics('gallery.json', JSON.stringify({ failures, probes: replays }, undefined, '\t'));
 			},
-			dispose: () => {
-				page.off('requestfailed', onRequestFailed);
-				page.off('response', onResponse);
-			},
+			dispose,
 		};
 	}
 
