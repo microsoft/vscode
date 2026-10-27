@@ -41,6 +41,11 @@ export interface ISessionWorktreeCleanupCandidate {
 	readonly worktreeCount: number;
 }
 
+export type SessionWorktreeCleanupProgress =
+	| { readonly state: 'started' }
+	| { readonly state: 'scheduled'; readonly candidate: ISessionWorktreeCleanupCandidate }
+	| { readonly state: 'failed'; readonly candidate: ISessionWorktreeCleanupCandidate; readonly message: string };
+
 export interface ISessionWorktreeCleanupSuggestion {
 	readonly description: string;
 	manage(): Promise<void>;
@@ -84,7 +89,7 @@ export interface ISessionWorktreeCleanupService {
 	/** Publishes initial and measured worktrees progressively. forceRefresh bypasses cached results without starting a separate background scan. */
 	getWorktrees(minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[], progress?: ISessionWorktreeMeasurementProgress) => void, token?: CancellationToken, forceRefresh?: boolean): Promise<readonly ISessionWorktree[]>;
 	refreshPendingCleanup(sessionIds: readonly string[], minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token?: CancellationToken): Promise<readonly ISessionWorktree[]>;
-	cleanupWorktrees(candidates: readonly ISessionWorktreeCleanupCandidate[]): Promise<boolean>;
+	cleanupWorktrees(candidates: readonly ISessionWorktreeCleanupCandidate[], onProgress?: (progress: SessionWorktreeCleanupProgress) => void): Promise<boolean>;
 }
 
 export class SessionWorktreeCleanupService extends Disposable implements ISessionWorktreeCleanupService {
@@ -305,7 +310,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		const pendingIds = new Set(sessionIds);
 		const updated = [...cached];
 		let published = cached;
-		await Promise.all(cached.map((worktree, index) => pendingIds.has(worktree.session.sessionId) && worktree.session.isArchived.get() && (worktree.sizeBytes ?? 0) > 0
+		await Promise.all(cached.map((worktree, index) => pendingIds.has(worktree.session.sessionId) && worktree.session.isArchived.get() && worktree.sizeBytes !== 0
 			? limiter.queue(async () => {
 				updated[index] = await this._measureSessionWorktree(worktree.session, token);
 				// Another full scan or refresh may have superseded this snapshot while the request ran.
@@ -555,7 +560,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		return worktrees.filter(worktree => worktree.isMeasuring || worktree.measurementFailed || !worktree.session.isArchived.get() || (worktree.sizeBytes !== undefined && worktree.sizeBytes > 0));
 	}
 
-	async cleanupWorktrees(selected: readonly ISessionWorktreeCleanupCandidate[]): Promise<boolean> {
+	async cleanupWorktrees(selected: readonly ISessionWorktreeCleanupCandidate[], onProgress?: (progress: SessionWorktreeCleanupProgress) => void): Promise<boolean> {
 		if (selected.length === 0) {
 			return false;
 		}
@@ -573,6 +578,9 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			return false;
 		}
 
+		onProgress?.({ state: 'started' });
+		const failures: string[] = [];
+		let failedWorktrees = 0;
 		await this.progressService.withProgress({
 			location: ProgressLocation.Notification,
 			title: worktreeCount === 1
@@ -581,17 +589,27 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}, async progress => {
 			let completedWorktrees = 0;
 			for (const candidate of selected) {
-				if (candidate.session.isArchived.get()) {
-					const result = await this.sessionsManagementService.sessionWorktreeCleanup?.(candidate.session, true);
-					if (!result) {
-						throw new Error(localize('worktreeCleanup.retryUnavailable', "Retrying worktree cleanup is unavailable for this session."));
+				try {
+					if (candidate.session.isArchived.get()) {
+						const result = await this.sessionsManagementService.sessionWorktreeCleanup?.(candidate.session, true);
+						if (!result) {
+							throw new Error(localize('worktreeCleanup.retryUnavailable', "Retrying worktree cleanup is unavailable for this session."));
+						}
+						this._lastMeasuredWorktrees = this._lastMeasuredWorktrees?.map(worktree => worktree.session.sessionId === candidate.session.sessionId
+							? { ...worktree, cleanupStatus: result, cleanupStatusError: undefined }
+							: worktree);
+					} else {
+						await this.sessionsManagementService.archiveSession(candidate.session);
 					}
-					this._lastMeasuredWorktrees = this._lastMeasuredWorktrees?.map(worktree => worktree.session.sessionId === candidate.session.sessionId
-						? { ...worktree, cleanupStatus: result, cleanupStatusError: undefined }
-						: worktree);
-				} else {
-					await this.sessionsManagementService.archiveSession(candidate.session);
+				} catch (error) {
+					const message = getErrorMessage(error);
+					this.logService.warn('[SessionWorktreeCleanupService] Failed to schedule worktree cleanup', error);
+					failures.push(localize('worktreeCleanup.sessionFailure', "{0}: {1}", candidate.session.title.get(), message));
+					failedWorktrees += candidate.worktreeCount;
+					onProgress?.({ state: 'failed', candidate, message });
+					continue;
 				}
+				onProgress?.({ state: 'scheduled', candidate });
 				completedWorktrees += candidate.worktreeCount;
 				progress.report({
 					increment: candidate.worktreeCount / worktreeCount * 100,
@@ -599,11 +617,16 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 				});
 			}
 		});
-		const message = worktreeCount === 1
-			? localize('worktreeCleanup.archived.one', "Started cleanup for 1 worktree.")
-			: localize('worktreeCleanup.archived.many', "Started cleanup for {0} worktrees.", worktreeCount);
-		status(message);
 		this._lastScanAt = 0;
+		if (failures.length > 0) {
+			throw new Error(localize('worktreeCleanup.schedulingFailed', "Couldn't schedule cleanup for {0} worktrees.\n{1}", failedWorktrees, failures.join('\n')));
+		}
+		if (!onProgress) {
+			const message = worktreeCount === 1
+				? localize('worktreeCleanup.archived.one', "Started cleanup for 1 worktree.")
+				: localize('worktreeCleanup.archived.many', "Started cleanup for {0} worktrees.", worktreeCount);
+			status(message);
+		}
 		return true;
 	}
 
