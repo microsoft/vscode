@@ -404,6 +404,8 @@ export interface IChatSessionServerRequest {
 	readonly isTerminalRequest?: boolean;
 	/** Reopen the existing request with this id instead of adding another request. */
 	readonly resume?: boolean;
+	/** An earlier request that the provider removed and this request replaces; it is removed when this request is added. */
+	readonly replacesRequestId?: string;
 	readonly origin?: IChatRequestOrigin;
 }
 

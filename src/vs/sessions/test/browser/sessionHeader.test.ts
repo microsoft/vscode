@@ -630,7 +630,7 @@ suite('Sessions - Headers', () => {
 							instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close', icon: Codicon.closeSmall }, undefined, menuOptions, undefined, undefined),
 						],
 					], [
-						'secondary/1_session',
+						'secondary/4_manage',
 						[
 							instantiationService.createInstance(MenuItemAction, { id: 'sessions.rename', title: 'Rename' }, undefined, menuOptions, undefined, undefined),
 						],

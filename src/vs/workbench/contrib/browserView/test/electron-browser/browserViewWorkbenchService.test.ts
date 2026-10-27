@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { BrowserViewEvent, BrowserViewPresentation, BrowserViewStorageScope, browserZoomDefaultIndex, IBrowserViewCreateOptions, IBrowserViewInfo, IBrowserViewWindowConfiguration, serializeBrowserViewInfo } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewEvent, BrowserViewPresentation, BrowserViewStorageScope, browserZoomDefaultIndex, IBrowserViewCreateOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewWindowConfiguration, serializeBrowserViewInfo } from '../../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
@@ -22,12 +22,20 @@ import { INativeWorkbenchEnvironmentService } from '../../../../services/environ
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { IBrowserViewNetworkResolver, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
 import { BrowserViewWorkbenchService } from '../../electron-browser/browserViewWorkbenchService.js';
 
 suite('BrowserViewWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Statuses of connected hosts that can, or cannot, proxy browsers. */
+	function hostStatuses(proxySupported: Record<string, boolean>): Pick<IBrowserViewNetworkResolver, 'getNetworkStatus' | 'onDidChangeNetworkStatus'> {
+		return {
+			getNetworkStatus: ({ authority }) => ({ label: authority, connected: proxySupported[authority] !== undefined, proxySupported: proxySupported[authority] }),
+			onDidChangeNetworkStatus: Event.None,
+		};
+	}
 
 	function createService(remoteAuthority?: string) {
 		const disposables = store.add(new DisposableStore());
@@ -220,55 +228,66 @@ suite('BrowserViewWorkbenchService', () => {
 		return proxyInfo;
 	}
 
-	test('binds views to their resolved network and storage partition', async () => {
+	test('binds views to their resolved network and storage partition, and uses the local network for hosts that cannot proxy', async () => {
 		const { service, events, creationOptions, windowConfigurations } = createService('ssh-remote+other');
 		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
 		const proxyCalls: string[] = [];
 		const proxyInfo = registerProxyProvider(service, proxyCalls);
-		let affinity: string | undefined = 'repo';
-		store.add(service.registerNetworkResolver({ resolveNetwork: () => ({ authority: 'host' }), resolveStorageAffinity: () => affinity }));
+		let next: { readonly network: IBrowserViewNetwork; readonly storageAffinity?: string } = { network: { authority: 'capable' }, storageAffinity: 'repo' };
+		store.add(service.registerNetworkResolver({ resolveNetwork: () => next.network, resolveStorageAffinity: () => next.storageAffinity, ...hostStatuses({ capable: true, legacy: false }) }));
 
 		const remote = store.add(service.getOrCreateLazy({ id: 'remote', url: 'http://remote/' }));
-		affinity = undefined;
+		next = { network: { authority: 'capable' } };
 		const workspaceless = store.add(service.getOrCreateLazy({ id: 'workspaceless', url: 'http://workspaceless/' }));
+		next = { network: { authority: 'legacy' }, storageAffinity: 'repo' };
+		const fallback = store.add(service.getOrCreateLazy({ id: 'fallback', url: 'http://fallback/' }));
 		const local = store.add(service.getOrCreateLazy({ id: 'local', session: {} }));
-		const [remoteModel] = await Promise.all([remote.resolve(), workspaceless.resolve(), local.resolve()]);
+		const [remoteModel, , fallbackModel] = await Promise.all([remote.resolve(), workspaceless.resolve(), fallback.resolve(), local.resolve()]);
+		const automationHold = await service.acquireNetwork({ authority: 'legacy' });
 		const networkProxies = windowConfigurations.at(-1)?.networkProxies;
 		remote.dispose();
 		workspaceless.dispose();
+		automationHold.dispose();
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
 			sessions: Object.fromEntries(creationOptions.map(options => [options.initialUrl ?? 'none', options.session])),
-			savedSessions: [remote, local].map(input => input.serialize().session),
-			modelNetwork: remoteModel.network,
+			savedSessions: [remote, fallback, local].map(input => input.serialize().session),
+			modelNetworks: [remoteModel.network, fallbackModel.network],
+			automationNetwork: automationHold.object,
 			networkProxies,
 			proxyCalls,
 		}, {
 			sessions: {
-				'http://remote/': { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } },
-				'http://workspaceless/': { scope: BrowserViewStorageScope.Ephemeral, network: { authority: 'host' } },
+				// The window's own workspace storage belongs to its own network; others use a partition of it, or in-memory storage.
+				'http://remote/': { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'capable' } },
+				'http://workspaceless/': { scope: BrowserViewStorageScope.Ephemeral, network: { authority: 'capable' } },
+				'http://fallback/': { scope: BrowserViewStorageScope.Workspace },
 				'none': { scope: BrowserViewStorageScope.Workspace },
 			},
+			// Views save the complete session they were opened for, even when they cannot use it.
 			savedSessions: [
-				{ scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } },
+				{ scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'capable' } },
+				{ scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'legacy' } },
 				{ scope: BrowserViewStorageScope.Workspace },
 			],
-			modelNetwork: { authority: 'host' },
-			networkProxies: { host: proxyInfo },
-			proxyCalls: ['acquire host', 'release host'],
+			modelNetworks: [{ authority: 'capable' }, undefined],
+			automationNetwork: undefined,
+			networkProxies: { capable: proxyInfo },
+			proxyCalls: ['acquire capable', 'release capable'],
 		});
 	});
 
 	test('uses configured storage only when the saved session has no scope', async () => {
 		const { service, events, creationOptions, configurationService } = createService('ssh-remote+other');
 		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		store.add(service.registerNetworkResolver({ resolveNetwork: () => undefined, ...hostStatuses({ capable: true }) }));
 		registerProxyProvider(service, []);
 		await configurationService.setUserConfiguration('workbench.browser.dataStorage', BrowserViewStorageScope.Global);
 
-		const savedSession = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } } as const;
+		const savedSession = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'capable' } } as const;
 		const restored = store.add(service.getOrCreateLazy({ id: 'restored', url: 'http://restored/', session: savedSession }));
-		const requested = store.add(service.getOrCreateLazy({ id: 'requested', url: 'http://requested/', session: { affinity: 'repo', network: { authority: 'host' } } }));
+		const requested = store.add(service.getOrCreateLazy({ id: 'requested', url: 'http://requested/', session: { affinity: 'repo', network: { authority: 'capable' } } }));
 		await Promise.all([restored.resolve(), requested.resolve()]);
 		restored.dispose();
 
@@ -287,6 +306,47 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	});
 
+	test('fails tabs saved on another remote in windows without a network resolver', async () => {
+		const { service, events, creationOptions } = createService('ssh-remote+here');
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+		const input = store.add(service.getOrCreateLazy({ id: 'saved', session: { scope: BrowserViewStorageScope.Workspace, network: { authority: 'ssh-remote+elsewhere' } } }));
+		const outcome = await input.resolve().then(() => 'created', (error: Error) => error.message);
+
+		assert.deepStrictEqual({ outcome, created: creationOptions.length }, {
+			outcome: 'This page was opened for another remote (ssh-remote+elsewhere). Open it again from a window connected to that remote.',
+			created: 0,
+		});
+	});
+
+	test('waits for a host to report whether it can proxy browsers', async () => {
+		const { service, events, creationOptions } = createService();
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+		const onDidChangeNetworkStatus = store.add(new Emitter<void>());
+		let proxySupported: boolean | undefined = undefined;
+		store.add(service.registerNetworkResolver({
+			resolveNetwork: () => ({ authority: 'host' }),
+			getNetworkStatus: ({ authority }) => ({ label: authority, connected: true, proxySupported }),
+			onDidChangeNetworkStatus: onDidChangeNetworkStatus.event,
+		}));
+
+		const input = store.add(service.getOrCreateLazy({ id: 'page', url: 'http://page/' }));
+		const model = input.resolve();
+		await timeout(0);
+		const createdBeforeReport = creationOptions.length;
+		proxySupported = false;
+		onDidChangeNetworkStatus.fire();
+		await model;
+
+		assert.deepStrictEqual({ createdBeforeReport, session: creationOptions[0].session, saved: input.serialize().session }, {
+			createdBeforeReport: 0,
+			// A host that cannot proxy browsers leaves the view on the local network, without changing the saved request.
+			session: { scope: BrowserViewStorageScope.Workspace },
+			saved: { scope: BrowserViewStorageScope.Workspace, network: { authority: 'host' } },
+		});
+	});
+
 	test('applies current restrictions without changing the saved session request', async () => {
 		const requested = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } } as const;
 		for (const scenario of [
@@ -296,6 +356,7 @@ suite('BrowserViewWorkbenchService', () => {
 		]) {
 			const { service, events, creationOptions, configurationService, workspaceTrustService } = createService(scenario.remote);
 			events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+			store.add(service.registerNetworkResolver({ resolveNetwork: () => undefined, ...hostStatuses({ host: true }) }));
 			registerProxyProvider(service, []);
 			await workspaceTrustService.setWorkspaceTrust(scenario.trusted);
 			await configurationService.setUserConfiguration('workbench.browser.enableRemoteProxy', scenario.proxy);

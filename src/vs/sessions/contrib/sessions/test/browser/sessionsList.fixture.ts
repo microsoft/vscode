@@ -9,6 +9,8 @@ import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/br
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { getTestSessionResource } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
@@ -29,6 +31,39 @@ const NESTED_CHAT_SESSION: ISessionsListFixtureSession = {
 		{ id: 'task-a', title: 'Task A', minutesAgo: 18 },
 		{ id: 'task-b', title: 'Task B', minutesAgo: 43 },
 	],
+};
+/** Two sessions whose nested chats form separate hierarchies, followed by a session without chats. */
+const NESTED_CHAT_HIERARCHY_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	NESTED_CHAT_SESSION,
+	{
+		id: 'b',
+		title: 'Session Persistence Cleanup',
+		workspace: 'vscode-tools',
+		minutesAgo: 9,
+		mainChatMinutesAgo: 12,
+		chats: [
+			{ id: 'audit', title: 'Audit stored state', minutesAgo: 25 },
+			{ id: 'migrate', title: 'Migrate old entries', minutesAgo: 51 },
+		],
+	},
+	{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-tools', minutesAgo: 64 },
+];
+const BAKEOFF_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'attempt-one', title: 'First attempt', workspace: 'vscode', status: SessionStatus.InProgress },
+	{ id: 'attempt-two', title: 'Second attempt', workspace: 'vscode', status: SessionStatus.InProgress },
+];
+const BAKEOFF_COMPARISON: ISessionComparison = {
+	id: 'bakeoff',
+	groupId: 'bakeoff',
+	title: 'Improve session navigation',
+	prompt: 'Improve session navigation',
+	createdAt: 1,
+	participants: BAKEOFF_SESSIONS.map((session, index) => ({
+		id: session.id,
+		role: SessionComparisonParticipantRole.Attempt,
+		sessionResource: getTestSessionResource(session.id),
+		harness: { providerId: 'local', sessionTypeId: 'copilot', label: 'Copilot', modelLabel: index === 0 ? 'Claude Opus 5' : 'GPT-5.4' },
+	})),
 };
 const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
 	id: 'nested-archive',
@@ -222,6 +257,24 @@ const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
 //#endregion
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_Bakeoff: defineSessionsListFixture({
+		sessions: BAKEOFF_SESSIONS,
+		groups: [{ id: 'bakeoff', name: BAKEOFF_COMPARISON.title, sessions: BAKEOFF_SESSIONS.map(session => session.id) }],
+		comparisons: [BAKEOFF_COMPARISON],
+		view: { grouping: SessionsGrouping.Date, reducedMotion: false },
+	}, { virtualTime: { enabled: false }, additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Bakeoff_MixedHarnesses: defineSessionsListFixture({
+		sessions: BAKEOFF_SESSIONS,
+		groups: [{ id: 'bakeoff', name: BAKEOFF_COMPARISON.title, sessions: BAKEOFF_SESSIONS.map(session => session.id) }],
+		comparisons: [{
+			...BAKEOFF_COMPARISON,
+			participants: BAKEOFF_COMPARISON.participants.map((participant, index) => index === 0 ? participant : {
+				...participant,
+				harness: { ...participant.harness, sessionTypeId: 'claude', label: 'Claude' },
+			}),
+		}],
+		view: { grouping: SessionsGrouping.Date, reducedMotion: false },
+	}, { virtualTime: { enabled: false }, additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 
 	//#region Sections and placement
 
@@ -638,7 +691,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { contextMenu: { group: 'hotfixes' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The context menu of the Hotfixes subgroup is open, offering Mark All as Read, Create Subgroup, Rename..., and Delete Group.'],
+		expectedVisualDescriptions: ['The context menu of the Hotfixes subgroup is open, offering New Session, then Mark All as Read and Archive All, then Create Subgroup, then Change Icon..., Change Color..., Rename..., and Delete Group.'],
 	}),
 	SessionsList_NestedGroups_DragIntoGroup: defineSessionsListFixture({
 		sessions: NESTED_GROUP_SESSIONS,
@@ -732,7 +785,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { session: 'a', chat: 'task-b' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The pointer is over the Task B chat row, which shows its hover background. Hovering a chat reveals its parent session hierarchy guides while the parent keeps its status icon.'],
+		expectedVisualDescriptions: ['The pointer is over the Task B chat row, which shows its hover background. With the pointer over the pane, the hierarchy guides show while the parent keeps its status icon.'],
 	}),
 	SessionsList_KeyboardFocusedSession: defineSessionsListFixture({
 		sessions: GROUPED_SESSIONS,
@@ -922,6 +975,46 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['An expanded pinned and sticky session has two nested chat rows, and the pointer is over the Task A chat. Its compact blue sticky marker does not shift the session icon away from the hierarchy guide. A single high-contrast guide color runs continuously from the parent, through the hovered row, into rounded branches that stop short of each child status icon, without gaps or visible shade changes.'],
 	}),
+	SessionsList_NestedChatHierarchies: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With the pointer outside the pane and nothing selected, two expanded sessions show their nested chats indented beneath them without hierarchy guides. The session without chats below them is unchanged.'],
+	}),
+	SessionsList_NestedChatHierarchies_PaneHovered: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+		interaction: { hovered: 'pane' },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over empty space in the Sessions pane, below the rows. Both expanded sessions show continuous hierarchy guides from the parent into rounded branches to each of their nested chats, and each guide ends at its own last chat. No row shows a hover background, twistie, or row actions, and the session without chats has no guide.'],
+	}),
+	SessionsList_NestedChatHierarchies_CompactPaneHovered: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 420, compact: true },
+		interaction: { hovered: 'pane' },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Both compact session hierarchies show their connectors while the pointer is in the pane without hovering any row. No row actions or collapse twisties are revealed.'],
+	}),
+	SessionsList_NestedChatHierarchies_HoveredRow: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+		interaction: { hovered: { session: 'b' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The pointer is over the Session Persistence Cleanup session row, and both expanded sessions show their hierarchy guides. Only the hovered row shows its hover background, its collapse twistie in place of its status icon, and its row actions; HTTP Client Retry Plan keeps its status icon and shows no actions.'],
+	}),
+	SessionsList_NestedChatHierarchies_Selected: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+		interaction: { selected: [{ session: 'b', chat: 'audit' }], listFocused: false },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With the pointer outside the pane, the Audit stored state chat is selected without list focus. Only its own hierarchy, Session Persistence Cleanup, shows hierarchy guides; the HTTP Client Retry Plan chats are indented without guides.'],
+	}),
 
 	//#endregion
 
@@ -1052,7 +1145,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		header: { navigationShortcuts: true, customizationsCount: 8, customizationMigrationsAvailable: true },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small warning dot beside its label.'],
+		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small activity badge dot beside its label.'],
 	}),
 	SessionsList_CustomizationsExtensionSuggestionsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'suggestions', title: 'Review the generated diagrams', workspace: 'vscode', minutesAgo: 5 }],

@@ -19,6 +19,7 @@ import { IConfigurationChangeEvent } from '../../../../../platform/configuration
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -257,6 +258,7 @@ suite('SessionArchiveNudge', () => {
 			store.add(new TestLifecycleService()),
 			new NullWorkbenchAssignmentService(),
 			NullTelemetryService,
+			new TestDialogService(),
 		));
 		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService, chatService));
 		const current = observableValue<ISession | undefined>('current', sessions[0]);
