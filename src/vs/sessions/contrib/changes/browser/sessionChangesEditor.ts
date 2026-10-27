@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedObservableWithCache, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
@@ -202,10 +202,20 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private readonly _scopedChangesObs = derivedObservableWithCache<readonly ISessionFileChange[]>(this, (reader, lastValue) => {
 		const editorSession = this._inputSessionResource.read(reader);
 		const activeSession = this.changesViewService.activeSessionResourceObs.read(reader);
-		if (!editorSession || !activeSession || !isEqual(editorSession, activeSession)) {
+		if (editorSession && (!activeSession || !isEqual(editorSession, activeSession))) {
+			// A session the main window does not show, such as in a chat window, has changes of its own.
+			const otherSessionChanges = this._otherSessionChangesObs.read(reader)?.read(reader) ?? [];
+			return otherSessionChanges.length || !lastValue ? otherSessionChanges : lastValue;
+		}
+		if (!editorSession) {
 			return lastValue ?? [];
 		}
 		return this.changesViewService.activeSessionChangesObs.read(reader);
+	});
+
+	private readonly _otherSessionChangesObs = derived(this, reader => {
+		const editorSession = this._inputSessionResource.read(reader);
+		return editorSession ? this.changesViewService.getSessionChanges(editorSession) : undefined;
 	});
 
 	/** Deferred focus request awaiting the active diff editor to be rendered. */
@@ -366,7 +376,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
 		this._inputSessionResource.set(sessionResource, undefined);
 		this._pendingResolve.clear();
-		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+		// Only the main editor part hides with the main window's layout; other editor parts, such as of chat windows, show.
+		const inMainEditorPart = this.editorGroupService.getPart(this.group) === this.editorGroupService.mainPart;
+		if (inMainEditorPart && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			this._logger.log('changes editor set input deferred, editor part hidden', { session: sessionResource });
 			// The operation token is cancelled once setInput returns, so the deferred resolve owns its own.
 			// It is cancelled only when the input is cleared or replaced, not when the resolve fires.

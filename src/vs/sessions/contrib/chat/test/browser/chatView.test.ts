@@ -2339,6 +2339,7 @@ suite('Sessions - Chat View', () => {
 		const activeChat = upcastPartial<IChat>({ resource: URI.parse('chat:/active-elsewhere') });
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(activeChat), mainChat: constObservable(activeChat), isCreated: constObservable(false) }));
+			override readonly mainWindowActiveSession = this.activeSession;
 		}();
 		const widget = disposables.add(new NewChatInSessionWidget(
 			{},

@@ -246,6 +246,7 @@ suite('SessionsTelemetryContribution', () => {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable(visibleSessions);
 			override readonly activeSession = activeSession ?? constObservable(undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 			override readonly onDidToggleSessionStickiness = Event.None;
 		}();
 		const telemetryService = new TestTelemetryService(options.telemetryLevel ?? TelemetryLevel.NONE);

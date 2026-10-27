@@ -75,6 +75,7 @@ suite('SessionInputBanners', () => {
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
+			override readonly mainWindowActiveSession = this.activeSession;
 		}();
 		const agentMergeState = observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false });
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {

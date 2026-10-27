@@ -1370,6 +1370,11 @@ function toSessionSideChatSelection(selection: { text: string; responsePartId?: 
 	};
 }
 
+/** The sessions shown anywhere: in the grid of the Sessions part, or in windows of their own. */
+function readShownSessions(sessionsService: ISessionsService, reader: IReader): readonly (IActiveSession | undefined)[] {
+	return [...sessionsService.visibleSessions.read(reader), ...sessionsService.windowSessions.read(reader)];
+}
+
 export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	readonly sessionId: string;
@@ -1722,7 +1727,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._worktreeIsolation.read(reader)
 			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));
 		this.loading = derived(this, reader => {
-			const visible = _sessionsService.visibleSessions.read(reader).some(session => isEqual(session?.resource, this.resource));
+			const visible = _sessionsService.visibleSessions.read(reader).some(session => isEqual(session?.resource, this.resource))
+				|| _sessionsService.windowSessions.read(reader).some(session => isEqual(session.resource, this.resource));
 			return _options.loading.read(reader) || (visible && chatCatalogLoading.read(reader));
 		});
 		this.description = derivedOpts<IMarkdownString | undefined>({ owner: this, equalsFn: markdownStringEquals }, reader => {
@@ -1745,9 +1751,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this.isRead.set(isSessionStatusRead(metadata.status), undefined);
 		}
 
+		// Also while the main window shows it, or a chat window does, when another one is the active session.
 		this.isActiveSessionObs = derived(this, reader => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
-			return isEqual(activeSession?.resource, this.resource);
+			return isEqual(activeSession?.resource, this.resource)
+				|| isEqual(this._sessionsService.mainWindowActiveSession.read(reader)?.resource, this.resource)
+				|| this._sessionsService.windowSessions.read(reader).some(session => isEqual(session.resource, this.resource));
 		});
 
 		// Set the changes summary from the aggregate. While the session is active,
@@ -4829,14 +4838,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// live, instead of relying on the idle timer that only client actions
 		// refresh.
 		this._register(autorun(reader => this._syncVisibleSessionStatePins(reader)));
-		// A chat's own config is subscribed while the chat is active in a visible session (and briefly
-		// after an explicit write); reads never subscribe. Re-run when a session's config, and so whether
-		// its host lets chats set values, becomes known.
+		// A chat's own config is subscribed while the chat is active in a visible session, including one
+		// shown in a window of its own (and briefly after an explicit write); reads never subscribe. Re-run
+		// when a session's config, and so whether its host lets chats set values, becomes known.
 		const sessionConfigChanged = observableSignalFromEvent(this, this.onDidChangeSessionConfig);
 		this._register(autorun(reader => {
 			sessionConfigChanged.read(reader);
 			this._onDidChangeChatCatalogs.read(reader);
-			this._syncActiveChatConfigPins(reader, this._sessionsService.visibleSessions.read(reader));
+			this._syncActiveChatConfigPins(reader, readShownSessions(this._sessionsService, reader));
 		}));
 		this._register(this._onDidChangeSessionsImmediately(() => {
 			if (this.connection?.connectionAvailable) {
@@ -8840,7 +8849,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * viewport. Driven reactively by {@link ISessionsService.visibleSessions}.
 	 */
 	private _syncVisibleSessionStatePins(reader: IReader): void {
-		const visible = this._sessionsService.visibleSessions.read(reader);
+		const visible = readShownSessions(this._sessionsService, reader);
 		const nowVisible = new Set<string>();
 		for (const session of visible) {
 			if (!session) {

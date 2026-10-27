@@ -6,10 +6,12 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import type { SessionView } from '../../../browser/parts/sessionView.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
+import { ISession } from '../common/session.js';
 import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
 import { Event } from '../../../../base/common/event.js';
 import { Direction, ISerializedGrid } from '../../../../base/browser/ui/grid/grid.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 
 export interface ISessionGridPlacement {
 	readonly reference: string;
@@ -22,6 +24,12 @@ export interface ISessionGridSlot {
 }
 
 export type SessionGridRequest = { readonly type: 'arrange' } | { readonly type: 'restore'; readonly grid: ISerializedGrid };
+
+/** The window of a session view registered with {@link ISessionsPartService.registerWindowSessionView}. */
+export interface IWindowSessionViewHost {
+	/** Brings the window to the front, and focuses the view in it. */
+	focus(): void;
+}
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 
@@ -82,6 +90,16 @@ export interface ISessionsPartService {
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent>;
 
 	/**
+	 * Registers a session view that shows a window session (see `ISessionsService.showSessionInWindow`) outside the
+	 * grid, in a window of its own. While registered, looking up, focusing and finding the focused session view cover
+	 * it.
+	 */
+	registerWindowSessionView(view: SessionView, host: IWindowSessionViewHost): IDisposable;
+
+	/** Fires with the session of a registered window session view when the view gets focus or is clicked. */
+	readonly onDidFocusWindowSession: Event<IActiveSession>;
+
+	/**
 	 * Moves keyboard focus into the chat input of the session view hosting the
 	 * given session, or into the placeholder (new-session) view when `session`
 	 * is `undefined`. No-op if no matching slot is currently mounted.
@@ -93,7 +111,11 @@ export interface ISessionsPartService {
 	 * placeholder (new-session) view when `sessionId` is `undefined`. Returns
 	 * `undefined` if no matching slot is currently mounted in the grid.
 	 */
-	getSessionView(sessionId: string | undefined): SessionView | undefined;
+	/**
+	 * The view that shows `session`: given the session itself, the view of the window that shows it, such as a window of its
+	 * own; given its id, the main window's view of it, else the view of a window that shows it.
+	 */
+	getSessionView(session: string | ISession | undefined): SessionView | undefined;
 
 	/**
 	 * Returns the session view that currently contains DOM focus.

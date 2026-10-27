@@ -46,6 +46,7 @@ class TestSessionsService extends mock<ISessionsService>() {
 
 	readonly opened: URI[] = [];
 	override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+	override readonly mainWindowActiveSession = this.activeSession;
 	override readonly visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', []);
 
 	override async openSession(sessionResource: URI): Promise<void> {
