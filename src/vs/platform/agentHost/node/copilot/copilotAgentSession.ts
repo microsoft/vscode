@@ -593,6 +593,8 @@ const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
 const CONNECTOR_REFRESH_TIMEOUT_MS = 60_000;
+/** Bounds the Connector status read that classifies a server the runtime has not yet reported, so authentication never waits on it indefinitely. */
+const CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS = 10_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
 /** The longest a `tasks.readOutput` call may wait for a detached shell to write more output. */
 const DETACHED_SHELL_OUTPUT_WAIT_MS = 30_000;
@@ -708,6 +710,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly controlPlaneRpcTimeoutMs?: number;
 	/** Bounds one Connector reconciliation attempt; a timed-out request remains pending. */
 	readonly connectorRefreshTimeoutMs?: number;
+	/** Bounds the Connector status read that classifies a server the runtime has not yet reported. */
+	readonly connectorOwnershipLookupTimeoutMs?: number;
 	/** Requests a later attempt after an abandoned Connector RPC settles. */
 	readonly onConnectorRefreshRetryable?: (session: CopilotAgentSession) => void;
 	/** Live canvases handed over by the runtime this session replaces during a configuration refresh. */
@@ -1889,6 +1893,7 @@ export class CopilotAgentSession extends Disposable {
 	private _outstandingConnectorReconcile: Promise<void> | undefined;
 	private _retryAfterConnectorReconcile = false;
 	private readonly _connectorRefreshTimeoutMs: number;
+	private readonly _connectorOwnershipLookupTimeoutMs: number;
 	private readonly _onConnectorRefreshRetryable: (session: CopilotAgentSession) => void;
 	private _mcpServerControlOperations = 0;
 	private readonly _copilotConnectorServers = new Map<string, ICopilotConnectorServer>();
@@ -2111,6 +2116,7 @@ export class CopilotAgentSession extends Disposable {
 		this.launchOwner = options.owner.get();
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
 		this._connectorRefreshTimeoutMs = options.connectorRefreshTimeoutMs ?? CONNECTOR_REFRESH_TIMEOUT_MS;
+		this._connectorOwnershipLookupTimeoutMs = options.connectorOwnershipLookupTimeoutMs ?? CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS;
 		this._onConnectorRefreshRetryable = options.onConnectorRefreshRetryable ?? (() => { });
 		this.resourceUri = options.resource ?? this.launchOwner;
 		this._chatChannelUri = options.chatChannelUri;
@@ -5198,7 +5204,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private async _readCopilotConnectorOwnership(serverName: string): Promise<boolean> {
 		const wrapper = this._wrapper;
-		const connectorServers = await readCopilotConnectorServers(wrapper.session, this._logService);
+		const connectorServers = await readCopilotConnectorServers(wrapper.session, this._logService, this._connectorOwnershipLookupTimeoutMs);
 		if (!connectorServers?.servers.has(serverName) || this.isDisposed || this._wrapper !== wrapper) {
 			return this._isCopilotConnectorServer(serverName);
 		}
@@ -5223,14 +5229,11 @@ export class CopilotAgentSession extends Disposable {
 			if (pending.resource.resource !== params.resource || !this._scopesSatisfy(params.scopes, pending.requiredScopes)) {
 				continue;
 			}
-			if (this._launchConnectorReconcile) {
-				await this._launchConnectorReconcile;
-				if (this._pendingMcpAuthRequests.getMetadata(requestId) !== pending) {
-					continue;
-				}
-			}
-			if (pending.copilotConnectorLookup) {
-				await Promise.race([pending.copilotConnectorLookup, pending.completion]);
+			// The runtime's Connector state answers ownership directly; only without it does a token wait for launch
+			// reconciliation. Stop waiting as soon as the request itself settles.
+			const ownership = pending.copilotConnectorLookup ?? this._launchConnectorReconcile;
+			if (ownership) {
+				await (pending.completion ? Promise.race([ownership, pending.completion.then(() => undefined, () => undefined)]) : ownership);
 				if (this._pendingMcpAuthRequests.getMetadata(requestId) !== pending) {
 					continue;
 				}

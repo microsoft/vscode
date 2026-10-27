@@ -291,6 +291,7 @@ class MockCopilotSession {
 	readonly connectorReconcileCalls: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0][] = [];
 	onConnectorReconcile: (() => Promise<void>) | undefined;
 	onConnectorCapabilities: (() => Promise<void>) | undefined;
+	onConnectorStatus: (() => Promise<void>) | undefined;
 	onMcpAuthenticationStateChanged: (() => void) | undefined;
 	mcpAuthenticationStateChangedError: Error | undefined;
 	readonly samplingResponses: Parameters<CopilotSession['rpc']['ui']['handlePendingSampling']>[0][] = [];
@@ -798,7 +799,10 @@ class MockCopilotSession {
 				return this.connectorCapabilities;
 			},
 			getAccount: async () => this.connectorAccount,
-			getStatus: async () => this.connectorStatus,
+			getStatus: async () => {
+				await this.onConnectorStatus?.();
+				return this.connectorStatus;
+			},
 			reconcile: async (request: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0]) => {
 				this.connectorReconcileCalls.push(request);
 				await this.onConnectorReconcile?.();
@@ -1359,6 +1363,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	disabledRootMcpServers?: readonly string[];
 	controlPlaneRpcTimeoutMs?: number;
 	connectorRefreshTimeoutMs?: number;
+	connectorOwnershipLookupTimeoutMs?: number;
 	onConnectorRefreshRetryable?: () => void;
 	sessionCustomizations?: () => readonly Customization[];
 	resolveCustomizationEnablement?: (target: ICustomizationEnablementTarget) => CustomizationEnablementResolution;
@@ -1790,6 +1795,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
 			connectorRefreshTimeoutMs: options?.connectorRefreshTimeoutMs,
+			connectorOwnershipLookupTimeoutMs: options?.connectorOwnershipLookupTimeoutMs,
 			onConnectorRefreshRetryable: options?.onConnectorRefreshRetryable,
 			canvasHandoff: options?.canvasHandoff,
 			subagentTaskCompletionDelay: options?.subagentTaskCompletionDelay ?? 0,
@@ -30577,6 +30583,40 @@ Use the attached image as context.
 					}, reported
 						? { connectorName: 'github', resolved: false, auth: { kind: 'cancelled' }, reconciles: 0 }
 						: { connectorName: undefined, resolved: true, auth: { kind: 'token', accessToken: 'github-token' }, reconciles: 0 });
+				});
+			}
+
+			for (const stall of ['statusRead', 'launchReconcile'] as const) {
+				test(`never blocks a built-in server's MCP token on a stalled ${stall === 'statusRead' ? 'Connector status read' : 'launch reconciliation'}`, async () => {
+					const serverUrl = 'https://api.githubcopilot.com/mcp/readonly';
+					const requiredScopes = ['read:user', 'user:email', 'write:plugin_gateway_connections', 'repo'];
+					const never = new Promise<never>(() => { /* never settles */ });
+					const { session, mockSession, runtime, waitForSignal } = await createAgentSession(disposables, {
+						rootValues,
+						connectorOwnershipLookupTimeoutMs: 1,
+						configureMockSession: mock => {
+							mock.mcpListResult = { servers: [{ name: 'github-mcp-server', status: 'connected', source: 'builtin', url: serverUrl }] };
+							if (stall === 'statusRead') {
+								mock.onConnectorStatus = () => never;
+							}
+						},
+						...(stall === 'launchReconcile' ? { duringLaunch: runtime => runtime.adoptLaunchConnectorReconcile(never) } : {}),
+					});
+
+					const auth = runtime.handleMcpAuthRequest({
+						requestId: 'github-auth',
+						serverName: 'github-mcp-server',
+						serverUrl,
+						reason: 'upscope',
+						wwwAuthenticateParams: { scope: requiredScopes.join(' '), error: 'insufficient_scope' },
+					}, { sessionId: mockSession.sessionId });
+					await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated)
+						&& session.topLevelMcpCustomizations().some(server => server.state.kind === McpServerStatus.AuthRequired));
+
+					assert.deepStrictEqual({
+						resolved: await session.resolveMcpAuthentication({ resource: serverUrl, scopes: requiredScopes, token: 'github-token' }),
+						auth: await auth,
+					}, { resolved: true, auth: { kind: 'token', accessToken: 'github-token' } });
 				});
 			}
 

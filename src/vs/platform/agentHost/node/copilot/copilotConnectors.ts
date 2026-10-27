@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ConnectorStatus, CopilotSession } from '@github/copilot-sdk';
-import { raceCancellationError } from '../../../../base/common/async.js';
+import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -113,11 +113,14 @@ export async function reconcileCopilotConnectors(
 
 /**
  * Reads the runtime's authoritative Connector state without reconciling, which would restart Connector servers.
- * Returns `undefined` when the runtime cannot report it.
+ * Returns `undefined` when the runtime cannot report it within {@link timeoutMs}, so callers never wait indefinitely.
  */
-export async function readCopilotConnectorServers(session: CopilotSession, logService: ILogService): Promise<ICopilotConnectorServers | undefined> {
+export async function readCopilotConnectorServers(session: CopilotSession, logService: ILogService, timeoutMs: number): Promise<ICopilotConnectorServers | undefined> {
 	try {
-		return copilotConnectorServers(await session.rpc.connectors.getStatus());
+		const status = await raceTimeout(session.rpc.connectors.getStatus(), timeoutMs, () => {
+			logService.warn(`[Copilot:${session.sessionId}] Reading the current Connector state timed out after ${timeoutMs}ms`);
+		});
+		return status && copilotConnectorServers(status);
 	} catch (error) {
 		logService.warn(`[Copilot:${session.sessionId}] Unable to read the current Connector state: ${getErrorMessage(error)}`);
 		return undefined;
