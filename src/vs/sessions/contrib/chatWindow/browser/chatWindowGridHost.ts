@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from '../../../../base/browser/dom.js';
+import { $, append, getWindow } from '../../../../base/browser/dom.js';
 import { ISerializableView, ISerializedGrid, ISerializedNode, IViewSize, Orientation, SerializableGrid } from '../../../../base/browser/ui/grid/grid.js';
 import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../../../browser/parts/gridGap.js';
-import { diffSessionGridLayout, ISessionGridLayout, ISessionGridLayoutBranch, SessionGridCell, SessionGridLayoutNode } from '../../../common/sessionGridLayout/sessionGridLayout.js';
+import { diffSessionGridLayout, ISessionGridLayout, ISessionGridLayoutBranch, SessionGridCell, SessionGridLayoutNode, SessionHeaderSpan, SessionLayoutMode } from '../../../common/sessionGridLayout/sessionGridLayout.js';
 
 /** What a cell of a chat window shows: the chat, the editor area, the terminals or the Session Activity Bar. */
 export interface IChatWindowCellContent {
@@ -57,6 +57,7 @@ export class ChatWindowCellView extends Disposable implements ISerializableView 
 	readonly onDidLayout: Event<void> = this._onDidLayout.event;
 
 	private _insets: IGridEdgeInsets = NO_GRID_EDGE_INSETS;
+	private _contentTop = 0;
 	private _content: IChatWindowCellContent | undefined;
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
@@ -93,9 +94,17 @@ export class ChatWindowCellView extends Disposable implements ISerializableView 
 		return this._content;
 	}
 
-	/** The height of the gap above and below the card. */
+	/** The height of the gap above and below the card, of the card's border, and of the room it leaves above its content. */
 	get verticalInsets(): number {
-		return this._insets.top + this._insets.bottom;
+		const border = this._getCardBorder();
+		return this._insets.top + this._insets.bottom + border.top + border.bottom + this._contentTop;
+	}
+
+	/** The border of the card, which its density draws (none when compact): its content is inside it. */
+	private _getCardBorder(): { readonly top: number; readonly right: number; readonly bottom: number; readonly left: number } {
+		const style = getWindow(this._card).getComputedStyle(this._card);
+		const width = (value: string) => parseFloat(value) || 0;
+		return { top: width(style.borderTopWidth), right: width(style.borderRightWidth), bottom: width(style.borderBottomWidth), left: width(style.borderLeftWidth) };
 	}
 
 	setConstraints(constraints: IChatWindowCellConstraints): void {
@@ -107,13 +116,18 @@ export class ChatWindowCellView extends Disposable implements ISerializableView 
 		this._onDidChange.fire(undefined);
 	}
 
-	/** The gap to the cells beside it, which the card is inset by. */
-	setInsets(insets: IGridEdgeInsets): void {
-		if (this._insets.top === insets.top && this._insets.right === insets.right && this._insets.bottom === insets.bottom && this._insets.left === insets.left) {
+	/**
+	 * The gap to the cells beside it, which the card is inset by, and the room the card leaves above its content, such as
+	 * to center the content's top row with a header beside it.
+	 */
+	setInsets(insets: IGridEdgeInsets, contentTop = 0): void {
+		if (this._insets.top === insets.top && this._insets.right === insets.right && this._insets.bottom === insets.bottom && this._insets.left === insets.left && this._contentTop === contentTop) {
 			return;
 		}
 		this._insets = insets;
+		this._contentTop = contentTop;
 		this._card.style.inset = `${insets.top}px ${insets.right}px ${insets.bottom}px ${insets.left}px`;
+		this._card.style.paddingTop = contentTop ? `${contentTop}px` : '';
 		this._layoutContent();
 	}
 
@@ -123,13 +137,25 @@ export class ChatWindowCellView extends Disposable implements ISerializableView 
 		this._onDidLayout.fire();
 	}
 
+	/** Lays out its content again at the size it last had, such as once its card's border changes with the density. */
+	relayoutContent(): void {
+		this._layoutContent();
+	}
+
 	private _layoutContent(): void {
 		const layout = this._lastLayout;
 		if (!layout || !this._content) {
 			return;
 		}
 		const insets = this._insets;
-		this._content.layout(Math.max(0, layout.width - insets.left - insets.right), Math.max(0, layout.height - insets.top - insets.bottom), layout.top + insets.top, layout.left + insets.left);
+		// Inside the card's border, which takes room of its own: else the content would be larger than the card shows.
+		const border = this._getCardBorder();
+		this._content.layout(
+			Math.max(0, layout.width - insets.left - insets.right - border.left - border.right),
+			Math.max(0, layout.height - insets.top - insets.bottom - border.top - border.bottom - this._contentTop),
+			layout.top + insets.top + border.top + this._contentTop,
+			layout.left + insets.left + border.left,
+		);
 	}
 
 	setVisible(visible: boolean): void {
@@ -148,6 +174,15 @@ function isBranch(node: SessionGridLayoutNode): node is ISessionGridLayoutBranch
 
 function isVisible(node: SessionGridLayoutNode): boolean {
 	return isBranch(node) ? node.children.some(isVisible) : node.visible;
+}
+
+/**
+ * Whether the title row of a chat window is right above its chat (Side by Side, over the chat's column; Chat Only): it is
+ * then the header of the chat's card, in it, with no edge between it and the chat, as the main window's session header
+ * is. Above the editor area's card (Stacked, Editor Only), the title row stays the title bar.
+ */
+export function isChatWindowTitleRowOverChat(layout: Pick<ISessionGridLayout, 'mode' | 'header'>): boolean {
+	return layout.header === SessionHeaderSpan.ChatColumn || layout.mode === SessionLayoutMode.ChatOnly;
 }
 
 /**
@@ -245,7 +280,87 @@ export class ChatWindowGridHost extends Disposable {
 		return this._grid;
 	}
 
+	private _header = { height: 0, chatColumn: false, besideTitleHeight: 0 };
+
+	/**
+	 * The window's header row, above the grid: `height` tall, across the window unless `chatColumn` allows it above the
+	 * chat's column only (see {@link ISessionGridLayout.header}). Then the content of the side pane beside it, whose top
+	 * row is `besideTitleHeight` tall, starts so that that row is centered with the header, as when both are as tall
+	 * (compact). Right above the chat ({@link headerInChatCard}), the header is in the chat's card, as the main window's
+	 * session header is: the grid runs to the top of the window, and the chat's card from there, its content below the
+	 * header.
+	 */
+	setHeader(height: number, chatColumn: boolean, besideTitleHeight = 0): void {
+		if (this._header.height === height && this._header.chatColumn === chatColumn && this._header.besideTitleHeight === besideTitleHeight) {
+			return;
+		}
+		this._header = { height, chatColumn, besideTitleHeight };
+		this._layoutGridBox();
+		this._applyInsets();
+	}
+
+	/** The height of the top row of the side pane beside the header, as last given to {@link setHeader}. */
+	get besideTitleHeight(): number {
+		return this._header.besideTitleHeight;
+	}
+
+	/** Where the header shows with the layout the grid shows. */
+	get headerSpan(): SessionHeaderSpan {
+		return this._headerSpanOf(this._layout);
+	}
+
+	private _headerSpanOf(layout: ISessionGridLayout | undefined): SessionHeaderSpan {
+		return this._header.chatColumn && layout?.header === SessionHeaderSpan.ChatColumn ? SessionHeaderSpan.ChatColumn : SessionHeaderSpan.Full;
+	}
+
+	/**
+	 * Whether the header is in the chat's card, at its top, with the layout the grid shows: while it is right above the
+	 * chat (see {@link isChatWindowTitleRowOverChat}) and allowed to be beside the cells.
+	 */
+	get headerInChatCard(): boolean {
+		return this._headerInChatCardOf(this._layout);
+	}
+
+	private _headerInChatCardOf(layout: ISessionGridLayout | undefined): boolean {
+		return this._header.chatColumn && !!layout && isChatWindowTitleRowOverChat(layout);
+	}
+
+	/** The box of the grid in the window: below a header across the window, else (the header beside the cells or in the chat's card) the whole window. */
+	private _gridBox(): IBox & { top: number } {
+		const dimension = this._dimension!;
+		const top = this._headerSpanOf(this._layout) === SessionHeaderSpan.Full && !this._headerInChatCardOf(this._layout) ? Math.min(this._header.height, dimension.height) : 0;
+		return { top, width: dimension.width, height: dimension.height - top };
+	}
+
+	private _placeGrid(grid: SerializableGrid<ChatWindowCellView>, box: IBox & { top: number }): void {
+		grid.element.style.marginTop = `${box.top}px`;
+		grid.element.style.height = `${box.height}px`;
+	}
+
+	private _layoutGridBox(): void {
+		if (!this._grid || !this._dimension) {
+			return;
+		}
+		const box = this._gridBox();
+		this._placeGrid(this._grid, box);
+		this._grid.layout(box.width, box.height);
+		this._onDidLayoutCells.fire();
+	}
+
+	/** The width the grid lays `cell` out with, or 0 while it does not show. */
+	getCellWidth(cell: SessionGridCell): number {
+		const view = this._cells.get(cell);
+		return view && this._grid && this._layout && this._leaves(this._layout.topology).some(leaf => leaf.cell === cell && leaf.visible) ? this._grid.getViewSize(view).width : 0;
+	}
+
 	/** The gap between the cards of the cells; 0 keeps them flush. */
+	/** Lays out the content of every cell again, such as once the borders of their cards change with the density. */
+	relayoutCells(): void {
+		for (const view of this._cells.values()) {
+			view.relayoutContent();
+		}
+	}
+
 	setGap(gap: number): void {
 		if (this._gap === gap) {
 			return;
@@ -277,6 +392,7 @@ export class ChatWindowGridHost extends Disposable {
 			this._rebuild(layout);
 			return;
 		}
+		const headerChanged = this._headerSpanOf(previous) !== this._headerSpanOf(layout);
 		this._layout = layout;
 		if (change === 'visibility') {
 			for (const leaf of this._leaves(layout.topology)) {
@@ -284,6 +400,9 @@ export class ChatWindowGridHost extends Disposable {
 				if (view && this._grid.isViewVisible(view) !== leaf.visible) {
 					this._grid.setViewVisible(view, leaf.visible);
 				}
+			}
+			if (headerChanged) {
+				this._layoutGridBox();
 			}
 			this._applyInsets();
 		}
@@ -294,8 +413,7 @@ export class ChatWindowGridHost extends Disposable {
 		if (!this._grid && this._layout) {
 			this._rebuild(this._layout);
 		}
-		this._grid?.layout(width, height);
-		this._onDidLayoutCells.fire();
+		this._layoutGridBox();
 	}
 
 	/** The sizes the cells showed with, per topology, including the cells that show now; see {@link importSizes}. */
@@ -393,7 +511,7 @@ export class ChatWindowGridHost extends Disposable {
 		const previousElement = this._grid?.element;
 		this._grid = undefined;
 
-		const dimension = this._dimension!;
+		const dimension = this._gridBox();
 		const json = this._serialize(layout.topology, dimension);
 		const grid = this._gridDisposables.add(SerializableGrid.deserialize<ChatWindowCellView>(json, {
 			fromJSON: (data: { type: SessionGridCell }) => {
@@ -410,9 +528,8 @@ export class ChatWindowGridHost extends Disposable {
 		this._grid = grid;
 		this._gridDisposables.add(grid.onDidChange(() => this._onDidLayoutCells.fire()));
 		this._applyInsets();
-		if (this._dimension) {
-			grid.layout(this._dimension.width, this._dimension.height);
-		}
+		this._placeGrid(grid, dimension);
+		grid.layout(dimension.width, dimension.height);
 		this._onDidLayoutCells.fire();
 	}
 
@@ -421,8 +538,11 @@ export class ChatWindowGridHost extends Disposable {
 			return;
 		}
 		const insets = getChatWindowCellInsets(this._layout.topology, this._gap);
+		const headerBeside = this.headerSpan === SessionHeaderSpan.ChatColumn ? this._header.height : 0;
+		const besideHeader = headerBeside && this._header.besideTitleHeight ? Math.max(0, Math.floor((headerBeside - this._header.besideTitleHeight) / 2)) : 0;
+		const headerInChatCard = this.headerInChatCard ? this._header.height : 0;
 		for (const [cell, view] of this._cells) {
-			view.setInsets(insets.get(cell) ?? NO_GRID_EDGE_INSETS);
+			view.setInsets(insets.get(cell) ?? NO_GRID_EDGE_INSETS, cell === SessionGridCell.SidePane ? besideHeader : cell === SessionGridCell.Chat ? headerInChatCard : 0);
 		}
 		// The sashes in the gaps between the cards show the gripper of the main window's.
 		if (this._grid) {

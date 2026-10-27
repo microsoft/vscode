@@ -41,6 +41,14 @@ export const enum SessionColumnPlacement {
 	BesideEditor = 'besideEditor',
 }
 
+/** How wide the header row of the window is, above its cells. */
+export const enum SessionHeaderSpan {
+	/** Across the window, above every cell. */
+	Full = 'full',
+	/** Above the chat's column only: the cells to the right of the chat run to the top of the window. */
+	ChatColumn = 'chatColumn',
+}
+
 export interface ISessionGridLayoutState {
 	/** The mode to show. */
 	readonly mode: SessionLayoutMode;
@@ -73,6 +81,11 @@ export interface ISessionGridLayout {
 	readonly column: SessionColumnPlacement;
 	/** Whether the chat shows only its input. */
 	readonly inputOnly: boolean;
+	/**
+	 * How wide the header row is: above the chat's column only while the chat has the editor beside it (Side by Side),
+	 * else across the window.
+	 */
+	readonly header: SessionHeaderSpan;
 	/** The visible cells in tab and landmark order, which is the topology's leaf order (the visual order). */
 	readonly tabOrder: readonly SessionGridCell[];
 	/** The structure of the topology without visibility: a different key needs the grid rebuilt. */
@@ -160,6 +173,7 @@ export function computeSessionGridLayout(state: ISessionGridLayoutState): ISessi
 		topology,
 		column: placement,
 		inputOnly: mode === SessionLayoutMode.Stacked && state.inputOnly,
+		header: mode === SessionLayoutMode.SideBySide ? SessionHeaderSpan.ChatColumn : SessionHeaderSpan.Full,
 		tabOrder: collectLeaves(topology).filter(leaf => leaf.visible).map(leaf => leaf.cell),
 		shapeKey: shapeOf(topology),
 	};

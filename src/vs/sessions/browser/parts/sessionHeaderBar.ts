@@ -85,6 +85,7 @@ export class SessionHeaderBar extends Disposable {
 	private _titlePath = '';
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
+	private readonly _titleRowEl: HTMLElement;
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -185,6 +186,7 @@ export class SessionHeaderBar extends Disposable {
 		const titleActions = $('.chat-composite-bar-title-actions');
 		titleRow.appendChild(titleActions);
 		this._titleActionsEl = titleActions;
+		this._titleRowEl = titleRow;
 
 		const toolbarContainer = $('.chat-composite-bar-toolbar');
 		titleActions.appendChild(toolbarContainer);
@@ -290,6 +292,23 @@ export class SessionHeaderBar extends Disposable {
 		this._register(addDisposableListener(this._container, EventType.DRAG_END, () => {
 			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
 		}));
+	}
+
+	/**
+	 * Shows the header as the top row of its window, in place of the title of its title bar: its empty space then moves
+	 * the window rather than starting a drag of the session.
+	 */
+	setWindowChrome(shown: boolean): void {
+		this._container.classList.toggle('window-chrome', shown);
+		this._container.draggable = !shown;
+	}
+
+	/**
+	 * Shows the actions of the header, such as its More Actions, in `host`, such as after the other actions of the title
+	 * bar that hosts the header, so that they are one group with them; `undefined` brings them back after the title.
+	 */
+	setActionsHost(host: HTMLElement | undefined): void {
+		(host ?? this._titleRowEl).appendChild(this._titleActionsEl);
 	}
 
 	setContext(context: ISessionHeaderBarContext | undefined): void {

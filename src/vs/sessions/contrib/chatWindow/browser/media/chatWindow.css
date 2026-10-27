@@ -62,3 +62,38 @@
 	border: none;
 	border-radius: 0;
 }
+
+/* While the header is above the chat's column only, the editor area runs to the top of the window: the empty space of its titles, and of the toolbar of an empty group, moves the window. */
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container > .title,
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container.empty > .editor-group-container-toolbar {
+	-webkit-app-region: drag;
+}
+
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container .tab,
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container .monaco-icon-label,
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container .breadcrumbs-control,
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container .action-item {
+	-webkit-app-region: no-drag;
+}
+
+/* Where the window controls are at the top right of the window (Windows, Linux), the top row of the group below them leaves them room: its toolbar shows left of them. */
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container.chat-window-reserves-controls > .title > .tabs-and-actions-container,
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container.chat-window-reserves-controls > .title > .single-tab-and-actions-container,
+.monaco-workbench .chat-window-host.chat-window-header-chat-column .chat-window-editor-area .editor-group-container.chat-window-reserves-controls > .editor-group-container-toolbar {
+	padding-right: var(--chat-window-controls-width, 0px);
+	box-sizing: border-box;
+}
+
+/* Right above the chat (Side by Side, Chat Only), the title row that shows the session header is the header of the chat's card, as the main window's session header is: the card runs from the top of the window, with its top edge and corners, and shows through the title row, whose own background (the window's) would hide them. */
+.monaco-workbench .part.titlebar.hosts-session-header.title-over-chat,
+.monaco-workbench .part.titlebar.hosts-session-header.title-over-chat > .titlebar-container {
+	/* Over the inline background of the title bar. */
+	background-color: transparent !important;
+}
+
+/* The header and the chat are one surface, with no edge between them: the frame of the session view, whose top edge is above its session header where the view shows the header, is open at the top where the header is the title row above it. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout) .chat-window-host.chat-window-title-over-chat .chat-window-cell-chat .session-view::after {
+	border-top-width: 0;
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+}
