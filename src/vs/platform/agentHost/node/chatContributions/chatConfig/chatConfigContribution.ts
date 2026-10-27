@@ -10,7 +10,7 @@ import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDi
 import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel } from '../../../common/state/sessionState.js';
-import { IAgentConfigurationService } from '../../agentConfigurationService.js';
+import { IAgentConfigurationService, isChatOwnConfigUnchanged } from '../../agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
 /**
@@ -37,7 +37,9 @@ export class ChatConfigContribution extends Disposable implements IAgentHostChat
 		if (dispatched.action.type !== ActionType.ChatConfigChanged || dispatched.rejectionReason || !isAhpChatChannel(dispatched.channel)
 			|| this._stateManager.getChatOrigin(dispatched.channel)?.kind === ChatOriginKind.Tool
 			// A session before its first message has no database yet: its default chat's values are persisted when it materializes.
-			|| this._stateManager.isIdleProvisionalSession(dispatched.session)) {
+			|| this._stateManager.isIdleProvisionalSession(dispatched.session)
+			// Publishes only what a default chat takes from its session: the row it persisted is unchanged.
+			|| isChatOwnConfigUnchanged(dispatched.action)) {
 			return;
 		}
 		// A default chat's values the session gives it are the session's, not the chat's own.
