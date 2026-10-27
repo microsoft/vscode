@@ -31,6 +31,9 @@ import { isMultiDiffEditorFileListHost, multiDiffEditorExperimentalFileListSetti
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ISessionChangesService } from '../../browser/sessionChangesService.js';
+import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
 import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
 import '../../browser/media/sessionChangesEditor.css';
@@ -44,6 +47,13 @@ suite('SessionChangesEditor empty state layout', () => {
 			override contextMatchesRules(): boolean { return true; }
 		});
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const activeSession = constObservable<IActiveSession | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = activeSession;
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		}());
+		instantiationService.stub(ISessionScope, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 		}());

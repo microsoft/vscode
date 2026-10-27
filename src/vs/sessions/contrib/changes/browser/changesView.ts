@@ -71,6 +71,8 @@ import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { createSessionActionsInstantiationService } from './sessionActionsHost.js';
+import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { CIStatusWidget } from './checksWidget.js';
 import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
@@ -94,7 +96,7 @@ import { compareFileNames, comparePaths } from '../../../../base/common/comparer
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewService } from '../common/changesViewService.js';
+import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesSessionScope, IChangesViewService, getActiveSessionChanges } from '../common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../../workbench/browser/changesStatsWidget.js';
 import { Menus } from '../../../browser/menus.js';
@@ -148,6 +150,12 @@ interface IChangesButtonBarWidget extends IDisposable {
 	readonly hasActions: boolean;
 }
 
+/** Resolves the session of the given scope together with its changes observables. */
+export function createChangesSessionScope(changesViewService: IChangesViewService, sessionsService: ISessionsService, scope: ISessionScope): IChangesSessionScope {
+	const session = scope.session;
+	return { session, changes: session === sessionsService.mainWindowActiveSession ? getActiveSessionChanges(changesViewService) : changesViewService.getSessionChanges(session) };
+}
+
 class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
 
 	private readonly _onDidChangeActions = this._register(new Emitter<void>());
@@ -158,9 +166,9 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 
 	constructor(
 		container: HTMLElement,
+		changes: IChangesSessionObservables,
 		hasGitOperationInProgressObs: IObservable<boolean>,
 		@IMenuService menuService: IMenuService,
-		@IChangesViewService changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -171,7 +179,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		super();
 
 		const outgoingChangesObs = derivedObservableWithCache<number | undefined>(this, (reader, lastValue) => {
-			const activeSessionState = changesViewService.activeSessionStateObs.read(reader);
+			const activeSessionState = changes.stateObs.read(reader);
 			const hasGitOperationInProgress = hasGitOperationInProgressObs.read(reader);
 			if (hasGitOperationInProgress) {
 				return lastValue;
@@ -181,7 +189,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		});
 
 		const runningLabelObs = observableValue<string | IMarkdownString | undefined>(this, undefined);
-		const sessionIsActiveObs = observableFromEvent(contextKeyService.onDidChangeContext, () => SessionIsActiveContext.getValue(contextKeyService) ?? false);
+		const sessionIsActiveObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionIsActiveContext.key]))), () => SessionIsActiveContext.getValue(contextKeyService) ?? false);
 
 		// Clear the running label override
 		this._register(autorun(reader => {
@@ -193,7 +201,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		this._register(autorun(reader => {
 			const hasGitOperationInProgress = hasGitOperationInProgressObs.read(reader);
 			sessionIsActiveObs.read(reader);
-			const sessionResource = changesViewService.activeSessionResourceObs.read(reader);
+			const sessionResource = changes.resourceObs.read(reader);
 			const outgoingChanges = outgoingChangesObs.read(reader) ?? 0;
 
 			const buttonBar = new MenuWorkbenchButtonBar(
@@ -324,24 +332,24 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 	constructor(
 		container: HTMLElement,
+		source: IChangesSessionScope,
 		excludedOperationIds: ReadonlySet<string>,
 		@IMenuService menuService: IMenuService,
-		@IChangesViewService changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
-		@ISessionsService sessionsService: ISessionsService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
+		const { session: sessionObs, changes } = source;
 		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const dropdownMenu = this._register(menuService.createMenu(Menus.ChangesOperationsDropdown, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const createPullRequestContextView = this._register(instantiationService.createInstance(CreatePullRequestContextView));
 		const createPullRequestChatRequest = instantiationService.createInstance(CreatePullRequestChatRequest);
 		this._register(autorun(reader => {
-			changesViewService.activeSessionResourceObs.read(reader);
+			changes.resourceObs.read(reader);
 			createPullRequestContextView.close();
 		}));
 
@@ -365,7 +373,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			}
 		));
 		this._register(buttonBar.onWillRun(e => {
-			const operation = changesViewService.activeSessionChangesetOperationsObs.get().find(operation => operation.id === e.action.id);
+			const operation = changes.changesetOperationsObs.get().find(operation => operation.id === e.action.id);
 			if (!operation || !isSessionPullRequestOperation(operation)) {
 				unlockChatPetCreatePullRequestAchievement(e.action.id, chatPetService);
 			}
@@ -376,9 +384,9 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 		});
 
-		const agentMergeEnabledObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionAgentMergeEnabledContext.key]))), () =>
 			contextKeyService.getContextKeyValue<boolean>(SessionAgentMergeEnabledContext.key) === true);
-		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
 			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		const workspaceFoldersObs = observableFromEvent(workspaceContextService.onDidChangeWorkspaceFolders, () =>
 			workspaceContextService.getWorkspace().folders);
@@ -414,7 +422,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		});
 
 		const operationActionGroupsObs = derived<{ readonly groups: IAction[][]; readonly hasRunning: boolean }>(reader => {
-			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
+			const changeset = changes.changesetObs.read(reader);
 			if (!changeset) {
 				return { groups: [], hasRunning: false };
 			}
@@ -424,7 +432,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			// by the host because the Agent Merge menu keys off them to know it
 			// should stand in (see `agentMergeOwnsPrimaryButton`); where Agent
 			// Merge is unavailable this state simply offers no button.
-			const operations = changesViewService.activeSessionChangesetOperationsObs.read(reader);
+			const operations = changes.changesetOperationsObs.read(reader);
 			const changesetOperations = operations
 				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset))
 				.filter(op => !AGENT_HOST_AUTO_MERGE_OPERATION_IDS.has(op.id))
@@ -440,8 +448,8 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
 				run: () => {
 					if (isSessionPullRequestOperation(op)) {
-						const state = changesViewService.activeSessionStateObs.read(undefined);
-						const session = sessionsService.activeSession.read(undefined);
+						const state = changes.stateObs.read(undefined);
+						const session = sessionObs.read(undefined);
 						// The chat whose changes the form was opened from, even if the user switches chats meanwhile.
 						const chat = session?.activeChat.read(undefined);
 						createPullRequestContextView.show(container, op.pullRequestCreation, {
@@ -499,13 +507,13 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		});
 
 		this._register(autorun(reader => {
-			const isLoading = changesViewService.activeSessionLoadingObs.read(reader);
+			const isLoading = changes.loadingObs.read(reader);
 			if (changesEditorTransitionObs.read(reader) || isLoading) {
 				return;
 			}
 
 			// Resource-scoped Git settings can change the advertised operations once the new chat's folders are mounted.
-			if (!isChangesActionsWorkspaceReady(sessionsService.activeSession.read(reader), workspaceFoldersObs.read(reader), reader)) {
+			if (!isChangesActionsWorkspaceReady(sessionObs.read(reader), workspaceFoldersObs.read(reader), reader)) {
 				if (buttonBar.buttons.length > 0) {
 					buttonBar.update([], []);
 				}
@@ -607,16 +615,15 @@ const TITLE_BAR_EXCLUDED_OPERATION_IDS: ReadonlySet<string> = new Set([AGENT_HOS
 
 /**
  * Renders the session changes action button-bar (e.g. "Create Pull Request") into
- * a container, choosing the agent-host or git variant based on the active session.
+ * a container, choosing the agent-host or git variant based on the session of its source.
  * Used to host the actions in the desktop Changes editor header.
  */
 export class ChangesActionsBar extends Disposable {
 	constructor(
 		container: HTMLElement,
+		source: IChangesSessionScope,
 		excludedOperationIds: ReadonlySet<string>,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IChangesViewService changesViewService: IChangesViewService,
-		@ISessionsService sessionsService: ISessionsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -624,17 +631,17 @@ export class ChangesActionsBar extends Disposable {
 		container.classList.add('changes-actions-bar');
 		this._register(markOnboardingTarget(container, 'sessions.changes.actions'));
 
-		const hasGitOperationInProgressGlobalObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+		const hasGitOperationInProgressGlobalObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set(['sessions.hasGitOperationInProgress']))), () =>
 			contextKeyService.getContextKeyValue('sessions.hasGitOperationInProgress') === true);
 		const hasGitOperationInProgressObs = derived(reader => {
 			if (hasGitOperationInProgressGlobalObs.read(reader)) {
 				return true;
 			}
-			return changesViewService.activeSessionStateObs.read(reader)?.hasGitOperationInProgress === true;
+			return source.changes.stateObs.read(reader)?.hasGitOperationInProgress === true;
 		});
 
 		const isAgentHostSessionObs = derived(reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
+			const activeSession = source.session.read(reader);
 			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
 		});
 
@@ -648,8 +655,8 @@ export class ChangesActionsBar extends Disposable {
 			dom.clearNode(container);
 
 			const widget = isAgentHostSessionObs.read(reader)
-				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container, excludedOperationIds)
-				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs);
+				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container, source, excludedOperationIds)
+				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, source.changes, hasGitOperationInProgressObs);
 			reader.store.add(widget);
 			currentWidget = widget;
 			reader.store.add(widget.onDidChangeActions(() => updateVisibility()));
@@ -657,7 +664,7 @@ export class ChangesActionsBar extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			sessionsService.activeSession.read(reader)?.status.read(reader);
+			source.session.read(reader)?.status.read(reader);
 			updateVisibility();
 		}));
 	}
@@ -675,13 +682,24 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		options: IActionViewItemOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChangesViewService private readonly changesViewService: IChangesViewService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionScope private readonly sessionScope: ISessionScope,
 	) {
 		super(undefined, action, options);
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this._register(this.instantiationService.createInstance(ChangesActionsBar, container, TITLE_BAR_EXCLUDED_OPERATION_IDS));
+		const scope = createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope);
+		let instantiationService = this.instantiationService;
+		if (scope.session !== this.sessionsService.mainWindowActiveSession) {
+			// The globally bound session action context keys belong to the active session.
+			const host = createSessionActionsInstantiationService(this.instantiationService, container, scope);
+			this._register(host.store);
+			instantiationService = host.instantiationService;
+		}
+		this._register(instantiationService.createInstance(ChangesActionsBar, container, scope, TITLE_BAR_EXCLUDED_OPERATION_IDS));
 	}
 }
 
@@ -691,16 +709,16 @@ interface IChangesPickerLabel {
 	readonly isNonDefault: boolean;
 }
 
-function createChangesPickerLabelObservable(owner: object, changesViewService: IChangesViewService): IObservable<IChangesPickerLabel | undefined> {
+function createChangesPickerLabelObservable(owner: object, changes: IChangesSessionObservables): IObservable<IChangesPickerLabel | undefined> {
 	return derivedObservableWithCache<IChangesPickerLabel | undefined>(owner, (reader, lastValue) => {
-		const changeset = changesViewService.activeSessionChangesetObs.read(reader);
-		if (!changeset && changesViewService.activeSessionChangesetsLoadingObs.read(reader)) {
+		const changeset = changes.changesetObs.read(reader);
+		if (!changeset && changes.changesetsLoadingObs.read(reader)) {
 			return lastValue;
 		}
 		if (!changeset) {
 			return undefined;
 		}
-		const defaultChangeset = findDefaultChangeset(changesViewService.activeSessionChangesetsObs.read(reader) ?? [], reader);
+		const defaultChangeset = findDefaultChangeset(changes.changesetsObs.read(reader) ?? [], reader);
 		return {
 			label: changeset.label,
 			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changeset.description : undefined,
@@ -717,19 +735,29 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChangesViewService changesViewService: IChangesViewService,
+		@ISessionsService sessionsService: ISessionsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		const onDidRegister = this._register(new Emitter<void>());
-		const headerLabelObs = createChangesPickerLabelObservable(this, changesViewService);
-		const headerSummary = this._register(instantiationService.createInstance(ChangesPickerSummary));
+		const activeChanges = getActiveSessionChanges(changesViewService);
+		const headerLabelObs = createChangesPickerLabelObservable(this, activeChanges);
+		const headerSummary = this._register(instantiationService.createInstance(ChangesPickerSummary, activeChanges.changesSummaryObs));
 
 		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs);
+			// The shared summary and label follow the active session; other sessions get their own.
+			const scope = instantiationService.invokeFunction(accessor => createChangesSessionScope(changesViewService, accessor.get(ISessionsService), accessor.get(ISessionScope)));
+			if (scope.session === sessionsService.mainWindowActiveSession) {
+				return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs, undefined);
+			}
+			const summary = instantiationService.createInstance(ChangesPickerSummary, scope.changes.changesSummaryObs);
+			const item = instantiationService.createInstance(ChangesPickerActionItem, action, summary, createChangesPickerLabelObservable(summary, scope.changes), scope);
+			item.own(summary);
+			return item;
 		}, onDidRegister.event));
 
 		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
@@ -790,6 +818,7 @@ export class ChangesViewPane extends ViewPane {
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	// Track current body dimensions for list layout
+	private readonly scope: IChangesSessionScope;
 	private currentBodyHeight = 0;
 	private currentBodyWidth = 0;
 
@@ -813,8 +842,11 @@ export class ChangesViewPane extends ViewPane {
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
 		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
+		@ISessionScope private readonly sessionScope: ISessionScope,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		this.scope = createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope);
 
 		// Context keys
 		this.isMergeBaseBranchProtectedContextKey = ActiveSessionContextKeys.IsMergeBaseBranchProtected.bindTo(this.scopedContextKeyService);
@@ -832,7 +864,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Version mode
 		this._register(bindContextKey(ChangesContextKeys.VersionMode, this.scopedContextKeyService, reader => {
-			return this.changesViewService.activeSessionChangesetObs.read(reader)?.id ?? '';
+			return this.scope.changes.changesetObs.read(reader)?.id ?? '';
 		}));
 
 		// View mode
@@ -844,17 +876,17 @@ export class ChangesViewPane extends ViewPane {
 		// can use it in their `when` clauses. Update reactively when the active session
 		// changes.
 		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
-			return this.changesViewService.activeSessionTypeObs.read(reader) ?? '';
+			return this.scope.changes.typeObs.read(reader) ?? '';
 		}));
 
 		// Git operation in progress set in the global context key service by the extension
-		const hasGitOperationInProgressGlobalContextObs = observableFromEvent(this.contextKeyService.onDidChangeContext, () => {
+		const hasGitOperationInProgressGlobalContextObs = observableFromEvent(Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set(['sessions.hasGitOperationInProgress']))), () => {
 			return this.contextKeyService.getContextKeyValue('sessions.hasGitOperationInProgress') === true;
 		});
 
 		// Git operation in progress set in the session state
 		const hasGitOperationInProgressStateObs = derived(reader => {
-			const activeSessionState = this.changesViewService.activeSessionStateObs.read(reader);
+			const activeSessionState = this.scope.changes.stateObs.read(reader);
 			return activeSessionState?.hasGitOperationInProgress === true;
 		});
 
@@ -994,7 +1026,7 @@ export class ChangesViewPane extends ViewPane {
 		this._wireSectionPane(this.ciStatusWidget, 1, CIStatusWidget.HEADER_HEIGHT, getCIPreferredHeight);
 		this._register(this.ciStatusWidget.onDidChangeHeight(() => this.fireTreePaneSizeChange()));
 		this._register(autorun(reader => {
-			const state = this.changesViewService.activeSessionSectionCollapseStateObs.read(reader);
+			const state = this.scope.changes.sectionCollapseStateObs.read(reader);
 			ciWidget.setCollapsed(state.checks);
 		}));
 		this._register(ciWidget.onDidToggleCollapsed(collapsed => this.setActiveSectionCollapsed('checks', collapsed)));
@@ -1015,7 +1047,7 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	override getActionsContext(): URI | undefined {
-		return this.changesViewService.activeSessionResourceObs.get();
+		return this.scope.changes.resourceObs.get();
 	}
 
 	private onVisible(): void {
@@ -1023,13 +1055,13 @@ export class ChangesViewPane extends ViewPane {
 
 		// Title actions
 		this.renderDisposables.add(autorun(reader => {
-			this.changesViewService.activeSessionResourceObs.read(reader);
+			this.scope.changes.resourceObs.read(reader);
 			this.updateActions();
 		}));
 
 		// Loading
 		this.renderDisposables.add(autorun(reader => {
-			const isLoading = this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
+			const isLoading = this.scope.changes.changesetLoadingObs.read(reader);
 			if (isLoading) {
 				this.changesProgressBar.infinite().show(200);
 			} else {
@@ -1039,13 +1071,13 @@ export class ChangesViewPane extends ViewPane {
 
 		// Changes
 		const changesObs = derived(reader => {
-			const changes = this.changesViewService.activeSessionChangesObs.read(reader);
+			const changes = this.scope.changes.changesObs.read(reader);
 			return toIChangesFileItem(changes);
 		});
 
 		// Changes statistics
 		const topLevelStats = derivedObservableWithCache<{ files: number; added: number; removed: number } | undefined>(this, (reader, lastValue) => {
-			const isLoading = this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
+			const isLoading = this.scope.changes.changesetLoadingObs.read(reader);
 			if (isLoading) {
 				return lastValue;
 			}
@@ -1073,13 +1105,13 @@ export class ChangesViewPane extends ViewPane {
 		}
 
 		const activeSessionStatusObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.scope.session.read(reader);
 			return activeSession?.status.read(reader);
 		});
 
 		// Update visibility based on entries
 		this.renderDisposables.add(autorun(reader => {
-			if (this.changesViewService.activeSessionChangesetLoadingObs.read(reader)) {
+			if (this.scope.changes.changesetLoadingObs.read(reader)) {
 				return;
 			}
 
@@ -1095,7 +1127,7 @@ export class ChangesViewPane extends ViewPane {
 
 			// Files header visibility (original layout only; absent in desktop redesign).
 			if (this.filesHeaderNode) {
-				const hasGitRepository = this.changesViewService.activeSessionHasGitRepositoryObs.read(reader);
+				const hasGitRepository = this.scope.changes.hasGitRepositoryObs.read(reader);
 				dom.setVisibility(!isUntitled && (hasGitRepository || hasEntries), this.filesHeaderNode);
 			}
 			if (this.fileHeaderToolbarContainer) {
@@ -1164,12 +1196,12 @@ export class ChangesViewPane extends ViewPane {
 		this.renderDisposables.add(autorun(reader => {
 			const changes = changesObs.read(reader);
 			const viewMode = this.changesViewService.viewModeObs.read(reader);
-			const activeSessionChangesetLoading = this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
-			const sessionResource = this.changesViewService.activeSessionResourceObs.read(reader);
+			const activeSessionChangesetLoading = this.scope.changes.changesetLoadingObs.read(reader);
+			const sessionResource = this.scope.changes.resourceObs.read(reader);
 
 			// Read session state so this autorun re-runs when git state (e.g. branch
 			// name) arrives asynchronously, since the tree root label depends on it.
-			this.changesViewService.activeSessionStateObs.read(reader);
+			this.scope.changes.stateObs.read(reader);
 			const workspace = this.getActiveChangesetWorkspace(reader);
 			const folder = this.getTreeRootFolder(workspace);
 
@@ -1283,7 +1315,7 @@ export class ChangesViewPane extends ViewPane {
 	private _bindContextKeys(topLevelStats: IObservable<{ files: number } | undefined>): void {
 		// Request in progress (can be updated independently since it only affects action enablement, and not visibility)
 		this.renderDisposables.add(bindContextKey(ChatContextKeys.requestInProgress, this.scopedContextKeyService, reader => {
-			const activeSessionStatus = this.sessionsService.activeSession.read(reader)?.status.read(reader);
+			const activeSessionStatus = this.scope.session.read(reader)?.status.read(reader);
 			return activeSessionStatus !== SessionStatus.Completed && activeSessionStatus !== SessionStatus.Error;
 		}));
 
@@ -1295,7 +1327,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Bulk update the context keys
 		this.renderDisposables.add(autorun(reader => {
-			const state = this.changesViewService.activeSessionStateObs.read(reader);
+			const state = this.scope.changes.stateObs.read(reader);
 			if (!state || state.hasGitOperationInProgress) {
 				return;
 			}
@@ -1447,7 +1479,7 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private setActiveSectionCollapsed(section: ChangesViewSection, collapsed: boolean): void {
-		const sessionResource = this.changesViewService.activeSessionResourceObs.get();
+		const sessionResource = this.scope.changes.resourceObs.get();
 		if (sessionResource) {
 			this.changesViewService.setSectionCollapsed(sessionResource, section, collapsed);
 		}
@@ -1459,8 +1491,8 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private getActiveChangesetWorkspace(reader: IReader | undefined): ISessionWorkspace | undefined {
-		const activeSession = this.sessionsService.activeSession.read(reader);
-		if (this.changesViewService.activeSessionChangesetObs.read(reader)?.id === SESSION_CHANGES_CHANGESET_ID) {
+		const activeSession = this.scope.session.read(reader);
+		if (this.scope.changes.changesetObs.read(reader)?.id === SESSION_CHANGES_CHANGESET_ID) {
 			return activeSession?.workspace.read(reader);
 		}
 		return activeSession?.activeChat.read(reader).workspace.read(reader);
@@ -1503,7 +1535,7 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private getSessionDiscardRef(): string {
-		const changeset = this.changesViewService.activeSessionChangesetObs.get();
+		const changeset = this.scope.changes.changesetObs.get();
 		return changeset?.originalCheckpointRef.get() ?? '';
 	}
 
@@ -1613,7 +1645,7 @@ export class ChangesViewPane extends ViewPane {
 
 		const resourceLabels = disposables.add(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility }));
 		const actionRunner = disposables.add(new ChangesViewActionRunner(
-			() => this.changesViewService.activeSessionResourceObs.get(),
+			() => this.scope.changes.resourceObs.get(),
 			() => this.getSessionDiscardRef(),
 			getSelection ?? (() => this.getTreeSelection()),
 		));
@@ -1629,7 +1661,7 @@ export class ChangesViewPane extends ViewPane {
 					return folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME
 						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
 						: folder?.workingDirectory;
-				})],
+				}, this.scope)],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
@@ -1674,7 +1706,7 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	async openChanges(resource?: URI): Promise<void> {
-		const items = this.changesViewService.activeSessionChangesObs.get();
+		const items = this.scope.changes.changesObs.get();
 		if (items.length === 0) {
 			return;
 		}
@@ -1703,7 +1735,7 @@ export class ChangesViewPane extends ViewPane {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action) => {
 				if (action.id === 'chatEditing.versionsPicker' && action instanceof MenuItemAction) {
-					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, undefined, undefined);
+					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, undefined, undefined, this.scope);
 				}
 				return undefined;
 			},
@@ -1714,7 +1746,7 @@ export class ChangesViewPane extends ViewPane {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ChangesDiffStatsAction.ID && action instanceof MenuItemAction) {
-					return this.scopedInstantiationService.createInstance(ChangesDiffStatsActionItem, action, options);
+					return this.scopedInstantiationService.createInstance(ChangesDiffStatsActionItem, action, options, this.scope);
 				}
 				return undefined;
 			},
@@ -1732,18 +1764,19 @@ export class ChangesViewPane extends ViewPane {
 		}
 
 		const isAgentHostSessionObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.scope.session.read(reader);
 			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
 		});
 
+		const source = createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope);
 		this.renderDisposables.add(autorun(reader => {
 			dom.clearNode(this.actionsContainer!);
 
 			const isAgentHostSession = isAgentHostSessionObs.read(reader);
 
 			const widget = isAgentHostSession
-				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!, new Set<string>())
-				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs);
+				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!, source, new Set<string>())
+				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, source.changes, this.hasGitOperationInProgressObs);
 			reader.store.add(widget);
 		}));
 	}
@@ -1873,8 +1906,8 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private async _openMultiFileDiffEditor(reveal?: URI): Promise<void> {
-		const sessionResource = this.changesViewService.activeSessionResourceObs.get();
-		const changes = this.changesViewService.activeSessionChangesObs.get();
+		const sessionResource = this.scope.changes.resourceObs.get();
+		const changes = this.scope.changes.changesObs.get();
 
 		if (!sessionResource || changes.length === 0) {
 			return;
@@ -2157,7 +2190,7 @@ class ChangesPickerSummaryContent extends Disposable {
 }
 
 /**
- * The active session's changes summary, shared by the Changes picker instances.
+ * A session's changes summary, shared by the Changes picker instances.
  *
  * Editor headers re-create their action view items whenever the active editor
  * changes, which happens several times while switching sessions. Leasing one
@@ -2174,7 +2207,7 @@ export class ChangesPickerSummary extends Disposable {
 	private _leased = false;
 
 	constructor(
-		@IChangesViewService private readonly _changesViewService: IChangesViewService,
+		private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -2210,7 +2243,7 @@ export class ChangesPickerSummary extends Disposable {
 	}
 
 	private _createContent(): ChangesPickerSummaryContent {
-		return this._instantiationService.createInstance(ChangesPickerSummaryContent, this._changesViewService.activeSessionChangesSummaryObs);
+		return this._instantiationService.createInstance(ChangesPickerSummaryContent, this._summaryObs);
 	}
 }
 
@@ -2226,18 +2259,22 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		action: MenuItemAction,
 		private readonly _summary: ChangesPickerSummary | undefined,
 		labelObs: IObservable<IChangesPickerLabel | undefined> | undefined,
+		scope: IChangesSessionScope | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
+		// Without an explicit scope the picker follows the active session.
+		const changes = scope?.changes ?? getActiveSessionChanges(changesViewService);
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
-				const changesets = changesViewService.activeSessionChangesetsObs.get() ?? [];
-				const selectedChangeset = changesViewService.activeSessionChangesetObs.get();
-				const sessionResource = changesViewService.activeSessionResourceObs.get();
-				const catalogueLoading = changesViewService.activeSessionChangesetsLoadingObs.get();
+				const changesets = changes.changesetsObs.get() ?? [];
+				const selectedChangeset = changes.changesetObs.get();
+				const sessionResource = changes.resourceObs.get();
+				const catalogueLoading = changes.changesetsLoadingObs.get();
+				const session = scope?.session.get();
 
 				return changesets.map(changeset => ({
 					...action,
@@ -2252,11 +2289,15 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 					},
 					enabled: !catalogueLoading && changeset.isEnabled.get(),
 					run: async () => {
-						if (changesViewService.activeSessionChangesetsLoadingObs.get()
-							|| !isEqual(changesViewService.activeSessionResourceObs.get(), sessionResource)) {
+						if (changes.changesetsLoadingObs.get()
+							|| !isEqual(changes.resourceObs.get(), sessionResource)) {
 							return;
 						}
-						changesViewService.setChangesetId(changeset.id);
+						// An explicit scope without a session must never write to the active session.
+						if (scope && !session) {
+							return;
+						}
+						changesViewService.setChangesetId(changeset.id, session);
 						logChangesViewVersionModeChange(this.telemetryService, changeset.id);
 					}
 				} satisfies IActionWidgetDropdownAction));
@@ -2265,10 +2306,10 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 		super(action, { actionProvider, listOptions: { detailItemHeight: 44 } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		this._labelObs = labelObs ?? createChangesPickerLabelObservable(this, changesViewService);
+		this._labelObs = labelObs ?? createChangesPickerLabelObservable(this, changes);
 		this._pickerEnabledObs = derived(reader => {
-			const changesets = changesViewService.activeSessionChangesetsObs.read(reader);
-			if (changesViewService.activeSessionChangesetsLoadingObs.read(reader)) {
+			const changesets = changes.changesetsObs.read(reader);
+			if (changes.changesetsLoadingObs.read(reader)) {
 				// Keep the picker stable; its retained entries cannot be selected until the new catalogue arrives.
 				return (changesets?.length ?? 0) > 0;
 			}
@@ -2276,7 +2317,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		});
 
 		this._summaryObs = this._summary
-			? changesViewService.activeSessionChangesSummaryObs
+			? changes.changesSummaryObs
 			: undefined;
 		this._register(autorun(reader => {
 			this._labelObs.read(reader);
@@ -2289,6 +2330,11 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 				this.updateAvailability(pickerEnabled);
 			}
 		}));
+	}
+
+	/** Ties the lifetime of `disposable` to this item. */
+	own<T extends IDisposable>(disposable: T): T {
+		return this._register(disposable);
 	}
 
 	override render(container: HTMLElement): void {
@@ -2445,11 +2491,12 @@ class ChangesDiffStatsActionItem extends ActionViewItem {
 	constructor(
 		action: MenuItemAction,
 		options: IActionViewItemOptions,
+		scope: IChangesSessionScope,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(null, action, { ...options, icon: false, label: false });
 
-		this._widget = this._register(instantiationService.createInstance(ChangesSummaryWidget));
+		this._widget = this._register(instantiationService.createInstance(ChangesSummaryWidget, scope.changes.changesSummaryObs));
 
 		this._register(autorun(reader => {
 			const changesSummary = this._widget.summary.read(reader);
