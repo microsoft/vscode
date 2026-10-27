@@ -23,7 +23,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IAllowedMcpServersService, IGalleryMcpServer, IMcpGalleryService, IMcpManagementService, IInstallableMcpServer } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { McpManagementChannel, McpManagementChannelClient } from '../../../../../platform/mcp/common/mcpManagementIpc.js';
-import { McpUserResourceManagementService } from '../../../../../platform/mcp/common/mcpManagementService.js';
+import { McpManagementService, McpUserResourceManagementService } from '../../../../../platform/mcp/common/mcpManagementService.js';
 import { IMcpServerConfiguration, McpServerType, McpServerVariableType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
@@ -35,6 +35,7 @@ import { Workspace } from '../../../../../platform/workspace/test/common/testWor
 import { TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 import { IRemoteAgentConnection, IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
 import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
+import { UserDataProfileService } from '../../../userDataProfile/common/userDataProfileService.js';
 import { IRemoteUserDataProfilesService } from '../../../userDataProfile/common/remoteUserDataProfiles.js';
 import { WorkbenchMcpManagementService, WorkspaceMcpConfigKind } from '../../common/mcpWorkbenchManagementService.js';
 import { IMcpWorkspaceInstallTargetService, McpWorkspaceInstallTargetService } from '../../common/mcpWorkspaceInstallTargetService.js';
@@ -48,7 +49,7 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 	const remoteUserResource = URI.from({ scheme: Schemas.inMemory, path: '/remote-user/mcp.json' });
 	const server: IInstallableMcpServer = { name: 'same', config: { type: McpServerType.LOCAL, command: 'node' } };
 
-	async function createFixture(options: { initialScan?: Promise<void>; allowed?: boolean; rootContent?: string; legacyContent?: string; userContent?: string; remoteUserContent?: string; workspaceConfiguration?: URI; folderTargetsOnly?: boolean } = {}) {
+	async function createFixture(options: { initialScan?: Promise<void>; beforeScan?: (resource: URI) => Promise<void>; allowed?: boolean; rootContent?: string; legacyContent?: string; userContent?: string; remoteUserContent?: string; workspaceConfiguration?: URI; folderTargetsOnly?: boolean } = {}) {
 		const logService = store.add(new NullLogService());
 		const fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
@@ -69,13 +70,11 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 		const scanner = store.add(new class extends McpResourceScannerService {
 			override async scanMcpServers(...args: Parameters<McpResourceScannerService['scanMcpServers']>) {
 				await options.initialScan;
+				await options.beforeScan?.(args[0]);
 				return super.scanMcpServers(...args);
 			}
 		}(fileService, uriIdentityService));
-		const profileService = upcastPartial<IUserDataProfileService>({
-			currentProfile: { ...new TestUserDataProfileService().currentProfile, mcpResource: userResource },
-			onDidChangeCurrentProfile: Event.None,
-		});
+		const profileService = store.add(new UserDataProfileService({ ...new TestUserDataProfileService().currentProfile, mcpResource: userResource }));
 		const foldersChanged = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		let workspace = new Workspace('test', [folder], options.workspaceConfiguration);
 		let remoteConnection: IRemoteAgentConnection | null = null;
@@ -93,7 +92,7 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 			[IEnvironmentService, upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.joinPath(userResource, '..') })],
 			[IMcpGalleryService, upcastPartial<IMcpGalleryService>({ getMcpServersFromGallery: async () => [] })],
 			[IUserDataProfileService, profileService],
-			[IUserDataProfilesService, upcastPartial<IUserDataProfilesService>({ profiles: [profileService.currentProfile] })],
+			[IUserDataProfilesService, upcastPartial<IUserDataProfilesService>({ profiles: [profileService.currentProfile], defaultProfile: profileService.currentProfile })],
 			[IRemoteUserDataProfilesService, upcastPartial<IRemoteUserDataProfilesService>({ getRemoteProfile: async profile => ({ ...profile, mcpResource: remoteUserResource }) })],
 			[IRemoteAgentService, upcastPartial<IRemoteAgentService>({ getConnection: () => remoteConnection })],
 			[IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
@@ -111,7 +110,7 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 				call: (command, args) => channel.call(undefined, command, args),
 			};
 		};
-		const userManagement = store.add(instantiationService.createInstance(McpUserResourceManagementService, userResource));
+		const userManagement = store.add(instantiationService.createInstance(McpManagementService));
 		const userManagementClient = store.add(instantiationService.createInstance(McpManagementChannelClient, createChannel(userManagement)));
 		if (options.remoteUserContent !== undefined) {
 			const remoteManagement = store.add(instantiationService.createInstance(McpUserResourceManagementService, remoteUserResource));
@@ -136,7 +135,7 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 			scanner,
 		));
 		return {
-			service, fileService,
+			service, fileService, profileService,
 			changeWorkspace(next: Workspace, event: IWorkspaceFoldersChangeEvent) {
 				workspace = next;
 				foldersChanged.fire(event);
@@ -236,16 +235,61 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 			});
 		});
 
-		test('does not delete inputs when another scope cannot be scanned', async () => {
+		test('keeps uninstall bound to its original profile while scanning other scopes', async () => {
+			const scanning = new DeferredPromise<void>();
+			const resumeScan = new DeferredPromise<void>();
+			let pauseScan = false;
 			const original = JSON.stringify({ servers: { removed }, inputs: [shared, exclusive] });
-			const { service, fileService } = await createFixture({ userContent: original });
+			const { service, fileService, profileService } = await createFixture({
+				userContent: original,
+				beforeScan: async resource => {
+					if (pauseScan && resource.toString() === legacyResource.toString()) {
+						await scanning.complete();
+						await resumeScan.p;
+					}
+				},
+			});
+			const otherResource = URI.from({ scheme: Schemas.inMemory, path: '/other-profile/mcp.json' });
+			await fileService.writeFile(otherResource, VSBuffer.fromString(original));
 			const [local] = await service.getInstalled();
-			await fileService.writeFile(legacyResource, VSBuffer.fromString('{'));
 
-			await assert.rejects(service.uninstall(local), /Failed to parse scanned MCP servers/);
+			pauseScan = true;
+			const uninstall = service.uninstall(local);
+			try {
+				await scanning.p;
+				await profileService.updateCurrentProfile({ ...profileService.currentProfile, id: 'other', isDefault: false, mcpResource: otherResource });
+			} finally {
+				await resumeScan.complete();
+			}
+			await uninstall;
 
-			assert.strictEqual((await fileService.readFile(userResource)).value.toString(), original);
+			assert.deepStrictEqual({
+				originalProfileExists: await fileService.exists(userResource),
+				otherProfile: (await fileService.readFile(otherResource)).value.toString(),
+			}, { originalProfileExists: false, otherProfile: original });
 		});
+
+		const workspaceResource = URI.from({ scheme: Schemas.inMemory, path: '/test.code-workspace' });
+		for (const resource of [legacyResource, workspaceResource, remoteUserResource]) {
+			test(`identifies the unreadable scope and leaves inputs unchanged: ${resource.path}`, async () => {
+				const original = JSON.stringify({ servers: { removed }, inputs: [shared, exclusive] });
+				const { service, fileService } = await createFixture({
+					userContent: original,
+					workspaceConfiguration: resource === workspaceResource ? workspaceResource : undefined,
+					remoteUserContent: resource === remoteUserResource ? '{}' : undefined,
+				});
+				const [local] = await service.getInstalled();
+				await fileService.writeFile(resource, VSBuffer.fromString('{'));
+
+				await assert.rejects(service.uninstall(local), error =>
+					error instanceof Error
+					&& error.message.includes(resource.toString())
+					&& error.cause instanceof Error
+					&& error.cause.message.includes('Failed to parse scanned MCP servers'));
+
+				assert.strictEqual((await fileService.readFile(userResource)).value.toString(), original);
+			});
+		}
 	});
 
 	test('allows installing in an ordinary workspace configuration that does not exist yet', async () => {

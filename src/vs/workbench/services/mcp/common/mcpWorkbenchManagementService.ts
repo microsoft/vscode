@@ -8,6 +8,7 @@ import { ILocalMcpServer, IMcpManagementService, IGalleryMcpServer, InstallOptio
 import { IInstantiationService, refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 import { collectMcpInputIds, IMcpResourceScannerService, McpResourceTarget } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -456,9 +457,10 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	}
 
 	async uninstall(server: IWorkbenchLocalMcpServer): Promise<void> {
+		const mcpResource = server.mcpResource;
 		const options: UninstallOptions = {
 			preserveInputIds: server.format === undefined || server.format === McpResourceFormat.Vscode
-				? await this.getInputIdsReferencedByOtherResources(server.mcpResource)
+				? await this.getInputIdsReferencedByOtherResources(mcpResource)
 				: undefined,
 		};
 		if (server.scope === LocalMcpServerScope.Workspace) {
@@ -472,7 +474,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 			return this.remoteMcpManagementService.uninstall(server, options);
 		}
 
-		return this.mcpManagementService.uninstall(server, { ...options, mcpResource: this.userDataProfileService.currentProfile.mcpResource });
+		return this.mcpManagementService.uninstall(server, { ...options, mcpResource });
 	}
 
 	private async getInputIdsReferencedByOtherResources(mcpResource: URI): Promise<string[]> {
@@ -496,8 +498,12 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 
 		const referencedInputs = new Set<string>();
 		await Promise.all(Array.from(resources, async ([resource, target]) => {
-			const configuration = await this.mcpResourceScannerService.scanMcpServers(resource, target);
-			collectMcpInputIds(configuration, referencedInputs);
+			try {
+				const configuration = await this.mcpResourceScannerService.scanMcpServers(resource, target);
+				collectMcpInputIds(configuration, referencedInputs);
+			} catch (error) {
+				throw new Error(localize('readMcpConfigurationError', "Unable to read MCP configuration '{0}': {1}", resource.toString(), getErrorMessage(error)), { cause: error });
+			}
 		}));
 		return [...referencedInputs];
 	}
