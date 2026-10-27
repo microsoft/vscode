@@ -5,9 +5,47 @@
 
 import assert from 'assert';
 import fs from 'fs';
+import fetch from 'node-fetch';
 import path from 'path';
 import { ConsoleMessage, Page, Request, Response } from 'playwright';
+import zlib from 'zlib';
 import { TestContext } from './context.js';
+
+/** Marketplace gallery and CDN endpoints that the workbench calls to search for and install extensions. */
+const galleryUrlPattern = /^https:\/\/[^/]*(\.vsassets\.io|marketplace\.visualstudio\.com)\//i;
+
+/** Request headers that are not replayed by the Node-side gallery probe: credentials, HTTP/2 pseudo-headers and connection-level headers. */
+const unreplayedHeaderPattern = /^(:|cookie$|authorization$|host$|connection$|keep-alive$|transfer-encoding$|upgrade$|content-length$|accept-encoding$)/i;
+
+/** How many distinct failed gallery URLs are probed from Node per test. */
+const maxGalleryProbes = 10;
+
+/** NetLogs larger than this are not uploaded. */
+const maxNetLogBytes = 200 * 1024 * 1024;
+
+/** A gallery request from the app under test that failed or returned an error status. */
+interface GalleryRequestFailure {
+	time: string;
+	method: string;
+	url: string;
+	failure?: string;
+	status?: number;
+	responseHeaders?: Record<string, string>;
+}
+
+/** The same request repeated from the test's Node process when the app's request failed. */
+interface GalleryProbe {
+	startedAt: string;
+	method: string;
+	url: string;
+	requestHeaders: Record<string, string>;
+	durationMs?: number;
+	status?: number;
+	statusText?: string;
+	responseHeaders?: Record<string, string>;
+	bodyBytes?: number;
+	error?: string;
+}
 
 /**
  * UI Test helper class to perform common UI actions and verifications.
@@ -16,6 +54,7 @@ export class UITest {
 	private _extensionsDir: string | undefined;
 	private _workspaceDir: string | undefined;
 	private _userDataDir: string | undefined;
+	private _netLogPath: string | undefined;
 
 	constructor(
 		protected readonly context: TestContext,
@@ -49,6 +88,13 @@ export class UITest {
 	}
 
 	/**
+	 * Where the desktop app writes its Chromium NetLog when launched with `--log-net-log`.
+	 */
+	public get netLogPath(): string {
+		return this._netLogPath ??= path.join(this.context.createTempDir(), 'netlog.json');
+	}
+
+	/**
 	 * Run the UI test actions.
 	 */
 	public async run(page: Page) {
@@ -71,6 +117,32 @@ export class UITest {
 	 */
 	public captureAppLogs() {
 		this.context.captureLogs(path.join(this.userDataDir, 'logs'));
+		this.captureNetLog();
+	}
+
+	/**
+	 * Uploads the gzipped NetLog, if the app was launched with one. It records the status and
+	 * headers of requests that the renderer only reports as `Failed to fetch`.
+	 */
+	private captureNetLog() {
+		if (!this._netLogPath) {
+			return;
+		}
+
+		try {
+			if (!fs.existsSync(this._netLogPath)) {
+				this.context.warn(`No NetLog found at ${this._netLogPath}`);
+				return;
+			}
+			const size = fs.statSync(this._netLogPath).size;
+			if (size > maxNetLogBytes) {
+				this.context.warn(`Not capturing the NetLog: ${size} bytes is over the ${maxNetLogBytes} byte limit`);
+				return;
+			}
+			this.context.writeDiagnostics('netlog.json.gz', zlib.gzipSync(fs.readFileSync(this._netLogPath)));
+		} catch (e) {
+			this.context.warn(`Failed to capture the NetLog: ${e instanceof Error ? e.message : String(e)}`);
+		}
 	}
 
 	/**
@@ -263,9 +335,104 @@ export class UITest {
 	}
 
 	/**
-	 * Install GitHub Pull Requests extension from the Extensions view.
+	 * Install GitHub Pull Requests extension from the Extensions view. If that fails, saves the
+	 * app's failed gallery requests and a Node-side replay of each of them, which tells a
+	 * Marketplace or CDN response apart from a failure in the app's own request.
 	 */
 	private async installExtension(page: Page) {
+		const gallery = this.monitorGalleryRequests(page);
+		try {
+			await this.installExtensionFromGallery(page);
+		} catch (error) {
+			await gallery.save();
+			throw error;
+		} finally {
+			gallery.dispose();
+		}
+	}
+
+	/**
+	 * Records the app's gallery requests that fail or return an error status, and replays each
+	 * failed URL once from Node as soon as it fails, with the app's request headers.
+	 */
+	private monitorGalleryRequests(page: Page) {
+		const failures: GalleryRequestFailure[] = [];
+		const probes = new Map<string, Promise<GalleryProbe>>();
+		const probe = (request: Request) => {
+			const key = `${request.method()} ${request.url()}`;
+			if (!probes.has(key) && probes.size < maxGalleryProbes) {
+				probes.set(key, this.probeGalleryRequest(request));
+			}
+		};
+		const onRequestFailed = (request: Request) => {
+			if (galleryUrlPattern.test(request.url())) {
+				const failure = request.failure()?.errorText;
+				this.context.log(`Gallery request failed with ${failure}: ${request.method()} ${request.url()}`);
+				failures.push({ time: new Date().toISOString(), method: request.method(), url: request.url(), failure });
+				probe(request);
+			}
+		};
+		const onResponse = (response: Response) => {
+			if (response.status() >= 400 && galleryUrlPattern.test(response.url())) {
+				const request = response.request();
+				this.context.log(`Gallery request returned ${response.status()}: ${request.method()} ${response.url()}`);
+				const failure: GalleryRequestFailure = { time: new Date().toISOString(), method: request.method(), url: response.url(), status: response.status() };
+				failures.push(failure);
+				response.allHeaders().then(headers => failure.responseHeaders = headers, () => { });
+				probe(request);
+			}
+		};
+
+		page.on('requestfailed', onRequestFailed);
+		page.on('response', onResponse);
+		return {
+			save: async () => {
+				const replays = await Promise.all(probes.values());
+				this.context.writeDiagnostics('gallery.json', JSON.stringify({ failures, probes: replays }, undefined, '\t'));
+			},
+			dispose: () => {
+				page.off('requestfailed', onRequestFailed);
+				page.off('response', onResponse);
+			},
+		};
+	}
+
+	/**
+	 * Repeats a gallery request from Node and records the response status and headers.
+	 */
+	private async probeGalleryRequest(request: Request): Promise<GalleryProbe> {
+		const requestHeaders: Record<string, string> = {};
+		for (const [name, value] of Object.entries(await request.allHeaders().catch(() => request.headers()))) {
+			if (!unreplayedHeaderPattern.test(name)) {
+				requestHeaders[name] = value;
+			}
+		}
+		const result: GalleryProbe = { startedAt: new Date().toISOString(), method: request.method(), url: request.url(), requestHeaders };
+		const start = Date.now();
+		try {
+			const response = await fetch(request.url(), {
+				method: request.method(),
+				headers: requestHeaders,
+				body: request.method() === 'GET' || request.method() === 'HEAD' ? undefined : request.postDataBuffer() ?? undefined,
+				signal: AbortSignal.timeout(30_000),
+			});
+			result.status = response.status;
+			result.statusText = response.statusText;
+			result.responseHeaders = Object.fromEntries(response.headers.entries());
+			result.bodyBytes = (await response.arrayBuffer()).byteLength;
+		} catch (error) {
+			const cause = error instanceof Error && error.cause instanceof Error ? ` (cause: ${error.cause.message})` : '';
+			result.error = `${error instanceof Error ? error.message : String(error)}${cause}`;
+		}
+		result.durationMs = Date.now() - start;
+		this.context.log(`Gallery probe from Node: ${result.method} ${result.url} -> ${result.status ?? result.error} in ${result.durationMs}ms`);
+		return result;
+	}
+
+	/**
+	 * Install GitHub Pull Requests extension from the Extensions view.
+	 */
+	private async installExtensionFromGallery(page: Page) {
 		await this.runCommand(page, 'View: Show Extensions');
 
 		this.context.log('Typing extension name to search for');

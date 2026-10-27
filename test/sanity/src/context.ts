@@ -1538,6 +1538,27 @@ export class TestContext {
 	}
 
 	/**
+	 * Writes a diagnostics file for the current test into the screenshots directory, as
+	 * `<test>-<fileName>`, so it is uploaded with the screenshots.
+	 */
+	public writeDiagnostics(fileName: string, content: string | Buffer) {
+		if (!this.currentTestName) {
+			return;
+		}
+
+		try {
+			const screenshotDir = this.options.screenshotsDir ?? path.join(this.osTempDir, 'vscode-sanity-screenshots');
+			fs.mkdirSync(screenshotDir, { recursive: true });
+			const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+			const target = path.join(screenshotDir, `${sanitizedName}-${fileName}`);
+			fs.writeFileSync(target, content);
+			this.log(`Diagnostics saved to: ${target}`);
+		} catch (e) {
+			this.warn(`Failed to write diagnostics ${fileName}: ${e instanceof Error ? e.message : String(e)}`);
+		}
+	}
+
+	/**
 	 * Constructs a web server URL with optional token and folder parameters.
 	 * @param port The port number of the web server.
 	 * @param token The optional authentication token.

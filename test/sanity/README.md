@@ -36,7 +36,9 @@ Use -g or -f command-line options to filter tests to match the host platform.
 
 ### Failure Logs
 
-When a desktop UI test fails, the app is closed and VS Code's own process logs (main, shared process, renderer, extension host, pty host, agent host and network) are copied from the test's throwaway profile into `<screenshots-dir>/<test>-logs`, so they are uploaded with the screenshots. Each file keeps its last 2 MB, up to 10 MB per test, and extension output logs are not copied. Treat the screenshots directory as internal.
+When a desktop UI test fails, the app is closed and VS Code's own process logs (main, shared process, renderer, extension host, pty host, agent host and network) are copied from the test's throwaway profile into `<screenshots-dir>/<test>-logs`, so they are uploaded with the screenshots. Each file keeps its last 2 MB, up to 10 MB per test, and extension output logs are not copied. The desktop app also runs with `--log-net-log`, and the gzipped Chromium NetLog is saved as `<test>-netlog.json.gz` (open it in the [NetLog viewer](https://netlog-viewer.appspot.com/)). Treat the screenshots directory as internal.
+
+When installing the extension from the Marketplace fails in any UI test, `<test>-gallery.json` lists the app's gallery requests that failed or returned an error status. Each failed URL is also requested once from the test's Node process, with the same request headers, as soon as it fails, and that response's status and headers are saved next to it. This tells a Marketplace or CDN response apart from a failure in the app's own request.
 
 ### Example
 
