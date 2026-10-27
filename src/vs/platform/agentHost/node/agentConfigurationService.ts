@@ -126,7 +126,6 @@ export interface IAgentChatConfigurationChangeEvent {
 	readonly origin: ActionOrigin | undefined;
 }
 
-/** The config values a chat being created starts with, live until the chat is registered. */
 /**
  * The `ChatConfigChanged` actions the host dispatches to complete a chat's values, or to publish what a session's
  * default chat takes from its session: they change no chat's effective config.
@@ -138,6 +137,7 @@ export function isChatConfigCompletion(action: object): boolean {
 	return chatConfigCompletionActions.has(action);
 }
 
+/** The config values a chat being created starts with, live until the chat is registered. */
 export interface IAgentChatConfigurationSeed extends IDisposable {
 	/** The chat's own values, including changes made while it was being created. */
 	readonly values: Readonly<Record<string, unknown>>;

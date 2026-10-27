@@ -136,7 +136,7 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session\'s workspace.' },
 		worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session\'s isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
-		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 	},
 	required: ['prompt', 'title'],
 };
@@ -159,7 +159,7 @@ const createSessionWithSharedWorkspaceInputSchema: ToolDefinition['inputSchema']
 		workspace: { type: 'string', description: 'For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the new session does not need a workspace. Invalid for `currentSession`.' },
 		worktree: { type: 'boolean', description: 'Override isolation for the new independent session. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior: inherit the creating session\'s isolation for the same project, otherwise use worktree isolation. Only valid with relationship `independent`; omit for `currentSession`.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
-		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 	},
 	required: ['relationship', 'prompt', 'title'],
 };
@@ -173,22 +173,30 @@ function withCreateSessionHarness(definition: IAgentServerToolDefinition, availa
 		type: 'string',
 		description: `Optional harness (agent) for the new chat: one of ${available.map(provider => `\`${toAgentHostChatHarness(provider)}\``).join(', ')}. Only valid with relationship \`currentSession\`. Defaults to the current session's harness. A chat on another harness starts with that harness's defaults; \`model\`, when given, must belong to it.`,
 	};
+	const model = { ...inputSchema.properties?.model, description: createSessionHarnessModelDescription };
 	return {
 		...definition,
 		description: `${definition.description}${createSessionHarnessSentence}`,
-		inputSchema: { ...inputSchema, properties: { ...inputSchema.properties, harness } },
+		inputSchema: { ...inputSchema, properties: { ...inputSchema.properties, model, harness } },
 	};
 }
 
 const createSessionWithSharedWorkspaceDescription = 'Create delegated work and start it with an initial prompt, either in a new chat sharing the current session\'s workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.';
 
 /** The sentences of `list_sessions` and `get_current_session` that describe a session's `chats`, by tool. */
-const listSessionsChatsSentence = 'A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title`, an `openLink` that names that chat in `send_message`, `get_session_context` and `rename_chat`, and a `harness` when it runs on a different agent than its session.';
-const getCurrentSessionChatsSentence = 'Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`, including the `harness` of a nested session that runs on a different agent.';
+const listSessionsChatsSentence = 'A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and an `openLink` that names that chat in `send_message`, `get_session_context` and `rename_chat`.';
+const getCurrentSessionChatsSentence = 'Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`.';
 const sessionChatsSentences: ReadonlyMap<string, string> = new Map([
 	[SessionServerToolName.ListSessions, listSessionsChatsSentence],
 	[SessionServerToolName.GetCurrentSession, getCurrentSessionChatsSentence],
 ]);
+/** {@link sessionChatsSentences} for a session whose chats may use another agent, which lists their `harness`. */
+const sessionChatsHarnessSentences: ReadonlyMap<string, string> = new Map([
+	[SessionServerToolName.ListSessions, 'A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title`, an `openLink` that names that chat in `send_message`, `get_session_context` and `rename_chat`, and a `harness` when it runs on a different agent than its session.'],
+	[SessionServerToolName.GetCurrentSession, 'Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`, including the `harness` of a nested session that runs on a different agent.'],
+]);
+/** `create_session`'s `model` description for a session whose chats may use another agent. */
+const createSessionHarnessModelDescription = 'Optional model ID or display name. Defaults to the current chat\'s model when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.';
 /** Follows a tool's {@link sessionChatsSentences} entry while `move_session` is offered. */
 const moveSessionLinksSentence = ' `move_session` takes these links too.';
 
@@ -2122,9 +2130,14 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		getDefinitionForSession(definition, sessionUri): IAgentServerToolDefinition {
 			// Mentions `move_session` only while it is offered (`chatMoves.enabled`): with moves off, these read as before.
 			// Also only where its session's agent can move chats, as `move_session` itself.
-			if ((definition.name === SessionServerToolName.ListSessions || definition.name === SessionServerToolName.GetCurrentSession) && accessor?.isChatMoveEnabled() === true && accessor.supportsChatMoves(URI.parse(sessionUri))) {
+			// Mentions `harness` only while a chat of this session may use another agent: with that off, these read as before.
+			if (definition.name === SessionServerToolName.ListSessions || definition.name === SessionServerToolName.GetCurrentSession) {
 				const chatsSentence = sessionChatsSentences.get(definition.name)!;
-				return { ...definition, description: definition.description?.replace(chatsSentence, `${chatsSentence}${moveSessionLinksSentence}`) };
+				const harnessSentence = accessor?.getChatHarnesses?.(URI.parse(sessionUri)) !== undefined ? sessionChatsHarnessSentences.get(definition.name)! : chatsSentence;
+				const moves = accessor?.isChatMoveEnabled() === true && accessor.supportsChatMoves(URI.parse(sessionUri));
+				return harnessSentence === chatsSentence && !moves
+					? definition
+					: { ...definition, description: definition.description?.replace(chatsSentence, `${harnessSentence}${moves ? moveSessionLinksSentence : ''}`) };
 			}
 			if (definition.name === SessionServerToolName.SetWorkspace && accessor?.isWorkspaceless(URI.parse(sessionUri)) === true) {
 				return { ...definition, deferLoading: false };

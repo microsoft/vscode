@@ -28,6 +28,9 @@ const refusals: ReadonlySet<string> = new Set<string>([
 	AgentChatMoveRefusal.NotSingleChat,
 	AgentChatMoveRefusal.NotStarted,
 	AgentChatMoveRefusal.DifferentCredentialOwner,
+	AgentChatMoveRefusal.AgentUnavailable,
+	AgentChatMoveRefusal.AgentWithoutChats,
+	AgentChatMoveRefusal.AgentConfigUnavailable,
 ]);
 
 /**
@@ -138,6 +141,12 @@ export function getChatMoveRefusalMessage(reason: AgentChatMoveRefusal, context:
 			return localize('chatMoveRefusal.notStarted', "Send a message in this chat before moving it.");
 		case AgentChatMoveRefusal.DifferentCredentialOwner:
 			return localize('chatMoveRefusal.differentCredentialOwner', "This chat uses a different account's credentials than the destination session.");
+		case AgentChatMoveRefusal.AgentUnavailable:
+			return localize('chatMoveRefusal.agentUnavailable', "This chat's agent is unavailable or disabled. Enable it to move the chat.");
+		case AgentChatMoveRefusal.AgentWithoutChats:
+			return localize('chatMoveRefusal.agentWithoutChats', "The destination session's agent can't host chats of other agents. Pick a session whose agent supports multiple chats.");
+		case AgentChatMoveRefusal.AgentConfigUnavailable:
+			return localize('chatMoveRefusal.agentConfigUnavailable', "This chat's agent couldn't load its settings for the move. Try again.");
 	}
 }
 
