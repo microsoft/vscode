@@ -790,7 +790,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	private async refreshWorkspaces(): Promise<void> {
 		const revision = ++this.workspaceRevision;
 		const core = this.resource.snapshot.get().core.value;
-		if (!core) {
+		if (!core || core.state !== 'open') {
+			this.workspaces.set({}, undefined);
 			return;
 		}
 		const workspaces: Record<string, WorkspaceState> = {};
@@ -802,7 +803,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				workspaces[chat.resource] = { kind: 'unavailable', reason: toErrorMessage(error) };
 			}
 		}));
-		if (!this._store.isDisposed && revision === this.workspaceRevision && this.resource.snapshot.get().core.value?.headSha === core.headSha) {
+		const currentCore = this.resource.snapshot.get().core.value;
+		if (!this._store.isDisposed && revision === this.workspaceRevision && currentCore?.state === 'open' && currentCore.headSha === core.headSha) {
 			this.workspaces.set(workspaces, undefined);
 			this.automationError.set(undefined, undefined);
 		}
