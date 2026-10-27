@@ -1,47 +1,38 @@
 on:
   workflow_call:
     inputs:
-      job_name:
-        type: string
-        required: true
-      electron_tests:
-        type: boolean
-        default: false
-      browser_tests:
-        type: boolean
-        default: false
-      remote_tests:
-        type: boolean
-        default: false
-      unit_tests:
+      electron_unit_affected:
+        description: Whether the pull request can affect the Electron-Unit job, which is skipped when false
         type: boolean
         default: true
-      integration_tests:
+      electron_affected:
+        description: Whether the pull request can affect the Electron job, which is skipped when false
         type: boolean
         default: true
-      smoke_tests:
+      agent_host_e2e_affected:
+        description: Whether the pull request can affect the Agent-Host-E2E jobs, which are skipped when false
         type: boolean
         default: true
-      smoke_shard_index:
-        description: 1-based index of the Electron smoke test shard to run
-        type: number
-        default: 1
-      smoke_shard_total:
-        description: Number of shards the Electron smoke tests are split into
-        type: number
-        default: 1
-      test_selection:
-        description: Run only the test files listed in the test-plan artifact of the workflow run, when the Detect Changes job of pr.yml uploaded one, instead of every test of the kinds that it plans (unit.txt for the unit tests, integration.txt for the node.js integration tests and Agent Host E2E)
+      electron_smoke_affected:
+        description: Whether the pull request can affect the Electron-Smoke jobs, which are skipped when false
         type: boolean
-        default: false
+        default: true
+      browser_unit_affected:
+        description: Whether the pull request can affect the Browser-Unit job, which is skipped when false
+        type: boolean
+        default: true
+      browser_affected:
+        description: Whether the pull request can affect the Browser job, which is skipped when false
+        type: boolean
+        default: true
+      remote_affected:
+        description: Whether the pull request can affect the Remote jobs, which are skipped when false
+        type: boolean
+        default: true
       node_integration_tests:
-        description: Whether to run the node.js integration tests, with integration_tests
+        description: Whether the Electron job runs the node.js integration tests
         type: boolean
         default: true
-      agent_host_e2e_tests:
-        description: Whether to run the Agent Host E2E tests
-        type: boolean
-        default: false
       agent_host_test_profile:
         description: Agent Host test profile, 'pr' or 'full' (see .github/actions/detect-agent-host-e2e-changes)
         type: string
@@ -51,17 +42,78 @@ on:
         type: string
         default: Change detection unavailable
 
+env:
+  NPM_ARCH: x64
+  VSCODE_ARCH: x64
+  VSCODE_SKIP_PRELAUNCH: '1'
+
+# Each job reports as "Windows / <job name>", for example "Windows / Electron-Unit", whether it runs
+# or not: the names are fixed, as GitHub does not evaluate the expressions in the name of a skipped
+# job. The jobs run the steps of the first one (steps: &steps), and their env selects which of them
+# run (a flag is on when it is 'true'):
+# - ELECTRON_TESTS, BROWSER_TESTS or REMOTE_TESTS: the test runner
+# - UNIT_TESTS, INTEGRATION_TESTS, SMOKE_TESTS and AGENT_HOST_E2E_TESTS: the kinds of tests
+# - NODE_INTEGRATION_TESTS: whether INTEGRATION_TESTS includes the node.js integration tests
+# - TEST_SELECTION: run only the test files listed in the test-plan artifact of the workflow run, when
+#   the Detect Changes job of pr.yml uploaded one, instead of every test of the kinds that it plans
+#   (unit.txt for the unit tests, integration.txt for the node.js integration tests and Agent Host E2E)
+# - AGENT_HOST_E2E_SHARD_INDEX and AGENT_HOST_E2E_SHARD_TOTAL: the 1-based index of the Agent Host E2E
+#   shard to run, and the number of shards
+# - SMOKE_SHARD_INDEX and SMOKE_SHARD_TOTAL: the 1-based index of the Electron smoke test shard to run,
+#   and the number of shards
+# - ARTIFACT_NAME: identifies the job in the names of the artifacts that it publishes
 jobs:
-  windows-test:
-    name: ${{ inputs.job_name }}
-    # JobId must be unique per job, so smoke test shards and the browser unit tests part add a suffix
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+  electron-unit:
+    name: Electron-Unit
+    if: ${{ inputs.electron_unit_affected }}
+    runs-on: vscode-large-runners-windows-8-core
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
-      NPM_ARCH: x64
-      VSCODE_ARCH: x64
-      VSCODE_SKIP_PRELAUNCH: '1'
-    steps:
+      ARTIFACT_NAME: electron-unit
+      ELECTRON_TESTS: 'true'
+      UNIT_TESTS: 'true'
+      TEST_SELECTION: 'true'
+    steps: &steps
+      # The larger runners keep the workspace on the OS disk, where creating many small files, such as
+      # extracting node_modules, takes twice as long as on the 1ES runners' temporary disk. A Dev Drive in
+      # a VHDX on the same disk is faster than both. It is mounted at the parent of the workspace, so that
+      # the workspace keeps its path and is an ordinary, empty folder for actions/checkout, which cannot
+      # clear the root of a volume. The smoke test shard with the WSL suite runs on the 1ES pool (see the
+      # runs-on of electron-smoke-1), and WSL cannot open folders on a volume that is mounted in a folder of
+      # drive C: anyway.
+      - name: Move the workspace to a Dev Drive
+        if: ${{ !(env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1') }}
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $workspace = $env:GITHUB_WORKSPACE
+          $mount = Split-Path $workspace -Parent
+          $vhd = Join-Path $env:RUNNER_TEMP 'workspace.vhdx'
+          try {
+            if (Get-ChildItem -Force $workspace) { throw "$workspace is not empty" }
+            @(
+              "create vdisk file=`"$vhd`" maximum=204800 type=expandable"
+              "select vdisk file=`"$vhd`""
+              'attach vdisk'
+              'create partition primary'
+              'assign letter=W'
+            ) | Set-Content diskpart.txt
+            diskpart /s diskpart.txt | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "diskpart exited with $LASTEXITCODE" }
+            Format-Volume -DriveLetter W -DevDrive -Confirm:$false -Force | Out-Host
+            Remove-Item $workspace
+            if (Get-ChildItem -Force $mount) { throw "$mount holds more than the workspace" }
+            Add-PartitionAccessPath -DriveLetter W -AccessPath "$mount\"
+            # Without a drive letter, the native realpath of the workspace files stays under $mount.
+            Remove-PartitionAccessPath -DriveLetter W -AccessPath 'W:\'
+            New-Item -ItemType Directory -Path $workspace | Out-Null
+            fsutil devdrv query $mount | Out-Host
+          } catch {
+            Write-Output "::warning::The workspace stays on the OS disk: $_"
+            New-Item -ItemType Directory -Path $workspace -Force | Out-Null
+          }
+          exit 0
+
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -70,12 +122,12 @@ jobs:
       # The WSL steps only run in shard 1, which is where test/smoke/src/shard.ts pins the WSL suite.
       # pr-node-modules.yml fills this cache on main, so pull requests don't download the installer.
       - name: Restore WSL installer
-        if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1 }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1' }}
         uses: ./.github/actions/restore-wsl-installer
 
       - name: Prepare WSL Dev Container smoke tests
         id: wsl-dev-container
-        if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1 }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1' }}
         timeout-minutes: 15
         shell: pwsh
         run: .\test\smoke\wslDevContainer.ps1
@@ -154,7 +206,7 @@ jobs:
         run: npm run gulp "transpile-client-esbuild" "transpile-extensions"
 
       - name: Setup Electron
-        if: ${{ inputs.electron_tests || inputs.remote_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' || env.REMOTE_TESTS == 'true' }}
         uses: ./.github/actions/setup-electron
         with:
           arch: ${{ env.VSCODE_ARCH }}
@@ -162,12 +214,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compile browser integration test runner
-        if: ${{ inputs.browser_tests && inputs.integration_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}
         working-directory: test/integration/browser
         run: npm run compile
 
       - name: Install Playwright Chromium
-        if: ${{ inputs.browser_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' }}
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1
@@ -190,7 +242,7 @@ jobs:
 
       - name: Download test plan
         id: download-plan
-        if: ${{ inputs.test_selection }}
+        if: ${{ env.TEST_SELECTION == 'true' }}
         # Without a plan (Detect Changes only uploads one when the selection applies), the test
         # steps below run every test. A pattern, unlike a name, downloads nothing instead of
         # failing when there is no plan.
@@ -208,29 +260,29 @@ jobs:
         run: if (Test-Path .build/test-plan) { Remove-Item -Recurse -Force .build/test-plan }
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.unit_tests && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
         shell: pwsh
-        run: .\scripts\test.bat --tfs "Unit Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
+        run: .\scripts\test.bat --tfs "Unit Tests" --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_tests && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
         shell: pwsh
-        run: npm run test-node -- --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
+        run: npm run test-node -- --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.unit_tests && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
         shell: pwsh
-        run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
+        run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests" --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
         env:
           DEBUG: "*browser*"
 
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ inputs.integration_tests || inputs.smoke_tests }}
+        if: ${{ env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true' }}
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1
@@ -240,6 +292,7 @@ jobs:
             compile-extension:css-language-features-server `
             compile-extension:emmet `
             compile-extension:git `
+            compile-extension:git-base `
             compile-extension:github-authentication `
             compile-extension:html-language-features-server `
             compile-extension:ipynb `
@@ -257,17 +310,17 @@ jobs:
           }
 
       - name: Diagnostics before integration test runs
-        if: ${{ (inputs.integration_tests || inputs.agent_host_e2e_tests) && always() }}
+        if: ${{ (env.INTEGRATION_TESTS == 'true' || env.AGENT_HOST_E2E_TESTS == 'true') && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
 
       - name: 🧪 Run Agent Host E2E tests (Electron)
         id: agent-host-e2e
-        if: ${{ inputs.electron_tests && inputs.agent_host_e2e_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.AGENT_HOST_E2E_TESTS == 'true' }}
         timeout-minutes: 30
         shell: pwsh
-        run: .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
+        run: .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests" --rerun-failed-files 2${{ env.AGENT_HOST_E2E_SHARD_TOTAL > 1 && format(' --shard {0}/{1}', env.AGENT_HOST_E2E_SHARD_INDEX, env.AGENT_HOST_E2E_SHARD_TOTAL) || '' }} ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
         env:
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
@@ -277,7 +330,7 @@ jobs:
       # Reruns the failed tests in a fresh window.
       - name: 🧪 Run integration tests (Electron)
         id: node-integration-tests
-        if: ${{ inputs.electron_tests && inputs.integration_tests && inputs.node_integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && env.NODE_INTEGRATION_TESTS == 'true' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
         timeout-minutes: 25
         shell: pwsh
         run: .\scripts\test-integration.bat --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
@@ -289,7 +342,7 @@ jobs:
       # Runs even when the node.js integration tests or Agent Host E2E failed in the same job.
       # The extension host suites are not rerun.
       - name: 🧪 Run extension host integration tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
         timeout-minutes: 15
         shell: pwsh
         run: .\scripts\test-integration.bat --only-extension-host-tests
@@ -297,13 +350,13 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.integration_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}
         timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-web-integration.bat --browser chromium
 
       - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests && inputs.integration_tests }}
+        if: ${{ env.REMOTE_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}
         timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-remote-integration.bat
@@ -311,34 +364,34 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Diagnostics after integration test runs
-        if: ${{ (inputs.integration_tests || inputs.agent_host_e2e_tests) && always() }}
+        if: ${{ (env.INTEGRATION_TESTS == 'true' || env.AGENT_HOST_E2E_TESTS == 'true') && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
 
 
       - name: Compile smoke tests
-        if: ${{ inputs.smoke_tests }}
+        if: ${{ env.SMOKE_TESTS == 'true' }}
         working-directory: test/smoke
         shell: pwsh
         run: npm run compile
 
       - name: Compile Copilot Chat extension for smoke tests
-        if: ${{ inputs.smoke_tests && !inputs.browser_tests }}
+        if: ${{ env.SMOKE_TESTS == 'true' && env.BROWSER_TESTS != 'true' }}
         working-directory: extensions/copilot
         run: npm run compile
 
       - name: Diagnostics before smoke test run
-        if: ${{ inputs.smoke_tests && always() }}
+        if: ${{ env.SMOKE_TESTS == 'true' && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
 
       - name: 🧪 Run smoke tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
         shell: pwsh
-        run: npm run smoketest-no-compile -- --tracing --shard ${{ inputs.smoke_shard_index }}/${{ inputs.smoke_shard_total }}
+        run: npm run smoketest-no-compile -- --tracing --shard ${{ env.SMOKE_SHARD_INDEX }}/${{ env.SMOKE_SHARD_TOTAL }}
         env:
           VSCODE_SMOKE_TEST_POLICY: '1'
           # Set in every shard so all shards register the WSL suite and compute the same split
@@ -356,19 +409,19 @@ jobs:
         run: .\test\smoke\wslDevContainer.ps1 -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.smoke_tests }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
         shell: pwsh
         run: npm run smoketest-no-compile -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
-        if: ${{ inputs.remote_tests && inputs.smoke_tests }}
+        if: ${{ env.REMOTE_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
         shell: pwsh
         run: npm run smoketest-no-compile -- --remote --tracing
 
       - name: Diagnostics after smoke test run
-        if: ${{ inputs.smoke_tests && always() }}
+        if: ${{ env.SMOKE_TESTS == 'true' && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
@@ -401,3 +454,135 @@ jobs:
           name: ${{ format('logs-windows-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
           path: .build/logs
           if-no-files-found: ignore
+
+  electron:
+    name: Electron
+    if: ${{ inputs.electron_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: electron
+      ELECTRON_TESTS: 'true'
+      INTEGRATION_TESTS: 'true'
+      NODE_INTEGRATION_TESTS: ${{ inputs.node_integration_tests }}
+      # Runs only the node.js integration tests that the plan selects.
+      TEST_SELECTION: 'true'
+    steps: *steps
+
+  # Agent Host E2E is the slowest part of the Electron job on Windows, so it runs in parallel with the
+  # integration tests on other machines. It runs only the suites that the plan selects. The six suites
+  # take twice as long on one 8-core larger runner as on the 1ES runners, so the selected suites run in
+  # two shards.
+  agent-host-e2e-1:
+    name: Agent-Host-E2E (shard 1/2)
+    if: ${{ inputs.agent_host_e2e_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: electron-agent-host-e2e-1
+      ELECTRON_TESTS: 'true'
+      AGENT_HOST_E2E_TESTS: 'true'
+      AGENT_HOST_E2E_SHARD_INDEX: '1'
+      AGENT_HOST_E2E_SHARD_TOTAL: '2'
+      TEST_SELECTION: 'true'
+    steps: *steps
+
+  agent-host-e2e-2:
+    name: Agent-Host-E2E (shard 2/2)
+    if: ${{ inputs.agent_host_e2e_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: electron-agent-host-e2e-2
+      ELECTRON_TESTS: 'true'
+      AGENT_HOST_E2E_TESTS: 'true'
+      AGENT_HOST_E2E_SHARD_INDEX: '2'
+      AGENT_HOST_E2E_SHARD_TOTAL: '2'
+      TEST_SELECTION: 'true'
+    steps: *steps
+
+  # Running every Electron smoke test takes one machine up to about 20 minutes, the timeout of the
+  # step, so the shards split them over parallel machines (see .github/skills/smoke-tests/SKILL.md).
+  # The WSL setup makes the first shard one of the slowest jobs of the workflow, so the smoke tests run
+  # in three shards on Windows, and in two on Linux and macOS.
+  electron-smoke-1:
+    name: Electron-Smoke (shard 1/3)
+    if: ${{ inputs.electron_smoke_affected }}
+    # GitHub-hosted Windows runners intermittently freeze while WSL2 provisions a distribution
+    # (https://github.com/actions/runner-images/issues/14938): the step timeout never fires, no log is
+    # kept, and the job only fails when GitHub notices that it lost the runner, about 45 minutes later.
+    # That happened in 3 of about 90 runs of the WSL smoke test shard on the larger runners, and in none
+    # of about 740 on the 1ES pool, so this shard runs on the 1ES pool. JobId must be unique per job.
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-wsl-smoke-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    env:
+      ARTIFACT_NAME: electron-smoke-shard1
+      ELECTRON_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+      SMOKE_SHARD_INDEX: '1'
+      SMOKE_SHARD_TOTAL: '3'
+    steps: *steps
+
+  electron-smoke-2:
+    name: Electron-Smoke (shard 2/3)
+    if: ${{ inputs.electron_smoke_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: electron-smoke-shard2
+      ELECTRON_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+      SMOKE_SHARD_INDEX: '2'
+      SMOKE_SHARD_TOTAL: '3'
+    steps: *steps
+
+  electron-smoke-3:
+    name: Electron-Smoke (shard 3/3)
+    if: ${{ inputs.electron_smoke_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: electron-smoke-shard3
+      ELECTRON_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+      SMOKE_SHARD_INDEX: '3'
+      SMOKE_SHARD_TOTAL: '3'
+    steps: *steps
+
+  browser-unit:
+    name: Browser-Unit
+    if: ${{ inputs.browser_unit_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: browser-unit
+      BROWSER_TESTS: 'true'
+      UNIT_TESTS: 'true'
+      TEST_SELECTION: 'true'
+    steps: *steps
+
+  browser:
+    name: Browser
+    if: ${{ inputs.browser_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: browser
+      BROWSER_TESTS: 'true'
+      INTEGRATION_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+    steps: *steps
+
+  # The remote integration tests and the remote smoke tests in one job could be the slowest job of the
+  # workflow, so they run on separate machines.
+  remote-integration:
+    name: Remote (integration)
+    if: ${{ inputs.remote_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: remote
+      REMOTE_TESTS: 'true'
+      INTEGRATION_TESTS: 'true'
+    steps: *steps
+
+  remote-smoke:
+    name: Remote (smoke)
+    if: ${{ inputs.remote_affected }}
+    runs-on: vscode-large-runners-windows-8-core
+    env:
+      ARTIFACT_NAME: remote-smoke
+      REMOTE_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+    steps: *steps

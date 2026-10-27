@@ -66,6 +66,7 @@ import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../common/copilotChatSessions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { resolveGitRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
+import { cloneRepository } from '../../../../services/sessions/browser/cloneRepository.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
@@ -245,6 +246,10 @@ function isModelOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
 
 function isRepositoriesOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
 	return group.id === 'repositories';
+}
+
+function getSandboxSessionTitle(query: string, title?: string): string {
+	return (title || query.split('\n')[0]).trim().substring(0, 100) || localize('new session', "New Session");
 }
 
 /**
@@ -1928,6 +1933,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (this._sandboxSends.has(sessionId)) {
 			throw new Error(localize('sandbox.alreadyStarting', "A GitHub sandbox session is already being started. Wait for it to finish before sending another message."));
 		}
+		// The draft is already listed while sandbox preparation is pending.
+		session.setTitle(getSandboxSessionTitle(query));
 		if (this._preparedSandboxes.has(sessionId)) {
 			return { session: this._chatToSession(session) };
 		}
@@ -2053,7 +2060,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sandboxSends.add(session.sessionId);
 		const preparation = session.startPreparation();
 		const token = preparation.object;
-		session.setTitle((options.title || options.query.split('\n')[0]).trim().substring(0, 100) || localize('new session', "New Session"));
+		session.setTitle(getSandboxSessionTitle(options.query, options.title));
 		session.setStatus(SessionStatus.InProgress);
 		this._sessionCache.set(session.resource.toString(), session);
 		const placeholder = this._chatToSession(session);
@@ -2098,7 +2105,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}
 			}
 			const sessionConfig = await provisioned.provider.resolveInitialSessionConfig(provisioned.session.sessionId, config ?? {}, token);
-			await raceCancellationError(this._carryModelToSandbox(provisioned, chat.resource, selectedModel), token);
+			await this._carryModelToSandbox(provisioned, chat.resource, selectedModel, token);
 			// Preserve the prompt-derived title rather than the host's branch-name default.
 			await raceCancellationError(provisioned.provider.setInitialSessionTitle(provisioned.session.sessionId, session.title.get()), token);
 			const committed = await provisioned.provider.sendRequest(provisioned.session.sessionId, chat.resource, { ...options, sessionConfig });
@@ -2164,18 +2171,23 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * Every path that gives up tells the user: an absent `Message.model` means "host decides", so
 	 * nothing downstream would report running at a capability and price they did not choose.
 	 */
-	private async _carryModelToSandbox(provisioned: ICloudSandboxProvisionedSession, chatResource: URI, selected: { readonly rawModelId: string; readonly label: string; readonly config?: IAutomationSessionTemplate['modelConfiguration']; readonly fromCloudCatalog?: boolean } | undefined): Promise<void> {
+	private async _carryModelToSandbox(provisioned: ICloudSandboxProvisionedSession, chatResource: URI, selected: { readonly rawModelId: string; readonly label: string; readonly config?: IAutomationSessionTemplate['modelConfiguration']; readonly fromCloudCatalog?: boolean } | undefined, token: CancellationToken): Promise<void> {
 		if (!selected) {
 			return;
 		}
 		const { rawModelId, label } = selected;
 		const sessionId = provisioned.session.sessionId;
 		const provider = provisioned.provider;
+		const hasConfiguration = !!selected.config && Object.keys(selected.config).length > 0;
+		const configurationUnavailable = () => new Error(localize('sandbox.selectedModelConfigurationUnavailable', "The sandbox could not confirm the selected configuration for {0}. Your prompt was not sent.", label));
 
 		// Agent-host models are published under the session's model target, so that is the vendor
 		// prefix their identifiers carry. Without it there is nothing to resolve against.
 		const modelTarget = provider.getModelsSnapshot(sessionId).modelTarget;
 		if (!modelTarget) {
+			if (hasConfiguration) {
+				throw configurationUnavailable();
+			}
 			this.logService.info(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} reported no model target; letting the agent host choose.`);
 			this._notifySandboxModelNotApplied(label);
 			return;
@@ -2186,9 +2198,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		try {
 			const deadline = Date.now() + this._sandboxModelWaitMs;
 			for (; ;) {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				const resolution = provider.getModelsSnapshot(sessionId, desiredModelId).desiredModelResolution;
 				if (resolution.kind === 'available') {
 					if (selected.config && Object.keys(selected.config).length) {
+						await provider.validateInitialModelConfig(rawModelId, selected.config, token);
 						const schema = resolution.model.metadata.configurationSchema;
 						for (const [key, value] of Object.entries(selected.config)) {
 							const property = schema?.properties?.[key];
@@ -2206,6 +2222,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					return;
 				}
 				if (resolution.kind !== 'pending' && !selected.fromCloudCatalog) {
+					if (hasConfiguration) {
+						throw configurationUnavailable();
+					}
 					this.logService.info(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} does not advertise model '${rawModelId}'; letting the agent host choose.`);
 					this._notifySandboxModelNotApplied(label);
 					return;
@@ -2214,9 +2233,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				// `raceTimeout` signals a timeout with `undefined`, which is also what a `void`
 				// event resolves to — map the event to a value that tells the two apart.
 				const published = remaining > 0
-					? await raceTimeout(Event.toPromise(provider.onDidChangeModels, store).then(() => true), remaining)
+					? await raceCancellationError(raceTimeout(Event.toPromise(provider.onDidChangeModels, store).then(() => true), remaining), token)
 					: undefined;
 				if (!published) {
+					if (hasConfiguration) {
+						throw configurationUnavailable();
+					}
 					this.logService.warn(`[CopilotChatSessionsProvider] Sandbox session ${sessionId} had not published model '${rawModelId}' in time; letting the agent host choose.`);
 					this._notifySandboxModelNotApplied(label);
 					return;
@@ -2580,24 +2602,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private async _cloneRepository(url: string): Promise<ISessionWorkspace | undefined> {
-		try {
-			const repositoryPath = await this.commandService.executeCommand<string>(
-				'git.clone',
-				url,
-				undefined,
-				{ postCloneAction: 'none', returnRepositoryPath: true },
-			);
-			if (repositoryPath?.endsWith('.code-workspace')) {
-				this.notificationService.error(localize('cloneRepository.workspaceFile', "The selected clone is a workspace file. Choose the repository again to select a repository folder."));
-				return undefined;
-			}
-			return repositoryPath ? this.resolveWorkspace(URI.file(repositoryPath)) : undefined;
-		} catch (error) {
-			if (!isCancellationError(error)) {
-				this.notificationService.error(error);
-			}
-			return undefined;
-		}
+		const folderUri = await cloneRepository(this.commandService, this.notificationService, url);
+		return folderUri ? this.resolveWorkspace(folderUri) : undefined;
 	}
 
 	private async _browseForGitHubContext(commandId: string, icon: ThemeIcon, currentWorkspace: ISessionWorkspace | undefined): Promise<ISessionWorkspace | undefined> {

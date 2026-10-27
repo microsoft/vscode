@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { IListEvent } from '../../../../../../base/browser/ui/list/list.js';
+import { List } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { DeferredPromise, Delayer, raceCancellationError, Sequencer, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -89,10 +90,10 @@ suite('aiCustomizationManagementEditor', () => {
 		input.setTargetLabels(undefined);
 		labels.push([input.getName(), input.getDescription()]);
 		assert.deepStrictEqual(labels, [
-			['Agent Customizations', undefined],
-			['Agent Customizations', '(Copilot)'],
-			['Agent Customizations', '(Copilot · vscode)'],
-			['Agent Customizations', undefined],
+			['Customizations', undefined],
+			['Customizations', '(Copilot)'],
+			['Customizations', '(Copilot · vscode)'],
+			['Customizations', undefined],
 		]);
 	});
 
@@ -1730,6 +1731,72 @@ suite('aiCustomizationManagementEditor', () => {
 			afterProgrammaticSelection: 'connectorDetail',
 			afterUserSelection: 'list',
 			selected: section,
+		});
+	});
+
+	test('opens a plugin skill when section counts change while it loads', async () => {
+		type SectionItem = { readonly id: AICustomizationManagementSection; readonly label: string; readonly description: string; count: number };
+		type NavigationEditor = TestableEditor & {
+			sectionsList: List<SectionItem>;
+			contentNavigationGeneration: number;
+			pluginDetailInput: IAgentPluginItem | undefined;
+			pluginDetailOrigin: { readonly kind: 'section'; readonly section: AICustomizationManagementSection } | undefined;
+			openSkillFromPluginDetail(uri: URI): Promise<void>;
+			updateSectionCount(section: AICustomizationManagementSection, count: number): void;
+		};
+		const editor = createTestEditor() as NavigationEditor;
+		store.add(editor.editorPreviewDisposables);
+		const sections: SectionItem[] = [
+			{ id: AICustomizationManagementSection.Plugins, label: 'Plugins', description: '', count: 1 },
+			{ id: AICustomizationManagementSection.Skills, label: 'Skills', description: '', count: 1 },
+		];
+		const sectionsList = store.add(new List<SectionItem>('sections', document.createElement('div'),
+			{ getHeight: () => 22, getTemplateId: () => 'section' },
+			[{ templateId: 'section', renderTemplate: () => undefined, renderElement() { }, disposeTemplate() { } }],
+			{ identityProvider: { getId: section => section.id } }));
+		sectionsList.splice(0, 0, sections);
+		sectionsList.setSelection([0]);
+		store.add(sectionsList.onDidChangeSelection(e => editor.onDidChangeSidebarSelection(e)));
+
+		const skillUri = URI.file('/plugins/example/skills/review/SKILL.md');
+		const skillsLoaded = new DeferredPromise<void>();
+		const openedSkills: URI[] = [];
+		Object.assign(editor, {
+			sections,
+			sectionsList,
+			contentNavigationGeneration: 0,
+			sectionContextKey: { set() { } },
+			telemetryService: NullTelemetryService,
+			pluginListWidget: { focusSearch() { } },
+			updateContentVisibility() { editor.contentNavigationGeneration++; },
+			listWidget: { setSection: () => skillsLoaded.p },
+			itemsModel: {
+				whenSectionLoaded: async () => { },
+				getItems: () => observableValue('items', [{ uri: skillUri }]),
+			},
+			openCustomizationItem: async (item: { uri: URI }) => { openedSkills.push(item.uri); },
+		});
+		editor.selectedSection = AICustomizationManagementSection.Plugins;
+		editor.viewMode = 'pluginDetail';
+		editor.pluginDetailInput = new class extends mock<Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>>() {
+			override readonly kind = AgentPluginItemKind.Installed;
+		};
+		editor.pluginDetailOrigin = { kind: 'section', section: AICustomizationManagementSection.Plugins };
+
+		const navigation = editor.openSkillFromPluginDetail(skillUri);
+		// A re-enabled plugin's skills finish loading, which re-splices the sidebar.
+		editor.updateSectionCount(AICustomizationManagementSection.Skills, 2);
+		skillsLoaded.complete();
+		await navigation;
+
+		assert.deepStrictEqual({
+			selectedSection: editor.selectedSection,
+			sidebarSelection: sectionsList.getSelectedElements().map(section => section.id),
+			openedSkills: openedSkills.map(uri => uri.toString()),
+		}, {
+			selectedSection: AICustomizationManagementSection.Skills,
+			sidebarSelection: [AICustomizationManagementSection.Skills],
+			openedSkills: [skillUri.toString()],
 		});
 	});
 

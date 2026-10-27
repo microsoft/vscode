@@ -20,15 +20,48 @@ interface IWorkflowJob {
 	readonly if?: string;
 	readonly uses?: string;
 	readonly with?: Record<string, unknown>;
+	readonly env?: Record<string, unknown>;
 	readonly outputs?: Record<string, string>;
 	readonly steps?: readonly { readonly id?: string; readonly name?: string; readonly 'continue-on-error'?: boolean; readonly env?: Record<string, string> }[];
 }
 
+/** A job of a reusable test workflow, and the job of pr.yml that calls the workflow. */
+interface ITestJob {
+	readonly caller: IWorkflowJob;
+	readonly job: IWorkflowJob;
+}
+
+/** Matches the reusable workflows that the test jobs of pr.yml call. */
+const testWorkflow = /^\.\/\.github\/workflows\/(?<file>pr-(linux|darwin|win32)-test\.yml|pr-linux-cli-test\.yml)$/;
+
 /**
- * Returns the change detection output that a job reads in its `if:` to skip when the changes cannot affect it.
+ * Returns the jobs of the reusable test workflows that pr.yml calls, by the names of their checks, such as
+ * "Windows / Electron-Unit".
  */
-function skipOutput(job: IWorkflowJob): string | undefined {
-	return /needs\.changes\.outputs\.(?<output>[\w-]+) == 'true'/.exec(job.if ?? '')?.groups?.output;
+function testJobs(): Map<string, ITestJob> {
+	const result = new Map<string, ITestJob>();
+	for (const caller of Object.values(loadWorkflow().jobs)) {
+		const workflow = testWorkflow.exec(caller.uses ?? '')?.groups?.file;
+		for (const job of workflow ? Object.values(loadWorkflow(workflow).jobs) : []) {
+			result.set(`${caller.name} / ${job.name}`, { caller, job });
+		}
+	}
+	return result;
+}
+
+/** Returns a value of a job of a reusable workflow, or, when it is an input of the workflow, the value that the calling job passes. */
+function resolveInput({ caller }: ITestJob, value: unknown): unknown {
+	const input = /^\$\{\{ inputs\.(?<input>\w+) \}\}$/.exec(String(value))?.groups?.input;
+	return input === undefined ? value : caller.with?.[input];
+}
+
+/**
+ * Returns the change detection output that a test job reads to skip when the changes cannot affect it: the calling job
+ * passes the condition to the input that the `if:` of the job reads.
+ */
+function skipOutput(test: ITestJob): string | undefined {
+	const condition = resolveInput(test, test.job.if);
+	return typeof condition === 'string' ? /needs\.changes\.outputs\.(?<output>[\w-]+) == 'true'/.exec(condition)?.groups?.output : undefined;
 }
 
 async function detect(files: readonly { filename: string; previous_filename?: string }[], expectedCount = files.length, failure?: Error) {
@@ -59,8 +92,8 @@ async function detectCoreTests(...filenames: string[]): Promise<string[]> {
 	return coreTestOutputs.map(output => outputs[output]);
 }
 
-function loadWorkflow(): { readonly jobs: Record<string, IWorkflowJob> } {
-	return load(readFileSync(path.join(repositoryRoot, '.github/workflows/pr.yml'), 'utf8')) as { readonly jobs: Record<string, IWorkflowJob> };
+function loadWorkflow(file = 'pr.yml'): { readonly jobs: Record<string, IWorkflowJob> } {
+	return load(readFileSync(path.join(repositoryRoot, '.github/workflows', file), 'utf8')) as { readonly jobs: Record<string, IWorkflowJob> };
 }
 
 /** Names of the built-in extensions whose files the core tests import or read by repository path. */
@@ -192,21 +225,24 @@ suite('Detect Changes', () => {
 
 	test('the macOS and Windows test jobs run only the planned files, and skip when the plan of a working ripple selects none', () => {
 		const { jobs } = loadWorkflow();
-		const macOSAndWindowsUnitTestJobs = ['macos-browser-unit-tests', 'macos-electron-unit-tests', 'windows-browser-unit-tests', 'windows-electron-unit-tests'];
-		const macOSAndWindowsIntegrationTestJobs = ['macos-electron-tests', 'windows-agent-host-e2e-tests', 'windows-electron-tests'];
+		const tests = testJobs();
 		const selected = (output: string) => `\${{ needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true' }}`;
+		const skippedBy = (output: string) => [...tests].filter(([, test]) => skipOutput(test) === output).map(([check]) => check).sort();
 		assert.deepStrictEqual({
 			outputs: ['selected-unit-tests', 'selected-browser-unit-tests', 'selected-node-integration-tests', 'selected-agent-host-e2e'].map(output => jobs.changes.outputs?.[output]),
-			skippableUnitTests: Object.entries(jobs).filter(([, job]) => skipOutput(job) === 'selected-unit-tests').map(([id]) => id).sort(),
-			skippableBrowserUnitTests: Object.entries(jobs).filter(([, job]) => skipOutput(job) === 'selected-browser-unit-tests').map(([id]) => id).sort(),
-			skippableAgentHostE2E: Object.entries(jobs).filter(([, job]) => skipOutput(job) === 'selected-agent-host-e2e').map(([id]) => id).sort(),
-			planned: Object.entries(jobs).filter(([, job]) => job.with?.test_selection === true).map(([id]) => id).sort(),
+			skippableUnitTests: skippedBy('selected-unit-tests'),
+			skippableBrowserUnitTests: skippedBy('selected-browser-unit-tests'),
+			skippableAgentHostE2E: skippedBy('selected-agent-host-e2e'),
+			planned: [...tests].filter(([, test]) => test.job.env?.TEST_SELECTION === 'true').map(([check]) => check).sort(),
 			// The macOS and Windows Electron jobs also run the extension host tests, so they skip their node.js
 			// integration tests and Agent Host E2E steps instead.
-			steps: Object.fromEntries(['linux-electron-tests', 'macos-electron-tests', 'windows-electron-tests'].map(id => [id, {
-				nodeIntegrationTests: jobs[id].with?.node_integration_tests,
-				agentHostE2E: jobs[id].with?.agent_host_e2e_tests,
-			}])),
+			steps: Object.fromEntries(['Linux / Electron', 'macOS / Electron', 'Windows / Electron'].map(check => {
+				const test = tests.get(check)!;
+				return [check, {
+					nodeIntegrationTests: resolveInput(test, test.job.env?.NODE_INTEGRATION_TESTS),
+					agentHostE2E: resolveInput(test, test.job.env?.AGENT_HOST_E2E_TESTS),
+				}];
+			})),
 		}, {
 			outputs: [
 				`\${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}`,
@@ -214,16 +250,20 @@ suite('Detect Changes', () => {
 				`\${{ steps.detect.outputs.product-tests == 'true' && steps.ripple.outputs.selects-no-node-integration-tests != 'true' }}`,
 				`\${{ steps.detect-agent-host-e2e.outputs.affected == 'true' && steps.ripple.outputs.selects-no-agent-host-e2e != 'true' }}`,
 			],
-			skippableUnitTests: ['macos-electron-unit-tests', 'windows-electron-unit-tests'],
-			skippableBrowserUnitTests: ['macos-browser-unit-tests', 'windows-browser-unit-tests'],
-			skippableAgentHostE2E: ['windows-agent-host-e2e-tests'],
-			planned: [...macOSAndWindowsUnitTestJobs, ...macOSAndWindowsIntegrationTestJobs].sort(),
+			skippableUnitTests: ['macOS / Electron-Unit', 'Windows / Electron-Unit'].sort(),
+			skippableBrowserUnitTests: ['macOS / Browser-Unit', 'Windows / Browser-Unit'].sort(),
+			skippableAgentHostE2E: ['Windows / Agent-Host-E2E (shard 1/2)', 'Windows / Agent-Host-E2E (shard 2/2)'],
+			planned: [
+				'macOS / Electron-Unit', 'macOS / Browser-Unit', 'macOS / Electron',
+				'Windows / Electron-Unit', 'Windows / Browser-Unit', 'Windows / Electron',
+				'Windows / Agent-Host-E2E (shard 1/2)', 'Windows / Agent-Host-E2E (shard 2/2)',
+			].sort(),
 			steps: {
-				// Linux runs every node.js integration test.
-				'linux-electron-tests': { nodeIntegrationTests: undefined, agentHostE2E: selected('agent-host-e2e') },
-				'macos-electron-tests': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: selected('selected-agent-host-e2e') },
-				// Windows runs Agent Host E2E in its own job.
-				'windows-electron-tests': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: undefined },
+				// Linux runs every node.js integration test, and Agent Host E2E in its own job.
+				'Linux / Electron': { nodeIntegrationTests: undefined, agentHostE2E: undefined },
+				'macOS / Electron': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: selected('selected-agent-host-e2e') },
+				// Windows runs Agent Host E2E in its own jobs.
+				'Windows / Electron': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: undefined },
 			},
 		});
 	});
@@ -237,41 +277,83 @@ suite('Detect Changes', () => {
 		assert.deepStrictEqual(checkRipple?.env?.BROWSER_EXCLUDED_FOLDERS, folders.split(',').join('|'));
 	});
 
-	test('the core test jobs skip only when the changes cannot affect them', () => {
+	test('the test jobs report "<OS> / <job>" checks, which skip only when the changes cannot affect them', () => {
 		const { jobs } = loadWorkflow();
-		const testJobs = Object.entries(jobs).filter(([, job]) => /^\.\/\.github\/workflows\/pr-(linux|darwin|win32)-test\.yml$/.test(job.uses ?? ''));
+		const tests = testJobs();
 		const declaredOutputs = Object.keys(jobs.changes.outputs ?? {});
-		const skipsWhenUnaffected = (output: string) => ({
-			needs: 'changes',
-			if: `\${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true') }}`,
-		});
+		// The calling jobs always run, and the jobs of their reusable workflows skip (see the test jobs in pr.yml).
+		const callsOn = (name: string) => ({ name, needs: 'changes', if: '${{ !cancelled() }}' });
+		const skipsWhenUnaffected = (output: string) => `\${{ needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true' }}`;
 		assert.deepStrictEqual({
-			jobs: Object.fromEntries(testJobs.map(([id, job]) => [id, { needs: job.needs, if: job.if }])),
-			undeclaredOutputs: testJobs.map(([, job]) => skipOutput(job)).filter(output => !output || !declaredOutputs.includes(output)),
+			callers: Object.fromEntries(Object.entries(jobs).filter(([, job]) => testWorkflow.test(job.uses ?? '')).map(([id, job]) => [id, { name: job.name, needs: job.needs, if: job.if }])),
+			checks: Object.fromEntries([...tests].map(([check, test]) => [check, resolveInput(test, test.job.if)])),
+			undeclaredOutputs: [...tests.values()].map(skipOutput).filter(output => !output || !declaredOutputs.includes(output)),
 		}, {
-			jobs: {
-				'linux-electron-unit-tests': skipsWhenUnaffected('unit-tests'),
-				'linux-electron-tests': skipsWhenUnaffected('electron-tests'),
-				'linux-electron-smoke-test-shards': skipsWhenUnaffected('product-tests'),
-				'linux-browser-unit-tests': skipsWhenUnaffected('unit-tests'),
-				'linux-browser-integration-tests': skipsWhenUnaffected('browser-integration'),
-				'linux-remote-tests': skipsWhenUnaffected('product-tests'),
-				'macos-electron-unit-tests': skipsWhenUnaffected('selected-unit-tests'),
-				'macos-electron-tests': skipsWhenUnaffected('electron-tests'),
-				'macos-electron-smoke-test-shards': skipsWhenUnaffected('product-tests'),
-				'macos-browser-unit-tests': skipsWhenUnaffected('selected-browser-unit-tests'),
-				'macos-browser-integration-tests': skipsWhenUnaffected('browser-integration'),
-				'macos-remote-tests': skipsWhenUnaffected('product-tests'),
-				'windows-electron-unit-tests': skipsWhenUnaffected('selected-unit-tests'),
-				'windows-electron-tests': skipsWhenUnaffected('product-tests'),
-				'windows-agent-host-e2e-tests': skipsWhenUnaffected('selected-agent-host-e2e'),
-				'windows-electron-smoke-test-shards': skipsWhenUnaffected('product-tests'),
-				'windows-browser-unit-tests': skipsWhenUnaffected('selected-browser-unit-tests'),
-				'windows-browser-integration-tests': skipsWhenUnaffected('browser-integration'),
-				'windows-remote-tests': skipsWhenUnaffected('product-tests'),
+			callers: {
+				'linux-rust-tests': callsOn('Linux'),
+				'linux-tests': callsOn('Linux'),
+				'macos-tests': callsOn('macOS'),
+				'windows-tests': callsOn('Windows'),
+			},
+			checks: {
+				'Linux / CLI': skipsWhenUnaffected('cli'),
+				'Linux / Copilot Shim': skipsWhenUnaffected('copilot-shim'),
+				'Linux / Electron-Unit (electron)': skipsWhenUnaffected('unit-tests'),
+				'Linux / Electron-Unit (node)': skipsWhenUnaffected('unit-tests'),
+				'Linux / Electron': skipsWhenUnaffected('product-tests'),
+				'Linux / Agent-Host-E2E': skipsWhenUnaffected('agent-host-e2e'),
+				'Linux / Electron-Smoke (shard 1/2)': skipsWhenUnaffected('product-tests'),
+				'Linux / Electron-Smoke (shard 2/2)': skipsWhenUnaffected('product-tests'),
+				'Linux / Browser-Unit': skipsWhenUnaffected('unit-tests'),
+				'Linux / Browser': skipsWhenUnaffected('browser-integration'),
+				'Linux / Remote': skipsWhenUnaffected('product-tests'),
+				'macOS / Electron-Unit': skipsWhenUnaffected('selected-unit-tests'),
+				'macOS / Electron': skipsWhenUnaffected('electron-tests'),
+				'macOS / Electron-Smoke (shard 1/2)': skipsWhenUnaffected('product-tests'),
+				'macOS / Electron-Smoke (shard 2/2)': skipsWhenUnaffected('product-tests'),
+				'macOS / Browser-Unit': skipsWhenUnaffected('selected-browser-unit-tests'),
+				'macOS / Browser': skipsWhenUnaffected('browser-integration'),
+				'macOS / Remote': skipsWhenUnaffected('product-tests'),
+				'Windows / Electron-Unit': skipsWhenUnaffected('selected-unit-tests'),
+				'Windows / Electron': skipsWhenUnaffected('product-tests'),
+				'Windows / Agent-Host-E2E (shard 1/2)': skipsWhenUnaffected('selected-agent-host-e2e'),
+				'Windows / Agent-Host-E2E (shard 2/2)': skipsWhenUnaffected('selected-agent-host-e2e'),
+				'Windows / Electron-Smoke (shard 1/3)': skipsWhenUnaffected('product-tests'),
+				'Windows / Electron-Smoke (shard 2/3)': skipsWhenUnaffected('product-tests'),
+				'Windows / Electron-Smoke (shard 3/3)': skipsWhenUnaffected('product-tests'),
+				'Windows / Browser-Unit': skipsWhenUnaffected('selected-browser-unit-tests'),
+				'Windows / Browser': skipsWhenUnaffected('browser-integration'),
+				'Windows / Remote (integration)': skipsWhenUnaffected('product-tests'),
+				'Windows / Remote (smoke)': skipsWhenUnaffected('product-tests'),
 			},
 			undeclaredOutputs: [],
 		});
+	});
+
+	test('a job that the changes can skip has a name without expressions', () => {
+		// GitHub neither expands the matrix of a skipped job nor evaluates the expressions in its name, so a skipped
+		// "chat-lib - Test (${{ matrix.os }})" job would report under that name.
+		const alwaysRun = ['${{ !cancelled() }}', '${{ always() }}'];
+		const workflows = ['pr.yml', 'pr-linux-test.yml', 'pr-darwin-test.yml', 'pr-win32-test.yml', 'pr-linux-cli-test.yml'];
+		assert.deepStrictEqual(workflows.flatMap(workflow => Object.entries(loadWorkflow(workflow).jobs)
+			.filter(([, job]) => job.if !== undefined && !alwaysRun.includes(job.if) && job.name?.includes('${{'))
+			.map(([id, job]) => `${workflow}: ${id}: ${job.name}`)), []);
+	});
+
+	test('compile, Monaco Editor and telemetry run after Detect Changes and appear first in the job group', () => {
+		const { jobs } = loadWorkflow();
+		assert.deepStrictEqual(Object.entries(jobs).slice(0, 4).map(([id, job]) => ({
+			id,
+			name: job.name,
+			needs: job.needs,
+			if: job.if,
+			uses: job.uses,
+		})), [
+			{ id: 'changes', name: 'Detect Changes', needs: undefined, if: undefined, uses: undefined },
+			{ id: 'compile', name: 'Compile & Hygiene', needs: 'changes', if: '${{ !cancelled() }}', uses: undefined },
+			{ id: 'monaco-editor', name: 'Monaco Editor', needs: 'changes', if: '${{ !cancelled() }}', uses: undefined },
+			{ id: 'telemetry', name: 'Telemetry', needs: 'changes', if: '${{ !cancelled() }}', uses: undefined },
+		]);
 	});
 
 	test('PR Gate reports the result of every other job of the workflow', () => {

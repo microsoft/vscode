@@ -33,7 +33,7 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatWidgetService } from '../../chat.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationAction, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 
 type CertificateOperation = 'install' | 'rotate' | 'remove';
 
@@ -395,30 +395,37 @@ export class AgentHostSandboxNotification extends Disposable {
 			this._notificationService.deleteNotification(this._id);
 			return;
 		}
-		const description = new MarkdownString('', { isTrusted: { enabledCommands: localNetworkMessage ? [OPEN_SETTINGS_COMMAND] : canDisable ? [this._disableCommandId] : [] } });
-		if (localNetworkMessage) {
-			description.appendMarkdown(localNetworkMessage);
-		} else if (reasons) {
-			description.appendText(reasons[0]);
-			description.appendText(' ');
-			description.appendLink('https://aka.ms/vscode-sandboxing-troubleshoot', localize('agentHost.sandboxTroubleshooting', "Troubleshooting Guide"));
+		const actions: IChatInputNotificationAction[] = [];
+		if (reasons) {
+			actions.push({
+				kind: ChatInputNotificationActionKind.Command,
+				label: localize('agentHost.sandboxTroubleshooting', "Troubleshooting Guide"),
+				commandId: 'vscode.open',
+				commandArgs: ['https://aka.ms/vscode-sandboxing-troubleshoot'],
+				primary: false,
+				filled: true,
+				keepOpen: true,
+			});
 			if (canDisable) {
-				description.appendText(' | ');
-				description.appendLink(
-					createCommandUri(this._disableCommandId).toString(),
-					localize('agentHost.disableSandboxing', "Disable Sandboxing"),
-					localize('agentHost.disableSandboxingDetail', "Disable sandboxing for this session and in settings. Terminal commands may run without sandbox restrictions. Organization policy still applies."),
-				);
+				actions.push({
+					kind: ChatInputNotificationActionKind.Command,
+					label: localize('agentHost.disableSandboxing', "Disable Sandboxing"),
+					tooltip: localize('agentHost.disableSandboxingDetail', "Disable sandboxing for this session and in settings. Terminal commands may run without sandbox restrictions. Organization policy still applies."),
+					commandId: this._disableCommandId,
+					primary: false,
+					filled: true,
+					keepOpen: true,
+				});
 			}
 		}
 		this._notificationService.setNotification({
 			id: this._id,
 			severity: localNetworkMessage ? ChatInputNotificationSeverity.Info : ChatInputNotificationSeverity.Warning,
 			message: localNetworkMessage
-				? description
+				? new MarkdownString(localNetworkMessage, { isTrusted: { enabledCommands: [OPEN_SETTINGS_COMMAND] } })
 				: localize('agentHost.sandboxMayNotWorkAsExpected', "Sandboxing might not work as expected"),
-			description: localNetworkMessage ? undefined : description,
-			actions: [],
+			description: reasons?.[0],
+			actions,
 			dismissible: true,
 			onDismiss: () => {
 				this._dismissedSessions.add(this._sessionResource);

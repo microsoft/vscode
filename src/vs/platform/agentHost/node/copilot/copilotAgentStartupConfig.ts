@@ -11,7 +11,6 @@ export class CopilotAgentStartupConfig {
 	constructor(
 		readonly rubberDuck: boolean,
 		readonly claudeAdvisor: boolean,
-		readonly tgrep: boolean,
 		readonly hydraFusion: boolean,
 		readonly hydraFusionV2: boolean,
 		readonly hydraFusionMultiRoot: boolean,

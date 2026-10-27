@@ -13,6 +13,8 @@ import { localize } from '../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { cloudSandboxAddress } from '../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IMissionControlEnvironmentService } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -37,7 +39,7 @@ import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../common/constants.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -144,6 +146,7 @@ export class SessionEnvironmentPicker extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
+		@IMissionControlEnvironmentService private readonly environmentService: IMissionControlEnvironmentService,
 	) {
 		super();
 	}
@@ -217,7 +220,8 @@ export class SessionEnvironmentPicker extends Disposable {
 			return;
 		}
 		const remotesEnabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
-		const showManage = remotesEnabled && this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
+		const environmentPickerEnabled = this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING);
+		const showManage = remotesEnabled && environmentPickerEnabled && this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 		const items: IActionListItem<IEnvironmentPickerItem>[] = this.environments.get().map(environment => ({
 			kind: ActionListItemKind.Action,
 			label: environment.label,
@@ -242,14 +246,14 @@ export class SessionEnvironmentPicker extends Disposable {
 				}
 			}
 		}
-		if (remotesEnabled) {
+		if (remotesEnabled && environmentPickerEnabled) {
 			logSettingExperimentTrigger(this.telemetryService, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 			if (showManage) {
 				items.push(
 					{ kind: ActionListItemKind.Separator, label: '' },
 					{
 						kind: ActionListItemKind.Action,
-						label: localize('environmentPicker.manage', "Manage..."),
+						label: localize('environmentPicker.manage', "Manage Remote Environments..."),
 						group: { title: '', icon: Codicon.settingsGear },
 						item: { run: async () => { await this.commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID); } },
 					},
@@ -280,6 +284,10 @@ export class SessionEnvironmentPicker extends Disposable {
 		if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
 			return false;
 		}
+		if (this.environmentService.enabled && this.environmentService.accountKey
+			&& this.environmentService.hosts.get().some(host => host.kind === 'user-local' && cloudSandboxAddress(host.id) === provider.remoteAddress)) {
+			return true;
+		}
 		const connection = this.remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === provider.remoteAddress)?.connection;
 		switch (connection?.type) {
 			case RemoteAgentHostEntryType.SSH:
@@ -287,8 +295,6 @@ export class SessionEnvironmentPicker extends Disposable {
 				return true;
 			case RemoteAgentHostEntryType.WSL:
 				return isWindows;
-			case RemoteAgentHostEntryType.CloudSandbox:
-				return connection.environmentKind === 'user-local';
 			default:
 				return false;
 		}

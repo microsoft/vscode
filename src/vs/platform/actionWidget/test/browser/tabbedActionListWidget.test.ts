@@ -259,7 +259,9 @@ suite('TabbedActionListWidget', () => {
 	});
 
 	test('a disabled tab bar action explains why and does not run', () => {
-		const { widget } = createWidget(disposables);
+		const setupManagedHover = sinon.spy(NullHoverService.setupManagedHover);
+		const hoverService: IHoverService = { ...NullHoverService, setupManagedHover };
+		const { widget } = createWidget(disposables, true, undefined, hoverService);
 		const anchor = document.createElement('div');
 		document.body.appendChild(anchor);
 		document.body.style.setProperty('--vscode-toolbar-hoverBackground', 'rgb(1, 2, 3)');
@@ -283,8 +285,10 @@ suite('TabbedActionListWidget', () => {
 			label: button.getAttribute('aria-label'),
 			disabled: button.getAttribute('aria-disabled'),
 			description: button.getAttribute('aria-description'),
-			title: button.title,
+			nativeTitle: button.getAttribute('title'),
+			managedHovers: setupManagedHover.getCalls().map(call => ({ action: call.args[1].dataset.id, content: call.args[2] })),
 			disabledClass: button.classList.contains('disabled'),
+			iconOpacity: mainWindow.getComputedStyle(button.querySelector('.codicon')!).opacity,
 			checkedBackground: mainWindow.getComputedStyle(button).backgroundColor,
 			enabledCheckedBackground: mainWindow.getComputedStyle(document.querySelector<HTMLElement>('[data-id="search"]')!).backgroundColor,
 			runs,
@@ -292,8 +296,10 @@ suite('TabbedActionListWidget', () => {
 			label: 'Add Models...',
 			disabled: 'true',
 			description: 'Not supported here',
-			title: 'Not supported here',
+			nativeTitle: null,
+			managedHovers: [{ action: 'add', content: 'Not supported here' }],
 			disabledClass: true,
+			iconOpacity: '0.4',
 			checkedBackground: 'rgba(0, 0, 0, 0)',
 			enabledCheckedBackground: 'rgb(1, 2, 3)',
 			runs: 0,

@@ -581,6 +581,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			rotateCertificate: async () => { },
 			removeCertificate: async () => { },
 			getShellInitDirectory: () => undefined,
+			getAppliedPluginDirectories: () => [],
 			shellManager: undefined,
 		}));
 		const runtime: ICopilotSessionRuntime = {
@@ -1518,7 +1519,7 @@ suite('CopilotSessionLauncher Connectors', () => {
 					warnings: logService.warnings.map(warning => warning.message),
 				}, {
 					adopted: scenario !== 'disabled',
-					featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: scenario !== 'disabled', TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
+					featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: scenario !== 'disabled', TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
 					connectorCalls: scenario === 'disabled' ? []
 						: scenario === 'unsupported' ? ['capabilities']
 							: scenario === 'noAccount' ? ['capabilities', 'account']
@@ -1919,6 +1920,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				ephemeralImageGeneration: createConfigs[1].imageGeneration,
 				ephemeralCustomAgents: createConfigs[1].customAgents,
 				ephemeralAskUserVariant: createConfigs[1].askUserVariant,
+				ephemeralTgrep: createConfigs[1].featureFlags?.TGREP,
 				ephemeralDetachLongLivedServices: createConfigs[1].featureFlags?.DETACH_LONG_LIVED_SERVICES,
 				ephemeralLocalMemoryStore: createConfigs[1].featureFlags?.copilot_swe_agent_memory_in_repo_store,
 				ephemeralMcpServers: createConfigs[1].mcpServers,
@@ -1968,7 +1970,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createLargeOutput: { maxSizeBytes: 8192 },
 				createManagedSettings: { permissions: managedSettingsPermissions },
 				createStrictModelEnforcement: undefined,
-				createFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: true },
+				createFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: true },
 				createStreaming: true,
 				createEnableSessionStore: true,
 				createRequestExtensions: true,
@@ -2003,7 +2005,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
 				resumeStrictModelEnforcement: undefined,
-				resumeFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: true },
+				resumeFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: true },
 				resumeStreaming: true,
 				resumeEnableSessionStore: true,
 				resumeRequestExtensions: true,
@@ -2019,6 +2021,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				ephemeralImageGeneration: { enabled: true, watermark: false },
 				ephemeralCustomAgents: [],
 				ephemeralAskUserVariant: 'elicitation',
+				ephemeralTgrep: true,
 				ephemeralDetachLongLivedServices: true,
 				ephemeralLocalMemoryStore: false,
 				ephemeralMcpServers: {},
@@ -3149,6 +3152,41 @@ suite('getCopilotAutoTier', () => {
 		assert.strictEqual(tier, undefined);
 	});
 
+	test('pins inline chat on Fusion to the fast tier, whatever effort level the picker holds', () => {
+		const log = new NullLogService();
+		const configOf = (override?: string) => ({
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.AutoModeTierOverride ? override : undefined,
+		}) as Parameters<typeof resolveCopilotAutoTier>[1];
+		const resolve = (model: ModelSelection, isInlineChat: boolean, override?: string) => resolveCopilotAutoTier(model, configOf(override), log, 'session', isInlineChat);
+		const fusion: ModelSelection = { id: 'auto', config: { tier: 'hydrafusion' } };
+		let result;
+		try {
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion', 'fast'], true);
+			const fusionTiers = {
+				inline: resolve(fusion, true),
+				inlineWithoutPreference: resolve({ id: 'auto' }, true),
+				inlineConcreteModel: resolve({ id: 'gpt-5', config: { tier: 'hydrafusion' } }, true),
+				inlineWithOverride: resolve(fusion, true, 'balance'),
+				panel: resolve(fusion, false),
+			};
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion'], true);
+			const fastNotAccepted = resolve(fusion, true);
+			setAdvertisedAutoModeTiers(['efficiency', 'balance', 'fast']);
+			result = { ...fusionTiers, fastNotAccepted, inlineNotFusion: resolve({ id: 'auto', config: { tier: 'efficiency' } }, true) };
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.deepStrictEqual(result, {
+			inline: 'fast',
+			inlineWithoutPreference: 'fast',
+			inlineConcreteModel: undefined,
+			inlineWithOverride: 'balance',
+			panel: 'hydrafusion',
+			fastNotAccepted: 'hydrafusion',
+			inlineNotFusion: 'efficiency',
+		});
+	});
+
 	test('resolves the override before picker preferences', () => {
 		const log = new NullLogService();
 		const model: ModelSelection = { id: 'auto', config: { tier: 'efficiency' } };
@@ -3590,44 +3628,47 @@ suite('CopilotSessionLauncher resume config', () => {
 				...catalogInstallationFeatureFlags,
 				AUTO_APPROVAL: true,
 				CONNECTORS: false,
-				TGREP: false,
+				TGREP: true,
 				CONTENT_EXCLUSION: true,
 				DETACH_LONG_LIVED_SERVICES: true,
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_INTERRUPTED_COMMIT: true,
 			},
 			v2FeatureFlags: {
 				...catalogInstallationFeatureFlags,
 				AUTO_APPROVAL: true,
 				CONNECTORS: false,
-				TGREP: false,
+				TGREP: true,
 				CONTENT_EXCLUSION: true,
 				DETACH_LONG_LIVED_SERVICES: true,
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_INTERRUPTED_COMMIT: true,
 				HYDRAFUSION_PLAN_V2: true,
 			},
-			v2WithoutHydraFusionFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			v2WithoutHydraFusionFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
 			fusionExperimentalMode: true,
 			fusionFeatureFlags: {
 				...catalogInstallationFeatureFlags,
 				AUTO_APPROVAL: true,
 				CONNECTORS: false,
-				TGREP: false,
+				TGREP: true,
 				CONTENT_EXCLUSION: true,
 				DETACH_LONG_LIVED_SERVICES: true,
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_INTERRUPTED_COMMIT: true,
 				HYDRAFUSION_PLAN_V2: true,
 			},
 			disabledExperimentalMode: undefined,
-			disabledFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			disabledFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
 			defaultExperimentalMode: undefined,
-			defaultFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
-			connectorFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+			defaultFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			connectorFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: true, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 		});
 	});
 
@@ -3650,17 +3691,17 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
-	test('configures repository-size-gated tgrep feature flag', async () => {
+	test('enables repository-size-gated tgrep by default and ignores the removed opt-out', async () => {
 		const store = disposables.add(new DisposableStore());
-		const disabled = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
-		const enabled = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.Tgrep]: true }), { id: 'gpt-5' });
+		const defaultConfig = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
+		const legacyOptOut = await buildResumeConfig(createLauncher(store, { tgrep: false }), { id: 'gpt-5' });
 
 		assert.deepStrictEqual({
-			disabled: disabled.featureFlags,
-			enabled: enabled.featureFlags,
+			default: defaultConfig.featureFlags?.TGREP,
+			legacyOptOut: legacyOptOut.featureFlags?.TGREP,
 		}, {
-			disabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
-			enabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			default: true,
+			legacyOptOut: true,
 		});
 	});
 
@@ -3740,8 +3781,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: disabled.featureFlags,
 			enabled: enabled.featureFlags,
 		}, {
-			disabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
-			enabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
+			disabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			enabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
 		});
 	});
 
@@ -3963,7 +4004,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Launches a session and returns the `capi` options the SDK was called with. */
-	async function capiOptionsFor(kind: 'create' | 'resume' | 'fallback', model: ModelSelection | undefined, override?: string): Promise<SessionConfig['capi'][]> {
+	async function capiOptionsFor(kind: 'create' | 'resume' | 'fallback', model: ModelSelection | undefined, override?: string, isInlineChatSurface?: boolean): Promise<SessionConfig['capi'][]> {
 		const capiCalls: SessionConfig['capi'][] = [];
 		const session = {
 			sessionId: 'session-1',
@@ -4001,6 +4042,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			isInlineChatSurface,
 		};
 		const plan: CopilotSessionLaunchPlan = kind === 'create'
 			? { ...base, kind: 'create', model }
@@ -4066,6 +4108,30 @@ suite('CopilotSessionLauncher auto tier', () => {
 			});
 		});
 	}
+
+	test('pins inline chat on Fusion to the fast tier when creating and resuming', async () => {
+		const model: ModelSelection = { id: 'auto', config: { tier: 'hydrafusion' } };
+		let result;
+		try {
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion', 'fast'], true);
+			result = {
+				created: await capiOptionsFor('create', model, undefined, true),
+				resumed: await capiOptionsFor('resume', model, undefined, true),
+				emptyFallback: await capiOptionsFor('fallback', model, undefined, true),
+				overridden: await capiOptionsFor('create', model, 'balance', true),
+				panel: await capiOptionsFor('create', model),
+			};
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.deepStrictEqual(result, {
+			created: [{ autoTier: 'fast' }],
+			resumed: [{ autoTier: 'fast' }],
+			emptyFallback: [{ autoTier: 'fast' }, { autoTier: 'fast' }],
+			overridden: [{ autoTier: 'balance' }],
+			panel: [{ autoTier: 'hydrafusion' }],
+		});
+	});
 });
 
 suite('CopilotSessionLauncher working directory trust', () => {

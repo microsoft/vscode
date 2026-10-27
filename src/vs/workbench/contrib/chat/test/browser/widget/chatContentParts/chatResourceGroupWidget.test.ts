@@ -13,11 +13,14 @@ import { ResourceMap } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { dirname } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -25,6 +28,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IWebWorkerService } from '../../../../../../../platform/webWorker/browser/webWorkerService.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatResourceGroupWidget } from '../../../../browser/widget/chatContentParts/chatResourceGroupWidget.js';
 import { getGeneratedImageResultParts } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
@@ -555,5 +559,67 @@ suite('ChatResourceGroupWidget', () => {
 			decoded: image.naturalWidth > 0,
 			hoverImages: imageHovers.flatMap(hover => [...hover.querySelectorAll('img')]).length,
 		}, { initialFilePills: 1, initialImages: 0, finalImages: 1, decoded: true, hoverImages: 1 });
+	});
+
+	for (const inline of [false, true]) {
+		test(`${inline ? 'selected generated-image previews' : 'tool result thumbnails'} keep one image copy menu`, async () => {
+			const menus: Parameters<IContextMenuService['showContextMenu']>[0][] = [];
+			const clipboard = new TestClipboardService();
+			instantiationService.stub(IClipboardService, clipboard);
+			instantiationService.stub(IWebWorkerService, new class extends mock<IWebWorkerService>() {
+				override createWorkerClient(): never {
+					throw new Error('No worker in this test');
+				}
+			}());
+			instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+				showContextMenu: delegate => { menus.push(delegate); }
+			}));
+			const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', base64Value: imageData }], inline);
+			const image = await waitForElement<HTMLImageElement>(widget.domNode, 'img.chat-attached-context-pill-image');
+			await image.decode();
+			image.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			await timeout(0);
+			assert.deepStrictEqual(menus.map(menu => menu.getActions?.().map(action => action.label)), [['Copy Image', 'Copy Image Path']]);
+			await menus[0].getActions!()[0].run();
+			const bytes = clipboard.writtenImage!;
+			const bitmap = await createImageBitmap(new Blob([bytes as Uint8Array<ArrayBuffer>]));
+			try {
+				assert.deepStrictEqual([bitmap.width, bitmap.height], [1, 1]);
+			} finally {
+				bitmap.close();
+			}
+		});
+	}
+
+	test('closing a detached hover image menu returns focus to its owning tool attachment', async () => {
+		let menu: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			showContextMenu: delegate => { menu = delegate; }
+		}));
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', base64Value: imageData }], false);
+		await waitForElement(widget.domNode, 'img.chat-attached-context-pill-image');
+		const hover = imageHovers[0];
+		store.add(toDisposable(() => hover.remove()));
+		mainWindow.document.body.appendChild(hover);
+		const image = hover.querySelector('img')!;
+		image.focus();
+		image.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'ContextMenu', bubbles: true, cancelable: true }));
+		await timeout(0);
+		assert.ok(menu);
+		hover.remove();
+		menu.onHide?.(true);
+		assert.strictEqual(mainWindow.document.activeElement, widget.domNode.querySelector('.chat-attached-context-attachment'));
+	});
+
+	test('non-image tool results retain their resource save menu', async () => {
+		const menus: Parameters<IContextMenuService['showContextMenu']>[0][] = [];
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			showContextMenu: delegate => { menus.push(delegate); }
+		}));
+		const part: IChatCollapsibleIODataPart = { kind: 'data', uri: URI.file('/output/result.txt'), mimeType: 'text/plain' };
+		const widget = render([part], false);
+		widget.domNode.querySelector('.chat-attached-context-attachment')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		await timeout(0);
+		assert.deepStrictEqual(menus.filter(menu => !menu.getActions).map(menu => menu.getActionsContext?.()), [{ parts: [part] }]);
 	});
 });
