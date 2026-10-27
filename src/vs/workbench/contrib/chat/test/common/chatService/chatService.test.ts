@@ -2339,6 +2339,53 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getPendingRequests().length, 0);
 	});
 
+	test('sendPendingRequestImmediately does not ask a queued message to yield to steering behind it', async () => {
+		const firstStarted = new DeferredPromise<void>();
+		const invokedMessages: string[] = [];
+		const messagesByRequestId = new Map<string, string>();
+		const yieldedRequestIds: string[] = [];
+		testDisposables.add(chatAgentService.registerAgent('sendNowAgent', { ...getAgentData('sendNowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('sendNowAgent', {
+			async invoke(request, _progress, _history, token) {
+				messagesByRequestId.set(request.requestId, request.message);
+				invokedMessages.push(request.message);
+				if (invokedMessages.length === 1) {
+					firstStarted.complete();
+					await new Promise<void>(resolve => {
+						const listener = token.onCancellationRequested(() => { listener.dispose(); resolve(); });
+					});
+				}
+				return {};
+			},
+			setYieldRequested(requestId, value) {
+				if (value) {
+					yieldedRequestIds.push(requestId);
+				}
+			},
+		}));
+
+		const testService = createChatService();
+		const model = testDisposables.add(startSessionModel(testService)).object;
+		const first = await testService.sendRequest(model.sessionResource, 'first request', { agentId: 'sendNowAgent' });
+		ChatSendResult.assertSent(first);
+		await firstStarted.p;
+
+		const steering = await testService.sendRequest(model.sessionResource, 'steering message', { agentIdSilent: 'sendNowAgent', queue: ChatRequestQueueKind.Steering });
+		const queued = await testService.sendRequest(model.sessionResource, 'queued message', { agentIdSilent: 'sendNowAgent', queue: ChatRequestQueueKind.Queued });
+		assert.ok(ChatSendResult.isQueued(steering) && ChatSendResult.isQueued(queued));
+		await testService.sendPendingRequestImmediately(model.sessionResource, model.getPendingRequests()[1].request.id);
+		for (const pending of [queued, steering]) {
+			const result = await pending.deferred;
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+		}
+
+		assert.deepStrictEqual({ invokedMessages, yields: yieldedRequestIds.map(id => messagesByRequestId.get(id)) }, {
+			invokedMessages: ['first request', 'queued message', 'steering message'],
+			yields: ['first request'],
+		});
+	});
+
 	test('does not locally dequeue pending requests for remote agent host sessions', async () => {
 		const sessionType = 'remote-neat-cat-copilotcli';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session-server-managed-queue' });

@@ -2457,7 +2457,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const responseState = this._sendRequestAsync(model, model.sessionResource, parsedRequest, firstRequest.request.attempt, !sendOptions.noCommandDetection, silentAgent ?? defaultAgent, location, sendOptions);
 		// Steering from the other initiator is still queued, so this request should yield to it.
-		if (model.getPendingRequests().some(r => r.kind === ChatRequestQueueKind.Steering)) {
+		if (steeringRequests.length > 0 && model.getPendingRequests().some(r => r.kind === ChatRequestQueueKind.Steering)) {
 			this.setYieldRequested(model.sessionResource);
 		}
 
