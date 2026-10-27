@@ -1366,8 +1366,17 @@
 	margin-left: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px));
 }
 
-.sessions-list-control.indent-items :is(.session-item, .session-chat-item, .session-show-more, .session-placeholder) {
+.sessions-list-control.indent-items :is(.session-item, .session-chat-item, .session-show-more:not(.session-show-more-folders), .session-placeholder) {
 	margin-left: calc((var(--session-group-depth, 0) + 1) * var(--session-group-indent, 0px));
+}
+
+/*
+ * A comparison's header, participants, and their chats share the comparison's
+ * depth so its guides connect. A comparison in a section is at depth 0 and steps
+ * in like the section's sessions; one in a custom group is already a level below it.
+ */
+.sessions-list-control.indent-items :is(.session-comparison-group, .session-item[data-session-group-connector], .session-chat-item.session-comparison-chat) {
+	margin-left: calc(max(var(--session-group-depth, 0), 1) * var(--session-group-indent, 0px));
 }
 
 /* Session twisties are positioned within the row, so they step in by the same amount as the row's contents. */
@@ -1375,8 +1384,12 @@
 	translate: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px)) 0;
 }
 
-.sessions-list-control.indent-items .monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
+.sessions-list-control.indent-items .monaco-list-row .session-chat-twistie {
 	translate: calc((var(--session-group-depth, 0) + 1) * var(--session-group-indent, 0px)) 0;
+}
+
+.sessions-list-control.indent-items .monaco-list-row :is(.session-comparison-twistie, .session-comparison-attempt-twistie) {
+	translate: calc(max(var(--session-group-depth, 0), 1) * var(--session-group-indent, 0px)) 0;
 }
 
 /* Session groups render like sections, with an inline name editor. */

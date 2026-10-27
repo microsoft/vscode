@@ -275,6 +275,31 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		}],
 		view: { grouping: SessionsGrouping.Date, reducedMotion: false },
 	}, { virtualTime: { enabled: false }, additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Bakeoff_IndentItems: defineSessionsListFixture({
+		sessions: BAKEOFF_SESSIONS,
+		groups: [{ id: 'bakeoff', name: BAKEOFF_COMPARISON.title, sessions: BAKEOFF_SESSIONS.map(session => session.id) }],
+		comparisons: [BAKEOFF_COMPARISON],
+		view: { grouping: SessionsGrouping.Date, reducedMotion: false },
+		settings: { [SESSIONS_LIST_INDENT_ITEMS_SETTING]: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['With indented items, the comparison header and its attempts start one level to the right of the Recent section header, and the guide from the comparison header connects to each attempt.'],
+	}),
+	SessionsList_Bakeoff_InGroup_IndentItems: defineSessionsListFixture({
+		sessions: BAKEOFF_SESSIONS,
+		groups: [
+			{ id: 'release', name: 'Release work' },
+			{ id: 'bakeoff', name: BAKEOFF_COMPARISON.title, sessions: BAKEOFF_SESSIONS.map(session => session.id), parent: 'release' },
+		],
+		comparisons: [BAKEOFF_COMPARISON],
+		view: { reducedMotion: false },
+		settings: { [SESSIONS_LIST_INDENT_ITEMS_SETTING]: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['With indented items, the comparison inside Release work starts one level to the right of the Release work header, like a session in that group would. Its attempts line up with the comparison header, and the guide from the comparison header connects to each attempt.'],
+	}),
 
 	//#region Sections and placement
 
