@@ -500,7 +500,7 @@ suite('Automation dialog creation', () => {
 			queryInsideAdvanced: !!content.querySelector('input[aria-label="Query"]'),
 			labelsOutsideAdvanced: !!required.querySelector('input[aria-label="Labels"]') && !content.contains(required.querySelector('input[aria-label="Labels"]')),
 			requiredDisplay: required.style.display,
-			actorInsideAdvanced: !!content.querySelector('[role="checkbox"][aria-label="Require write access to trigger"]'),
+			actorInsideAdvanced: !!content.querySelector('[role="checkbox"][aria-label="Include activity from users without write access to this repository"]'),
 			expanded: advanced.getAttribute('aria-expanded'),
 			sectionAriaHidden: section.getAttribute('aria-hidden'),
 			contentAriaHidden: content.getAttribute('aria-hidden'),
@@ -641,6 +641,132 @@ suite('Automation dialog creation', () => {
 			cloudTrigger: { triggers, requireActorWritePermission: true }, externalResource: URI.parse('https://github.com/owner/private/agents/automations/events'),
 		};
 	}
+
+	for (const requireActorWritePermission of [undefined, false, true]) {
+		test(`including activity without write access inverts ${requireActorWritePermission === undefined ? 'the creation default' : `saved actor permission ${requireActorWritePermission}`}`, async () => {
+			const existing = eventAutomation({ issues: { types: ['opened'] } });
+			const dialog = openDialog(requireActorWritePermission === undefined
+				? { initialValues: { ...existing, schedule: { ...existing.schedule, interval: 'daily' } } }
+				: { existing: { ...existing, cloudTrigger: { ...existing.cloudTrigger!, requireActorWritePermission } } }, eventConfiguration());
+			if (requireActorWritePermission === undefined) {
+				const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+				trigger.selectedIndex = Array.from(trigger.options).findIndex(option => option.textContent === 'Issue');
+				trigger.dispatchEvent(new (DOM.getWindow(trigger).Event)('change', { bubbles: true }));
+			}
+			dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
+			const checkbox = dialog.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="Include activity from users without write access to this repository"]')!;
+			const initiallyChecked = checkbox.getAttribute('aria-checked');
+			checkbox.click();
+			const checked = checkbox.getAttribute('aria-checked');
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.deepStrictEqual({ initiallyChecked, checked, trigger: result?.value.cloudTrigger }, {
+				initiallyChecked: String(requireActorWritePermission !== true),
+				checked: String(requireActorWritePermission === true),
+				trigger: { triggers: existing.cloudTrigger!.triggers, requireActorWritePermission: requireActorWritePermission !== true },
+			});
+		});
+	}
+
+	for (const { editing, publicRepository } of [{ editing: false, publicRepository: false }, { editing: true, publicRepository: false }, { editing: true, publicRepository: true }]) {
+		test(`repository settings lock read-access activity off when ${editing ? 'editing' : 'creating'} ${publicRepository ? 'a public-repository' : 'a private-repository'} event automation`, async () => {
+			const initial = eventAutomation({ issues: { types: ['opened'] } });
+			const existing = { ...initial, cloudTrigger: { ...initial.cloudTrigger!, requireActorWritePermission: false } };
+			const dialog = openDialog(editing
+				? { existing }
+				: { initialValues: { ...existing, schedule: { ...existing.schedule, interval: 'daily' } } }, {
+				...eventConfiguration(),
+				getWorkspaceTarget: () => constObservable(publicRepository ? {
+					disabledReason: 'Cloud automations cannot be managed for this repository.',
+					isRepository: true, isPrivateRepository: false, repositoryLabel: 'owner/public', allowReadAccessTriggers: false,
+				} : { workspace: REPOSITORY, allowReadAccessTriggers: false }),
+			});
+			if (!editing) {
+				const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+				trigger.selectedIndex = Array.from(trigger.options).findIndex(option => option.textContent === 'Issue');
+				trigger.dispatchEvent(new (DOM.getWindow(trigger).Event)('change', { bubbles: true }));
+			}
+			dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
+			const checkbox = dialog.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="Include activity from users without write access to this repository"]')!;
+			checkbox.click();
+			checkbox.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, bubbles: true, cancelable: true }));
+			checkbox.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			const permission = checkbox.closest<HTMLElement>('.automation-trigger-actor-permission')!;
+			permission.style.setProperty('--vscode-disabledForeground', 'rgb(120, 120, 120)');
+			permission.style.setProperty('--vscode-descriptionForeground', 'rgb(180, 180, 180)');
+			const reason = permission.querySelector<HTMLElement>('.automation-trigger-actor-reason')!;
+			const window = DOM.getWindow(checkbox);
+			const presentation = {
+				checked: checkbox.getAttribute('aria-checked'),
+				disabled: checkbox.getAttribute('aria-disabled'),
+				tabIndex: checkbox.tabIndex,
+				description: checkbox.getAttribute('aria-description'),
+				reason: { text: reason.textContent, display: window.getComputedStyle(reason).display, color: window.getComputedStyle(reason).color },
+				lockHiddenFromScreenReader: reason.querySelector('.codicon-lock')?.getAttribute('aria-hidden'),
+				optionColor: window.getComputedStyle(checkbox.parentElement!).color,
+				cursor: window.getComputedStyle(checkbox).cursor,
+				layout: window.getComputedStyle(permission).flexDirection,
+				tooltip: dialog.getTooltip(permission),
+			};
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.deepStrictEqual({ presentation, trigger: result?.value.cloudTrigger }, {
+				presentation: {
+					checked: 'false', disabled: 'true', tabIndex: -1, description: 'Disabled by your repository settings',
+					reason: { text: 'Disabled by your repository settings', display: 'flex', color: 'rgb(180, 180, 180)' },
+					lockHiddenFromScreenReader: 'true', optionColor: 'rgb(120, 120, 120)', cursor: 'not-allowed', layout: 'column',
+					tooltip: 'Disabled by your repository settings',
+				},
+				trigger: { triggers: existing.cloudTrigger!.triggers, requireActorWritePermission: true },
+			});
+		});
+	}
+
+	test('read-access activity follows repository configuration changes without replacing filter controls or broadening permissions', async () => {
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { workspace: REPOSITORY, allowReadAccessTriggers: true });
+		const existing = eventAutomation({ issues: { types: ['opened'] } });
+		const dialog = openDialog({ initialValues: { ...existing, schedule: { ...existing.schedule, interval: 'daily' } } }, {
+			...eventConfiguration(),
+			getWorkspaceTarget: uri => uri?.toString() === REPOSITORY.toString() ? target : constObservable({ workspace: uri, allowReadAccessTriggers: false }),
+		});
+		const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		trigger.selectedIndex = Array.from(trigger.options).findIndex(option => option.textContent === 'Issue');
+		trigger.dispatchEvent(new (DOM.getWindow(trigger).Event)('change', { bubbles: true }));
+		dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
+		const checkbox = dialog.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="Include activity from users without write access to this repository"]')!;
+		const query = dialog.container.querySelector<HTMLInputElement>('input[aria-label="Query"]')!;
+		const permission = checkbox.closest<HTMLElement>('.automation-trigger-actor-permission')!;
+		const reason = permission.querySelector<HTMLElement>('.automation-trigger-actor-reason')!;
+		const snapshot = () => ({
+			checked: checkbox.getAttribute('aria-checked'),
+			disabled: checkbox.getAttribute('aria-disabled'),
+			description: checkbox.getAttribute('aria-description'),
+			muted: checkbox.parentElement!.classList.contains('disabled'),
+			reasonHidden: DOM.getWindow(reason).getComputedStyle(reason).display === 'none',
+			repositoryTooltip: dialog.getTooltip(permission) === 'Disabled by your repository settings',
+		});
+		const allowed = snapshot();
+		target.set({ workspace: REPOSITORY, allowReadAccessTriggers: false }, undefined);
+		const restricted = snapshot();
+		target.set({ workspace: REPOSITORY, allowReadAccessTriggers: true }, undefined);
+		const restored = snapshot();
+		checkbox.click();
+		const selected = snapshot();
+		dialog.setWorkspace(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/other/HEAD' }));
+		const switched = snapshot();
+		const preservedQuery = dialog.container.querySelector('input[aria-label="Query"]') === query;
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ allowed, restricted, restored, selected, switched, preservedQuery, trigger: result?.value.cloudTrigger }, {
+			allowed: { checked: 'true', disabled: 'false', description: null, muted: false, reasonHidden: true, repositoryTooltip: false },
+			restricted: { checked: 'false', disabled: 'true', description: 'Disabled by your repository settings', muted: true, reasonHidden: false, repositoryTooltip: true },
+			restored: { checked: 'false', disabled: 'false', description: null, muted: false, reasonHidden: true, repositoryTooltip: false },
+			selected: { checked: 'true', disabled: 'false', description: null, muted: false, reasonHidden: true, repositoryTooltip: false },
+			switched: { checked: 'false', disabled: 'true', description: 'Disabled by your repository settings', muted: true, reasonHidden: false, repositoryTooltip: true },
+			preservedQuery: true,
+			trigger: { triggers: existing.cloudTrigger!.triggers, requireActorWritePermission: true },
+		});
+	});
 
 	test('Issue creation validates required filters and permits zero selected tools', async () => {
 		const initial = eventAutomation({});
