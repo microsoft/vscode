@@ -59,6 +59,34 @@ interface IEditorPartsMemento {
 	'editorparts.modalState'?: IModalEditorPartState;
 }
 
+/**
+ * The saved order of the most recently active parts: indices into the parts that window restore and
+ * working sets capture, which leaves out the parts excluded from working sets.
+ */
+export function saveMostRecentActiveParts<T>(mostRecentActiveParts: readonly T[], parts: readonly T[], isExcluded: (part: T) => boolean): number[] {
+	const persistedParts = parts.filter(part => !isExcluded(part));
+
+	return mostRecentActiveParts
+		.filter(part => !isExcluded(part))
+		.map(part => persistedParts.indexOf(part));
+}
+
+/**
+ * The most recently active parts after restoring from {@link saveMostRecentActiveParts}: the saved
+ * indices resolve to the restored parts, and the parts excluded from working sets that stayed open
+ * follow in their most recently active order.
+ */
+export function restoreMostRecentActiveParts<T>(mru: readonly number[], parts: readonly T[], mostRecentActiveParts: readonly T[], isExcluded: (part: T) => boolean): T[] {
+	const restoredParts = parts.filter(part => !isExcluded(part));
+	const excludedParts = mostRecentActiveParts.filter(part => isExcluded(part));
+
+	if (mru.length === restoredParts.length) {
+		return [...mru.map(index => restoredParts[index]), ...excludedParts];
+	}
+
+	return [...restoredParts, ...excludedParts];
+}
+
 export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMemento> implements IEditorGroupsService, IEditorPartsView {
 
 	declare readonly _serviceBrand: undefined;
@@ -527,7 +555,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 					state: part.createState(),
 					...auxiliaryWindow!.createState()
 				})),
-			mru: this.mostRecentActiveParts.map(part => this.parts.indexOf(part))
+			mru: saveMostRecentActiveParts(this.mostRecentActiveParts, this.parts, part => this.partsExcludedFromWorkingSets.has(part))
 		};
 	}
 
@@ -544,11 +572,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			await Promise.allSettled(auxiliaryEditorPartPromises);
 
 			// Update MRU list
-			if (state.mru.length === this.parts.length) {
-				this.mostRecentActiveParts = state.mru.map(index => this.parts[index]);
-			} else {
-				this.mostRecentActiveParts = [...this.parts];
-			}
+			this.mostRecentActiveParts = restoreMostRecentActiveParts(state.mru, this.parts, this.mostRecentActiveParts, part => this.partsExcludedFromWorkingSets.has(part));
 
 			// Await ready
 			await Promise.allSettled(this.parts.map(part => part.whenReady));
