@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { applyAgentHostSessionConfigChange, dispatchAgentHostConfigChange, getAgentHostEffectiveChatConfig, getAgentHostSessionConfig, readAgentHostChatSandboxState } from '../../../browser/agentSessions/agentHost/applyAgentHostSessionConfig.js';
 import { withChatSandboxState, withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
-import { buildChatUri, buildDefaultChatUri, ChatOriginKind, SessionLifecycle, SessionStatus, StateComponents, type ChatState, type ChatSummary, type ComponentToState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatOriginKind, SessionLifecycle, SessionStatus, StateComponents, type ChatState, type ChatSummary, type ComponentToState, type RootState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -25,6 +25,7 @@ import { applyAgentHostSubmitConfig } from '../../../browser/agentSessions/agent
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ActionType, StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ChatProvidersConfigKey } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
 
 suite('Agent Host committed configuration identity', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -199,7 +200,7 @@ suite('Agent Host committed configuration identity', () => {
 		});
 	});
 
-	test('a change from the default chat writes what the session may set to the session, never to the default chat', () => {
+	test('a change from the default chat writes what the session may set to the session on a host that applies it to the default chat, and to the default chat on an older host', () => {
 		const backendSession = URI.parse('copilotcli:/main');
 		const main = buildDefaultChatUri(backendSession);
 		const summary: ChatSummary = { resource: main, title: 'Main', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
@@ -216,14 +217,28 @@ suite('Agent Host committed configuration identity', () => {
 				values: { mode: 'interactive', isolation: 'folder' },
 			},
 		};
-		const writes: { channel: string; action: StateAction }[] = [];
-		dispatchAgentHostConfigChange({ dispatch: (channel, action) => writes.push({ channel, action }) }, backendSession, main, state, { mode: 'plan', effort: 'high', isolation: 'worktree' });
+		const write = (rootConfigKeys: readonly string[]) => {
+			const writes: { channel: string; action: StateAction }[] = [];
+			const rootState: RootState = { agents: [], config: { schema: { type: 'object', properties: Object.fromEntries(rootConfigKeys.map(key => [key, { type: 'boolean', title: key }])) }, values: {} } };
+			dispatchAgentHostConfigChange({
+				dispatch: (channel, action) => writes.push({ channel, action }),
+				rootState: { value: rootState, verifiedValue: rootState, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None },
+			}, backendSession, main, state, { mode: 'plan', effort: 'high', isolation: 'worktree' });
+			return writes;
+		};
 
-		assert.deepStrictEqual(writes, [
-			// Only what a chat alone may set reaches the default chat.
-			{ channel: main, action: { type: ActionType.ChatConfigChanged, config: { effort: 'high' } } },
-			{ channel: backendSession.toString(), action: { type: ActionType.SessionConfigChanged, config: { mode: 'plan', isolation: 'worktree' } } },
-		]);
+		assert.deepStrictEqual({ current: write([ChatProvidersConfigKey.Enabled]), older: write([]) }, {
+			// Only what a chat alone may set reaches the default chat; each property is written once.
+			current: [
+				{ channel: main, action: { type: ActionType.ChatConfigChanged, config: { effort: 'high' } } },
+				{ channel: backendSession.toString(), action: { type: ActionType.SessionConfigChanged, config: { mode: 'plan', isolation: 'worktree' } } },
+			],
+			// An older host lets the default chat's own value win over the session's.
+			older: [
+				{ channel: main, action: { type: ActionType.ChatConfigChanged, config: { mode: 'plan', effort: 'high' } } },
+				{ channel: backendSession.toString(), action: { type: ActionType.SessionConfigChanged, config: { isolation: 'worktree' } } },
+			],
+		});
 	});
 
 	test('a chat\'s effective config completes an older host\'s overlay with the session\'s values', () => {

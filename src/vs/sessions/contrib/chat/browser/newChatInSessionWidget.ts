@@ -76,8 +76,9 @@ function getNewChatResource(session: IActiveSession, reader: IReader | undefined
 /**
  * A widget for composing a secondary chat within an existing session.
  * Looks like the New Session composer: the same input, options row and picker placement. There is
- * no harness (session type) or environment picker: the nested chat uses the parent session's agent
- * and host. Where the host supports it, folder, isolation and branch pickers choose the nested
+ * no environment picker: the nested chat uses the parent session's host. It uses the session's agent
+ * unless the session offers its chats more than one harness: then the harness picker in its session
+ * options, where New Session has it, picks the agent of the new chat. Where the host supports it, folder, isolation and branch pickers choose the nested
  * chat's own workspace, which is applied to the composer's untitled chat when its first request is sent.
  */
 export class NewChatInSessionWidget extends Disposable {

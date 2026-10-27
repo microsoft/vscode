@@ -77,7 +77,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostDownloadProgress } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostDownloadProgress.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { getAgentHostEffectiveChatConfig } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/applyAgentHostSessionConfig.js';
+import { getAgentHostEffectiveChatConfig, hostAppliesSessionConfigToDefaultChat } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/applyAgentHostSessionConfig.js';
 import { AgentHostBackgroundShellOutputs } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBackgroundShells.js';
 import type { IChatBackgroundShell } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -6370,13 +6370,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// A property a peer chat may set for itself is the chat's own: the host and the chat's
 		// subscription apply it optimistically and reconcile it, leaving the session's other chats.
 		// A subagent's write changes the chat that spawned it, as the host does for a subagent's own writes.
-		// The session's config is its default chat's: the host updates that chat from a session write, so a
-		// property the session may set too is written to the session (writing it to the chat would stop it
-		// following the session's).
+		// The session's config is its default chat's: a host that applies session writes to its default chat
+		// gets a property the session may set too on the session (writing it to the chat would stop it following
+		// the session's); an older host lets the chat's own value win, so it gets it on the default chat.
 		const writer = isChatConfigProperty(runningConfig.schema, property) ? this.getBackendChatResource(chat)?.toString() : undefined;
 		const state = this._lastSessionStates.get(sessionId);
 		const target = writer !== undefined ? getChatConfigWriteTarget(state?.chats, writer) : undefined;
-		const backendChat = target !== undefined && (target !== state?.defaultChat || !schema?.sessionMutable) ? target : undefined;
+		const backendChat = target !== undefined && (target !== state?.defaultChat || !schema?.sessionMutable || !hostAppliesSessionConfigToDefaultChat(connection.rootState.value)) ? target : undefined;
 		if (backendChat !== undefined) {
 			validateChatConfigWrite(runningConfig.schema, this.getSessionConfig(sessionId, chat)?.values ?? runningConfig.values, property, normalizedValue);
 			// A choice in a peer chat is that chat's own, not a default for new sessions.
@@ -7236,7 +7236,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			await connection.moveSession(source.backendUri, destination.backendUri, backendAfter);
 		} catch (error) {
-			throw toChatMoveError(error, false);
+			throw toChatMoveError(error, { chatSharesFolder: false, crossAgent: this._baseConfigurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true });
 		}
 	}
 
@@ -7271,7 +7271,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			await connection.moveChat(backendChat, backendDestination);
 		} catch (error) {
-			throw toChatMoveError(error, source.chatSharesScratchFolder(chatUri), backendDestination.kind === 'newSession');
+			throw toChatMoveError(error, {
+				chatSharesFolder: source.chatSharesScratchFolder(chatUri),
+				toNewSession: backendDestination.kind === 'newSession',
+				crossAgent: this._baseConfigurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true,
+			});
 		}
 	}
 

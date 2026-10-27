@@ -26,7 +26,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import { createSessionState, SessionState, SessionStatus, StateComponents, type ChatState, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createSessionState, SessionState, SessionStatus, StateComponents, type ChatState, type ComponentToState, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -46,6 +46,7 @@ import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputNotificationWidget } from '../../../browser/widget/input/chatInputNotificationWidget.js';
+import { ChatProvidersConfigKey } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
 
 suite('AgentHostSandboxNotification', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1572,6 +1573,11 @@ suite('AgentHostSandboxNotification', () => {
 			...resolution!,
 			connection: new class extends mock<IAgentConnection>() {
 				override readonly initializeResult = constObservable(undefined);
+				// A host that applies session writes to its default chat.
+				override readonly rootState = (() => {
+					const value: RootState = { agents: [], config: { schema: { type: 'object', properties: { [ChatProvidersConfigKey.Enabled]: { type: 'boolean', title: 'Multiple Chat Providers' } } }, values: {} } };
+					return { value, verifiedValue: value, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+				})();
 				override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void {
 					dispatched.push(args);
 				}

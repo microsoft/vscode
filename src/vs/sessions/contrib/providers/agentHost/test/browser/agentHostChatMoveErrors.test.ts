@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError } from '../../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { getChatMoveRefusal, toChatMoveError } from '../../browser/agentHostChatMoveErrors.js';
+import { ChatMoveAgentRefusal, getChatMoveAgentRefusalMessage, getChatMoveRefusal, toChatMoveError } from '../../browser/agentHostChatMoveErrors.js';
 import { SessionMoveRefusedError } from '../../../../../services/sessions/common/sessionsProvider.js';
 
 suite('Agent Host Chat Move Errors', () => {
@@ -24,9 +24,9 @@ suite('Agent Host Chat Move Errors', () => {
 
 		assert.deepStrictEqual({
 			reasons: [archived, notStarted, credentials, unknownReason, failure].map(getChatMoveRefusal),
-			messages: [archived, notStarted, credentials, unknownReason, failure].map(error => message(toChatMoveError(error, false))),
+			messages: [archived, notStarted, credentials, unknownReason, failure].map(error => message(toChatMoveError(error, { chatSharesFolder: false }))),
 			// Only refusals become errors the sessions list shows as they are.
-			refused: [archived, notStarted, credentials, unknownReason, failure].map(error => toChatMoveError(error, false) instanceof SessionMoveRefusedError),
+			refused: [archived, notStarted, credentials, unknownReason, failure].map(error => toChatMoveError(error, { chatSharesFolder: false }) instanceof SessionMoveRefusedError),
 		}, {
 			reasons: [AgentChatMoveRefusal.SessionArchived, AgentChatMoveRefusal.NotStarted, AgentChatMoveRefusal.DifferentCredentialOwner, undefined, undefined],
 			messages: [
@@ -46,24 +46,36 @@ suite('Agent Host Chat Move Errors', () => {
 		const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 		assert.deepStrictEqual({
-			shared: message(toChatMoveError(refusal, true)),
-			noFolder: message(toChatMoveError(refusal, false)),
+			shared: message(toChatMoveError(refusal, { chatSharesFolder: true })),
+			noFolder: message(toChatMoveError(refusal, { chatSharesFolder: false })),
 		}, {
 			shared: 'This chat shares its folder with another chat in its session, so it can\'t be moved on its own.',
 			noFolder: 'This chat\'s folder is missing, so it can\'t be moved.',
 		});
 	});
 
-	test('explains an unsupported move into a new session as the chat having no conversation of its own yet', () => {
-		const refusal = new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Chat x has no recorded conversation of its own to take into a new session.', { reason: AgentChatMoveRefusal.Unsupported });
+	test('explains refusals by agent and of a new session without claiming what the host did not say', () => {
 		const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+		const differentProvider = new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Turn on chats with their own agents.', { reason: AgentChatMoveRefusal.DifferentProvider });
+		const unsupported = new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Chat x has no recorded conversation of its own to take into a new session.', { reason: AgentChatMoveRefusal.Unsupported });
 
 		assert.deepStrictEqual({
-			newSession: message(toChatMoveError(refusal, false, true)),
-			session: message(toChatMoveError(refusal, false)),
+			differentProvider: message(toChatMoveError(differentProvider, { chatSharesFolder: false })),
+			differentProviderCrossAgent: message(toChatMoveError(differentProvider, { chatSharesFolder: false, crossAgent: true })),
+			unsupportedNewSession: message(toChatMoveError(unsupported, { chatSharesFolder: false, toNewSession: true })),
+			unsupportedSession: message(toChatMoveError(unsupported, { chatSharesFolder: false })),
+			prepared: [ChatMoveAgentRefusal.CannotHost, ChatMoveAgentRefusal.SettingsUnavailable, ChatMoveAgentRefusal.NoConversation].map(getChatMoveAgentRefusalMessage),
 		}, {
-			newSession: 'This chat has no conversation of its own yet, so it can\'t be moved into a new session.',
-			session: 'This chat can\'t be moved there.',
+			differentProvider: 'Chats can only move between sessions of the same agent.',
+			differentProviderCrossAgent: 'This chat\'s agent can\'t work in that session.',
+			// A chat without a conversation and an agent that couldn't load its settings are refused alike.
+			unsupportedNewSession: 'This chat can\'t be moved into a new session.',
+			unsupportedSession: 'This chat can\'t be moved there.',
+			prepared: [
+				'This chat\'s agent can\'t work in that session.',
+				'The chat\'s agent couldn\'t load its settings. Try again.',
+				'This chat has no conversation of its own yet, so it can\'t be moved into a new session.',
+			],
 		});
 	});
 });
