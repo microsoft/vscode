@@ -1353,7 +1353,7 @@
 	 * hierarchy below its section headers.
 	 */
 	&.indent-items {
-		--session-group-indent: var(--vscode-spacing-size200);
+		--session-group-indent: calc(var(--vscode-spacing-size160) + var(--vscode-spacing-size20));
 	}
 }
 
