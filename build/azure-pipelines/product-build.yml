@@ -340,6 +340,10 @@ extends:
           os: linux
         jobs:
           - template: build/azure-pipelines/product-quality-checks.yml@self
+            parameters:
+              # Batched CI builds check only the files that their commits change.
+              # Scheduled and manual builds check every file.
+              VSCODE_CHECK_CHANGED_FILES: ${{ eq(variables['Build.Reason'], 'BatchedCI') }}
 
       - stage: Copilot
         dependsOn: []

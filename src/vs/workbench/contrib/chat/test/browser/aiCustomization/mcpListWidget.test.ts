@@ -40,7 +40,7 @@ import { IMcpRegistry } from '../../../../mcp/common/mcpRegistryTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, IMcpSamplingService, IWorkbenchMcpServer, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
 import { McpCommandIds } from '../../../../mcp/common/mcpCommandIds.js';
@@ -1598,7 +1598,7 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual(calls, [[sessionResource, 'plugin-1', pluginEnablement, CustomizationEnablementKind.Session, true]]);
 		});
 
-		test('enables a client-published plugin globally through the client', () => {
+		test('enables a client-published plugin globally through the client', async () => {
 			const { service, calls: hostCalls } = createAgentHostCustomizations();
 			const clientCalls: unknown[][] = [];
 			const pluginUri = URI.file('/plugins/plugin-1');
@@ -1616,8 +1616,15 @@ suite('mcpListWidget', () => {
 				},
 			});
 
-			const [action] = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, createAgentPluginService(clientCalls), sessionResource, server));
-			runAction(action);
+			const pluginService = createAgentPluginService(clientCalls);
+			const [action] = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, {
+				...pluginService,
+				plugins: constObservable([new class extends mock<IAgentPlugin>() {
+					override readonly uri = pluginUri;
+				}()]),
+			}, sessionResource, server));
+			assert.ok(action);
+			await action.run();
 
 			assert.deepStrictEqual({ clientCalls, hostCalls }, {
 				clientCalls: [[pluginUri.toString(), ContributionEnablementState.EnabledProfile]],

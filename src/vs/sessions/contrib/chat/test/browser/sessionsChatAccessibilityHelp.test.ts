@@ -69,7 +69,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				instantiation.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 				const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 				assert.deepStrictEqual({
-					describesManage: content.includes('Choose Manage at the bottom of the Environment picker'),
+					describesManage: content.includes('Choose Manage Remote Environments at the bottom of the Environment picker'),
 					describesWebSocketManagement: content.includes('configured WebSocket hosts, keep their per-entry Manage submenu'),
 					triggers: telemetry.triggers.filter(name => name === `config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`),
 				}, {
@@ -133,7 +133,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			nestedReadState: content.includes('change only the targeted nested sessions, not their parent'),
 			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
 			applicationFilter: content.includes('Enter or Space to open Filter Sessions with Created In focused.'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, applicationFilter: true });
+			moveToSession: content.includes('choose Move to Session..., then pick the destination session from the list'),
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, applicationFilter: true, moveToSession: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
@@ -308,12 +309,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 			assert.deepStrictEqual({
-				discoveryHelp: content.includes('choose Environments to discover your environments'),
+				discoveryHelp: content.includes('choose GitHub Environments to discover your environments'),
 				folderBrowsing: content.includes('then select a folder on that host.'),
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
 				githubEnvironment: content.includes('GitHub environment'),
-				sharingKeyboard: content.includes('Enter or Space to open it'),
+				sharingKeyboard: content.includes('Use Tab to reach the title bar, arrow keys to reach the button, Enter or Space to open it'),
 				fileSystemAccess: content.includes('read and modify files across this machine'),
 				backendPicker: content.includes('Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments when available'),
 				enabling: content.includes('Selecting a method updates the setting and enables sharing'),
@@ -754,9 +755,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	});
 
-	test('describes the existing response-selection input by default', () => {
+	test('describes the Ask Question input when the response-selection menu is disabled', () => {
 		const instantiationService = store.add(new TestInstantiationService());
-		const configuration = new TestConfigurationService();
+		const configuration = new TestConfigurationService({
+			[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: false,
+		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
 		stubContextKeyService(instantiationService, configuration);
@@ -772,7 +775,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		);
 	});
 
-	test('describes the experimental response-selection menu when enabled', () => {
+	test('describes the response-selection menu when enabled', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({
 			[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: true,
@@ -816,6 +819,29 @@ suite('SessionsChatAccessibilityHelp', () => {
 			listKeyboard: content?.includes('arrow keys navigate list rows'),
 			oldActionsSegment: content?.includes('Actions button'),
 		}, { mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
+	});
+
+	test('describes grouped artifact pills, their list navigation, and pinning', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
+			.split('\n').find(line => line.startsWith('When two or more artifacts of the same kind share an integration'));
+
+		assert.deepStrictEqual({
+			grouped: content?.includes('they appear as one pill named by the integration'),
+			rows: content?.includes('Up and Down Arrow, Home and End move between artifacts'),
+			controls: content?.includes('Left and Right Arrow move between an artifact\'s controls'),
+			details: content?.includes('opens the artifact\'s details'),
+			pin: content?.includes('Pin moves the artifact into a pill of its own'),
+			escape: content?.includes('Escape closes the list and returns focus to the pill'),
+		}, { grouped: true, rows: true, controls: true, details: true, pin: true, escape: true });
 	});
 
 	test('omits response-selection help when the widget is unsupported', () => {
@@ -896,7 +922,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				conversationDescription: content.some(line => line.includes(expectedConversation)),
 				menuAvailability: content.some(line => line.includes(`For sessions that support multiple chats, use Show Chat Tabs in the session overflow menu to ${expectedConversation}.`)),
 				sessionListAction: content.some(line => line.includes(expectedListAction)),
-				markNestedSessionsRead: content.includes('When a parent session has unread nested sessions, open its context menu and choose Mark All as Read.'),
+				markNestedSessionsRead: content.includes('When a parent session has unread nested sessions, open its context menu and choose Mark Nested Sessions as Read.'),
 				pinHelp: content.some(line => line.includes('Pin keeps that chat visible when another chat opens')),
 				groupCloseHelp: content.some(line => line.includes('Close removes that chat group')),
 				lastGroupCloseHelp: content.some(line => line.includes('Closing the last group closes the session from the grid. Non-main chats are hidden and can be reopened later.')),

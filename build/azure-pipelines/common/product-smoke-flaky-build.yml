@@ -113,6 +113,7 @@ jobs:
                 compile-extension:css-language-features-server `
                 compile-extension:emmet `
                 compile-extension:git `
+                compile-extension:git-base `
                 compile-extension:github-authentication `
                 compile-extension:html-language-features-server `
                 compile-extension:ipynb `
@@ -137,6 +138,7 @@ jobs:
                 compile-extension:css-language-features-server \
                 compile-extension:emmet \
                 compile-extension:git \
+                compile-extension:git-base \
                 compile-extension:github-authentication \
                 compile-extension:html-language-features-server \
                 compile-extension:ipynb \

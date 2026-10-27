@@ -31,6 +31,13 @@ export interface ISessionChangeEvent {
 	readonly changed: readonly ISession[];
 }
 
+/** Creation context to inherit instead of an existing session's execution workspace and backend. */
+export interface ISessionCreationTarget {
+	readonly providerId: string;
+	readonly sessionTypeId?: string;
+	readonly folderUri: URI;
+}
+
 /** One end of a chat move: the session and the chat's resource in it. */
 export interface IChatMoveEnd {
 	readonly session: ISession;
@@ -82,6 +89,8 @@ export type INestedChatWorkspace =
 export interface INestedChatWorkspaceSupport {
 	/** The session's own folder (its default chat's primary folder, excluding scratch folders); `undefined` for a workspace-less session. */
 	readonly sessionFolder: URI | undefined;
+	/** When the session folder is the session's own git worktree, its branch and repository label; `undefined` otherwise. */
+	readonly sessionFolderWorktree: { readonly branch: string | undefined; readonly repositoryLabel: string | undefined } | undefined;
 	/** Whether the agent gives a chat its own folder (agent capability `multipleWorkingDirectories`). */
 	readonly multipleFolders: boolean;
 	/** Folder browse actions of this provider (same host), for "Browse…". */
@@ -477,6 +486,9 @@ export interface ISessionsProvider {
 	 * @param workspaceUri The URI of the repository to resolve the workspace for.
 	 */
 	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
+
+	/** An alternate creation context for New Session gestures from an existing session. */
+	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
 
 	/**
 	 * Returns the canonical URI for a workspace represented by this provider.

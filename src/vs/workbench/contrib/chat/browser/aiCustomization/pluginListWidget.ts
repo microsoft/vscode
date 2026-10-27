@@ -29,7 +29,7 @@ import { Action, IAction, Separator } from '../../../../../base/common/actions.j
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
@@ -743,9 +743,9 @@ export function getToggledPluginEnablementState(state: ContributionEnablementSta
 	}
 }
 
-export function setPluginEnablementAndReadEffective(model: IEnablementModel, key: string, state: ContributionEnablementState): ContributionEnablementState {
-	model.setEnabled(key, state);
-	return model.readEnabled(key);
+export async function setPluginEnablementAndReadEffective(model: IEnablementModel, plugin: IAgentPlugin, state: ContributionEnablementState): Promise<ContributionEnablementState> {
+	await setAgentPluginEnablement(plugin, model, state);
+	return model.readEnabled(plugin.uri.toString());
 }
 
 //#endregion
@@ -1363,16 +1363,22 @@ export class PluginListWidget extends Disposable {
 			row.classList.toggle('disabled', !checked);
 		};
 		disposables.add(autorun(reader => update(item.plugin.enablement.read(reader), getPluginPolicyEnablement(item.plugin, reader))));
-		disposables.add(toggle.onChange(() => {
+		disposables.add(toggle.onChange(async () => {
 			const policyEnablement = getPluginPolicyEnablement(item.plugin);
 			if (policyEnablement !== undefined) {
 				update(renderedState, policyEnablement);
 				return;
 			}
 			const nextState = getToggledPluginEnablementState(renderedState);
-			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
-			update(effectiveState, getPluginPolicyEnablement(item.plugin));
-			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			toggle.disabled = true;
+			try {
+				await setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin, nextState);
+				status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			} catch (error) {
+				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
+			} finally {
+				update(item.plugin.enablement.get(), getPluginPolicyEnablement(item.plugin));
+			}
 		}));
 
 		const more = disposables.add(new Button(actions, {
@@ -1775,16 +1781,22 @@ export class PluginListWidget extends Disposable {
 			const state = item.plugin.enablement.read(reader);
 			update(state, getPluginPolicyEnablement(item.plugin, reader));
 		}));
-		this.cardDisposables.add(toggle.onChange(() => {
+		this.cardDisposables.add(toggle.onChange(async () => {
 			const policyEnablement = getPluginPolicyEnablement(item.plugin);
 			if (policyEnablement !== undefined) {
 				update(renderedState, policyEnablement);
 				return;
 			}
 			const nextState = getToggledPluginEnablementState(renderedState);
-			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
-			update(effectiveState, getPluginPolicyEnablement(item.plugin));
-			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			toggle.disabled = true;
+			try {
+				await setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin, nextState);
+				status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			} catch (error) {
+				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
+			} finally {
+				update(item.plugin.enablement.get(), getPluginPolicyEnablement(item.plugin));
+			}
 		}));
 		return switchElement;
 	}

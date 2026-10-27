@@ -11,8 +11,23 @@ import { AuthenticateTargetKind, type McpServerAuthenticateTarget } from '../../
 import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { createCloudSandboxConnectionCustomization } from '../../../browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 
-suite('CloudSandboxConnectionCustomization authentication', () => {
+suite('CloudSandboxConnectionCustomization', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('identifies managed cloud input without relabeling other providers or remote computers', () => {
+		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
+		const sandbox = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service);
+		const userLocal = createCloudSandboxConnectionCustomization(cloudSandboxAddress('desktop'), service, true);
+		assert.deepStrictEqual({
+			sandbox: ['copilot', 'copilotcli', 'claude'].map(provider => sandbox?.inputPlaceholder?.(provider)),
+			userLocal: ['copilot', 'copilotcli', 'claude'].map(provider => userLocal?.inputPlaceholder?.(provider)),
+			ordinaryRemote: createCloudSandboxConnectionCustomization('ssh:host', service)?.inputPlaceholder?.('copilot'),
+		}, {
+			sandbox: ['Chat with Copilot Cloud', undefined, undefined],
+			userLocal: [undefined, undefined, undefined],
+			ordinaryRemote: undefined,
+		});
+	});
 
 	test('only cloud sandbox connections opt out of workspace trust', () => {
 		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();

@@ -243,6 +243,39 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		}
 	});
 
+	test('decodes array treatments and preserves values of the other types of union settings', async () => {
+		const key = 'test.unionArrayExperimentalSetting';
+		const unionConfiguration: IConfigurationNode = {
+			properties: { [key]: { type: ['boolean', 'array'], items: { type: 'string' }, default: false, experiment: { mode: 'auto' } } },
+		};
+		const treatments: Record<string, unknown> = {};
+		const contribution = createTestContribution(treatments);
+		const errors: unknown[][] = [];
+		contribution.logService = new class extends NullLogService {
+			override error(...args: unknown[]): void { errors.push(args); }
+		}();
+		configurationRegistry.registerConfiguration(unionConfiguration);
+		try {
+			const treatmentValues = [true, '["pub.first"]', ['pub.native'], 'false', '{"id":"pub.first"}'];
+			const results = [];
+			for (const treatment of treatmentValues) {
+				treatments[`config.${key}`] = treatment;
+				await contribution.processExperimentalSettings([key], results.length > 0);
+				results.push({ default: configurationRegistry.getConfigurationProperties()[key].default, errors: errors.splice(0) });
+			}
+			assert.deepStrictEqual(results, [
+				{ default: true, errors: [] },
+				{ default: ['pub.first'], errors: [] },
+				{ default: ['pub.native'], errors: [] },
+				{ default: false, errors: [] },
+				{ default: false, errors: [['ConfigurationService#processExperimentalSettings', key, 'Expected an array or a JSON-encoded array treatment.']] },
+			]);
+		} finally {
+			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([unionConfiguration]);
+		}
+	});
+
 	test('retries invalid startup array treatments until a valid value resolves, then latches it', async () => {
 		const key = 'test.startupArrayExperimentalSetting';
 		const startupConfiguration: IConfigurationNode = {
