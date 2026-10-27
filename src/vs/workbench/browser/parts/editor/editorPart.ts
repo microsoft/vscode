@@ -477,17 +477,18 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 	}
 
-	private _viewColumnGroup: IEditorGroupView | undefined;
+	private _viewColumnGroupRegistration: { readonly group: IEditorGroupView } | undefined;
 	get viewColumnGroup(): IEditorGroupView | undefined {
-		return this._viewColumnGroup && !this._viewColumnGroup.disposed ? this._viewColumnGroup : undefined;
+		const group = this._viewColumnGroupRegistration?.group;
+		return group && !group.disposed ? group : undefined;
 	}
 
 	setViewColumnGroup(group: IEditorGroup): IDisposable {
-		const groupView = this.assertGroupView(group.id);
-		this._viewColumnGroup = groupView;
+		const registration = { group: this.assertGroupView(group.id) };
+		this._viewColumnGroupRegistration = registration;
 		return toDisposable(() => {
-			if (this._viewColumnGroup === groupView) {
-				this._viewColumnGroup = undefined;
+			if (this._viewColumnGroupRegistration === registration) {
+				this._viewColumnGroupRegistration = undefined; // only when not replaced since, even for the same group
 			}
 		});
 	}
@@ -498,6 +499,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 		const groupView = this.assertGroupView(group);
 		const visibleGroupViews = visibleGroups.map(visibleGroup => this.assertGroupView(visibleGroup));
+		if (this.hasMaximizedGroup()) {
+			this.gridWidget.exitMaximizedView(); // the grid keeps the visible groups of a maximized view as they are
+		}
 		this.gridWidget.maximizeView(groupView, visibleGroupViews);
 		this.maximizedVisibleGroups = new Set(visibleGroupViews);
 		groupView.focus();
