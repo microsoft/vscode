@@ -176,7 +176,10 @@ export class OpenWithEditorPicker {
 
 	private getEditorPicks(resource: URI, showDefaultPicker: boolean | undefined, isDiffEditor: boolean, isDiffEditorDefault: boolean): QuickPickItem[] {
 		const currentEditor = this.editorGroupsService.activeGroup.findEditors(resource).at(0);
-		const registeredEditors = this.editorResolverService.getEditorMatches(resource, { isDiffEditor }).matches.map(match => match.editor);
+		// If untitled, we want all registered editors
+		const registeredEditors = resource.scheme === Schemas.untitled
+			? this.editorResolverService.getEditors({ excludeExclusiveEditors: true, isDiffEditor })
+			: this.editorResolverService.getEditorMatches(resource, { isDiffEditor }).matches.map(match => match.editor);
 		const defaultRule = this.editorResolverService.getEditorMatches(resource, { isDiffEditor: isDiffEditorDefault }).defaultRule;
 		const getPriority = (editor: RegisteredEditorInfo) => isDiffEditor ? editor.priority.diff : editor.priority.editor;
 		// Not the most efficient way to do this, but we want to ensure the text editor is at the top of the quickpick

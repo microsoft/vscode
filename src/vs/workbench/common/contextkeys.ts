@@ -355,12 +355,19 @@ export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor:
 	contextKey.set(editors.join(','));
 }
 
+/**
+ * Whether the active editor of an untitled file can be switched to another editor type. The
+ * contents of an untitled file can only be handed over to another editor while its text model
+ * still owns them (e.g. in the text editor or a text based custom editor). Other custom editors
+ * take over the contents, which cannot be easily serialized between extensions.
+ */
+export function canSwitchUntitledEditor(editor: EditorInput, modelService: IModelService): boolean {
+	return editor.resource?.scheme !== Schemas.untitled || editor.editorId === DEFAULT_EDITOR_ASSOCIATION.id || !!modelService.getModel(editor.resource);
+}
+
 function getAvailableEditorIds(editor: EditorInput, editorResolverService: IEditorResolverService, modelService: IModelService): string[] {
-	// The contents of an untitled file can only be handed over to another editor while its text
-	// model still owns them (e.g. in the text editor or a text based custom editor). Other custom
-	// editors take over the contents, which cannot be easily serialized between extensions, so
-	// we disable this context key to prevent common commands that act on the active editor.
-	if (editor.resource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id && !modelService.getModel(editor.resource)) {
+	// Disable this context key to prevent common commands that act on the active editor.
+	if (!canSwitchUntitledEditor(editor, modelService)) {
 		return [];
 	}
 

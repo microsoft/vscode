@@ -566,6 +566,7 @@ export class BreadcrumbsControl {
 		return getAvailableEditorTypes(
 			this._editorGroup.activeEditor,
 			this._editorResolverService,
+			this._modelService,
 			this._configurationService.getValue<readonly string[]>(hiddenEditorTypesSettingId)
 		);
 	}

@@ -26,6 +26,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, EditorInputWithOptions, EditorResourceAcces
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IUntitledTextEditorService } from '../../untitled/common/untitledTextEditorService.js';
 import { findGroup } from '../common/editorGroupFinder.js';
 import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService.js';
 import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, EditorMatchRule, EditorMatchRuleSource, editorsAssociationsSettingId, globMatchesResource, EditorMatches, IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorMatchesOptions, IEditorResolverServiceGetEditorsOptions, isUnconfiguredUniversalOptionalEditorMatch, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
@@ -99,7 +100,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@ILogService private readonly logService: ILogService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService
 	) {
 		super();
 		// Read in the cache on statup
@@ -297,19 +299,19 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	getEditorMatches(resource: URI, options?: IEditorResolverServiceGetEditorMatchesOptions): EditorMatches {
 		this._flattenedEditors = this._flattenEditorsMap();
-		resource = this.getResourceForEditorMatching(resource);
+		const patternResource = this.getResourceForPatternMatching(resource);
 
 		const associationType = options?.isDiffEditor ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
-		const associations = this.getAssociationsForResourceByType(resource, associationType);
-		const editors = this.findMatchingEditors(resource, associationType, associations);
+		const associations = this.getAssociationsForResourceByType(patternResource, associationType);
+		const editors = this.findMatchingEditors(resource, associationType, associations, patternResource);
 		const selection = this.getDefaultEditorSelection(resource, associationType, false, editors, associations);
-		const naturalEditors = this.findMatchingEditors(resource, associationType, []);
+		const naturalEditors = this.findMatchingEditors(resource, associationType, [], patternResource);
 		const naturalSelection = this.getDefaultEditorSelection(resource, associationType, false, naturalEditors, []);
 
 		const uniqueEditors = distinct(editors, editor => editor.editorInfo.id);
 		const defaultEditorId = selection.editor?.editorInfo.id ?? DEFAULT_EDITOR_ASSOCIATION.id;
 		const naturalDefaultEditorId = naturalSelection.editor?.editorInfo.id ?? DEFAULT_EDITOR_ASSOCIATION.id;
-		const matches = uniqueEditors.map(editor => this.createEditorMatchRule(resource, associationType, editor, associations, selection));
+		const matches = uniqueEditors.map(editor => this.createEditorMatchRule(patternResource, associationType, editor, associations, selection));
 		if (!matches.some(match => match.editor.id === DEFAULT_EDITOR_ASSOCIATION.id)
 			&& (defaultEditorId === DEFAULT_EDITOR_ASSOCIATION.id || naturalDefaultEditorId === DEFAULT_EDITOR_ASSOCIATION.id)) {
 			const defaultEditor = this._registeredEditors.find(editor => editor.editorInfo.id === DEFAULT_EDITOR_ASSOCIATION.id);
@@ -323,7 +325,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				editor: editorInfo,
 				priority: RegisteredEditorPriority.builtin,
 				source: EditorMatchRuleSource.Fallback,
-				associationPattern: this.getDefaultAssociationPattern(resource)
+				associationPattern: this.getDefaultAssociationPattern(patternResource)
 			}));
 		}
 
@@ -338,11 +340,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	/**
 	 * Untitled resources without an associated file path have no file name to match editor globs
-	 * against. Derive one from the language of their text model so that, for example, an untitled
-	 * Markdown document is offered the editors registered for `*.md`.
+	 * and associations against. Derive one from the language of their text model so that, for
+	 * example, an untitled Markdown document is offered the editors registered for `*.md`. Only
+	 * use the result for filename patterns: editors check whether they can actually open the
+	 * resource (`canSupportResource`) against the real resource.
 	 */
-	private getResourceForEditorMatching(resource: URI): URI {
-		if (resource.scheme !== Schemas.untitled || extname(resource)) {
+	private getResourceForPatternMatching(resource: URI): URI {
+		if (resource.scheme !== Schemas.untitled || extname(resource) || this.untitledTextEditorService.isUntitledWithAssociatedResource(resource)) {
 			return resource;
 		}
 		const languageId = this.modelService.getModel(resource)?.getLanguageId();
@@ -350,14 +354,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return extension ? resource.with({ path: `${resource.path}${extension}` }) : resource;
 	}
 
-	private createEditorMatchRule(resource: URI, associationType: EditorAssociationType, editor: RegisteredEditor, associations: EditorAssociations, selection: DefaultEditorSelection): EditorMatchRule {
+	private createEditorMatchRule(patternResource: URI, associationType: EditorAssociationType, editor: RegisteredEditor, associations: EditorAssociations, selection: DefaultEditorSelection): EditorMatchRule {
 		const priority = this.getEffectivePriority(editor.editorInfo, associationType);
 		if (!selection.editor && editor.editorInfo.id === DEFAULT_EDITOR_ASSOCIATION.id) {
 			return {
 				editor: editor.editorInfo,
 				priority,
 				source: EditorMatchRuleSource.Fallback,
-				associationPattern: this.getDefaultAssociationPattern(resource)
+				associationPattern: this.getDefaultAssociationPattern(patternResource)
 			};
 		}
 
@@ -368,7 +372,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 					priority,
 					source: EditorMatchRuleSource.UserAssociation,
 					association: selection.association,
-					associationPattern: selection.association.filenamePattern ?? this.getDefaultAssociationPattern(resource, selection.editor)
+					associationPattern: selection.association.filenamePattern ?? this.getDefaultAssociationPattern(patternResource, selection.editor)
 				};
 			}
 			if (selection.source === EditorSelectionSource.EditorPriority) {
@@ -377,7 +381,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 					priority,
 					source: EditorMatchRuleSource.EditorRegistration,
 					globPattern: selection.editor.globPattern,
-					associationPattern: this.getDefaultAssociationPattern(resource, selection.editor)
+					associationPattern: this.getDefaultAssociationPattern(patternResource, selection.editor)
 				};
 			}
 		}
@@ -389,7 +393,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				priority,
 				source: EditorMatchRuleSource.UserAssociation,
 				association,
-				associationPattern: association.filenamePattern ?? this.getDefaultAssociationPattern(resource, editor)
+				associationPattern: association.filenamePattern ?? this.getDefaultAssociationPattern(patternResource, editor)
 			};
 		}
 
@@ -398,7 +402,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			priority,
 			source: EditorMatchRuleSource.EditorRegistration,
 			globPattern: editor.globPattern,
-			associationPattern: this.getDefaultAssociationPattern(resource, editor)
+			associationPattern: this.getDefaultAssociationPattern(patternResource, editor)
 		};
 	}
 
@@ -547,7 +551,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean): void {
 		const settingId = forDiffEditor ? diffEditorsAssociationsSettingId : editorsAssociationsSettingId;
 		const associationType = forDiffEditor ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
-		resource = this.getResourceForEditorMatching(resource);
 		const matches = this.getEditorMatches(resource, { isDiffEditor: forDiffEditor });
 		const currentAssociation = matches.defaultRule.source === EditorMatchRuleSource.UserAssociation ? matches.defaultRule.association : undefined;
 		const associationPattern = matches.defaultRule.associationPattern;
@@ -584,13 +587,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return undefined;
 		}
 
-		let associations = this.getMatchingAssociationsForResource(resource, remainingSettingAssociations);
+		const patternResource = this.getResourceForPatternMatching(resource);
+		let associations = this.getMatchingAssociationsForResource(patternResource, remainingSettingAssociations);
 		if (associationType === EditorAssociationType.DiffEditor && associations.length === 0) {
-			associations = this.getAssociationsForResource(resource)
+			associations = this.getAssociationsForResource(patternResource)
 				.filter(association => !this.isExplicitForAssociationType(association.viewType, associationType));
 		}
 
-		const editors = this.findMatchingEditors(resource, associationType, associations);
+		const editors = this.findMatchingEditors(resource, associationType, associations, patternResource);
 		const selection = this.getDefaultEditorSelection(resource, associationType, false, editors, associations);
 		return selection.conflictingDefault ? undefined : selection.editor?.editorInfo.id ?? DEFAULT_EDITOR_ASSOCIATION.id;
 	}
@@ -648,7 +652,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return settingObject;
 	}
 
-	private findMatchingEditors(resource: URI, associationType: EditorAssociationType = EditorAssociationType.Editor, userSettings = this.getAssociationsForResourceByType(resource, associationType)): RegisteredEditor[] {
+	/**
+	 * @param patternResource The resource to match editor filename patterns against, see {@link getResourceForPatternMatching}.
+	 */
+	private findMatchingEditors(resource: URI, associationType: EditorAssociationType = EditorAssociationType.Editor, userSettings = this.getAssociationsForResourceByType(resource, associationType), patternResource = resource): RegisteredEditor[] {
 		// The user setting should be respected even if the editor doesn't specify that resource in package.json
 		const matchingEditors: RegisteredEditor[] = [];
 		// Then all glob patterns
@@ -665,7 +672,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				}
 
 				const foundInSettings = userSettings.find(setting => setting.viewType === editor.editorInfo.id);
-				if ((foundInSettings && this.getEffectivePriority(editor.editorInfo, associationType) !== RegisteredEditorPriority.exclusive) || globMatchesResource(key, resource)) {
+				if ((foundInSettings && this.getEffectivePriority(editor.editorInfo, associationType) !== RegisteredEditorPriority.exclusive) || globMatchesResource(key, patternResource)) {
 					matchingEditors.push(editor);
 				}
 			}

@@ -2170,7 +2170,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Preview). This mirrors the editor type dropdown shown in the breadcrumbs bar. It is
 			// built per group so it reflects that group's active editor.
 			if (menuId === MenuId.EditorTitle) {
-				const available = getAvailableEditorTypes(this.activeEditor, this.editorResolverService);
+				const available = getAvailableEditorTypes(this.activeEditor, this.editorResolverService, this.modelService);
 				if (available) {
 					const editorTypeActions = createEditorTypeActions(available, this, this.editorResolverService, this.commandService, this.editorService);
 					const reopenWithSubmenu = new SubmenuAction('editor.reopenWith', localize('reopenWith', "Reopen Editor With"), editorTypeActions);
