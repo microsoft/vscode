@@ -376,7 +376,12 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 			if (selected.kind === 'add') {
-				const result = await this.addLocalMarketplace(quickInputService, notificationService, configurationService, refs.map(({ reference }) => reference));
+				const result = await this.addLocalMarketplace(
+					quickInputService,
+					notificationService,
+					configurationService,
+					[...configuredMarketplaces.values()].map(({ reference }) => reference),
+				);
 				if (result === 'back') {
 					continue;
 				}

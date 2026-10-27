@@ -1217,6 +1217,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
 			[ChatConfiguration.ExtraMarketplaces]: {},
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		}, true);
 		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
@@ -1229,6 +1230,39 @@ suite('ManagePluginMarketplacesAction', () => {
 				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
 				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
 			],
+			configurationUpdates: [],
+		});
+	});
+
+	test('keeps the hidden default marketplace in add validation', async () => {
+		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+		}, true);
+		fixture.quickInputService.pickIds.push('addMarketplace');
+		fixture.quickInputService.inputValue = marketplace.rawValue;
+		fixture.quickInputService.inputBackAfterAccept = true;
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual({
+			items: fixture.quickInputService.pickSnapshots[0],
+			validation: fixture.quickInputService.inputValidationSnapshots,
+			configurationUpdates: fixture.configurationService.updates,
+		}, {
+			items: [
+				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
+				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
+			],
+			validation: [{
+				phase: 'accept',
+				value: marketplace.rawValue,
+				message: 'This marketplace is already configured.',
+				severity: Severity.Error,
+			}],
 			configurationUpdates: [],
 		});
 	});
@@ -1246,7 +1280,9 @@ suite('ManagePluginMarketplacesAction', () => {
 			remove: async () => { throw new Error('Unexpected remove'); },
 			refresh: async () => [],
 		};
-		const fixture = createFixture({}, true, provider);
+		const fixture = createFixture({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+		}, true, provider);
 		const actual = [];
 		for (const enabled of [false, true, false]) {
 			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, enabled);

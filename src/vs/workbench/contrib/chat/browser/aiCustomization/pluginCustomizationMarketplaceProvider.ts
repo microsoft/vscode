@@ -57,6 +57,7 @@ export function getPluginCustomizationMarketplaceSourceIdFromIdentifier(identifi
 export function isPluginMarketplaceAvailableInDiscover(configurationService: IConfigurationService, marketplace: IMarketplaceReference | string, githubFeedAvailable: boolean): boolean {
 	const reference = typeof marketplace === 'string' ? parseProviderMarketplaceReference(marketplace) : marketplace;
 	return !githubFeedAvailable ||
+		configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true ||
 		configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true ||
 		reference?.githubRepo?.toLowerCase() !== defaultMarketplaceReference.githubRepo;
 }

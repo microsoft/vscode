@@ -205,8 +205,9 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		});
 	});
 
-	test('identifies Awesome Copilot by repository rather than its provider marketplace label', () => {
+	test('identifies Awesome Copilot by repository when the GitHub feed is visible', async () => {
 		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		});
 		const sources = [
@@ -218,13 +219,20 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 			'file:///marketplaces/awesome-copilot',
 			'provider-defined source',
 		];
-		assert.deepStrictEqual(sources.map(source => isPluginMarketplaceAvailableInDiscover(configuration, source, true)), [false, false, false, true, true, true, true]);
+		const visibleFeed = sources.map(source => isPluginMarketplaceAvailableInDiscover(configuration, source, true));
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		const hiddenFeed = sources.map(source => isPluginMarketplaceAvailableInDiscover(configuration, source, true));
+		assert.deepStrictEqual({ visibleFeed, hiddenFeed }, {
+			visibleFeed: [false, false, false, true, true, true, true],
+			hiddenFeed: [true, true, true, true, true, true, true],
+		});
 	});
 
 	test('contributes the logical source only when an allowed native registry can provide content', async () => {
 		const service = new TestPluginMarketplaceService();
 		const configuration = new TestConfigurationService({
 			[ChatConfiguration.PluginsEnabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		});
 		const sources = (githubFeedAvailable: boolean) => getPluginCustomizationMarketplaceSourceInfos(configuration, service, githubFeedAvailable).map(source => ({
