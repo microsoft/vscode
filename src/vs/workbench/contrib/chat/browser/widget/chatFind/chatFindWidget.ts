@@ -43,6 +43,11 @@ export interface IChatFindHost {
 	getRenderHeight(): number;
 	/** Id of the last item intersecting the viewport, used to start Find from what is on screen. */
 	getViewportAnchorItemId(): string | undefined;
+	/**
+	 * Renders more of a long response toward the content part at `partIndex` if that part is not rendered yet.
+	 * Returns whether anything was rendered, so locating the match can be tried again.
+	 */
+	renderDeferredContentPart?(item: ChatTreeItem, partIndex: number): boolean;
 }
 
 /** Upper bound on the number of DOM ranges highlighted at once (only ever the currently mounted/visible rows). */
@@ -560,13 +565,16 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	private _revealActiveMatch(match: IChatFindMatch, attempt: number = 0): void {
 		const locatedMatch = this._locateMatch(match);
 		if (!locatedMatch) {
+			const item = this._findItemForMatch(match);
+			// The part of a long response that holds the match may not be rendered yet. Rendering it toward the match
+			// makes progress on every attempt, so those attempts do not count against the limit.
+			const renderedMore = !!item && match.partIndex >= 0 && !!this.host.renderDeferredContentPart?.(item, match.partIndex);
 			// A long jump outruns the list, which mounts and re-measures rows over later frames.
-			if (attempt < ChatFindWidget.MAX_LOCATE_ATTEMPTS) {
-				const item = this._findItemForMatch(match);
+			if (renderedMore || attempt < ChatFindWidget.MAX_LOCATE_ATTEMPTS) {
 				if (item) {
 					this.host.reveal(item);
 				}
-				this._revealScheduler.value = dom.scheduleAtNextAnimationFrame(this._targetWindow, () => this._revealActiveMatch(match, attempt + 1));
+				this._revealScheduler.value = dom.scheduleAtNextAnimationFrame(this._targetWindow, () => this._revealActiveMatch(match, renderedMore ? attempt : attempt + 1));
 				return;
 			}
 			this._repaintVisibleHighlights();

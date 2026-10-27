@@ -565,8 +565,10 @@ export function registerChatCodeBlockActions() {
 
 		widget.reveal(currentResponse);
 		const responseCodeblocks = widget.getCodeBlockInfosForResponse(currentResponse);
-		const focusIdx = curCodeBlockInfo ?
-			(curCodeBlockInfo.codeBlockIndex + (reverse ? -1 : 1) + responseCodeblocks.length) % responseCodeblocks.length :
+		// Code blocks are listed in document order, so navigate by position rather than by code block number.
+		const currentIdx = curCodeBlockInfo ? responseCodeblocks.findIndex(info => info === curCodeBlockInfo || (!!info.uri && info.uri.toString() === curCodeBlockInfo.uri?.toString())) : -1;
+		const focusIdx = currentIdx >= 0 ?
+			(currentIdx + (reverse ? -1 : 1) + responseCodeblocks.length) % responseCodeblocks.length :
 			reverse ? responseCodeblocks.length - 1 : 0;
 
 		responseCodeblocks[focusIdx]?.focus();

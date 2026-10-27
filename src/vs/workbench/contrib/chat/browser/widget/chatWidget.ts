@@ -1244,6 +1244,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				setScrollTop: (scrollTop) => { this.listWidget.scrollTop = scrollTop; },
 				getRenderHeight: () => this.listWidget.renderHeight,
 				getViewportAnchorItemId: () => this.listWidget.lastVisibleItem?.id,
+				renderDeferredContentPart: (item, partIndex) => this.listWidget.renderDeferredContentPart(item, partIndex),
 			};
 			this._findController = this._register(this.instantiationService.createInstance(ChatFindWidget, host));
 			// Focusing the Find widget must count as focusing this widget, so

@@ -234,6 +234,64 @@ class UserToggleResizeTracker extends Disposable {
 	}
 }
 
+/**
+ * Keeps an element at its position in the viewport while content is inserted above it, by scrolling by as much as
+ * the element moved within the scrollable content. Scrolling never moves it within the content, so this does not
+ * undo the user's scrolling, unlike restoring a recorded viewport position would. Keeps following the element for
+ * a few frames, since inserted content can still change size.
+ */
+class ScrollAnchorTracker extends Disposable {
+
+	private static readonly MAX_FRAMES = 30;
+	private static readonly SETTLED_FRAMES = 2;
+
+	private contentTop: number;
+	private frames = 0;
+	private quietFrames = 0;
+	private readonly pendingFrame = this._register(new MutableDisposable<IDisposable>());
+
+	constructor(
+		private readonly anchor: HTMLElement,
+		/** The anchor's position within the scrollable content. */
+		private readonly getContentTop: () => number,
+		/** Scrolls by `delta` and returns how far the list actually scrolled. */
+		private readonly scrollBy: (delta: number) => number,
+		private readonly onDidSettle: () => void,
+	) {
+		super();
+		this.contentTop = getContentTop();
+		this.scheduleFrame();
+	}
+
+	restore(): void {
+		if (!this.anchor.isConnected) {
+			return;
+		}
+		const contentTop = this.getContentTop();
+		const delta = contentTop - this.contentTop;
+		let remaining = 0;
+		if (Math.abs(delta) >= 1) {
+			// The list clamps the scroll position until it knows the new height, so retry the rest later.
+			remaining = delta - this.scrollBy(delta);
+			this.quietFrames = 0;
+		}
+		this.contentTop = contentTop - remaining;
+	}
+
+	private scheduleFrame(): void {
+		this.pendingFrame.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.anchor), () => {
+			this.restore();
+			this.frames++;
+			this.quietFrames++;
+			if (!this.anchor.isConnected || this.quietFrames > ScrollAnchorTracker.SETTLED_FRAMES || this.frames >= ScrollAnchorTracker.MAX_FRAMES) {
+				this.onDidSettle();
+			} else {
+				this.scheduleFrame();
+			}
+		});
+	}
+}
+
 export interface IChatListWidgetOptions {
 	/**
 	 * Options for the list item renderer.
@@ -388,6 +446,7 @@ export class ChatListWidget extends Disposable {
 	private _settingChangeCounter: number = 0;
 	private _visibleChangeCount: number = 0;
 	private readonly _userToggleResizeTrackers = this._register(new DisposableMap<ChatTreeItem, UserToggleResizeTracker>());
+	private readonly _scrollAnchors = this._register(new DisposableMap<ChatTreeItem, ScrollAnchorTracker>());
 
 	private readonly _container: HTMLElement;
 	private readonly _scrollDownButton: Button;
@@ -558,6 +617,7 @@ export class ChatListWidget extends Disposable {
 			stickyScrollTopPadding: CHAT_STICKY_SCROLL_TOP_PADDING,
 			getEditingValue: options.getEditingValue,
 			preserveScrollPosition: target => this.preserveScrollPosition(target),
+			preserveScrollAnchor: (element, anchor) => this.preserveScrollAnchor(element, anchor),
 			onDidFinishProgressCollapse: () => this.updateBottomPadding(),
 		};
 
@@ -762,7 +822,8 @@ export class ChatListWidget extends Disposable {
 				|| e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.RichLinks)
 				|| e.affectsConfiguration(ChatConfiguration.PersistentProgress)
-				|| e.affectsConfiguration(ChatConfiguration.PersistentProgressVerbosity)) {
+				|| e.affectsConfiguration(ChatConfiguration.PersistentProgressVerbosity)
+				|| e.affectsConfiguration(ChatConfiguration.WindowedResponseRendering)) {
 				this._settingChangeCounter++;
 				this.refresh();
 			}
@@ -1118,12 +1179,41 @@ export class ChatListWidget extends Disposable {
 				}
 				this.updateBottomPadding(scrollTop);
 				userToggleResizeTracker.restoreScrollAnchor();
+				this._scrollAnchors.get(element)?.restore();
 				return;
 			}
 			this._withPersistedAutoScroll(() => {
 				this._tree.updateElementHeight(element, height);
 			});
+			this._scrollAnchors.get(element)?.restore();
 		}
+	}
+
+	/**
+	 * Keeps `anchor` at its position in the viewport while content is inserted above it in the row of `element`.
+	 * Following the end of the transcript already keeps the newest content in view, so nothing is anchored then.
+	 */
+	private preserveScrollAnchor(element: ChatTreeItem, anchor: HTMLElement): void {
+		if (!this._container.contains(anchor) || (!this.isAutoScrollHeld && this.isScrolledToBottom)) {
+			return;
+		}
+		// Apply whatever an earlier insertion moved before measuring the next one.
+		this._scrollAnchors.get(element)?.restore();
+		const tracker: ScrollAnchorTracker = new ScrollAnchorTracker(
+			anchor,
+			() => anchor.getBoundingClientRect().top - this._tree.getHTMLElement().getBoundingClientRect().top + this._tree.scrollTop,
+			delta => {
+				const scrollTop = this._tree.scrollTop;
+				this._tree.scrollTop = scrollTop + delta;
+				return this._tree.scrollTop - scrollTop;
+			},
+			() => {
+				if (this._scrollAnchors.get(element) === tracker) {
+					this._scrollAnchors.deleteAndDispose(element);
+				}
+			},
+		);
+		this._scrollAnchors.set(element, tracker);
 	}
 
 	private preserveScrollPosition(target: HTMLElement): void {
@@ -1351,6 +1441,14 @@ export class ChatListWidget extends Disposable {
 	 */
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
 		return this._renderer.getCodeBlockInfoForEditor(uri);
+	}
+
+	/**
+	 * Renders more of a long response toward a content part that is not rendered yet.
+	 * Returns whether anything was rendered.
+	 */
+	renderDeferredContentPart(element: ChatTreeItem, partIndex: number): boolean {
+		return this._renderer.renderDeferredContentPart(element, partIndex);
 	}
 
 	/**

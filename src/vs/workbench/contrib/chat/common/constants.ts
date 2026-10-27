@@ -82,6 +82,7 @@ export enum ChatConfiguration {
 	TerminalAgentHostEnabled = 'chat.terminal.agentHost.enabled',
 	InlineChatAgentHostEnabled = 'chat.inlineChat.agentHost.enabled',
 	CollapseCompletedResponses = 'chat.agent.collapseCompletedResponses',
+	WindowedResponseRendering = 'chat.experimental.windowedResponseRendering.enabled',
 	SimpleTerminalCollapsible = 'chat.tools.terminal.simpleCollapsible',
 	TerminalOutputReflow = 'chat.tools.terminal.outputReflow',
 	CompressOutputEnabled = 'chat.tools.compressOutput.enabled',
