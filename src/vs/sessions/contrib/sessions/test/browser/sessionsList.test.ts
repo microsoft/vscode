@@ -6379,7 +6379,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('only allows top-level comparison headers to be dragged', () => {
+		test('allows comparison headers to be dragged in workspace and date grouping', () => {
 			const workspace = renderComparison(undefined, 'all', new Set(), true);
 			const workspaceSection = [...workspace.container.querySelectorAll<HTMLElement>('.session-section')]
 				.find(section => section.querySelector('.session-section-label')?.textContent === 'Zebra');
@@ -6412,9 +6412,193 @@ suite('Sessions - SessionsList', () => {
 				workspaceSectionReorders: workspace.harness.sectionReorders,
 				date: dateContainer.querySelector('.session-comparison-group')?.closest<HTMLElement>('.monaco-list-row')?.draggable,
 			}, {
-				workspace: false,
-				workspaceSectionReorders: [],
+				workspace: true,
+				workspaceSectionReorders: [{
+					visibleOrder: ['workspace:Workspace', 'workspace:Zebra'],
+					draggedId: 'workspace:Zebra',
+					targetId: 'workspace:Workspace',
+					position: 'before',
+					promoteId: 'workspace:Zebra',
+				}],
 				date: true,
+			});
+		});
+
+		function renderOrganizableComparisons(grouping: SessionsGrouping, sorting: SessionsSorting, nested = false) {
+			const now = Date.now();
+			const first = createTestSession('First attempt', { resourceId: 'first', createdAt: new Date(now - 3000), updatedAt: new Date(now), repository: 'owner/repo' });
+			const second = createTestSession('Second attempt', { resourceId: 'second', createdAt: new Date(now - 1000), repository: 'owner/repo' });
+			const ordinary = createTestSession('Ordinary', { resourceId: 'ordinary', createdAt: new Date(now - 2000), updatedAt: new Date(now - 500), repository: 'owner/repo' });
+			const parent: ISessionGroup = { id: 'parent', name: 'Custom', createdAt: now };
+			const comparisonGroups: ISessionGroup[] = [
+				{ id: 'first-comparison', name: 'First', createdAt: first.session.createdAt.getTime(), parentId: nested ? parent.id : undefined },
+				{ id: 'second-comparison', name: 'Second', createdAt: second.session.createdAt.getTime(), parentId: nested ? parent.id : undefined },
+			];
+			const participants = [first, second];
+			const comparisons: ISessionComparison[] = comparisonGroups.map((group, index) => ({
+				id: group.id, groupId: group.id, title: group.name, createdAt: group.createdAt,
+				workspace: URI.file('/workspace'), prompt: 'Compare',
+				participants: [{
+					id: `attempt-${index}`, role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: participants[index].session.resource,
+				}],
+			}));
+			const harness = createListHarness(disposables, participants.map(participant => participant.session).concat(ordinary.session), {
+				groups: [parent, ...comparisonGroups],
+				memberships: new Map([
+					...participants.map((participant, index) => [participant.session.sessionId, comparisonGroups[index].id] as const),
+					...(nested ? [[ordinary.session.sessionId, parent.id] as const] : []),
+				]),
+				comparisons, liveListModel: true, liveGroups: true,
+			});
+			const contextMenus: (readonly IAction[])[] = [];
+			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void {
+					contextMenus.push(delegate.getActions());
+				}
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => grouping, sorting: () => sorting, onSessionOpen: () => { },
+			}));
+			list.layout(1000, 400);
+			const section = nested ? 'group:parent' : grouping === SessionsGrouping.Date ? 'recent'
+				: grouping === SessionsGrouping.Environment ? 'environment:local'
+					: grouping === SessionsGrouping.Repository ? 'repository:owner/repo' : 'workspace:Workspace';
+			const order = () => {
+				const find = (nodes: Readonly<ReturnType<SessionsList['getTreeSnapshot']>>): string[] | undefined => {
+					for (const node of nodes) {
+						if (node.type !== 'session') {
+							if (node.id === section) {
+								return node.children.map(child => child.type === 'session' ? child.session.title.get() : child.label);
+							}
+							const result = find(node.children);
+							if (result) {
+								return result;
+							}
+						}
+					}
+					return undefined;
+				};
+				return find(list.getTreeSnapshot());
+			};
+			return { harness, list, container, order, first, second, section, contextMenus };
+		}
+
+		function dragComparison(source: HTMLElement, target: HTMLElement, position: 'before' | 'over' | 'after' = 'before'): boolean {
+			const transfer = new DataTransfer();
+			source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+			const rect = target.getBoundingClientRect();
+			const clientY = position === 'before' ? rect.top + 1 : position === 'after' ? rect.bottom - 1 : rect.top + rect.height / 2;
+			const dragOver = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer, clientY });
+			target.dispatchEvent(dragOver);
+			const accepted = !!target.closest('.monaco-list-rows')?.querySelector('[class*="drop-target"]');
+			target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer, clientY }));
+			source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+			return accepted;
+		}
+
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository, SessionsGrouping.Environment, SessionsGrouping.Date]) {
+			for (const sorting of [SessionsSorting.Created, SessionsSorting.Updated]) {
+				test(`sorts comparisons alongside sessions: ${grouping}, ${sorting}`, () => {
+					const { order } = renderOrganizableComparisons(grouping, sorting);
+					assert.deepStrictEqual(order(), sorting === SessionsSorting.Created ? ['Second', 'Ordinary', 'First'] : ['First', 'Ordinary', 'Second']);
+				});
+				test(`drags a comparison next to a session: ${grouping}, ${sorting}`, () => {
+					const { list, order } = renderOrganizableComparisons(grouping, sorting);
+					const sourceId = sorting === SessionsSorting.Created ? 'first-comparison' : 'second-comparison';
+					dragComparison(list.getItemRow({ group: sourceId })!, list.getItemRow({ session: URI.parse('test-session://ordinary') })!);
+					assert.deepStrictEqual(order(), sorting === SessionsSorting.Created ? ['Second', 'First', 'Ordinary'] : ['First', 'Second', 'Ordinary']);
+				});
+			}
+
+			test(`reorders a whole comparison by dragging its header: ${grouping}`, () => {
+				const { list, order, harness } = renderOrganizableComparisons(grouping, SessionsSorting.Created);
+				const source = list.getItemRow({ group: 'first-comparison' })!;
+				const target = list.getItemRow({ session: URI.parse('test-session://ordinary') })!;
+				dragComparison(source, target);
+				assert.deepStrictEqual({
+					order: order(),
+					memberships: harness.addedToGroups,
+					removed: harness.removedFromGroups,
+					overrides: harness.sortChanges.map(change => [...change.set.keys()]),
+				}, {
+					order: ['Second', 'First', 'Ordinary'],
+					memberships: [], removed: [],
+					overrides: [['group:first-comparison']],
+				});
+			});
+		}
+
+		test('sorts comparisons with ordinary sessions inside a custom group', () => {
+			const { order, list } = renderOrganizableComparisons(SessionsGrouping.Workspace, SessionsSorting.Created, true);
+			const initial = order();
+			list.moveHeaderTo('group:first-comparison', 'group:parent', { siblingId: 'group:second-comparison', position: 'before' });
+			assert.deepStrictEqual({ initial, reordered: order() }, {
+				initial: ['Second', 'Ordinary', 'First'],
+				reordered: ['First', 'Second', 'Ordinary'],
+			});
+		});
+
+		test('moves a comparison into and out of a custom group without changing participants', () => {
+			const { list, harness, container } = renderOrganizableComparisons(SessionsGrouping.Workspace, SessionsSorting.Created);
+			list.moveHeaderTo('group:first-comparison', 'group:parent', undefined);
+			const nestedLevel = container.querySelector('.session-comparison-group .session-section-label')?.closest('.monaco-list-row')?.getAttribute('aria-level');
+			const grouped = harness.instantiationService.get(ISessionGroupsService).getGroup('first-comparison');
+			list.moveHeaderTo('group:first-comparison', undefined, undefined);
+			assert.deepStrictEqual({
+				groupedParent: grouped?.parentId,
+				nestedLevel,
+				parentAfterRemoval: harness.instantiationService.get(ISessionGroupsService).getGroup('first-comparison')?.parentId,
+				memberships: harness.addedToGroups,
+				removed: harness.removedFromGroups,
+			}, { groupedParent: 'parent', nestedLevel: '2', parentAfterRemoval: undefined, memberships: [], removed: [] });
+		});
+
+		test('drags a whole comparison into a custom group', () => {
+			const { list, harness } = renderOrganizableComparisons(SessionsGrouping.Workspace, SessionsSorting.Created);
+			const accepted = dragComparison(list.getItemRow({ group: 'first-comparison' })!, list.getItemRow({ group: 'parent' })!, 'over');
+			assert.deepStrictEqual({
+				accepted,
+				parent: harness.instantiationService.get(ISessionGroupsService).getGroup('first-comparison')?.parentId,
+				participants: harness.instantiationService.get(ISessionGroupsService).getSessionIdsInGroup('first-comparison'),
+				membershipChanges: harness.addedToGroups,
+			}, { accepted: true, parent: 'parent', participants: ['first'], membershipChanges: [] });
+		});
+
+		test('offers context-menu moves into and out of custom groups but not into another comparison', async () => {
+			const { list, contextMenus, harness } = renderOrganizableComparisons(SessionsGrouping.Date, SessionsSorting.Created);
+			list.getItemRow({ group: 'first-comparison' })!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+			const move = contextMenus.at(-1)?.find(action => action.id === 'sessions.moveComparisonToGroup');
+			assert.ok(move instanceof SubmenuAction);
+			const targets = move.actions.map(action => action.label);
+			await move.actions[0].run();
+			const nestedParent = harness.instantiationService.get(ISessionGroupsService).getGroup('first-comparison')?.parentId;
+			list.getItemRow({ group: 'first-comparison' })!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+			await contextMenus.at(-1)?.find(action => action.id === 'sessions.removeComparisonFromGroup')?.run();
+			assert.deepStrictEqual({
+				targets, nestedParent,
+				parentAfterRemoval: harness.instantiationService.get(ISessionGroupsService).getGroup('first-comparison')?.parentId,
+			}, { targets: ['Custom'], nestedParent: 'parent', parentAfterRemoval: undefined });
+		});
+
+		test('counts a comparison once toward Recent and rejects drops that would remain in Recent', () => {
+			const { harness, list } = renderOrganizableComparisons(SessionsGrouping.Date, SessionsSorting.Created);
+			harness.managementService.sessions.push(...Array.from({ length: 12 }, (_, index) => createTestSession(`Old ${index}`, {
+				resourceId: `old-${index}`, createdAt: new Date(Date.now() - 2 * 86_400_000 - index * 1000),
+			}).session));
+			list.refresh();
+			list.setHeaderCollapsed('older', false);
+			const snapshot = list.getTreeSnapshot().filter(node => node.type !== 'session' && ['recent', 'older'].includes(node.id));
+			const accepted = dragComparison(list.getItemRow({ group: 'first-comparison' })!, list.getItemRow({ session: URI.parse('test-session://old-7') })!, 'after');
+			assert.deepStrictEqual({
+				sections: snapshot.map(node => node.type !== 'session' ? { id: node.id, count: node.children.length, comparisons: node.children.filter(child => child.type === 'group').length } : undefined),
+				accepted,
+				overrides: harness.sortChanges.length,
+			}, {
+				sections: [{ id: 'recent', count: 10, comparisons: 2 }, { id: 'older', count: 5, comparisons: 0 }],
+				accepted: false, overrides: 0,
 			});
 		});
 
