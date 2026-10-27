@@ -8,15 +8,23 @@ import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/s
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { TestFileDialogService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestEditorGroupView, TestFileDialogService, TestWorkbenchExtensionEnablementService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
-import { WorkspaceTrustedUrisTable } from '../../browser/workspaceTrustEditor.js';
+import { WorkspaceTrustedUrisTable, WorkspaceTrustEditor } from '../../browser/workspaceTrustEditor.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { IWorkbenchConfigurationService } from '../../../../services/configuration/common/configuration.js';
+import { IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionManifestPropertiesService } from '../../../../services/extensions/common/extensionManifestPropertiesService.js';
+import { WorkspaceTrustEditorInput } from '../../../../services/workspaces/browser/workspaceTrustEditorInput.js';
 
 class PickerFileDialogService extends TestFileDialogService {
 	nextPick: URI[] | undefined;
@@ -89,6 +97,15 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 		await this.completionGate;
 	}
 
+	override async setTrustedUris(uris: URI[]): Promise<void> {
+		if (this.failure) {
+			throw this.failure;
+		}
+		this.entries = uris.map(uri => this.getCanonicalUri(uri));
+		this._onDidChangeTrustedFoldersEmitter.fire();
+		await this.completionGate;
+	}
+
 	private getCanonicalUri(uri: URI): URI {
 		return (this.canonicalize?.(uri) ?? uri).with({ query: null, fragment: null });
 	}
@@ -106,6 +123,107 @@ interface ITableState {
 	readonly activeDescendant: string | undefined;
 	readonly tableHasDomFocus: boolean;
 }
+
+suite('WorkspaceTrustEditor source recovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let container: HTMLElement;
+	let retries: number;
+	let resolved: boolean;
+	let resolveOnRetry: boolean;
+	let retryGate: DeferredPromise<void> | undefined;
+	let retryFailure: Error | undefined;
+
+	setup(async () => {
+		retries = 0;
+		resolved = false;
+		resolveOnRetry = false;
+		retryGate = undefined;
+		retryFailure = undefined;
+		container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+
+		const changed = store.add(new Emitter<void>());
+		const trustService = store.add(new class extends TestWorkspaceTrustManagementService {
+			override onDidChangeTrustedFolders = changed.event;
+			override isWorkspaceTrusted() { return false; }
+			override getTrustedUris() { return []; }
+			override canSetWorkspaceTrust() { return resolved; }
+			override isWorkspaceTrustSourceResolved() { return resolved; }
+			override async resolveWorkspaceTrust() {
+				retries++;
+				await retryGate?.p;
+				if (retryFailure) {
+					throw retryFailure;
+				}
+				resolved = resolveOnRetry;
+				changed.fire();
+			}
+		});
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IWorkspaceTrustManagementService, trustService);
+		instantiationService.stub(IExtensionsWorkbenchService, { onChange: Event.None, local: [] });
+		instantiationService.stub(IWorkbenchConfigurationService, Object.assign(new TestConfigurationService(), {
+			restrictedSettings: { default: [] },
+			onDidChangeRestrictedSettings: Event.None,
+		}));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestWorkbenchExtensionEnablementService());
+		instantiationService.stub(IExtensionManifestPropertiesService, new class extends mock<IExtensionManifestPropertiesService>() { });
+		const editor = store.add(instantiationService.createInstance(WorkspaceTrustEditor, new TestEditorGroupView(1)));
+		editor.create(container);
+		await editor.setInput(store.add(new WorkspaceTrustEditorInput()), {}, {}, CancellationToken.None);
+		await timeout(150);
+	});
+
+	teardown(() => container.remove());
+
+	function retryButton(): HTMLElement | null {
+		return container.querySelector('[aria-label="Retry Source Check"] .monaco-button');
+	}
+
+	test('explains an unverified source and retries without granting trust', async () => {
+		assert.ok(container.textContent?.includes('source repository for this workspace could not be verified'));
+		assert.strictEqual(container.querySelector('[aria-label^="Trust,"]'), null);
+		retryGate = new DeferredPromise<void>();
+		resolveOnRetry = true;
+		const button = retryButton()!;
+		button.click();
+		assert.strictEqual(button.getAttribute('aria-disabled'), 'true');
+		assert.strictEqual(retries, 1);
+		await retryGate.complete();
+		await timeout(150);
+
+		assert.strictEqual(retryButton(), null);
+		assert.ok(container.querySelector('.workspace-trust-editor.untrusted'));
+		assert.ok(Array.from(container.querySelectorAll('.monaco-button')).some(button => button.textContent === 'Trust'));
+	});
+
+	test('an unsuccessful check stays restricted and can be retried again', async () => {
+		retryButton()!.click();
+		await timeout(150);
+
+		assert.strictEqual(retries, 1);
+		assert.strictEqual(resolved, false);
+		assert.strictEqual(retryButton()!.getAttribute('aria-disabled'), 'false');
+		assert.ok(container.textContent?.includes('source repository for this workspace could not be verified'));
+	});
+
+	test('reports retry errors and re-enables the action', async () => {
+		retryFailure = new Error('Retry failed');
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			retryButton()!.click();
+			await timeout(0);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual(errors, [retryFailure]);
+		assert.strictEqual(retryButton()!.getAttribute('aria-disabled'), 'false');
+		assert.strictEqual(resolved, false);
+	});
+});
 
 suite('WorkspaceTrustedUrisTable', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -333,6 +451,53 @@ suite('WorkspaceTrustedUrisTable', () => {
 			errorHandler.setUnexpectedErrorHandler(previousHandler);
 		}
 		assert.deepStrictEqual([errors, getState().selected, mainWindow.document.activeElement === getAddButton()], [[trustService.failure], ['z-last'], true]);
+	});
+
+	test('does not accept an edit until trust persistence completes', async () => {
+		createTable(['c-two']);
+		const gate = new DeferredPromise<void>();
+		trustService.completionGate = gate.p;
+		let accepted = 0;
+		store.add(table.onDidAcceptEdit(() => accepted++));
+		const edit = table.acceptEdit({ uri: folder('c-two'), parentOfWorkspaceItem: false }, folder('m-middle'));
+		const acceptedBeforeCompletion = accepted;
+		gate.complete();
+		await edit;
+
+		assert.deepStrictEqual({
+			acceptedBeforeCompletion,
+			accepted,
+			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
+		}, {
+			acceptedBeforeCompletion: 0,
+			accepted: 1,
+			trustedUris: [folder('m-middle').toString()],
+		});
+	});
+
+	test('reports a failed edit without accepting it or changing stored trust', async () => {
+		createTable(['c-two']);
+		trustService.failure = new Error('source could not be verified');
+		let accepted = 0;
+		store.add(table.onDidAcceptEdit(() => accepted++));
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			await table.acceptEdit({ uri: folder('c-two'), parentOfWorkspaceItem: false }, folder('m-middle'));
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual({
+			errors,
+			accepted,
+			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
+		}, {
+			errors: [trustService.failure],
+			accepted: 0,
+			trustedUris: [folder('c-two').toString()],
+		});
 	});
 
 	test('does not touch the table when disposed during the addition', async () => {

@@ -368,7 +368,7 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 		return null;
 	}
 
-	acceptEdit(item: ITrustedUriItem, uri: URI) {
+	async acceptEdit(item: ITrustedUriItem, uri: URI): Promise<void> {
 		const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
 		const index = trustedFolders.findIndex(u => this.uriService.extUri.isEqual(u, item.uri));
 
@@ -378,8 +378,14 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 			trustedFolders[index] = uri;
 		}
 
-		this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
-		this._onDidAcceptEdit.fire(item);
+		try {
+			await this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
+			if (!this._store.isDisposed) {
+				this._onDidAcceptEdit.fire(item);
+			}
+		} catch (error) {
+			onUnexpectedError(error);
+		}
 	}
 
 	rejectEdit(item: ITrustedUriItem) {
@@ -800,7 +806,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				this.rootElement.focus();
 			} else if (event.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
 				if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
-					this.workspaceTrustManagementService.setWorkspaceTrust(!this.workspaceTrustManagementService.isWorkspaceTrusted());
+					this.workspaceTrustManagementService.setWorkspaceTrust(!this.workspaceTrustManagementService.isWorkspaceTrusted()).catch(onUnexpectedError);
 				}
 			}
 		}));
@@ -1074,13 +1080,21 @@ export class WorkspaceTrustEditor extends EditorPane {
 				this.addTrustedTextToElement(this.untrustedContainer);
 			}
 		} else {
-			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (!this.workspaceTrustManagementService.isWorkspaceTrustSourceResolved()) {
+				const description = append(this.trustedContainer, $('.workspace-trust-untrusted-description'));
+				description.innerText = localize('unresolvedTrustSource', "The source repository for this workspace could not be verified. You can keep reviewing files in Restricted Mode. Make sure the repository extension is enabled and you are signed in, then retry.");
+				this.createButtonRow(this.trustedContainer, [{
+					action: this.rerenderDisposables.add(new Action('workspace.trust.button.action.retry', localize('retryTrustSource', "Retry Source Check"), undefined, true, async () => {
+						await this.workspaceTrustManagementService.resolveWorkspaceTrust();
+					}))
+				}]);
+			} else if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addTrustButtonToElement(this.trustedContainer);
 			}
 		}
 	}
 
-	private createButtonRow(parent: HTMLElement, buttonInfo: { action: Action; keybinding: ResolvedKeybinding }[], enabled?: boolean): void {
+	private createButtonRow(parent: HTMLElement, buttonInfo: { action: Action; keybinding?: ResolvedKeybinding }[], enabled?: boolean): void {
 		const buttonRow = append(parent, $('.workspace-trust-buttons-row'));
 		const buttonContainer = append(buttonRow, $('.workspace-trust-buttons'));
 		const buttonBar = this.rerenderDisposables.add(new ButtonBar(buttonContainer));
@@ -1090,15 +1104,22 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 			button.label = action.label;
 			button.enabled = enabled !== undefined ? enabled : action.enabled;
-			button.description = keybinding.getLabel()!;
-			button.element.ariaLabel = action.label + ', ' + localize('keyboardShortcut', "Keyboard Shortcut: {0}", keybinding.getAriaLabel()!);
+			button.description = keybinding?.getLabel() ?? '';
+			button.element.ariaLabel = keybinding ? action.label + ', ' + localize('keyboardShortcut', "Keyboard Shortcut: {0}", keybinding.getAriaLabel()!) : action.label;
 
-			this.rerenderDisposables.add(button.onDidClick(e => {
+			this.rerenderDisposables.add(button.onDidClick(async e => {
 				if (e) {
 					EventHelper.stop(e, true);
 				}
 
-				action.run();
+				button.enabled = false;
+				try {
+					await action.run();
+				} catch (error) {
+					onUnexpectedError(error);
+				} finally {
+					button.enabled = enabled !== undefined ? enabled : action.enabled;
+				}
 			}));
 		}
 	}

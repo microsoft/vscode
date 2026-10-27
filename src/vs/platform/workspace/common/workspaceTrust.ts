@@ -57,6 +57,9 @@ export interface IWorkspaceTrustManagementService {
 	canSetWorkspaceTrust(): boolean;
 	setWorkspaceTrust(trusted: boolean): Promise<void>;
 
+	isWorkspaceTrustSourceResolved(): boolean;
+	resolveWorkspaceTrust(): Promise<void>;
+
 	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo>;
 	setUrisTrust(uri: URI[], trusted: boolean): Promise<void>;
 
