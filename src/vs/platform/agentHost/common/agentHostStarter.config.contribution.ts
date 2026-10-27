@@ -325,7 +325,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostMcpToolRoutingEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled and tool search is available, agent-host sessions use cached MCP tool metadata to route requests and only prompt for MCP authentication when a server is relevant. Routing tools wait for the selected server's tools to become available. Servers without routing tools retain proactive sign-in hints. Newly created sessions pick up changes to this setting."),
+			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled and tool search is available, agent-host sessions use cached MCP tool metadata to route requests and only prompt for MCP authentication when a server is relevant. Routing tools wait for the selected server's tools to become available. Connector-owned servers do not show proactive sign-in hints when this setting is enabled. Other servers without routing tools retain proactive sign-in hints. Newly created sessions pick up changes to this setting."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
