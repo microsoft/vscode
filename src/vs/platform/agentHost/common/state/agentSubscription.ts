@@ -1128,6 +1128,10 @@ export class AgentSubscriptionManager extends Disposable {
 				const snapshot = await this._subscribe(resource);
 				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
 					sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+				} else if (!this._subscriptions.has(resource)) {
+					// Released while the subscribe was pending: its unsubscribe may have reached the host before this
+					// subscribe did (e.g. a subscribe resent after a reconnect), leaving the host subscribed. Release it.
+					this._tryUnsubscribe(resource);
 				}
 			} catch (err) {
 				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
