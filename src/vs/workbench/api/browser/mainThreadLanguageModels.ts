@@ -164,8 +164,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 						stream: stream.asyncIterable
 					} satisfies ILanguageModelChatResponse;
 				},
-				provideTokenCount: (modelId, str, token) => {
-					return this._proxy.$provideTokenLength(modelId, str, token);
+				provideTokenCount: (modelId, value, token) => {
+					return this._proxy.$provideTokenLength(modelId, typeof value === 'string' ? value : new SerializableObjectWithBuffers(value), token);
 				},
 			}));
 			this._providerRegistrations.set(vendor, disposables);
@@ -268,8 +268,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	}
 
 
-	$countTokens(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number> {
-		return this._chatProviderService.computeTokenLength(modelId, value, token);
+	$countTokens(modelId: string, value: string | SerializableObjectWithBuffers<IChatMessage>, token: CancellationToken): Promise<number> {
+		return this._chatProviderService.computeTokenLength(modelId, typeof value === 'string' ? value : value.value, token);
 	}
 
 	private _registerAuthenticationProvider(extension: ExtensionIdentifier, auth: { providerLabel: string; accountLabel?: string | undefined }): IDisposable {

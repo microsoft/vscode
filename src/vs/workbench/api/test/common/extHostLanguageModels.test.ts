@@ -175,6 +175,33 @@ suite('ExtHostLanguageModels cross-host requests', () => {
 		assert.strictEqual(selected?.id, 'model');
 	});
 
+	test('fetches default model metadata concurrently across hosts', async () => {
+		const identifiers = ['copilot/first', 'copilot/second', 'copilot/default'];
+		const release = new DeferredPromise<void>();
+		const requested: string[] = [];
+		const metadata: ILanguageModelChatMetadata = {
+			extension: nullExtensionDescription.identifier,
+			id: 'default', name: 'default', vendor: 'copilot', family: 'test', version: '1',
+			maxInputTokens: 1000, maxOutputTokens: 1000,
+			isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+		};
+		const proxy: Partial<MainThreadLanguageModelsShape> = {
+			$selectChatModels: async () => identifiers,
+			$getLanguageModelChatMetadata: async identifier => {
+				requested.push(identifier);
+				await release.p;
+				return identifier === 'copilot/default' ? metadata : undefined;
+			},
+		};
+		const consumer = store.add(new ExtHostLanguageModels(SingleProxyRPCProtocol(proxy), new NullLogService(), new class extends mock<IExtHostAuthentication>() { }));
+		const resolving = consumer.getDefaultLanguageModel(nullExtensionDescription, true);
+		await Promise.resolve();
+		const requestedBeforeRelease = [...requested];
+		await release.complete();
+		const selected = await resolving;
+		assert.deepStrictEqual({ requestedBeforeRelease, selected: selected?.id }, { requestedBeforeRelease: identifiers, selected: 'default' });
+	});
+
 	test('streams a request to the owning host using the original provider model', async () => {
 		const hosts = createHosts();
 		const [selected] = await hosts.consumer.selectLanguageModels(nullExtensionDescription, { vendor: 'test' });

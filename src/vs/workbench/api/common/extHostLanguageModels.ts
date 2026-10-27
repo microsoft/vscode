@@ -400,7 +400,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._pendingCancelCTS.get(requestId)?.cancel();
 	}
 
-	$provideTokenLength(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number> {
+	$provideTokenLength(modelId: string, value: string | SerializableObjectWithBuffers<IChatMessage>, token: CancellationToken): Promise<number> {
 		const knownModel = this._localModels.get(modelId);
 		if (!knownModel) {
 			return Promise.resolve(0);
@@ -409,7 +409,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!data) {
 			return Promise.resolve(0);
 		}
-		return Promise.resolve(data.provider.provideTokenCount(knownModel.info, typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage2.to(value), token));
+		return Promise.resolve(data.provider.provideTokenCount(knownModel.info, typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage2.to(value.value), token));
 	}
 
 
@@ -421,8 +421,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const modelIds = forceResolveModels
 			? await this._proxy.$selectChatModels({ extension: extension.identifier })
 			: this._localModels.keys();
-		for (const modelIdentifier of modelIds) {
-			const metadata = await this._getModelMetadata(modelIdentifier);
+		const models = await Promise.all(Array.from(modelIds, async modelIdentifier => ({ modelIdentifier, metadata: await this._getModelMetadata(modelIdentifier) })));
+		for (const { modelIdentifier, metadata } of models) {
 			if (metadata?.isDefaultForLocation[ChatAgentLocation.Chat] && metadata.vendor === COPILOT_VENDOR_ID) {
 				defaultModelId = modelIdentifier;
 				break;
@@ -685,7 +685,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (data && provider) {
 			return provider.provider.provideTokenCount(data.info, value, token);
 		}
-		return this._proxy.$countTokens(modelId, typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage2.from(value), token);
+		return this._proxy.$countTokens(modelId, typeof value === 'string' ? value : new SerializableObjectWithBuffers(typeConvert.LanguageModelChatMessage2.from(value)), token);
 	}
 
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void {
