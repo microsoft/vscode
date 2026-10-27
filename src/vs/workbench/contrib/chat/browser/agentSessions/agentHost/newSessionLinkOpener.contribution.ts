@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { isCopilotAgentHostProvider, parseRemoteAgentHostSessionTypeAuthority } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -14,12 +14,11 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
-import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../../chatSessions/chatSessions.contribution.js';
-import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 
 /** How long a link waits for a configured agent host that is still connecting. */
 const AGENT_HOST_AVAILABILITY_TIMEOUT_MS = 15_000;
@@ -39,17 +38,14 @@ export class AgentHostNewSessionLinkOpenerContribution extends Disposable implem
 
 	static readonly ID = 'workbench.chat.agentHostNewSessionLinkOpener';
 
-	private readonly _requestedWorkingDirectories = this._register(new DisposableMap<string>());
-
 	constructor(
 		@IOpenerService openerService: IOpenerService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IChatService chatService: IChatService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -61,12 +57,6 @@ export class AgentHostNewSessionLinkOpenerContribution extends Disposable implem
 				await this._open(link, { openToSide: false, ...options }.openToSide === true);
 				return true;
 			},
-		}));
-		// The backend session captures its working directory when it is created; a disposed draft no longer needs it.
-		this._register(chatService.onDidDisposeSession(e => {
-			for (const sessionResource of e.sessionResources) {
-				this._requestedWorkingDirectories.deleteAndDispose(sessionResource.toString());
-			}
 		}));
 	}
 
@@ -81,7 +71,8 @@ export class AgentHostNewSessionLinkOpenerContribution extends Disposable implem
 		const openOptions = { type: contribution.type, position, displayName: contribution.displayName };
 		const sessionResource = getResourceForNewChatSession(openOptions);
 		if (link.folderUri) {
-			this._requestedWorkingDirectories.set(sessionResource.toString(), this._workingDirectoryResolver.requestWorkingDirectory(sessionResource, link.folderUri));
+			// Carried onto the real session when the first request creates it, and cleared when the chat is disposed.
+			this._newSessionFolderService.setFolder(sessionResource, link.folderUri);
 		}
 		const openedResource = await this._instantiationService.invokeFunction(openChatSession, { ...openOptions, sessionResource });
 		if (link.draft) {

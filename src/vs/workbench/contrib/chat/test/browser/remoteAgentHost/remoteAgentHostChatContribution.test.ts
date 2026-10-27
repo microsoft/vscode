@@ -39,6 +39,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { createCloudSandboxConnectionCustomization } from '../../../browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 import { RemoteAgentHostAuthenticationService, IRemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { RemoteAgentHostContribution } from '../../../browser/remoteAgentHost/remoteAgentHostChatContribution.js';
@@ -121,6 +122,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		instantiation.stub(IChatSessionsService, {});
 		instantiation.stub(ILanguageModelsService, {});
 		instantiation.stub(IAgentHostSessionWorkingDirectoryResolver, {});
+		instantiation.stub(IAgentHostNewSessionFolderService, {});
 		instantiation.stub(ICustomizationHarnessService, {});
 		instantiation.stub(IAgentHostTerminalService, {});
 		instantiation.stub(IAgentHostActiveClientService, {});

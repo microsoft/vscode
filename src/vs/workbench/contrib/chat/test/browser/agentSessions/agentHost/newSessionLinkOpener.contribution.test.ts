@@ -8,7 +8,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentHostSessionWorkingDirectoryResolver } from '../../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { getHostFolderForNewSession } from '../../../../browser/remoteAgentHost/remoteAgentHostChatContribution.js';
 import { findSessionTypeForLink } from '../../../../browser/agentSessions/agentHost/newSessionLinkOpener.contribution.js';
 import { ResolvedChatSessionsExtensionPoint } from '../../../../common/chatSessionsService.js';
 
@@ -46,17 +46,14 @@ suite('AgentHostNewSessionLinkOpenerContribution', () => {
 		});
 	});
 
-	test('a requested working directory overrides the host choosing until it is released', () => {
-		const resolver = new AgentHostSessionWorkingDirectoryResolver();
-		const sessionType = remoteAgentHostSessionTypeId('localhost__8124', 'copilotcli');
-		const session = URI.from({ scheme: sessionType, path: '/untitled-1' });
-		const folder = toAgentHostUri(URI.file('/repo'), 'localhost__8124');
-		const registration = resolver.registerResolver(sessionType, () => null);
-		const request = resolver.requestWorkingDirectory(session, folder);
-		const requested = resolver.resolveRequested(session)?.toString();
-		request.dispose();
-		const released = resolver.resolveRequested(session);
-		registration.dispose();
-		assert.deepStrictEqual({ requested, released }, { requested: folder.toString(), released: null });
+	test('a new session requests its folder only when it lies on the session\'s host', () => {
+		const authority = 'localhost__8124';
+		const hostFolder = toAgentHostUri(URI.file('/repo'), authority);
+		assert.deepStrictEqual([
+			hostFolder,
+			toAgentHostUri(URI.file('/repo'), 'other-host'),
+			URI.file('/workspace'),
+			undefined,
+		].map(folder => getHostFolderForNewSession(folder, authority)?.toString() ?? null), [hostFolder.toString(), null, null, null]);
 	});
 });

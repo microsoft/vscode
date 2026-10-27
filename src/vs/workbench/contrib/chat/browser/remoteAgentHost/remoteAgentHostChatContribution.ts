@@ -31,6 +31,7 @@ import { AgentHostSessionHandler } from '../agentSessions/agentHost/agentHostSes
 import { AgentHostDownloadProgress } from '../agentSessions/agentHost/agentHostDownloadProgress.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { AgentHostSessionListController } from '../agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore } from '../agentSessions/agentHost/agentHostSessionListStore.js';
@@ -117,6 +118,15 @@ function getAddressForSessionType(sessionType: string, remoteAgentHostService: I
 	return authority ? authorities.get(authority) : undefined;
 }
 
+/**
+ * The working directory a new session on the host with {@link connectionAuthority}
+ * requests: {@link folder} when it lies on that host, otherwise `null` so the host
+ * chooses. Local folders (such as the editor's workspace folders) never qualify.
+ */
+export function getHostFolderForNewSession(folder: URI | undefined, connectionAuthority: string): URI | null {
+	return folder?.scheme === AGENT_HOST_SCHEME && folder.authority === connectionAuthority ? folder : null;
+}
+
 /** Per-connection state bundle, disposed when a connection is removed. */
 class ConnectionState extends Disposable {
 	readonly store = this._register(new DisposableStore());
@@ -184,6 +194,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IAgentHostAdvertisedAuthenticationResolver private readonly _initialAuthentication: IAgentHostAdvertisedAuthenticationResolver,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super();
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
@@ -441,8 +452,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			const listController = agentStore.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, connState.sessionList, hostLabel, sanitized, false));
 			agentStore.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 			agentStore.add(listController.onDidMoveChat(({ from, to }) => this._movedChatEditors.retarget(from.chat, to.chat).catch(onUnexpectedError)));
-			// Local workspace folders do not exist on the host, so let it choose the directory.
-			agentStore.add(this._workingDirectoryResolver.registerResolver(sessionType, () => null, sessionResource => listController.isNewSession(sessionResource)));
+			// Local workspace folders do not exist on the host, so let it choose the directory unless
+			// the new session was given a folder on this host (for example by an `agent-host-session://new` link).
+			agentStore.add(this._workingDirectoryResolver.registerResolver(sessionType, sessionResource => getHostFolderForNewSession(this._newSessionFolderService.getFolder(sessionResource), sanitized), sessionResource => listController.isNewSession(sessionResource)));
 		}
 
 		// Chat session contribution
