@@ -161,6 +161,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private _sessionActive = true;
 	/** Whether this group's session is currently visible in the sessions part. */
 	private _sessionVisible = true;
+	private _sessionPartVisible = true;
 	/** Whether this is the first group in the chat grid's logical order. */
 	private _primary = false;
 	/** Whether the chat grid has more than one group. */
@@ -467,9 +468,13 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._updateSessionActivityBarActive();
 	}
 
-	/** Only the active group of the active, visible session shows the session activity bar. */
+	/**
+	 * Only the active group of the active, visible session shows the session activity bar. Hidden with what hosts it, such
+	 * as a window that shows only its editor, it can still show in a host outside the chat; see `registerSessionActivityBarExternalHost`.
+	 */
 	private _updateSessionActivityBarActive(): void {
-		this._sessionActivityBar?.setActive(this._groupActive && this._sessionActive && this._sessionVisible);
+		const shownInPart = this._sessionVisible || !this._sessionPartVisible;
+		this._sessionActivityBar?.setActive(this._groupActive && this._sessionActive && shownInPart, !this._sessionVisible);
 	}
 
 	get groupActive(): boolean {
@@ -486,12 +491,13 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._updateSessionActivityBarActive();
 	}
 
-	/** Whether this group's session is currently visible in the sessions part. */
-	setSessionVisible(visible: boolean): void {
-		if (this._sessionVisible === visible) {
+	/** Whether this group's session is currently visible in the sessions part; `partVisible` is false while what hosts it is hidden. */
+	setSessionVisible(visible: boolean, partVisible = true): void {
+		if (this._sessionVisible === visible && this._sessionPartVisible === partVisible) {
 			return;
 		}
 		this._sessionVisible = visible;
+		this._sessionPartVisible = partVisible;
 		this._currentView.value?.setVisible(visible);
 		this._updateSessionActivityBarActive();
 		if (visible) {

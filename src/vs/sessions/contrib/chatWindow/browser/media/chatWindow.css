@@ -1,0 +1,64 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The grid of a chat window, below its title bar: the chat, the editor area, the terminals and the Session Activity Bar. */
+.monaco-workbench .chat-window-host {
+	position: absolute;
+	left: 0;
+	overflow: hidden;
+	background-color: var(--vscode-agents-background);
+}
+
+.monaco-workbench .chat-window-host > .chat-window-detached {
+	display: none;
+}
+
+.monaco-workbench .chat-window-cell {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+/* Each cell is a card, inset by the gap it shares with the cells beside it; flush and square with compact Layout Density. */
+.monaco-workbench .chat-window-cell > .chat-window-cell-card {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	box-sizing: border-box;
+	background: var(--part-background);
+	border: 1px solid var(--part-border-color, transparent);
+	border-radius: var(--agents-part-corner-radius);
+}
+
+.monaco-workbench.modern-ui-compact .chat-window-cell > .chat-window-cell-card {
+	border-width: 0;
+}
+
+/* The Session Activity Bar's column takes the chat's background, without a border of its own. */
+.monaco-workbench .chat-window-cell.chat-window-cell-column > .chat-window-cell-card {
+	background: var(--vscode-agentsPanel-background);
+	border: none;
+	border-radius: 0;
+}
+
+.monaco-workbench .chat-window-activity-bar-column {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-workbench .chat-window-editor-area,
+.monaco-workbench .chat-window-terminals {
+	width: 100%;
+	height: 100%;
+}
+
+/* The editor parts of a chat window are inside its cards, which draw their frame: not the frame of the main window's editor part. */
+.monaco-workbench.agent-sessions-workbench .chat-window-cell-card > .part.editor:not(.modal-editor-part) {
+	position: relative;
+	margin: 0;
+	border: none;
+	border-radius: 0;
+}
