@@ -126,8 +126,10 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			const isArchived = session.isArchived.read(reader);
 			const workspace = session.workspace.read(reader);
 			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			const pullRequestIcon = getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
-			const completedStateIcon = session.completedStateIcon?.read(reader) ?? pullRequestIcon;
+			// A provider icon is authoritative: the workspace's pull requests may belong to other chats.
+			const completedStateIcon = session.completedStateIcon
+				? session.completedStateIcon.read(reader)
+				: getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
 			const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, completedStateIcon);
 
 			// Second row: workspace (with its icon, like the session header /

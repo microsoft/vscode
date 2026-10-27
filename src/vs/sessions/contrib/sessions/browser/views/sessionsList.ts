@@ -798,6 +798,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		/** How many groups deep the custom group whose rows include a chat row is nested; the row steps in by that many levels. */
 		private readonly getGroupDepth: (item: ISessionChatItem) => number = () => 0,
 		private readonly getComparisonConnectorPosition: (session: ISession) => SessionGroupConnectorPosition | undefined = () => undefined,
+		/** The Agent Merge configuration of the chat's folder, which decides how its pull request icon reads. */
+		private readonly getAgentMergeConfiguration: (item: ISessionChatItem) => IObservable<ISessionAgentMergeConfiguration | undefined> = () => constObservable(undefined),
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
@@ -867,18 +869,25 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			template.elementDisposables.add(toDisposable(() => connector.remove()));
 		}
 		template.isStandaloneContext.set(!!element.standalone);
+		let agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined> | undefined;
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
 			const isArchived = element.chat.isArchived.read(reader);
 			const isRead = element.chat.isRead.read(reader);
-			const completedStateIcon = (element.session.workspace.read(reader)?.folders.length ?? 0) > 1
-				? getHighestPriorityPullRequestIcon(
-					element.chat.workspace.read(reader)?.folders.flatMap(folder =>
-						getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader)).map(pullRequest => pullRequest.icon)
-					) ?? []
-				)
-				: undefined;
+			const pullRequestIcon = element.chat.completedStateIcon
+				? element.chat.completedStateIcon.read(reader)
+				// Without provider attribution, only a multi-folder session's chats have pull requests of their own.
+				: (element.session.workspace.read(reader)?.folders.length ?? 0) > 1
+					? getHighestPriorityPullRequestIcon(
+						element.chat.workspace.read(reader)?.folders.flatMap(folder =>
+							getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader)).map(pullRequest => pullRequest.icon)
+						) ?? []
+					)
+					: undefined;
+			const completedStateIcon = pullRequestIcon && isAgentMergePullRequestIcon(pullRequestIcon)
+				? getAgentMergeAwarePullRequestIcon(pullRequestIcon, (agentMergeConfiguration ??= this.getAgentMergeConfiguration(element)).read(reader))
+				: pullRequestIcon;
 			const capabilities = getChatCapabilities(element.chat, element.session, reader);
 			template.canArchiveContext.set(capabilities.canArchive);
 			template.canDeleteContext.set(capabilities.canDelete);
@@ -1792,8 +1801,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			template.supportsMultipleChatsContext.set(capabilities.supportsMultipleChats);
 			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			let completedStateIcon = element.completedStateIcon?.read(reader)
-				?? getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
+			// A provider icon is authoritative: the workspace's pull requests may belong to other chats.
+			let completedStateIcon = element.completedStateIcon
+				? element.completedStateIcon.read(reader)
+				: getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
 			if (completedStateIcon && isAgentMergePullRequestIcon(completedStateIcon)) {
 				agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService);
 				completedStateIcon = getAgentMergeAwarePullRequestIcon(completedStateIcon, agentMergeConfiguration.read(reader));
@@ -4484,6 +4495,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.activeGuideSessionIds,
 			item => this.getRowGroupDepth(item),
 			session => this.renderedComparisonParticipantConnectorPositions.get(session.sessionId),
+			item => getSessionAgentMergeConfigurationObservable(item.session, sessionsProvidersService, this.configurationService, item.chat),
 		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
