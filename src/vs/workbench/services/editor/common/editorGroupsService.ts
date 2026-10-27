@@ -597,7 +597,8 @@ export interface IFloatingEditorPartOptions {
 	readonly size?: IDimension;
 
 	/**
-	 * The size below which the part cannot be resized.
+	 * The size below which the part cannot be resized, unless the main
+	 * window is too small for it.
 	 */
 	readonly minimumSize?: IDimension;
 }

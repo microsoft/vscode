@@ -69,7 +69,6 @@ export class FloatingEditorPart {
 		resizableElement.domNode.style.bottom = `${FLOATING_EDITOR_PART_MARGIN}px`;
 		resizableElement.enableSashes(true, false, false, true);
 		const minimumSize = options.minimumSize ?? FLOATING_EDITOR_PART_DEFAULT_MINIMUM_SIZE;
-		resizableElement.minSize = new Dimension(minimumSize.width, minimumSize.height);
 		this.layoutService.mainContainer.appendChild(resizableElement.domNode);
 
 		// Context keys of the part, its header included
@@ -130,14 +129,16 @@ export class FloatingEditorPart {
 			}
 		}));
 
-		// Layout: the size, kept within the main window, and the editor part below the header
+		// Layout: the size, kept within the main window even below the minimum size, and the editor part below the header
 		const layout = () => {
 			const container = this.layoutService.mainContainerDimension;
 			const titleBarOffset = this.layoutService.mainContainerOffset.top;
-			resizableElement.maxSize = new Dimension(
-				Math.max(minimumSize.width, container.width - 2 * FLOATING_EDITOR_PART_MARGIN),
-				Math.max(minimumSize.height, container.height - titleBarOffset - 2 * FLOATING_EDITOR_PART_MARGIN)
+			const available = new Dimension(
+				Math.max(0, container.width - 2 * FLOATING_EDITOR_PART_MARGIN),
+				Math.max(0, container.height - titleBarOffset - 2 * FLOATING_EDITOR_PART_MARGIN)
 			);
+			resizableElement.maxSize = available;
+			resizableElement.minSize = new Dimension(Math.min(minimumSize.width, available.width), Math.min(minimumSize.height, available.height));
 			resizableElement.layout(editorPart.size.height, editorPart.size.width);
 			layoutEditorPart();
 		};

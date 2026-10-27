@@ -153,13 +153,16 @@ suite('Floating Editor Part', () => {
 		const large = { stored: largePart.size, shown: getElementSize(largeElement) };
 		layoutService.resizeMainContainer({ width: 3000, height: 3000 });
 		const largeInLargerWindow = getElementSize(largeElement);
+		layoutService.resizeMainContainer({ width: 200, height: 150 }); // smaller than the minimum size of the part
+		const largeInSmallWindow = getElementSize(largeElement);
 		largePart.close();
 
-		assert.deepStrictEqual({ defaultSize, large, largeInLargerWindow }, {
+		assert.deepStrictEqual({ defaultSize, large, largeInLargerWindow, largeInSmallWindow }, {
 			// The main window of the test layout service is 800x600
 			defaultSize: { stored: { width: 400, height: 450 }, shown: { width: 400, height: 450 } },
 			large: { stored: { width: 2000, height: 2000 }, shown: { width: 768, height: 568 } },
 			largeInLargerWindow: { width: 2000, height: 2000 },
+			largeInSmallWindow: { width: 168, height: 118 },
 		});
 	});
 
