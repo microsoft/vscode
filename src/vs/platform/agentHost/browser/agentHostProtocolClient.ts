@@ -2950,7 +2950,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return Promise.reject(this._state.error);
 		}
 		if (transport && (this._transport !== transport || (this._state.kind === AgentHostClientState.Reconnecting && !this._state.reconnect.transportConnected))) {
-			throw transportLostError(this._address);
+			throw transportLostError(this._hostLabel);
 		}
 
 		let closeListener = Disposable.None;
@@ -3410,7 +3410,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (transport !== this._transport || handshake !== this._authenticationHandshake || current !== this._state
 					|| (current.kind === AgentHostClientState.Reconnecting && !current.reconnect.transportConnected)) {
 					if (options.bypassReconnectGate) {
-						throw transportLostError(this._address);
+						throw transportLostError(this._hostLabel);
 					}
 					return this._dispatchRequest<TResult>(method, params, options);
 				}

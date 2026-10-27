@@ -40,7 +40,6 @@ import { AgentHostProtocolClient } from '../../../../../platform/agentHost/brows
 import { IAgentHostResourceService } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import type { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 // ---- Mock IAgentConnection --------------------------------------------------
@@ -1026,10 +1025,6 @@ suite('AgentHostPty', () => {
 					override getTrustedUris(): URI[] { return []; }
 				}(),
 				new class extends mock<IWorkspaceTrustRequestService>() { }(),
-				new class extends mock<IDefaultAccountService>() {
-					override get policyData() { return null; }
-					override get onDidChangePolicyData() { return Event.None; }
-				}(),
 			));
 			await client.connect();
 			const pty = disposables.add(new AgentHostPty(1, client, wireTerminal, undefined, log));
