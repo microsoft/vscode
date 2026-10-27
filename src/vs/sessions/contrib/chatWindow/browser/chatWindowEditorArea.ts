@@ -220,3 +220,6 @@ export class ChatWindowChangesetActionsContribution extends Disposable implement
 		return store;
 	}
 }
+
+/** Names this module, which registers chat window actions, in the list of the chat window contribution; see `chatWindowContributions`. */
+export const chatWindowEditorAreaContribution = 'chatWindowEditorArea';
