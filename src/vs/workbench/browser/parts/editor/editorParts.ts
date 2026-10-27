@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent, ICreateEditorPartOptions, IEmbeddedEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
@@ -13,6 +13,7 @@ import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { distinct } from '../../../../base/common/arrays.js';
+import { EmbeddedEditorPart, EmbeddedEditorPartFactory } from './embeddedEditorPart.js';
 import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart.js';
 import { ModalEditorPart } from './modalEditorPart.js';
 import { MultiWindowParts } from '../../part.js';
@@ -176,6 +177,23 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		this._onDidAddGroup.fire(part.activeGroup);
 
 		this._onDidCreateAuxiliaryEditorPart.fire(part);
+
+		return part;
+	}
+
+	//#endregion
+
+	//#region Embedded Editor Parts
+
+	createEditorPart(options: ICreateEditorPartOptions): IEmbeddedEditorPart {
+		const { part, instantiationService, disposables } = this.instantiationService.createInstance(EmbeddedEditorPartFactory, this).create(options);
+
+		// Keep instantiation service
+		this.mapPartToInstantiationService.set(part, instantiationService);
+		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part)));
+
+		// Events
+		this._onDidAddGroup.fire(part.activeGroup);
 
 		return part;
 	}
@@ -376,8 +394,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// Multiple editor parts can share the same document because
 		// the main part and a modal part both live in the main window.
 
+		// Parts that were never activated are not in the MRU list yet.
 		const mruParts = this.mostRecentActiveParts;
-		const mruDocumentParts = mruParts.filter(part => part.element?.ownerDocument === document);
+		const mruDocumentParts = [...mruParts, ...this.parts.filter(part => !mruParts.includes(part))].filter(part => part.element?.ownerDocument === document);
 		if (mruDocumentParts.length > 1) {
 			// First try to find the part that has the currently focused element, which is the most likely candidate to be the active part for that document.
 			const activeElement = getActiveElement();
@@ -386,6 +405,12 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 				if (container && isAncestor(activeElement, container)) {
 					return part;
 				}
+			}
+
+			// Otherwise prefer the primary part of the document
+			const primaryPart = mruDocumentParts.find(part => part instanceof EmbeddedEditorPart && part.isPrimary);
+			if (primaryPart) {
+				return primaryPart;
 			}
 
 			// Pick the part that was set active last for that document
