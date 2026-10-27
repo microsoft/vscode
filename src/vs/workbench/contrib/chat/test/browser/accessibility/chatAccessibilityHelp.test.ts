@@ -160,6 +160,11 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	test('documents keyboard access to sandbox diagnostic actions', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.ok(help.includes('use Tab to reach Troubleshooting Guide or, when permitted, Disable Sandboxing. Press Enter or Space to activate the button.'));
+	});
+
 	test('documents the optional sandbox certificate notice and keyboard dismissal', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
