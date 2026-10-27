@@ -9,10 +9,11 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { getSessionChatResource, StateComponents, type ChatConfigState, type ChatState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getSessionChatResource, StateComponents, type ChatConfigState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { readChatSandboxState, readSessionSandboxState, type ISessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { getChatConfigChain, getChatConfigWriteTarget, getCompleteChatConfigValues, getEffectiveChatConfig, isChatConfigProperty, mergeChatConfigChain, splitChatConfigPatch } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { ChatProvidersConfigKey } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -105,12 +106,23 @@ export function readAgentHostChatSandboxState(state: SessionState, backendChat: 
 }
 
 /**
+ * Whether the host behind `rootState` applies a session config write to its session's default chat, replacing the
+ * value the default chat set itself. Hosts that do always publish the chats-with-their-own-agents root config key,
+ * whether or not that feature is on; older hosts let the default chat's own value override the session's, so a client
+ * writes the default chat itself there.
+ */
+export function hostAppliesSessionConfigToDefaultChat(rootState: RootState | Error | undefined): boolean {
+	return !!rootState && !(rootState instanceof Error) && !!rootState.config?.schema.properties[ChatProvidersConfigKey.Enabled];
+}
+
+/**
  * Sends a config change for a chat: the properties the session's schema lets a
  * chat set go to the chat (for a subagent, to its nearest spawning chat that is
  * not one, as the host does), everything else to its session, in that order.
- * The session's config is its default chat's: a property the session may set
- * too is written to the session for that chat, and the host updates the chat
- * from it.
+ * The session's config is its default chat's: on a host that applies session
+ * writes to its default chat (see {@link hostAppliesSessionConfigToDefaultChat}),
+ * a property the session may set too is written to the session for that chat;
+ * an older host gets it on the default chat, as before.
  *
  * A patch with both kinds becomes two actions, which the host applies or
  * rejects independently; each is reconciled on its own echo. That is safe
@@ -118,7 +130,7 @@ export function readAgentHostChatSandboxState(state: SessionState, backendChat: 
  * dependency between them (validation of either reads only the effective
  * values already applied), and pickers send one property at a time.
  */
-export function dispatchAgentHostConfigChange(connection: Pick<IAgentConnection, 'dispatch'>, backendSession: URI, backendChat: string | undefined, state: SessionState | undefined, partial: Record<string, unknown>, chatConfig?: SessionConfigState): void {
+export function dispatchAgentHostConfigChange(connection: Pick<IAgentConnection, 'dispatch' | 'rootState'>, backendSession: URI, backendChat: string | undefined, state: SessionState | undefined, partial: Record<string, unknown>, chatConfig?: SessionConfigState): void {
 	const target = backendChat !== undefined ? getChatConfigWriteTarget(state?.chats, backendChat) : undefined;
 	if (state && getAgentHostChatOwnAgent(state, backendChat) !== undefined) {
 		// A chat on another agent than its session's sets only its agent's chat-settable properties; nothing reaches the session.
@@ -129,7 +141,7 @@ export function dispatchAgentHostConfigChange(connection: Pick<IAgentConnection,
 		return;
 	}
 	const { chat, session } = target !== undefined ? splitChatConfigPatch(state?.config?.schema, partial) : { chat: {}, session: partial };
-	if (target !== undefined && target === state?.defaultChat) {
+	if (target !== undefined && target === state?.defaultChat && hostAppliesSessionConfigToDefaultChat(connection.rootState.value)) {
 		// What the session may set too goes to the session, which the host applies to its default chat.
 		for (const key of Object.keys(chat)) {
 			if (state.config?.schema.properties[key]?.sessionMutable) {

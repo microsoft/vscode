@@ -16313,43 +16313,50 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	}));
 
-	test('a peer chat writes what it may set to itself, while the main chat\'s writes go to the session, which the host applies to the default chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const { provider, chat, peer, summary, sessionUri, show } = perChatSession('per-chat', true);
-		await timeout(0);
-		const session = provider.getSessions().find(s => s.title.get() === 'per-chat')!;
-		const chatResource = session.mainChat.get().resource;
-		const peerResource = session.resource.with({ fragment: peer });
-		await waitForSessionConfig(provider, session, c => !!c);
-		show(session, chatResource, peerResource);
-		await waitForSessionConfig(provider, session, c => c?.values.autoApprove === 'autoApprove');
-		const read = provider.getSessionConfig(session.sessionId, chatResource)?.values;
-		let changes = 0;
-		disposables.add(provider.onDidChangeSessionConfig(() => changes++));
-		agentHost.setChatState(chat, { ...summary, turns: [], config: { values: { autoApprove: 'default' } } });
-		const afterHostChange = { values: provider.getSessionConfig(session.sessionId, chatResource)?.values, changes };
+	for (const currentHost of [true, false]) {
+		test(`a peer chat writes what it may set to itself, while the main chat's writes go to the session on a host that applies them to the default chat, else to the default chat (current host: ${currentHost})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			// A host that applies session writes to its default chat always publishes this root config key.
+			const agents = (agentHost.rootState.value as RootState).agents;
+			agentHost.setRootState(currentHost ? { agents, config: { schema: { type: 'object', properties: { [ChatProvidersConfigKey.Enabled]: { type: 'boolean', title: 'Multiple Chat Providers' } } }, values: {} } } : { agents });
+			const { provider, chat, peer, summary, sessionUri, show } = perChatSession(`per-chat-${currentHost}`, true);
+			await timeout(0);
+			const session = provider.getSessions().find(s => s.title.get() === `per-chat-${currentHost}`)!;
+			const chatResource = session.mainChat.get().resource;
+			const peerResource = session.resource.with({ fragment: peer });
+			await waitForSessionConfig(provider, session, c => !!c);
+			show(session, chatResource, peerResource);
+			await waitForSessionConfig(provider, session, c => c?.values.autoApprove === 'autoApprove');
+			const read = provider.getSessionConfig(session.sessionId, chatResource)?.values;
+			let changes = 0;
+			disposables.add(provider.onDidChangeSessionConfig(() => changes++));
+			agentHost.setChatState(chat, { ...summary, turns: [], config: { values: { autoApprove: 'default' } } });
+			const afterHostChange = { values: provider.getSessionConfig(session.sessionId, chatResource)?.values, changes };
 
-		agentHost.dispatchedActions.length = 0;
-		await provider.setSessionConfigValue(session.sessionId, chatResource, 'autoApprove', 'autoApprove');
-		await provider.setSessionConfigValue(session.sessionId, chatResource, 'isolation', 'folder');
-		await provider.setSessionConfigValue(session.sessionId, peerResource, 'autoApprove', 'autoApprove');
+			agentHost.dispatchedActions.length = 0;
+			await provider.setSessionConfigValue(session.sessionId, chatResource, 'autoApprove', 'autoApprove');
+			await provider.setSessionConfigValue(session.sessionId, chatResource, 'isolation', 'folder');
+			await provider.setSessionConfigValue(session.sessionId, peerResource, 'autoApprove', 'autoApprove');
 
-		assert.deepStrictEqual({
-			read,
-			own: provider.getSessionOwnConfig(session.sessionId)?.values,
-			afterHostChange,
-			dispatched: agentHost.dispatchedActions.filter(({ action }) => action.type === ActionType.SessionConfigChanged || action.type === ActionType.ChatConfigChanged).map(({ channel, action }) => ({ channel, action })),
-		}, {
-			read: { autoApprove: 'autoApprove', isolation: 'worktree' },
-			own: { autoApprove: 'autoApprove', isolation: 'folder' },
-			afterHostChange: { values: { autoApprove: 'default', isolation: 'worktree' }, changes: 1 },
-			// Never a write to the default chat itself.
-			dispatched: [
-				{ channel: sessionUri, action: { type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } } },
-				{ channel: sessionUri, action: { type: ActionType.SessionConfigChanged, config: { isolation: 'folder' } } },
-				{ channel: peer, action: { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } } },
-			],
-		});
-	}));
+			assert.deepStrictEqual({
+				read,
+				own: provider.getSessionOwnConfig(session.sessionId)?.values,
+				afterHostChange,
+				dispatched: agentHost.dispatchedActions.filter(({ action }) => action.type === ActionType.SessionConfigChanged || action.type === ActionType.ChatConfigChanged).map(({ channel, action }) => ({ channel, action })),
+			}, {
+				read: { autoApprove: 'autoApprove', isolation: 'worktree' },
+				own: { autoApprove: currentHost ? 'autoApprove' : 'default', isolation: 'folder' },
+				afterHostChange: { values: { autoApprove: 'default', isolation: 'worktree' }, changes: 1 },
+				// Each change is written once: to the session on a current host, to the default chat on an older one.
+				dispatched: [
+					currentHost
+						? { channel: sessionUri, action: { type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } } }
+						: { channel: chat, action: { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } } },
+					{ channel: sessionUri, action: { type: ActionType.SessionConfigChanged, config: { isolation: 'folder' } } },
+					{ channel: peer, action: { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } } },
+				],
+			});
+		}));
+	}
 
 	test('a host that lets no chat set a property keeps it session-wide', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const { provider, sessionUri } = perChatSession('older-host', false);
