@@ -164,6 +164,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			content.push(localize('workbench.action.chat.openAgentHostFolderPicker', 'When starting an agent session in a multi-root workspace, you can choose which root folder it runs in by invoking the Folder command{0}, then selecting a folder from the list.', '<keybinding:workbench.action.chat.openAgentHostFolderPicker>'));
 			content.push(localize('chat.agentHostApprovalsPicker', 'When an agent session exposes approval presets, use Tab to reach the Approvals picker and choose how it handles workspace access, commands, and the internet.'));
 			content.push(localize('chat.agentHostSandboxPolicy', "In Copilot agent-host sessions, use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report."));
+			content.push(localize('chat.agentHostSandboxDiagnostics', "When a sandbox dependency warning appears above the input, use Tab to reach Troubleshooting Guide or, when permitted, Disable Sandboxing. Press Enter or Space to activate the button. Disable Sandboxing turns sandboxing off for this session and in settings; organization policy still applies."));
 			content.push(getModePickerAccessibilityHelp());
 		}
 		if (sessionStatusPillsSupported) {
