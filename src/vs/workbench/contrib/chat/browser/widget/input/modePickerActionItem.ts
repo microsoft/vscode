@@ -62,9 +62,18 @@ const builtinDefaultIcon = (mode: IChatMode) => {
 	}
 };
 
-export class ModePickerActionItem extends ChatInputPickerActionViewItem {
-	private readonly pickerInAttachContext: IObservable<boolean>;
+export function createAgentPickerInAttachContext(delegate: IModePickerDelegate, configurationService: IConfigurationService, telemetryService: ITelemetryService): IObservable<boolean> {
+	const setting = observableConfigValue(ChatConfiguration.AgentsPickerInAttachContextMenu, false, configurationService);
+	return derived(delegate, reader => {
+		if (!delegate.supportsAttachContext || delegate.currentMode.read(reader).id !== ChatMode.Agent.id) {
+			return false;
+		}
+		logSettingExperimentTrigger(telemetryService, ChatConfiguration.AgentsPickerInAttachContextMenu);
+		return setting.read(reader);
+	});
+}
 
+export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	constructor(
 		action: MenuItemAction,
 		private readonly delegate: IModePickerDelegate,
@@ -275,15 +284,6 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 
 		super(action, modePickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		const setting = observableConfigValue(ChatConfiguration.AgentsPickerInAttachContextMenu, false, configurationService);
-		this.pickerInAttachContext = derived(this, reader => {
-			if (!delegate.supportsAttachContext || delegate.currentMode.read(reader).id !== ChatMode.Agent.id) {
-				return false;
-			}
-			logSettingExperimentTrigger(telemetryService, ChatConfiguration.AgentsPickerInAttachContextMenu);
-			return setting.read(reader);
-		});
-
 		// Listen to changes in the current mode and its properties
 		this._register(autorun(reader => {
 			this.delegate.currentMode.read(reader).label.read(reader); // use the reader so autorun tracks it
@@ -311,23 +311,14 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-mode-picker-item');
-		this._register(autorun(reader => {
-			const hidden = this.pickerInAttachContext.read(reader);
-			if (hidden && dom.isAncestorOfActiveElement(container)) {
-				this.pickerOptions.actionContext?.widget?.focusInput();
-			}
-			container.hidden = hidden;
-			container.inert = hidden;
-			if (hidden) {
-				dom.hide(container);
-			} else {
-				dom.show(container);
-			}
-		}));
 	}
 
-	get isInAttachContext(): boolean {
-		return !!this.element?.isConnected && this.pickerInAttachContext.get();
+	get isConnected(): boolean {
+		return !!this.element?.isConnected;
+	}
+
+	override isFocused(): boolean {
+		return !!this.element && dom.isAncestorOfActiveElement(this.element);
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
