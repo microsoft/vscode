@@ -37,7 +37,7 @@ import { TestLayoutService, TestMenuService, workbenchInstantiationService } fro
 import { IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
 import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISessionViewHostOptions } from '../../browser/parts/chatView.js';
 import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBar.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
@@ -299,7 +299,7 @@ interface IChatGroupsHarness {
 	readonly view: ChatGroupsView;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHeader = true, desktop = false): IChatGroupsHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHeader = true, desktop = false, hostOptions?: ISessionViewHostOptions): IChatGroupsHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	if (desktop) {
@@ -702,34 +702,38 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('docks the Session Activity Bar in a column of its own at the right edge, 2px from the chat and the edge, the chat and its scrollbar to its left, at either density', () => {
+	test('docks the Session Activity Bar in a column of its own at the right edge, 2px from the chat and the edge, the chat and its scrollbar to its left, in the main window and a chat window at either density', () => {
 		const results: Record<string, unknown> = {};
-		for (const density of ['default', 'compact'] as const) {
-			const store = disposables.add(new DisposableStore());
-			const { view, configurationService } = createHarness(store, true, true);
-			configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
-			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
-			store.add(toDisposable(() => workbench.remove()));
-			workbench.classList.toggle('modern-ui-compact', density === 'compact');
-			for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
-				workbench.style.setProperty(`--vscode-${token}`, value);
-			}
-			workbench.appendChild(view.element);
-			view.setSession(new TestActiveSession([createChat('main')]), options);
-			view.layout(1000, 600, 0, 0);
+		for (const host of ['mainWindow', 'chatWindow'] as const) {
+			for (const density of ['default', 'compact'] as const) {
+				const store = disposables.add(new DisposableStore());
+				const { view, configurationService } = createHarness(store, true, true, host === 'chatWindow' ? { showActivityBar: true, showHeader: false } : undefined);
+				configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
+				const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+				store.add(toDisposable(() => workbench.remove()));
+				workbench.classList.toggle('modern-ui-compact', density === 'compact');
+				for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
+					workbench.style.setProperty(`--vscode-${token}`, value);
+				}
+				workbench.appendChild(view.element);
+				view.setSession(new TestActiveSession([createChat('main')]), options);
+				view.layout(1000, 600, 0, 0);
 
-			const group = view.element.querySelector<HTMLElement>('.chat-group-view')!.getBoundingClientRect();
-			const strip = view.element.querySelector<HTMLElement>('.chat-group-view > .session-activity-bar:not(.inactive)')!.getBoundingClientRect();
-			// The chat view's scroll viewport, and so its scrollbar, spans the view's full width.
-			const chat = view.element.querySelector<HTMLElement>('.chat-view')!.getBoundingClientRect();
-			results[density] = { strip: strip.width, column: group.right - chat.right, gaps: { chat: strip.left - chat.right, edge: group.right - strip.right } };
-			store.dispose();
+				const group = view.element.querySelector<HTMLElement>('.chat-group-view')!.getBoundingClientRect();
+				const strip = view.element.querySelector<HTMLElement>('.chat-group-view > .session-activity-bar:not(.inactive)')!.getBoundingClientRect();
+				// The chat view's scroll viewport, and so its scrollbar, spans the view's full width.
+				const chat = view.element.querySelector<HTMLElement>('.chat-view')!.getBoundingClientRect();
+				results[`${host}, ${density}`] = { strip: strip.width, column: group.right - chat.right, gaps: { chat: strip.left - chat.right, edge: group.right - strip.right } };
+				store.dispose();
+			}
 		}
 
 		const geometry = { strip: 30, column: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, gaps: { chat: 2, edge: 2 } };
 		assert.deepStrictEqual(results, {
-			default: geometry,
-			compact: geometry,
+			'mainWindow, default': geometry,
+			'mainWindow, compact': geometry,
+			'chatWindow, default': geometry,
+			'chatWindow, compact': geometry,
 		});
 	});
 

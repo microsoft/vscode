@@ -9,7 +9,7 @@ import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 import { AgentWorkbenchLayout, type IAgentWorkbenchLayoutService } from '../workbench.js';
-import { getSidePaneBottomFrameInset } from './agentsPartCard.js';
+import { AGENTS_SIDE_PANE_STACKED_CLASS, getSidePaneBottomFrameInset } from './agentsPartCard.js';
 import { EDITOR_PART_MINIMUM_WIDTH } from './editorPartSizing.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 
@@ -27,7 +27,16 @@ export class MainEditorPart extends MainEditorPartBase {
 	// flexible view (LayoutPriority.High) that absorbs visibility/resize deltas.
 	// Making the editor the flex view caused its width to drift to the minimum
 	// when toggling the auxiliary bar across session switches.
-	override priority = LayoutPriority.Normal;
+	override priority: LayoutPriority = LayoutPriority.Normal;
+
+	/**
+	 * Stacked above a chat that keeps its height, the editor takes the resizes of their column instead, and keeps the
+	 * column first for the resizes of its row, as the Sessions Part otherwise does: in the center panel alignment the
+	 * column would otherwise rank with the sidebar beside it, which would then take the width.
+	 */
+	setTakesStackedColumnResizes(takes: boolean): void {
+		this.priority = takes ? LayoutPriority.High : LayoutPriority.Normal;
+	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
 		const agentLayoutService = this.layoutService as IAgentWorkbenchLayoutService;
@@ -38,10 +47,11 @@ export class MainEditorPart extends MainEditorPartBase {
 		}
 
 		const compact = this.layoutService.isModernUICompact();
+		// Stacked above the Sessions Part, the side pane starts the row as the Sessions Part does beside it.
 		const marginLeft = !isPhoneLayout(this.layoutService)
 			&& !compact
 			&& !this.layoutService.isVisible(Parts.SIDEBAR_PART)
-			&& !this.layoutService.isVisible(Parts.SESSIONS_PART)
+			&& (!this.layoutService.isVisible(Parts.SESSIONS_PART) || this.layoutService.mainContainer.classList.contains(AGENTS_SIDE_PANE_STACKED_CLASS))
 			? AGENTS_FLOATING_PANEL_GAP : MainEditorPart.MARGIN_LEFT;
 		const borderTotal = compact ? 0 : 2;
 		const bottomFrameInset = getSidePaneBottomFrameInset(this.layoutService.mainContainer);

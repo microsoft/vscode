@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
-import { Direction, Grid, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
+import { Direction, Grid, GridNode, isGridBranchNode, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, type Event as BaseEvent } from '../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../base/common/errors.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../base/browser/window.js';
@@ -21,11 +22,13 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, AGENTS_SIDE_PANE_STACKED_CLASS } from '../../browser/parts/agentsPartCard.js';
+import { IStackedSidePaneColumn, STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, StackedSidePaneColumnView } from '../../browser/parts/stackedSidePaneColumnView.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
+import { SessionLayoutMode, SessionSplitLayout } from '../../common/sessionLayoutMode.js';
 import { EditorInputCapabilities, IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
 import { GroupDirection, GroupOrientation } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
@@ -150,6 +153,8 @@ suite('Sessions - Workbench', () => {
 	const createDesktopGridDescriptor = Reflect.get(Workbench.prototype, 'createDesktopGridDescriptor') as (this: IGridDescriptorTestHarness, width: number, height: number) => TestSerializedGrid;
 	const loadPanelAlignment = Reflect.get(Workbench.prototype, '_loadPanelAlignment') as (this: Pick<IPanelAlignmentTestHarness, 'agentWorkbenchLayout'>, storageService: { get(key: string, scope: StorageScope): string | undefined }) => PanelAlignment;
 	const setPanelAlignment = Workbench.prototype.setPanelAlignment as (this: IPanelAlignmentTestHarness, alignment: PanelAlignment) => void;
+	const setSidePaneArrangement = Workbench.prototype.setSidePaneArrangement as (this: IPanelAlignmentTestHarness & ISidePaneArrangementTestHarness, arrangement: SessionSplitLayout) => void;
+	const getPreferredEditorPartWidth = DesktopWorkbench.prototype.getPreferredEditorPartWidth as (this: ITestWorkbench) => number | undefined;
 	const registerGridMaximizationListener = Reflect.get(Workbench.prototype, '_registerGridMaximizationListener') as (this: {
 		workbenchGrid: Pick<Grid, 'onDidChangeViewMaximized'>;
 		_register<T extends IDisposable>(disposable: T): T;
@@ -164,6 +169,8 @@ suite('Sessions - Workbench', () => {
 	const toggleSecondarySideBarDesktop = DesktopWorkbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
 	const isSecondarySideBarVisibleDesktop = DesktopWorkbench.prototype.isSecondarySideBarVisible as (this: ITestWorkbench) => boolean;
 	const toggleSidePane = DesktopWorkbench.prototype.toggleSidePane as (this: ITestWorkbench) => boolean;
+	const fireDidChangePartVisibilityDesktop = Reflect.get(DesktopWorkbench.prototype, '_fireDidChangePartVisibility') as (this: ITestWorkbench, partId: Parts, visible: boolean) => void;
+	const suppressShowChatOnHiddenSidePane = DesktopWorkbench.prototype.suppressShowChatOnHiddenSidePane as (this: ITestWorkbench) => IDisposable;
 	const hideSidePane = Workbench.prototype.hideSidePane as (this: ITestWorkbench) => void;
 	const captureSidePaneComposition = Workbench.prototype.captureSidePaneComposition as (this: ITestWorkbench) => ISidePaneState;
 	const restoreSidePaneComposition = Workbench.prototype.restoreSidePaneComposition as (this: ITestWorkbench, composition: ISidePaneState) => void;
@@ -189,7 +196,7 @@ suite('Sessions - Workbench', () => {
 	interface ITestWorkbench {
 		partVisibility: { sidebar: boolean; auxiliaryBar: boolean; editor: boolean; panel: boolean; sessions: boolean; customViewGrid: boolean };
 		auxiliaryBarPartView: object;
-		_savedPartSizes: { sidebar?: number; auxiliaryBar?: number; editor?: number; sessions?: number; panel?: number };
+		_savedPartSizes: { sidebar?: number; auxiliaryBar?: number; editor?: number; editorHeight?: number; sessions?: number; panel?: number };
 		_editorMaximized: boolean;
 		_editorRevealedExplicitly: boolean;
 		_editorPartAutoVisibilitySuppressionCount: number;
@@ -230,7 +237,7 @@ suite('Sessions - Workbench', () => {
 
 	interface IGridDescriptorTestHarness extends ITestWorkbench {
 		_panelAlignment: PanelAlignment;
-		_savedPartSizes: { sidebar?: number; auxiliaryBar?: number; editor?: number; sessions?: number; panel?: number };
+		_savedPartSizes: { sidebar?: number; auxiliaryBar?: number; editor?: number; editorHeight?: number; sessions?: number; panel?: number };
 		layoutPolicy: {
 			getPartSizes(width: number, height: number): { sideBarSize: number; auxiliaryBarSize: number; panelSize: number };
 			viewportClass: { get(): string };
@@ -241,7 +248,7 @@ suite('Sessions - Workbench', () => {
 	interface IPanelAlignmentTestHarness {
 		agentWorkbenchLayout: AgentWorkbenchLayout;
 		_panelAlignment: PanelAlignment;
-		_panelMaximizedEditorState?: { width: number | undefined };
+		_panelMaximizedEditorState?: { width: number | undefined; height?: number | undefined };
 		_maximumEditorDimensionsOverride?: IViewSize;
 		panelPartView: object;
 		editorPartView: object;
@@ -268,8 +275,19 @@ suite('Sessions - Workbench', () => {
 		focusPart(part: Parts): void;
 	}
 
+	interface ISidePaneArrangementTestHarness {
+		_sidePaneArrangement: SessionSplitLayout;
+		_savedPartSizes: { editor?: number; editorHeight?: number };
+		_dockedAuxiliaryBarWidth: number;
+		partVisibility: { editor: boolean; auxiliaryBar: boolean };
+		_onDidChangeSidePaneArrangement: { fire(arrangement: SessionSplitLayout): void };
+		_layoutSidePane(): void;
+		sideBarPartView: object;
+	}
+
 	interface IPanelMaximizationTestHarness {
-		_panelMaximizedEditorState?: { width: number | undefined };
+		_panelMaximizedEditorState?: { width: number | undefined; height?: number | undefined };
+		_isSidePaneStacked(): boolean;
 		panelPartView: object;
 		editorPartView: object;
 		titleBarPartView: object;
@@ -888,6 +906,102 @@ suite('Sessions - Workbench', () => {
 			editorVisible: true,
 			auxiliaryBarVisible: false,
 			revealCount: 1,
+		});
+	});
+
+	test('desktop side pane toggle shows the hidden chat (editor only) as it closes the side pane, rather than nothing', () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: false, sessions: false } });
+		const sessionsHidden: boolean[] = [];
+		Object.assign(host, { setSessionsHidden: (hidden: boolean) => { sessionsHidden.push(hidden); host.partVisibility.sessions = !hidden; } });
+
+		const visible = toggleSidePane.call(host);
+
+		assert.deepStrictEqual({ visible, sessions: host.partVisibility.sessions, editor: host.partVisibility.editor, sessionsHidden }, {
+			visible: false,
+			sessions: true,
+			editor: false,
+			sessionsHidden: [false],
+		});
+	});
+
+	test('desktop shows the hidden chat (editor only) once the side pane settles hidden by other means than its toggle, not while a composition swaps its parts', async () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: false, sessions: false } });
+		const sessionsHidden: boolean[] = [];
+		Object.assign(host, {
+			_onDidChangePartVisibility: { fire: () => { } },
+			setPartHidden: (hidden: boolean, part: Parts) => {
+				if (part === Parts.SESSIONS_PART) {
+					sessionsHidden.push(hidden);
+					host.partVisibility.sessions = !hidden;
+				}
+			},
+		});
+		const setPart = (part: 'editor' | 'auxiliaryBar', partId: Parts, visible: boolean) => {
+			host.partVisibility[part] = visible;
+			fireDidChangePartVisibilityDesktop.call(host, partId, visible);
+		};
+
+		// A composition swap, Editor to Details, hides and shows synchronously.
+		setPart('editor', Parts.EDITOR_PART, false);
+		setPart('auxiliaryBar', Parts.AUXILIARYBAR_PART, true);
+		await Promise.resolve();
+		const afterSwap = { sessions: host.partVisibility.sessions, sessionsHidden: [...sessionsHidden] };
+
+		// Its last part then hides, as when its last editor closes.
+		setPart('auxiliaryBar', Parts.AUXILIARYBAR_PART, false);
+		const synchronously = host.partVisibility.sessions;
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ afterSwap, synchronously, settled: { sessions: host.partVisibility.sessions, sessionsHidden } }, {
+			afterSwap: { sessions: false, sessionsHidden: [] },
+			synchronously: false,
+			settled: { sessions: true, sessionsHidden: [false] },
+		});
+	});
+
+	test('desktop does not show the hidden chat (editor only) while a session\'s layout restore briefly hides the side pane, and checks once the restore ends', async () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: false, sessions: false } });
+		const sessionsHidden: boolean[] = [];
+		Object.assign(host, {
+			_showChatOnHiddenSidePaneSuppressionCount: 0,
+			_onDidChangePartVisibility: { fire: () => { } },
+			setPartHidden: (hidden: boolean, part: Parts) => {
+				if (part === Parts.SESSIONS_PART) {
+					sessionsHidden.push(hidden);
+					host.partVisibility.sessions = !hidden;
+				}
+			},
+		});
+		const setPart = (part: 'editor' | 'auxiliaryBar', partId: Parts, visible: boolean) => {
+			host.partVisibility[part] = visible;
+			fireDidChangePartVisibilityDesktop.call(host, partId, visible);
+		};
+		const suppress = () => suppressShowChatOnHiddenSidePane.call(host);
+
+		// A restore hides the editor, and shows the next composition's after an await.
+		let restore = suppress();
+		setPart('editor', Parts.EDITOR_PART, false);
+		await Promise.resolve();
+		const whileRestoring = [...sessionsHidden];
+		setPart('auxiliaryBar', Parts.AUXILIARYBAR_PART, true);
+		restore.dispose();
+		await Promise.resolve();
+		const restoredWithDetails = [...sessionsHidden];
+
+		// A restore that ends with nothing in the side pane: the chat shows once, as it ends.
+		restore = suppress();
+		setPart('auxiliaryBar', Parts.AUXILIARYBAR_PART, false);
+		await Promise.resolve();
+		const beforeEnd = [...sessionsHidden];
+		restore.dispose();
+		restore.dispose();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ whileRestoring, restoredWithDetails, beforeEnd, afterEnd: sessionsHidden }, {
+			whileRestoring: [],
+			restoredWithDetails: [],
+			beforeEnd: [],
+			afterEnd: [false],
 		});
 	});
 
@@ -2199,7 +2313,7 @@ suite('Sessions - Workbench', () => {
 			showHeader: true,
 			useModernUITabs: true,
 			headerPrimary: Menus.SessionsEditorHeaderPrimary,
-			headerSecondary: undefined,
+			headerSecondary: Menus.SessionsEditorHeaderSecondary,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
 		});
 	});
@@ -2845,6 +2959,41 @@ suite('Sessions - Workbench', () => {
 		controller.dispose();
 	});
 
+	test('docked detail panel follows the rounded corner of the editor part at its right edge, not beside a column it leaves free', () => {
+		const editorContainer = document.createElement('div');
+		const auxiliaryBarContainer = document.createElement('div');
+		editorContainer.getBoundingClientRect = () => ({ width: 800, height: 600, top: 0, right: 800, bottom: 600, left: 0, x: 0, y: 0, toJSON: () => undefined });
+		const auxiliaryBarPart = { getContainer: () => auxiliaryBarContainer, layout: () => { } } as unknown as Part;
+		let reserved = 0;
+		const host: IDockedAuxiliaryBarHost = {
+			getWidth: () => 260,
+			setWidth: () => { },
+			isEditorAreaVisible: () => true,
+			isEditorVisible: () => true,
+			isAuxiliaryBarVisible: () => true,
+			hideAuxiliaryBar: () => { },
+			setEditorContentRightInset: () => { },
+			getTabsHeight: () => 33,
+			getRightReservedWidth: () => reserved,
+		};
+		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
+		const corner = () => ({ right: auxiliaryBarContainer.style.right, followsCorner: auxiliaryBarContainer.classList.contains('docked-auxiliarybar-flush-right') });
+
+		controller.layout();
+		const flush = corner();
+		// Such as beside the Session Activity Bar at the edge of the editor area.
+		reserved = 34;
+		controller.layout();
+		const besideColumn = corner();
+
+		assert.deepStrictEqual({ flush, besideColumn }, {
+			flush: { right: '0px', followsCorner: true },
+			besideColumn: { right: '34px', followsCorner: false },
+		});
+
+		controller.dispose();
+	});
+
 	test('fills the narrowed docked detail node and disables its overlay sash when editor content is hidden', () => {
 
 		const editorContainer = document.createElement('div');
@@ -3401,6 +3550,8 @@ suite('Sessions - Workbench', () => {
 		_editorLastNonMaximizedSize?: IViewSize;
 		readonly _onDidChangeEditorMaximized: { fire(): void };
 		_layoutSidePane(): void;
+		_isSidePaneStacked(): boolean;
+		_syncSidePaneColumn(): void;
 		setEditorHidden(hidden: boolean): void;
 		setSideBarHidden(hidden: boolean): void;
 		setSessionsHidden(hidden: boolean): void;
@@ -3422,6 +3573,8 @@ suite('Sessions - Workbench', () => {
 			_editorMaximized: false,
 			_onDidChangeEditorMaximized: { fire: () => { } },
 			_layoutSidePane: () => { },
+			_isSidePaneStacked: () => false,
+			_syncSidePaneColumn: () => { },
 			setEditorHidden: () => { },
 			setSideBarHidden: hidden => { harness.partVisibility.sidebar = !hidden; },
 			setSessionsHidden: hidden => { harness.partVisibility.sessions = !hidden; },
@@ -3868,6 +4021,7 @@ suite('Sessions - Workbench', () => {
 				}
 			},
 			isPanelMaximized: () => maximized,
+			_isSidePaneStacked: () => false,
 		};
 
 		toggleMaximizedPanel.call(host);
@@ -3887,9 +4041,9 @@ suite('Sessions - Workbench', () => {
 		}, {
 			calls: ['maximize:true', 'restore:true', 'resize:true:true', 'maximize:true'],
 			resizes: [{ width: 578, height: 800 }],
-			visibleEditorState: { width: 578 },
+			visibleEditorState: { width: 578, height: 800 },
 			restoredEditorState: undefined,
-			hiddenEditorState: { width: undefined },
+			hiddenEditorState: { width: undefined, height: undefined },
 		});
 	});
 
@@ -4032,6 +4186,543 @@ suite('Sessions - Workbench', () => {
 		} finally {
 			store.dispose();
 		}
+	});
+
+	test('desktop descriptor stacks the side pane above the sessions part in both panel alignments', () => {
+		const topology = (alignment: PanelAlignment) => {
+			const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: false } }) as IGridDescriptorTestHarness & { _sidePaneArrangement: SessionSplitLayout };
+			host._panelAlignment = alignment;
+			host._sidePaneArrangement = SessionLayoutMode.Stacked;
+			host._savedPartSizes = { editorHeight: 200 };
+			host.layoutPolicy = {
+				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
+				viewportClass: { get: () => 'desktop' },
+			};
+			host.titleBarPartView = { minimumHeight: 30 };
+			const root = createDesktopGridDescriptor.call(host, 1200, 800).root;
+			const editorHeights: number[] = [];
+			const visit = (node: ISerializedNode) => node.type === 'leaf' ? (node.data as { type: Parts }).type === Parts.EDITOR_PART && editorHeights.push(node.size) : node.data.forEach(visit);
+			visit(root);
+			return { topology: getPartTopology(root), editorHeights };
+		};
+
+		assert.deepStrictEqual({
+			justify: topology('justify'),
+			center: topology('center'),
+		}, {
+			justify: {
+				topology: [
+					Parts.TITLEBAR_PART,
+					[
+						Parts.SIDEBAR_PART,
+						[
+							// The column at the right of both and the panel joins once the grid is built.
+							[[Parts.EDITOR_PART, Parts.SESSIONS_PART], Parts.CUSTOM_VIEW_GRID_PART],
+							Parts.PANEL_PART,
+						],
+					],
+				],
+				editorHeights: [200],
+			},
+			center: {
+				topology: [
+					Parts.TITLEBAR_PART,
+					[
+						Parts.SIDEBAR_PART,
+						// The panel below the side pane and the Sessions Part.
+						[[Parts.EDITOR_PART, Parts.SESSIONS_PART], Parts.PANEL_PART],
+						Parts.CUSTOM_VIEW_GRID_PART,
+					],
+				],
+				editorHeights: [200],
+			},
+		});
+	});
+
+	test('stacks the side pane above the sessions part and back, composing with panel alignment and keeping both sizes', () => {
+		const store = new DisposableStore();
+		try {
+			const host = createHost({ single: true, partVisibility: { sidebar: true, editor: true, auxiliaryBar: false, panel: true } }) as IGridDescriptorTestHarness;
+			host._savedPartSizes = { editor: 500 };
+			host.layoutPolicy = {
+				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
+				viewportClass: { get: () => 'desktop' },
+			};
+			host.titleBarPartView = { minimumHeight: 30 };
+
+			const views = new Map<Parts, TestPartView>();
+			const grid = store.add(SerializableGrid.deserialize(createDesktopGridDescriptor.call(host, 1200, 800), {
+				fromJSON: ({ type }: { type: Parts }) => {
+					const view = store.add(new TestPartView(type));
+					views.set(type, view);
+					return view;
+				},
+			}, { proportionalLayout: false }));
+			grid.layout(1200, 800);
+
+			const getView = (view: object): TestPartView => {
+				if (!(view instanceof TestPartView)) {
+					throw new Error('Expected a test part view');
+				}
+				return view;
+			};
+			const stores: { key: string; value: string }[] = [];
+			const events: SessionSplitLayout[] = [];
+			const classes = new Set<string>();
+			const arrangementHost: IPanelAlignmentTestHarness & ISidePaneArrangementTestHarness = {
+				agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
+				_panelAlignment: 'justify',
+				_sidePaneArrangement: SessionLayoutMode.SideBySide,
+				_savedPartSizes: { editor: 500 },
+				_dockedAuxiliaryBarWidth: DockedAuxiliaryBarController.DEFAULT_WIDTH,
+				partVisibility: { editor: true, auxiliaryBar: false },
+				panelPartView: views.get(Parts.PANEL_PART)!,
+				sessionsPartView: views.get(Parts.SESSIONS_PART)!,
+				editorPartView: views.get(Parts.EDITOR_PART)!,
+				customViewGridPartView: views.get(Parts.CUSTOM_VIEW_GRID_PART)!,
+				sideBarPartView: views.get(Parts.SIDEBAR_PART)!,
+				workbenchGrid: {
+					isViewVisible: view => grid.isViewVisible(getView(view)),
+					isViewMaximized: view => grid.isViewMaximized(getView(view)),
+					getViewSize: view => grid.getViewSize(getView(view)),
+					getViewCachedVisibleSize: view => grid.getViewCachedVisibleSize(getView(view)),
+					moveView: (view, size, referenceView, direction) => grid.moveView(getView(view), size, getView(referenceView), direction),
+					resizeView: (view, size) => grid.resizeView(getView(view), size),
+					exitMaximizedView: () => grid.exitMaximizedView(),
+				},
+				mainContainer: { classList: { toggle: (name, force) => force ? classes.add(name) : classes.delete(name) } },
+				getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
+				storageService: { store: (key, value) => stores.push({ key, value }) },
+				_onDidChangePanelAlignment: { fire: () => { } },
+				_onDidChangeSidePaneArrangement: { fire: arrangement => events.push(arrangement) },
+				_runWithEditorResizeSyncSuspended: fn => fn(),
+				_layoutGrid: () => grid.layout(1200, 800),
+				_layoutSidePane: () => { },
+				hasFocus: () => false,
+				focusPart: () => { },
+			};
+			Object.setPrototypeOf(arrangementHost, DesktopWorkbench.prototype);
+
+			const editor = views.get(Parts.EDITOR_PART)!;
+			const snapshot = () => ({ topology: getPartTopology(grid.serialize().root), editor: grid.getViewSize(editor) });
+
+			setSidePaneArrangement.call(arrangementHost, SessionLayoutMode.Stacked);
+			const stackedJustify = snapshot();
+			// The user drags the stacked side pane to a height of its own.
+			grid.resizeView(editor, { width: grid.getViewSize(editor).width, height: 200 });
+			setPanelAlignment.call(arrangementHost, 'center');
+			const stackedCenter = snapshot();
+			setSidePaneArrangement.call(arrangementHost, SessionLayoutMode.SideBySide);
+			const sideBySideCenter = snapshot();
+			setSidePaneArrangement.call(arrangementHost, SessionLayoutMode.Stacked);
+			setPanelAlignment.call(arrangementHost, 'justify');
+			const restackedJustify = snapshot();
+			setSidePaneArrangement.call(arrangementHost, SessionLayoutMode.Stacked);
+
+			assert.deepStrictEqual({
+				stackedJustify,
+				stackedCenter,
+				sideBySideCenter,
+				restackedJustify,
+				savedPartSizes: arrangementHost._savedPartSizes,
+				stores,
+				events,
+				classes: [...classes],
+			}, {
+				stackedJustify: {
+					topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[[Parts.EDITOR_PART, Parts.SESSIONS_PART], Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]],
+					editor: { width: 920, height: 235 },
+				},
+				stackedCenter: {
+					topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [Parts.EDITOR_PART, Parts.SESSIONS_PART, Parts.PANEL_PART], Parts.CUSTOM_VIEW_GRID_PART]],
+					editor: { width: 920, height: 200 },
+				},
+				sideBySideCenter: {
+					topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [Parts.SESSIONS_PART, Parts.PANEL_PART], Parts.EDITOR_PART, Parts.CUSTOM_VIEW_GRID_PART]],
+					editor: { width: 500, height: 770 },
+				},
+				restackedJustify: {
+					topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[[Parts.EDITOR_PART, Parts.SESSIONS_PART], Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]],
+					editor: { width: 920, height: 200 },
+				},
+				savedPartSizes: { editor: 500, editorHeight: 200 },
+				stores: [
+					{ key: 'workbench.sessions.sidePaneArrangement', value: SessionLayoutMode.Stacked },
+					{ key: 'workbench.sessions.panelAlignment', value: 'center' },
+					{ key: 'workbench.sessions.sidePaneArrangement', value: SessionLayoutMode.SideBySide },
+					{ key: 'workbench.sessions.sidePaneArrangement', value: SessionLayoutMode.Stacked },
+					{ key: 'workbench.sessions.panelAlignment', value: 'justify' },
+				],
+				events: [SessionLayoutMode.Stacked, SessionLayoutMode.SideBySide, SessionLayoutMode.Stacked],
+				classes: ['side-pane-stacked', 'panel-alignment-justify'],
+			});
+		} finally {
+			store.dispose();
+		}
+	});
+
+	test('stacked, splits the side pane, the Sessions Part and the panel from a column of their right, the full height; with the chat hidden or the editor maximized, the side pane from a column beside it, above the panel', () => {
+		const store = new DisposableStore();
+		try {
+			const host = createHost({ single: true, partVisibility: { sidebar: true, editor: true, auxiliaryBar: false, panel: true } }) as IGridDescriptorTestHarness;
+			host._savedPartSizes = { editor: 500 };
+			host.layoutPolicy = {
+				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
+				viewportClass: { get: () => 'desktop' },
+			};
+			host.titleBarPartView = { minimumHeight: 30 };
+
+			const views = new Map<Parts, TestPartView>();
+			const grid = store.add(SerializableGrid.deserialize<ISerializableView>(createDesktopGridDescriptor.call(host, 1200, 800), {
+				fromJSON: ({ type }: { type: Parts }) => {
+					const view = store.add(new TestPartView(type));
+					views.set(type, view);
+					return view;
+				},
+			}, { proportionalLayout: false }));
+			grid.layout(1200, 800);
+
+			const columnView = store.add(new StackedSidePaneColumnView());
+			// Grid changes while the column moves, with what reacts to them not waiting until it is done.
+			let suspended = 0;
+			let movingColumn = false;
+			let changesWhileMoving = 0;
+			store.add(grid.onDidChange(() => {
+				if (movingColumn && !suspended) {
+					changesWhileMoving++;
+				}
+			}));
+			const moveColumn = <T>(view: object, fn: () => T): T => {
+				if (view !== columnView) {
+					return fn();
+				}
+				movingColumn = true;
+				try {
+					return fn();
+				} finally {
+					movingColumn = false;
+				}
+			};
+			const getView = (view: object): ISerializableView => {
+				if (!(view instanceof TestPartView) && view !== columnView) {
+					throw new Error('Expected a grid view');
+				}
+				return view as ISerializableView;
+			};
+			const arrangementHost = {
+				agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
+				_panelAlignment: 'justify' as PanelAlignment,
+				_sidePaneArrangement: SessionLayoutMode.SideBySide as SessionSplitLayout,
+				_savedPartSizes: { editor: 500 },
+				_dockedAuxiliaryBarWidth: DockedAuxiliaryBarController.DEFAULT_WIDTH,
+				partVisibility: { editor: true, auxiliaryBar: false, sidebar: true, sessions: true, panel: true, customViewGrid: false },
+				_editorMaximized: false,
+				setEditorHidden: () => { },
+				setSideBarHidden: (hidden: boolean) => { arrangementHost.partVisibility.sidebar = !hidden; grid.setViewVisible(views.get(Parts.SIDEBAR_PART)!, !hidden); },
+				setAuxiliaryBarHidden: () => { },
+				_onDidChangeEditorMaximized: { fire: () => { } },
+				panelPartView: views.get(Parts.PANEL_PART)!,
+				sessionsPartView: views.get(Parts.SESSIONS_PART)!,
+				editorPartView: views.get(Parts.EDITOR_PART)!,
+				customViewGridPartView: views.get(Parts.CUSTOM_VIEW_GRID_PART)!,
+				sideBarPartView: views.get(Parts.SIDEBAR_PART)!,
+				stackedSidePaneColumnView: columnView,
+				_sidePaneColumnPlacement: undefined as number | undefined,
+				workbenchGrid: {
+					isViewVisible: (view: object) => grid.isViewVisible(getView(view)),
+					isViewMaximized: (view: object) => grid.isViewMaximized(getView(view)),
+					hasMaximizedView: () => grid.hasMaximizedView(),
+					getViewSize: (view: object) => grid.getViewSize(getView(view)),
+					getViewCachedVisibleSize: (view: object) => grid.getViewCachedVisibleSize(getView(view)),
+					setViewVisible: (view: object, visible: boolean) => grid.setViewVisible(getView(view), visible),
+					addView: (view: object, size: number | Sizing, referenceView: object, direction: Direction) => moveColumn(view, () => grid.addView(getView(view), size, getView(referenceView), direction)),
+					removeView: (view: object) => moveColumn(view, () => grid.removeView(getView(view))),
+					moveView: (view: object, size: number | Sizing, referenceView: object, direction: Direction) => grid.moveView(getView(view), size, getView(referenceView), direction),
+					resizeView: (view: object, size: IViewSize) => grid.resizeView(getView(view), size),
+					getViews: () => grid.getViews(),
+					moveViewTo: (view: object, location: number[]) => moveColumn(view, () => grid.moveViewTo(getView(view), location)),
+					exitMaximizedView: () => grid.exitMaximizedView(),
+				},
+				mainContainer: { classList: { toggle: () => { } } },
+				getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
+				storageService: { store: () => { } },
+				_onDidChangePanelAlignment: { fire: () => { } },
+				_onDidChangeSidePaneArrangement: { fire: () => { } },
+				_runWithEditorResizeSyncSuspended: (fn: () => void) => {
+					suspended++;
+					try {
+						fn();
+					} finally {
+						suspended--;
+					}
+				},
+				_layoutGrid: () => grid.layout(1200, 800),
+				_layoutSidePane: () => { },
+				hasFocus: () => false,
+				focusPart: () => { },
+			};
+			Object.setPrototypeOf(arrangementHost, DesktopWorkbench.prototype);
+			// As the parts do as the grid lays them out while the column moves: the Sessions Part, while it shows, reads whether
+			// the side pane shows, and the editor part its maximum size.
+			const getMaximumEditorDimensions = Workbench.prototype.getMaximumEditorDimensions as (this: object, container: HTMLElement) => IViewSize;
+			let unansweredWhileMoving = 0;
+			const read = (fn: () => void) => {
+				try {
+					fn();
+				} catch {
+					unansweredWhileMoving++;
+				}
+			};
+			store.add(views.get(Parts.SESSIONS_PART)!.onDidLayout(() => {
+				if (movingColumn && arrangementHost.partVisibility.sessions) {
+					read(() => isDesktopEditorPaneVisible.call(arrangementHost as never));
+				}
+			}));
+			store.add(views.get(Parts.EDITOR_PART)!.onDidLayout(() => {
+				if (movingColumn) {
+					read(() => getMaximumEditorDimensions.call({ ...arrangementHost, _mainContainerDimension: { width: 1200, height: 800 }, titleBarPartView: views.get(Parts.TITLEBAR_PART)! }, mainWindow.document.body));
+				}
+			}));
+			const setColumn = Workbench.prototype.setStackedSidePaneColumn as (this: object, column: IStackedSidePaneColumn | undefined) => boolean;
+
+			const strip = mainWindow.document.createElement('div');
+			const stripParent = mainWindow.document.createElement('div');
+			stripParent.appendChild(strip);
+			const released: number[] = [];
+			const column: IStackedSidePaneColumn = { element: strip, width: 34, layout: () => { }, release: () => { released.push(1); stripParent.appendChild(strip); } };
+			const boxes = () => {
+				const result: Record<string, { left: number; top: number; width: number; height: number }> = {};
+				const visit = (node: GridNode<ISerializableView>): void => {
+					if (isGridBranchNode(node)) {
+						node.children.forEach(visit);
+					} else if (node.view === columnView || node.view === views.get(Parts.EDITOR_PART) || node.view === views.get(Parts.SESSIONS_PART) || node.view === views.get(Parts.PANEL_PART)) {
+						result[node.view === columnView ? 'column' : (node.view as TestPartView).part] = node.box;
+					}
+				};
+				visit(grid.getViews());
+				return result;
+			};
+			const snapshot = () => {
+				const box = boxes();
+				const columnBox = box.column;
+				const editor = box[Parts.EDITOR_PART];
+				const sessions = box[Parts.SESSIONS_PART];
+				const panel = box[Parts.PANEL_PART];
+				const shown = !!arrangementHost._sidePaneColumnPlacement && grid.isViewVisible(columnView);
+				return {
+					topology: getPartTopology(grid.serialize().root),
+					shown,
+					stripInColumn: strip.parentElement === columnView.element,
+					// The column at the right of the side pane, the Sessions Part and the panel, from the top of the side pane to
+					// the bottom of the panel.
+					column: columnBox && shown ? { width: columnBox.width, besideAll: columnBox.left === editor.left + editor.width && columnBox.left === sessions.left + sessions.width && columnBox.left === panel.left + panel.width, top: columnBox.top === editor.top, bottom: columnBox.top + columnBox.height === panel.top + panel.height } : undefined,
+				};
+			};
+
+			const beforeStacked = setColumn.call(arrangementHost, column);
+			// As the side pane does while it is not stacked.
+			setColumn.call(arrangementHost, undefined);
+			setSidePaneArrangement.call(arrangementHost as never, SessionLayoutMode.Stacked);
+			const stackedEmpty = snapshot();
+			const shown = setColumn.call(arrangementHost, column);
+			const stackedJustify = snapshot();
+			setPanelAlignment.call(arrangementHost as never, 'center');
+			const stackedCenter = snapshot();
+			setSidePaneArrangement.call(arrangementHost as never, SessionLayoutMode.SideBySide);
+			const sideBySide = { ...snapshot(), released: released.length, stripBack: strip.parentElement === stripParent };
+
+			// Editor only, side by side: the column at the right of the editor, from its top to its bottom.
+			const besideEditor = () => {
+				const box = boxes();
+				const editor = box[Parts.EDITOR_PART];
+				const shown = !!arrangementHost._sidePaneColumnPlacement && grid.isViewVisible(columnView);
+				return {
+					topology: getPartTopology(grid.serialize().root),
+					shown,
+					stripInColumn: strip.parentElement === columnView.element,
+					column: box.column && shown ? { width: box.column.width, besideEditor: box.column.left === editor.left + editor.width, top: box.column.top === editor.top, bottom: box.column.top + box.column.height === editor.top + editor.height } : undefined,
+				};
+			};
+			const setSessionsHidden = Reflect.get(Workbench.prototype, 'setSessionsHidden') as (this: object, hidden: boolean) => void;
+			// As the side pane does while it is not stacked.
+			setColumn.call(arrangementHost, undefined);
+			// Editor only: the chat hides.
+			setSessionsHidden.call(arrangementHost, true);
+			const editorOnlyEmpty = besideEditor();
+			const editorOnlyShown = setColumn.call(arrangementHost, column);
+			const editorOnlyCenter = besideEditor();
+			setPanelAlignment.call(arrangementHost as never, 'justify');
+			const editorOnlyJustify = besideEditor();
+			setSidePaneArrangement.call(arrangementHost as never, SessionLayoutMode.Stacked);
+			const editorOnlyStacked = { topology: getPartTopology(grid.serialize().root), stripInColumn: strip.parentElement === columnView.element };
+			// The panel moving, the column moves with the side pane, beside it.
+			setPanelAlignment.call(arrangementHost as never, 'center');
+			const editorOnlyStackedCenter = { topology: getPartTopology(grid.serialize().root), stripInColumn: strip.parentElement === columnView.element };
+			setPanelAlignment.call(arrangementHost as never, 'justify');
+			const editorOnlyStackedJustify = { topology: getPartTopology(grid.serialize().root), stripInColumn: strip.parentElement === columnView.element };
+			// The chat shown again, stacked: the column the full height again, in either alignment, and back.
+			const chatShownAgain = (alignment: PanelAlignment) => {
+				setPanelAlignment.call(arrangementHost as never, alignment);
+				setSessionsHidden.call(arrangementHost, false);
+				const result = { topology: getPartTopology(grid.serialize().root), stripInColumn: strip.parentElement === columnView.element };
+				setSessionsHidden.call(arrangementHost, true);
+				return result;
+			};
+			const stackedChatShownCenter = chatShownAgain('center');
+			const stackedChatShownJustify = chatShownAgain('justify');
+			setSidePaneArrangement.call(arrangementHost as never, SessionLayoutMode.SideBySide);
+			const editorOnlyBack = besideEditor();
+			setSessionsHidden.call(arrangementHost, false);
+			const restored = { ...besideEditor(), released: released.length, stripBack: strip.parentElement === stripParent };
+			// Maximize Editor Area, which also reads as Editor only.
+			setColumn.call(arrangementHost, undefined);
+			setEditorMaximized.call(arrangementHost as never, true);
+			const maximizedShown = setColumn.call(arrangementHost, column);
+			const maximized = besideEditor();
+			setEditorMaximized.call(arrangementHost as never, false);
+			const unmaximized = { ...besideEditor(), released: released.length, stripBack: strip.parentElement === stripParent };
+
+			const column34 = () => ({ width: 34, besideAll: true, top: true, bottom: true });
+			const besideEditor34 = () => ({ width: 34, besideEditor: true, top: true, bottom: true });
+			assert.deepStrictEqual({ beforeStacked, stackedEmpty, shown, stackedJustify, stackedCenter, sideBySide, editorOnlyEmpty, editorOnlyShown, editorOnlyCenter, editorOnlyJustify, editorOnlyStacked, editorOnlyStackedCenter, editorOnlyStackedJustify, stackedChatShownCenter, stackedChatShownJustify, editorOnlyBack, restored, maximizedShown, maximized, unmaximized, changesWhileMoving, unansweredWhileMoving }, {
+				// Side by side, there is no column.
+				beforeStacked: false,
+				// Stacked, a view of its own in the row of the sidebar, at the right of the side pane, the Sessions Part and the
+				// panel below them, the full height; shown once something shows in it.
+				stackedEmpty: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[[Parts.EDITOR_PART, Parts.SESSIONS_PART], Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART], STACKED_SIDE_PANE_COLUMN_VIEW_TYPE]], shown: false, stripInColumn: false, column: undefined },
+				shown: true,
+				stackedJustify: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[[Parts.EDITOR_PART, Parts.SESSIONS_PART], Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART], STACKED_SIDE_PANE_COLUMN_VIEW_TYPE]], shown: true, stripInColumn: true, column: column34() },
+				// The panel below the side pane and the Sessions Part only, the column the full height beside them, which shows
+				// again once the panel moved.
+				stackedCenter: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [Parts.EDITOR_PART, Parts.SESSIONS_PART, Parts.PANEL_PART], STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, Parts.CUSTOM_VIEW_GRID_PART]], shown: true, stripInColumn: true, column: column34() },
+				// The column leaves the grid, which is as it was; what showed in it is taken back.
+				sideBySide: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [Parts.SESSIONS_PART, Parts.PANEL_PART], Parts.EDITOR_PART, Parts.CUSTOM_VIEW_GRID_PART]], shown: false, stripInColumn: false, column: undefined, released: 2, stripBack: true },
+				// Editor only (the chat hidden), side by side: a view of its own at the right of the editor, shown once something shows in it.
+				editorOnlyEmpty: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [Parts.SESSIONS_PART, Parts.PANEL_PART], Parts.EDITOR_PART, STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, Parts.CUSTOM_VIEW_GRID_PART]], shown: false, stripInColumn: false, column: undefined },
+				editorOnlyShown: true,
+				// The full height of the editor, which the panel is beside (center) or below (justify).
+				editorOnlyCenter: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [Parts.SESSIONS_PART, Parts.PANEL_PART], Parts.EDITOR_PART, STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, Parts.CUSTOM_VIEW_GRID_PART]], shown: true, stripInColumn: true, column: besideEditor34() },
+				editorOnlyJustify: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[Parts.SESSIONS_PART, Parts.EDITOR_PART, STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]], shown: true, stripInColumn: true, column: besideEditor34() },
+				// Stacked and back with the chat hidden, the column stays beside the editor, above the panel, with what shows in it.
+				editorOnlyStacked: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[[[Parts.EDITOR_PART, STACKED_SIDE_PANE_COLUMN_VIEW_TYPE], Parts.SESSIONS_PART], Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]], stripInColumn: true },
+				editorOnlyStackedCenter: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[Parts.EDITOR_PART, STACKED_SIDE_PANE_COLUMN_VIEW_TYPE], Parts.SESSIONS_PART, Parts.PANEL_PART], Parts.CUSTOM_VIEW_GRID_PART]], stripInColumn: true },
+				editorOnlyStackedJustify: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[[[Parts.EDITOR_PART, STACKED_SIDE_PANE_COLUMN_VIEW_TYPE], Parts.SESSIONS_PART], Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]], stripInColumn: true },
+				// The chat shown again, the column is the full height again, as stacked from side by side.
+				stackedChatShownCenter: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [Parts.EDITOR_PART, Parts.SESSIONS_PART, Parts.PANEL_PART], STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, Parts.CUSTOM_VIEW_GRID_PART]], stripInColumn: true },
+				stackedChatShownJustify: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[[Parts.EDITOR_PART, Parts.SESSIONS_PART], Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART], STACKED_SIDE_PANE_COLUMN_VIEW_TYPE]], stripInColumn: true },
+				editorOnlyBack: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[Parts.SESSIONS_PART, Parts.EDITOR_PART, STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]], shown: true, stripInColumn: true, column: besideEditor34() },
+				// The chat shown again, the column leaves the grid, which is as it was; what showed in it is taken back.
+				restored: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[Parts.SESSIONS_PART, Parts.EDITOR_PART, Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]], shown: false, stripInColumn: false, column: undefined, released: 14, stripBack: true },
+				// Maximize Editor Area, which also reads as Editor only, has the same column, until the editor is restored.
+				maximizedShown: true,
+				maximized: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[Parts.SESSIONS_PART, Parts.EDITOR_PART, STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]], shown: true, stripInColumn: true, column: besideEditor34() },
+				unmaximized: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[Parts.SESSIONS_PART, Parts.EDITOR_PART, Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]], shown: false, stripInColumn: false, column: undefined, released: 15, stripBack: true },
+				// What reacts to the grid changing, such as the editor's width-based visibility, never sees it halfway.
+				changesWhileMoving: 0,
+				// The grid cannot answer whether the side pane shows halfway: what reads it gets how it was.
+				unansweredWhileMoving: 0,
+			});
+		} finally {
+			store.dispose();
+		}
+	});
+
+	test('a layout restored from storage that the grid cannot build gives way to the default layout, rather than an empty window', () => {
+		const store = new DisposableStore();
+		const previousErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const errors: string[] = [];
+		setUnexpectedErrorHandler(error => errors.push(error instanceof Error ? error.message : String(error)));
+		try {
+			const views = new Map<string, TestPartView>();
+			for (const part of [Parts.TITLEBAR_PART, Parts.SIDEBAR_PART, Parts.SESSIONS_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART, Parts.CUSTOM_VIEW_GRID_PART]) {
+				views.set(part, store.add(new TestPartView(part)));
+			}
+			const container = mainWindow.document.createElement('div');
+			const removed: string[] = [];
+			const host = Object.assign(createHost({ single: true, partVisibility: { sidebar: true, editor: true, auxiliaryBar: false, panel: true } }) as IGridDescriptorTestHarness, {
+				// As stored: stacked, with sizes from a grid that was no longer whole.
+				_sidePaneArrangement: SessionLayoutMode.Stacked as SessionSplitLayout,
+				_savedPartSizes: { editor: 500, editorHeight: 3 },
+				layoutPolicy: {
+					getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
+					getPartVisibilityDefaults: () => ({ sidebar: true, auxiliaryBar: false, panel: false, sessions: true, editor: false }),
+					viewportClass: { get: () => 'desktop' },
+				},
+				titleBarPartView: views.get(Parts.TITLEBAR_PART)!,
+				sideBarPartView: views.get(Parts.SIDEBAR_PART)!,
+				sessionsPartView: views.get(Parts.SESSIONS_PART)!,
+				editorPartView: views.get(Parts.EDITOR_PART)!,
+				panelPartView: views.get(Parts.PANEL_PART)!,
+				mainContainer: container,
+				workbenchGrid: undefined as SerializableGrid<ISerializableView> | undefined,
+				storageService: { remove: (key: string) => { removed.push(key); } },
+				isModernUICompact: () => false,
+				// The grid cannot build the layout as stored, as a layout stored from a broken grid can be.
+				createGridDescriptor: () => {
+					if (host._sidePaneArrangement === SessionLayoutMode.Stacked) {
+						throw new Error('Invalid location');
+					}
+					return createDesktopGridDescriptor.call(host, 1200, 800);
+				},
+			});
+			container.classList.add(AGENTS_SIDE_PANE_STACKED_CLASS);
+
+			const createWorkbenchGrid = Reflect.get(Workbench.prototype, '_createWorkbenchGrid') as (this: object, fromJSON: (node: { type: string }) => ISerializableView) => void;
+			createWorkbenchGrid.call(host, ({ type }) => views.get(type)!);
+			store.add(toDisposable(() => host.workbenchGrid?.dispose()));
+
+			assert.deepStrictEqual({
+				errors,
+				removed,
+				arrangement: host._sidePaneArrangement,
+				savedPartSizes: host._savedPartSizes,
+				partVisibility: { sidebar: host.partVisibility.sidebar, editor: host.partVisibility.editor, panel: host.partVisibility.panel, sessions: host.partVisibility.sessions },
+				topology: host.workbenchGrid && getPartTopology(host.workbenchGrid.serialize().root),
+				grids: container.querySelectorAll(':scope > .monaco-grid-view').length,
+				stackedClass: container.classList.contains(AGENTS_SIDE_PANE_STACKED_CLASS),
+			}, {
+				// What went wrong is reported, and the layout stored for the workspace forgotten.
+				errors: ['Invalid location'],
+				removed: ['workbench.sessions.partSizes', 'workbench.sessions.partVisibility', 'workbench.sessions.sidePaneArrangement'],
+				// The default layout: side by side, with the parts the layout policy shows by default, in one grid.
+				arrangement: SessionLayoutMode.SideBySide,
+				savedPartSizes: {},
+				partVisibility: { sidebar: true, editor: false, panel: false, sessions: true },
+				topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[Parts.SESSIONS_PART, Parts.EDITOR_PART, Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]],
+				grids: 1,
+				stackedClass: false,
+			});
+		} finally {
+			setUnexpectedErrorHandler(previousErrorHandler);
+			store.dispose();
+		}
+	});
+
+	test('a stacked side pane keeps its width-based visibility and sizes out of the side-by-side memory', () => {
+		const resizes: IViewSize[] = [];
+		const host = createHost({ single: true, editorWidth: 1200, partVisibility: { editor: true, auxiliaryBar: true } }) as ITestWorkbench & { _sidePaneArrangement: SessionSplitLayout };
+		host._sidePaneArrangement = SessionLayoutMode.Stacked;
+		host._savedPartSizes = { editor: 500 };
+		const resizeView = host.workbenchGrid.resizeView;
+		host.workbenchGrid.resizeView = (view, size) => {
+			resizes.push(size);
+			resizeView(view, size);
+		};
+
+		// A stacked node spans the row: squeezing it is not a drag that hides the editor content.
+		onEditorNodeResized.call(host, 310);
+		const editorAfterSqueeze = host.partVisibility.editor;
+		// Details only spans the row too, rather than shrinking the node to the detail width.
+		setEditorHidden.call(host, true);
+		const preferredWidth = getPreferredEditorPartWidth.call(host);
+
+		assert.deepStrictEqual({ editorAfterSqueeze, editorHidden: !host.partVisibility.editor, resizes, preferredWidth, savedEditorWidth: host._savedPartSizes.editor }, {
+			editorAfterSqueeze: true,
+			editorHidden: true,
+			resizes: [],
+			preferredWidth: undefined,
+			savedEditorWidth: 500,
+		});
 	});
 
 	test('desktop restores the bottom panel height after navigating through Quick Chat', () => {

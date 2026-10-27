@@ -582,7 +582,8 @@ export class ChatView extends AbstractChatView {
 		});
 		const needsConversation = derived(this, reader => this._inputOnlyEnabled.read(reader)
 			&& needsConversationForInput(chatModel.read(reader), this.configurationService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel), reader));
-		this.canShowInputOnly = derived(this, reader => this._inputOnlyEnabled.read(reader) && !needsConversation.read(reader));
+		// An archived session shows its read-only banner above the conversation, which has no room beside the collapsed input.
+		this.canShowInputOnly = derived(this, reader => this._inputOnlyEnabled.read(reader) && !needsConversation.read(reader) && !this._currentSessionObs.read(reader)?.isArchived.read(reader));
 		this._register(autorun(reader => {
 			this._inputOnly.read(reader);
 			this._inputOnlyStatus.read(reader);

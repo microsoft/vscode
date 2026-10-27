@@ -12,7 +12,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { toAction } from '../../../base/common/actions.js';
-import { derived, observableValue } from '../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../base/common/observable.js';
 import { AnchorAlignment } from '../../../base/common/layout.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
@@ -29,7 +29,8 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../platf
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatViewSessionActivityBar, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
+import { ChatWindowEditorGroupContext } from '../../services/chatWindow/browser/chatWindowService.js';
+import { ChatViewSessionActivityBar, registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SessionActivityBar, SessionActivityBarHostOccupancy } from '../../browser/parts/sessionActivityBar.js';
 import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
@@ -47,7 +48,7 @@ interface ITestEntry {
 	readonly id: string;
 	readonly title: string;
 	readonly icon: ThemeIcon;
-	readonly submenu?: readonly { readonly id: string; readonly title: string }[];
+	readonly submenu?: readonly { readonly id: string; readonly title: string; readonly checked?: boolean }[];
 	/** The menu group, `navigation` by default. */
 	readonly group?: string;
 	/** Whether the entry is checked, as when the side pane shows its editor. */
@@ -63,7 +64,7 @@ suite('Sessions - Session Activity Bar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	function createActivityBar(disposables: Pick<DisposableStore, 'add'>, initialEntries: readonly ITestEntry[]) {
+	function createActivityBar(disposables: Pick<DisposableStore, 'add'>, initialEntries: readonly ITestEntry[], contextKeys: Record<string, string> = {}) {
 		const testStore = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, testStore);
 
@@ -116,7 +117,7 @@ suite('Sessions - Session Activity Bar', () => {
 							const group = entry.group ?? 'navigation';
 							groups.set(group, [...groups.get(group) ?? [], entry.submenu
 								? new SubmenuItemAction({ submenu: MenuId.for(entry.id), title: entry.title, icon: entry.icon }, undefined, entry.submenu.map(item =>
-									instantiationService.createInstance(MenuItemAction, { id: item.id, title: item.title }, undefined, options, undefined, undefined)))
+									createEntryAction({ ...item, icon: entry.icon }, options)))
 								: createEntryAction(entry, options)]);
 						}
 						return [...groups];
@@ -150,6 +151,9 @@ suite('Sessions - Session Activity Bar', () => {
 		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true });
 		instantiationService.stub(IConfigurationService, configurationService);
 		const contextKeyService = testStore.add(instantiationService.createInstance(ContextKeyService));
+		for (const [key, value] of Object.entries(contextKeys)) {
+			contextKeyService.createKey(key, value);
+		}
 		instantiationService.stub(IContextKeyService, contextKeyService);
 
 		const activityService = testStore.add(new SessionActivityBarActivityService());
@@ -160,8 +164,8 @@ suite('Sessions - Session Activity Bar', () => {
 			root,
 			activityBar,
 			activityService,
-			createDocked: () => {
-				const host = append(root, $('.host'));
+			createDocked: (parent: HTMLElement = root) => {
+				const host = append(parent, $('.host'));
 				host.style.cssText = 'width: 800px; height: 600px;';
 				for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size40', '4px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
 					host.style.setProperty(`--vscode-${token}`, value);
@@ -488,14 +492,178 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('reserves room beside the chat whether or not the view is active, unless disabled or in the phone layout', () => {
-		const { createDocked, setEnabled, root, layoutMainContainer } = createActivityBar(store, [changes]);
+	test('shows the strip of the active chat in an active external host, which keeps the column outside every chat, and beside the chat otherwise', () => {
+		const { createDocked, setEnabled, root } = createActivityBar(store, [changes]);
+		const hostElement = append(root, $('.external-host'));
+		const active = observableValue('active', false);
+		const occupancy = new SessionActivityBarHostOccupancy();
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active, height: constObservable(500), setOccupied: (occupant, value) => occupancy.set(occupant, value) }));
+		const first = createDocked();
+		const second = createDocked();
+		first.setActive(true);
+		second.setActive(false);
+		// Occupied while the shown strip is in it, empty while the strip is disabled.
+		const where = () => ({
+			first: first.element?.parentElement === hostElement ? 'host' : 'chat',
+			second: second.element?.parentElement === hostElement ? 'host' : 'chat',
+			reserved: [first.reservedWidth.get(), second.reservedWidth.get()],
+			occupied: occupancy.occupied.get(),
+		});
+
+		const inactiveHost = where();
+		active.set(true, undefined);
+		const activeHost = where();
+		setEnabled(false);
+		const disabled = occupancy.occupied.get();
+		setEnabled(true);
+		// Focus moves to the second chat.
+		first.setActive(false);
+		second.setActive(true);
+		const focusMoved = where();
+		active.set(false, undefined);
+		const hostGone = where();
+
+		assert.deepStrictEqual({ inactiveHost, activeHost, disabled, focusMoved, hostGone }, {
+			inactiveHost: { first: 'chat', second: 'chat', reserved: [SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SESSION_ACTIVITY_BAR_COLUMN_WIDTH], occupied: false },
+			activeHost: { first: 'host', second: 'chat', reserved: [0, 0], occupied: true },
+			disabled: false,
+			focusMoved: { first: 'chat', second: 'host', reserved: [0, 0], occupied: true },
+			hostGone: { first: 'chat', second: 'chat', reserved: [SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SESSION_ACTIVITY_BAR_COLUMN_WIDTH], occupied: false },
+		});
+	});
+
+	test('the strip at the edge of the editor area is as wide as beside the chat, with an equal 2px gap on either side in its column, at either density', () => {
+		const { createDocked, root } = createActivityBar(store, [changes]);
+		root.classList.add('agent-sessions-workbench');
+		// The design tokens the strip's style reads, for both of its hosts.
+		for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
+			root.style.setProperty(`--vscode-${token}`, value);
+		}
+		// As the editor part hosts it: a column of its own at its right edge, below the tabs, which the editor's content
+		// makes room for (`setContentRightInset`), so the content ends where the column starts.
+		const editorPart = append(root, $('.part.editor'));
+		editorPart.style.cssText = 'position: relative; width: 800px; height: 600px;';
+		const hostElement = append(editorPart, $('.session-activity-bar-host.session-activity-bar-editor-host'));
+		hostElement.style.setProperty('--session-activity-bar-column-width', `${SESSION_ACTIVITY_BAR_COLUMN_WIDTH}px`);
+		hostElement.style.height = '500px';
+		const active = observableValue('active', false);
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active, height: constObservable(500), setOccupied: () => { } }));
 		const docked = createDocked();
+		docked.setActive(true);
+		const measure = () => {
+			const strip = docked.element!;
+			const style = mainWindow.getComputedStyle(strip);
+			const entry = strip.querySelector<HTMLElement>('.action-label:not(.separator)')!;
+			return {
+				width: strip.offsetWidth,
+				padding: [style.paddingLeft, style.paddingRight],
+				border: [style.borderLeftWidth, style.borderRightWidth],
+				entryWidth: entry.offsetWidth,
+			};
+		};
+		const gaps = () => {
+			const strip = docked.element!.getBoundingClientRect();
+			const column = hostElement.getBoundingClientRect();
+			const part = editorPart.getBoundingClientRect();
+			return { column: column.width, content: strip.left - column.left, edge: part.right - strip.right };
+		};
+
+		const results: Record<string, unknown> = {};
+		for (const density of ['default', 'compact']) {
+			root.classList.toggle('modern-ui-compact', density === 'compact');
+			active.set(false, undefined);
+			const besideChat = measure();
+			active.set(true, undefined);
+			results[density] = { besideChat, atEditorEdge: measure(), gaps: gaps() };
+		}
+
+		const strip = { width: 30, padding: ['2px', '2px'], border: ['1px', '1px'], entryWidth: 24 };
+		// 2px between the editor's content and the strip, and between the strip and the edge.
+		const gapsAtEditorEdge = { column: 34, content: 2, edge: 2 };
+		assert.deepStrictEqual(results, {
+			default: { besideChat: strip, atEditorEdge: strip, gaps: gapsAtEditorEdge },
+			compact: { besideChat: strip, atEditorEdge: strip, gaps: gapsAtEditorEdge },
+		});
+	});
+
+	test('keeps the external host occupied while any strip is in it, whichever order strips enter and leave in', () => {
+		const { createDocked, root } = createActivityBar(store, [changes]);
+		const hostElement = append(root, $('.external-host'));
+		const occupancy = new SessionActivityBarHostOccupancy();
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: constObservable(true), height: constObservable(500), setOccupied: (occupant, value) => occupancy.set(occupant, value) }));
+		const first = createDocked();
+		const second = createDocked();
+		const third = createDocked();
+		const state = () => ({ occupied: occupancy.occupied.get(), inHost: [first, second, third].map(strip => strip.element?.parentElement === hostElement) });
+
+		first.setActive(true);
+		// The next chat is activated before the previous one is deactivated, as when it comes first in the iteration.
+		second.setActive(true);
+		first.setActive(false);
+		const activatedBeforeDeactivated = state();
+		third.setActive(true);
+		// The previous strip is disposed while the next one is already in the host.
+		second.dispose();
+		const disposedWhileOtherOccupies = state();
+		third.setActive(false);
+		const empty = state();
+
+		assert.deepStrictEqual({ activatedBeforeDeactivated, disposedWhileOtherOccupies, empty }, {
+			activatedBeforeDeactivated: { occupied: true, inHost: [false, true, false] },
+			disposedWhileOtherOccupies: { occupied: true, inHost: [false, false, true] },
+			empty: { occupied: false, inHost: [false, false, false] },
+		});
+	});
+
+	test('shows the strip of an active chat hidden with its part only in an active external host, and finds the host once the chat is attached', async () => {
+		const { createDocked, root } = createActivityBar(store, [changes]);
+		const hostElement = append(root, $('.external-host'));
+		const active = observableValue('active', false);
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active, height: constObservable(500), setOccupied: () => { } }));
+		// Created detached, as a chat is while the Sessions Part is hidden and not laid out.
+		const detached = mainWindow.document.createElement('div');
+		const docked = createDocked(detached);
+		const where = () => docked.element?.parentElement === hostElement ? 'host' : docked.element?.classList.contains('inactive') ? 'hidden' : 'chat';
+
+		docked.setActive(true, true);
+		const hiddenWithPart = where();
+		active.set(true, undefined);
+		const hostActiveWhileDetached = where();
+		root.appendChild(detached);
+		await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
+		const attached = where();
+		active.set(false, undefined);
+		const hostInactive = where();
+		docked.setActive(true, false);
+		const partShown = where();
+
+		assert.deepStrictEqual({ hiddenWithPart, hostActiveWhileDetached, attached, hostInactive, partShown }, {
+			hiddenWithPart: 'hidden',
+			hostActiveWhileDetached: 'hidden',
+			attached: 'host',
+			hostInactive: 'hidden',
+			partShown: 'chat',
+		});
+	});
+
+	test('reserves room beside the chat whether or not the view is active, unless disabled, in the phone layout, or the strip shows in a host outside the chat', () => {
+		const { createDocked, setEnabled, root, layoutMainContainer } = createActivityBar(store, [changes]);
+		const hostActive = observableValue('hostActive', false);
+		store.add(registerSessionActivityBarExternalHost(root, { element: append(root, $('.external-host')), active: hostActive, height: constObservable(500), setOccupied: () => { } }));
+		const docked = createDocked();
+		docked.layout(0, 600);
 		const reserved = () => docked.reservedWidth.get();
 
 		const inactive = reserved();
 		docked.setActive(true);
 		const active = reserved();
+		// Stacked below the editor, or hidden: the host keeps the column, outside the chat, for both views.
+		hostActive.set(true, undefined);
+		const hostedOutside = reserved();
+		docked.setActive(false);
+		const hostedOutsideInactive = reserved();
+		hostActive.set(false, undefined);
+		const hostInactive = reserved();
 		setEnabled(false);
 		const disabled = reserved();
 		setEnabled(true);
@@ -503,9 +671,12 @@ suite('Sessions - Session Activity Bar', () => {
 		layoutMainContainer();
 		const phoneLayout = reserved();
 
-		assert.deepStrictEqual({ inactive, active, disabled, phoneLayout }, {
+		assert.deepStrictEqual({ inactive, active, hostedOutside, hostedOutsideInactive, hostInactive, disabled, phoneLayout }, {
 			inactive: SESSION_ACTIVITY_BAR_COLUMN_WIDTH,
 			active: SESSION_ACTIVITY_BAR_COLUMN_WIDTH,
+			hostedOutside: 0,
+			hostedOutsideInactive: 0,
+			hostInactive: SESSION_ACTIVITY_BAR_COLUMN_WIDTH,
 			disabled: 0,
 			phoneLayout: 0,
 		});
@@ -559,6 +730,16 @@ suite('Sessions - Session Activity Bar', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(ran, ['test.browser']);
+	});
+
+	test('an entry acts on the chat window its strip is part of, which it is told by the editor group of that window', async () => {
+		const { label, ranWith, contextKeyService } = createActivityBar(store, [browser]);
+
+		ChatWindowEditorGroupContext.bindTo(contextKeyService).set(7);
+		label('Browser').click();
+		await timeout(0);
+
+		assert.deepStrictEqual(ranWith, [['test.browser', { groupId: 7 }]]);
 	});
 
 	test('shows a checked entry as pressed and hides what it shows when it is clicked or activated by keyboard', async () => {
@@ -620,7 +801,31 @@ suite('Sessions - Session Activity Bar', () => {
 		assert.deepStrictEqual(ranWith.map(([id, context]) => [id, isChatWindowHandle(context) ? context : 'no handle']), [['test.canvas.kusto', 'no handle'], ['test.canvas.kusto', { chatWindowId: 7 }]]);
 	}));
 
-	test('opens the Canvas submenu to the left on hover, click, and keyboard, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('names the Layout button after the layout mode of its window, keeping its icon, and other submenu entries after their title', () => {
+		const layout: ITestEntry = {
+			id: Menus.SessionLayout.id, title: 'Layout', icon: Codicon.layout,
+			submenu: [{ id: 'test.showChat', title: 'Show Chat', checked: true }, { id: 'test.showEditor', title: 'Show Editor', checked: true }],
+		};
+		const describe = (entries: ITestEntry[], contextKeys: Record<string, string> = {}) => {
+			const { activityBar } = createActivityBar(store, entries, contextKeys);
+			const button = activityBar.element.querySelector<HTMLElement>('.action-label[aria-haspopup="menu"]')!;
+			return { label: button.getAttribute('aria-label'), icon: button.classList.contains('codicon-layout') };
+		};
+
+		assert.deepStrictEqual({
+			stacked: describe([layout], { 'sessions.layoutMode': 'stacked' }),
+			editorOnly: describe([layout], { 'sessions.layoutMode': 'editorOnly' }),
+			noMode: describe([layout]),
+			canvas: describe([canvas]),
+		}, {
+			stacked: { label: 'Layout: Stacked', icon: true },
+			editorOnly: { label: 'Layout: Editor Only', icon: true },
+			noMode: { label: 'Layout', icon: true },
+			canvas: { label: 'Canvas', icon: false },
+		});
+	});
+
+	test('opens the Canvas submenu to the left on click and keyboard only, keeps it open as the pointer leaves, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { label, ran, contextViewService } = createActivityBar(store, [browser, canvas]);
 		const canvasLabel = label('Canvas');
 		const state = () => ({ shown: contextViewService.openSubmenu, expanded: canvasLabel.getAttribute('aria-expanded'), highlighted: canvasLabel.classList.contains('submenu-open') });
@@ -628,11 +833,16 @@ suite('Sessions - Session Activity Bar', () => {
 		canvasLabel.dispatchEvent(new MouseEvent('mouseenter'));
 		await timeout(300);
 		const afterHover = state();
-		const preferredSide = contextViewService.delegate?.anchorAlignment === AnchorAlignment.RIGHT ? 'left' : 'right';
-		contextViewService.hideContextView();
 
 		canvasLabel.click();
 		const afterClick = state();
+		const preferredSide = contextViewService.delegate?.anchorAlignment === AnchorAlignment.RIGHT ? 'left' : 'right';
+		canvasLabel.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(400);
+		const afterPointerLeave = state();
+		canvasLabel.click();
+		const afterSecondClick = state();
+		canvasLabel.click();
 
 		key(getActiveElement()!, 39, 'ArrowRight');
 		const afterRightArrow = { ...state(), anchorFocused: getActiveElement() === canvasLabel };
@@ -644,10 +854,12 @@ suite('Sessions - Session Activity Bar', () => {
 		await timeout(0);
 		const afterRun = { ...state(), ran };
 
-		assert.deepStrictEqual({ afterHover, preferredSide, afterClick, afterRightArrow, afterLeftArrow, afterRun }, {
-			afterHover: { shown: { items: ['Kusto'], focused: false }, expanded: 'true', highlighted: true },
-			preferredSide: 'left',
+		assert.deepStrictEqual({ afterHover, afterClick, preferredSide, afterPointerLeave, afterSecondClick, afterRightArrow, afterLeftArrow, afterRun }, {
+			afterHover: { shown: undefined, expanded: 'false', highlighted: false },
 			afterClick: { shown: { items: ['Kusto'], focused: true }, expanded: 'true', highlighted: true },
+			preferredSide: 'left',
+			afterPointerLeave: { shown: { items: ['Kusto'], focused: true }, expanded: 'true', highlighted: true },
+			afterSecondClick: { shown: undefined, expanded: 'false', highlighted: false },
 			afterRightArrow: { shown: undefined, expanded: 'false', highlighted: false, anchorFocused: true },
 			afterLeftArrow: { shown: { items: ['Kusto'], focused: true }, expanded: 'true', highlighted: true },
 			afterRun: { shown: undefined, expanded: 'false', highlighted: false, ran: ['test.canvas.kusto'] },

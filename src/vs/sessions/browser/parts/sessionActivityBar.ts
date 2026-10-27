@@ -37,6 +37,7 @@ import { ServiceCollection } from '../../../platform/instantiation/common/servic
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { Menus, SessionActivityBarGroup } from '../menus.js';
 import { ISessionLayoutButtonsService, registerSessionLayoutButtonsContextMenu } from '../sessionLayoutButtons.js';
+import { getSessionLayoutButtonLabel } from '../sessionLayoutModeActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
@@ -205,6 +206,8 @@ const DEFAULT_TOP_OFFSET = 4;
 
 /** Keeps the strip's bottom level with the chat input's: the composer's 22px footer controls, 4px gap, and 4px bottom padding. */
 const BOTTOM_CLEARANCE = 30;
+/** How many frames the active strip of a detached chat looks for its host; see `probeExternalHost`. */
+const MAX_PROBE_RETRIES = 3;
 
 /** Width of the strip itself: 24px buttons, 2px padding and a 1px border on each side, in `sessionActivityBar.css`. */
 const STRIP_WIDTH = 30;
@@ -213,29 +216,19 @@ const STRIP_WIDTH = 30;
 const COLUMN_GAP = 2;
 
 /**
- * The width of the column the strip takes at the right edge of the chat area, which the chat is laid out to the left of:
- * the strip with an equal gap on either side, between it and the chat and between it and the edge. See
- * {@link ChatViewSessionActivityBar.reservedWidth}.
- */
-export const SESSION_ACTIVITY_BAR_COLUMN_WIDTH = COLUMN_GAP + STRIP_WIDTH + COLUMN_GAP;
-
-/** How many frames the active strip of a chat that is not attached yet looks for its host; see `probeExternalHost`. */
-const MAX_PROBE_RETRIES = 3;
-
-/**
- * A place outside the chat where the active strip shows instead, such as a column of its own beside the editor while the
- * chat is below the editor or hidden. See {@link registerSessionActivityBarExternalHost}.
+ * A place outside the chat where the active strip shows instead, such as the right edge of the editor while the chat is
+ * below the editor or hidden. See {@link registerSessionActivityBarExternalHost}.
  */
 export interface ISessionActivityBarExternalHost {
-	/** The element the strip moves into: {@link SESSION_ACTIVITY_BAR_COLUMN_WIDTH} wide. */
+	/** The element the strip moves into: {@link SESSION_ACTIVITY_BAR_COLUMN_WIDTH} wide at the right edge of what it hosts. */
 	readonly element: HTMLElement;
 	/** Whether the active strip shows in the host rather than beside its chat. */
 	readonly active: IObservable<boolean>;
 	/** The height of the area the strip moves up and down in, from the top of {@link element}. */
 	readonly height: IObservable<number>;
 	/**
-	 * Whether `occupant`, a shown strip, is in the host, for the host to keep room for it while any strip is. A strip can
-	 * enter before another leaves; see {@link SessionActivityBarHostOccupancy}.
+	 * Whether `occupant`, a shown strip, is in the host, for the host to keep room for it while any strip is. A strip
+	 * can enter before another leaves; see {@link SessionActivityBarHostOccupancy}.
 	 */
 	setOccupied(occupant: object, occupied: boolean): void;
 }
@@ -259,7 +252,10 @@ export class SessionActivityBarHostOccupancy {
 
 const externalHosts = new Map<HTMLElement, ISessionActivityBarExternalHost>();
 
-/** Registers `host` for the strips of the chat views within `scope`, such as a window. The host of the nearest registered scope applies. */
+/**
+ * Registers `host` for the strips of the chat views within `scope`, such as a window. The host of the nearest registered
+ * scope applies, so a chat window docked in the main window keeps its own.
+ */
 export function registerSessionActivityBarExternalHost(scope: HTMLElement, host: ISessionActivityBarExternalHost): IDisposable {
 	externalHosts.set(scope, host);
 	return toDisposable(() => {
@@ -279,6 +275,14 @@ export function findSessionActivityBarExternalHost(element: HTMLElement): ISessi
 	}
 	return undefined;
 }
+
+/**
+ * The width of the column the strip takes at the right edge of what it docks in, beside the chat or at the edge of an
+ * editor area, which the content makes room for: the strip with an equal gap on either side, between it and the content
+ * and between it and the edge. See {@link ChatViewSessionActivityBar.reservedWidth} and
+ * {@link ISessionActivityBarExternalHost.element}.
+ */
+export const SESSION_ACTIVITY_BAR_COLUMN_WIDTH = COLUMN_GAP + STRIP_WIDTH + COLUMN_GAP;
 
 /** Where the strip sits: a distance from the top or bottom of the chat area, whichever it was dragged nearer. */
 interface IActivityBarPosition {
@@ -312,17 +316,17 @@ export class ChatViewSessionActivityBar extends Disposable {
 	private position = DEFAULT_POSITION;
 	private area = { top: 0, height: 0 };
 	private active = false;
-	/** The measured height of the strip, cached so layout passes do not force a reflow. */
-	private height: number | undefined;
-	/** Whether the chat is hidden while it is active, such as while its window shows only its editor. */
+	/** Whether the chat is hidden with the Sessions Part, such as while the editor area is maximized. */
 	private surfaceHidden = false;
 	/** The host outside the chat that the strip can show in, found among the ancestors of the chat. */
 	private readonly externalHost = observableValue<ISessionActivityBarExternalHost | undefined>(this, undefined);
 	/** The host the strip shows in now, if any. */
 	private readonly hostedIn = observableValue<ISessionActivityBarExternalHost | undefined>(this, undefined);
 	private readonly probeScheduler = this._register(new MutableDisposable());
-	/** The frames left to look for the host while the chat is not attached; see {@link probeExternalHost}. */
+	/** The frames left to look for the host while the active chat is detached; see {@link probeExternalHost}. */
 	private probeRetries = 0;
+	/** The measured height of the strip, cached so layout passes do not force a reflow. */
+	private height: number | undefined;
 
 	/** The strip, or `undefined` outside the desktop layout. */
 	get element(): HTMLElement | undefined {
@@ -660,6 +664,7 @@ class SessionActivityBarSubmenuViewItem extends ActionViewItem {
 		options: IActionViewItemOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(undefined, submenuAction, options);
 	}
@@ -680,16 +685,28 @@ class SessionActivityBarSubmenuViewItem extends ActionViewItem {
 			closeKeys: [KeyCode.RightArrow],
 			// Opens toward the chat, matching the arrow keys, even when there is room to the right.
 			anchorAlignment: AnchorAlignment.RIGHT,
+			// A dropdown of the strip: it opens on click or by keyboard, not on hover.
+			openOnHover: false,
 		}));
 	}
 
 	override onClick(event: EventLike): void {
 		if (this.submenuFlyout) {
 			EventHelper.stop(event, true);
-			this.submenuFlyout.show(true);
+			// Clicking it again closes it, as a dropdown does.
+			if (this.submenuFlyout.isOpen) {
+				this.submenuFlyout.hide();
+			} else {
+				this.submenuFlyout.show(true);
+			}
 			return;
 		}
 		super.onClick(event);
+	}
+
+	/** The Layout button names the layout mode of its window: "Layout: Stacked". */
+	protected override getTooltip(): string | undefined {
+		return this.submenuAction.item.submenu === Menus.SessionLayout ? getSessionLayoutButtonLabel(this.contextKeyService) : super.getTooltip();
 	}
 
 	protected override getClass(): string | undefined {

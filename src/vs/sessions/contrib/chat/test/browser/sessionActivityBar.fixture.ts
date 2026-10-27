@@ -276,8 +276,9 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 
 	if (options.openSubmenu) {
 		const submenuEntry = element.querySelector<HTMLElement>('.action-label[aria-haspopup="menu"]');
-		submenuEntry?.dispatchEvent(new MouseEvent('mouseenter'));
-		await waitForFixtureCondition(() => !!container.querySelector('.fixture-context-view .monaco-menu .action-item'), 'The hovered Canvas entry did not open its submenu');
+		// The strip's submenus open on click, not on hover.
+		submenuEntry?.click();
+		await waitForFixtureCondition(() => !!container.querySelector('.fixture-context-view .monaco-menu .action-item'), 'The clicked Canvas entry did not open its submenu');
 	}
 }
 

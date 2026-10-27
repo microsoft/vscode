@@ -34,7 +34,7 @@ import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { focusWebContentsViewContainer, WebContentsViewHost } from '../../browserView/electron-browser/webContentsViewHost.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { CanvasInput, ICanvasService } from '../common/canvas.js';
+import { CanvasInput, canPresentCanvasInGroup, ICanvasContextService, ICanvasService } from '../common/canvas.js';
 
 export const SessionCanvasFocusedContext = new RawContextKey<boolean>('sessionCanvasFocused', false);
 
@@ -84,6 +84,7 @@ export class CanvasEditor extends EditorPane {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ICanvasService private readonly canvasService: ICanvasService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@ICanvasContextService private readonly canvasContextService: ICanvasContextService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -148,7 +149,7 @@ export class CanvasEditor extends EditorPane {
 	}
 
 	override async setInput(input: CanvasInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		if (this.group.windowId !== this.editorGroupsService.mainPart.windowId) {
+		if (!canPresentCanvasInGroup(input.reference, this.group, this.editorGroupsService, this.canvasContextService)) {
 			throw new Error(localize('canvas.mainWindowOnly', "Canvases can only be shown in the main window beside their owning conversation."));
 		}
 		this.currentInput.set(undefined, undefined);

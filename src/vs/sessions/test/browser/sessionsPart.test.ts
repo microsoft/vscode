@@ -231,6 +231,63 @@ suite('Sessions - Sessions Part', () => {
 		assertActivation(() => new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, button: 0 }));
 	});
 
+	test('lays out a session view its host sizes to its chat input in a part shorter than a session view otherwise is, without overflowing its grids', () => {
+		const { part, container } = createSessionsPartTestHarness(store);
+		const session = createTestActiveSession('session');
+		part.updateVisibleSessions([session], session);
+		const view = part.getSessionView('session')!;
+		const layout = (sizedByHost: boolean, height: number) => {
+			view.setSizedByHost(sizedByHost);
+			part.layout(1202, height, 0, 0);
+			const containers = [...container.querySelectorAll<HTMLElement>('.split-view-container')];
+			return {
+				sessionViewHeight: view.element.getBoundingClientRect().height,
+				overflowing: containers.filter(element => element.scrollHeight > element.clientHeight).length,
+			};
+		};
+
+		// The input alone, and with the latest request and response above it, both shorter than a session view and a chat
+		// group otherwise are at least: until the host sizes the view, a chat group overflows its grid, which then scrolls.
+		assert.deepStrictEqual({
+			inputOnly: layout(false, 102),
+			inputOnlySizedByHost: layout(true, 102),
+			withStatus: layout(false, 162),
+			withStatusSizedByHost: layout(true, 162),
+			conversation: layout(false, 402),
+		}, {
+			inputOnly: { sessionViewHeight: 100, overflowing: 1 },
+			inputOnlySizedByHost: { sessionViewHeight: 100, overflowing: 0 },
+			withStatus: { sessionViewHeight: 160, overflowing: 1 },
+			withStatusSizedByHost: { sessionViewHeight: 160, overflowing: 0 },
+			conversation: { sessionViewHeight: 400, overflowing: 0 },
+		});
+	});
+
+	test('changes its height limits and size in one change of the grid, and changes nothing when neither does', () => {
+		const { part } = createSessionsPartTestHarness(store);
+		part.layout(1202, 802, 0, 0);
+		const changes: unknown[] = [];
+		store.add(part.onDidChange(size => changes.push(size ?? 'limits')));
+		const step = (minimum: number, height?: number) => {
+			changes.length = 0;
+			part.setHeightConstraints({ minimum, maximum: Number.POSITIVE_INFINITY }, height);
+			return [...changes];
+		};
+
+		assert.deepStrictEqual({
+			limits: step(100),
+			limitsAndHeight: step(150, 150),
+			sameHeight: step(150, 802),
+			unchanged: step(150),
+		}, {
+			limits: ['limits'],
+			limitsAndHeight: [{ width: 1202, height: 150 }],
+			// Already that height: only the limits, which did not change.
+			sameHeight: [],
+			unchanged: [],
+		});
+	});
+
 	test('reorders and removes created sessions without rebinding surviving chat views', () => {
 		const { part, chatViews } = createSessionsPartTestHarness(store);
 		const [a, b, c] = ['a', 'b', 'c'].map(id => createTestActiveSession(id));

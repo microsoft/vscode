@@ -939,6 +939,19 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(focusCalls, 0);
 	});
 
+	test('each chat window of a session gets a terminal of its own, and one that closed hands its terminal on', async () => {
+		const session = makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Local });
+
+		const first = await contribution.getChatWindowTerminal(session);
+		contribution.setShownInChatWindow(first!, true);
+		const second = await contribution.getChatWindowTerminal(session);
+		contribution.setShownInChatWindow(second!, true);
+		contribution.setShownInChatWindow(first!, false);
+		const third = await contribution.getChatWindowTerminal(session);
+
+		assert.deepStrictEqual({ distinct: first !== second, created: createdTerminals.length, reused: third === first }, { distinct: true, created: 2, reused: true });
+	});
+
 	test('ensureTerminal focuses when requested', async () => {
 		const cwd = URI.file('/test-cwd');
 		await contribution.ensureTerminal(cwd, true);

@@ -13,6 +13,12 @@
 /** Toggles the side pane (editor area and auxiliary bar). Registered in `baseSessionLayoutController.ts`. */
 export const TOGGLE_SIDE_PANEL_COMMAND_ID = 'workbench.action.agentToggleSidePanel';
 
+/** Maximizes the editor area of the main window. Registered in `editor.contribution.ts`. */
+export const MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID = 'workbench.action.agentSessions.maximizeMainEditorPart';
+
+/** Restores the maximized editor area of the main window. Registered in `editor.contribution.ts`. */
+export const RESTORE_MAIN_EDITOR_PART_COMMAND_ID = 'workbench.action.agentSessions.restoreMainEditorPart';
+
 /** Unarchives a session. Registered in `sessionsViewActions.ts`. */
 export const UNARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.unarchiveSession';
 

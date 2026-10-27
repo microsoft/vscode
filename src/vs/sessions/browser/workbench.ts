@@ -18,7 +18,7 @@ import { isWindows, isLinux, isWeb, isNative, isMacintosh, isIOS } from '../../b
 import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString, LayoutSettings, ModernUIDensity } from '../../workbench/services/layout/browser/layoutService.js';
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { Part } from '../../workbench/browser/part.js';
-import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid, Sizing } from '../../base/browser/ui/grid/grid.js';
+import { Direction, GridNode, isGridBranchNode, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid, Sizing } from '../../base/browser/ui/grid/grid.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 import { IPaneCompositePartService } from '../../workbench/services/panecomposite/browser/panecomposite.js';
@@ -70,7 +70,8 @@ import { IContextKey, IContextKeyService } from '../../platform/contextkey/commo
 import { CustomViewVisibleContext, EditorMaximizedContext, IsPhoneLayoutContext, DesktopLayoutContext } from '../common/contextkeys.js';
 import { SessionsLayoutPolicy } from './layoutPolicy.js';
 import { ChatLayoutPresentation } from '../common/chatLayout.js';
-import { AGENTS_PART_CARD_CLASS } from './parts/agentsPartCard.js';
+import { AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_STACKED_CLASS } from './parts/agentsPartCard.js';
+import { IStackedSidePaneColumn, STACKED_SIDE_PANE_COLUMN_VIEW_TYPE, StackedSidePaneColumnView } from './parts/stackedSidePaneColumnView.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { getMobileViewportDimension, IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
@@ -82,6 +83,7 @@ import { ICustomViewGridPartService } from '../services/customView/browser/custo
 import { ICustomViewDescriptor } from '../services/customView/browser/customView.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
+import { SessionLayoutMode, SessionSplitLayout } from '../common/sessionLayoutMode.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 
 const PHONE_NOTIFICATION_ROW_HEIGHT = 44;
@@ -128,6 +130,14 @@ enum LayoutClasses {
 	PHONE_LAYOUT = 'phone-layout'
 }
 
+/** Where the column at the right of the side pane is in the workbench grid; see `StackedSidePaneColumnView`. */
+const enum SidePaneColumnPlacement {
+	/** At the right of the side pane stacked above the Sessions Part, of that part and of the panel below them: the full height. */
+	Stacked = 1,
+	/** At the right of the side pane, while the Sessions Part is hidden or the editor maximized (Editor only), above the panel. */
+	BesideEditor,
+}
+
 //#endregion
 
 //#region Part Visibility State
@@ -147,6 +157,8 @@ interface IPartSizesState {
 	auxiliaryBar?: number;
 	sessions?: number;
 	editor?: number;
+	/** The height of the side pane while it is stacked above the Sessions Part. */
+	editorHeight?: number;
 	panel?: number;
 }
 
@@ -206,6 +218,14 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 
 	readonly onDidChangeEditorMaximized: Event<void>;
 
+	/**
+	 * How the side pane is arranged with the Sessions Part: beside it, or stacked above it. Only the desktop
+	 * presentation stacks; it is otherwise always side by side.
+	 */
+	getSidePaneArrangement(): SessionSplitLayout;
+	setSidePaneArrangement(arrangement: SessionSplitLayout): void;
+	readonly onDidChangeSidePaneArrangement: Event<SessionSplitLayout>;
+
 	/** The concrete Agents workbench presentation selected at startup. */
 	readonly agentWorkbenchLayout: AgentWorkbenchLayout;
 	readonly chatLayoutPresentation: ChatLayoutPresentation;
@@ -223,6 +243,12 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 	isEditorPartAutoVisibilitySuppressed(): boolean;
 
 	/**
+	 * Holds off showing the hidden chat (Editor only) again while the side pane is hidden too, such as while a session's
+	 * layout is restored part by part: that is checked once the last hold is released. Calls nest via a counter.
+	 */
+	suppressShowChatOnHiddenSidePane(): IDisposable;
+
+	/**
 	 * Changes docked detail visibility in response to a sash resize without
 	 * persisting it as an explicit user visibility preference.
 	 */
@@ -236,6 +262,13 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
  */
 export interface IDockedEditorLayout {
 	handleDockedEditorPartLayout(nodeWidth: number): void;
+
+	/**
+	 * Shows `column` in a column of its own in the workbench grid, at the right of the side pane stacked above the
+	 * Sessions Part and of the Sessions Part, the full height of both, such as the Session Activity Bar; `undefined`
+	 * hides the column. Returns whether it shows, which it only does while the side pane is stacked.
+	 */
+	setStackedSidePaneColumn(column: IStackedSidePaneColumn | undefined): boolean;
 
 	/**
 	 * Fired when the side pane (the docked editor part and/or the auxiliary-bar
@@ -299,6 +332,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private readonly _onDidChangePanelAlignment = this._register(new Emitter<PanelAlignment>());
 	readonly onDidChangePanelAlignment = this._onDidChangePanelAlignment.event;
+
+	private readonly _onDidChangeSidePaneArrangement = this._register(new Emitter<SessionSplitLayout>());
+	readonly onDidChangeSidePaneArrangement = this._onDidChangeSidePaneArrangement.event;
 
 	private readonly _onDidChangeWindowMaximized = this._register(new Emitter<{ windowId: number; maximized: boolean }>());
 	readonly onDidChangeWindowMaximized = this._onDidChangeWindowMaximized.event;
@@ -451,16 +487,18 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private _editorMaximized = false;
 	private _panelAlignment: AgentPanelAlignment = 'justify';
-	private _panelMaximizedEditorState: { width: number | undefined } | undefined;
+	protected _sidePaneArrangement: SessionSplitLayout = SessionLayoutMode.SideBySide;
+	private _panelMaximizedEditorState: { width: number | undefined; height: number | undefined } | undefined;
 	private _maximumEditorDimensionsOverride: IDimension | undefined;
 	private _customViewVisibleKey!: IContextKey<boolean>;
 	/** Guards the grid updates that show/hide the custom view from feeding back into the desired part visibility. */
 	private _applyingCustomViewGridVisibility = false;
-	private _customViewCoveredPartWidths: { editor?: number; auxiliaryBar?: number } | undefined;
+	private _customViewCoveredPartWidths: { editor?: number; editorHeight?: number; auxiliaryBar?: number } | undefined;
 	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
 	private _editorLastNonMaximizedSize: IViewSize | undefined;
 	private _restoreAttachedEditorMaximizedOnShow = false;
 	protected _editorPartAutoVisibilitySuppressionCount = 0;
+	private _showChatOnHiddenSidePaneSuppressionCount = 0;
 	protected _hasAppliedInitialEditorSplit = false;
 	private _sidePaneStateBeforeHide: ISidePaneState | undefined;
 	private _restoreSidePaneEditorMaximizedOnShow = false;
@@ -479,6 +517,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	private static readonly _PART_VISIBILITY_KEY = 'workbench.sessions.partVisibility';
 	private static readonly _PART_SIZES_KEY = 'workbench.sessions.partSizes';
 	private static readonly _PANEL_ALIGNMENT_KEY = 'workbench.sessions.panelAlignment';
+	private static readonly _SIDE_PANE_ARRANGEMENT_KEY = 'workbench.sessions.sidePaneArrangement';
 
 	//#region Services
 
@@ -813,6 +852,13 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return {};
 	}
 
+	private _loadSidePaneArrangement(storageService: IStorageService): SessionSplitLayout {
+		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && storageService.get(Workbench._SIDE_PANE_ARRANGEMENT_KEY, StorageScope.WORKSPACE) === SessionLayoutMode.Stacked) {
+			return SessionLayoutMode.Stacked;
+		}
+		return SessionLayoutMode.SideBySide;
+	}
+
 	private _loadPanelAlignment(storageService: IStorageService): AgentPanelAlignment {
 		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && storageService.get(Workbench._PANEL_ALIGNMENT_KEY, StorageScope.PROFILE) === 'center') {
 			return 'center';
@@ -881,7 +927,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// open via the width-based reveal-sync. Mobile layout is unaffected
 		// (`_editorNodeVisible` returns `partVisibility.editor` there).
 		const editorNodeVisible = this._editorNodeShouldBeVisible();
-		const editorGridWidth = this._persistedGridViewSize(this.editorPartView, 'width', editorNodeVisible);
+		const stacked = this._isSidePaneStacked();
+		// Stacked, the node spans the row: its width is not the side-by-side width to return to, its height is.
+		const editorGridWidth = stacked ? undefined : this._persistedGridViewSize(this.editorPartView, 'width', editorNodeVisible);
 		let editorWidth = this._persistedEditorWidth(editorGridWidth);
 		const savedEditorWidth = this._savedPartSizes.editor !== undefined && this._savedPartSizes.editor >= EDITOR_PART_MINIMUM_WIDTH
 			? this._savedPartSizes.editor
@@ -903,6 +951,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			auxiliaryBar: this._persistedGridViewSize(this.auxiliaryBarPartView, 'width', this._effectiveVisible(Parts.AUXILIARYBAR_PART)),
 			sessions: this._persistedGridViewSize(this.sessionsPartView, 'width', this._effectiveVisible(Parts.SESSIONS_PART)),
 			editor: editorWidth,
+			editorHeight: stacked ? this._persistedGridViewSize(this.editorPartView, 'height', editorNodeVisible) ?? this._savedPartSizes.editorHeight : this._savedPartSizes.editorHeight,
 			panel: this._persistedGridViewSize(this.panelPartView, 'height', this._effectiveVisible(Parts.PANEL_PART)),
 		};
 
@@ -1250,6 +1299,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.instantiationService = accessor.get(IInstantiationService);
 		this.storageService = accessor.get(IStorageService);
 		this._panelAlignment = this._loadPanelAlignment(this.storageService);
+		this._sidePaneArrangement = this._loadSidePaneArrangement(this.storageService);
 		accessor.get(ITitleService);
 
 		// Resolve the desktop layout mode once (reload to toggle).
@@ -1342,6 +1392,27 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		});
 	}
 
+	suppressShowChatOnHiddenSidePane(): IDisposable {
+		this._showChatOnHiddenSidePaneSuppressionCount++;
+		let disposed = false;
+		return toDisposable(() => {
+			if (disposed) {
+				return;
+			}
+			disposed = true;
+			if (--this._showChatOnHiddenSidePaneSuppressionCount === 0) {
+				this._onDidReleaseShowChatOnHiddenSidePane();
+			}
+		});
+	}
+
+	protected get _isShowChatOnHiddenSidePaneSuppressed(): boolean {
+		return this._showChatOnHiddenSidePaneSuppressionCount > 0;
+	}
+
+	/** Called as the last hold of {@link suppressShowChatOnHiddenSidePane} is released; the desktop layout checks then. */
+	protected _onDidReleaseShowChatOnHiddenSidePane(): void { }
+
 	protected rememberAttachedEditorMaximizedState(): void {
 		this._restoreAttachedEditorMaximizedOnShow = this._editorMaximized && this.partVisibility.auxiliaryBar;
 	}
@@ -1393,6 +1464,49 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	/** Toggles the container marker class for the side-pane layout. */
 	protected _applyLayoutContainerClass(): void {
 		this.mainContainer.classList.toggle('dock-detail-panel', false);
+	}
+
+	/**
+	 * Builds the grid as the layout restored from storage has it. A restored layout the grid cannot build would leave the
+	 * window empty: the layout stored for the workspace is forgotten, and the default layout built instead.
+	 */
+	private _createWorkbenchGrid(fromJSON: (node: { type: string }) => ISerializableView): void {
+		try {
+			this._buildWorkbenchGrid(fromJSON);
+		} catch (error) {
+			onUnexpectedError(error);
+			this.workbenchGrid?.dispose();
+			this._resetStoredLayout();
+			this._buildWorkbenchGrid(fromJSON);
+			const stateClasses = [LayoutClasses.SIDEBAR_HIDDEN, LayoutClasses.MAIN_EDITOR_AREA_HIDDEN, LayoutClasses.PANEL_HIDDEN, LayoutClasses.AUXILIARYBAR_HIDDEN, LayoutClasses.EDITOR_PANE_HIDDEN, LayoutClasses.SESSIONS_HIDDEN, 'panel-alignment-center', 'panel-alignment-justify', AGENTS_SIDE_PANE_STACKED_CLASS];
+			this.mainContainer.classList.remove(...stateClasses);
+			this.mainContainer.classList.add(...this.getLayoutClasses().filter(layoutClass => stateClasses.includes(layoutClass)));
+		}
+	}
+
+	private _buildWorkbenchGrid(fromJSON: (node: { type: string }) => ISerializableView): void {
+		const workbenchGrid = SerializableGrid.deserialize(this.createGridDescriptor(), { fromJSON }, { proportionalLayout: false });
+		this.mainContainer.prepend(workbenchGrid.element);
+		this.workbenchGrid = workbenchGrid;
+		// Stacked or Editor only, the column at the right of the side pane.
+		this._syncSidePaneColumn();
+	}
+
+	/** Forgets the layout stored for the workspace, and goes back to the default one: part sizes, visibility and arrangement. */
+	private _resetStoredLayout(): void {
+		for (const key of [Workbench._PART_SIZES_KEY, Workbench._PART_VISIBILITY_KEY, Workbench._SIDE_PANE_ARRANGEMENT_KEY]) {
+			this.storageService.remove(key, StorageScope.WORKSPACE);
+		}
+		this._savedPartSizes = {};
+		const visibilityDefaults = this.layoutPolicy.getPartVisibilityDefaults();
+		this.partVisibility.sidebar = visibilityDefaults.sidebar;
+		this.partVisibility.auxiliaryBar = visibilityDefaults.auxiliaryBar;
+		this.partVisibility.panel = visibilityDefaults.panel;
+		this.partVisibility.sessions = visibilityDefaults.sessions;
+		this.partVisibility.editor = visibilityDefaults.editor;
+		this._sidePaneArrangement = SessionLayoutMode.SideBySide;
+		this._panelAlignment = 'justify';
+		this._sidePaneColumnPlacement = undefined;
 	}
 
 	/** Width the auxiliary bar occupies when visible (for max-editor-dimension math). */
@@ -1575,8 +1689,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.sessionsPartView = sessionsPart;
 		this.customViewGridPartView = customViewGridPart;
 		this.editorPartView = editorPart;
+		const stackedSidePaneColumnView = this.stackedSidePaneColumnView = this._register(new StackedSidePaneColumnView());
 
 		const viewMap: { [key: string]: ISerializableView } = {
+			[STACKED_SIDE_PANE_COLUMN_VIEW_TYPE]: stackedSidePaneColumnView,
 			[Parts.TITLEBAR_PART]: this.titleBarPartView,
 			[Parts.PANEL_PART]: this.panelPartView,
 			[Parts.SIDEBAR_PART]: this.sideBarPartView,
@@ -1586,16 +1702,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			[Parts.EDITOR_PART]: this.editorPartView
 		};
 
-		const fromJSON = ({ type }: { type: string }) => viewMap[type];
-		const workbenchGrid = SerializableGrid.deserialize(
-			this.createGridDescriptor(),
-			{ fromJSON },
-			{ proportionalLayout: false }
-		);
-
-		this.mainContainer.prepend(workbenchGrid.element);
+		this._createWorkbenchGrid(({ type }: { type: string }) => viewMap[type]);
 		this.mainContainer.setAttribute('role', 'application');
-		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.mainWindowFullscreen;
 		this._updateSessionsSidePaneDivider();
 		this._register(this.workbenchGrid.onDidChange(() => {
@@ -1770,6 +1878,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 		const contentHeight = Math.max(0, height - titleBarHeight);
 		const topRightHeight = Math.max(0, contentHeight - panelSize);
+		const stacked = this._isSidePaneStacked();
 
 		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
 
@@ -1824,24 +1933,37 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			visible: this._effectiveVisible(Parts.PANEL_PART)
 		};
 
+		// Stacked, the side pane sits above the Sessions Part, in the same column. The column of its own at the right of both
+		// and the panel joins the grid once it is built (`_syncSidePaneColumn`).
+		const stackedEditorHeight = this._stackedEditorHeight(topRightHeight);
+		const stackedSessionsHeight = Math.max(0, topRightHeight - (editorNode.visible ? stackedEditorHeight : 0));
+		const stackedEditorNode: ISerializedLeafNode = { ...editorNode, size: stackedEditorHeight };
+
 		// Top right section: Chat Bar | Editor [| Auxiliary Bar] | Custom View Grid (horizontal).
 		// When docked, the auxiliary bar is inside the editor part and
 		// omitted from the grid; otherwise it is its own trailing grid column.
 		const topRightSection: ISerializedNode = {
 			type: 'branch',
-			data: this._topRightSectionChildren(sessionsNode, editorNode, auxiliaryBarNode, customViewGridNode),
+			data: stacked
+				? [{
+					type: 'branch',
+					data: [stackedEditorNode, { ...sessionsNode, size: stackedSessionsHeight }],
+					size: rightSectionWidth,
+					visible: sessionsNode.visible === false && editorNode.visible === false ? false : undefined,
+				}, customViewGridNode]
+				: this._topRightSectionChildren(sessionsNode, editorNode, auxiliaryBarNode, customViewGridNode),
 			size: topRightHeight
 		};
 
 		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && this.getPanelAlignment() === 'center') {
 			const chatColumn: ISerializedNode = {
 				type: 'branch',
-				data: [
-					{ ...sessionsNode, size: topRightHeight },
-					panelNode,
-				],
-				size: sessionsWidth,
-				visible: sessionsNode.visible === false && panelNode.visible === false ? false : undefined,
+				data: stacked
+					// The panel is below the side pane and the Sessions Part.
+					? [{ type: 'branch', data: [stackedEditorNode, { ...sessionsNode, size: stackedSessionsHeight }], size: topRightHeight }, panelNode]
+					: [{ ...sessionsNode, size: topRightHeight }, panelNode],
+				size: stacked ? rightSectionWidth : sessionsWidth,
+				visible: sessionsNode.visible === false && panelNode.visible === false && (!stacked || editorNode.visible === false) ? false : undefined,
 			};
 
 			return {
@@ -1854,7 +1976,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 							type: 'branch',
 							data: [
 								sideBarNode,
-								...this._topRightSectionChildren(chatColumn, editorNode, auxiliaryBarNode, customViewGridNode),
+								...(stacked ? [chatColumn, customViewGridNode] : this._topRightSectionChildren(chatColumn, editorNode, auxiliaryBarNode, customViewGridNode)),
 							],
 							size: contentHeight,
 						}
@@ -2097,6 +2219,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			this.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.layoutPolicy.viewportClass.get() === 'phone' ? LayoutClasses.PHONE_LAYOUT : undefined,
 			`panel-alignment-${this.getPanelAlignment()}`,
+			this._isSidePaneStacked() ? AGENTS_SIDE_PANE_STACKED_CLASS : undefined,
 			this.isModernUICompact() ? LayoutClasses.MODERN_UI_COMPACT : undefined,
 		]);
 	}
@@ -2345,6 +2468,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			const visible = !this.isSidePaneVisible();
 			if (!visible) {
 				this._restoreSidePaneEditorMaximizedOnShow = editorWasMaximized;
+				// With the chat hidden (Editor only), the chat shows again as the side pane hides, rather than nothing.
+				if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !this.partVisibility.sessions) {
+					this.setSessionsHidden(false);
+				}
 			}
 			const suppressEditorPartAutoVisibility = this.suppressEditorPartAutoVisibility();
 			try {
@@ -2646,6 +2773,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 		this.partVisibility.sessions = !hidden;
 		this.mainContainer.classList.toggle(LayoutClasses.SESSIONS_HIDDEN, !this._effectiveVisible(Parts.SESSIONS_PART));
+		this._syncSidePaneColumn();
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.sessionsPartView, this._effectiveVisible(Parts.SESSIONS_PART));
@@ -2679,8 +2807,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}
 
 		if (visible && this.workbenchGrid) {
+			const editorSize = this._editorNodeShouldBeVisible() ? this.workbenchGrid.getViewSize(this.editorPartView) : undefined;
 			this._customViewCoveredPartWidths = {
-				editor: this._editorNodeShouldBeVisible() ? this.workbenchGrid.getViewSize(this.editorPartView).width : undefined,
+				editor: editorSize?.width,
+				editorHeight: editorSize?.height,
 				auxiliaryBar: this._effectiveVisible(Parts.AUXILIARYBAR_PART) ? this._auxiliaryBarViewSize().width : undefined,
 			};
 		}
@@ -2750,8 +2880,15 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		if (widths?.auxiliaryBar && this._effectiveVisible(Parts.AUXILIARYBAR_PART)) {
 			this._setAuxiliaryBarViewSize({ ...this._auxiliaryBarViewSize(), width: widths.auxiliaryBar });
 		}
-		if (widths?.editor && this._editorNodeShouldBeVisible()) {
-			this.workbenchGrid.resizeView(this.editorPartView, { ...this.workbenchGrid.getViewSize(this.editorPartView), width: widths.editor });
+		if (this._editorNodeShouldBeVisible()) {
+			// Stacked, the side pane spans the row and keeps its height; beside the Sessions Part, its width.
+			if (this._isSidePaneStacked()) {
+				if (widths?.editorHeight) {
+					this.workbenchGrid.resizeView(this.editorPartView, { ...this.workbenchGrid.getViewSize(this.editorPartView), height: widths.editorHeight });
+				}
+			} else if (widths?.editor) {
+				this.workbenchGrid.resizeView(this.editorPartView, { ...this.workbenchGrid.getViewSize(this.editorPartView), width: widths.editor });
+			}
 		}
 	}
 
@@ -2824,13 +2961,20 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		const focusedPart = [Parts.PANEL_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART, Parts.SESSIONS_PART].find(part => this.hasFocus(part)) as SINGLE_WINDOW_PARTS | undefined;
 		const previousAlignment = this._panelAlignment;
 		const previousMaximumEditorDimensionsOverride = this._maximumEditorDimensionsOverride;
-		const maximizedEditorWidth = exitMaximizedPanel ? this._panelMaximizedEditorState?.width : undefined;
+		const maximizedEditorWidth = exitMaximizedPanel && !this._isSidePaneStacked() ? this._panelMaximizedEditorState?.width : undefined;
+		const stacked = this._isSidePaneStacked();
 		try {
 			this._runWithEditorResizeSyncSuspended(() => {
 				if (exitMaximizedPanel) {
 					this.workbenchGrid.exitMaximizedView();
 				}
 				this._maximumEditorDimensionsOverride ??= this.getMaximumEditorDimensions(this.mainContainer);
+				// The panel moves against the side-by-side arrangement; a stacked side pane is stacked again after.
+				if (stacked) {
+					this._unstackSidePane();
+				} else {
+					this._removeSidePaneColumn();
+				}
 				if (alignment === 'center') {
 					const panelSize = this._viewMoveSizing(this.panelPartView, 'height');
 					this.workbenchGrid.moveView(this.panelPartView, panelSize, this.sessionsPartView, Direction.Down);
@@ -2855,6 +2999,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 						});
 					}
 				}
+				if (stacked) {
+					this._stackSidePane();
+				}
+				this._syncSidePaneColumn();
 				this.mainContainer.classList.toggle(`panel-alignment-${previousAlignment}`, false);
 				this.mainContainer.classList.toggle(`panel-alignment-${alignment}`, true);
 				this._layoutGrid();
@@ -2878,6 +3026,237 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			focusedGridElement.focus();
 		} else if (focusedPart) {
 			this.focusPart(focusedPart);
+		}
+	}
+
+	getSidePaneArrangement(): SessionSplitLayout {
+		return this._sidePaneArrangement;
+	}
+
+	setSidePaneArrangement(arrangement: SessionSplitLayout): void {
+		if (
+			this.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop
+			|| (arrangement !== SessionLayoutMode.Stacked && arrangement !== SessionLayoutMode.SideBySide)
+			|| arrangement === this._sidePaneArrangement
+		) {
+			return;
+		}
+
+		if (this.workbenchGrid) {
+			if (this.isPanelMaximized()) {
+				this.toggleMaximizedPanel();
+			}
+			const activeElement = getActiveElement();
+			const focusedGridElement = isHTMLElement(activeElement) && this.workbenchGrid.element?.contains(activeElement) ? activeElement : undefined;
+			const focusedPart = [Parts.PANEL_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART, Parts.SESSIONS_PART].find(part => this.hasFocus(part)) as SINGLE_WINDOW_PARTS | undefined;
+			const previousMaximumEditorDimensionsOverride = this._maximumEditorDimensionsOverride;
+			try {
+				this._runWithEditorResizeSyncSuspended(() => {
+					this._maximumEditorDimensionsOverride ??= this.getMaximumEditorDimensions(this.mainContainer);
+					if (arrangement === SessionLayoutMode.Stacked) {
+						this._stackSidePane();
+					} else {
+						this._unstackSidePane();
+					}
+					this._sidePaneArrangement = arrangement;
+					this._syncSidePaneColumn();
+					// Sizes captured before maximizing belong to the other arrangement.
+					this._editorLastNonMaximizedSize = undefined;
+					this.mainContainer.classList.toggle(AGENTS_SIDE_PANE_STACKED_CLASS, arrangement === SessionLayoutMode.Stacked);
+					this._layoutGrid();
+				});
+			} finally {
+				this._maximumEditorDimensionsOverride = previousMaximumEditorDimensionsOverride;
+			}
+			this._layoutSidePane();
+
+			if (focusedGridElement?.isConnected) {
+				focusedGridElement.focus();
+			} else if (focusedPart) {
+				this.focusPart(focusedPart);
+			}
+		} else {
+			// Still starting up: the grid descriptor builds the arrangement.
+			this._sidePaneArrangement = arrangement;
+		}
+
+		this.storageService.store(Workbench._SIDE_PANE_ARRANGEMENT_KEY, arrangement, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this._onDidChangeSidePaneArrangement.fire(arrangement);
+	}
+
+	/**
+	 * The column at the right of the side pane, for the Session Activity Bar outside the chat: in the grid while the Sessions
+	 * Part is hidden or the editor maximized (Editor only), at the right of the side pane, above the panel; otherwise while
+	 * the side pane is stacked, at the right of the side pane, the Sessions Part and the panel, the full height.
+	 */
+	private stackedSidePaneColumnView: StackedSidePaneColumnView | undefined;
+	private _sidePaneColumnPlacement: SidePaneColumnPlacement | undefined;
+	/** What is to show in the column, also while it is out of the grid, such as while the panel moves. */
+	private _stackedSidePaneColumn: IStackedSidePaneColumn | undefined;
+
+	setStackedSidePaneColumn(column: IStackedSidePaneColumn | undefined): boolean {
+		this._stackedSidePaneColumn = column;
+		return this._applyStackedSidePaneColumn();
+	}
+
+	private _applyStackedSidePaneColumn(): boolean {
+		const view = this.stackedSidePaneColumnView;
+		if (!view || !this.workbenchGrid || !this._sidePaneColumnPlacement) {
+			return false;
+		}
+		const column = this._stackedSidePaneColumn;
+		view.setColumn(column);
+		const visible = !!column;
+		// Showing or hiding a view would restore a maximized one, such as the panel.
+		if (this.workbenchGrid.isViewVisible(view) !== visible && !this.workbenchGrid.hasMaximizedView()) {
+			this.workbenchGrid.setViewVisible(view, visible);
+		}
+		return visible && this.workbenchGrid.isViewVisible(view);
+	}
+
+	/**
+	 * Keeps the column at the right of the side pane where it belongs: beside the editor while the Sessions Part is hidden or
+	 * the editor maximized (Editor only), the full height beside the stacked side pane, the Sessions Part and the panel
+	 * otherwise while stacked, and out of the grid side by side. Called before the Sessions Part shows or hides, so that what
+	 * is to show in the column finds it in the grid, and once the side pane or the panel moved.
+	 */
+	private _syncSidePaneColumn(): void {
+		const view = this.stackedSidePaneColumnView;
+		if (!view || !this.workbenchGrid) {
+			return;
+		}
+		const editorOnly = this._editorMaximized || !this.partVisibility.sessions;
+		const wanted = this.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop ? undefined
+			: editorOnly ? SidePaneColumnPlacement.BesideEditor
+				: this._isSidePaneStacked() ? SidePaneColumnPlacement.Stacked
+					: undefined;
+		if (wanted === this._sidePaneColumnPlacement) {
+			return;
+		}
+		this._moveSidePaneColumn(() => {
+			this._removeSidePaneColumn();
+			if (wanted === SidePaneColumnPlacement.Stacked) {
+				// Into the row of the sidebar, where nothing gets a branch of its own, not even a hidden Sessions Part, then a
+				// column of that row after the branch of the side pane, the Sessions Part and the panel.
+				this.workbenchGrid.addView(view, Sizing.Invisible(view.minimumWidth), this.sideBarPartView, Direction.Right);
+				this.workbenchGrid.moveViewTo(view, this._stackedSidePaneColumnLocation());
+			} else if (wanted === SidePaneColumnPlacement.BesideEditor) {
+				this.workbenchGrid.addView(view, Sizing.Invisible(view.minimumWidth), this.editorPartView, Direction.Right);
+			}
+			this._sidePaneColumnPlacement = wanted;
+		});
+		if (wanted !== undefined) {
+			this._applyStackedSidePaneColumn();
+		}
+	}
+
+	/** In the row of the sidebar, right after the branch that holds the panel: that of the stacked side pane and the Sessions Part, in either alignment. */
+	private _stackedSidePaneColumnLocation(): number[] {
+		const find = (node: GridNode<ISerializableView>, path: number[]): number[] | undefined => {
+			if (!isGridBranchNode(node)) {
+				return node.view === this.panelPartView ? path : undefined;
+			}
+			for (let i = 0; i < node.children.length; i++) {
+				const found = find(node.children[i], [...path, i]);
+				if (found) {
+					return found;
+				}
+			}
+			return undefined;
+		};
+		const panel = find(this.workbenchGrid.getViews(), [])!;
+		return [panel[0], panel[1] + 1];
+	}
+
+	/** Removes the column, before the side pane moves; what shows in it is taken back. */
+	private _removeSidePaneColumn(): void {
+		const view = this.stackedSidePaneColumnView;
+		if (view && this._sidePaneColumnPlacement) {
+			view.column?.release();
+			view.setColumn(undefined);
+			this._moveSidePaneColumn(() => this.workbenchGrid.removeView(view));
+			this._sidePaneColumnPlacement = undefined;
+		}
+	}
+
+	/**
+	 * Whether the side pane showed as the column started to move, while it moves. The grid changes in steps meanwhile, and
+	 * lays out its views between them, which read from it, such as the Sessions Part whether the side pane shows and the
+	 * editor part its maximum size: the grid cannot answer until it is done, so they read what was before.
+	 */
+	protected _editorPaneVisibleWhileColumnMoves: boolean | undefined;
+
+	private _moveSidePaneColumn(move: () => void): void {
+		if (this._editorPaneVisibleWhileColumnMoves !== undefined) {
+			move();
+			return;
+		}
+		const previousMaximumEditorDimensionsOverride = this._maximumEditorDimensionsOverride;
+		this._editorPaneVisibleWhileColumnMoves = this.isEditorPaneVisible();
+		try {
+			this._maximumEditorDimensionsOverride ??= this.getMaximumEditorDimensions(this.mainContainer);
+			// What reacts to the grid changing waits until it is done.
+			this._runWithEditorResizeSyncSuspended(move);
+		} finally {
+			this._maximumEditorDimensionsOverride = previousMaximumEditorDimensionsOverride;
+			this._editorPaneVisibleWhileColumnMoves = undefined;
+		}
+	}
+
+	/** Whether the side pane is stacked above the Sessions Part rather than beside it. */
+	protected _isSidePaneStacked(): boolean {
+		return this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && this._sidePaneArrangement === SessionLayoutMode.Stacked;
+	}
+
+	/** The height of the side pane stacked in a column of `columnHeight`: as the user left it, or half of the column. */
+	private _stackedEditorHeight(columnHeight: number): number {
+		const saved = this._savedPartSizes.editorHeight;
+		return saved !== undefined && saved > 0 && saved < columnHeight ? saved : Math.round(columnHeight / 2);
+	}
+
+	/** Moves the side pane from beside the Sessions Part to above it, keeping its side-by-side width to return to. */
+	private _stackSidePane(): void {
+		const editorVisible = this.workbenchGrid.isViewVisible(this.editorPartView);
+		if (editorVisible && this.partVisibility.editor) {
+			const contentWidth = this._persistedEditorWidth(this.workbenchGrid.getViewSize(this.editorPartView).width);
+			if (contentWidth !== undefined && contentWidth >= EDITOR_PART_MINIMUM_WIDTH) {
+				this._savedPartSizes = { ...this._savedPartSizes, editor: contentWidth };
+			}
+		}
+		const columnHeight = Math.max(this.workbenchGrid.getViewSize(this.sessionsPartView).height, this.workbenchGrid.getViewSize(this.editorPartView).height);
+		const height = this._stackedEditorHeight(columnHeight);
+		this._removeSidePaneColumn();
+		this._moveViewKeepingSideBarWidth(() => {
+			this.workbenchGrid.moveView(this.editorPartView, editorVisible ? height : Sizing.Invisible(height), this.sessionsPartView, Direction.Up);
+		});
+	}
+
+	/** Moves the side pane from above the Sessions Part back beside it, at its side-by-side width. */
+	private _unstackSidePane(): void {
+		this._removeSidePaneColumn();
+		const editorVisible = this.workbenchGrid.isViewVisible(this.editorPartView);
+		if (editorVisible) {
+			this._savedPartSizes = { ...this._savedPartSizes, editorHeight: this.workbenchGrid.getViewSize(this.editorPartView).height };
+		}
+		const savedEditorWidth = this._savedPartSizes.editor;
+		const contentWidth = savedEditorWidth !== undefined && savedEditorWidth >= EDITOR_PART_MINIMUM_WIDTH ? savedEditorWidth : EDITOR_PART_DEFAULT_WIDTH;
+		const width = this._editorNodeSize(this.partVisibility.editor ? contentWidth : 0, this.partVisibility.auxiliaryBar ? this._auxiliaryBarLayoutWidth() : 0);
+		// The custom view grid ends the row of the side-by-side arrangement in either panel alignment.
+		this._moveViewKeepingSideBarWidth(() => this.workbenchGrid.moveView(this.editorPartView, editorVisible ? width : Sizing.Invisible(width), this.customViewGridPartView, Direction.Left));
+		if (editorVisible) {
+			this.workbenchGrid.resizeView(this.editorPartView, { width, height: this.workbenchGrid.getViewSize(this.editorPartView).height });
+		}
+	}
+
+	/**
+	 * Moving a view into a new column briefly empties the row it leaves, and the row beside the sidebar hands that
+	 * width to the sidebar. The sidebar keeps its width, so the moved views share the row as before.
+	 */
+	private _moveViewKeepingSideBarWidth(move: () => void): void {
+		const sideBarSize = this.workbenchGrid.isViewVisible(this.sideBarPartView) ? this.workbenchGrid.getViewSize(this.sideBarPartView) : undefined;
+		move();
+		if (sideBarSize && this.workbenchGrid.getViewSize(this.sideBarPartView).width !== sideBarSize.width) {
+			this.workbenchGrid.resizeView(this.sideBarPartView, { width: sideBarSize.width, height: this.workbenchGrid.getViewSize(this.sideBarPartView).height });
 		}
 	}
 
@@ -2983,23 +3362,21 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}
 
 		if (this.isPanelMaximized()) {
-			const editorWidth = this._panelMaximizedEditorState?.width;
+			const editorState = this._panelMaximizedEditorState;
+			const stacked = this._isSidePaneStacked();
 			this._runWithEditorResizeSyncSuspended(() => {
 				this.workbenchGrid.exitMaximizedView();
-				if (typeof editorWidth === 'number') {
-					this.workbenchGrid.resizeView(this.editorPartView, {
-						width: editorWidth,
-						height: this.workbenchGrid.getViewSize(this.editorPartView).height
-					});
+				const size = this.workbenchGrid.getViewSize(this.editorPartView);
+				if (!stacked && typeof editorState?.width === 'number') {
+					this.workbenchGrid.resizeView(this.editorPartView, { width: editorState.width, height: size.height });
+				} else if (stacked && typeof editorState?.height === 'number') {
+					this.workbenchGrid.resizeView(this.editorPartView, { width: size.width, height: editorState.height });
 				}
 			});
 			this._panelMaximizedEditorState = undefined;
 		} else {
-			const editorState = {
-				width: this.workbenchGrid.isViewVisible(this.editorPartView)
-					? this.workbenchGrid.getViewSize(this.editorPartView).width
-					: undefined
-			};
+			const editorSize = this.workbenchGrid.isViewVisible(this.editorPartView) ? this.workbenchGrid.getViewSize(this.editorPartView) : undefined;
+			const editorState = { width: editorSize?.width, height: editorSize?.height };
 			this._runWithEditorResizeSyncSuspended(() => {
 				this.workbenchGrid.maximizeView(this.panelPartView, [this.titleBarPartView, this.sideBarPartView]);
 			});
@@ -3060,6 +3437,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				this.setEditorHidden(false);
 			}
 
+
 			// Hide all other content parts
 			if (this.partVisibility.sidebar) {
 				this.setSideBarHidden(true);
@@ -3069,10 +3447,12 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			}
 
 			this._editorMaximized = true;
+			this._syncSidePaneColumn();
 		} else {
 			const state = this._editorLastNonMaximizedVisibility;
 			const size = this._editorLastNonMaximizedSize;
 			this._editorLastNonMaximizedSize = undefined;
+
 
 			// Restore previous visibility state, including the auxiliary bar
 			// (which the layout controller forced visible while maximized).
@@ -3081,6 +3461,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			this.setAuxiliaryBarHidden(!state?.auxiliaryBar);
 
 			this._editorMaximized = false;
+			this._syncSidePaneColumn();
 
 			// Restore the editor part width captured before maximizing.
 			if (this.editorPartView && size) {

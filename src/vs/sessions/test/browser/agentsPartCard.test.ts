@@ -852,6 +852,7 @@ suite('Sessions - Agents Part Card', () => {
 				},
 				_gridWidget: { layout: layoutGrid },
 				_layoutNode: layoutGrid,
+				_onDidLayout: { fire: () => { } },
 			};
 			const layout = Reflect.get(partConstructor.prototype, 'layout') as (this: typeof part, width: number, height: number, top: number, left: number) => void;
 

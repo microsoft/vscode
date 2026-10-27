@@ -99,12 +99,17 @@ export const Menus = {
 	/** Context menu of a custom or comparison group header in the Sessions list. The list merges its own group actions into these groups. */
 	SessionGroupContext: new MenuId('SessionsSessionGroupContext'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
+	SessionsEditorHeaderSecondary: new MenuId('SessionsEditorHeaderSecondary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
 	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),
+	/** The canvases that chat windows offer in their Add Tab lists, each entry scoped to the window it belongs to. */
+	ChatWindowAddTabCanvas: new MenuId('SessionsChatWindowAddTabCanvas'),
+	/** The canvases that chat windows offer in their Session Activity Bar, each entry scoped to the window it belongs to. */
+	ChatWindowActivityBarCanvas: new MenuId('SessionsChatWindowActivityBarCanvas'),
 	EmptyFileEditorActions: new MenuId('SessionsEmptyFileEditorActions'),
 	EmptySearchEditorActions: new MenuId('SessionsEmptySearchEditorActions'),
 	EmptyBrowserEditorActions: new MenuId('SessionsEmptyBrowserEditorActions'),
@@ -116,14 +121,22 @@ export const Menus = {
 	 */
 	SessionsEmptyEditorGroupAddTab: new MenuId('SessionsEmptyEditorGroupAddTab'),
 	/**
-	 * The Session Activity Bar, docked at the right edge of the active chat view, grouped by
-	 * {@link SessionActivityBarGroup}. Each tab entry opens or activates its side pane tab, revealing
-	 * the side pane when it is closed; these entries are gated on availability only. The terminal
-	 * entry reveals the terminal in the panel. The side panel toggle before the tab entries and the
-	 * panel toggle after the terminal leave the title bar while the activity bar shows its layout actions.
+	 * The Session Activity Bar, docked at the right edge of the active chat view, or of the editor area
+	 * while the chat is below the editor or hidden, grouped by {@link SessionActivityBarGroup}. Each tab
+	 * entry opens or activates its side pane tab, revealing the side pane when it is closed; these entries
+	 * are gated on availability only. The terminal entry reveals the terminal in the panel. While the
+	 * activity bar shows its layout actions, the Layout button leads it, opening
+	 * {@link SessionLayout}, and the panel toggle follows the
+	 * terminal, in place of the title bar's side panel and panel toggles.
 	 */
 	SessionActivityBar: new MenuId('SessionActivityBar'),
 	SessionActivityBarCanvas: new MenuId('SessionActivityBarCanvas'),
+	/**
+	 * The Layout menu of a window: Show Chat, Show Editor, and Stacked, checked as the window shows them, and, in a chat
+	 * window, where it shows. One Layout button opens it, in the Session Activity Bar or in the title bar. The main
+	 * window and chat windows each contribute theirs, scoped to their kind of window.
+	 */
+	SessionLayout: new MenuId('SessionsLayout'),
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
 	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
 	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
@@ -151,7 +164,9 @@ export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarT
 export const SessionActivityBarGroup = {
 	/** The layout actions of a chat window, at the top of its Session Activity Bar while it shows the layout actions. */
 	ChatWindowLayout: '0_chatWindowLayout',
-	/** The side panel toggle, followed by the entries that open its tabs. */
+	/** The Layout button, which opens the layout modes: chat only, editor only, stacked and side by side. */
+	Layout: '0_layout',
+	/** The entries that open the side panel's tabs. */
 	SidePanel: '1_sidePanel',
 	/** The terminal, followed by the panel toggle. */
 	Panel: '2_panel',

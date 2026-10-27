@@ -43,6 +43,9 @@ export class DesktopWorkbench extends Workbench {
 	private readonly _memento = new DockedEditorSizeMemento();
 
 	override isEditorPaneVisible(): boolean {
+		if (this._editorPaneVisibleWhileColumnMoves !== undefined) {
+			return this._editorPaneVisibleWhileColumnMoves;
+		}
 		return this.workbenchGrid
 			? this.workbenchGrid.isViewVisible(this.editorPartView)
 			: super.isEditorPaneVisible();
@@ -60,6 +63,38 @@ export class DesktopWorkbench extends Workbench {
 	}
 
 	protected override readonly _defaultSidePaneState = { editor: true, auxiliaryBar: false };
+
+	private _showChatScheduled = false;
+
+	/**
+	 * With the chat hidden (Editor only), a side pane that ends up hidden by other means than the side pane toggle,
+	 * such as its last editor closing, would leave nothing showing: the chat shows again. Checked once the visibility
+	 * settles, as a composition changes its parts one at a time, and not while it is held off, such as while a session's
+	 * layout is restored: then once the hold is released.
+	 */
+	protected override _fireDidChangePartVisibility(partId: Parts, visible: boolean, source?: 'resize'): void {
+		super._fireDidChangePartVisibility(partId, visible, source);
+		if (!visible && (partId === Parts.EDITOR_PART || partId === Parts.AUXILIARYBAR_PART)) {
+			this._scheduleShowChatOnHiddenSidePane();
+		}
+	}
+
+	protected override _onDidReleaseShowChatOnHiddenSidePane(): void {
+		this._scheduleShowChatOnHiddenSidePane();
+	}
+
+	private _scheduleShowChatOnHiddenSidePane(): void {
+		if (this._showChatScheduled) {
+			return;
+		}
+		this._showChatScheduled = true;
+		queueMicrotask(() => {
+			this._showChatScheduled = false;
+			if (!this._isShowChatOnHiddenSidePaneSuppressed && !this.partVisibility.sessions && !this.isSidePaneVisible() && !this.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
+				this.setPartHidden(false, Parts.SESSIONS_PART);
+			}
+		});
+	}
 
 	/**
 	 * A docked-detail editor (Changes/Files) renders its content in the docked
@@ -96,6 +131,9 @@ export class DesktopWorkbench extends Workbench {
 	}
 
 	override getPreferredEditorPartWidth(): number | undefined {
+		if (this._isSidePaneStacked()) {
+			return undefined; // Stacked, the side pane spans the row.
+		}
 		if (!this.partVisibility.editor) {
 			return DockedAuxiliaryBarController.DEFAULT_WIDTH;
 		}
@@ -199,7 +237,9 @@ export class DesktopWorkbench extends Workbench {
 	protected override _layoutGrid(): void {
 		const sessionsSize = this.workbenchGrid.getViewSize(this.sessionsPartView);
 		const editorSize = this.workbenchGrid.getViewSize(this.editorPartView);
+		// Stacked, the side pane spans the row and keeps its height while the Sessions Part gives way.
 		const preserveRatio = this.partVisibility.editor
+			&& !this._isSidePaneStacked()
 			&& this.workbenchGrid.isViewVisible(this.sessionsPartView)
 			&& this.workbenchGrid.isViewVisible(this.editorPartView)
 			&& sessionsSize.width > 0
@@ -273,6 +313,10 @@ export class DesktopWorkbench extends Workbench {
 		if (this._isEditorPartAutoVisibilitySuppressed) {
 			return;
 		}
+		// Stacked, the node spans the row: its width is never a drag that squeezes the editor out of it.
+		if (this._isSidePaneStacked()) {
+			return;
+		}
 
 		this._runWithEditorVisibilitySyncSuspended(() => {
 			const effectiveAuxiliaryBarWidth = DockedAuxiliaryBarController.getEffectiveWidth(this._dockedAuxiliaryBarWidth, nodeWidth);
@@ -308,6 +352,11 @@ export class DesktopWorkbench extends Workbench {
 	}
 
 	protected override _applyEditorVisibility(hidden: boolean): void {
+		if (this._isSidePaneStacked()) {
+			this._applyStackedEditorVisibility(hidden);
+			return;
+		}
+
 		// Part sizes are workbench-global, so hiding the side pane must not discard the
 		// user's chosen editor width. Capture the current editor content width before the
 		// grid collapses the node, so revealing later — e.g. switching back from a session
@@ -366,6 +415,18 @@ export class DesktopWorkbench extends Workbench {
 		this._notifyContainerDidLayout();
 	}
 
+	/**
+	 * Stacked above the Sessions Part, the side pane spans the row: the Details alone span it too, and the node keeps
+	 * the height it is shown at, which the grid caches while it is hidden.
+	 */
+	private _applyStackedEditorVisibility(hidden: boolean): void {
+		this._memento.dockedEditorSizeBeforeHide = undefined;
+		this.workbenchGrid.setViewVisible(this.editorPartView, this._editorNodeShouldBeVisible());
+		this._layoutDockedAuxBar();
+		this._fireDidChangePartVisibility(Parts.EDITOR_PART, !hidden);
+		this._notifyContainerDidLayout();
+	}
+
 	protected override _onWillHideAuxiliaryBar(hidden: boolean): void {
 		if (hidden && !this.partVisibility.editor && !this._isEditorPartAutoVisibilitySuppressed) {
 			this.setEditorHidden(false, /* explicit */ true);
@@ -402,7 +463,7 @@ export class DesktopWorkbench extends Workbench {
 				this.editorPartView,
 				this._editorNodeShouldBeVisible()
 			);
-			if (!hidden && !this.partVisibility.editor) {
+			if (!hidden && !this.partVisibility.editor && !this._isSidePaneStacked()) {
 				this._runWithEditorVisibilitySyncSuspended(() => {
 					this.workbenchGrid.resizeView(this.editorPartView, {
 						width: this._dockedAuxiliaryBarWidth,

@@ -140,7 +140,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 				}
 				knownOwners.add(canvasOwnerKey(context.owner));
 				const visible = enabled && contextService.isOwnerVisible(context.owner, reader);
-				const workingSetPresented = !restoring && (!workingSetOwner || workingSetIncludes(workingSetOwner, context.owner));
+				const workingSetPresented = (!restoring && (!workingSetOwner || workingSetIncludes(workingSetOwner, context.owner)))
+					|| contextService.presentsOutsideWorkingSets?.(context.owner, reader) === true;
 				const requests = context.openRequests?.read(reader);
 				for (const canvas of canvases) {
 					const reference: ICanvasReference = { ...context.owner, canvas: canvas.resource };

@@ -111,6 +111,7 @@ export const SelectedEditorsInGroupFileOrUntitledResourceContextKey = new RawCon
 export const EditorPartMultipleEditorGroupsContext = new RawContextKey<boolean>('editorPartMultipleEditorGroups', false, localize('editorPartMultipleEditorGroups', "Whether there are multiple editor groups opened in an editor part"));
 export const EditorPartMaximizedEditorGroupContext = new RawContextKey<boolean>('editorPartMaximizedEditorGroup', false, localize('editorPartEditorGroupMaximized', "Editor Part has a maximized group"));
 
+export const EditorPartFixedGroupsContext = new RawContextKey<boolean>('editorPartFixedGroups', false, localize('editorPartFixedGroups', "Whether the editor groups of an editor part are arranged by its owner, so that they cannot be locked, unlocked, split, closed, maximized or resized from their actions"));
 export const EditorPartModalContext = new RawContextKey<boolean>('editorPartModal', false, localize('editorPartModal', "Whether focus is in a modal editor part"));
 export const EditorPartEmbeddedContext = new RawContextKey<boolean>('editorPartEmbedded', false, localize('editorPartEmbedded', "Whether the editor part is embedded in a feature, which lays out its groups and owns the editors in them"));
 export const EditorPartModalVisibleContext = new RawContextKey<boolean>('editorPartModalVisible', false, localize('editorPartModalVisible', "Whether a modal editor part is visible"));

@@ -148,6 +148,23 @@ export interface ICanvasContextService {
 	 * reconstruct. A canvas already open in another group moves to the selected one.
 	 */
 	getEditorGroup(owner: ICanvasOwner, input: CanvasInput, restore: boolean): IEditorGroup | undefined;
+	/**
+	 * Whether `group`, outside the main window, presents canvases of `owner`, such as a window that shows the owning
+	 * chat. Without it, only groups of the main window present canvases, beside their owning chat.
+	 */
+	canPresentInGroup?(owner: ICanvasOwner, group: IEditorGroup): boolean;
+	/**
+	 * Whether canvases of `owner` show outside the per-owner editor working sets, such as in a window that shows the
+	 * owning chat, so that they show while another owner's working set applies. Presentation reads this with `reader`
+	 * for every owner outside the applied working set, so implementations should read one derived owner set with an
+	 * equality check rather than every window, so that unrelated window changes do not re-run presentation.
+	 */
+	presentsOutsideWorkingSets?(owner: ICanvasOwner, reader?: IReader): boolean;
+}
+
+/** Whether `group` can present canvases of `owner`: a group of the main window, or one its context service allows. */
+export function canPresentCanvasInGroup(owner: ICanvasOwner, group: IEditorGroup, editorGroupsService: IEditorGroupsService, contextService: ICanvasContextService | undefined): boolean {
+	return group.windowId === editorGroupsService.mainPart.windowId || contextService?.canPresentInGroup?.(owner, group) === true;
 }
 
 export const ICanvasService = createDecorator<ICanvasService>('sessionCanvasService');
@@ -317,6 +334,7 @@ export class CanvasInput extends EditorInput {
 		canvas: ICanvas | undefined,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ICanvasContextService private readonly contextService: ICanvasContextService,
 	) {
 		super();
 		this.resource = createInputResource(reference);
@@ -343,7 +361,8 @@ export class CanvasInput extends EditorInput {
 	override canReopen(): boolean { return false; }
 
 	override canMove(_sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
-		return this.editorGroupsService.getGroup(targetGroup)?.windowId === this.editorGroupsService.mainPart.windowId
+		const group = this.editorGroupsService.getGroup(targetGroup);
+		return group && canPresentCanvasInGroup(this.reference, group, this.editorGroupsService, this.contextService)
 			? true
 			: localize('canvas.mainWindowOnly', "Canvases can only be shown in the main window beside their owning conversation.");
 	}
@@ -358,6 +377,10 @@ export class CanvasInput extends EditorInput {
 
 	setCanvas(canvas: ICanvas | undefined, membershipPending = false): void {
 		const previous = this.canvas.get();
+		// Presentation re-applies canvases on every run; unchanged content must not notify observers.
+		if (canvasesEqual(previous, canvas) && this.membershipPending.get() === membershipPending) {
+			return;
+		}
 		transaction(tx => {
 			this.canvas.set(canvas, tx);
 			this.membershipPending.set(membershipPending, tx);
@@ -370,4 +393,9 @@ export class CanvasInput extends EditorInput {
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {
 		return other instanceof CanvasInput ? isEqual(this.resource, other.resource) : super.matches(other);
 	}
+}
+
+function canvasesEqual(a: ICanvas | undefined, b: ICanvas | undefined): boolean {
+	return a === b || (!!a && !!b && a.instanceId === b.instanceId && a.title === b.title && a.status === b.status
+		&& isEqual(a.resource, b.resource) && isEqual(a.source, b.source));
 }

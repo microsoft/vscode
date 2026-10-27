@@ -757,6 +757,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/chatpad",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/sideChat",
 			"project": "vscode-sessions"
 		},

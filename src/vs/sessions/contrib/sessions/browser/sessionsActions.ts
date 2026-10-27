@@ -21,6 +21,7 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { NotInChatWindowContext } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -31,7 +32,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorAreaFocusContext, EditorPartFixedGroupsContext, FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
@@ -944,7 +945,8 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 			id: ADD_CHAT_TO_SESSION_ACTION_ID,
 			title: localize2('chatCompositeBar.addChat', "New Nested Session"),
 			icon: Codicon.add,
-			precondition: SessionItemIsMultiSelectionContext.negate(),
+			// A chat window shows one chat: nothing is added to it.
+			precondition: ContextKeyExpr.and(SessionItemIsMultiSelectionContext.negate(), NotInChatWindowContext),
 			keybinding: {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
 				// Like Cmd/Ctrl+T in a browser — opens a new chat tab within the
@@ -957,7 +959,7 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				id: Menus.SessionItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate(), SessionItemIsCloudContext.negate()),
+				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate(), SessionItemIsCloudContext.negate(), NotInChatWindowContext),
 			}, {
 				id: Menus.SessionItemContextMenu,
 				group: 'navigation',

@@ -109,7 +109,7 @@ suite('Sessions - Actions', () => {
 				title: 'New Nested Session',
 				group: 'navigation',
 				order: 1,
-				when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud',
+				when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud && !sessions.chatWindow',
 			},
 			contextMenu: {
 				title: 'New Nested Session',
@@ -170,7 +170,7 @@ suite('Sessions - Actions', () => {
 				contextMenu: snapshot(Menus.SessionItemContextMenu),
 			}, {
 				toolbar: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud' },
+					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud && !sessions.chatWindow' },
 					{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
 					{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
 					{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
@@ -664,7 +664,7 @@ suite('Sessions - Actions', () => {
 
 		assert.deepStrictEqual(actions, [{
 			id: 'sessions.chatCompositeBar.addChat',
-			precondition: '!sessionItem.isMultiSelection',
+			precondition: '!sessionItem.isMultiSelection && !sessions.chatWindow',
 		}, {
 			id: RENAME_SESSION_COMMAND_ID,
 			precondition: '!sessionItem.isMultiSelection',

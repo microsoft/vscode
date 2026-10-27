@@ -101,10 +101,13 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	private _insets = NO_GRID_EDGE_INSETS;
 
+	/** Whether the host sizes this group to what its chat shows, such as only the chat input; see {@link setSizedByHost}. */
+	private _sizedByHost = false;
+
 	// In a chat window, which sizes its chat itself, down to only its input, the grid of its one group sets no minimum.
 	get minimumWidth() { return this._hostOptions ? 0 : ChatGroupView.MINIMUM_WIDTH + this._insets.left + this._insets.right; }
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
-	get minimumHeight() { return this._hostOptions ? 0 : ChatGroupView.MINIMUM_HEIGHT + this._insets.top + this._insets.bottom; }
+	get minimumHeight() { return this._hostOptions || this._sizedByHost ? 0 : ChatGroupView.MINIMUM_HEIGHT + this._insets.top + this._insets.bottom; }
 	readonly maximumHeight = Number.POSITIVE_INFINITY;
 
 	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
@@ -550,6 +553,17 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	notifyConstraintsChanged(): void {
 		this._onDidChange.fire(undefined);
+	}
+
+	/**
+	 * Whether the host sizes this group to what its chat shows, such as only the chat input below the editor, which can
+	 * be shorter than a group otherwise is at least: the group then sets no minimum height, so its grid does not overflow.
+	 */
+	setSizedByHost(sized: boolean): void {
+		if (this._sizedByHost !== sized) {
+			this._sizedByHost = sized;
+			this.notifyConstraintsChanged();
+		}
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {

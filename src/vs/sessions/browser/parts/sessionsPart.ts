@@ -19,7 +19,7 @@ import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js'
 import { Direction, ISerializedGrid } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, isHTMLElement, trackFocus } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, IDimension, isAncestor, isAncestorOfActiveElement, isHTMLElement, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -33,12 +33,12 @@ import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaul
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight } from './agentsPartCard.js';
+import { AGENTS_SIDE_PANE_STACKED_CLASS, applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartCardMarginTop } from './agentsPartCard.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
-import { ISessionGridSlot, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGridSlot, ISessionsPartHeightConstraints, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
 import { SessionGridLayout } from './sessionGridLayout.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 import { URI } from '../../../base/common/uri.js';
@@ -63,9 +63,18 @@ export class SessionsPart extends Part {
 
 	override readonly minimumWidth: number = 300;
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	override readonly minimumHeight: number = 0;
-	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	private _heightConstraints: ISessionsPartHeightConstraints | undefined;
+	override get minimumHeight(): number { return this._heightConstraints?.minimum ?? 0; }
+	override get maximumHeight(): number { return this._heightConstraints?.maximum ?? Number.POSITIVE_INFINITY; }
 	get snap(): boolean { return false; }
+
+	private readonly _onDidLayout = this._register(new Emitter<IDimension>());
+	/** Fires after the part is laid out at a new size. */
+	readonly onDidLayout = this._onDidLayout.event;
+
+	private _chromeHeight = 0;
+	/** The height of the part around its session views, such as the margins and borders of its card. */
+	get chromeHeight(): number { return this._chromeHeight; }
 
 	/** Border width on the card (1px each side) */
 	static readonly BORDER_WIDTH = 1;
@@ -116,7 +125,9 @@ export class SessionsPart extends Part {
 		return this.layoutService.mainContainerDimension.height * 0.4;
 	}
 
-	readonly priority = LayoutPriority.High;
+	get priority(): LayoutPriority {
+		return this._heightConstraints?.keepHeight ? LayoutPriority.Low : LayoutPriority.High;
+	}
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -500,18 +511,23 @@ export class SessionsPart extends Part {
 
 		const phoneLayout = isPhoneLayout(this.layoutService);
 		const compactLayout = this.layoutService.isModernUICompact();
+		// Stacked, the side pane is above the card rather than beside it.
+		const container = this.layoutService.mainContainer;
+		const sidePaneStacked = container.classList.contains(AGENTS_SIDE_PANE_STACKED_CLASS);
 		const cardSize = getAgentsPartCardContentSize(
 			width,
 			height,
-			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
+			this.agentWorkbenchLayoutService.isEditorPaneVisible() && !sidePaneStacked,
 			this.layoutService.isVisible(Parts.SIDEBAR_PART),
 			phoneLayout,
 			compactLayout,
-			getSessionsPartCardMarginRight(this.layoutService.mainContainer)
+			getSessionsPartCardMarginRight(container),
+			getSessionsPartCardMarginTop(container)
 		);
 
 		// Size the content area with the reduced dimensions.
 		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);
+		this._chromeHeight = Math.max(0, height - contentSize.height);
 
 		// Layout the internal grid widget within the content area.
 		const gridGap = phoneLayout || compactLayout ? 0 : AGENTS_FLOATING_PANEL_GAP;
@@ -519,6 +535,25 @@ export class SessionsPart extends Part {
 
 		// Store the full grid-allocated dimensions so that Part.relayout() works correctly.
 		super.layout(width, height, top, left);
+		this._onDidLayout.fire({ width, height });
+	}
+
+	/**
+	 * Constrains the part's height in the workbench grid, such as to keep a chat below the editor at its input, and sizes
+	 * it to `height`, if given: the grid applies both in one layout.
+	 */
+	setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined, height?: number): void {
+		const previous = this._heightConstraints;
+		this._heightConstraints = constraints;
+		const lastLayout = this._lastLayout;
+		if (height !== undefined && lastLayout && height !== lastLayout.height) {
+			this._onDidChange.fire({ width: lastLayout.width, height });
+			return;
+		}
+		// Which part takes a resize applies from the next layout; only the limits need one now.
+		if (previous?.minimum !== constraints?.minimum || previous?.maximum !== constraints?.maximum) {
+			this._onDidChange.fire(undefined);
+		}
 	}
 
 	override dispose(): void {

@@ -16,6 +16,8 @@ const AGENTS_PART_CARD_BORDER_WIDTH = 1;
  */
 export const AGENTS_PART_CARD_CLASS = 'agents-part-card';
 export const AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS = 'agents-side-pane-multiple-tabs';
+/** Marks the workbench while the side pane is stacked above the Sessions Part rather than beside it. */
+export const AGENTS_SIDE_PANE_STACKED_CLASS = 'side-pane-stacked';
 
 /** Visual metrics of a card part, kept in sync with the CSS in `media/workbench.css`. */
 export const AgentsPartCard = {
@@ -54,6 +56,7 @@ export function getSidePaneBottomFrameInset(container: HTMLElement): number {
 	const sessionFrameInset = getSessionsPartFrameInset(container);
 	if (sessionFrameInset === 0
 		|| container.classList.contains('noeditorpane')
+		|| container.classList.contains(AGENTS_SIDE_PANE_STACKED_CLASS)
 		|| container.classList.contains('nopanel')
 		|| !container.classList.contains('panel-alignment-justify')) {
 		return 0;
@@ -72,8 +75,23 @@ export function getSessionsPartCardMarginRight(container: HTMLElement): number {
 	return Math.max(0, AgentsPartCard.MARGIN_RIGHT - sessionFrameInset - getSidePaneFrameInset(container));
 }
 
+/**
+ * The Sessions Part margin that keeps the gap below a side pane stacked above it, as the panel keeps its gap below
+ * the Sessions Part. `0` while the side pane is beside it or hidden.
+ */
+export function getSessionsPartCardMarginTop(container: HTMLElement): number {
+	if (!container.classList.contains(AGENTS_SIDE_PANE_STACKED_CLASS)
+		|| container.classList.contains('noeditorpane')
+		|| container.classList.contains('modern-ui-compact')
+		|| container.classList.contains('phone-layout')) {
+		return 0;
+	}
+
+	return Math.max(0, AGENTS_FLOATING_PANEL_GAP - getSessionsPartFrameInset(container));
+}
+
 /** Content box of a card part, filling the grid in compact or phone layouts. */
-export function getAgentsPartCardContentSize(width: number, height: number, editorPaneVisible: boolean, sidebarVisible: boolean, phoneLayout: boolean, compact = false, editorPaneMarginRight: number = AgentsPartCard.MARGIN_RIGHT): { readonly width: number; readonly height: number } {
+export function getAgentsPartCardContentSize(width: number, height: number, editorPaneVisible: boolean, sidebarVisible: boolean, phoneLayout: boolean, compact = false, editorPaneMarginRight: number = AgentsPartCard.MARGIN_RIGHT, marginTop: number = AgentsPartCard.MARGIN_TOP): { readonly width: number; readonly height: number } {
 	if (phoneLayout || compact) {
 		return { width, height };
 	}
@@ -86,7 +104,7 @@ export function getAgentsPartCardContentSize(width: number, height: number, edit
 
 	return {
 		width: width - marginLeft - marginRight - borderTotal,
-		height: height - AgentsPartCard.MARGIN_TOP - AgentsPartCard.MARGIN_BOTTOM - borderTotal
+		height: height - marginTop - AgentsPartCard.MARGIN_BOTTOM - borderTotal
 	};
 }
 

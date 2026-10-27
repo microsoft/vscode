@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, constObservable, derivedOpts, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -21,14 +22,14 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
-import { CanvasInput, canvasOwnerKey, ICanvas, ICanvasContext, ICanvasContextService, ICanvasOpenRequest, ICanvasOwner, isCanvasOwner } from '../../common/canvas.js';
+import { CanvasInput, canvasOwnerKey, ICanvas, ICanvasContext, ICanvasContextService, ICanvasOpenRequest, ICanvasOwner, ICanvasWorkingSets, ICanvasWorkingSetState, isCanvasOwner } from '../../common/canvas.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { CanvasService } from '../../electron-browser/canvasService.js';
 
 suite('CanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness() {
+	function createHarness(harnessOptions?: { readonly workingSet?: ICanvasWorkingSetState; readonly presentsOutsideWorkingSets?: boolean | ((owner: ICanvasOwner, reader?: IReader) => boolean) }) {
 		const owner: ICanvasOwner = { providerId: 'local', session: URI.parse('session:/owner'), chat: URI.parse('chat:/owner') };
 		const canvas: ICanvas = {
 			resource: URI.parse('canvas:/preview'), instanceId: 'preview', title: 'Preview', source: URI.parse('https://example.test'),
@@ -43,6 +44,9 @@ suite('CanvasService', () => {
 			isOwnerVisible: (owner, reader) => visible.read(reader).has(canvasOwnerKey(owner)),
 			getContext: (owner, reader) => contexts.read(reader).find(context => isCanvasOwner(context.owner, owner)),
 			getEditorGroup: () => targetGroup,
+			...(harnessOptions?.workingSet ? { workingSets: upcastPartial<ICanvasWorkingSets>({ state: constObservable(harnessOptions.workingSet), registerEditorToRetain: () => Disposable.None, suppressEditorPartAutoVisibility: () => Disposable.None }) } : {}),
+			...(typeof harnessOptions?.presentsOutsideWorkingSets === 'function' ? { presentsOutsideWorkingSets: harnessOptions.presentsOutsideWorkingSets }
+				: harnessOptions?.presentsOutsideWorkingSets !== undefined ? { presentsOutsideWorkingSets: () => harnessOptions.presentsOutsideWorkingSets === true } : {}),
 		});
 		const opened: CanvasInput[] = [];
 		const openEditors: IEditorIdentifier[] = [];
@@ -132,6 +136,71 @@ suite('CanvasService', () => {
 		const afterDismissal = harness.opened.length;
 		harness.canvases.set([{ ...harness.canvas, resource: URI.parse('canvas:/new-lifetime') }], undefined);
 		assert.deepStrictEqual({ afterDismissal, channels: harness.opened.map(input => input.reference.canvas.toString()) }, { afterDismissal: 1, channels: ['canvas:/preview', 'canvas:/new-lifetime'] });
+	});
+
+	test('presents canvases outside the working set of another owner only when the context service opts in', async () => {
+		const other = { sessionResource: URI.parse('session:/other'), chatResource: undefined };
+		const own = { sessionResource: URI.parse('session:/owner'), chatResource: undefined };
+		const workingSets: Record<string, ICanvasWorkingSetState> = {
+			own: { owner: own, restoring: false, applying: false },
+			other: { owner: other, restoring: false, applying: false },
+			restoring: { owner: other, restoring: true, applying: false },
+		};
+		const presented: Record<string, Record<string, number>> = {};
+		for (const [hook, presentsOutsideWorkingSets] of [['without hook', undefined], ['hook declines', false], ['hook allows', true]] as const) {
+			presented[hook] = {};
+			for (const [name, workingSet] of Object.entries(workingSets)) {
+				const harness = createHarness({ workingSet, presentsOutsideWorkingSets });
+				harness.canvases.set([harness.canvas], undefined);
+				await timeout(0);
+				presented[hook][name] = harness.opened.length;
+			}
+		}
+
+		assert.deepStrictEqual(presented, {
+			'without hook': { own: 1, other: 0, restoring: 0 },
+			'hook declines': { own: 1, other: 0, restoring: 0 },
+			'hook allows': { own: 1, other: 1, restoring: 1 },
+		});
+	});
+
+	test('does no presentation work for window changes that keep the presented owners', async () => {
+		const ownerKey = canvasOwnerKey({ providerId: 'local', session: URI.parse('session:/owner'), chat: URI.parse('chat:/owner') });
+		const run = async (workingSetOwner: URI) => {
+			// Windows that show chats; only the set of their owners matters to presentation.
+			const windows = observableValue<readonly { readonly owner: string; readonly title: string }[]>('windows', [{ owner: ownerKey, title: 'first' }]);
+			const presentedOwners = derivedOpts<ReadonlySet<string>>({ equalsFn: (a, b) => a.size === b.size && [...a].every(key => b.has(key)) },
+				reader => new Set(windows.read(reader).map(window => window.owner)));
+			let hookCalls = 0;
+			const harness = createHarness({
+				workingSet: { owner: { sessionResource: workingSetOwner, chatResource: undefined }, restoring: false, applying: false },
+				presentsOutsideWorkingSets: (owner, reader) => {
+					hookCalls++;
+					return presentedOwners.read(reader).has(canvasOwnerKey(owner));
+				},
+			});
+			harness.canvases.set([harness.canvas], undefined);
+			await timeout(0);
+			harness.canvases.set([{ ...harness.canvas, instanceId: undefined }], undefined);
+			await timeout(0);
+			let canvasChanges = -1;
+			store.add(autorun(reader => { harness.opened[0]?.canvas.read(reader); canvasChanges++; }));
+			const before = hookCalls;
+			windows.set([{ owner: ownerKey, title: 'navigated' }, { owner: ownerKey, title: 'second' }], undefined);
+			const afterWindowChange = hookCalls - before;
+			harness.canvases.set([{ ...harness.canvas, instanceId: undefined }], undefined);
+			harness.visible.set(new Set(harness.visible.get()), undefined);
+			await timeout(0);
+			return { opened: harness.opened.length, hookCalled: hookCalls > 0, hookCallsPerWindowChange: afterWindowChange, canvasChangesPerRerun: canvasChanges };
+		};
+
+		assert.deepStrictEqual({
+			otherWorkingSet: await run(URI.parse('session:/other')),
+			ownWorkingSet: await run(URI.parse('session:/owner')),
+		}, {
+			otherWorkingSet: { opened: 1, hookCalled: true, hookCallsPerWindowChange: 0, canvasChangesPerRerun: 0 },
+			ownWorkingSet: { opened: 1, hookCalled: false, hookCallsPerWindowChange: 0, canvasChangesPerRerun: 0 },
+		});
 	});
 
 	test('reopens a dismissed lifetime only for a new successful model open request', async () => {

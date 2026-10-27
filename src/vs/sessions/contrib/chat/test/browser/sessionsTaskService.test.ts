@@ -390,6 +390,14 @@ suite('SessionsTasksService', () => {
 		assert.deepStrictEqual(obs.get(), []);
 	});
 
+	test('getSessionTasks of a session without a workspace has no tasks and watches and reads nothing', async () => {
+		const first = service.getSessionTasks(makeSession());
+		const second = service.getSessionTasks(makeSession());
+		await new Promise(r => setTimeout(r, 10));
+
+		assert.deepStrictEqual({ tasks: first.get(), same: first === second, reads: readFileCalls.length }, { tasks: [], same: true, reads: 0 });
+	});
+
 	test('getSessionTasks reads from repository when no worktree', async () => {
 		const repoTasksUri = URI.parse('file:///repo/.vscode/tasks.json');
 		fileContents.set(repoTasksUri.toString(), tasksJsonContent([

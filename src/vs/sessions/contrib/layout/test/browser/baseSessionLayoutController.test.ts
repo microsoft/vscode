@@ -64,7 +64,7 @@ suite('BaseLayoutController', () => {
 		return { owner: owner && { session: owner.sessionResource.toString(), chat: owner.chatResource?.toString() }, restoring, applying };
 	}
 
-	test('shows the side panel toggle at the top of the session activity bar only while it can show there', () => {
+	test('leaves the side panel toggle to the title bar, which the layout modes of the session activity bar replace', () => {
 		const registration = BaseLayoutController.registerSidePaneToggleAction();
 		try {
 			const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentToggleSidePanel');
@@ -77,7 +77,7 @@ suite('BaseLayoutController', () => {
 				layoutActions: base,
 				layoutActionsOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false },
 				activityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false },
-				// The activity bar is hidden with the Sessions part while the editor is maximized, and in the phone layout.
+				// The activity bar shows at the edge of the editor while it is maximized; it is hidden in the phone layout.
 				editorMaximized: { ...base, editorMaximized: true },
 				phoneLayout: { ...base, sessionsIsPhoneLayout: true },
 			};
@@ -89,13 +89,13 @@ suite('BaseLayoutController', () => {
 
 			assert.deepStrictEqual({ titleBar: { group: titleBar?.group, order: titleBar?.order }, activityBar: { group: activityBar?.group, order: activityBar?.order }, appearance: { group: appearance?.group, order: appearance?.order }, placement }, {
 				titleBar: { group: 'navigation', order: 11 },
-				activityBar: { group: '1_sidePanel', order: 0 },
+				activityBar: { group: undefined, order: undefined },
 				appearance: { group: '2_workbench_layout', order: 2 },
 				placement: {
-					layoutActions: ['activityBar'],
+					layoutActions: [],
 					layoutActionsOff: ['titleBar'],
 					activityBarOff: ['titleBar'],
-					editorMaximized: ['titleBar'],
+					editorMaximized: [],
 					phoneLayout: ['titleBar'],
 				},
 			});

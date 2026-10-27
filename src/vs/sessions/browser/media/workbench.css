@@ -220,8 +220,31 @@
 	margin-left: var(--agents-floating-panel-gap);
 }
 
-.agent-sessions-workbench.panel-alignment-center:not(.noeditorpane) .part.panel {
+.agent-sessions-workbench.panel-alignment-center:not(.noeditorpane):not(.side-pane-stacked) .part.panel {
 	margin-right: var(--agents-floating-panel-gap);
+}
+
+/* Stacked, the side pane is above the Sessions Part: the gap is below the side pane rather than beside it. */
+.agent-sessions-workbench.side-pane-stacked .part.sessionspart.agents-part-card {
+	margin-right: 0;
+}
+
+.agent-sessions-workbench.side-pane-stacked:not(.phone-layout):not(.modern-ui-compact):not(.noeditorpane) .part.sessionspart.agents-part-card {
+	margin-top: calc(var(--agents-floating-panel-gap) - var(--agents-session-frame-inset));
+	margin-right: 0;
+}
+
+.agent-sessions-workbench.side-pane-stacked.nosidebar:not(.phone-layout) .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	margin-left: var(--agents-floating-panel-gap);
+}
+
+/* The column of its own at the right of the side pane (`StackedSidePaneColumnView`), Stacked or Editor only, such as for
+ * the Session Activity Bar: the chat's background, as beside the chat, framed as the compact parts are. */
+.agent-sessions-workbench .agents-stacked-side-pane-column {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	background-color: var(--vscode-activeSessionView-background);
 }
 
 /* Compact surfaces share a single separator without reserving space for card frames. */
@@ -232,6 +255,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-part-card::after,
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-stacked-side-pane-column::after,
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .part:is(.panel, .auxiliarybar)::after,
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .monaco-grid-view .part.editor:not(.modal-editor-part)::after {
 	content: '';
@@ -288,7 +312,8 @@
 	transform: translateX(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--agents-floating-panel-gap)) - var(--agents-floating-panel-gap) + var(--agents-side-pane-frame-inset) + var(--agents-side-pane-frame-inset)) / 2));
 }
 
-.agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal {
+.agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal,
+.agent-sessions-workbench.side-pane-stacked:not(.noeditorpane) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.horizontal {
 	height: max(var(--vscode-sash-size), var(--agents-floating-panel-gap));
 	transform: translateY(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--agents-floating-panel-gap)) + var(--agents-floating-panel-gap) - var(--agents-session-frame-inset) - var(--agents-session-frame-inset)) / 2));
 }
@@ -461,6 +486,12 @@
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar {
 	overflow: hidden;
+}
+
+/* At the right edge of the editor part, the docked detail panel follows the part's bottom right corner: square, its own
+ * background would cover the part's border there. */
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar.docked-auxiliarybar-flush-right {
+	border-bottom-right-radius: inherit;
 }
 
 /* ---- Modal Editor ---- */
