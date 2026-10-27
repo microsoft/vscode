@@ -49,6 +49,7 @@ function createServerHost(
 	pathMapper: PathMapper,
 	enabledExperimentalTypeAcquisition: boolean,
 	exit: () => void,
+	fetch: typeof globalThis.fetch,
 ): ServerHostWithImport {
 	const currentDirectory = '/';
 	const fs = apiClient?.vscode.workspace.fileSystem;
@@ -87,6 +88,10 @@ function createServerHost(
 			this.clearTimeout(timeoutId);
 		},
 		importPlugin: async (root, moduleName) => {
+			if (moduleName.includes(':')) {
+				return { module: undefined, error: new Error('Could not load plugin. URLs are not supported as plugin names.') };
+			}
+
 			const packageRoot = combinePaths(root, moduleName);
 
 			let packageJson: any | undefined;
@@ -445,6 +450,7 @@ export async function createSys(
 	watchManager: FileWatcherManager,
 	pathMapper: PathMapper,
 	onExit: () => void,
+	fetch: typeof globalThis.fetch = globalThis.fetch,
 ) {
 	if (hasArgument(args, '--enableProjectWideIntelliSenseOnWeb')) {
 		const enabledExperimentalTypeAcquisition = hasArgument(args, '--experimentalTypeAcquisition');
@@ -453,10 +459,9 @@ export async function createSys(
 
 		const apiClient = new ApiClient(connection);
 		const fs = apiClient.vscode.workspace.fileSystem;
-		const sys = createServerHost(ts, logger, apiClient, args, watchManager, pathMapper, enabledExperimentalTypeAcquisition, onExit);
+		const sys = createServerHost(ts, logger, apiClient, args, watchManager, pathMapper, enabledExperimentalTypeAcquisition, onExit, fetch);
 		return { sys, fs };
 	} else {
-		return { sys: createServerHost(ts, logger, undefined, args, watchManager, pathMapper, false, onExit) };
+		return { sys: createServerHost(ts, logger, undefined, args, watchManager, pathMapper, false, onExit, fetch) };
 	}
 }
-
