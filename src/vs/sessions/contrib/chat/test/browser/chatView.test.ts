@@ -16,10 +16,11 @@ import { Emitter, Event as VSCodeEvent } from '../../../../../base/common/event.
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -44,12 +45,12 @@ import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../wo
 import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { ChatOpenDiagnosticsService } from '../../../../../workbench/contrib/chat/common/chatOpenDiagnosticsService.js';
-import { IChatModelReference, IChatService, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ElicitationState, IChatModelReference, IChatService, IChatToolInvocation, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatServiceImpl.js';
 import { ChatSessionsService } from '../../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatSession } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { ChatModel, ChatResponseModel, IChatModel, IChatModelInputState, IChatRequestModel, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModel, ChatResponseModel, IChatModel, IChatModelInputState, IChatProgressResponseContent, IChatRequestModel, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/contrib/chat/common/model/chatModelStore.js';
 import { ModelSelectionReason } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
@@ -71,7 +72,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
-import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, getInputOnlyProgressMessage, getInputOnlyResponseState, getInputOnlyResponseText, IInputOnlyStatus, needsConversationForInput, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
@@ -582,7 +583,7 @@ suite('Sessions - Chat View', () => {
 		]);
 	});
 
-	test('reads the widget offset only for a visible external banner and follows changes in its height', () => {
+	test('reads the widget offset only for a visible external banner or while showing only the input, and lays out the input with its room to grow', () => {
 		const element = dom.$('.chat-view-chat');
 		const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
 		const progress = dom.append(element, dom.$('.monaco-progress-container'));
@@ -600,7 +601,10 @@ suite('Sessions - Chat View', () => {
 			_widget: { layout: (height: number, width: number) => layouts.push([height, width]) },
 			_comparisonResult: { layout: () => { } },
 			_layoutStickyScrollBackground: () => { },
+			_inputOnly: observableValue('inputOnly', false),
+			_inputOnlyMaxHeight: 300,
 		});
+		const inputOnlyState = view as unknown as { _inputOnly: ISettableObservable<boolean>; _inputOnlyStatusShown: boolean };
 		view._layoutChatWidget();
 		const hiddenReads = offsetReads;
 		progressOffsets.push(progress.style.top);
@@ -613,9 +617,17 @@ suite('Sessions - Chat View', () => {
 		banner.classList.add('hidden');
 		view._layoutChatWidget();
 		progressOffsets.push(progress.style.top);
+		// Showing only the input, the widget gets the room the input may grow into, less the padding above it in an empty
+		// chat, and less the rows above it too once there is a message.
+		bannerHeight = 12;
+		inputOnlyState._inputOnly.set(true, undefined);
+		view._layoutChatWidget();
+		bannerHeight = 72;
+		inputOnlyState._inputOnlyStatusShown = true;
+		view._layoutChatWidget();
 		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets, viewportWidth: widgetContainer.style.width }, {
-			hiddenReads: 0, offsetReads: 2,
-			layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
+			hiddenReads: 0, offsetReads: 4,
+			layouts: [[400, 500], [365, 500], [340, 500], [400, 500], [288, 500], [228, 500]],
 			progressOffsets: ['0px', '35px', '60px', '0px'],
 			viewportWidth: '500px',
 		});
@@ -777,6 +789,209 @@ suite('Sessions - Chat View', () => {
 			// The options row and the input share the centered column.
 			newSession: { activityBar: [[16, 550], [16, 550]], disabled: [[16, 584], [16, 584]], wide: [[300, 1100], [300, 1100]] },
 			nestedSession: { activityBar: [[16, 550], [16, 550]], disabled: [[16, 584], [16, 584]], wide: [[300, 1100], [300, 1100]] },
+		});
+	});
+
+	test('shows only the input, below the latest message and its response once there is one, switches to the conversation and back, and can be disabled', () => {
+		const events: string[] = [];
+		const contextKey = (name: string) => ({ set: (value: boolean) => events.push(`${name}=${value}`) });
+		const status = observableValue<IInputOnlyStatus>('status', {});
+		const statusElement = dom.$('.chat-view-input-only-status.hidden');
+		const requestElement = dom.append(statusElement, dom.$('span'));
+		const requestIconElement = dom.append(requestElement, dom.$('span'));
+		const requestText = dom.append(requestElement, dom.$('span'));
+		const responseElement = dom.append(statusElement, dom.$('span'));
+		const responseIconElement = dom.append(responseElement, dom.$('span'));
+		const responseText = dom.append(responseElement, dom.$('span'));
+		const statuses: string[] = [];
+		const requestIcon = { setStatus: (status: SessionStatus, _isRead: boolean, _isArchived: boolean, completedIcon?: ThemeIcon) => statuses.push(`${status}${completedIcon ? `/${completedIcon.id}` : ''}`) };
+		const enabled = observableValue('enabled', false);
+		const needsConversation = observableValue('needsConversation', false);
+		const pillsElement = dom.$('div');
+		const view: {
+			element: HTMLElement;
+			inputOnly: IObservable<boolean>;
+			enableInputOnly(options: { maxHeight: number; inputOnly?: boolean }): void;
+			disableInputOnly(): void;
+			setInputOnly(inputOnly: boolean): void;
+			_renderInputOnlyStatus(): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			element: dom.$('div'),
+			_inputOnly: observableValue('inputOnly', false),
+			_inputOnlyEnabled: enabled,
+			_inputOnlyStatusShown: false,
+			_inputOnlyEnabledContext: contextKey('enabled'),
+			_inputOnlyContext: contextKey('inputOnly'),
+			_inputOnlyStatus: status,
+			_inputOnlyStatusElement: statusElement,
+			_inputOnlyRequestElement: requestElement,
+			_inputOnlyRequestIconElement: requestIconElement,
+			_inputOnlyRequestIcon: requestIcon,
+			_inputOnlyRequestText: requestText,
+			_inputOnlyResponseElement: responseElement,
+			_inputOnlyResponseIconElement: responseIconElement,
+			_inputOnlyResponseText: responseText,
+			_layoutChatWidget: () => events.push('layout'),
+			_announce: (message: string) => events.push(`announce: ${message}`),
+			_showPills: true,
+			_chatPills: { element: pillsElement, visible: true },
+			_widget: { inputPart: { persistentContentContainerElement: dom.$('div'), setSingleLine: (singleLine: boolean) => events.push(`singleLine=${singleLine}`) } },
+		});
+		Object.defineProperty(view, 'inputOnly', { value: (view as unknown as { _inputOnly: IObservable<boolean> })._inputOnly });
+		Object.defineProperty(view, 'canShowInputOnly', { value: derived(reader => enabled.read(reader) && !needsConversation.read(reader)) });
+		const step = (name: string) => {
+			view._renderInputOnlyStatus();
+			const shown = (element: HTMLElement, text: string) => element.classList.contains('hidden') ? 'hidden' : text;
+			const request = `${requestIconElement.getAttribute('aria-label')} (${requestIconElement.classList.contains('hidden') ? 'no icon' : statuses.at(-1)}): ${requestText.textContent}`;
+			const response = `${responseIconElement.classList.contains('hidden') ? '' : 'spinner '}${responseText.textContent}`;
+			events.push(`${name}: inputOnly=${view.inputOnly.get()} class=${view.element.classList.contains('input-only')} pills=${pillsElement.style.display !== 'none'} status=${shown(statusElement, `[${request}] [${response}]`)}`);
+		};
+
+		view.setInputOnly(true);
+		step('before enabled');
+		view.enableInputOnly({ maxHeight: 400 });
+		step('empty chat');
+		status.set({ requestId: 'r1', request: 'Add a bullet', state: 'working', response: 'Reading chatpad.md' }, undefined);
+		step('working');
+		view.setInputOnly(false);
+		step('show conversation');
+		view.setInputOnly(true);
+		status.set({ requestId: 'r1', request: 'Add a bullet', state: 'waiting', response: 'Adding' }, undefined);
+		step('waiting');
+		step('waiting, rendered again');
+		status.set({ requestId: 'r1', request: 'Add a bullet', state: 'succeeded', response: 'Added the bullet.' }, undefined);
+		step('done');
+		needsConversation.set(true, undefined);
+		view.setInputOnly(false);
+		view.setInputOnly(true);
+		step('needs the conversation');
+		needsConversation.set(false, undefined);
+		view.disableInputOnly();
+		view.setInputOnly(true);
+		step('disabled');
+		view.enableInputOnly({ maxHeight: 400, inputOnly: false });
+		step('enabled with the conversation');
+
+		assert.deepStrictEqual(events, [
+			'before enabled: inputOnly=false class=false pills=true status=hidden',
+			'enabled=true', 'inputOnly=true', 'singleLine=true', 'layout', 'empty chat: inputOnly=true class=true pills=false status=hidden',
+			'layout', `working: inputOnly=true class=true pills=false status=[Working (no icon): Add a bullet] [spinner Reading chatpad.md]`,
+			'inputOnly=false', 'singleLine=false', 'layout', 'layout', 'show conversation: inputOnly=false class=false pills=true status=hidden',
+			'inputOnly=true', 'singleLine=true', 'layout', 'layout', 'announce: Chat is waiting for your input', `waiting: inputOnly=true class=true pills=false status=[Waiting for your input (${SessionStatus.NeedsInput}): Add a bullet] [Adding]`,
+			`waiting, rendered again: inputOnly=true class=true pills=false status=[Waiting for your input (${SessionStatus.NeedsInput}): Add a bullet] [Adding]`,
+			'done: inputOnly=true class=true pills=false status=[Done (no icon): Add a bullet] [Added the bullet.]',
+			'inputOnly=false', 'singleLine=false', 'layout', 'layout', 'needs the conversation: inputOnly=false class=false pills=true status=hidden',
+			'inputOnly=false', 'singleLine=false', 'layout', 'enabled=false', 'disabled: inputOnly=false class=false pills=true status=hidden',
+			'enabled=true', 'inputOnly=false', 'singleLine=false', 'layout', 'enabled with the conversation: inputOnly=false class=false pills=true status=hidden',
+		]);
+	});
+
+	test('reads nothing of a streaming response while input-only is not enabled', () => {
+		const onDidChange = disposables.add(new Emitter<void>());
+		const request = {
+			id: 'r1',
+			isRequestHiddenFromTranscript: false,
+			message: { text: 'Add  a\nbullet' },
+			response: {
+				onDidChange: onDidChange.event,
+				isIncomplete: constObservable(true),
+				isPendingConfirmation: constObservable(undefined),
+				state: ResponseModelState.Pending,
+				response: { value: [] },
+			},
+		};
+		const model = { lastRequestObs: constObservable(request), getRequests: () => [request] } as unknown as IChatModel;
+		const enabled = observableValue('enabled', false);
+		const view = Object.assign(Object.create(ChatView.prototype), { _inputOnlyEnabled: enabled }) as { _createInputOnlyStatus(chatModel: IObservable<IChatModel | undefined>): IObservable<IInputOnlyStatus> };
+		const status = view._createInputOnlyStatus(constObservable(model));
+		const statuses: IInputOnlyStatus[] = [];
+		disposables.add(autorun(reader => { statuses.push(status.read(reader)); }));
+		const chunks = () => { for (let i = 0; i < 3; i++) { onDidChange.fire(); } };
+		chunks();
+		const whileDisabled = statuses.length;
+		enabled.set(true, undefined);
+		chunks();
+		assert.deepStrictEqual({ whileDisabled, empty: statuses[0], enabled: statuses.slice(1) }, {
+			whileDisabled: 1,
+			empty: {},
+			enabled: Array(4).fill({ requestId: 'r1', request: 'Add a bullet', state: 'working', response: 'Working...' }),
+		});
+	});
+
+	test('shows what a working response does: its latest progress message or running tool', () => {
+		const tool = (state: IChatToolInvocation.StateKind) => ({ kind: 'toolInvocation', invocationMessage: new MarkdownString('Running `npm test`'), state: constObservable({ type: state }) }) as unknown as IChatProgressResponseContent;
+		const progressMessage = { kind: 'progressMessage', content: new MarkdownString('Reading **chatpad.md**') } as IChatProgressResponseContent;
+		const markdown = { kind: 'markdownContent', content: new MarkdownString('Done') } as IChatProgressResponseContent;
+
+		assert.deepStrictEqual({
+			noProgressYet: getInputOnlyProgressMessage([markdown], undefined),
+			progressMessage: getInputOnlyProgressMessage([tool(IChatToolInvocation.StateKind.Completed), progressMessage, markdown], undefined),
+			runningTool: getInputOnlyProgressMessage([progressMessage, tool(IChatToolInvocation.StateKind.Executing)], undefined),
+			completedToolAfterProgress: getInputOnlyProgressMessage([progressMessage, tool(IChatToolInvocation.StateKind.Completed)], undefined),
+		}, {
+			noProgressYet: 'Working...',
+			progressMessage: 'Reading chatpad.md',
+			runningTool: 'Running npm test',
+			completedToolAfterProgress: 'Reading chatpad.md',
+		});
+	});
+
+	test('shows whether a response works, waits for the user, or how it ended, and its answer as one line', () => {
+		assert.deepStrictEqual({
+			states: {
+				working: getInputOnlyResponseState(true, false, ResponseModelState.Pending),
+				waitingForUser: getInputOnlyResponseState(true, true, ResponseModelState.NeedsInput),
+				succeeded: getInputOnlyResponseState(false, false, ResponseModelState.Complete),
+				failed: getInputOnlyResponseState(false, false, ResponseModelState.Failed),
+				canceled: getInputOnlyResponseState(false, false, ResponseModelState.Cancelled),
+			},
+			text: {
+				none: getInputOnlyResponseText(''),
+				blank: getInputOnlyResponseText('  \n\n '),
+				markdown: getInputOnlyResponseText('# Added\n\nAdded **Buy milk** to the `chatpad.md` note.\n\n- one\n- two'),
+				long: getInputOnlyResponseText('word '.repeat(400))?.length,
+			},
+		}, {
+			states: { working: 'working', waitingForUser: 'waiting', succeeded: 'succeeded', failed: 'failed', canceled: 'canceled' },
+			text: { none: undefined, blank: undefined, markdown: 'Added Added Buy milk to the chatpad.md note. one two', long: 999 },
+		});
+	});
+
+	test('shows the conversation only for input that is not shown above the input', () => {
+		const waitingTool = (title: string | undefined) => ({ kind: 'toolInvocation', presentation: undefined, toolId: 'editFile', source: { type: 'internal' }, state: constObservable({ type: IChatToolInvocation.StateKind.WaitingForConfirmation, confirmationMessages: title ? { title } : undefined }) }) as unknown as IChatToolInvocation;
+		const model = (pending: boolean, tools: IChatToolInvocation[], parts: object[] = []) => ({
+			lastRequestObs: constObservable({
+				response: {
+					isPendingConfirmation: constObservable(pending ? { startedWaitingAt: 0 } : undefined),
+					pendingToolInvocations: constObservable(tools),
+					response: { value: parts },
+				},
+			}),
+		}) as unknown as IChatModel;
+		const needsConversation = (chatModel: IChatModel | undefined, carousel = true) => needsConversationForInput(chatModel, carousel, undefined);
+
+		assert.deepStrictEqual({
+			noModel: needsConversation(undefined),
+			notWaiting: needsConversation(model(false, [], [{ kind: 'confirmation' }])),
+			approvalInCarousel: needsConversation(model(true, [waitingTool('Allow edit?')])),
+			approvalWithCarouselDisabled: needsConversation(model(true, [waitingTool('Allow edit?')]), false),
+			approvalWithoutTitle: needsConversation(model(true, [waitingTool(undefined)])),
+			question: needsConversation(model(true, [], [{ kind: 'questionCarousel' }])),
+			confirmation: needsConversation(model(true, [], [{ kind: 'confirmation' }])),
+			answeredConfirmation: needsConversation(model(true, [], [{ kind: 'confirmation', isUsed: true }, { kind: 'questionCarousel' }])),
+			planReview: needsConversation(model(true, [], [{ kind: 'planReview' }])),
+			elicitation: needsConversation(model(true, [], [{ kind: 'elicitation2', state: constObservable(ElicitationState.Pending) }])),
+		}, {
+			noModel: false,
+			notWaiting: false,
+			approvalInCarousel: false,
+			approvalWithCarouselDisabled: true,
+			approvalWithoutTitle: true,
+			question: false,
+			confirmation: true,
+			answeredConfirmation: false,
+			planReview: true,
+			elicitation: true,
 		});
 	});
 
@@ -1623,7 +1838,7 @@ suite('Sessions - Chat View', () => {
 			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
 			dispose(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
-			_inputOnly: options.inputOnly === true,
+			_composerOnly: options.inputOnly === true,
 			_store: disposables.add(new DisposableStore()),
 			_transcriptDisposables: disposables.add(new DisposableStore()),
 			chatPillsDebugService: { clear: () => { } },
@@ -1780,7 +1995,7 @@ suite('Sessions - Chat View', () => {
 				override focus(): void { }
 			}());
 			sinon.stub(instantiationService.get(IChatViewFactory), 'createChatView').returns(leaf);
-			const mounted = disposables.add(instantiationService.createInstance(SessionView));
+			const mounted = disposables.add(instantiationService.createInstance(SessionView, undefined));
 			mounted.openSession(createTestActiveSession('failed'), {});
 			await fail(0, new Error('Provider unavailable'));
 			leaf.isInputBlocked.set(true, undefined);

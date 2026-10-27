@@ -172,7 +172,7 @@
 	filter: grayscale(1);
 }
 
-.monaco-workbench.session-comparison-grid-active .part.sessionspart .session-view.is-active::after {
+.monaco-workbench.session-comparison-grid-active :is(.part.sessionspart, .sessions-window-host) .session-view.is-active::after {
 	content: '';
 	position: absolute;
 	inset: 0;
@@ -183,7 +183,7 @@
 	z-index: 101;
 }
 
-:is(.hc-black, .hc-light).monaco-workbench.session-comparison-grid-active .part.sessionspart .session-view.is-active::after {
+:is(.hc-black, .hc-light).monaco-workbench.session-comparison-grid-active :is(.part.sessionspart, .sessions-window-host) .session-view.is-active::after {
 	border-color: var(--vscode-contrastActiveBorder);
 }
 
