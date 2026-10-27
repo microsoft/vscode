@@ -1597,21 +1597,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private bindAgentPickerPlacement(): IDisposable {
-		const store = new DisposableStore();
-		const focusRestoration = store.add(new MutableDisposable());
-		store.add(bindContextKey(ChatContextKeys.agentPickerInAttachContext, this.contextKeyService, reader => {
-			focusRestoration.clear();
+		return bindContextKey(ChatContextKeys.agentPickerInAttachContext, this.contextKeyService, reader => {
 			const inAttachContext = this._agentPickerInAttachContext.read(reader);
 			if (inAttachContext && this.modeWidget?.isFocused()) {
-				// The menu rebuild can restore the toolbar's old focus index.
-				focusRestoration.value = Event.once(this.inputActionsToolbar.onDidChangeMenuItems)(() => {
-					focusRestoration.clear();
-					this.focus();
-				});
+				this.focus();
 			}
 			return inAttachContext;
-		}));
-		return store;
+		});
 	}
 
 	public openModePicker(anchor?: HTMLElement): void {

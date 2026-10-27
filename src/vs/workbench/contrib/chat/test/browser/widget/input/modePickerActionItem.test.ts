@@ -227,6 +227,21 @@ suite('ModePickerActionItem Add Context', () => {
 		assert.strictEqual(document.activeElement, anchor);
 	});
 
+	test('preserves focus moved elsewhere before the relocation menu rebuild', async () => {
+		const { anchor, mode, toolbar, settle } = createPicker(true);
+		mode.set(custom, undefined);
+		await settle();
+		toolbar.focus(1);
+		assert.deepStrictEqual({
+			action: toolbar.getItemAction(1)?.id,
+			focused: toolbar.getItemElement(1)?.contains(document.activeElement),
+		}, { action: OpenModePickerAction.ID, focused: true });
+		mode.set(ChatMode.Agent, undefined);
+		anchor.focus();
+		await settle();
+		assert.strictEqual(document.activeElement, anchor);
+	});
+
 	test('reacts to setting changes without recreating the input', async () => {
 		const { placement, configuration, settle } = createPicker(false);
 		const visibility = [placement.get()];
