@@ -2499,16 +2499,27 @@ suite('EditorGroupsService', () => {
 		const group3 = part.addGroup(group2, GroupDirection.RIGHT);
 		part.maximizeGroup(group1, [group2.id]);
 		const isVisible = (group: typeof group1) => !!group.element.parentElement?.classList.contains('visible');
+		const visible = [group1, group2, group3].map(isVisible);
+
+		// Maximizing the maximized group again applies the new groups to keep visible
+		part.maximizeGroup(group1, []);
+		const visibleNone = [group1, group2, group3].map(isVisible);
+		part.maximizeGroup(group1, [group3.id]);
+		const visibleOther = [group1, group2, group3].map(isVisible);
 
 		assert.deepStrictEqual({
 			singleGroup,
 			maximized: part.hasMaximizedGroup(),
-			visible: [group1, group2, group3].map(isVisible),
+			visible,
+			visibleNone,
+			visibleOther,
 			activeGroup: part.activeGroup === group1,
 		}, {
 			singleGroup: false,
 			maximized: true,
 			visible: [true, true, false],
+			visibleNone: [true, false, false],
+			visibleOther: [true, false, true],
 			activeGroup: true,
 		});
 	});
@@ -2573,7 +2584,15 @@ suite('EditorGroupsService', () => {
 		part.setViewColumnGroup(group1).dispose();
 		states.push(part.viewColumnGroup?.id);
 
-		assert.deepStrictEqual(states, [undefined, group1.id, group2.id, group2.id, undefined, undefined]);
+		// A handle replaced by one for the same group leaves the newer one
+		const sameFirst = part.setViewColumnGroup(group1);
+		const sameSecond = part.setViewColumnGroup(group1);
+		sameFirst.dispose();
+		states.push(part.viewColumnGroup?.id);
+		sameSecond.dispose();
+		states.push(part.viewColumnGroup?.id);
+
+		assert.deepStrictEqual(states, [undefined, group1.id, group2.id, group2.id, undefined, undefined, group1.id, undefined]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
