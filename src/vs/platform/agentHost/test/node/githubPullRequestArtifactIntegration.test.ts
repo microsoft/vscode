@@ -75,14 +75,20 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 	let mutationHook: (() => void | Promise<void>) | undefined;
 	let prepareMergeHook: (() => Promise<void>) | undefined;
 	let mergeHook: (() => Promise<void>) | undefined;
+	let checkoutHook: (() => Promise<void>) | undefined;
 	let workflowStatus = 'completed';
 	const jobs = new Map<number, Partial<WorkflowJob>>();
 	let completePrompt: ((kind: 'completed' | 'failed') => Promise<void>) | undefined;
 	const branches = new Map<string, string>();
 	const mutations: string[] = [];
 	const prompts: ArtifactPromptRequest[] = [];
+	const checkoutRequests: string[] = [];
 	const git = new class extends mock<IAgentHostGitService>() {
-		override async getRepositoryRoot(root: URI): Promise<URI> { return root; }
+		override async getRepositoryRoot(root: URI): Promise<URI> {
+			checkoutRequests.push(root.toString());
+			await checkoutHook?.();
+			return root;
+		}
 		override async getCurrentBranchName(root: URI): Promise<string> { return branches.get(root.toString()) ?? branch; }
 		override async getFetchRemoteUrls(): Promise<readonly string[]> { return [remote]; }
 		override async revParse(): Promise<string> { return commit; }
@@ -207,7 +213,7 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 	await timeout(100);
 	let request = 0;
 	return {
-		model, service, runtime, integration, snapshot, artifact, session, chat, directory, configuration, mutations, prompts, stateManager, authenticationRequests, endpoint,
+		model, service, runtime, integration, snapshot, artifact, session, chat, directory, configuration, mutations, prompts, stateManager, authenticationRequests, endpoint, checkoutRequests,
 		setCheckout: (value: { branch?: string; commit?: string; dirty?: boolean; remote?: string; directory?: string }) => {
 			if (value.directory) {
 				branches.set(value.directory, value.branch ?? branch);
@@ -225,6 +231,7 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 		onMutation: (hook: () => void | Promise<void>) => { mutationHook = hook; },
 		onPrepareMerge: (hook: () => Promise<void>) => { prepareMergeHook = hook; },
 		onMerge: (hook: () => Promise<void>) => { mergeHook = hook; },
+		onCheckout: (hook: (() => Promise<void>) | undefined) => { checkoutHook = hook; },
 		setWorkflowStatus: (status: string) => { workflowStatus = status; },
 		setJob: (job: Partial<WorkflowJob> & { readonly id: number }) => { jobs.set(job.id, job); },
 		invoke: async (action: string, invokingChat = chat) => {
@@ -645,6 +652,69 @@ suite('GitHub pull request artifact integration', () => {
 			{ actions: [], details: [[], [], []], registered },
 			{ actions: [['markReady', true]], details: [['markReady'], [], []], registered },
 		]);
+	}));
+
+	for (const state of ['closed', 'merged'] as const) {
+		test(`skips checkout verification for ${state} pull requests and rechecks reopened pull requests`, () => run(async store => {
+			const open = createPullRequestArtifactSnapshot();
+			const terminal = { ...open, core: { ...open.core, value: { ...open.core.value!, state } } };
+			const f = await fixture(store, terminal);
+			const availability = () => f.model.snapshot.get().contributions[0].view.automationAvailability.find(option => option.id === 'fixCI')?.available;
+			const result = () => ({ checkouts: f.checkoutRequests.length, available: availability() });
+			const states = [result()];
+			f.setCheckout({ branch: 'feature' });
+			f.snapshot.set({ ...terminal }, undefined);
+			await timeout(100);
+			states.push(result());
+			f.snapshot.set(open, undefined);
+			await timeout(100);
+			states.push(result());
+			f.snapshot.set(terminal, undefined);
+			f.setCheckout({ branch: 'main' });
+			await timeout(100);
+			states.push(result());
+			f.snapshot.set(open, undefined);
+			states.push(result());
+			await timeout(100);
+			states.push(result());
+			f.setCheckout({ branch: 'feature' });
+			await timeout(100);
+			states.push(result());
+			assert.deepStrictEqual(states, [
+				{ checkouts: 0, available: false },
+				{ checkouts: 0, available: false },
+				{ checkouts: 1, available: true },
+				{ checkouts: 1, available: false },
+				{ checkouts: 1, available: false },
+				{ checkouts: 2, available: false },
+				{ checkouts: 3, available: true },
+			]);
+		}));
+	}
+
+	test('does not publish an in-flight checkout after the pull request closes', () => run(async store => {
+		const open = createPullRequestArtifactSnapshot();
+		const closed = { ...open, core: { ...open.core, value: { ...open.core.value!, state: 'closed' as const } } };
+		const f = await fixture(store, closed);
+		const entered = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		f.onCheckout(async () => {
+			await entered.complete();
+			await resume.p;
+		});
+		f.snapshot.set(open, undefined);
+		await entered.p;
+		f.snapshot.set(closed, undefined);
+		await resume.complete();
+		await timeout(0);
+		f.onCheckout(undefined);
+		f.snapshot.set(open, undefined);
+		const availability = () => f.model.snapshot.get().contributions[0].view.automationAvailability.find(option => option.id === 'fixCI')?.available;
+		const beforeRefresh = availability();
+		await timeout(100);
+		assert.deepStrictEqual({ beforeRefresh, afterRefresh: availability(), checkouts: f.checkoutRequests.length }, {
+			beforeRefresh: false, afterRefresh: true, checkouts: 2,
+		});
 	}));
 
 	test('keeps an applicable merge action visible when permissions prevent execution', () => run(async store => {
