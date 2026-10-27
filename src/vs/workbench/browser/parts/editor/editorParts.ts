@@ -123,6 +123,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private readonly mapPartToInstantiationService = new Map<number /* window ID */, IInstantiationService>();
 	private modalPartInstantiationService: IInstantiationService | undefined;
 
+	/** Parts that working sets leave alone, and that window restore does not capture. */
+	private readonly partsExcludedFromWorkingSets = new Set<IEditorPart>();
+
 	getScopedInstantiationService(part: IEditorPart): IInstantiationService {
 
 		// Main Part
@@ -167,6 +170,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// Keep instantiation service
 		this.mapPartToInstantiationService.set(part.windowId, instantiationService);
 		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part.windowId)));
+		if (options?.excludeFromWorkingSets) {
+			this.excludeFromWorkingSets(part, disposables);
+		}
 
 		// Events
 		this._onDidAddGroup.fire(part.activeGroup);
@@ -177,6 +183,11 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	}
 
 	//#endregion
+
+	private excludeFromWorkingSets(part: IEditorPart, disposables: DisposableStore): void {
+		this.partsExcludedFromWorkingSets.add(part);
+		disposables.add(toDisposable(() => this.partsExcludedFromWorkingSets.delete(part)));
+	}
 
 	//#region Modal Editor Part
 
@@ -509,6 +520,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private createState(): IEditorPartsUIState {
 		return {
 			auxiliary: this.parts
+				.filter(part => !this.partsExcludedFromWorkingSets.has(part))
 				.map(part => ({ part, auxiliaryWindow: this.auxiliaryWindowService.getWindow(part.windowId) }))
 				.filter(({ auxiliaryWindow }) => auxiliaryWindow !== undefined)
 				.map(({ part, auxiliaryWindow }) => ({
@@ -568,6 +580,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		for (const part of this.parts) {
 			if (part === this.mainPart) {
 				continue; // main part takes care on its own
+			}
+
+			if (this.partsExcludedFromWorkingSets.has(part)) {
+				continue; // managed by its owner, outside of working sets
 			}
 
 			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {

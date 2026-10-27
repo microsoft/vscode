@@ -947,6 +947,10 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	copyGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
 	centerLayout(active: boolean): void { }
 	isLayoutCentered(): boolean { return false; }
+	hideGroupTitle(_group: IEditorGroup | GroupIdentifier): IDisposable { return Disposable.None; }
+	maximizeGroup(_group: IEditorGroup | GroupIdentifier, _visibleGroups: readonly (IEditorGroup | GroupIdentifier)[]): void { }
+	readonly viewColumnGroup: IEditorGroup | undefined = undefined;
+	setViewColumnGroup(_group: IEditorGroup): IDisposable { return Disposable.None; }
 	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable { return Disposable.None; }
 	registerContextKeyProvider<T extends ContextKeyValue>(_provider: IEditorGroupContextKeyProvider<T>): IDisposable { throw new Error('not implemented'); }
 	getScopedInstantiationService(part: IEditorPart): IInstantiationService { throw new Error('Method not implemented.'); }
@@ -1037,6 +1041,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	toJSON(): object { return Object.create(null); }
 	layout(_width: number, _height: number): void { }
 	relayout() { }
+	setTitleHidden(_hidden: boolean): void { }
 	createEditorActions(_menuDisposable: IDisposable): { actions: IToolbarActions; onDidChange: Event<IMenuChangeEvent> } { throw new Error('not implemented'); }
 }
 
