@@ -776,7 +776,7 @@ Fork remains a provider operation because only the provider can clone its opaque
 
 ### 8b. Session customizations at the update boundary
 
-Copilot `/mcp show <server>` is a host-rendered, read-only detail response because the runtime treats `show` as a list alias. It reads `rpc.mcp.listConfigured`, adds launch configuration and source files only when the host knows the matching declaration, and lists tools only for an enabled, connected server whose tools have loaded. Environment and header values are omitted. Bare `/mcp show`, listing, and mutations continue through the runtime.
+Copilot `/mcp show <server>` is a host-rendered, read-only detail response because the runtime treats `show` as a list alias. It reads `rpc.mcp.listConfigured`, adds launch configuration and source files only when the host knows the matching declaration, and lists tools only for an enabled, connected server whose tools have loaded. Missing sources use the shared provenance fallback, and runtime enablement takes precedence over unchanged configuration. Optional configuration lookup failures are logged and shown without discarding the inventory details. Environment and header values are omitted. Bare `/mcp show`, listing, and mutations continue through the runtime.
 
 `getChatCustomizations(chat, context, hostCustomizations)` receives the host's **last published snapshot** explicitly, from `AgentService` (create/restore), `AgentSideEffects._publishSessionCustomizations` (republish), and `AgentHostSkillCompletionProvider` (slash completions). It is a snapshot to reconcile against, not a replacement: the provider keeps its own authoritative view and reapplies the host's enablement decisions on top of it.
 

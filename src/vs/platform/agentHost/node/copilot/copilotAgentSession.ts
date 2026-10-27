@@ -10662,34 +10662,43 @@ export class CopilotAgentSession extends Disposable {
 		if (!server) {
 			return undefined;
 		}
+		const provenance = this._resolveMcpServerProvenance(name, this._mcpCustomizations.pluginMcpServerSources ?? new Map(), server);
+		const source = provenance.source;
+		const enabled = getEffectiveMcpServerEnablement(server.enabled, server.live.status);
 		let configuration: ICopilotMcpCommandServer['configuration'];
+		let configurationError: string | undefined;
 		let sourceUri: string | undefined;
-		if (server.source === 'user') {
-			configuration = (await this._getUserMcpServers?.())?.[name];
+		if (source === 'user') {
+			try {
+				configuration = (await this._getUserMcpServers?.())?.[name];
+			} catch (error) {
+				configurationError = getErrorMessage(error);
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to read launch configuration for MCP server '${name}'`, error);
+			}
 			sourceUri = configuration?.sourcePath
 				? URI.file(configuration.sourcePath).toString()
-				: URI.joinPath(this._copilotHomeService.home, 'mcp-config.json').toString();
-		} else if (server.source !== 'builtin' && server.source !== 'managed') {
+				: provenance.sourceUri;
+		} else if (source !== 'builtin' && source !== 'managed') {
 			const pluginSource = this._mcpCustomizations.pluginMcpServerSources?.get(name);
 			const definition = this._appliedSnapshot.plugins
-				.filter(plugin => server.source !== 'plugin' || (pluginSource !== undefined && plugin.sourceUri?.toString() === pluginSource))
-				.flatMap(plugin => plugin.mcpServers.filter(candidate => server.source === 'plugin' || !plugin.disabledMcpServers?.includes(candidate.name)))
-				.findLast(candidate => candidate.name === name && (server.source === 'plugin' || isMcpServerExplicitlyProjected(candidate)));
+				.filter(plugin => source !== 'plugin' || (pluginSource !== undefined && plugin.sourceUri?.toString() === pluginSource))
+				.flatMap(plugin => plugin.mcpServers.filter(candidate => source === 'plugin' || !plugin.disabledMcpServers?.includes(candidate.name)))
+				.findLast(candidate => candidate.name === name && (source === 'plugin' || isMcpServerExplicitlyProjected(candidate)));
 			if (definition) {
 				configuration = toCopilotMcpServerConfiguration(definition.configuration, definition.configuration.type === 'stdio'
 					? resolveMcpServerWorkingDirectory(definition.configuration.cwd, definition.defaultCwd) : undefined);
 				sourceUri = definition.uri.toString();
-			} else if (server.source !== 'plugin' && !this._launchPlan.isEphemeral) {
+			} else if (source !== 'plugin' && !this._launchPlan.isEphemeral) {
 				const rootConfiguration = this._appliedSnapshot.mcpServers[name];
 				if (rootConfiguration) {
 					configuration = toCopilotMcpServerConfiguration(rootConfiguration);
 				}
 			}
 		}
-		const tools = server.enabled && server.live.status === 'connected' && server.live.toolsLoaded !== false
+		const tools = enabled && server.live.status === 'connected' && server.live.toolsLoaded !== false
 			? (await this._wrapper.session.rpc.mcp.listTools({ serverName: name })).tools
 			: undefined;
-		return { ...server, configuration, sourceUri, tools };
+		return { ...server, source, enabled, configuration, configurationError, sourceUri, tools };
 	}
 
 	private _noteMcpSdkStatus(serverName: string, status: SdkMcpServerStatus): void {
@@ -10895,8 +10904,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Derives where a server is configured from the latest inventory, the user configuration file and the
 	 * plugins in this session's client snapshot. Pure with respect to that state; never reads published output.
 	 */
-	private _resolveMcpServerProvenance(serverName: string, pluginMcpServerSources: ReadonlyMap<string, string>): IMcpServerProvenance {
-		const reported = this._mcpInventoryProvenance.get(serverName);
+	private _resolveMcpServerProvenance(serverName: string, pluginMcpServerSources: ReadonlyMap<string, string>, reported = this._mcpInventoryProvenance.get(serverName)): IMcpServerProvenance {
 		const source = reported?.source
 			?? (reported?.sourcePlugin || pluginMcpServerSources.has(serverName) ? 'plugin'
 				: Object.hasOwn(this._userMcpServers, serverName) ? 'user'

@@ -24,6 +24,7 @@ export type ReloadCopilotPlugins = (reason: CopilotPluginReloadReason) => Promis
 
 export type ICopilotMcpCommandServer = Awaited<ReturnType<CopilotSession['rpc']['mcp']['listConfigured']>>['servers'][number] & {
 	readonly configuration?: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>['servers'][string];
+	readonly configurationError?: string;
 	readonly sourceUri?: string;
 	readonly tools?: readonly { readonly name: string; readonly description?: string }[];
 };
@@ -124,6 +125,8 @@ async function invokeCopilotMcpCommand(input: string, getServer: (name: string) 
 		};
 		lines.push(appendEscapedMarkdownCodeBlockFence(JSON.stringify(configuration, null, 2), 'json'),
 			'', localize('copilotMcp.configurationNote', "Configuration known to the agent host. Environment variable and header names are shown without their values."));
+	} else if (server.configurationError !== undefined) {
+		lines.push(localize('copilotMcp.configurationFailed', "Could not read the launch configuration."), '', appendEscapedMarkdownCodeBlockFence(server.configurationError, 'text'));
 	} else {
 		lines.push(localize('copilotMcp.configurationUnavailable', "The runtime does not expose this server's launch configuration to the agent host."));
 	}
