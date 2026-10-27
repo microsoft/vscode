@@ -3710,6 +3710,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (method === ImportSessionExtensionMethod) {
 			return this._handleImportSessionRequest(params);
 		}
+		if ((method === DeleteAutomationExtensionMethod || method === AcknowledgeAutomationDeletionExtensionMethod) && this._config.scopedRelayCredentials) {
+			return Promise.reject(new ProtocolError(AhpErrorCodes.PermissionDenied, 'Automations do not support client-owned credentials'));
+		}
 		if (method === DeleteAutomationExtensionMethod) {
 			return this._handleDeleteAutomationRequest(params);
 		}

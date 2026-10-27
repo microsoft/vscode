@@ -1978,6 +1978,36 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('rejects Automation history deletion methods with scoped relay credentials', async () => {
+		const relay = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ scopedRelayCredentials: true, relayRootMeta: {}, defaultDirectory: URI.file('/home/testuser').toString() },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'scoped-relay', false));
+		transport.relayAuthenticated = true;
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'scoped-relay', protocolVersions: [PROTOCOL_VERSION] }));
+
+		for (const [id, method, params] of [
+			[20, 'vscode/deleteAutomation', { automation: 'ahp-automation:/a', deleteHistory: true }],
+			[21, 'vscode/acknowledgeAutomationDeletion', { requestId: 'delete-request' }],
+		] as const) {
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, method, params));
+			const message = await response;
+			assert.ok(isJsonRpcResponse(message) && hasKey(message, { error: true }));
+			assert.strictEqual(message.error.code, AhpErrorCodes.PermissionDenied);
+		}
+		assert.deepStrictEqual({
+			deletions: agentService.deletedAutomations,
+			acknowledgements: agentService.acknowledgedAutomationDeletions,
+		}, { deletions: [], acknowledgements: [] });
+	});
+
 	test('rejects invalid deleteAutomation params before routing', async () => {
 		const transport = connectClient('client-delete-automation-invalid');
 		for (const [index, params] of [
