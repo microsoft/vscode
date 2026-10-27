@@ -5322,15 +5322,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 					workspaceSection = grouping === SessionsGrouping.Date
 						? { id: sectionId, label: sectionId === 'recent' ? localize('recent', "Recent") : localize('older', "Older"), sessions: [] }
 						: environment
-						? { id: sectionId, label: environment.label, environment, sessions: [] }
-						: repository
-							? { id: sectionId, label: repository.name, repository, sessions: [] }
-							: {
-								id: sectionId,
-								collapseStateId: comparison.workspace ? `workspace:${comparison.workspace.toString()}` : QUICK_CHATS_SECTION_ID,
-								label: workspaceLabel,
-								sessions: [],
-							};
+							? { id: sectionId, label: environment.label, environment, sessions: [] }
+							: repository
+								? { id: sectionId, label: repository.name, repository, sessions: [] }
+								: {
+									id: sectionId,
+									collapseStateId: comparison.workspace ? `workspace:${comparison.workspace.toString()}` : QUICK_CHATS_SECTION_ID,
+									label: workspaceLabel,
+									sessions: [],
+								};
 					sections.push(workspaceSection);
 					addedRepositorySection ||= !!repository;
 				}
