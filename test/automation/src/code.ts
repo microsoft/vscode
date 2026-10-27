@@ -250,11 +250,24 @@ export class Code {
 			return;
 		}
 
-		// Kill the whole tree, not just the launched process: on Windows the application can keep
-		// running in a descendant after the launched process is terminated, and the next launch then
-		// hands off to that instance through the single-instance lock and exits.
-		this.logger.log(`Smoke test kill(): Trying to kill process tree: ${pid}`);
-		await teardown(this.mainProcess, this.logger);
+		// On Windows, Playwright launches Electron through a shell, so the launched process is
+		// `cmd.exe`. Killing only that leaves the application running, and the next launch then
+		// hands off to it through the single-instance lock and exits, so kill the whole tree
+		// (https://github.com/microsoft/vscode/issues/344456). Elsewhere, only SIGTERM the main
+		// process: Electron quits gracefully on it, while killing the tree would also kill the
+		// windows before they can save their state.
+		if (process.platform === 'win32') {
+			this.logger.log(`Smoke test kill(): Trying to kill process tree: ${pid}`);
+			await teardown(this.mainProcess, this.logger);
+			return;
+		}
+
+		try {
+			this.logger.log(`Smoke test kill(): Trying to SIGTERM process: ${pid}`);
+			process.kill(pid);
+		} catch (e) {
+			this.logger.log('Smoke test kill(): SIGTERM failed', e);
+		}
 	}
 
 	async getElement(selector: string): Promise<IElement | undefined> {

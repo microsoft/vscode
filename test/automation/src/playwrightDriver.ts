@@ -688,6 +688,20 @@ export class PlaywrightDriver {
 
 	async close() {
 
+		// Electron: ask the application to quit right away. Playwright's `close()`
+		// below only quits the application after all pending trace writes have been
+		// flushed to disk, which can take tens of seconds on slow disks. By then
+		// `Code#exit()` has already force killed the application, skipping its
+		// graceful shutdown (https://github.com/microsoft/vscode/issues/344456).
+		if ('browserWindow' in this.application) {
+			const application = this.application;
+			try {
+				await measureAndLog(() => application.evaluate(({ app }) => app.quit()), 'app.quit()', this.options.logger);
+			} catch (error) {
+				this.options.logger.log(`Error quitting application (${error})`);
+			}
+		}
+
 		// Stop tracing
 		try {
 			if (this.options.tracing) {
