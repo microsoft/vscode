@@ -149,7 +149,7 @@ suite('ModePickerActionItem Add Context', () => {
 		const actionIds = () => Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id);
 		const settle = () => retry(async () => assert.strictEqual(actionIds().includes(OpenModePickerAction.ID), !placement.get()), 1, 100);
 		return {
-			inputPart, input, mode, configuration, telemetry, placement, toolbar, layout, actionIds, settle,
+			inputPart, input, anchor, mode, configuration, telemetry, placement, toolbar, layout, actionIds, settle,
 			get picker() { return picker; },
 			open: () => { inputPart.openModePicker(); return openedAtAnchor; },
 			select: (label: string) => { assert.ok(select); select(label); },
@@ -188,10 +188,43 @@ suite('ModePickerActionItem Add Context', () => {
 		const anchored = open();
 		mode.set(custom, undefined);
 		await settle();
-		toolbar.getItemElement(1)!.querySelector<HTMLElement>('.action-label')!.focus();
+		toolbar.focus(1);
+		assert.deepStrictEqual({
+			action: toolbar.getItemAction(1)?.id,
+			focused: toolbar.getItemElement(1)?.contains(document.activeElement),
+		}, { action: OpenModePickerAction.ID, focused: true });
 		mode.set(ChatMode.Agent, undefined);
 		await settle();
 		assert.deepStrictEqual({ anchored, inAttachContext: inputPart.isAgentPickerInAttachContextMenu, focused: document.activeElement === input }, { anchored: true, inAttachContext: true, focused: true });
+	});
+
+	test('returns focus to the input when enabling relocation for the focused picker', async () => {
+		const { inputPart, input, configuration, toolbar, settle } = createPicker(false);
+		toolbar.focus(1);
+		assert.deepStrictEqual({
+			action: toolbar.getItemAction(1)?.id,
+			focused: toolbar.getItemElement(1)?.contains(document.activeElement),
+		}, { action: OpenModePickerAction.ID, focused: true });
+		await configuration.setUserConfiguration(ChatConfiguration.AgentsPickerInAttachContextMenu, true);
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectedKeys: new Set([ChatConfiguration.AgentsPickerInAttachContextMenu]),
+			affectsConfiguration: key => key === ChatConfiguration.AgentsPickerInAttachContextMenu,
+		}));
+		await settle();
+		assert.deepStrictEqual({
+			inAttachContext: inputPart.isAgentPickerInAttachContextMenu,
+			focused: document.activeElement === input,
+		}, { inAttachContext: true, focused: true });
+	});
+
+	test('does not steal focus when relocating an unfocused picker', async () => {
+		const { anchor, mode, settle } = createPicker(true);
+		mode.set(custom, undefined);
+		await settle();
+		anchor.focus();
+		mode.set(ChatMode.Agent, undefined);
+		await settle();
+		assert.strictEqual(document.activeElement, anchor);
 	});
 
 	test('reacts to setting changes without recreating the input', async () => {
