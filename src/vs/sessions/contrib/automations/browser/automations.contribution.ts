@@ -7,7 +7,7 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { observableFromPromise } from '../../../../base/common/observable.js';
+import { autorun, observableFromPromise, observableValue } from '../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
@@ -77,33 +77,66 @@ registerAction2(class RunAutomationAction extends Action2 {
 			return;
 		}
 
-		const loadPicks = async (): Promise<IQuickPickItem[]> => {
-			if (automationService.catalogueState.get() !== 'ready' && automationService.automations.get().length === 0) {
-				try {
-					await automationService.refresh?.();
-				} catch (error) {
-					logService.warn('[RunAutomationAction] Failed to refresh automations', error);
-				}
-			}
-			const picks = automationService.automations.get()
-				.filter(automation => automationService.canRunAutomation(automation.id))
-				.map(automation => ({
-					id: automation.id,
-					label: automation.name,
-					description: [
-						automation.target.providerId ? providersService.getProvider(automation.target.providerId)?.label : undefined,
-						automation.target.kind === 'workspace' ? labelService.getUriLabel(automation.target.folderUri, { relative: true }) : undefined,
-					].filter(Boolean).join(' · '),
-					detail: automation.prompt,
+		const shouldRefresh = automationService.catalogueState.get() !== 'ready' && automationService.automations.get().length === 0;
+		const refreshing = observableValue(this, shouldRefresh);
+		const pickerDisposables = new DisposableStore();
+		let pick: IQuickPickItem | undefined;
+		try {
+			const picker = pickerDisposables.add(quickInputService.createQuickPick<IQuickPickItem>());
+			picker.title = localize('runAutomationTitle', "Run Automation");
+			picker.placeholder = localize('selectAutomationToRun', "Select an automation to run");
+			picker.matchOnDescription = true;
+			picker.matchOnDetail = true;
+			picker.keepScrollPosition = true;
+			pick = await new Promise<IQuickPickItem | undefined>(resolve => {
+				pickerDisposables.add(picker.onDidAccept(() => {
+					const selected = picker.selectedItems[0];
+					if (selected?.id && selected.pickable !== false) {
+						resolve(selected);
+						picker.hide();
+					}
 				}));
-			return picks.length ? picks : [{ label: localize('noRunnableAutomations', "No automations are currently available to run."), pickable: false }];
-		};
-		const pick = await quickInputService.pick(loadPicks(), {
-			title: localize('runAutomationTitle', "Run Automation"),
-			placeHolder: localize('selectAutomationToRun', "Select an automation to run"),
-			matchOnDescription: true,
-			matchOnDetail: true,
-		});
+				pickerDisposables.add(picker.onDidHide(() => resolve(undefined)));
+				pickerDisposables.add(autorun(reader => {
+					const loading = automationService.catalogueState.read(reader) === 'loading';
+					picker.busy = refreshing.read(reader) || automationService.isRefreshing?.read(reader) === true || loading;
+					const picks = automationService.automations.read(reader)
+						.filter(automation => automationService.canRunAutomation(automation.id))
+						.map(automation => ({
+							id: automation.id,
+							label: automation.name,
+							description: [
+								automation.target.providerId ? providersService.getProvider(automation.target.providerId)?.label : undefined,
+								automation.target.kind === 'workspace' ? labelService.getUriLabel(automation.target.folderUri, { relative: true }) : undefined,
+							].filter(Boolean).join(' · '),
+							detail: automation.prompt,
+						}));
+					const activeId = picker.activeItems[0]?.id;
+					picker.items = picks.length ? picks : [{
+						label: loading ? localize('loadingAutomations', "Loading automations...") : localize('noRunnableAutomations', "No automations are currently available to run."),
+						pickable: false,
+					}];
+					const activeItem = activeId ? picks.find(item => item.id === activeId) : undefined;
+					if (activeItem) {
+						picker.activeItems = [activeItem];
+					}
+				}));
+				picker.show();
+				if (shouldRefresh) {
+					void (async () => {
+						try {
+							await automationService.refresh?.();
+						} catch (error) {
+							logService.warn('[RunAutomationAction] Failed to refresh automations', error);
+						} finally {
+							refreshing.set(false, undefined);
+						}
+					})();
+				}
+			});
+		} finally {
+			pickerDisposables.dispose();
+		}
 		const automation = pick?.id ? automationService.getAutomation(pick.id) : undefined;
 		if (!automation || !isEnabled() || !automationService.canRunAutomation(automation.id)) {
 			return;

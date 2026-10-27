@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { useFakeTimers } from 'sinon';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -22,7 +23,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -99,6 +100,9 @@ suite('Automations Contribution', () => {
 				choices: [] as IPromptChoice[],
 				severity: undefined as Severity | undefined,
 				closed: 0,
+				autoAccept: true,
+				pickerShown: false,
+				pickerDisposed: false,
 				openedSessions: [] as { resource: URI; options: IOpenSessionOptions | undefined }[],
 				openedViews: [] as string[],
 				openSession: async () => { },
@@ -124,11 +128,43 @@ suite('Automations Contribution', () => {
 					return { whenDispatched: Promise.resolve(state.dispatch), whenCompleted: new Promise<void>(() => { }) };
 				},
 			}));
+			const onDidAccept = store.add(new Emitter<IQuickPickDidAcceptEvent>());
+			const onDidHide = store.add(new Emitter<IQuickInputHideEvent>());
+			const picker = upcastPartial<IQuickPick<IQuickPickItem>>({
+				get items() { return state.picks; },
+				set items(items) {
+					state.picks = [...items];
+					picker.activeItems = [];
+				},
+				activeItems: [],
+				selectedItems: [],
+				value: '',
+				busy: false,
+				onDidAccept: onDidAccept.event,
+				onDidHide: onDidHide.event,
+				show: () => {
+					state.pickerShown = true;
+					if (state.autoAccept) {
+						void (async () => {
+							await Promise.resolve();
+							const selected = state.select(state.picks);
+							if (selected?.id && selected.pickable !== false) {
+								picker.selectedItems = [selected];
+								onDidAccept.fire({ inBackground: false });
+							} else {
+								picker.hide();
+							}
+						})();
+					}
+				},
+				hide: () => {
+					state.pickerShown = false;
+					onDidHide.fire({ reason: QuickInputHideReason.Gesture });
+				},
+				dispose: () => { state.pickerDisposed = true; },
+			});
 			instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
-				pick: (async (items: QuickPickInput<IQuickPickItem>[] | Promise<QuickPickInput<IQuickPickItem>[]>) => {
-					state.picks = (await items).filter((item): item is IQuickPickItem => item.type !== 'separator');
-					return state.select(state.picks);
-				}) as IQuickInputService['pick'],
+				createQuickPick: (() => picker) as IQuickInputService['createQuickPick'],
 			}));
 			instantiationService.stub(ILabelService, upcastPartial<ILabelService>({ getUriLabel: uri => uri.path }));
 			instantiationService.stub(ILogService, new NullLogService());
@@ -170,7 +206,11 @@ suite('Automations Contribution', () => {
 				showCustomView: id => { state.openedViews.push(id); },
 			}));
 			const run = () => instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler);
-			return { state, catalogue, catalogueState, runnable, configurationService, notification, run };
+			const accept = (item: IQuickPickItem) => {
+				picker.selectedItems = [item];
+				onDidAccept.fire({ inBackground: false });
+			};
+			return { state, catalogue, catalogueState, runnable, configurationService, notification, picker, accept, run };
 		}
 
 		test('is listed as Chat: Run Automation... only when chat and automations are enabled', () => {
@@ -227,6 +267,85 @@ suite('Automations Contribution', () => {
 				}, { refreshCalls: 0, picks: [automation.id], calls: [automation] });
 			});
 		}
+
+		test('shows automations that arrive after refresh resolves while the picker remains open', async () => {
+			const { state, catalogue, catalogueState, runnable, picker, accept, run } = setup([]);
+			state.autoAccept = false;
+			catalogueState.set('loading', undefined);
+			const refreshed = Promise.resolve();
+			state.refresh = () => refreshed;
+			const operation = run();
+			await refreshed;
+			const beforeArrival = { shown: state.pickerShown, busy: picker.busy, labels: state.picks.map(item => item.label) };
+			runnable.add(automation.id);
+			transaction(tx => {
+				catalogue.set([automation], tx);
+				catalogueState.set('ready', tx);
+			});
+			accept(state.picks[0]);
+			await operation;
+			assert.deepStrictEqual({
+				beforeArrival,
+				refreshCalls: state.refreshCalls,
+				picks: state.picks.map(item => item.id),
+				busy: picker.busy,
+				calls: state.calls,
+				disposed: state.pickerDisposed,
+			}, {
+				beforeArrival: { shown: true, busy: true, labels: ['Loading automations...'] },
+				refreshCalls: 1,
+				picks: [automation.id],
+				busy: false,
+				calls: [automation],
+				disposed: true,
+			});
+		});
+
+		test('keeps healthy providers usable and preserves the active item and filter as more automations arrive', async () => {
+			const remote = { ...automation, id: 'remote:review', target: { ...automation.target, providerId: 'remote' } };
+			const { state, catalogue, catalogueState, runnable, picker, accept, run } = setup([automation]);
+			state.autoAccept = false;
+			catalogueState.set('loading', undefined);
+			const operation = run();
+			picker.value = 'Review';
+			picker.activeItems = [state.picks[0]];
+			runnable.add(remote.id);
+			catalogue.set([remote, automation], undefined);
+			const activeId = picker.activeItems[0]?.id;
+			accept(picker.activeItems[0]);
+			await operation;
+			assert.deepStrictEqual({
+				refreshCalls: state.refreshCalls,
+				picks: state.picks.map(item => item.id),
+				activeId,
+				value: picker.value,
+				calls: state.calls,
+			}, {
+				refreshCalls: 0,
+				picks: [remote.id, automation.id],
+				activeId: automation.id,
+				value: 'Review',
+				calls: [automation],
+			});
+		});
+
+		test('cancelling while refresh is pending disposes the picker and ignores later catalogue updates', async () => {
+			const { state, catalogue, catalogueState, picker, run } = setup([]);
+			state.autoAccept = false;
+			catalogueState.set('loading', undefined);
+			const refresh = new DeferredPromise<void>();
+			state.refresh = () => refresh.p;
+			const operation = run();
+			picker.hide();
+			await operation;
+			catalogue.set([automation], undefined);
+			await refresh.complete();
+			assert.deepStrictEqual({
+				disposed: state.pickerDisposed,
+				labels: state.picks.map(item => item.label),
+				calls: state.calls,
+			}, { disposed: true, labels: ['Loading automations...'], calls: [] });
+		});
 
 		for (const kind of ['started', 'alreadyRunning'] as const) {
 			test(`offers to open the exact ${kind} run without opening it automatically`, async () => {
