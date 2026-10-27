@@ -98,6 +98,7 @@ suite('Session Sync Changes', () => {
 			override readonly visibleSessions = visibleSessions;
 			override readonly visibleSessionPanes = visibleSessions;
 			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = this.activeSession;
 		}();
 		let factory: IActionViewItemFactory | undefined;
 		const actionViewItemService = new class extends NullActionViewItemService {

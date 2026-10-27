@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
-import { getClientArea } from '../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getClientArea, isAncestorOfActiveElement, trackFocus } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { SessionsPart } from './sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
 import { SessionView } from './sessionView.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../services/sessions/common/session.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, IWindowSessionViewHost, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
 
 /**
@@ -32,6 +33,11 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _mainPart: SessionsPart;
+
+	private readonly _windowViews = new Map<SessionView, IWindowSessionViewHost>();
+
+	private readonly _onDidFocusWindowSession = this._register(new Emitter<IActiveSession>());
+	readonly onDidFocusWindowSession: Event<IActiveSession> = this._onDidFocusWindowSession.event;
 
 	private readonly _onDidToggleMaximizeSession = this._register(new Emitter<IToggleMaximizeSessionEvent>());
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent> = this._onDidToggleMaximizeSession.event;
@@ -81,16 +87,57 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		}
 	}
 
+	registerWindowSessionView(view: SessionView, host: IWindowSessionViewHost): IDisposable {
+		const store = new DisposableStore();
+		this._windowViews.set(view, host);
+		store.add(toDisposable(() => this._windowViews.delete(view)));
+		const fireFocus = () => {
+			const session = view.getSession();
+			if (session) {
+				this._onDidFocusWindowSession.fire(session);
+			}
+		};
+		store.add(trackFocus(view.element)).onDidFocus(fireFocus, undefined, store);
+		store.add(addDisposableListener(view.element, EventType.POINTER_DOWN, fireFocus, true));
+		return store;
+	}
+
+	private _getWindowView(predicate: (session: IActiveSession) => boolean): SessionView | undefined {
+		for (const view of this._windowViews.keys()) {
+			const session = view.getSession();
+			if (session && predicate(session)) {
+				return view;
+			}
+		}
+		return undefined;
+	}
+
 	focusSession(session: IActiveSession | undefined): void {
+		const windowView = session && this._getWindowView(candidate => candidate === session);
+		if (windowView) {
+			this._windowViews.get(windowView)?.focus();
+			return;
+		}
 		this._mainPart.focusSession(session?.sessionId, session?.scopedChatResource);
 	}
 
-	getSessionView(sessionId: string | undefined): SessionView | undefined {
-		return this._mainPart.getSessionView(sessionId);
+	getSessionView(session: string | ISession | undefined): SessionView | undefined {
+		if (typeof session === 'object') {
+			// A session shown in a window of its own: the view of that window, not the main window's view of another chat
+			// of its session.
+			const windowView = this._getWindowView(candidate => candidate === session);
+			if (windowView) {
+				return windowView;
+			}
+		}
+		const sessionId = typeof session === 'object' ? session.sessionId : session;
+		return this._mainPart.getSessionView(sessionId)
+			?? (sessionId !== undefined ? this._getWindowView(candidate => candidate.sessionId === sessionId) : undefined);
 	}
 
 	getFocusedSessionView(): SessionView | undefined {
-		return this._mainPart.getFocusedSessionView();
+		return this._mainPart.getFocusedSessionView()
+			?? [...this._windowViews.keys()].find(view => isAncestorOfActiveElement(view.element));
 	}
 
 	getProgressIndicator(): IProgressIndicator {

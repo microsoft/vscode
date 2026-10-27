@@ -106,6 +106,7 @@ suite('Session comparison grid controller', () => {
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = this.activeSession;
 			override readonly visibleSessions = visibleSessions;
 			override closeSession(session: ISession | undefined): void {
 				if (session) {

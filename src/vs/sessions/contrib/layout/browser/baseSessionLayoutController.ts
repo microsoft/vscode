@@ -305,7 +305,7 @@ export abstract class BaseLayoutController extends Disposable {
 		super();
 
 		this._chatLayoutContext = this._chatLayoutEnabled
-			? this._register(new ChatLayoutContext(this._layoutService.chatLayoutPresentation, this._sessionsService.activeSession))
+			? this._register(new ChatLayoutContext(this._layoutService.chatLayoutPresentation, this._sessionsService.mainWindowActiveSession))
 			: undefined;
 
 		// [B3] Restore persisted state (with one-time legacy migration).
@@ -315,7 +315,7 @@ export abstract class BaseLayoutController extends Disposable {
 		this._register(this._storageService.onWillSaveState(() => this._saveState()));
 		if (this._chatLayoutContext) {
 			this._register(runOnChange(this._chatLayoutContext.state, (current, previous) => {
-				const session = this._sessionsService.activeSession.get();
+				const session = this._sessionsService.mainWindowActiveSession.get();
 				if (previous.presentation.active && current.presentation.active
 					&& previous.owner && current.owner && session
 					&& isEqual(previous.owner.sessionResource, current.owner.sessionResource)
@@ -335,7 +335,7 @@ export abstract class BaseLayoutController extends Disposable {
 		this.activeSessionResourceObs = derivedOpts<URI | undefined>({
 			equalsFn: isEqual
 		}, reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			return activeSession?.resource;
 		});
 
@@ -371,7 +371,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._isPanelVisibilityPerSession) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			if (this._chatLayoutEnabled) {
 				activeSession?.activeChat.read(reader);
 			}
@@ -390,7 +390,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._isPanelVisibilityPerSession || e.partId !== Parts.PANEL_PART) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			if ((this.multipleChatsVisibleObs.get()
 				&& (!activeSession || !this._isPanelVisibilitySharedAcrossChats(activeSession)))
 				|| this._isCustomViewVisible()) {
@@ -409,7 +409,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if ((this.multipleSessionsVisibleObs.get() && !this._chatLayoutActive()) || this._isCustomViewVisible()) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			const ownerKey = activeSession && this._ownerKeyFor(activeSession);
 			if (ownerKey) {
 				this._panelViewBySession.set(ownerKey, e.composite.getId());
@@ -420,7 +420,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._isPanelViewPerSession) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			if (this._chatLayoutEnabled) {
 				activeSession?.activeChat.read(reader);
 			}
@@ -440,7 +440,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if ((this.multipleSessionsVisibleObs.get() && !this._chatLayoutActive()) || this._isCustomViewVisible()) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			if (activeSession && this._chatLayoutSuspended()) {
 				return;
 			}
@@ -463,7 +463,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
 				return;
 			}
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			const ownerKey = activeSession && this._ownerKeyFor(activeSession);
 			if (ownerKey) {
 				this._editorPartHiddenBySession.set(ownerKey, !e.visible);
@@ -486,7 +486,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this._chatLayoutSuspended(reader)) {
 				return lastValue ?? { session: undefined, key: undefined, owner: undefined };
 			}
-			const session = this._sessionsService.activeSession.read(reader);
+			const session = this._sessionsService.mainWindowActiveSession.read(reader);
 			const chat = session?.activeChat.read(reader);
 			const key = session && chat
 				? this._ownerKeyForChat(session.resource, chat.resource, session.mainChat.read(reader).resource, reader)
@@ -535,7 +535,7 @@ export abstract class BaseLayoutController extends Disposable {
 		// editors during that window. Saving here synchronously — before those
 		// closes run — captures which editor was active (e.g. the Changes tab) so it
 		// is restored active on return.
-		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
+		this._register(runOnChange(this._sessionsService.mainWindowActiveSession, (session, previousSession) => {
 			if (this._workingSetAdoptingReplacement && !isEqual(this._workingSetAdoptingReplacement, session?.resource)) {
 				this._workingSetAdoptingReplacement = undefined;
 			}
@@ -815,7 +815,7 @@ export abstract class BaseLayoutController extends Disposable {
 		// `onDidReplaceSession` fires only when an untitled draft is atomically
 		// replaced by its committed session on submit, so the committed session
 		// inherits the draft's on-screen layout.
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		const replacedSessionIsActive = isEqual(activeSession?.resource, from.resource) || isEqual(activeSession?.resource, to.resource);
 		if (!isEqual(from.resource, to.resource)) {
 			this._replacedSessionResources.add(from.resource);
@@ -1144,7 +1144,7 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	private _saveState(): void {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		const multipleVisible = this._sessionsService.visibleSessions.get().length > 1;
 		const ownerKey = activeSession && this._ownerKeyFor(activeSession);
 

@@ -224,7 +224,7 @@ registerAction2(class extends Action2 {
 	override run(accessor: ServicesAccessor): void {
 		const sessions = accessor.get(ISessionsService);
 		const parts = accessor.get(ISessionsPartService);
-		(parts.getFocusedSessionView() ?? parts.getSessionView(sessions.activeSession.get()?.sessionId))?.openModelComparison();
+		(parts.getFocusedSessionView() ?? parts.getSessionView(sessions.activeSession.get()))?.openModelComparison();
 	}
 });
 

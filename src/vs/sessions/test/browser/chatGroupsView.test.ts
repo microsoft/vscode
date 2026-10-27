@@ -207,6 +207,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 class TestSessionsService extends mock<ISessionsService>() {
 	override attachChat(): void { }
 	override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
+	override readonly mainWindowActiveSession = this.activeSession;
 	openChatGate: Promise<void> | undefined;
 	openChatError: Error | undefined;
 	readonly closedSessions: string[] = [];

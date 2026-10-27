@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from '../../../../base/browser/window.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { disposableTimeout, raceCancellation, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -67,6 +69,14 @@ const DEPARTED_SESSION_PAIRING_MS = 10_000;
 export interface ISessionNavigationRequest {
 	/** The caller's token, so deferred handoffs can recognize their own navigation. */
 	readonly token: CancellationToken;
+}
+
+/** Options of {@link ISessionsService.showSessionInWindow}. */
+export interface IShowSessionInWindowOptions {
+	/** The chat to show: by default, the chat the session shows in the grid, or its main chat. */
+	readonly chatResource?: URI;
+	/** Whether the session becomes the active session while its window is focused; `true` by default. */
+	readonly activates?: boolean;
 }
 
 /**
@@ -368,6 +378,25 @@ export interface ISessionsService {
 	/** Make the given (already visible) session the active session. */
 	setActive(session: IActiveSession | undefined): void;
 
+	/** Sessions shown in windows of their own, outside the grid; see {@link showSessionInWindow}. */
+	readonly windowSessions: IObservable<readonly IActiveSession[]>;
+
+	/**
+	 * The session the main window is laid out for, with its editors, side pane and panel: the {@link activeSession}, except
+	 * while the session of a chat window is (see {@link showSessionInWindow}), when it is the session of the main window
+	 * that was active before. The main window keeps its layout while a chat window has focus.
+	 */
+	readonly mainWindowActiveSession: IObservable<IActiveSession | undefined>;
+
+	/**
+	 * Shows a chat of a session in a window of its own instead of in the grid: the session leaves the grid, and the
+	 * returned window session, which shows only that chat, is shown by a session view registered with
+	 * `ISessionsPartService.registerWindowSessionView`. Opening or showing the session focuses its window, and it
+	 * becomes the active session while its window is focused, unless {@link IShowSessionInWindowOptions.activates} is
+	 * `false`. {@link closeSession} stops showing it, which closes its window.
+	 */
+	showSessionInWindow(session: ISession, options?: IShowSessionInWindowOptions): IActiveSession;
+
 	/** Submit the live input in the active new-session composer. */
 	submitNewSessionInput(): Promise<boolean>;
 
@@ -406,6 +435,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/** The canonical active session — the visible active slot. */
 	readonly activeSession: IObservable<IActiveSession | undefined>;
+	readonly windowSessions: IObservable<readonly IActiveSession[]>;
+	readonly mainWindowActiveSession: IObservable<IActiveSession | undefined>;
 	private readonly _initialRestoreComplete = observableValue<boolean>(this, false);
 	readonly initialRestoreComplete: IObservable<boolean> = this._initialRestoreComplete;
 	private readonly _navigationRequest = observableValue<ISessionNavigationRequest | undefined>(this, undefined);
@@ -463,6 +494,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@IHostService hostService: IHostService,
 	) {
 		super();
 
@@ -481,6 +513,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.visibleSessions = this._visibility.visibleSessions;
 		this.visibleSessionPanes = this._visibility.gridSessions;
 		this.activeSession = this._visibility.activeSession;
+		this.windowSessions = this._visibility.windowSessions;
+		this.mainWindowActiveSession = this._visibility.mainWindowActiveSession;
 
 		this._closedItems = this._register(this.instantiationService.createInstance(
 			ClosedItemHistory,
@@ -593,6 +627,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 				?? this.visibleSessions.get().find(s => s?.sessionId === sessionId);
 			if (sessionId === undefined || session) {
 				this.setActive(session);
+			}
+		}));
+		this._register(this.sessionsPartService.onDidFocusWindowSession(session => this.setActive(session)));
+		// A session shown in another window is active only while that window has focus. Once the main window has focus
+		// again, the session of its grid is active again, without moving focus within the main window or cancelling what
+		// the main window is opening.
+		this._register(hostService.onDidChangeActiveWindow(windowId => {
+			if (windowId === mainWindow.vscodeWindowId && this._visibility.isWindowSession(this.activeSession.get())) {
+				this._activate(this.mainWindowActiveSession.get(), true);
 			}
 		}));
 		this._register(this.sessionsPartService.onDidInteractWithGrid(() => {
@@ -855,6 +898,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this._rememberDepartedSession(session);
 			}
 			this._visibility.removeMany(e.removed.map(r => r.sessionId));
+			for (const session of e.removed) {
+				let windowSession: IActiveSession | undefined;
+				while ((windowSession = this._visibility.getWindowSession(session.sessionId))) {
+					this._visibility.removeFromWindow(windowSession);
+				}
+			}
 		}
 
 		if (!currentActive) {
@@ -975,6 +1024,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * canonical active session is updated reactively by the mirror autorun.
 	 */
 	private _activate(session: ISession | undefined, preserveFocus?: boolean, intent: SessionNavigationIntent = 'automatic'): IActiveSession | undefined {
+		if (this._visibility.isPassiveWindowSession(session)) {
+			return session as IActiveSession;
+		}
 		let active: IActiveSession | undefined;
 		transaction(tx => {
 			// Dismiss the custom view atomically so its covered session is not recorded as a visit.
@@ -1032,7 +1084,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
 			}
 			this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
-			this._activate(this._visibility.getChatPane(session.sessionId, chatUri) ?? session, preserveFocus, intent);
+			this._activate(this._visibility.getChatPane(session.sessionId, chatUri) ?? this._visibility.getWindowSession(session.sessionId, chatUri) ?? session, preserveFocus, intent);
 			if (!await this._waitForSessionToLoad(session, token)) {
 				this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 				return;
@@ -1591,7 +1643,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const t0 = Date.now();
 		this.logService.trace(`[SessionsView] openSession start uri=${sessionData.resource.toString()} provider=${sessionData.providerId}`);
 
-		this._activate(sessionData, options?.preserveFocus, intent);
+		// Shown only in a window of its own: focuses that window. A session that still has chats in the grid opens there.
+		const inGrid = this._visibility.visibleSessions.get().some(candidate => candidate?.sessionId === sessionData.sessionId);
+		this._activate((!inGrid && this._visibility.getWindowSession(sessionData.sessionId)) || sessionData, options?.preserveFocus, intent);
 		this.logService.trace(`[SessionsView] showSession done total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
 	}
 
@@ -1785,7 +1839,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	setActive(session: IActiveSession | undefined): void {
-		if (session?.sessionId !== this.activeSession.get()?.sessionId) {
+		if (this._visibility.isPassiveWindowSession(session)) {
+			return;
+		}
+		const active = this.activeSession.get();
+		// A window session is another wrapper of a session the grid may show too; only then does the wrapper matter.
+		const windowInvolved = this._visibility.isWindowSession(session) || this._visibility.isWindowSession(active);
+		if (session?.sessionId !== active?.sessionId || (windowInvolved && session !== active)) {
 			this._cancelRestore();
 			this._startOpenSession();
 			this._recordNavigation();
@@ -1801,7 +1861,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// The composer is not necessarily mounted in the grid (e.g. every slot
 		// holds a created session), so open it before submitting into it.
-		if (!this.sessionsPartService.getSessionView(activeSession?.sessionId)) {
+		if (!this.sessionsPartService.getSessionView(activeSession)) {
 			await this.openNewSession();
 			activeSession = this.activeSession.get();
 			if (activeSession?.isCreated.get()) {
@@ -1809,7 +1869,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}
 
-		return this.sessionsPartService.getSessionView(activeSession?.sessionId)?.submitInput() ?? false;
+		return this.sessionsPartService.getSessionView(activeSession)?.submitInput() ?? false;
 	}
 
 	toggleSessionStickiness(session: ISession): void {
@@ -1829,7 +1889,42 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
+	showSessionInWindow(session: ISession, options?: IShowSessionInWindowOptions): IActiveSession {
+		const gridSession = this._visibility.gridSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
+		const chatResource = options?.chatResource ?? gridSession?.activeChat.get().resource;
+		const chat = (chatResource && session.chats.get().find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, chatResource)))
+			|| session.mainChat.get();
+		const existing = this._visibility.getWindowSession(session.sessionId, chat.resource);
+		if (existing) {
+			return existing;
+		}
+
+		// The chat leaves the grid; the session leaves it too when that was the only chat it shows there.
+		const gridSessions = this._visibility.gridSessions.get().filter(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
+		const onlyChat = gridSessions.every(candidate => candidate!.openChats.get().every(openChat => this.uriIdentityService.extUri.isEqual(openChat.resource, chat.resource)));
+		if (gridSessions.length && onlyChat) {
+			this._cancelRestore();
+			this._startOpenSession();
+			const active = this._visibility.activeSession.get();
+			const wasActive = !this._visibility.isWindowSession(active) && active?.sessionId === session.sessionId;
+			this._visibility.removeMany([session.sessionId]);
+			if (wasActive && this._visibility.activeSession.get() === undefined && !this._visibility.visibleSessions.get().includes(undefined)) {
+				// The grid shows the new-session composer instead, without taking focus from the window.
+				this._visibility.setActive(undefined, true);
+			}
+		}
+
+		return this._visibility.showInWindow(session, chat, undefined, options?.activates === false);
+	}
+
 	closeSession(session: ISession | undefined): void {
+		// Closing the session of another window leaves alone what the main window is opening.
+		const windowSession = this._visibility.isWindowSession(session) ? session
+			: session && !this._visibility.visibleSessions.get().some(candidate => candidate?.sessionId === session.sessionId) ? this._visibility.getWindowSession(session.sessionId) : undefined;
+		if (windowSession) {
+			this._visibility.removeFromWindow(windowSession);
+			return;
+		}
 		this._cancelRestore();
 		this._startOpenSession();
 		if (session instanceof VisibleSession && session.scopedChatResource) {

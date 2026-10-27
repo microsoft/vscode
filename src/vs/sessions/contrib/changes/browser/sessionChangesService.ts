@@ -123,9 +123,9 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 	async openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions, group?: PreferredGroup): Promise<IEditorGroup | undefined> {
 		if (options?.changesetSelection) {
 			if (options.changesetSelection.kind === 'transient') {
-				this.changesViewService.showChangeset(options.changesetSelection.changeset);
+				this.changesViewService.showChangeset(options.changesetSelection.changeset, sessionResource);
 			} else {
-				this.changesViewService.setChangesetId(options.changesetSelection.id);
+				this.changesViewService.setChangesetId(options.changesetSelection.id, sessionResource);
 			}
 		}
 		let editorOptions: IMultiDiffEditorOptions | undefined;
