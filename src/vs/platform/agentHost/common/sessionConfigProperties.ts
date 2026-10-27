@@ -218,6 +218,21 @@ export function toOwnChatConfig(agentConfig: SessionConfigState, existing?: Read
 }
 
 /**
+ * The values of `values` a chat may keep under `schema`: properties the schema marks `chatMutable`, not host-reported
+ * (`readOnly`), with a value the schema offers. Used when a moved chat's config schema changes with its agent.
+ */
+export function getValidChatConfigValues(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+	const valid: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(values)) {
+		const property = schema.properties[key];
+		if (value !== undefined && property?.chatMutable === true && property.readOnly !== true && !getSessionConfigWriteError(schema, values, key, value, () => true)) {
+			valid[key] = value;
+		}
+	}
+	return valid;
+}
+
+/**
  * The config schema of a chat: its own (`ChatConfigState.schema`, set for a
  * chat whose agent differs from its session's), else its session's.
  */

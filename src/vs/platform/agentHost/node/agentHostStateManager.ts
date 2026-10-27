@@ -888,6 +888,24 @@ export class AgentHostStateManager extends Disposable {
 		return this._chatEntries.get(chat)?.ownConfigSchema;
 	}
 
+	/**
+	 * Sets or clears the own config schema of a registered chat whose agent starts or stops differing from its session's
+	 * because it moves between sessions of different agents. Host bookkeeping only: the chat's subscribers learn it from
+	 * the `chat/moved` the move publishes. A chat whose state is not materialized publishes it when it is opened.
+	 */
+	setChatOwnConfigSchema(chat: URI, schema: SessionConfigSchema | undefined): void {
+		const entry = this._chatEntries.get(chat);
+		if (!entry) {
+			return;
+		}
+		entry.ownConfigSchema = schema;
+		this._noteChatConfig(chat, schema);
+		if (!entry.state) {
+			const values = entry.config?.values ?? {};
+			entry.config = schema ? { schema, values } : (entry.config ? { values } : undefined);
+		}
+	}
+
 	/** Whether any registered chat has its own config schema, so config reads that only such chats need can be skipped. */
 	hasChatsWithOwnConfigSchema(): boolean {
 		return this._chatsWithOwnConfigSchema.size > 0;

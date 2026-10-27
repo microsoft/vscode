@@ -38,7 +38,7 @@ import { EDIT_ATTRIBUTION_RESOURCE_SCHEME, IAgentEditAttributionService } from '
 import { MCP_RESOURCE_SCHEME, TOOL_RESULT_RESOURCE_SCHEME } from '../common/mcpResourceUri.js';
 import { SESSION_DB_SCHEME } from '../common/sessionDbUri.js';
 import { getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { filterChatConfigValues, getSessionApprovalProperty, toOwnChatConfig, validateChatConfigWrite, validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
+import { filterChatConfigValues, getSessionApprovalProperty, getValidChatConfigValues, toOwnChatConfig, validateChatConfigWrite, validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { changesetSession, parseChangesetUri } from '../common/changesetUri.js';
@@ -262,6 +262,19 @@ type IChatMoveRequest =
 	| { readonly kind: 'promote'; readonly provider: IAgent };
 
 /** What a chat move validates against and plans its worktrees by (see `_readChatMoveInputs`). */
+/** How a moved chat changes with its agent (see `AgentService._prepareMovedChatAgent`). */
+interface IMovedChatAgent {
+	readonly kind: 'gain' | 'lose';
+	/** The chat's agent, which it keeps. */
+	readonly agent: string;
+	/** The moved chats of that agent: the chat and its descendants. */
+	readonly chats: readonly string[];
+	/** The chat's own config schema in its new session, when it gains its own agent. */
+	readonly schema?: SessionConfigSchema;
+	/** The chat's values in its new session. */
+	readonly values: Record<string, unknown>;
+}
+
 interface IChatMoveInputs {
 	/** The chat and its host-managed descendants. */
 	readonly moved: readonly string[];
@@ -7905,7 +7918,9 @@ export class AgentService extends Disposable implements IAgentService {
 		const sourceDataOnly = await this._restoreForMove(session, AgentChatMoveRefusal.SessionNotReady, leases, true);
 		if (destination.kind === 'newSession') {
 			this._checkMovedChat(sourceKey, chat);
-			const provider = this._providerService.getProviderForSession(session);
+			// A chat's new session is a session of the chat's agent: its own, when chats may use their own agents.
+			const provider = (this.multipleChatProvidersEnabled ? this._providerService.getProviderForChat(session, chat) : undefined)
+				?? this._providerService.getProviderForSession(session);
 			if (!provider) {
 				return refuse(AgentChatMoveRefusal.SessionNotReady, `Session ${sourceKey} has no agent.`);
 			}
@@ -8040,6 +8055,8 @@ export class AgentService extends Disposable implements IAgentService {
 			// The target gets the moved chat's folders before anything else changes; its other chats keep their own (PIN).
 			const releases: (() => Promise<void>)[] = [];
 			let restoreConfig: (() => Promise<void>) | undefined;
+			let restoreAgent: (() => Promise<void>) | undefined;
+			let agentSwitch: IMovedChatAgent | undefined;
 			let restoreScratchRow: (() => Promise<void>) | undefined;
 			let committed: IMovedChats;
 			let worktreePlan: IWorktreeMoveDecisions;
@@ -8083,6 +8100,21 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				let config: Record<string, unknown> = {};
 				let previousConfig: Record<string, unknown> | undefined;
+				// A chat that gains or loses its own agent takes the config of its new schema, persisted before the commit like
+				// its other values; one that gains it records its agent first, so no restart routes it to its new session's.
+				agentSwitch = await this._prepareMovedChatAgent(sourceKey, targetKey, chatKey, moved, chatFolders);
+				if (agentSwitch) {
+					const previous = previousConfig = this._stateManager.getChatConfig(chatKey)?.values ?? {};
+					await this._sessionStateStore.chatRows.setChatConfig(session, chat, agentSwitch.values);
+					restoreConfig = () => this._sessionStateStore.chatRows.setChatConfig(session, chat, previous);
+					if (agentSwitch.kind === 'gain') {
+						const recorded = agentSwitch;
+						for (const candidate of recorded.chats) {
+							await this._recordChatAgentProvider(candidate, recorded.agent);
+						}
+						restoreAgent = () => this._deleteChatAgentProviders(recorded.chats);
+					}
+				}
 				// Artifacts recorded meanwhile wait for the move, so the moved chats' artifacts are carried from their current lists.
 				artifactsHold = await SessionArtifacts.hold(this._stateManager, [sourceKey, targetKey]);
 				movedArtifacts = this._movedChatArtifacts(sourceKey, targetKey, chatKey, moved, sessionMove);
@@ -8095,7 +8127,7 @@ export class AgentService extends Disposable implements IAgentService {
 					// The Agent Merge of the moved chats moves in the same transaction, so no restart finds it in both sessions or in neither.
 					const agentMerge = this._movedAgentMergeInto(sourceKey, targetKey, moved, sessionMove);
 					// The chat keeps Agent Merge's elevation only if it runs it on in the target, as this commit decides.
-					config = this._movedChatConfig(sourceKey, targetKey, chatKey, agentMerge?.elevated.has(chatKey));
+					config = agentSwitch ? {} : this._movedChatConfig(sourceKey, targetKey, chatKey, agentMerge?.elevated.has(chatKey));
 					if (Object.keys(config).length > 0) {
 						// Persisted before the commit, in the chat's own database: its values in the source don't change by it, and
 						// a crash after the commit keeps them. A refused move restores the chat's previous values.
@@ -8168,6 +8200,7 @@ export class AgentService extends Disposable implements IAgentService {
 					this._writeAgentMergeIndex(target, isAnyAgentMergeEnabled(this._stateManager.getSessionState(targetKey)?.config?.values, this._sessionFolderKeyOf(targetKey)));
 				}
 				await restoreConfig?.().catch(restoreError => this._logService.warn(`[AgentService] Failed to restore the config of ${chatKey} after a refused move`, restoreError));
+				await restoreAgent?.();
 				await restoreScratchRow?.().catch(restoreError => this._logService.warn(`[AgentService] Failed to undo the scratch folder record of ${chatKey} after a refused move`, restoreError));
 				await this._undoWorktreeMovePreparation(withholdings, handOver, chatKey);
 				// A pinned target chat keeps the target's folders as its own; the release removes only a folder no chat uses.
@@ -8186,13 +8219,24 @@ export class AgentService extends Disposable implements IAgentService {
 			// The target lists a handed-over worktree now, so reconciliation may see its record.
 			handOver?.dispose();
 			try {
+				// Its own schema is known before its subscribers learn its new owner, which `chat/moved` publishes it with.
+				if (agentSwitch) {
+					this._stateManager.setChatOwnConfigSchema(chatKey, agentSwitch.schema);
+				}
 				this._transferMovedChats(sourceKey, targetKey, chatKey, committed, after, chatFolders, sourceSummary?.workingDirectories === undefined ? chatFolders : undefined, sessionMove, movedArtifacts);
+				if (agentSwitch) {
+					this._applyMovedChatAgentConfig(targetKey, chatKey, agentSwitch);
+				}
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} moved to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
 			artifactsHold?.dispose();
 			artifactsHold = undefined;
+			if (agentSwitch?.kind === 'lose') {
+				// Its agent is its new session's now; a stale record would only name that agent again.
+				await this._deleteChatAgentProviders(agentSwitch.chats);
+			}
 			// A chat that never started a turn hasn't announced its worktree yet: its first send does.
 			if (handOver && this._hasStartedTurn(this._stateManager.getChatState(chatKey))) {
 				this._chatContributions.didHandOverWorktree(targetKey, chatKey);
@@ -8588,7 +8632,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Promotes a peer chat and its descendants into a new session of the same agent (AHP `moveChat` to a new session,
+	 * Promotes a peer chat and its descendants into a new session of its agent (AHP `moveChat` to a new session,
 	 * Block 4): the chat becomes its default chat and keeps its runtime, which relaunches with the new session's
 	 * configuration at its next turn (3c). The new session starts with the source's config and the chat's own values
 	 * over it, the chat's folders and the folder state it carries. Runs once {@link _checkChatMoveRequest} accepted the
@@ -8631,7 +8675,20 @@ export class AgentService extends Disposable implements IAgentService {
 			const sourceConfig = this._stateManager.getSessionState(sourceKey)?.config;
 			const promotedAgentMerge = () => this._movedAgentMerge(sourceKey, { values: undefined, sessionFolderKey: chatFolders[0] === undefined ? undefined : getWorkingDirectoryKey(chatFolders[0]) }, moved, false);
 			// The chat's own values become the new session's: its future chats start from them. So does the Agent Merge it runs.
-			const config: SessionConfigState | undefined = sourceConfig && { schema: sourceConfig.schema, values: { ...this._promotedSessionConfigValues(sourceConfig.values, sourceKey, chatKey), ...this._promotedIsolationConfig(sourceConfig, session, chatKey, promotedRepository), ...definedValues(promotedAgentMerge()?.target) } };
+			let config: SessionConfigState | undefined = sourceConfig && { schema: sourceConfig.schema, values: { ...this._promotedSessionConfigValues(sourceConfig.values, sourceKey, chatKey), ...this._promotedIsolationConfig(sourceConfig, session, chatKey, promotedRepository), ...definedValues(promotedAgentMerge()?.target) } };
+			// A chat with its own agent becomes a session of that agent: the session starts from that agent's config for the
+			// chat's folder, with the chat's values over it, and the chat, its default chat, no longer has a schema of its own.
+			const agentSwitch = await this._prepareMovedChatAgent(sourceKey, undefined, chatKey, moved, chatFolders);
+			if (agentSwitch) {
+				let agentConfig: SessionConfigState;
+				try {
+					agentConfig = await this._resolveAgentChatConfig(provider, session, undefined, chatFolders[0]);
+				} catch (error) {
+					return refuse(AgentChatMoveRefusal.Unsupported, `The agent ${provider.id} couldn't describe its settings for the new session (${toErrorMessage(error)}); try again.`);
+				}
+				const ownValues = this._configurationService.getChatOwnConfigValues({ session: sourceKey, chat: chatKey });
+				config = { schema: agentConfig.schema, values: { ...agentConfig.values, ...getValidChatConfigValues(agentConfig.schema, ownValues), ...this._promotedIsolationConfig(agentConfig, session, chatKey, promotedRepository), ...definedValues(promotedAgentMerge()?.target) } };
+			}
 			try {
 				this._checkMovedChat(sourceKey, chatKey);
 				const current = chatSubtree(this._stateManager, sourceKey, chatKey);
@@ -8748,6 +8805,10 @@ export class AgentService extends Disposable implements IAgentService {
 			// A rename not persisted yet is known in memory only, while the chat is still the source's.
 			const renamed = this._sideEffects.isTitleRenamed(sourceKey, chatKey);
 			try {
+				if (agentSwitch) {
+					// Announced without a schema: as its session's default chat, it uses the session's.
+					this._stateManager.setChatOwnConfigSchema(chatKey, undefined);
+				}
 				const project = worktreeProjectFromRepositoryRoot(promotedRepository);
 				this._promoteMovedChats(provider, sourceKey, targetKey, chatKey, committed, chatFolders, config, sourceSummary?.workingDirectories === undefined, promotedWorkspaceless, project && { uri: project.uri.toString(), displayName: project.displayName }, movedArtifacts);
 			} catch (error) {
@@ -8758,6 +8819,10 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			artifactsHold?.dispose();
 			artifactsHold = undefined;
+			if (agentSwitch) {
+				// Its agent is its new session's.
+				await this._deleteChatAgentProviders(agentSwitch.chats);
+			}
 			await this._persistPromotedSessionTitle(target, chatKey, renamed);
 			await this._completeMovedWorktrees(session, target, worktreePlan, undefined, false);
 			// The new session is created with the chat's folders, so none were in transit; the source lets go of those no other chat uses.
@@ -9128,6 +9193,85 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
+	 * How a chat moving from `source` to `target` (`undefined`: a new session of its own agent) changes with its agent,
+	 * which never changes: it gains its own agent when it joins a session of another agent, then takes its agent's chat
+	 * schema, resolved for its folder, with the values it had that are valid there; it loses it when it joins a session
+	 * of its agent, then keeps the values valid in that session's schema. `chats` are the moved chats of its agent, the
+	 * chat and its descendants. `undefined` when its agent keeps relating to its session as before.
+	 */
+	private async _prepareMovedChatAgent(source: string, target: string | undefined, chat: string, moved: readonly string[], chatFolders: readonly string[]): Promise<IMovedChatAgent | undefined> {
+		const sourceProvider = this._stateManager.getSessionState(source)?.provider;
+		const agent = this._stateManager.getChatProvider(chat) ?? sourceProvider;
+		const targetProvider = target === undefined ? agent : this._stateManager.getSessionState(target)?.provider;
+		if (agent === undefined || (agent === sourceProvider) === (agent === targetProvider)) {
+			return undefined;
+		}
+		const chats = moved.filter(candidate => (this._stateManager.getChatProvider(candidate) ?? sourceProvider) === agent);
+		if (agent === sourceProvider) {
+			const provider = this._providerService.getProvider(agent);
+			if (!provider) {
+				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.DifferentProvider, `The agent ${agent} of this chat is unknown or disabled; enable it before moving the chat.`);
+			}
+			let agentConfig: SessionConfigState;
+			try {
+				agentConfig = await this._resolveAgentChatConfig(provider, URI.parse(source), undefined, chatFolders[0]);
+			} catch (error) {
+				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.Unsupported, `The agent ${agent} couldn't describe its settings for this chat (${toErrorMessage(error)}); try again.`);
+			}
+			const effective = this._configurationService.getChatConfigValues({ session: source, chat }) ?? {};
+			const own = toOwnChatConfig({ schema: agentConfig.schema, values: {} }, getValidChatConfigValues(agentConfig.schema, effective));
+			return { kind: 'gain', agent, chats, schema: own.schema, values: own.values };
+		}
+		const schema = target === undefined ? undefined : this._stateManager.getSessionState(target)?.config?.schema;
+		const current = this._configurationService.getChatOwnConfigValues({ session: source, chat });
+		return { kind: 'lose', agent, chats, values: schema ? getValidChatConfigValues(schema, current) : { ...current } };
+	}
+
+	/**
+	 * Publishes the values of a moved chat that gained or lost its own agent, after `chat/moved` published its schema:
+	 * a replacement only when they changed. A chat that lost its own agent then takes its new session's values of what
+	 * else it may set, as its complete config.
+	 */
+	private _applyMovedChatAgentConfig(session: string, chat: string, agentSwitch: IMovedChatAgent): void {
+		if (!this._stateManager.isChatRegistered(chat)) {
+			return;
+		}
+		if (!equals(this._stateManager.getChatConfig(chat)?.values ?? {}, agentSwitch.values)) {
+			this._stateManager.dispatchServerAction(chat, { type: ActionType.ChatConfigChanged, config: { ...agentSwitch.values }, replace: true });
+		}
+		if (agentSwitch.kind === 'lose') {
+			this._configurationService.completeChatConfigs(session);
+		}
+	}
+
+	/**
+	 * Refuses moving a chat of agent `chatProvider` across agents: into a session of `targetProvider`, or (`undefined`)
+	 * into a new session of its own agent. It needs chats with their own agents to be on, its agent to be available, and,
+	 * when it keeps an agent other than its new session's, both agents to support multiple chats.
+	 */
+	private _checkCrossAgentChatMove(chatProvider: string | undefined, targetProvider: string | undefined): void {
+		const refuse = (message: string): never => {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.DifferentProvider, message);
+		};
+		if (!this.multipleChatProvidersEnabled) {
+			refuse('Chats can only move between sessions of the same agent. Turn on chats with their own agents to move it to a session of another agent.');
+		}
+		const agent = chatProvider === undefined ? undefined : this._providerService.getProvider(chatProvider);
+		if (!agent || this._isAgentDisabledOnHost(chatProvider!)) {
+			refuse(`The agent ${chatProvider} of this chat is unknown or disabled; enable it before moving the chat.`);
+		}
+		if (targetProvider !== undefined && chatProvider !== targetProvider) {
+			const target = this._providerService.getProvider(targetProvider);
+			if (!target || !this._supportsChats(target)) {
+				refuse(`The destination's agent ${targetProvider} can't host chats of other agents; pick a session of an agent that supports multiple chats.`);
+			}
+			if (!this._supportsChats(agent!)) {
+				refuse(`The agent ${chatProvider} of this chat doesn't support multiple chats, so it can't join a session of another agent.`);
+			}
+		}
+	}
+
+	/**
 	 * Refuses a move the host does not support (Block 4 design, section 1.5). Synchronous, so a move runs it again
 	 * right before committing; nothing has changed when it throws.
 	 */
@@ -9150,19 +9294,16 @@ export class AgentService extends Disposable implements IAgentService {
 		const target = targetKey === undefined ? undefined : URI.parse(targetKey);
 		const sourceProvider = this._providerService.getProviderForSession(source)?.id;
 		const chatProvider = this._stateManager.getChatProvider(chat) ?? sourceProvider;
+		// A chat keeps its agent wherever it moves. Between sessions of different agents (or into a new session of its own
+		// agent, for a chat with its own agent) it may move only while chats may use their own agents.
 		if (target === undefined) {
-			// A new session is a session of its default chat's agent; a chat with its own agent would have to give up its own config.
 			if (chatProvider !== sourceProvider) {
-				refuse(AgentChatMoveRefusal.DifferentProvider, 'A chat that uses another agent than its session can\'t become a session of its own.');
+				this._checkCrossAgentChatMove(chatProvider, undefined);
 			}
 		} else {
-			// A chat keeps its agent. It may move between sessions of different agents only when chats may use their own
-			// agents and it uses its own agent in both (its config stays its own); a chat that would gain or lose its own
-			// agent is refused, as is moving a session under a session of another agent.
 			const targetProvider = this._providerService.getProviderForSession(target)?.id;
-			if (sourceProvider !== targetProvider
-				&& (!this.multipleChatProvidersEnabled || (chatProvider !== sourceProvider) !== (chatProvider !== targetProvider))) {
-				refuse(AgentChatMoveRefusal.DifferentProvider, 'Chats can only move between sessions of the same agent.');
+			if (sourceProvider !== targetProvider) {
+				this._checkCrossAgentChatMove(chatProvider, targetProvider);
 			}
 		}
 		if (target && !this._authService.hasSameCredentialOwner(sourceKey, targetKey!)) {
@@ -9385,8 +9526,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Resolves an agent's config for a chat of `session` whose agent differs from the session's, once per `cache` key. */
-	private _resolveAgentChatConfig(provider: IAgent, session: URI, cache?: Map<string, Promise<SessionConfigState>>): Promise<SessionConfigState> {
-		const primary = this._stateManager.getSessionSummary(session.toString())?.workingDirectories?.[0];
+	private _resolveAgentChatConfig(provider: IAgent, session: URI, cache?: Map<string, Promise<SessionConfigState>>, workingDirectory?: string): Promise<SessionConfigState> {
+		const primary = workingDirectory ?? this._stateManager.getSessionSummary(session.toString())?.workingDirectories?.[0];
 		const key = `${provider.id}\n${primary ?? ''}`;
 		const cached = cache?.get(key);
 		if (cached) {
