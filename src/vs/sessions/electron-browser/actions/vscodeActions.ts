@@ -18,11 +18,12 @@ import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.j
 import { IsLinuxContext } from '../../../platform/contextkey/common/contextkeys.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { EditorAreaFocusContext, IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.js';
+import { EditorAreaFocusContext } from '../../../workbench/common/contextkeys.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { IChatWindowService, isChatWindowHandle, SessionTitleBarActionsShownContext } from '../../services/chatWindow/browser/chatWindowService.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWidget.js';
@@ -44,24 +45,26 @@ export class OpenSessionInVSCodeAction extends Action2 {
 			id: OpenSessionInVSCodeAction.ID,
 			title: localize2('openInVSCode', 'Open in Editor'),
 			icon: Codicon.vscodeInsiders,
-			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+			precondition: ContextKeyExpr.and(SessionTitleBarActionsShownContext, SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
 				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 7,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(SessionTitleBarActionsShownContext, SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: unknown): Promise<void> {
 		const telemetryService = accessor.get(ITelemetryService);
 		logSessionsInteraction(telemetryService, 'openInVSCode');
 
 		const sessionsService = accessor.get(ISessionsService);
 		const instantiationService = accessor.get(IInstantiationService);
+		// In a chat window, the session of that window rather than the focused one's.
+		const windowSession = isChatWindowHandle(context) ? accessor.get(IChatWindowService).getWindow(context.chatWindowId)?.session.get() : undefined;
 
-		return instantiationService.invokeFunction(openSessionInVSCode, sessionsService.activeSession.get());
+		return instantiationService.invokeFunction(openSessionInVSCode, windowSession ?? sessionsService.activeSession.get());
 	}
 }
 

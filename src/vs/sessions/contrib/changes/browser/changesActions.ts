@@ -7,8 +7,8 @@ import './media/changesActions.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -16,11 +16,12 @@ import { localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorPane } from '../../../../workbench/common/editor.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
@@ -29,13 +30,15 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ChatWindowContext } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
-import { getChangesOfSession, IChangesViewService } from '../common/changesViewService.js';
+import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
-import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { getFileActionEditorPane, IChangesEditorFileActionContext, SessionChangesEditor } from './sessionChangesEditor.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
 import { getChangesFileUri, isChangesFileResource } from './changesViewRenderer.js';
 
@@ -123,9 +126,12 @@ class OpenChangedFileAction extends Action2 {
 			return;
 		}
 		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).mainWindowActiveSession.get(), session);
+		// From a chat window's Changes editor, in its group, not by focus; in the main window, as ever.
+		const editor = (args[1] as Partial<IChangesEditorFileActionContext> | undefined)?.editor;
+		const group = editor instanceof SessionChangesEditor && !accessor.get(IEditorGroupsService).mainPart.groups.includes(editor.group) ? editor.group : undefined;
 		await accessor.get(IEditorService).openEditor({
 			resource: getWorkspaceResource(resource, changes.changesObs.get()),
-		});
+		}, group);
 	}
 }
 registerAction2(OpenChangedFileAction);
@@ -192,7 +198,7 @@ class ExpandFullFileAction extends Action2 {
 			return;
 		}
 
-		getExpandedChangesDiffEditor(accessor.get(IEditorService).activeEditorPane, resource)?.showAllUnchangedRegions();
+		getExpandedChangesDiffEditor(getFileActionEditorPane(accessor.get(IEditorService), args), resource)?.showAllUnchangedRegions();
 	}
 }
 registerAction2(ExpandFullFileAction);
@@ -233,7 +239,7 @@ class CollapseUnchangedRegionsAction extends Action2 {
 			return;
 		}
 
-		getExpandedChangesDiffEditor(accessor.get(IEditorService).activeEditorPane, resource)?.collapseAllUnchangedRegions();
+		getExpandedChangesDiffEditor(getFileActionEditorPane(accessor.get(IEditorService), args), resource)?.collapseAllUnchangedRegions();
 	}
 }
 registerAction2(CollapseUnchangedRegionsAction);
@@ -307,66 +313,81 @@ export class ChangesetOperationsActionControllerContribution extends Disposable 
 	) {
 		super();
 
-		this._register(autorun(reader => {
-			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
-			const resourceOperations = (changeset?.operations.read(reader) ?? [])
-				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Resource));
+		// The main window's: in its Changes view and its, and its editor windows', Changes editor, for its session. A chat
+		// window registers those of its own session (see registerResourceChangesetOperations).
+		this._register(registerResourceChangesetOperations({
+			changesetObs: changesViewService.activeSessionChangesetObs,
+			changesObs: changesViewService.activeSessionChangesObs,
+		}, '', ContextKeyExpr.has(ChatWindowContext.key).negate(), true));
+	}
+}
 
-			if (resourceOperations.length === 0) {
-				return;
-			}
+/**
+ * Registers the operations on a file of the changeset of `changes`, such as Keep, Undo or Discard Changes, as actions of
+ * the toolbar of each file of the Changes editor (and, with `inChangesView`, of the Changes view), shown where `when`
+ * holds. They act on that changeset, whichever session is active.
+ */
+export function registerResourceChangesetOperations(changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesObs'>, idSuffix: string, when: ContextKeyExpression, inChangesView: boolean): IDisposable {
+	return autorun(reader => {
+		const changeset = changes.changesetObs.read(reader);
+		const resourceOperations = (changeset?.operations.read(reader) ?? [])
+			.filter(op => op.scopes.includes(SessionChangesetOperationScope.Resource));
 
-			for (const operation of resourceOperations) {
-				const precondition = operation.status === SessionChangesetOperationStatus.Disabled
-					|| operation.status === SessionChangesetOperationStatus.Running
-					? ContextKeyExpr.false()
-					: undefined;
-				reader.store.add(registerAction2(class extends Action2 {
-					constructor() {
-						super({
-							id: `workbench.contrib.sessions.changesetOperation.${operation.id}`,
-							title: operation.label,
-							icon: operation.icon,
-							precondition,
-							f1: false,
-							menu: [{
+		if (resourceOperations.length === 0) {
+			return;
+		}
+
+		for (const operation of resourceOperations) {
+			const precondition = operation.status === SessionChangesetOperationStatus.Disabled
+				|| operation.status === SessionChangesetOperationStatus.Running
+				? ContextKeyExpr.false()
+				: undefined;
+			reader.store.add(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: `workbench.contrib.sessions.changesetOperation.${operation.id}${idSuffix}`,
+						title: operation.label,
+						icon: operation.icon,
+						precondition,
+						f1: false,
+						menu: [
+							...(inChangesView ? [{
 								id: MenuId.AgentsChangeInlineToolbar,
 								group: 'navigation',
 								order: 100
-							},
+							}] : []),
 							{
 								id: MenuId.MultiDiffEditorFileToolbar,
-								when: ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
+								when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'), when),
 								group: 'navigation',
 								order: 100
 							}]
-						});
+					});
+				}
+
+				async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+					// The Changes view provides the resource as the third argument (uses a
+					// custom action runner) while the multi-file diff editor provides the
+					// resource as the first argument.
+					const resource = args.length === 3 ? args[2] : args[0];
+					if (!resource || !(resource instanceof URI)) {
+						return;
 					}
 
-					async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-						// The Changes view provides the resource as the third argument (uses a
-						// custom action runner) while the multi-file diff editor provides the
-						// resource as the first argument.
-						const resource = args.length === 3 ? args[2] : args[0];
-						if (!resource || !(resource instanceof URI)) {
-							return;
-						}
-
-						const change = changesViewService.activeSessionChangesObs.read(undefined)
-							.find(change => isChangesFileResource(change, resource));
-						if (!change) {
-							return;
-						}
-
-						await changeset?.invokeOperation(operation.id, {
-							kind: 'resource',
-							resource: getChangesFileUri(change),
-						});
+					const change = changes.changesObs.read(undefined)
+						.find(change => isChangesFileResource(change, resource));
+					if (!change) {
+						return;
 					}
-				}));
-			}
-		}));
-	}
+
+					await changeset?.invokeOperation(operation.id, {
+						kind: 'resource',
+						resource: getChangesFileUri(change),
+					});
+				}
+			}));
+		}
+	});
 }
 
 const CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX = 'workbench.contrib.sessions.changesHeaderChangesetOperation.';
@@ -409,71 +430,88 @@ export class ChangesHeaderChangesetOperationsActionContribution extends Disposab
 	) {
 		super();
 
-		this._register(actionViewItemService.register(Menus.SessionsEditorTitle, `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`, (action, options, instantiationService) => {
-			return action instanceof MenuItemAction
-				? instantiationService.createInstance(CommitActionViewItem, action, options)
-				: undefined;
-		}));
-
-		this._register(autorun(reader => {
-			const activeSession = sessionsService.mainWindowActiveSession.read(reader);
-			if (!activeSession) {
-				return;
-			}
-
-			let changeset: ISessionChangeset | undefined;
-			let operations: readonly ISessionChangesetOperation[];
-			let hasUncommittedChanges = true;
-			if (activeSession.status.read(reader) === SessionStatus.Untitled) {
-				changeset = (activeSession.activeChat.read(reader) ?? activeSession.mainChat.read(reader)).changesets.read(reader)
-					?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
-				operations = changeset?.operations.read(reader)
-					.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)
-					.filter(operation => operation.id !== AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID)
-					.filter(operation => operation.scopes.includes(SessionChangesetOperationScope.Changeset)) ?? [];
-				hasUncommittedChanges = (activeSession.workspace.read(reader)?.folders[0]?.gitRepository?.uncommittedChanges ?? 0) > 0;
-			} else {
-				changeset = changesViewService.activeSessionChangesetObs.read(reader);
-				operations = changeset
-					? changesViewService.activeSessionChangesetOperationsObs.read(reader)
-						.filter(operation => operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID)
-						.filter(operation => operation.scopes.includes(SessionChangesetOperationScope.Changeset))
-					: [];
-			}
-
-			for (let index = 0; index < operations.length; index++) {
-				const operation = operations[index];
-				const precondition = operation.status === SessionChangesetOperationStatus.Disabled
-					|| operation.status === SessionChangesetOperationStatus.Running
-					|| (operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID && !hasUncommittedChanges)
-					? ContextKeyExpr.false()
-					: undefined;
-
-				reader.store.add(registerAction2(class extends Action2 {
-					constructor() {
-						super({
-							id: `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${operation.id}`,
-							title: operation.label,
-							tooltip: operation.description,
-							icon: operation.icon,
-							precondition,
-							f1: false,
-							menu: {
-								id: Menus.SessionsEditorTitle,
-								group: 'navigation',
-								order: index,
-								when: ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
-							}
-						});
-					}
-
-					async run(): Promise<void> {
-						await changeset?.invokeOperation(operation.id);
-					}
-				}));
-			}
-		}));
+		// The main window's, and its editor windows', Changes editor: the operations of the main window's session. A chat
+		// window registers those of its own session (see registerChangesetOperations).
+		this._register(registerChangesetOperations(sessionsService.mainWindowActiveSession, {
+			changesetObs: changesViewService.activeSessionChangesetObs,
+			changesetOperationsObs: changesViewService.activeSessionChangesetOperationsObs,
+		}, actionViewItemService, '', ContextKeyExpr.has(ChatWindowContext.key).negate()));
 	}
+}
+
+/**
+ * Registers the changeset operations of `session` in the Changes editor's title, where `when` holds, such as in one chat
+ * window: their ids end with `idSuffix`, so that each window has its own. For a new (untitled) session they are the
+ * changeset-scoped operations of its uncommitted changes (except Sync and Checkout); for an existing session the Commit
+ * operation of the changeset selected in its Changes view.
+ */
+export function registerChangesetOperations(session: IObservable<IActiveSession | undefined>, changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'>, actionViewItemService: IActionViewItemService, idSuffix: string, when: ContextKeyExpression): IDisposable {
+	const store = new DisposableStore();
+	store.add(actionViewItemService.register(Menus.SessionsEditorTitle, `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}${idSuffix}`, (action, options, instantiationService) => {
+		return action instanceof MenuItemAction
+			? instantiationService.createInstance(CommitActionViewItem, action, options)
+			: undefined;
+	}));
+
+	store.add(autorun(reader => {
+		const activeSession = session.read(reader);
+		if (!activeSession) {
+			return;
+		}
+
+		let changeset: ISessionChangeset | undefined;
+		let operations: readonly ISessionChangesetOperation[];
+		let hasUncommittedChanges = true;
+		if (activeSession.status.read(reader) === SessionStatus.Untitled) {
+			changeset = (activeSession.activeChat.read(reader) ?? activeSession.mainChat.read(reader)).changesets.read(reader)
+				?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
+			operations = changeset?.operations.read(reader)
+				.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)
+				.filter(operation => operation.id !== AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID)
+				.filter(operation => operation.scopes.includes(SessionChangesetOperationScope.Changeset)) ?? [];
+			hasUncommittedChanges = (activeSession.workspace.read(reader)?.folders[0]?.gitRepository?.uncommittedChanges ?? 0) > 0;
+		} else {
+			changeset = changes.changesetObs.read(reader);
+			operations = changeset
+				? changes.changesetOperationsObs.read(reader)
+					.filter(operation => operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID)
+					.filter(operation => operation.scopes.includes(SessionChangesetOperationScope.Changeset))
+				: [];
+		}
+
+		for (let index = 0; index < operations.length; index++) {
+			const operation = operations[index];
+			const precondition = operation.status === SessionChangesetOperationStatus.Disabled
+				|| operation.status === SessionChangesetOperationStatus.Running
+				|| (operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID && !hasUncommittedChanges)
+				? ContextKeyExpr.false()
+				: undefined;
+
+			reader.store.add(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${operation.id}${idSuffix}`,
+						title: operation.label,
+						tooltip: operation.description,
+						icon: operation.icon,
+						precondition,
+						f1: false,
+						menu: {
+							id: Menus.SessionsEditorTitle,
+							group: 'navigation',
+							order: index,
+							when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(SessionChangesEditor.ID), when),
+						}
+					});
+				}
+
+				async run(): Promise<void> {
+					await changeset?.invokeOperation(operation.id);
+				}
+			}));
+		}
+	}));
+	return store;
 }
 
 registerWorkbenchContribution2(ChangesMultiDiffSourceResolverContribution.ID, ChangesMultiDiffSourceResolverContribution, WorkbenchPhase.BlockRestore);

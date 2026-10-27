@@ -17,7 +17,7 @@ import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
@@ -340,6 +340,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -380,8 +381,13 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		}));
 		this.onDidChangeActions = Event.signal(buttonBar.onDidChange);
 
-		const menuActionsObs = observableFromEvent(menu.onDidChange, () => {
-			return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+		const menuChanged = observableSignalFromEvent(this, menu.onDidChange);
+		const menuActionsObs = derived(reader => {
+			menuChanged.read(reader);
+			// A bar of a session other than the main window's, such as in a chat window, names its session to its actions,
+			// as the bar of a non-agent-host session does, rather than leaving them to act on whichever session is active.
+			const sessionResource = sessionObs !== sessionsService.mainWindowActiveSession ? sessionObs.read(reader)?.resource : undefined;
+			return getActionBarActions(menu.getActions(sessionResource ? { arg: sessionResource, shouldForwardArgs: true } : { shouldForwardArgs: true }));
 		});
 
 		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionAgentMergeEnabledContext.key]))), () =>
@@ -399,8 +405,12 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		// A submenu contributed to that group names related actions. Its first
 		// entry is the primary invocation; the button's dropdown carries the
 		// remaining entries together with unrelated operations.
-		const dropdownMenuActionsObs = observableFromEvent(dropdownMenu.onDidChange, () => {
-			const groups = dropdownMenu.getActions({ shouldForwardArgs: true });
+		const dropdownMenuChanged = observableSignalFromEvent(this, dropdownMenu.onDidChange);
+		const dropdownMenuActionsObs = derived(reader => {
+			dropdownMenuChanged.read(reader);
+			// Its actions, such as those of Agent Merge, act on the session of this bar, such as that of a chat window,
+			// rather than on whichever session is active.
+			const groups = dropdownMenu.getActions({ arg: sessionObs.read(reader), shouldForwardArgs: true });
 			const primaryGroup = groups.find(([group]) => group === CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP)?.[1] ?? [];
 			const rest = groups.filter(([group]) => group !== CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP).map(([, actions]) => actions);
 			const contributed = primaryGroup[0];
@@ -513,7 +523,8 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			}
 
 			// Resource-scoped Git settings can change the advertised operations once the new chat's folders are mounted.
-			if (!isChangesActionsWorkspaceReady(sessionObs.read(reader), workspaceFoldersObs.read(reader), reader)) {
+			// Only the main window's session is mounted: the bar of another session, such as in a chat window, never waits.
+			if (sessionObs === sessionsService.mainWindowActiveSession && !isChangesActionsWorkspaceReady(sessionObs.read(reader), workspaceFoldersObs.read(reader), reader)) {
 				if (buttonBar.buttons.length > 0) {
 					buttonBar.update([], []);
 				}
