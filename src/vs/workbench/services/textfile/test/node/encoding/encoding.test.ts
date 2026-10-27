@@ -226,42 +226,100 @@ suite('Encoding', () => {
 	});
 
 	suite('autoGuessEncoding (candidate fallback)', () => {
+		// "一般中文\n" in cp950, the short file from https://github.com/microsoft/vscode/issues/336685.
+		// cp950 is Microsoft's extension of Big5; test names call it Big5.
 		const cp950Bytes = Buffer.from('a440afeba4a4a4e50a', 'hex');
+		const asciiPadding = 'echo hello world\n'.repeat(300);
 
-		for (const { name, bytes, candidates, expected } of [
-			{ name: 'short CP950', bytes: cp950Bytes, candidates: ['cp950'], expected: 'cp950' },
-			{ name: 'UTF-8 and CP950', bytes: cp950Bytes, candidates: ['utf8', 'cp950'], expected: 'cp950' },
-			{ name: 'normalized candidates', bytes: cp950Bytes, candidates: ['utf-8', 'CP950'], expected: 'cp950' },
-			{ name: 'duplicate candidates', bytes: cp950Bytes, candidates: ['cp950', 'cp950'], expected: 'cp950' },
-			{ name: 'only one lossless candidate', bytes: cp950Bytes, candidates: ['shiftjis', 'cp950', 'eucjp'], expected: 'cp950' },
-			{ name: 'mostly ASCII', bytes: Buffer.concat([cp950Bytes, Buffer.from('echo hello world\n'.repeat(300))]), candidates: ['cp950'], expected: 'cp950' },
-			{ name: 'valid UTF-8', bytes: Buffer.from('一般中文\n'), candidates: ['cp950'], expected: null },
-			{ name: 'ASCII', bytes: Buffer.from('echo hello world\n'), candidates: ['cp950'], expected: null },
-			{ name: 'empty', bytes: Buffer.alloc(0), candidates: ['cp950'], expected: null },
-			{ name: 'partial UTF-8 character', bytes: Buffer.from('e4b8', 'hex'), candidates: ['cp950'], expected: null },
-			{ name: 'invalid CP950', bytes: Buffer.from('ffff', 'hex'), candidates: ['cp950'], expected: null },
-			{ name: 'incomplete CP950', bytes: cp950Bytes.subarray(0, 7), candidates: ['cp950'], expected: null },
-			{ name: 'ambiguous candidates', bytes: Buffer.from('a4a4', 'hex'), candidates: ['cp950', 'eucjp'], expected: null },
-			{ name: 'no candidates', bytes: cp950Bytes, candidates: [], expected: 'windows1252' },
-			{ name: 'unsupported candidates', bytes: cp950Bytes, candidates: ['unsupported'], expected: 'windows1252' },
-			{ name: 'BOM takes precedence', bytes: Buffer.from('efbbbf41', 'hex'), candidates: ['cp950'], expected: 'utf8bom' },
-		]) {
-			test(name, async () => {
-				const buffer = VSBuffer.wrap(bytes);
+		function runDetectionTests(cases: { name: string; bytes: Buffer; candidates: string[]; expected: string | null }[]): void {
+			for (const { name, bytes, candidates, expected } of cases) {
+				test(name, async () => {
+					const buffer = VSBuffer.wrap(bytes);
 
-				assert.deepStrictEqual(await encoding.detectEncodingFromBuffer({ buffer, bytesRead: buffer.byteLength }, true, candidates), {
-					encoding: expected,
-					seemsBinary: false
+					assert.deepStrictEqual(await encoding.detectEncodingFromBuffer({ buffer, bytesRead: buffer.byteLength }, true, candidates), {
+						encoding: expected,
+						seemsBinary: false
+					});
 				});
-			});
+			}
 		}
 
-		test('disabled guessing', () => {
-			const buffer = VSBuffer.wrap(cp950Bytes);
+		async function decodeWithCandidates(bytes: Buffer, candidates: string[]) {
+			const { detected, stream } = await encoding.toDecodeStream(newTestReadableStream([bytes]), { acceptTextOnly: true, guessEncoding: true, candidateGuessEncodings: candidates, overwriteEncoding: async detected => detected || encoding.UTF8 });
 
-			assert.deepStrictEqual(encoding.detectEncodingFromBuffer({ buffer, bytesRead: buffer.byteLength }, false, ['cp950']), {
-				encoding: null,
-				seemsBinary: false
+			return { detected, content: await readAllAsString(stream) };
+		}
+
+		runDetectionTests([
+			{ name: 'issue #336685: short Big5 file is detected as cp950', bytes: cp950Bytes, candidates: ['cp950'], expected: 'cp950' },
+			{ name: 'issue #336685: short Big5 file is detected as cp950 with utf8 also a candidate', bytes: cp950Bytes, candidates: ['utf8', 'cp950'], expected: 'cp950' },
+			{ name: 'issue #336685: candidate names are normalized', bytes: cp950Bytes, candidates: ['utf-8', 'CP950'], expected: 'cp950' },
+			{ name: 'issue #336685: mostly-ASCII script with sparse Big5 is detected as cp950', bytes: Buffer.concat([cp950Bytes, Buffer.from(asciiPadding)]), candidates: ['cp950'], expected: 'cp950' },
+		]);
+
+		test('issue #336685: toDecodeStream decodes the short Big5 file as cp950', async () => {
+			assert.deepStrictEqual(await decodeWithCandidates(cp950Bytes, ['utf8', 'cp950']), {
+				detected: { encoding: 'cp950', seemsBinary: false },
+				content: '一般中文\n'
+			});
+		});
+
+		test('issue #336685: toDecodeStream decodes a mostly-ASCII Big5 script as cp950', async () => {
+			assert.deepStrictEqual(await decodeWithCandidates(Buffer.concat([cp950Bytes, Buffer.from(asciiPadding)]), ['utf8', 'cp950']), {
+				detected: { encoding: 'cp950', seemsBinary: false },
+				content: `一般中文\n${asciiPadding}`
+			});
+		});
+
+		// The fallback picks a candidate.
+		suite('fallback picks a candidate', () => {
+			runDetectionTests([
+				{ name: 'a duplicated candidate is not treated as ambiguous', bytes: cp950Bytes, candidates: ['cp950', 'cp950'], expected: 'cp950' },
+				{ name: 'picks the only candidate that decodes losslessly', bytes: cp950Bytes, candidates: ['shiftjis', 'cp950', 'eucjp'], expected: 'cp950' },
+			]);
+		});
+
+		// The fallback runs but returns no encoding.
+		suite('fallback declines', () => {
+			runDetectionTests([
+				{ name: 'valid UTF-8 is not decoded as a legacy candidate', bytes: Buffer.from('一般中文\n'), candidates: ['cp950'], expected: null },
+				{ name: 'ASCII is not assigned a legacy candidate', bytes: Buffer.from('echo hello world\n'), candidates: ['cp950'], expected: null },
+				{ name: 'an empty file is not assigned a legacy candidate', bytes: Buffer.alloc(0), candidates: ['cp950'], expected: null },
+				{ name: 'a sample ending in a cut-off UTF-8 character is treated as UTF-8', bytes: Buffer.from('e4b8', 'hex'), candidates: ['cp950'], expected: null },
+				{ name: 'bytes the candidate cannot decode losslessly are rejected', bytes: Buffer.from('ffff', 'hex'), candidates: ['cp950'], expected: null },
+				{ name: 'a cut-off Big5 character fails the lossless check', bytes: cp950Bytes.subarray(0, 7), candidates: ['cp950'], expected: null },
+				{ name: 'several lossless candidates are ambiguous', bytes: Buffer.from('a4a4', 'hex'), candidates: ['cp950', 'eucjp'], expected: null },
+			]);
+
+			test('toDecodeStream keeps a UTF-8 character split across chunks', async () => {
+				const source = newTestReadableStream([
+					Buffer.from('e4b8', 'hex'),
+					Buffer.from('ad', 'hex')
+				]);
+				const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 2, guessEncoding: true, candidateGuessEncodings: ['cp950'], overwriteEncoding: async detected => detected || encoding.UTF8 });
+
+				assert.deepStrictEqual({ detected, content: await readAllAsString(stream) }, {
+					detected: { encoding: 'utf8', seemsBinary: false },
+					content: '中'
+				});
+			});
+		});
+
+		// Paths where the fallback must not run.
+		suite('fallback not reached', () => {
+			runDetectionTests([
+				{ name: 'without candidates, jschardet\'s answer is used', bytes: cp950Bytes, candidates: [], expected: 'windows1252' },
+				{ name: 'unsupported candidates are ignored', bytes: cp950Bytes, candidates: ['unsupported'], expected: 'windows1252' },
+				{ name: 'a BOM takes precedence over guessing', bytes: Buffer.from('efbbbf41', 'hex'), candidates: ['cp950'], expected: 'utf8bom' },
+			]);
+
+			test('candidates are ignored when guessing is disabled', () => {
+				const buffer = VSBuffer.wrap(cp950Bytes);
+
+				assert.deepStrictEqual(encoding.detectEncodingFromBuffer({ buffer, bytesRead: buffer.byteLength }, false, ['cp950']), {
+					encoding: null,
+					seemsBinary: false
+				});
 			});
 		});
 	});
@@ -364,37 +422,6 @@ suite('Encoding', () => {
 		const expected = await readAndDecodeFromDisk(path, detected.encoding);
 		const actual = await readAllAsString(stream);
 		assert.strictEqual(actual, expected);
-	});
-
-	for (const { name, padding } of [
-		{ name: 'short CP950', padding: '' },
-		{ name: 'mostly ASCII', padding: 'echo hello world\n'.repeat(300) }
-	]) {
-		test(`toDecodeStream - candidate fallback (${name})`, async () => {
-			const source = newTestReadableStream([Buffer.concat([
-				Buffer.from('a440afeba4a4a4e50a', 'hex'),
-				Buffer.from(padding)
-			])]);
-			const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, guessEncoding: true, candidateGuessEncodings: ['utf8', 'cp950'], overwriteEncoding: async detected => detected || encoding.UTF8 });
-
-			assert.deepStrictEqual({ detected, content: await readAllAsString(stream) }, {
-				detected: { encoding: 'cp950', seemsBinary: false },
-				content: `一般中文\n${padding}`
-			});
-		});
-	}
-
-	test('toDecodeStream - candidate fallback preserves a split UTF-8 character', async () => {
-		const source = newTestReadableStream([
-			Buffer.from('e4b8', 'hex'),
-			Buffer.from('ad', 'hex')
-		]);
-		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 2, guessEncoding: true, candidateGuessEncodings: ['cp950'], overwriteEncoding: async detected => detected || encoding.UTF8 });
-
-		assert.deepStrictEqual({ detected, content: await readAllAsString(stream) }, {
-			detected: { encoding: 'utf8', seemsBinary: false },
-			content: '中'
-		});
 	});
 
 	test('toDecodeStream - decodes buffer entirely', async function () {
