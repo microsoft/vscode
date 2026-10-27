@@ -314,6 +314,9 @@ export class ViewModel extends Disposable implements IViewModel {
 			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration, this.languageConfigurationService);
 			this._cursor.updateConfiguration(this.cursorConfig);
 		}
+		if (e.hasChanged(EditorOption.effectiveCursorStyle)) {
+			this._cursor.setStates(eventsCollector, 'viewModel', CursorChangeReason.NotSet, this._cursor.getCursorStates().map(state => CursorState.fromModelState(state.modelState)));
+		}
 	}
 
 	/**
