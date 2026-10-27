@@ -80,6 +80,7 @@ async function main(): Promise<void> {
 		}
 		// Like the preview: natural width (at most the frame width), height following the aspect ratio.
 		diagram.querySelector('svg')?.removeAttribute('height');
+		diagram.querySelector('.mermaid-error')?.setAttribute('role', 'alert');
 		root.replaceChildren(diagram);
 		root.setAttribute('aria-busy', 'false');
 		reportSize();
@@ -106,6 +107,8 @@ async function main(): Promise<void> {
 
 void main().catch(error => {
 	console.error('Mermaid code block editor failed', error);
-	root.replaceChildren(createMermaidErrorElement(error));
+	const message = createMermaidErrorElement(error);
+	message.setAttribute('role', 'alert');
+	root.replaceChildren(message);
 	root.setAttribute('aria-busy', 'false');
 });

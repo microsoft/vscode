@@ -87,7 +87,8 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 		await page.evaluate(() => window.mermaidTest.setText('flowchart LR\n A[Updated] --> B[Second]'));
 		await frame.locator('svg').filter({ hasText: 'Updated' }).waitFor();
 		await page.evaluate(() => window.mermaidTest.setText('not a diagram'));
-		await frame.locator('.mermaid-error').waitFor();
+		await frame.getByRole('alert').waitFor();
+		assert.match(await frame.getByRole('alert').textContent() ?? '', /\S/);
 		await page.evaluate(() => window.mermaidTest.setText('flowchart LR\n A[Recovered] --> B[Second]'));
 		await frame.locator('svg').filter({ hasText: 'Recovered' }).waitFor();
 		assert.deepEqual(errors, []);
