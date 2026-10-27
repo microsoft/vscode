@@ -9,13 +9,18 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { SessionLayoutMode } from '../../../../common/sessionGridLayout/sessionGridLayout.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IEditorPane } from '../../../../../workbench/common/editor.js';
+import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
+import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { ChatWindowContext, ChatWindowHasEditorAreaContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalRowContext, IChatWindow, IChatWindowService, isChatWindowHandle } from '../../../../services/chatWindow/browser/chatWindowService.js';
@@ -107,6 +112,38 @@ suite('Chat window editor area', () => {
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(changes.id)!.handler(accessor, { chatWindowId: 2 }));
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(changes.id)!.handler(accessor));
 		assert.deepStrictEqual(opened, ['2:showEditor', 'changes:/session-2:/chat-2:20', '1:showEditor', 'changes:/session-1:/chat-1:10']);
+	});
+
+	test('the Browser entry opens a browser in the editor area of its chat window and focuses its URL input', async () => {
+		const opened: string[] = [];
+		const window = createWindow(3, opened);
+		const group = new class extends mock<IEditorGroup>() {
+			override readonly id = 30;
+			override getEditors() { return []; }
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
+			override resolveWindow() {
+				return new class extends mock<IChatWindow>() {
+					override readonly editorGroup = group;
+					override showEditor() { window.showEditor(); }
+				}();
+			}
+		}());
+		instantiationService.stub(IBrowserViewWorkbenchService, new class extends mock<IBrowserViewWorkbenchService>() {
+			override getOrCreateLazy() { return { url: undefined } as unknown as BrowserEditorInput; }
+		}());
+		const openEditor = async (_editor: unknown, _options: unknown, target: IEditorGroup) => {
+			opened.push(`browser:${target.id}`);
+			return { getId: () => 'pane' } as unknown as IEditorPane;
+		};
+		instantiationService.stub(IEditorService, { openEditor: openEditor as unknown as IEditorService['openEditor'] });
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(id: string): Promise<R> { opened.push(id); return undefined as R; }
+		}());
+		const browser = chatWindowTabEntries.find(entry => entry.id === 'sessions.chatWindow.openBrowser')!;
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(browser.id)!.handler(accessor, { chatWindowId: 3 }));
+		assert.deepStrictEqual(opened, ['3:showEditor', 'browser:30', BrowserViewCommandId.FocusUrlInput]);
 	});
 
 	test('the tab entries show in chat windows only, and Changes and Files need a session with a workspace', () => {

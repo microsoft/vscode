@@ -19,6 +19,7 @@ import { ISessionTaskRunner } from '../../chat/browser/sessionTaskRunner.js';
 import { osToTaskTargetOS, resolveTaskCommand } from '../../chat/browser/taskCommand.js';
 import { ITaskEntry, ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationResolverService } from '../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
@@ -73,6 +74,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ILogService private readonly _logService: ILogService,
+		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 	) { }
 
 	canRun(session: ISession): boolean {
@@ -140,8 +142,15 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		taskTerminal.isLaunching = true;
 		const executionId = ++taskTerminal.executionId;
 		try {
-			this._terminalService.setActiveInstance(instance);
-			await this._terminalGroupService.showPanel(true);
+			// Run from a chat window, which shows the session: the task shows in its terminals, never in the main window's
+			// panel, which would take the focus to the main window.
+			const chatWindow = this._chatWindowService.windows.get().find(window => window.session.get() === session);
+			if (chatWindow) {
+				await chatWindow.showTerminal(instance.instanceId);
+			} else {
+				this._terminalService.setActiveInstance(instance);
+				await this._terminalGroupService.showPanel(true);
+			}
 			if (isReused) {
 				// Discard anything typed at the prompt since the last run so it is
 				// not prepended to the task command, like `ITerminalInstance.runCommand`.
