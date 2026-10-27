@@ -67,7 +67,7 @@ import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRe
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubIssueModel } from '../../../github/browser/models/githubIssueModel.js';
-import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, readLoadedSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
+import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, findSessionOfChat, readLoadedSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
 import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 
 suite('SessionChatInputToolbar', () => {
@@ -194,6 +194,18 @@ suite('SessionChatInputToolbar', () => {
 			setEditors: (inputs: { editor: EditorInput; groupId: number }[]) => { editors = inputs; },
 		};
 	}
+
+	test('a chat shown in a window of its own resolves to the session of that window, though the main window shows another chat of its session', () => {
+		const inMainWindow = upcastPartial<IChat>({ resource: URI.parse('chat:main') });
+		const inChatWindow = upcastPartial<IChat>({ resource: URI.parse('chat:window') });
+		const gridSession = upcastPartial<IActiveSession>({ sessionId: 'grid', chats: constObservable([inMainWindow, inChatWindow]) });
+		const windowSession = upcastPartial<IActiveSession>({ sessionId: 'window', scopedChatResource: inChatWindow.resource, chats: constObservable([inMainWindow, inChatWindow]) });
+		const sessionsService = { visibleSessions: constObservable([gridSession]), windowSessions: constObservable([windowSession]), activeSession: constObservable(gridSession) };
+		assert.deepStrictEqual({
+			chatWindow: findSessionOfChat(sessionsService, inChatWindow.resource, undefined)?.sessionId,
+			mainWindow: findSessionOfChat(sessionsService, inMainWindow.resource, undefined)?.sessionId,
+		}, { chatWindow: 'window', mainWindow: 'grid' });
+	});
 
 	test('activity bar retains PR availability without repeating opener checks on metadata refresh', async () => {
 		let lookups = 0;

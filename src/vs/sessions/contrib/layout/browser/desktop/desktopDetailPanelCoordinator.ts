@@ -80,7 +80,7 @@ export class DesktopDetailPanelCoordinator extends Disposable {
 			}
 		}));
 		this._register(autorun(reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
+			const activeSession = sessionsService.mainWindowActiveSession.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);
 			if (!activeSession || (!(activeSession.isQuickChat?.read(reader) ?? false) && !activeChat?.workspace.read(reader))) {
 				this.sync(DetailPanelTarget.Preserve);

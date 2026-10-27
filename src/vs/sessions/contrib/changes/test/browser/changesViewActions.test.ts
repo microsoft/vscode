@@ -94,6 +94,7 @@ suite('Changes View Actions', () => {
 
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.openPullRequest')!.handler(accessor));

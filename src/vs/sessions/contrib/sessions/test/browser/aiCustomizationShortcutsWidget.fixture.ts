@@ -203,6 +203,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			}());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = observableValue('mockActiveSession', undefined);
+				override readonly mainWindowActiveSession = this.activeSession;
 			}());
 			reg.defineInstance(IAICustomizationItemsModel, createMockItemsModel(options?.counts));
 			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService(options?.hiddenSections));

@@ -117,7 +117,7 @@ suite('ChangesViewService', () => {
 		});
 	}
 
-	function createHarness(initialSession: IActiveSession, storageService = disposables.add(new TestStorageService())) {
+	function createHarness(initialSession: IActiveSession, storageService = disposables.add(new TestStorageService()), windowSessions: readonly IActiveSession[] = []) {
 		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', initialSession);
 		const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const onDidDeleteSession = disposables.add(new Emitter<ISession>());
@@ -126,6 +126,9 @@ suite('ChangesViewService', () => {
 		const onDidReplaceNewDraftSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = activeSession;
+			override readonly windowSessions = constObservable(windowSessions);
+			override readonly visibleSessions = constObservable([]);
 		}();
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override readonly onDidReplaceSession = onDidReplaceSession.event;
@@ -308,6 +311,35 @@ suite('ChangesViewService', () => {
 		}, {
 			detailsViewState,
 			draftDetailsViewState: undefined,
+		});
+	});
+
+	test('serves the changes of a session in a chat window, with its own selection, without changing the main window session', () => {
+		const mainChange = upcastPartial<ISessionFileChange>({ modifiedUri: URI.file('/main.ts'), insertions: 1, deletions: 0 });
+		const windowBranchChange = upcastPartial<ISessionFileChange>({ modifiedUri: URI.file('/window-branch.ts'), insertions: 2, deletions: 0 });
+		const windowTurnChange = upcastPartial<ISessionFileChange>({ modifiedUri: URI.file('/window-turn.ts'), insertions: 3, deletions: 0 });
+		const turnChangeset = upcastPartial<ISessionChangeset>({
+			...createTransientChangeset(),
+			id: 'turn',
+			changes: constObservable([windowTurnChange]),
+		});
+		const mainSession = createSession('main', { changesets: [createChangeset([], { changes: constObservable([mainChange]) })] });
+		const windowSession = createSession('window', { changesets: [createChangeset([], { changes: constObservable([windowBranchChange]) }), turnChangeset] });
+		const { service } = createHarness(mainSession, undefined, [windowSession]);
+		const windowChanges = service.getSessionChanges(windowSession.resource);
+		const read = () => ({
+			main: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.path),
+			window: windowChanges.get().map(change => change.modifiedUri?.path),
+		});
+
+		const byDefault = read();
+		service.setChangesetId('turn', windowSession.resource);
+		const afterSelectingInWindow = read();
+
+		assert.deepStrictEqual({ byDefault, afterSelectingInWindow, mainChangeset: service.activeSessionChangesetObs.get()?.id }, {
+			byDefault: { main: ['/main.ts'], window: ['/window-branch.ts'] },
+			afterSelectingInWindow: { main: ['/main.ts'], window: ['/window-turn.ts'] },
+			mainChangeset: 'branch',
 		});
 	});
 
