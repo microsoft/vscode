@@ -399,7 +399,7 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 
 function withActiveSessionView(accessor: ServicesAccessor, action: (view: NonNullable<ReturnType<ISessionsPartService['getSessionView']>>) => void): void {
 	const sessionsService = accessor.get(ISessionsService);
-	const view = accessor.get(ISessionsPartService).getSessionView(sessionsService.activeSession.get()?.sessionId);
+	const view = accessor.get(ISessionsPartService).getSessionView(sessionsService.activeSession.get());
 	if (view) {
 		action(view);
 	}
@@ -702,7 +702,7 @@ registerAction2(class RenameChatAction extends Action2 {
 				return;
 			}
 		}
-		if (renameContext?.inline && accessor.get(ISessionsPartService).getSessionView(renameContext.session.sessionId)?.startChatTitleEditing(renameContext.chat.resource)) {
+		if (renameContext?.inline && accessor.get(ISessionsPartService).getSessionView(renameContext.session)?.startChatTitleEditing(renameContext.chat.resource)) {
 			return;
 		}
 		if (!renameContext && accessor.get(ISessionsPartService).getFocusedSessionView()?.startFocusedChatTitleEditing?.()) {
@@ -1082,7 +1082,7 @@ registerAction2(class CloseChatAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		const sessionView = accessor.get(ISessionsPartService).getSessionView(session.sessionId);
+		const sessionView = accessor.get(ISessionsPartService).getSessionView(session);
 		chat ??= sessionView?.getActiveChat() ?? session.activeChat.get();
 		if (!chat) {
 			return;
@@ -1895,7 +1895,7 @@ export class SessionConversationActionsContribution extends Disposable implement
 					// active one) instead of in place; the dropdown's select handler
 					// does not forward the mouse event, so read the live modifier state.
 					if (ModifierKeyEmitter.getInstance().keyStatus.altKey) {
-						const view = accessor.get(ISessionsPartService).getSessionView(target.sessionId);
+						const view = accessor.get(ISessionsPartService).getSessionView(target);
 						if (view) {
 							await view.openChatToSide(targetChat.resource);
 							return;
@@ -2053,7 +2053,7 @@ registerAction2(class TogglePinChatAction extends Action2 {
 	override run(accessor: ServicesAccessor, session: IActiveSession | undefined): void {
 		session ??= accessor.get(ISessionsService).activeSession.get();
 		if (session) {
-			accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.toggleActiveChatPin();
+			accessor.get(ISessionsPartService).getSessionView(session)?.toggleActiveChatPin();
 		}
 	}
 });
@@ -2092,7 +2092,7 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 		// is only available while the header shows the title (e.g. not while the
 		// single-group chat tabs row replaces it); prompt for the new title when
 		// it cannot be used.
-		if (accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.startTitleEditing()) {
+		if (accessor.get(ISessionsPartService).getSessionView(session)?.startTitleEditing()) {
 			return;
 		}
 		await accessor.get(ICommandService).executeCommand(RENAME_SESSION_COMMAND_ID, session);
@@ -2142,7 +2142,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		session ??= sessionsService.activeSession.get();
 
-		const sessionView = session && sessionsPartService.getSessionView(session.sessionId);
+		const sessionView = session && sessionsPartService.getSessionView(session);
 		const activeChat = sessionView?.getActiveChat();
 		if (session
 			&& sessionView

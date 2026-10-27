@@ -564,6 +564,7 @@ suite('Sessions - Editor Contribution', () => {
 					workspace: constObservable(chatWorkspace),
 				}),
 			} as IActiveSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
@@ -1748,6 +1749,7 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorGroupCount(instantiationService, 5);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable({ resource, isCreated: constObservable(true) } as IActiveSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
@@ -1771,6 +1773,7 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorGroupCount(instantiationService, 2);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable({ resource, isCreated: constObservable(false) } as IActiveSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
@@ -1793,6 +1796,7 @@ suite('Sessions - Editor Contribution', () => {
 		stubEditorGroupCount(instantiationService, 0);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 		let opened = false;
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
@@ -1821,6 +1825,7 @@ suite('Sessions - Editor Contribution', () => {
 				isCreated: constObservable(true),
 				activeChat: constObservable({ workspace: constObservable(workspace) }),
 			} as unknown as IActiveSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 		const opened: { readonly kind: string; readonly index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
