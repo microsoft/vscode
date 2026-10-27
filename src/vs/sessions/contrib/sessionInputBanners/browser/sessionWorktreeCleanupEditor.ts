@@ -1089,8 +1089,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			} else if (!worktree.isMeasuring) {
 				entry.state = worktree.worktreeExists === false ? 'removed'
 					: worktree.cleanupStatus?.state === 'failed' ? 'failed'
-					: this.hasPendingCleanup(worktree) ? 'pending'
-						: 'attention';
+						: this.hasPendingCleanup(worktree) ? 'pending'
+							: 'attention';
 			}
 		}
 	}
