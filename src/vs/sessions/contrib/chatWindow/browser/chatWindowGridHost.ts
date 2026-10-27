@@ -71,6 +71,11 @@ export class ChatWindowCellView extends Disposable implements ISerializableView 
 		return this._content;
 	}
 
+	/** The height of the gap above and below the card. */
+	get verticalInsets(): number {
+		return this._insets.top + this._insets.bottom;
+	}
+
 	setConstraints(constraints: IChatWindowCellConstraints): void {
 		const current = this._constraints;
 		if (current.minimumWidth === constraints.minimumWidth && current.maximumWidth === constraints.maximumWidth && current.minimumHeight === constraints.minimumHeight && current.maximumHeight === constraints.maximumHeight) {
@@ -156,6 +161,14 @@ export function getChatWindowCellInsets(topology: ISessionGridLayoutBranch, gap:
 	return result;
 }
 
+/**
+ * The key the sizes of the cells are remembered under: the topology and the cells that show in it, as a cell that shows
+ * beside others keeps another size than when it shows alone, such as the editor area without the terminals.
+ */
+function sizeKey(layout: ISessionGridLayout): string {
+	return `${layout.shapeKey}|${layout.tabOrder.join(',')}`;
+}
+
 /** How a cell takes its share of a branch when it has no size of its own yet: a fixed size, or a share of the room left. */
 export type ChatWindowCellSizing = { readonly kind: 'fixed'; readonly size: number } | { readonly kind: 'share'; readonly share: number };
 
@@ -222,15 +235,21 @@ export class ChatWindowGridHost extends Disposable {
 	apply(layout: ISessionGridLayout): void {
 		const change = diffSessionGridLayout(this._layout, layout);
 		const previous = this._layout;
-		if (change === 'rebuild' || !this._grid) {
-			// What the cells showed as is read before the grid changes, never while it does.
-			if (previous && this._grid) {
-				for (const leaf of this._leaves(previous.topology)) {
-					if (leaf.visible) {
-						this._rememberSize(leaf.cell);
-					}
+		if (!this._dimension) {
+			// Built once the window's size is known, so that the cells get the sizes they last showed with, not those scaled
+			// from a guessed size.
+			this._layout = layout;
+			return;
+		}
+		// What the cells showed as is read before the grid changes, never while it does.
+		if (previous && this._grid && change !== 'none') {
+			for (const leaf of this._leaves(previous.topology)) {
+				if (leaf.visible) {
+					this._rememberSize(leaf.cell);
 				}
 			}
+		}
+		if (change === 'rebuild' || !this._grid) {
 			this._layout = layout;
 			this._rebuild(layout);
 			return;
@@ -240,9 +259,6 @@ export class ChatWindowGridHost extends Disposable {
 			for (const leaf of this._leaves(layout.topology)) {
 				const view = this._cells.get(leaf.cell);
 				if (view && this._grid.isViewVisible(view) !== leaf.visible) {
-					if (!leaf.visible) {
-						this._rememberSize(leaf.cell);
-					}
 					this._grid.setViewVisible(view, leaf.visible);
 				}
 			}
@@ -252,8 +268,43 @@ export class ChatWindowGridHost extends Disposable {
 
 	layoutGrid(width: number, height: number): void {
 		this._dimension = { width, height };
+		if (!this._grid && this._layout) {
+			this._rebuild(this._layout);
+		}
 		this._grid?.layout(width, height);
 		this._onDidLayoutCells.fire();
+	}
+
+	/** The sizes the cells showed with, per topology, including the cells that show now; see {@link importSizes}. */
+	exportSizes(): Record<string, Record<string, IBox>> {
+		if (this._layout && this._grid) {
+			for (const leaf of this._leaves(this._layout.topology)) {
+				if (leaf.visible) {
+					this._rememberSize(leaf.cell);
+				}
+			}
+		}
+		const result: Record<string, Record<string, IBox>> = {};
+		for (const [shapeKey, sizes] of this._sizes) {
+			result[shapeKey] = Object.fromEntries(sizes);
+		}
+		return result;
+	}
+
+	/** Restores the sizes {@link exportSizes} gave, before the grid is first built. */
+	importSizes(sizes: Record<string, Record<string, IBox>>): void {
+		for (const [shapeKey, cells] of Object.entries(sizes)) {
+			const map = new Map<SessionGridCell, IBox>();
+			for (const [cell, box] of Object.entries(cells)) {
+				if (this._cells.has(cell as SessionGridCell)) {
+					map.set(cell as SessionGridCell, box);
+					if (cell === SessionGridCell.Terminals) {
+						this._terminalsSize = box;
+					}
+				}
+			}
+			this._sizes.set(shapeKey, map);
+		}
 	}
 
 	/** The size of `cell` as it last showed, if it did. */
@@ -266,8 +317,8 @@ export class ChatWindowGridHost extends Disposable {
 	}
 
 	private _rememberedBox(cell: SessionGridCell): IBox | undefined {
-		const shapeKey = this._layout?.shapeKey;
-		return (shapeKey ? this._sizes.get(shapeKey)?.get(cell) : undefined) ?? (cell === SessionGridCell.Terminals ? this._terminalsSize : undefined);
+		const key = this._layout && sizeKey(this._layout);
+		return (key ? this._sizes.get(key)?.get(cell) : undefined) ?? (cell === SessionGridCell.Terminals ? this._terminalsSize : undefined);
 	}
 
 	/** Sizes `cell` along `axis` without moving any other cell than its neighbor. */
@@ -299,11 +350,11 @@ export class ChatWindowGridHost extends Disposable {
 		if (view && this._grid && this._grid.isViewVisible(view)) {
 			const size = this._grid.getViewSize(view);
 			if (size.width > 0 && size.height > 0) {
-				const shapeKey = this._layout!.shapeKey;
-				let sizes = this._sizes.get(shapeKey);
+				const key = sizeKey(this._layout!);
+				let sizes = this._sizes.get(key);
 				if (!sizes) {
 					sizes = new Map();
-					this._sizes.set(shapeKey, sizes);
+					this._sizes.set(key, sizes);
 				}
 				sizes.set(cell, { width: size.width, height: size.height });
 				if (cell === SessionGridCell.Terminals) {
@@ -319,7 +370,7 @@ export class ChatWindowGridHost extends Disposable {
 		const previousElement = this._grid?.element;
 		this._grid = undefined;
 
-		const dimension = this._dimension ?? { width: 1000, height: 800 };
+		const dimension = this._dimension!;
 		const json = this._serialize(layout.topology, dimension);
 		const grid = this._gridDisposables.add(SerializableGrid.deserialize<ChatWindowCellView>(json, {
 			fromJSON: (data: { type: SessionGridCell }) => {
@@ -382,26 +433,50 @@ export class ChatWindowGridHost extends Disposable {
 	}
 
 	/**
-	 * Splits `total` among the children of `node` along its orientation: fixed cells take their size, and the others share
-	 * the room left in proportion to the sizes they last showed with, or else their default share of it. Hidden children
-	 * keep their size for when they show, outside the total.
+	 * Splits `total` among the children of `node` along its orientation. Fixed cells take their size; the others prefer the
+	 * sizes they last showed with, else their default share of `total`. When those do not fit, tall terminals give way first,
+	 * down to their least height, so that the editor area and the chat keep theirs; then all shrink alike. Room left over
+	 * goes to the cells that never showed in this layout, so that the others keep their sizes, else to all alike. Hidden
+	 * children keep their size for when they show, outside the total.
 	 */
 	private _distribute(node: ISessionGridLayoutBranch, total: number): number[] {
 		const axis = node.orientation;
+		const sizings = node.children.map(child => this._sizingOf(child, axis, total));
+		const remembered = node.children.map(child => this._rememberedSize(child, axis));
+		const sizes = sizings.map((sizing, index) => sizing.kind === 'fixed' ? sizing.size : remembered[index] ?? sizing.share * total);
 		let room = total;
-		const provisional = node.children.map(child => {
-			const sizing = this._sizingOf(child, axis, total);
-			if (sizing.kind === 'fixed') {
-				if (isVisible(child)) {
-					room -= sizing.size;
+		const flexible: number[] = [];
+		node.children.forEach((child, index) => {
+			if (isVisible(child)) {
+				if (sizings[index].kind === 'fixed') {
+					room -= sizes[index];
+				} else {
+					flexible.push(index);
 				}
-				return { fixed: true, size: sizing.size };
 			}
-			return { fixed: false, size: this._rememberedSize(child, axis) ?? sizing.share * total };
 		});
-		const flexibleTotal = provisional.reduce((sum, entry, index) => !entry.fixed && isVisible(node.children[index]) ? sum + entry.size : sum, 0);
-		const scale = flexibleTotal > 0 ? Math.max(0, room) / flexibleTotal : 0;
-		return provisional.map((entry, index) => Math.max(1, Math.round(entry.fixed || !isVisible(node.children[index]) ? entry.size : entry.size * scale)));
+		room = Math.max(0, room);
+		let sum = flexible.reduce((result, index) => result + sizes[index], 0);
+		const terminalsIndex = flexible.find(index => { const child = node.children[index]; return !isBranch(child) && child.cell === SessionGridCell.Terminals; });
+		if (axis === 'column' && terminalsIndex !== undefined && sum > room) {
+			const minimum = this._cells.get(SessionGridCell.Terminals)?.minimumHeight ?? 0;
+			const giveWay = Math.min(sum - room, Math.max(0, sizes[terminalsIndex] - minimum));
+			sizes[terminalsIndex] -= giveWay;
+			sum -= giveWay;
+		}
+		const withoutSize = flexible.filter(index => remembered[index] === undefined);
+		if (sum < room && withoutSize.length) {
+			const extra = room - sum;
+			const shares = withoutSize.reduce((result, index) => result + this._shareOf(sizings[index]), 0);
+			withoutSize.forEach(index => sizes[index] += shares ? extra * this._shareOf(sizings[index]) / shares : extra / withoutSize.length);
+		} else if (sum > 0) {
+			flexible.forEach(index => sizes[index] *= room / sum);
+		}
+		return sizes.map(size => Math.max(1, Math.round(size)));
+	}
+
+	private _shareOf(sizing: ChatWindowCellSizing): number {
+		return sizing.kind === 'share' ? sizing.share : 0;
 	}
 
 	private _sizingOf(node: SessionGridLayoutNode, axis: 'row' | 'column', total: number): ChatWindowCellSizing {
@@ -414,7 +489,13 @@ export class ChatWindowGridHost extends Disposable {
 			const fixed = children.map(sizing => sizing.kind === 'fixed' ? sizing.size : 0);
 			return { kind: 'fixed', size: node.orientation === axis ? fixed.reduce((sum, size) => sum + size, 0) : Math.max(...fixed) };
 		}
-		return { kind: 'share', share: children.reduce((sum, sizing) => sum + (sizing.kind === 'share' ? sizing.share : 0), 0) || 1 };
+		// Along its own orientation a branch takes the shares of its cells together. Across it, the largest of them, leaving
+		// out cells of a fixed size along the branch, such as the column, which do not tell how much room the branch wants.
+		if (node.orientation === axis) {
+			return { kind: 'share', share: children.reduce((sum, sizing) => sum + this._shareOf(sizing), 0) || 1 };
+		}
+		const across = node.children.filter(isVisible).filter(child => this._sizingOf(child, node.orientation, total).kind !== 'fixed').map(child => this._shareOf(this._sizingOf(child, axis, total)));
+		return { kind: 'share', share: Math.max(0, ...across) || 1 };
 	}
 
 	/** The size `node` last showed with along `axis`, when all its visible cells showed. */

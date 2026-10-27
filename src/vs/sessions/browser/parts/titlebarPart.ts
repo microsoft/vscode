@@ -31,6 +31,7 @@ import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { safeIntl } from '../../../base/common/date.js';
 import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
+import { ChatWindowIdContext } from '../../services/chatWindow/browser/chatWindowService.js';
 import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -293,6 +294,11 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			telemetrySource: 'titlePart.right',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
+		// In a chat window, its layout actions act on that window, not on the one that happens to be active.
+		const chatWindowId = ChatWindowIdContext.getValue(this.contextKeyService);
+		if (typeof chatWindowId === 'number' && chatWindowId >= 0) {
+			rightToolBar.context = { chatWindowId };
+		}
 
 		// Session title actions toolbar (before right toolbar)
 		const sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));

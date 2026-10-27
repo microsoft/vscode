@@ -143,6 +143,44 @@ suite('ChatWindowGridHost', () => {
 		store.dispose();
 	});
 
+	test('tall terminals give way first when the mode changes, so that the editor area and the chat keep their heights', () => {
+		const store = disposables.add(new DisposableStore());
+		const { host, boxes } = createHost(store);
+		// Side by side, the terminals below the chat are made tall; Stacked has not shown yet.
+		host.apply(computeSessionGridLayout(state({ mode: SessionLayoutMode.SideBySide, terminalPosition: SessionTerminalPosition.UnderChat })));
+		host.resizeCell(SessionGridCell.Terminals, { height: 700 });
+		host.apply(computeSessionGridLayout(state({ mode: SessionLayoutMode.Stacked, terminalPosition: SessionTerminalPosition.UnderChat })));
+		const sidePane = boxes.get(SessionGridCell.SidePane)!.height;
+		const chat = boxes.get(SessionGridCell.Chat)!.height;
+		const terminals = boxes.get(SessionGridCell.Terminals)!.height;
+		assert.deepStrictEqual({ editorAndChatKeepMost: sidePane + chat >= HEIGHT * 0.9, fills: sidePane + chat + terminals }, { editorAndChatKeepMost: true, fills: HEIGHT });
+		store.dispose();
+	});
+
+	test('the sizes the cells showed with come back in another host, such as after a reload', () => {
+		const store = disposables.add(new DisposableStore());
+		const first = createHost(store);
+		first.host.apply(computeSessionGridLayout(state({ mode: SessionLayoutMode.SideBySide, terminalsVisible: false })));
+		first.host.resizeCell(SessionGridCell.Chat, { width: 320 });
+		const exported = first.host.exportSizes();
+		const second = createHost(store);
+		second.host.importSizes(exported);
+		second.host.apply(computeSessionGridLayout(state({ mode: SessionLayoutMode.SideBySide, terminalsVisible: false })));
+		assert.deepStrictEqual(second.boxes.get(SessionGridCell.Chat)!.width, 320);
+		store.dispose();
+	});
+
+	test('a mode shown with the terminals hidden does not squeeze them when it shows again with them', () => {
+		const store = disposables.add(new DisposableStore());
+		const { host, boxes } = createHost(store);
+		host.apply(computeSessionGridLayout(state({ mode: SessionLayoutMode.EditorOnly, terminalsVisible: false })));
+		host.apply(computeSessionGridLayout(state({ mode: SessionLayoutMode.SideBySide, terminalsVisible: true })));
+		host.resizeCell(SessionGridCell.Terminals, { height: 225 });
+		host.apply(computeSessionGridLayout(state({ mode: SessionLayoutMode.EditorOnly, terminalsVisible: true })));
+		assert.deepStrictEqual(boxes.get(SessionGridCell.Terminals)!.height, 225);
+		store.dispose();
+	});
+
 	test('the sashes in the gaps between the cards show the gripper of the main window\'s, in every mode, and none without a gap', () => {
 		const store = disposables.add(new DisposableStore());
 		const { host, container } = createHost(store);
