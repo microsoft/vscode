@@ -449,7 +449,7 @@ The supporting execution types have these responsibilities:
 | --- | --- |
 | `IArtifactActionContext` | Coordinator-resolved binding, invocation source, run ID, validated provider input, and automatic occurrence/configuration identity. No ambient active-chat lookup. |
 | `IArtifactCodeExecutionContext` | Cancellation token, stable run/idempotency identity, and common progress reporting. No arbitrary prompt-sending callback. |
-| `ArtifactCodeResult` | A serializable completion summary and optional structured result. Errors reject; they are not returned as successful summaries. |
+| `ArtifactCodeResult` | A serializable completion summary and optional structured result. Errors reject; they are not returned as successful summaries. A rejection after dispatch leaves the outcome unknown until reconciled, unless it is an `ArtifactActionRejectedError`, which reports that the external system definitively refused the effect. |
 | `ArtifactJsonValue` | JSON-compatible values only. The action owns validation and versioning of its input. |
 | `ArtifactRunHandle` | The accepted run ID, scoped cancellation, and a separately observable completion outcome. Acceptance or queueing is not success. |
 
