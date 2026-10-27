@@ -98,6 +98,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 					|| run.status === 'running'
 					|| !!run.externalResource
 					|| (!!run.sessionResource && !!sessionsManagementService.getSession(run.sessionResource))
+					|| automationService.getAutomationHistoryState?.(run.automationId) !== undefined
 				),
 				automationService.catalogueState.get(),
 				readAutomationTemplates(agentPluginService.plugins.get()),

@@ -167,6 +167,11 @@ interface IAutomationHistoryGroup {
 	readonly disposables: DisposableStore;
 }
 
+interface IAutomationHistoryOwnerRow extends IDisposable {
+	readonly element: HTMLElement;
+	update(run: IAutomationRun, name: string, state: 'retained' | 'deleting', canDelete: boolean): void;
+}
+
 interface IAutomationHistorySessionList extends IDisposable {
 	readonly listContainer: HTMLElement;
 	readonly list: SessionsFlatList;
@@ -1413,9 +1418,11 @@ class AutomationRunSession implements ISession {
 class AutomationHistorySection extends Disposable {
 
 	private readonly container: HTMLElement;
+	private readonly ownersContainer: HTMLElement;
 	private readonly groupsContainer: HTMLElement;
 	private readonly headerDisposables = this._register(new DisposableStore());
 	private readonly persistentGroups = new Map<string, IAutomationHistoryGroup>();
+	private readonly persistentOwnerRows = this._register(new DisposableMap<string, IAutomationHistoryOwnerRow>());
 	private readonly runFocusTargets = new Map<string, { readonly list: SessionsFlatList; readonly container: HTMLElement; readonly session: ISession }>();
 	private readonly approvalModel: AgentSessionApprovalModel;
 	private renderedFocusableRunIds: string[] = [];
@@ -1454,6 +1461,7 @@ class AutomationHistorySection extends Disposable {
 		super();
 		this.chatModels = chatService.chatModels.map(models => [...models]);
 		this.container = DOM.append(parent, $('.automations-history'));
+		this.ownersContainer = DOM.append(this.container, $('.automations-history-owners'));
 		this.groupsContainer = DOM.append(this.container, $('.automations-history-groups'));
 		this.approvalModel = this._register(this.instantiationService.createInstance(AgentSessionApprovalModel));
 	}
@@ -1481,6 +1489,13 @@ class AutomationHistorySection extends Disposable {
 			|| isTemporaryAutomationRun(run)
 			|| (!!run.sessionResource && !!this.sessionsManagementService.getSession(run.sessionResource))
 		);
+		const historyOwners = new Map<string, IAutomationRun>();
+		for (const run of runs) {
+			if (this.automationService.getAutomationHistoryState?.(run.automationId) !== undefined && !historyOwners.has(run.automationId)) {
+				historyOwners.set(run.automationId, run);
+			}
+		}
+		this.updateHistoryOwners(historyOwners);
 		transaction(tx => {
 			this.currentRuns.set(sessionRuns, tx);
 			this.currentSessions.set(historySessions, tx);
@@ -1492,7 +1507,7 @@ class AutomationHistorySection extends Disposable {
 		this.runFocusTargets.clear();
 		this.renderedFocusableRunIds = [];
 
-		if (visibleRuns.length === 0) {
+		if (visibleRuns.length === 0 && historyOwners.size === 0) {
 			if (historyOwnedFocus) {
 				this.focusFallback.focus();
 			}
@@ -1565,7 +1580,7 @@ class AutomationHistorySection extends Disposable {
 		}
 		this.headerDisposables.clear();
 		this.headerRow = DOM.$('.automations-history-header');
-		this.container.insertBefore(this.headerRow, this.groupsContainer);
+		this.container.insertBefore(this.headerRow, this.ownersContainer);
 		const headerLabel = DOM.append(this.headerRow, $('span'));
 		headerLabel.textContent = localize('historyHeader', "History");
 
@@ -1626,6 +1641,61 @@ class AutomationHistorySection extends Disposable {
 		};
 		this.persistentGroups.set(key, entry);
 		return entry;
+	}
+
+	private updateHistoryOwners(owners: ReadonlyMap<string, IAutomationRun>): void {
+		for (const id of this.persistentOwnerRows.keys()) {
+			if (!owners.has(id)) {
+				this.persistentOwnerRows.deleteAndDispose(id);
+			}
+		}
+		let index = 0;
+		for (const [id, run] of owners) {
+			const state = this.automationService.getAutomationHistoryState?.(id);
+			if (!state) {
+				continue;
+			}
+			let row = this.persistentOwnerRows.get(id);
+			if (!row) {
+				row = this.createHistoryOwnerRow(run);
+				this.persistentOwnerRows.set(id, row);
+			}
+			row.update(run, this.getAutomationName(run), state, this.automationService.canDeleteAutomationHistory?.(id) === true);
+			const current = this.ownersContainer.children.item(index++);
+			if (current !== row.element) {
+				this.ownersContainer.insertBefore(row.element, current);
+			}
+		}
+	}
+
+	private createHistoryOwnerRow(initialRun: IAutomationRun): IAutomationHistoryOwnerRow {
+		let run = initialRun;
+		const disposables = new DisposableStore();
+		const element = DOM.append(this.ownersContainer, $('.automations-history-owner.session-item', { role: 'group' }));
+		const main = DOM.append(element, $('.session-main'));
+		const title = DOM.append(main, $('span.session-title'));
+		const description = DOM.append(main, $('span.session-description'));
+		const actions = DOM.append(element, $('.automations-run-actions'));
+		const button = disposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+		disposables.add(button.onDidClick(() => void this.confirmAndDeleteHistory(run)));
+		return {
+			element,
+			update: (nextRun, name, state, canDelete) => {
+				run = nextRun;
+				title.textContent = name;
+				const retrying = state === 'deleting';
+				description.textContent = retrying
+					? localize('automationHistoryDeletionInterrupted', "Run history deletion was interrupted.")
+					: localize('automationHistoryRetained', "Run history is retained.");
+				button.label = retrying ? localize('retryDeleteHistory', "Retry Delete Run History") : localize('deleteHistory', "Delete Run History");
+				button.enabled = canDelete;
+				element.setAttribute('aria-label', localize('automationHistoryOwnerState', "{0}, {1}", name, description.textContent));
+			},
+			dispose: () => {
+				disposables.dispose();
+				element.remove();
+			},
+		};
 	}
 
 	private createSessionList(container: HTMLElement): IAutomationHistorySessionList {

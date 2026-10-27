@@ -4243,6 +4243,38 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('retained history remains manageable without a surviving session row', async () => {
+		const { automationService, dialogService, widget } = setup();
+		automationService.historyStates.set('automation-1', 'retained');
+		automationService.setRuns([run({ sessionResource: undefined })]);
+		dialogService.confirmResult = { confirmed: true };
+		await timeout(0);
+
+		const owner = widget.element.querySelector<HTMLElement>('.automations-history-owner');
+		const button = owner?.querySelector<HTMLElement>('.monaco-button');
+		assert.ok(owner && button);
+		button.click();
+		await timeout(0);
+
+		automationService.historyStates.set('automation-1', 'deleting');
+		automationService.canDeleteHistory = false;
+		automationService.setRuns([run({ sessionResource: undefined })]);
+		await timeout(0);
+		const retry = widget.element.querySelector<HTMLElement>('.automations-history-owner .monaco-button');
+
+		assert.deepStrictEqual({
+			ownerLabel: owner.getAttribute('aria-label'),
+			deleteHistoryCalls: automationService.deleteHistoryCalls,
+			retry: { label: retry?.textContent, disabled: retry?.classList.contains('disabled') },
+			sessionRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+		}, {
+			ownerLabel: 'Daily review, Run history is retained.',
+			deleteHistoryCalls: ['automation-1'],
+			retry: { label: 'Retry Delete Run History', disabled: true },
+			sessionRows: 0,
+		});
+	});
+
 	test('edit conflict stays in the automation dialog', async () => {
 		const { automationDialogService, automationService, dialogService, widget } = setup();
 		const item = automation();
