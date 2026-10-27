@@ -10,7 +10,7 @@ import path from 'path';
 import { suite, test, type TestContext } from 'node:test';
 import { createUniverse } from '../checks.ts';
 import { computePins, getPinnedDistTags, getShadowWorkspace, restoreImporterSpecifiers, type LockfilePlan } from '../lockfileGenerator.ts';
-import { exportFrozenLockfileOption, getNativeBuildEnv, readNpmrc } from '../nativeBuildEnv.ts';
+import { createNativeBuildHooks, getNativeBuildEnv, getNativeBuildExtraEnv, readNpmrc } from '../nativeBuildEnv.ts';
 import { parseNpmLockfile, type NpmLockfile } from '../npmLockfile.ts';
 import { renderWorkspaceYaml, type NpmFolder } from '../workspaceConfig.ts';
 
@@ -55,7 +55,7 @@ suite('pnpm conversion: lockfile generation', () => {
 			folder: 'remote',
 			sourceDir: '/repo/remote',
 			settings: { nodeLinker: 'hoisted', patchedDependencies: { 'p': '../build/npm/patches/p.patch' } },
-			workspaceYaml: 'pnpmfile: .pnpmfile.mts\nnodeLinker: hoisted\npatchedDependencies:\n  p: ../build/npm/patches/p.patch\n',
+			workspaceYaml: 'pnpmfile: .pnpmfile.mjs\nnodeLinker: hoisted\npatchedDependencies:\n  p: ../build/npm/patches/p.patch\n',
 		};
 		assert.deepStrictEqual([getShadowWorkspace(plan), getShadowWorkspace(patched)], [
 			{ yaml: '', patchFiles: [] },
@@ -106,47 +106,33 @@ suite('pnpm conversion: native build environment', () => {
 		]);
 	});
 
-	test('exports the --frozen-lockfile option of the pnpm command for the nested installs', () => {
-		const cases: [args: string, env?: NodeJS.ProcessEnv][] = [
-			['install'],
-			['install', { pnpm_config_frozen_lockfile: 'true' }],
-			['install --frozen-lockfile'],
-			['--frozen-lockfile i'],
-			['install --frozen-lockfile=false'],
-			['install --no-frozen-lockfile', { pnpm_config_frozen_lockfile: 'true' }],
-			['run test -- --frozen-lockfile'],
-			['ci'],
-			['clean-install'],
-			['ic'],
-			['install-clean'],
-			['-C /repo ci'],
-			['ci --no-frozen-lockfile'],
-			['ci --frozen-lockfile=false'],
-			['add ci'],
-			['run ci'],
-			['help ci'],
-		];
-		assert.deepStrictEqual(cases.map(([args, env = {}]) => {
-			exportFrozenLockfileOption(['/usr/bin/node', '/usr/bin/pnpm', ...args.split(' ')], env);
-			return `${args}: ${env.pnpm_config_frozen_lockfile}`;
-		}), [
-			'install: undefined',
-			'install: true',
-			'install --frozen-lockfile: true',
-			'--frozen-lockfile i: true',
-			'install --frozen-lockfile=false: false',
-			'install --no-frozen-lockfile: false',
-			'run test -- --frozen-lockfile: undefined',
-			'ci: true',
-			'clean-install: true',
-			'ic: true',
-			'install-clean: true',
-			'-C /repo ci: true',
-			'ci --no-frozen-lockfile: false',
-			'ci --frozen-lockfile=false: false',
-			'add ci: undefined',
-			'run ci: undefined',
-			'help ci: undefined',
-		]);
+	test('passes the native build variables as extraEnv, with empty values for keys to clear', t => {
+		const remote = createRoot(t, 'disturl="https://nodejs.org/dist"\ntarget="24.22.1"\nruntime="node"\n');
+		// The root postinstall installs remote/ with the root's Electron variables in its environment:
+		// the keys that remote/.npmrc doesn't set get empty values instead
+		assert.deepStrictEqual(getNativeBuildExtraEnv(remote, { forceProcessConfigOnDarwin: true }, { npm_command: 'install', other: 'kept' }, 'linux', 'x64', '22.21.1'), {
+			npm_command: 'install',
+			other: 'kept',
+			npm_config_disturl: 'https://nodejs.org/dist',
+			npm_config_target: '24.22.1',
+			npm_config_ms_build_id: '',
+			npm_config_runtime: 'node',
+			npm_config_build_from_source: '',
+			npm_config_force_process_config: '',
+		});
+	});
+
+	test('passes the frozen lockfile of pnpm ci on to the nested installs', t => {
+		const root = createRoot(t, 'runtime="electron"\n');
+		const frozen = (command: string, exportFrozenLockfileOfCi: boolean) => getNativeBuildExtraEnv(root, { exportFrozenLockfileOfCi }, { npm_command: command }, 'linux', 'x64', '22.21.1').pnpm_config_frozen_lockfile;
+		// pnpm reports `pnpm ci` and its aliases (clean-install, ic, install-clean) as `ci`, and
+		// `pnpm install --frozen-lockfile` as `install`.
+		assert.deepStrictEqual([frozen('ci', true), frozen('install', true), frozen('add', true), frozen('ci', false)], ['true', undefined, undefined, undefined]);
+	});
+
+	test('the updateConfig hook keeps the rest of the configuration', t => {
+		const root = createRoot(t, 'runtime="electron"\n');
+		const config = createNativeBuildHooks(root, { exportFrozenLockfileOfCi: true }).updateConfig({ nodeLinker: 'hoisted', extraEnv: { npm_command: 'ci' } });
+		assert.deepStrictEqual([config.nodeLinker, config.extraEnv?.npm_command, config.extraEnv?.npm_config_runtime, config.extraEnv?.pnpm_config_frozen_lockfile], ['hoisted', 'ci', 'electron', 'true']);
 	});
 });

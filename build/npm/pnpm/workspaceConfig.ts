@@ -380,13 +380,13 @@ function satisfiesOverride(version: string, value: string, satisfies: (version: 
 /**
  * The pnpmfile of install roots that build native modules (see build/npm/pnpm/nativeBuildEnv.ts).
  */
-export const pnpmfileName = '.pnpmfile.mts';
+export const pnpmfileName = '.pnpmfile.mjs';
 
 /**
  * Options of an install root that don't come from its npm configuration.
  */
 export interface InstallRootOptions {
-	/** The root builds native modules and has a `.pnpmfile.mts` (see nativeBuildEnv.ts). */
+	/** The root builds native modules and has a `.pnpmfile.mjs` (see nativeBuildEnv.ts). */
 	readonly hasPnpmfile?: boolean;
 	/**
 	 * The root's postinstall installs other install roots. pnpm's optimistic repeat install skips

@@ -7,9 +7,9 @@ import fs from 'fs';
 import path from 'path';
 
 /**
- * `.npmrc` keys that configure native module builds (node-gyp, prebuild-install, ...). pnpm 11
- * ignores them in `.npmrc` and no longer exports its configuration as `npm_config_*` variables to
- * install scripts, so the `.pnpmfile.mts` of each install root exports them instead.
+ * `.npmrc` keys that configure native module builds (node-gyp, prebuild-install, ...). pnpm
+ * ignores them in `.npmrc` and doesn't export its configuration as `npm_config_*` variables to
+ * install scripts, so the `.pnpmfile.mjs` of each install root passes them to pnpm instead.
  */
 export const nativeBuildKeys = ['disturl', 'target', 'ms_build_id', 'runtime', 'build_from_source', 'force_process_config'] as const;
 
@@ -88,57 +88,65 @@ export function getNativeBuildEnv(rootDir: string, options: NativeBuildOptions =
 }
 
 /**
- * Applies {@link getNativeBuildEnv} to `process.env`. Called by the `.pnpmfile.mts` of each
- * install root that builds native modules: pnpm loads the pnpmfile in its own process, so the
- * values reach every dependency install script of that root.
+ * Options of the pnpmfile hooks of an install root that builds native modules.
  */
-export function applyNativeBuildEnv(rootDir: string, options: NativeBuildOptions = {}): void {
-	for (const [key, value] of Object.entries(getNativeBuildEnv(rootDir, options))) {
-		if (value === undefined) {
-			delete process.env[key];
-		} else {
-			process.env[key] = value;
-		}
-	}
+export interface NativeBuildHookOptions extends NativeBuildOptions {
+	/**
+	 * Pass the frozen lockfile of `pnpm ci` on to the separate install roots that the root
+	 * postinstall installs (see {@link getNativeBuildExtraEnv}).
+	 */
+	readonly exportFrozenLockfileOfCi?: boolean;
 }
 
 /**
- * The pnpm commands that install with a frozen lockfile: `pnpm ci` and its aliases.
+ * The part of pnpm's configuration that the `updateConfig` hook of the pnpmfiles changes.
  */
-const frozenLockfileCommands = new Set(['ci', 'clean-install', 'ic', 'install-clean']);
+export interface PnpmConfig {
+	/** Environment variables that pnpm adds to every script it runs, install scripts included. */
+	readonly extraEnv?: Readonly<Record<string, string>>;
+	readonly [setting: string]: unknown;
+}
 
 /**
- * Exports the `--frozen-lockfile` option of the running pnpm command as `pnpm_config_frozen_lockfile`,
- * so that the `pnpm install` that the root postinstall runs in each separate install root follows
- * it. `pnpm ci` (and its aliases) counts as `--frozen-lockfile`, unless the option turns it off.
- * pnpm passes neither its command line options nor its CI default to install scripts, but the
- * root `.pnpmfile.mts` runs in the pnpm process, whose `argv` is pnpm's command line. Without the
- * option, nothing is exported: in CI the nested installs are frozen by pnpm's own default, and a
- * `pnpm_config_frozen_lockfile` set by the caller is inherited.
+ * The hooks of the `.pnpmfile.mjs` of an install root that builds native modules.
  */
-export function exportFrozenLockfileOption(argv: readonly string[] = process.argv, env: NodeJS.ProcessEnv = process.env): void {
-	let frozen: boolean | undefined;
-	let command: string | undefined;
-	// argv[0] is Node.js and argv[1] pnpm's script
-	for (let i = 2; i < argv.length; i++) {
-		const arg = argv[i];
-		if (arg === '--') {
-			break;
-		}
-		if (arg === '--frozen-lockfile' || arg === '--frozen-lockfile=true') {
-			frozen = true;
-		} else if (arg === '--no-frozen-lockfile' || arg === '--frozen-lockfile=false') {
-			frozen = false;
-		} else if (arg === '-C' || arg === '--dir') {
-			i++; // the folder, as in `pnpm -C <folder> ci`
-		} else if (command === undefined && !arg.startsWith('-')) {
-			command = arg;
-		}
+export interface NativeBuildHooks {
+	updateConfig(config: PnpmConfig): PnpmConfig;
+}
+
+/**
+ * Returns the hooks of the `.pnpmfile.mjs` of the install root `rootDir`. pnpm runs pnpmfiles in
+ * a separate Node.js process, so a pnpmfile can't change the environment of pnpm or of the scripts
+ * it runs. Instead, `updateConfig` returns the native module build variables as `extraEnv`, which
+ * pnpm passes to every dependency install script and every lifecycle script of the root.
+ */
+export function createNativeBuildHooks(rootDir: string, options: NativeBuildHookOptions = {}): NativeBuildHooks {
+	return {
+		updateConfig: config => ({ ...config, extraEnv: getNativeBuildExtraEnv(rootDir, options, config.extraEnv) }),
+	};
+}
+
+/**
+ * Returns pnpm's `extraEnv` with the variables of {@link getNativeBuildEnv} added:
+ * - `extraEnv` can only set variables, not remove them. A native build key that the root's
+ *   `.npmrc` doesn't set is set to an empty value instead, so that a value inherited from the
+ *   caller (such as the root's Electron settings, when the root postinstall installs `build`) is
+ *   not used. node-gyp treats an empty value like a missing one: it tests `force_process_config`
+ *   for truthiness and doesn't read `ms_build_id`.
+ * - With {@link NativeBuildHookOptions.exportFrozenLockfileOfCi}, `pnpm ci` (and its aliases, which
+ *   pnpm reports as the command `ci` in `npm_command`) sets `pnpm_config_frozen_lockfile`, so the
+ *   installs of the separate install roots are frozen too. pnpm passes neither its command line
+ *   nor `--frozen-lockfile` to pnpmfiles or scripts, so a local `pnpm install --frozen-lockfile`
+ *   can't be passed on: use `pnpm ci` or `PNPM_CONFIG_FROZEN_LOCKFILE=true` (inherited by the nested
+ *   installs). In CI, pnpm's default freezes every install.
+ */
+export function getNativeBuildExtraEnv(rootDir: string, options: NativeBuildHookOptions = {}, extraEnv: Readonly<Record<string, string>> = {}, platform: string = process.platform, arch: string = process.arch, nodeVersion: string = process.versions.node): Record<string, string> {
+	const result: Record<string, string> = { ...extraEnv };
+	for (const [key, value] of Object.entries(getNativeBuildEnv(rootDir, options, platform, arch, nodeVersion))) {
+		result[key] = value ?? '';
 	}
-	if (frozen === undefined && command !== undefined && frozenLockfileCommands.has(command)) {
-		frozen = true;
+	if (options.exportFrozenLockfileOfCi && result.npm_command === 'ci') {
+		result.pnpm_config_frozen_lockfile = 'true';
 	}
-	if (frozen !== undefined) {
-		env.pnpm_config_frozen_lockfile = String(frozen);
-	}
+	return result;
 }

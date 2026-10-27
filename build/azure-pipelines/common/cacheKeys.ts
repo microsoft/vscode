@@ -29,7 +29,7 @@ export function computeNodeModulesCacheKey(args: readonly string[], readFile: Re
 	const shasum = crypto.createHash('sha256');
 
 	shasum.update(readFile('build/.cachesalt'));
-	for (const file of ['.npmrc', 'build/.npmrc', 'remote/.npmrc', '.pnpmfile.mts', 'build/.pnpmfile.mts', 'remote/.pnpmfile.mts', 'build/npm/pnpm/nativeBuildEnv.ts']) {
+	for (const file of ['.npmrc', 'build/.npmrc', 'remote/.npmrc', '.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs', 'build/npm/pnpm/nativeBuildEnv.ts']) {
 		shasum.update(readFile(file));
 	}
 

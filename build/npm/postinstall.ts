@@ -57,8 +57,10 @@ function spawnAsync(command: string, args: string[], opts: child_process.SpawnOp
 
 /**
  * Installs a separate pnpm install root. The install is frozen when the install that runs this
- * script is: in CI (pnpm's default), with `--frozen-lockfile` (exported by the root `.pnpmfile.mts`)
- * or with `pnpm_config_frozen_lockfile=true`. Otherwise it updates an outdated lockfile.
+ * script is: in CI (pnpm's default), `pnpm ci` (passed on by the root `.pnpmfile.mjs`), or with
+ * `pnpm_config_frozen_lockfile=true` or `PNPM_CONFIG_FROZEN_LOCKFILE=true`. Otherwise it updates an
+ * outdated lockfile, also when the outer install is a local `pnpm install --frozen-lockfile`: pnpm
+ * doesn't pass that option on to scripts.
  */
 async function pnpmInstallAsync(dir: string, env: NodeJS.ProcessEnv): Promise<void> {
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
@@ -121,8 +123,8 @@ function applyEnv(env: NodeJS.ProcessEnv, values: Record<string, string | undefi
 }
 
 /**
- * Removes the native build variables that the workspace's `.pnpmfile.mts` exported, for roots
- * without a pnpmfile that don't build for Electron.
+ * Removes the native build variables that the workspace's `.pnpmfile.mjs` passed to this script,
+ * for roots without a pnpmfile that don't build for Electron.
  */
 function clearNativeBuildEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 	for (const key of nativeBuildKeys) {
@@ -253,7 +255,7 @@ async function main() {
 		};
 
 		if (dir === 'build') {
-			// build/.pnpmfile.mts exports the native module build variables: build/.npmrc, the running
+			// build/.pnpmfile.mjs sets the native module build variables: build/.npmrc, the running
 			// Node.js version and the host architecture.
 			const env: NodeJS.ProcessEnv = { ...process.env };
 			if (process.env['CC']) { env['CC'] = 'gcc'; }
@@ -262,7 +264,7 @@ async function main() {
 			if (process.env['LDFLAGS']) { env['LDFLAGS'] = ''; }
 			nativeTasks.push(install(env));
 		} else if (dir === 'remote') {
-			// remote/.pnpmfile.mts exports the native module build variables of remote/.npmrc.
+			// remote/.pnpmfile.mjs sets the native module build variables of remote/.npmrc.
 			nativeTasks.push(install(getRemoteEnv()));
 		} else if (dir === 'extensions/copilot') {
 			// No .npmrc or pnpmfile: builds native modules for Electron with the workspace's variables.

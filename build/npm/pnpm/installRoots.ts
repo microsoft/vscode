@@ -79,7 +79,7 @@ export function loadNpmFolder(source: NpmSource, folder: string): NpmFolder {
 
 /**
  * Loads an install root and computes its intended `pnpm-workspace.yaml` settings. Roots that have
- * a `.pnpmfile.mts` in `baseDir` (those that build native modules) get the `pnpmfile` setting.
+ * a `.pnpmfile.mjs` in `baseDir` (those that build native modules) get the `pnpmfile` setting.
  * `isRepositoryRoot` marks roots of the repository (not of a distro checkout): they get the
  * repository's dependency patches, and the main workspace's postinstall installs the other roots.
  */

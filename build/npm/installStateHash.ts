@@ -25,7 +25,7 @@ export function collectInputFiles(): string[] {
 	for (const dir of dirs) {
 		const base = dir === '' ? root : path.join(root, dir);
 		const names = installRoots.has(dir)
-			? ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc', '.pnpmfile.mts']
+			? ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc', '.pnpmfile.mjs']
 			: ['package.json'];
 		for (const file of names) {
 			const filePath = path.join(base, file);

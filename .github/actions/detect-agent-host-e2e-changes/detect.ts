@@ -39,7 +39,7 @@ interface ICore {
 const exactPaths = new Set([
 	'.nvmrc',
 	'.npmrc',
-	'.pnpmfile.mts',
+	'.pnpmfile.mjs',
 	'package.json',
 	'pnpm-lock.yaml',
 	'pnpm-workspace.yaml',
@@ -84,7 +84,7 @@ function requiresFullProfile(path: string): boolean {
 	return fullProfilePaths.has(path)
 		|| fullProfilePrefixes.some(prefix => path.startsWith(prefix))
 		// package-lock.json remains in the folders that still install with npm (build/agent-sdk/agents/*).
-		|| /(^|\/)(package(-lock)?\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.pnpmfile\.mts)$/.test(path);
+		|| /(^|\/)(package(-lock)?\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.pnpmfile\.mjs)$/.test(path);
 }
 
 function affectsAgentHostE2E(path: string): boolean {

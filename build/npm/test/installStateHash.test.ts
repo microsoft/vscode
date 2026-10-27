@@ -12,7 +12,7 @@ import { collectInputFiles, root } from '../installStateHash.ts';
 suite('install state hash', () => {
 	test('includes every file that the pnpmfiles import', () => {
 		const inputs = collectInputFiles();
-		const pnpmfiles = inputs.filter(file => path.basename(file) === '.pnpmfile.mts');
+		const pnpmfiles = inputs.filter(file => path.basename(file) === '.pnpmfile.mjs');
 		const imported = new Set<string>();
 		const pending = [...pnpmfiles];
 		while (pending.length > 0) {
@@ -31,7 +31,7 @@ suite('install state hash', () => {
 			imported: relative(imported),
 			missing: relative([...imported].filter(file => !inputs.includes(file))),
 		}, {
-			pnpmfiles: ['.pnpmfile.mts', 'build/.pnpmfile.mts', 'remote/.pnpmfile.mts'],
+			pnpmfiles: ['.pnpmfile.mjs', 'build/.pnpmfile.mjs', 'remote/.pnpmfile.mjs'],
 			imported: ['build/npm/pnpm/nativeBuildEnv.ts'],
 			missing: [],
 		});

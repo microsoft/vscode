@@ -86,7 +86,7 @@ const rules: readonly IChangeRule[] = [
 			'package.json',
 			'pnpm-lock.yaml',
 			'pnpm-workspace.yaml',
-			'.pnpmfile.mts',
+			'.pnpmfile.mjs',
 			'.npmrc',
 			'.github/actions/setup-pnpm/',
 			'.github/actions/restore-node-modules/',
