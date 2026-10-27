@@ -244,6 +244,27 @@ suite('Agent Merge gate', () => {
 		assert.deepStrictEqual(result.kind === 'prompt' ? { kind: result.kind, failedChecks: result.context.failedChecks } : result.kind, { kind: 'prompt', failedChecks: ['Analysis'] });
 	});
 
+	test('waits for the check suites GitHub refused to list while every check counts, but repairs the known failures', () => {
+		const watermark = '2026-08-02T00:00:00.000Z';
+		const build: PullRequestCheck = { id: 'build', type: 'checkRun', name: 'Build', required: false, status: 'COMPLETED', conclusion: 'SUCCESS' };
+		const evaluate = (checks: PullRequestCheck[]) => {
+			const result = evaluateAgentMerge(readySnapshot({ checks, expectedSuitesComplete: false }), configuration, watermark);
+			return result.kind === 'prompt' ? result.context.failedChecks : result.kind === 'noWork' ? { waitingOnChecks: result.waitingOnChecks } : result.kind;
+		};
+		assert.deepStrictEqual({
+			passed: evaluate([build]),
+			failed: evaluate([build, { ...build, id: 'test', name: 'Test', conclusion: 'FAILURE' }]),
+			required: evaluate([{ ...build, required: true }]),
+			readyForReview: isAgentMergePullRequestReadyForReview(readySnapshot({ draft: true, checks: [build], expectedSuitesComplete: false }), watermark),
+		}, {
+			passed: { waitingOnChecks: true },
+			failed: ['Test'],
+			// Once the base branch requires a check, the unread suites do not count.
+			required: 'merge',
+			readyForReview: false,
+		});
+	});
+
 	test('distinguishes a newly failed check from an earlier failure with the same name', () => {
 		const check = { id: 'attempt-1', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' } as const;
 		const first = evaluateAgentMerge(readySnapshot({ checks: [check] }), configuration, '');
@@ -698,6 +719,7 @@ function readySnapshot(overrides?: {
 	readonly checks?: NonNullable<PullRequestSnapshot['checks']['value']>['checks'];
 	readonly requiredContexts?: readonly string[];
 	readonly expectedSuites?: NonNullable<PullRequestSnapshot['checks']['value']>['expectedSuites'];
+	readonly expectedSuitesComplete?: boolean;
 }): PullRequestSnapshot {
 	return {
 		ref: { host: 'github.com', accountId: '1', owner: 'octo', repo: 'repo', number: 1 },
@@ -726,7 +748,7 @@ function readySnapshot(overrides?: {
 			status: 'ready',
 			complete: true,
 			headSha: 'head',
-			value: { headSha: 'head', requirednessComplete: true, ...(overrides?.requiredContexts ? { requiredContexts: overrides.requiredContexts } : {}), expectedSuites: overrides?.expectedSuites ?? [], expectedSuitesComplete: true, checks: overrides?.checks ?? [] },
+			value: { headSha: 'head', requirednessComplete: true, ...(overrides?.requiredContexts ? { requiredContexts: overrides.requiredContexts } : {}), expectedSuites: overrides?.expectedSuites ?? [], expectedSuitesComplete: overrides?.expectedSuitesComplete ?? true, checks: overrides?.checks ?? [] },
 		},
 		mergeability: {
 			status: 'ready',

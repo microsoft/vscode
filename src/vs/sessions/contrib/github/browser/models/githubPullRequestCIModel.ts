@@ -265,15 +265,18 @@ export class GitHubPullRequestCIModel extends Disposable {
 			this._pullRequestChecks.set(subscription.checks, undefined);
 			void subscription.refresh(false, this._token).catch(error => this._logRequiredChecksError(error));
 		}, error => {
-			if (!controller.signal.aborted) {
-				this._logRequiredChecksError(error);
+			if (controller.signal.aborted) {
+				return;
 			}
+			this._logRequiredChecksError(error);
+			// Lets the next refresh subscribe again.
+			this._requiredChecksSubscription.clear();
 		});
 	}
 
 	private _logRequiredChecksError(error: unknown): void {
 		if (!isCancellationError(error)) {
-			this._logService.warn(`${LOG_PREFIX} Cannot read which checks count for ${this.owner}/${this.repo}#${this.prNumber}, so their state stays loading:`, error);
+			this._logService.warn(`${LOG_PREFIX} Cannot read which checks count for ${this.owner}/${this.repo}#${this.prNumber}, so their state stays loading until they are read:`, error);
 		}
 	}
 

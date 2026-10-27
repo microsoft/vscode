@@ -1251,7 +1251,9 @@ export function isAgentMergePullRequestReadyForReview(snapshot: PullRequestSnaps
  * does (see {@link classifyRequiredPullRequestChecks}): the required checks,
  * and the checks an unfinished required check waits for. Like Fix CI, it
  * repairs a failed check suite that reported no check run, such as a workflow
- * that failed to start.
+ * that failed to start. When every check counts but GitHub refused to list the
+ * check suites, the checks stay pending, since a suite that has not reported
+ * may still fail; the known failures are repaired all the same.
  *
  * @param ignoredChecks Check name patterns to leave out, as when deciding
  * whether a draft is ready for review.
@@ -1263,8 +1265,8 @@ export function classifyAgentMergeRequiredChecks(checks: PullRequestChecks, igno
 	if (checks.checks.some(check => check.required === undefined)) {
 		return { kind: 'indeterminate', reason: 'A check has unknown requiredness' };
 	}
-	const { failed, pending } = classifyRequiredPullRequestChecks(checks, name => isPullRequestArtifactCheckExcluded(name, ignoredChecks));
-	return { kind: 'ready', failed, pending };
+	const { everyCheck, failed, pending } = classifyRequiredPullRequestChecks(checks, name => isPullRequestArtifactCheckExcluded(name, ignoredChecks));
+	return { kind: 'ready', failed, pending: pending || (everyCheck && !checks.expectedSuitesComplete) };
 }
 
 const checkBlockerPrefix = 'check:';

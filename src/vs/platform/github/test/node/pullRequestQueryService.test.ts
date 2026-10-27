@@ -706,6 +706,30 @@ suite('PullRequestQueryService', () => {
 		});
 	});
 
+	test('reads the required checks of base branches whose names differ only in case separately', async () => {
+		await withServer(async server => {
+			const steps = (headSha: string, branch: string, contexts: readonly string[]) => [
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestChecks', response: gitHubGraphQLResponse(checksPage(headSha, [], false)) }),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestExpectedCheckSuites',
+					response: gitHubGraphQLResponse({ repository: { object: { oid: headSha, checkSuites: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } }),
+				}),
+				...requiredContextSteps(contexts, [], branch),
+			];
+			server.enqueue(...steps('head-1', 'release', ['CI']), ...steps('head-2', 'Release', []));
+			const { query, ref, credential } = setup(server);
+			const options = { priority: 'background', checks: { required: true } } as const;
+			const lower = await query.fetch('checks', ref, { ...core('head-1'), baseRef: 'release' }, options, credential, new AbortController().signal);
+			const upper = await query.fetch('checks', ref, { ...core('head-2'), baseRef: 'Release' }, options, credential, new AbortController().signal);
+
+			assert.deepStrictEqual({
+				lower: lower.fragment === 'checks' ? lower.value.requiredContexts : undefined,
+				upper: upper.fragment === 'checks' ? upper.value.requiredContexts : undefined,
+			}, { lower: ['CI'], upper: [] });
+			server.assertSatisfied();
+		});
+	});
+
 	test('derives merge permission from the repository permission of the viewer', async () => {
 		// `null` is what GitHub returns when the request is authenticated as a GitHub App.
 		const permissions = ['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE', 'READ', null];
@@ -1006,13 +1030,13 @@ function checksPage(headSha: string, nodes: readonly object[], hasNextPage: bool
 }
 
 /** The base branch protection and rulesets that a fetch with `checks.required` reads. */
-function requiredContextSteps(protectionContexts: readonly string[], rulesetContexts: readonly string[] = []) {
+function requiredContextSteps(protectionContexts: readonly string[], rulesetContexts: readonly string[] = [], branch = 'main') {
 	return [
 		gitHubRestStep({
 			method: 'GET',
-			path: '/repos/octo/repo/branches/main',
+			path: `/repos/octo/repo/branches/${branch}`,
 			response: gitHubJsonResponse({
-				name: 'main',
+				name: branch,
 				protected: protectionContexts.length > 0,
 				protection: {
 					enabled: protectionContexts.length > 0,
@@ -1026,7 +1050,7 @@ function requiredContextSteps(protectionContexts: readonly string[], rulesetCont
 		}),
 		gitHubRestStep({
 			method: 'GET',
-			path: '/repos/octo/repo/rules/branches/main',
+			path: `/repos/octo/repo/rules/branches/${branch}`,
 			query: { per_page: 100 },
 			response: gitHubJsonResponse(rulesetContexts.length > 0
 				? [{ type: 'required_status_checks', ruleset_id: 1, parameters: { required_status_checks: rulesetContexts.map(context => ({ context })) } }]

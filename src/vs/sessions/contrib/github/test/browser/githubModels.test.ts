@@ -760,6 +760,34 @@ suite('GitHubPullRequestCIModel', () => {
 		assert.deepStrictEqual({ unchanged, rerun: requiredRefreshes }, { unchanged: [false], rerun: [false, false] });
 	});
 
+	test('subscribes again on the next refresh when reading which checks count failed', async () => {
+		const pullRequestChecks: PullRequestChecks = {
+			headSha: 'abc', requirednessComplete: true, requiredContexts: ['Build'], expectedSuites: [], expectedSuitesComplete: true,
+			checks: [{ id: '1', type: 'checkRun', name: 'Build', status: 'COMPLETED', conclusion: 'FAILURE', required: true }],
+		};
+		let subscriptions = 0;
+		const source: IPullRequestChecksSource = {
+			subscribe: async () => {
+				if (subscriptions++ === 0) {
+					throw new Error('offline');
+				}
+				return { checks: constObservable(pullRequestChecks), refresh: async () => { }, dispose: () => { } };
+			},
+		};
+		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService, source));
+		await model.refresh();
+		await timeout(0);
+		const afterFailure = model.overallStatus.get();
+		await model.refresh(false, { priority: 'background' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterFailure, afterRetry: model.overallStatus.get(), subscriptions }, {
+			afterFailure: GitHubCIOverallStatus.Loading,
+			afterRetry: GitHubCIOverallStatus.Failure,
+			subscriptions: 2,
+		});
+	});
+
 	test('refresh shares an in-progress request', async () => {
 		const model = acquireModel();
 		mockFetcher.nextChecks = [

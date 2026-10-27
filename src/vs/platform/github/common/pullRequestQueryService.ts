@@ -454,7 +454,8 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		signal: AbortSignal,
 		priority: import('./types.js').RequestPriority,
 	): Promise<readonly string[] | undefined> {
-		const key = `${ref.host}/${ref.owner}/${ref.repo}#${baseRef}`.toLowerCase();
+		// Branch names are case-sensitive, unlike the host, owner and repository.
+		const key = `${ref.host}/${ref.owner}/${ref.repo}`.toLowerCase() + `#${baseRef}`;
 		const cached = this._requiredContexts.get(key);
 		if (cached && this._clock.now() - cached.observedAt < requiredContextsLifetime) {
 			return cached.contexts;
