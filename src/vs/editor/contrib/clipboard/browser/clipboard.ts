@@ -463,7 +463,7 @@ async function executeClipboardApiPaste(editor: IActiveCodeEditor, clipboardServ
 				editor.triggerOnWillPaste(event);
 				if (event.isHandled || !event.text) {
 					// Paste providers can handle rich formats; do not also run the plain-text fallback below.
-					return;
+					return CopyPasteController.get(editor)?.finishedPaste();
 				}
 				const metadata = event.metadata;
 				let isBlock = false;
