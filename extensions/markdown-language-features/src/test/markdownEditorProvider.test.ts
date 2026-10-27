@@ -331,10 +331,21 @@ suite('Markdown code block editor API versioning', () => {
 			{ resizable: false, maxAutomaticHeight: 300 },
 		), { resizable: false, fullWidth: undefined, fullView: undefined, minHeight: 120, maxAutomaticHeight: 300 });
 	});
+
+	test('contributions that differ only in their height cap are not equal', () => {
+		const source = { kind: 'exportApi', apiVersion: 1 };
+		const contributions = (maxAutomaticHeight: number) => MarkdownContributions.fromExtension(contributingExtension(source, undefined, { maxAutomaticHeight }));
+		assert.strictEqual(MarkdownContributions.equal(contributions(400), contributions(400)), true);
+		assert.strictEqual(MarkdownContributions.equal(contributions(400), contributions(300)), false);
+	});
 });
 
 function readCodeBlockEditorProviders(source: unknown, runtimeKey?: string, presentation?: unknown) {
-	const extension = {
+	return MarkdownContributions.fromExtension(contributingExtension(source, runtimeKey, presentation)).codeBlockEditorProviders;
+}
+
+function contributingExtension(source: unknown, runtimeKey?: string, presentation?: unknown): vscode.Extension<unknown> {
+	return {
 		id: 'test.markdown-code-block-editor',
 		extensionUri: vscode.Uri.file('/test/markdown-code-block-editor'),
 		packageJSON: {
@@ -350,5 +361,4 @@ function readCodeBlockEditorProviders(source: unknown, runtimeKey?: string, pres
 			},
 		},
 	} as vscode.Extension<unknown>;
-	return MarkdownContributions.fromExtension(extension).codeBlockEditorProviders;
 }
