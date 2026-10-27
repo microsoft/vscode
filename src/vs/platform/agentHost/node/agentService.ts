@@ -14867,13 +14867,13 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			return undefined;
 		}
-		// Unreadable records: the chats are listed on their session's agent, as with chats with their own agents off.
+		// Unreadable records: the peer chats' agents are unknown, so none is restored under its session's agent; a later restore retries.
 		const chatProviders = await this._tryReadChatAgentProviders();
 		if (!chatProviders) {
-			this._logService.warn(`[AgentService] Listing the peer chats of ${session.toString()} on its agent: the agents of chats are unknown`);
+			this._logService.warn(`[AgentService] Restoring ${session.toString()} without its peer chats: their agents are unknown`);
 		}
 		const sessionProvider = this._providerService.getProviderForSession(session)?.id;
-		return result.data.chats.map(chat => ({
+		return result.data.chats.filter(chat => chatProviders || chat.kind === 'default').map(chat => ({
 			uri: chat.uri.toString(),
 			kind: chat.kind,
 			title: chat.summary,
@@ -14959,8 +14959,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _restorePeerChatsFromCatalog(session: URI, entries: readonly IPersistedPeerChat[], recordedStorage: ReadonlyMap<string, string>, cachedChats?: readonly ICatalogChat[]): Promise<void> {
 		// Read before any chat is registered or hydrated, so every chat is routed to its own agent from the start.
-		// Unreadable records: the chats are restored on their session's agent, as with chats with their own agents off.
-		const chatProviders: ReadonlyMap<string, string> = await this._tryReadChatAgentProviders() ?? new Map();
+		const chatProviders = await this._tryReadChatAgentProviders();
+		if (!chatProviders) {
+			// Their agents are unknown: none is restored under its session's agent. A later restore retries the read.
+			this._logService.warn(`[AgentService] Skipping the restore of ${entries.length} peer chat(s) of ${session.toString()}: their agents are unknown`);
+			return;
+		}
 		const sessionProvider = this._providerService.getProviderForSession(session)?.id;
 		// A record naming the session's own agent is stale (a move or rollback that couldn't delete it): the chat follows its session.
 		const staleRecords = entries.map(entry => entry.uri).filter(chat => sessionProvider !== undefined && chatProviders.get(chat) === sessionProvider);

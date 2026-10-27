@@ -527,7 +527,7 @@ suite('AgentService - chats with their own agent', () => {
 		});
 	});
 
-	test('when the agents of chats can\'t be read, a restarted host restores the peer chats on the session\'s agent, as with the gate off, but never disposes one there', async () => {
+	test('when the agents of chats can\'t be read, a restarted host neither restores nor disposes a chat with its own agent under the session\'s agent', async () => {
 		const sessionDatabase = new TestSessionDatabase();
 		const first = createService(true, { sessionDatabase });
 		const { session, chat } = await createSessionWithSecondChat(first.service);
@@ -541,16 +541,40 @@ suite('AgentService - chats with their own agent', () => {
 		try {
 			await restarted.service.restoreSession(session);
 			const restoredChats = getTestAgentStateManager(restarted.service).getSessionState(session.toString())?.chats.map(candidate => candidate.resource);
-			const restoredAgent = getTestAgentHostProviderService(restarted.service).getProviderForChat(session, chat)?.id;
 			getTestAgentStateManager(restarted.service).deleteSession(session.toString());
 			await restarted.service.disposeSession(session);
 
 			assert.deepStrictEqual({
 				restoredPeer: restoredChats?.includes(chat.toString()),
-				restoredAgent,
 				disposedBySecond: restarted.second.disposedChats,
 				disposedByCopilot: restarted.copilot.disposedChats.includes(chat.toString()),
-			}, { restoredPeer: true, restoredAgent: 'copilot', disposedBySecond: [], disposedByCopilot: false });
+			}, { restoredPeer: false, disposedBySecond: [], disposedByCopilot: false });
+		} finally {
+			first.catalogDatabase.readChatAgentProviders = read;
+		}
+	});
+
+	test('a peer chat skipped because the agents of chats can\'t be read is never disposed through the session\'s agent while its session stays loaded', async () => {
+		const sessionDatabase = new TestSessionDatabase();
+		const first = createService(true, { sessionDatabase });
+		const { session, chat } = await createSessionWithSecondChat(first.service);
+		await timeout(10);
+
+		const restarted = createService(true, { sessionDatabase, catalogDatabase: first.catalogDatabase });
+		restarted.copilot.knowsAllSessions = true;
+		restarted.second.knowsAllSessions = true;
+		const read = first.catalogDatabase.readChatAgentProviders;
+		first.catalogDatabase.readChatAgentProviders = () => Promise.reject(new Error('unreadable'));
+		try {
+			await restarted.service.restoreSession(session);
+			// The session stays loaded with the peer skipped; disposing it must not hand the peer to the session's agent.
+			await restarted.service.disposeSession(session);
+
+			assert.deepStrictEqual({
+				registered: getTestAgentStateManager(restarted.service).isChatRegistered(chat.toString()),
+				disposedByCopilot: restarted.copilot.disposedChats.includes(chat.toString()),
+				copilotContexts: restarted.copilot.chatContexts.filter(entry => entry.chat.toString() === chat.toString()).map(entry => entry.boundary),
+			}, { registered: false, disposedByCopilot: false, copilotContexts: [] });
 		} finally {
 			first.catalogDatabase.readChatAgentProviders = read;
 		}
