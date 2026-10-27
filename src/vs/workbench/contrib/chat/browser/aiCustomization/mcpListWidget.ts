@@ -2638,11 +2638,14 @@ export class McpListWidget extends Disposable {
 			return createInstalledMcpServerDetailInput(entry, detail.error, this.getMcpEntryDetailPresentation(entry));
 		}
 		return createInstalledMcpServerDetailInput(entry, derived(this, reader => {
-			if (entry.type === 'session-server-item' || !entry.localServer) {
+			if (entry.type === 'session-server-item') {
+				return undefined;
+			}
+			const serverId = entry.type === 'server-item' ? entry.server.id : entry.localServer?.definition.id;
+			if (!serverId) {
 				return undefined;
 			}
 			const runtimeServers = this.mcpService.servers.read(reader);
-			const serverId = entry.localServer.definition.id;
 			const localServer = runtimeServers.find(server => server.definition.id === serverId);
 			if (!localServer || isContributionDisabled(localServer.enablement.read(reader))) {
 				return undefined;
@@ -3326,6 +3329,9 @@ export class McpListWidget extends Disposable {
 	}
 
 	private filterServers(render = true): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		const query = this.searchQuery.toLowerCase().trim();
 		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
 		const activeSessionServers = this.agentHostCustomizationService.getMcpServers(activeSessionResource);
