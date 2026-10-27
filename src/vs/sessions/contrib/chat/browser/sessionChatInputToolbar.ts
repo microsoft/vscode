@@ -762,12 +762,17 @@ export class SessionChatInputToolbar extends Disposable {
 					}
 					const chat = this._chat.get();
 					const workspace = chat?.workspace?.get() ?? session.workspace.get();
-					layoutService.revealEditorPartExplicitly();
+					// A chat shown in a window of its own shows its changes in that window's editor area, not in the main window's.
+					const inWindow = this._sessionsService.windowSessions.get().includes(session);
+					if (!inWindow) {
+						layoutService.revealEditorPartExplicitly();
+					}
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
 							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined), session),
-						}
+						},
+						...(inWindow ? { chatResource: session.scopedChatResource } : {}),
 					});
 				},
 			},

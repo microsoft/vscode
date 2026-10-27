@@ -11,10 +11,10 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { CHAT_WINDOWS_ENABLED_SETTING, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ChatWindowService } from './chatWindowService.js';
-import { ChatWindowChangesetActionsContribution } from './chatWindowEditorArea.js';
-import './chatWindowLayoutActions.js';
-import './chatWindowTerminalActions.js';
-import { ChatWindowsRestoration } from './openChatInWindow.js';
+import { ChatWindowChangesetActionsContribution, chatWindowEditorAreaContribution } from './chatWindowEditorArea.js';
+import { chatWindowLayoutActionsContribution } from './chatWindowLayoutActions.js';
+import { chatWindowTerminalActionsContribution } from './chatWindowTerminalActions.js';
+import { ChatWindowsRestoration, openChatInWindowContribution } from './openChatInWindow.js';
 
 registerSingleton(IChatWindowService, ChatWindowService, InstantiationType.Delayed);
 
@@ -32,3 +32,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 
 registerWorkbenchContribution2(ChatWindowsRestoration.ID, ChatWindowsRestoration, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatWindowChangesetActionsContribution.ID, ChatWindowChangesetActionsContribution, WorkbenchPhase.AfterRestored);
+
+/**
+ * The modules that register the actions of chat windows. Imported by name, so that losing one of the imports, such as in
+ * a merge, fails to compile rather than silently dropping its actions.
+ */
+export const chatWindowContributions = [chatWindowEditorAreaContribution, chatWindowLayoutActionsContribution, chatWindowTerminalActionsContribution, openChatInWindowContribution] as const;

@@ -100,6 +100,7 @@ suite('SessionChatInputToolbar', () => {
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			visibleSessions: constObservable([]),
 			activeSession: constObservable(undefined),
+			windowSessions: constObservable([]),
 		}));
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
 			onDidChangePartVisibility: Event.None,
@@ -867,6 +868,52 @@ suite('SessionChatInputToolbar', () => {
 			});
 		}
 	}
+
+	test('opens the Changes of a chat shown in a window of its own in that window, scoped to that chat', () => {
+		const { instantiationService } = createServices();
+		const root = URI.file('/repo');
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+			folders: [{ root, name: 'repo', description: undefined, workingDirectory: root, gitRepository: { uri: root, workTreeUri: undefined, baseBranchName: 'main', gitHubInfo: constObservable(undefined) } }],
+		}));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:window'),
+			workspace,
+			changesets: constObservable([]),
+			changes: constObservable([{ modifiedUri: URI.file('/chat-change.ts'), insertions: 1, deletions: 0 }]),
+		});
+		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
+			sessionId: 'provider:session',
+			capabilities: constObservable({ supportsMultipleChats: false }),
+			resource: URI.parse('session:1'),
+			scopedChatResource: chat.resource,
+			chats: constObservable([]),
+			workspace,
+		});
+		const calls: { action: string; resource?: URI; options?: ISessionChangesEditorOptions }[] = [];
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			visibleSessions: constObservable([]),
+			activeSession: constObservable(undefined),
+			windowSessions: constObservable([session]),
+			setActive: () => { calls.push({ action: 'activate' }); },
+		}));
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			revealEditorPartExplicitly: () => { calls.push({ action: 'reveal' }); },
+		}));
+		instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+			openChangesEditor: async (resource, options) => {
+				calls.push({ action: 'open', resource, options });
+				return undefined;
+			},
+		}));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button')!.click();
+
+		assert.deepStrictEqual(calls.filter(call => call.action !== 'activate'), [
+			{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: SESSION_CHANGES_CHANGESET_ID }, chatResource: chat.resource } },
+		]);
+	});
 
 	for (const activation of ['click', 'Enter', 'Space'] as const) {
 		test(`shows, labels and opens Session Changes in a cloud sandbox worktree with ${activation}`, () => {
