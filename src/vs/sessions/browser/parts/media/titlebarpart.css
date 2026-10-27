@@ -249,3 +249,21 @@
 .agent-sessions-workbench.phone-layout .part.titlebar > .sessions-titlebar-container {
 	padding-top: env(safe-area-inset-top);
 }
+
+/* A fixed window title replaces the command center, which such windows do not show. */
+.agent-sessions-workbench.monaco-workbench .part.titlebar .window-title.has-fixed-title {
+	display: flex;
+	align-items: center;
+	height: 100%;
+}
+
+.agent-sessions-workbench.monaco-workbench .part.titlebar .window-title > .window-title-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-sessions-workbench.monaco-workbench .part.titlebar .window-title:not(.has-fixed-title) > .window-title-text,
+.agent-sessions-workbench.monaco-workbench .part.titlebar .window-title.has-fixed-title > .command-center {
+	display: none;
+}

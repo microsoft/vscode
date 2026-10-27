@@ -2263,6 +2263,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	isVisible(part: SINGLE_WINDOW_PARTS): boolean;
 	isVisible(part: MULTI_WINDOW_PARTS, targetWindow: Window): boolean;
 	isVisible(part: Parts, targetWindow?: Window): boolean {
+		if (targetWindow && targetWindow !== mainWindow && part === Parts.EDITOR_PART) {
+			// The editor parts of other windows, such as chat windows, show whether this window's editor part shows or not.
+			return true;
+		}
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				// On phone layout the grid titlebar is hidden (replaced by MobileTitlebarPart)

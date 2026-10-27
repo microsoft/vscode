@@ -41,6 +41,7 @@ import { IconBadge, NumberBadge } from '../../../workbench/services/activity/com
 import { TestContextViewService } from './testContextViewService.js';
 import '../../../base/browser/ui/tree/media/tree.css';
 import '../../browser/parts/media/sessionView.css';
+import { ChatWindowIdContext, isChatWindowHandle } from '../../services/chatWindow/browser/chatWindowService.js';
 
 interface ITestEntry {
 	readonly id: string;
@@ -71,11 +72,13 @@ suite('Sessions - Session Activity Bar', () => {
 		const container = append(root, $('.content'));
 
 		const ran: string[] = [];
+		const ranWith: [string, unknown][] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override readonly onWillExecuteCommand = Event.None;
 			override readonly onDidExecuteCommand = Event.None;
-			override async executeCommand<R>(id: string): Promise<R | undefined> {
+			override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R | undefined> {
 				ran.push(id);
+				ranWith.push([id, args[0]]);
 				return undefined;
 			}
 		});
@@ -146,7 +149,8 @@ suite('Sessions - Session Activity Bar', () => {
 
 		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true });
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextKeyService, testStore.add(instantiationService.createInstance(ContextKeyService)));
+		const contextKeyService = testStore.add(instantiationService.createInstance(ContextKeyService));
+		instantiationService.stub(IContextKeyService, contextKeyService);
 
 		const activityService = testStore.add(new SessionActivityBarActivityService());
 		instantiationService.stub(ISessionActivityBarActivityService, activityService);
@@ -167,6 +171,8 @@ suite('Sessions - Session Activity Bar', () => {
 			setLayout: (layout: AgentWorkbenchLayout) => agentWorkbenchLayout = layout,
 			layoutMainContainer: () => onDidLayoutMainContainer.fire({ width: 800, height: 600 }),
 			ran,
+			ranWith,
+			contextKeyService,
 			contextViewService,
 			contextMenus,
 			label: (title: string) => activityBar.element.querySelector<HTMLElement>(`.action-label[aria-label^="${title}"]`)!,
@@ -581,6 +587,21 @@ suite('Sessions - Session Activity Bar', () => {
 			ran: [TOGGLE_SIDE_PANEL_COMMAND_ID, 'test.browser', TogglePanelAction.ID, TOGGLE_SIDE_PANEL_COMMAND_ID],
 		});
 	});
+
+	test('an item of a submenu acts on the chat window its strip is part of, as the entries do; in the main window, without a context', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { label, ranWith, contextKeyService } = createActivityBar(store, [canvas]);
+		const runKusto = async () => {
+			label('Canvas').click();
+			key(getActiveElement()!, 13, 'Enter');
+			await timeout(0);
+		};
+
+		await runKusto();
+		ChatWindowIdContext.bindTo(contextKeyService).set(7);
+		await runKusto();
+
+		assert.deepStrictEqual(ranWith.map(([id, context]) => [id, isChatWindowHandle(context) ? context : 'no handle']), [['test.canvas.kusto', 'no handle'], ['test.canvas.kusto', { chatWindowId: 7 }]]);
+	}));
 
 	test('opens the Canvas submenu to the left on hover, click, and keyboard, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { label, ran, contextViewService } = createActivityBar(store, [browser, canvas]);

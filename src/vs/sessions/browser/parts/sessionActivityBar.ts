@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionActivityBar.css';
-import { $, addDisposableListener, append, EventHelper, EventLike, EventType, getWindow } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventLike, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { GlobalPointerMoveMonitor } from '../../../base/browser/globalPointerMoveMonitor.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
@@ -13,7 +13,7 @@ import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextvie
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { Action, IAction, toAction } from '../../../base/common/actions.js';
@@ -41,6 +41,7 @@ import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
 import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
+import { ChatWindowIdContext } from '../../services/chatWindow/browser/chatWindowService.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
 
 /**
@@ -104,6 +105,18 @@ export class SessionActivityBar extends Disposable {
 				}
 				return undefined;
 			},
+		}));
+
+		// In a chat window, its entries act on the chat window of this strip, not on the one that happens to be active.
+		const updateContext = () => {
+			const chatWindowId = ChatWindowIdContext.getValue(scopedContextKeyService);
+			toolbar.context = typeof chatWindowId === 'number' && chatWindowId >= 0 ? { chatWindowId } : undefined;
+		};
+		updateContext();
+		this._register(scopedContextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([ChatWindowIdContext.key]))) {
+				updateContext();
+			}
 		}));
 
 		const update = () => {
@@ -202,6 +215,67 @@ const COLUMN_GAP = 2;
  */
 export const SESSION_ACTIVITY_BAR_COLUMN_WIDTH = COLUMN_GAP + STRIP_WIDTH + COLUMN_GAP;
 
+/** How many frames the active strip of a chat that is not attached yet looks for its host; see `probeExternalHost`. */
+const MAX_PROBE_RETRIES = 3;
+
+/**
+ * A place outside the chat where the active strip shows instead, such as a column of its own beside the editor while the
+ * chat is below the editor or hidden. See {@link registerSessionActivityBarExternalHost}.
+ */
+export interface ISessionActivityBarExternalHost {
+	/** The element the strip moves into: {@link SESSION_ACTIVITY_BAR_COLUMN_WIDTH} wide. */
+	readonly element: HTMLElement;
+	/** Whether the active strip shows in the host rather than beside its chat. */
+	readonly active: IObservable<boolean>;
+	/** The height of the area the strip moves up and down in, from the top of {@link element}. */
+	readonly height: IObservable<number>;
+	/**
+	 * Whether `occupant`, a shown strip, is in the host, for the host to keep room for it while any strip is. A strip can
+	 * enter before another leaves; see {@link SessionActivityBarHostOccupancy}.
+	 */
+	setOccupied(occupant: object, occupied: boolean): void;
+}
+
+/** Whether any strip is in an {@link ISessionActivityBarExternalHost}, whatever order they enter and leave it in. */
+export class SessionActivityBarHostOccupancy {
+
+	private readonly occupants = new Set<object>();
+	private readonly _occupied = observableValue<boolean>(this, false);
+	readonly occupied: IObservable<boolean> = this._occupied;
+
+	set(occupant: object, occupied: boolean): void {
+		if (occupied) {
+			this.occupants.add(occupant);
+		} else {
+			this.occupants.delete(occupant);
+		}
+		this._occupied.set(this.occupants.size > 0, undefined);
+	}
+}
+
+const externalHosts = new Map<HTMLElement, ISessionActivityBarExternalHost>();
+
+/** Registers `host` for the strips of the chat views within `scope`, such as a window. The host of the nearest registered scope applies. */
+export function registerSessionActivityBarExternalHost(scope: HTMLElement, host: ISessionActivityBarExternalHost): IDisposable {
+	externalHosts.set(scope, host);
+	return toDisposable(() => {
+		if (externalHosts.get(scope) === host) {
+			externalHosts.delete(scope);
+		}
+	});
+}
+
+/** The host registered for the nearest scope among `element` and its ancestors, which the strip of a chat in it shows in. */
+export function findSessionActivityBarExternalHost(element: HTMLElement): ISessionActivityBarExternalHost | undefined {
+	for (let candidate: HTMLElement | null = element; candidate; candidate = candidate.parentElement) {
+		const host = externalHosts.get(candidate);
+		if (host) {
+			return host;
+		}
+	}
+	return undefined;
+}
+
 /** Where the strip sits: a distance from the top or bottom of the chat area, whichever it was dragged nearer. */
 interface IActivityBarPosition {
 	readonly edge: 'top' | 'bottom';
@@ -225,7 +299,8 @@ export class ChatViewSessionActivityBar extends Disposable {
 	/**
 	 * The width of the column hosts keep at the right of the chat for the strip, the chat laid out to its left:
 	 * {@link SESSION_ACTIVITY_BAR_COLUMN_WIDTH}. Reserved in every chat view while the strip is enabled, not only the
-	 * active one, so focusing another chat does not shift its content.
+	 * active one, so focusing another chat does not shift its content; not while the strip shows in a host outside the
+	 * chat, which keeps the column for it.
 	 */
 	readonly reservedWidth: IObservable<number>;
 
@@ -235,6 +310,15 @@ export class ChatViewSessionActivityBar extends Disposable {
 	private active = false;
 	/** The measured height of the strip, cached so layout passes do not force a reflow. */
 	private height: number | undefined;
+	/** Whether the chat is hidden while it is active, such as while its window shows only its editor. */
+	private surfaceHidden = false;
+	/** The host outside the chat that the strip can show in, found among the ancestors of the chat. */
+	private readonly externalHost = observableValue<ISessionActivityBarExternalHost | undefined>(this, undefined);
+	/** The host the strip shows in now, if any. */
+	private readonly hostedIn = observableValue<ISessionActivityBarExternalHost | undefined>(this, undefined);
+	private readonly probeScheduler = this._register(new MutableDisposable());
+	/** The frames left to look for the host while the chat is not attached; see {@link probeExternalHost}. */
+	private probeRetries = 0;
 
 	/** The strip, or `undefined` outside the desktop layout. */
 	get element(): HTMLElement | undefined {
@@ -242,7 +326,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 	}
 
 	constructor(
-		container: HTMLElement,
+		private readonly container: HTMLElement,
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -266,23 +350,100 @@ export class ChatViewSessionActivityBar extends Disposable {
 		this._register(this.registerDragListeners(dragHandle));
 
 		const phoneLayout = observableFromEvent(this, layoutService.onDidLayoutMainContainer, () => isPhoneLayout(layoutService));
-		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
+		// While the strip shows in a host outside the chat, the host keeps the column for it.
+		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) && !this.externalHost.read(reader)?.active.read(reader) ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
 
 		this._register(autorun(reader => {
 			activityBar.itemCount.read(reader);
 			activityBar.visible.read(reader);
+			this.externalHost.read(reader)?.active.read(reader);
 			this.height = undefined;
-			this.applyPosition();
+			this.relocate();
+		}));
+		// Only the strip in a host moves within the host's height, which does not change the strip's own height.
+		this._register(autorun(reader => {
+			const hostedIn = this.hostedIn.read(reader);
+			if (hostedIn) {
+				hostedIn.height.read(reader);
+				this.applyPosition();
+			}
+		}));
+		this._register(toDisposable(() => {
+			this.hostedIn.get()?.setOccupied(this, false);
+			this.hostedIn.set(undefined, undefined);
+			activityBar.element.remove();
 		}));
 	}
 
-	setActive(active: boolean): void {
-		if (this.active === active) {
+	/**
+	 * Finds the host outside the chat among the chat's ancestors. A chat created before it is attached looks again once
+	 * it is attached, or for a few frames while it is the active one.
+	 */
+	private probeExternalHost(retry = false): void {
+		if (!this.container.isConnected) {
+			if (!retry) {
+				this.probeRetries = MAX_PROBE_RETRIES;
+			}
+			if (this.active && this.probeRetries > 0 && !this.probeScheduler.value) {
+				this.probeRetries--;
+				this.probeScheduler.value = scheduleAtNextAnimationFrame(getWindow(this.container), () => {
+					this.probeScheduler.clear();
+					this.probeExternalHost(true);
+				});
+			}
+			return;
+		}
+		const host = findSessionActivityBarExternalHost(this.container);
+		if (host !== this.externalHost.get()) {
+			this.externalHost.set(host, undefined);
+		}
+	}
+
+	/** Shows the strip of the active chat in the host outside it while the host is active, and beside the chat otherwise. */
+	private relocate(): void {
+		const activityBar = this.activityBar;
+		if (!activityBar) {
+			return;
+		}
+		const host = this.externalHost.get();
+		const hostedIn = host && this.active && host.active.get() ? host : undefined;
+		this.element?.classList.toggle('inactive', !this.isShown(hostedIn));
+		const parent = hostedIn?.element ?? this.container;
+		const element = activityBar.element;
+		if (element.parentElement !== parent) {
+			// Moving the element drops its focus: the entry that had it gets it back.
+			const focused = getActiveElement();
+			const hadFocus = isHTMLElement(focused) && element.contains(focused) ? focused : undefined;
+			parent.appendChild(element);
+			hadFocus?.focus();
+		}
+		const previous = this.hostedIn.get();
+		if (previous !== hostedIn) {
+			previous?.setOccupied(this, false);
+		}
+		hostedIn?.setOccupied(this, activityBar.visible.get());
+		this.hostedIn.set(hostedIn, undefined);
+		this.applyPosition();
+	}
+
+	/**
+	 * Whether the chat is the active one, whose strip shows. `surfaceHidden` is set while the chat is active but hidden,
+	 * such as while its window shows only its editor: its strip then shows only in a host outside it.
+	 */
+	setActive(active: boolean, surfaceHidden = false): void {
+		this.probeExternalHost();
+		if (this.active === active && this.surfaceHidden === surfaceHidden) {
 			return;
 		}
 		this.active = active;
-		this.element?.classList.toggle('inactive', !active);
-		this.applyPosition();
+		this.surfaceHidden = surfaceHidden;
+		this.probeExternalHost();
+		this.relocate();
+	}
+
+	/** Whether the strip shows: for the active chat, beside it, or only in `hostedIn` while the chat is hidden. */
+	private isShown(hostedIn: ISessionActivityBarExternalHost | undefined): boolean {
+		return this.active && (!this.surfaceHidden || !!hostedIn);
 	}
 
 	setChatActions(actions: IObservable<readonly IAction[]> | undefined): void {
@@ -292,7 +453,14 @@ export class ChatViewSessionActivityBar extends Disposable {
 	/** Positions the strip within the chat area at `top` with the given `height` in the host. */
 	layout(top: number, height: number): void {
 		this.area = { top, height };
+		this.probeExternalHost();
 		this.applyPosition();
+	}
+
+	/** The area the strip moves up and down in: beside the chat, or in the host it shows in. */
+	private getArea(): { readonly top: number; readonly height: number } {
+		const hostedIn = this.hostedIn.get();
+		return hostedIn ? { top: 0, height: hostedIn.height.get() } : this.area;
 	}
 
 	private getHeight(): number {
@@ -309,7 +477,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 
 	/** The largest offset from the top of the chat area that keeps the strip inside it. */
 	private getMaximumOffset(): number {
-		return Math.max(0, this.area.height - this.getHeight() - BOTTOM_CLEARANCE);
+		return Math.max(0, this.getArea().height - this.getHeight() - BOTTOM_CLEARANCE);
 	}
 
 	private getOffset(): number {
@@ -319,8 +487,8 @@ export class ChatViewSessionActivityBar extends Disposable {
 	}
 
 	private applyPosition(): void {
-		if (this.element?.isConnected && this.active && this.activityBar?.visible.get()) {
-			this.element.style.top = `${this.area.top + this.getOffset()}px`;
+		if (this.element?.isConnected && this.isShown(this.hostedIn.get()) && this.activityBar?.visible.get()) {
+			this.element.style.top = `${this.getArea().top + this.getOffset()}px`;
 		}
 	}
 
@@ -493,6 +661,8 @@ class SessionActivityBarSubmenuViewItem extends ActionViewItem {
 			anchor: this.label,
 			getActions: () => this.submenuAction.actions,
 			getActionRunner: () => this.actionRunner,
+			// The strip's context, such as the handle of its chat window, as its other entries run with.
+			getActionsContext: () => this._context,
 			lookupKeybinding: commandId => this.keybindingService.lookupKeybinding(commandId),
 			openKeys: [KeyCode.Enter, KeyCode.Space, KeyCode.LeftArrow],
 			closeKeys: [KeyCode.RightArrow],
