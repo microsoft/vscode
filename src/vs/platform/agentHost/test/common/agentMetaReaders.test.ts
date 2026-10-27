@@ -13,7 +13,7 @@ import { readSlashCommandResource, toSlashCommandResourceMeta } from '../../comm
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpRoutingServers, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpRoutingServers, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { readSkillArgumentHint, withSkillArgumentHintMeta } from '../../common/meta/skillCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type SkillCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
@@ -144,6 +144,40 @@ suite('Agent host _meta readers', () => {
 				attemptCount: 3,
 			},
 		})?.role, 'judge');
+	});
+
+	test('validates registered MCP routing servers and preserves opaque chat metadata', () => {
+		const chat = 'ahp-chat://other-host/opaque-id';
+		const otherChat = 'ahp-chat://other-host/another-id';
+		const meta = withMcpRoutingServers(withMcpRoutingServers({ 'test.opaque': 'kept' }, otherChat, ['other']), chat, ['docs', 'mail']);
+		assert.deepStrictEqual({
+			roundTrip: readMcpRoutingServers(JSON.parse(JSON.stringify({ _meta: meta })), chat),
+			invalid: [undefined, null, 'docs', {}, ['docs', 1], ['']].map(value => readMcpRoutingServers({ _meta: { 'vscode.mcpRoutingServers': { [chat]: value } } }, chat)),
+			absent: readMcpRoutingServers(undefined, chat),
+			wrongChat: readMcpRoutingServers({ _meta: meta }, 'ahp-chat://other-host/missing'),
+			cleared: withMcpRoutingServers(meta, chat, []),
+		}, {
+			roundTrip: ['docs', 'mail'],
+			invalid: [[], [], [], [], [], []],
+			absent: [],
+			wrongChat: [],
+			cleared: { 'test.opaque': 'kept', 'vscode.mcpRoutingServers': { [otherChat]: ['other'], [chat]: [] } },
+		});
+	});
+
+	test('registered MCP routing servers are independent of mutable session metadata', () => {
+		const chat = 'ahp-chat://other-host/opaque-id';
+		const servers = ['docs'];
+		const session = { _meta: { 'vscode.mcpRoutingServers': { [chat]: servers } } };
+		const snapshot = readMcpRoutingServers(session, chat);
+		servers.push('mail');
+		assert.deepStrictEqual({
+			snapshot,
+			current: readMcpRoutingServers(session, chat),
+		}, {
+			snapshot: ['docs'],
+			current: ['docs', 'mail'],
+		});
 	});
 
 	test('validates MCP presentation metadata and preserves opaque entries', () => {

@@ -10,6 +10,9 @@
  * without crossing the sessions layering rules.
  */
 
+/** Toggles the side pane (editor area and auxiliary bar). Registered in `baseSessionLayoutController.ts`. */
+export const TOGGLE_SIDE_PANEL_COMMAND_ID = 'workbench.action.agentToggleSidePanel';
+
 /** Unarchives a session. Registered in `sessionsViewActions.ts`. */
 export const UNARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.unarchiveSession';
 
@@ -21,6 +24,9 @@ export const RENAME_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.renameChat';
 
 /** Archives one or more sessions. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.archiveSession';
+
+/** Archives all sessions in a custom group. Registered in `sessionsViewActions.ts`. */
+export const ARCHIVE_SESSION_GROUP_COMMAND_ID = 'sessionsView.markAllInGroupAsDone';
 
 /** Archives the given sessions and offers to undo it from the Sessions view. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID = 'sessionsViewPane.archiveSessionsWithUndo';
@@ -36,6 +42,8 @@ export const ARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.archiveChat';
 
 /** Unarchives a chat independently of its session. Registered in `sessionsViewActions.ts`. */
 export const UNARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.unarchiveChat';
+
+export const SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID = 'sessionsViewPane.showApplicationFilters';
 
 export {
 	AGENT_SESSION_MARK_READ_ACTION_ID as MARK_SESSION_READ_COMMAND_ID,
@@ -66,8 +74,14 @@ export const SESSION_GRID_FOCUS_COMMANDS = {
 } as const;
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorkspacePicker';
+export const OPEN_REMOTES_EDITOR_COMMAND_ID = 'sessions.openRemotes';
+
+export const FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID = 'sessions.focusNewSessionEnvironmentPicker';
 
 export const FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID = 'sessions.focusNewSessionHarnessPicker';
+export const FOCUS_NEW_SESSION_BRANCH_PICKER_COMMAND_ID = 'sessions.focusNewSessionBranchPicker';
+export const FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorktreePicker';
+export const FOCUS_SESSION_SYNC_ACTION_COMMAND_ID = 'sessions.focusSessionSyncAction';
 export const COMPARE_SESSION_MODELS_COMMAND_ID = 'sessions.compareModels';
 
 export const FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID = 'sessions.focusPreviousChatGroup';

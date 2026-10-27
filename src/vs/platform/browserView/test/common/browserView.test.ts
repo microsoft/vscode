@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
+import { BrowserViewPresentation, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
 
 suite('BrowserView', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,6 +26,24 @@ suite('BrowserView', () => {
 			fragment: true,
 			otherFile: false,
 			otherScheme: false
+		});
+	});
+
+	test('opens only user-initiated web popups from unlisted views externally', () => {
+		assert.deepStrictEqual({
+			listed: getBrowserViewPopupAction(BrowserViewPresentation.Listed, 'https://example.com/', false),
+			https: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'https://example.com/', true),
+			http: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'http://example.com/', true),
+			noGesture: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'https://example.com/', false),
+			customScheme: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'vscode://settings', true),
+			blank: getBrowserViewPopupAction(BrowserViewPresentation.Unlisted, 'about:blank', true),
+		}, {
+			listed: { action: 'integrated', consumeUserGesture: false },
+			https: { action: 'external', consumeUserGesture: true },
+			http: { action: 'external', consumeUserGesture: true },
+			noGesture: { action: 'deny', consumeUserGesture: false },
+			customScheme: { action: 'deny', consumeUserGesture: false },
+			blank: { action: 'deny', consumeUserGesture: false },
 		});
 	});
 

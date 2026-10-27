@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionsListModelService } from '../../browser/sessionsListModelService.js';
+import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionSortEntry, SessionsListModelService } from '../../browser/sessionsListModelService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 
@@ -70,6 +70,20 @@ suite('SessionsListModelService', () => {
 			onDidDeleteSession: sessionDeletedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+	});
+
+	test('untitled sessions ignore the completed-state icon', () => {
+		const completedStateIcon = Codicon.gitPullRequest;
+		const readIcon = service.getStatusIcon(SessionStatus.Untitled, true, false, completedStateIcon);
+		const unreadIcon = service.getStatusIcon(SessionStatus.Untitled, false, false, completedStateIcon);
+
+		assert.deepStrictEqual({
+			read: { id: readIcon.id, color: readIcon.color?.id },
+			unread: { id: unreadIcon.id, color: unreadIcon.color?.id },
+		}, {
+			read: { id: Codicon.circleSmallFilled.id, color: 'agentSessionReadIndicator.foreground' },
+			unread: { id: Codicon.circleFilled.id, color: 'textLink.foreground' },
+		});
 	});
 
 	test('unread state takes precedence over the completed-state icon', () => {
@@ -558,6 +572,19 @@ suite('SessionsListModelService', () => {
 	});
 
 	// -- Storage persistence --
+
+	test('persists independent comparison sort keys without changing participant timestamps', () => {
+		const comparison: SessionSortEntry = { sessionId: 'group:comparison', createdAt: new Date(100), updatedAt: constObservable(new Date(200)) };
+		service.applySortChanges('created', new Map([[comparison.sessionId, 300]]), []);
+		service.applySortChanges('updated', new Map([[comparison.sessionId, 400]]), []);
+		const restored = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({
+			created: restored.getSortKey(comparison, 'created'),
+			updated: restored.getSortKey(comparison, 'updated'),
+			naturalCreated: restored.getNaturalSortKey(comparison, 'created'),
+			naturalUpdated: restored.getNaturalSortKey(comparison, 'updated'),
+		}, { created: 300, updated: 400, naturalCreated: 100, naturalUpdated: 200 });
+	});
 
 	test('state is loaded from storage on construction', () => {
 		const storageService = disposables.add(new InMemoryStorageService());

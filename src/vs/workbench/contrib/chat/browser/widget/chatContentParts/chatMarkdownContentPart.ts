@@ -59,6 +59,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { hookUpResourceContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { IChatImageCarouselService } from '../../chatImageCarouselService.js';
+import { createChatImageCopyActions } from '../../chatImageActions.js';
 import { IChatOutputRendererService, type RenderedOutputPart } from '../../chatOutputItemRenderer.js';
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { IMarkdownDiffBlockData, MarkdownDiffBlockPart, parseUnifiedDiff } from './chatDiffBlockPart.js';
@@ -423,7 +424,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			}
 
 			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
-			store.add(this.hookUpFileImages(result.element, fileImages, element.sessionResource, element.id));
+			store.add(this.hookUpImages(result.element, fileImages, element.sessionResource, element.id));
 
 			const layoutParticipants = new Lazy(() => {
 				const observer = store.add(new dom.DisposableResizeObserver('ChatMarkdownContentPart.mathLayout', () => this.mathLayoutParticipants.forEach(layout => layout())));
@@ -484,20 +485,24 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	/**
-	 * Makes the file images of a response work like its file links: they open in the chat's image
-	 * carousel, drag into chat as attachments, and offer the resource context menu.
+	 * Adds image copy menus and makes file images open, drag, and offer actions like file links.
 	 */
-	private hookUpFileImages(element: HTMLElement, fileImages: ResourceSet, sessionResource: URI, responseId: string): IDisposable {
+	private hookUpImages(element: HTMLElement, fileImages: ResourceSet, sessionResource: URI, responseId: string): IDisposable {
 		const store = new DisposableStore();
 		// eslint-disable-next-line no-restricted-syntax
 		for (const image of element.querySelectorAll('img')) {
 			const source = image.dataset.src;
 			const resource = source ? URI.parse(source) : undefined;
+			const fileResource = resource && fileImages.has(resource) ? resource : undefined;
+			image.tabIndex = 0;
+			if (!image.alt) {
+				image.setAttribute('aria-label', localize('chat.markdownImage.label', "Image"));
+			}
+			store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceContextMenu(accessor, image, fileResource, MenuId.ChatImageContext, createChatImageCopyActions(accessor, image, fileResource))));
 			if (!resource || !fileImages.has(resource) || image.closest('a')) {
 				continue;
 			}
 
-			image.tabIndex = 0;
 			image.style.cursor = 'pointer';
 			image.setAttribute('role', 'button');
 			image.setAttribute('aria-label', localize('chat.markdownImage.open', "Open image {0}", image.alt || basename(resource)));
@@ -513,7 +518,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				e.dataTransfer?.clearData();
 				this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [resource], e));
 			}));
-			store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceContextMenu(accessor, image, resource, MenuId.ChatInlineResourceAnchorContext)));
 		}
 		return store;
 	}
@@ -1016,7 +1020,7 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 		const isStreaming = derived(r => {
 			const entry = editSession.readEntry(uri, r);
 			const currentlyModified = entry?.isCurrentlyBeingModifiedBy.read(r);
-			return !!currentlyModified && currentlyModified.responseModel.requestId === this.requestId && currentlyModified.undoStopId === this.inUndoStop;
+			return !!currentlyModified && currentlyModified.responseModel?.requestId === this.requestId && currentlyModified.undoStopId === this.inUndoStop;
 		});
 
 		// Set the icon/classes while edits are streaming

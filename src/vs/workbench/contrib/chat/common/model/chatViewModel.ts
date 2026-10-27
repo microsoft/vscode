@@ -135,6 +135,7 @@ export interface IChatRequestViewModel {
 	readonly isPendingRequestHandoff?: boolean;
 	readonly isSystemInitiated?: boolean;
 	readonly requestSource?: IChatRequestModel['requestSource'];
+	readonly artifactRequest?: IChatRequestModel['artifactRequest'];
 	readonly systemInitiatedLabel?: string;
 	readonly origin?: IChatRequestModel['origin'];
 }
@@ -169,6 +170,11 @@ export interface IChatWorkingProgress {
 	showDelayedProgressMessage?: boolean;
 	/** Rotates painting-themed phrases while an image tool is running. */
 	imageGeneration?: boolean;
+	/** Separate labels for opening each kind of background activity from the status. */
+	backgroundActivity?: {
+		readonly subagents?: string;
+		readonly backgroundShells?: string;
+	};
 }
 
 
@@ -598,6 +604,10 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get requestSource() {
 		return this._model.requestSource;
+	}
+
+	get artifactRequest() {
+		return this._model.artifactRequest;
 	}
 
 	get systemInitiatedLabel() {

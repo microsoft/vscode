@@ -18,7 +18,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { NullLogService } from '../../../log/common/log.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
-import { CopilotComputerUsePlugin, IComputerUsePluginRelease, installComputerUsePluginArchive } from '../../node/copilot/copilotComputerUsePlugin.js';
+import { CopilotComputerUsePlugin, getComputerUseHelperAppPath, IComputerUsePluginRelease, installComputerUsePluginArchive, pickIcnsPng, readMacAppIcon } from '../../node/copilot/copilotComputerUsePlugin.js';
 
 suite('CopilotComputerUsePlugin', () => {
 
@@ -224,6 +224,55 @@ suite('CopilotComputerUsePlugin', () => {
 		}, {
 			path: undefined,
 			requests: [],
+		});
+	});
+
+	test('locates the macOS helper app where the plugin installs it', () => {
+		assert.deepStrictEqual({
+			copilotHome: getComputerUseHelperAppPath(undefined, '/Users/me/.copilot', '/Users/me'),
+			emptyOverride: getComputerUseHelperAppPath('', '/Users/me/.copilot', '/Users/me'),
+			absoluteOverride: getComputerUseHelperAppPath('/shared/copilot', '/Users/me/.vscode-copilot', '/Users/me'),
+			relativeOverride: getComputerUseHelperAppPath('.copilot', '/Users/me/.vscode-copilot', '/Users/me'),
+		}, {
+			copilotHome: join('/Users/me/.copilot', 'computer-use', 'Copilot Computer Use.app'),
+			emptyOverride: join('/Users/me/.copilot', 'computer-use', 'Copilot Computer Use.app'),
+			absoluteOverride: join('/shared/copilot', 'computer-use', 'Copilot Computer Use.app'),
+			relativeOverride: join('/Users/me', '.copilot', 'computer-use', 'Copilot Computer Use.app'),
+		});
+	});
+
+	test('reads an app\'s icon from its .icns file as the smallest PNG at least the requested size', async () => {
+		const u32 = (value: number) => { const buffer = Buffer.alloc(4); buffer.writeUInt32BE(value); return buffer; };
+		const png = (width: number) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), u32(13), Buffer.from('IHDR'), u32(width), u32(width)]);
+		const entry = (type: string, data: Buffer) => Buffer.concat([Buffer.from(type), u32(data.length + 8), data]);
+		const body = Buffer.concat([entry('is32', Buffer.alloc(16)), entry('ic11', png(32)), entry('ic08', png(256)), entry('ic07', png(128))]);
+		const icns = Buffer.concat([Buffer.from('icns'), u32(body.length + 8), body]);
+		const width = (found: Buffer | undefined) => found?.readUInt32BE(16);
+		const createApp = async (name: string, iconFile: string) => {
+			const app = join(tmpDir, name);
+			await fs.promises.mkdir(join(app, 'Contents', 'Resources'), { recursive: true });
+			await fs.promises.writeFile(join(app, 'Contents', 'Info.plist'), `<?xml version="1.0"?><plist><dict>\n\t<key>CFBundleIconFile</key>\n\t<string>${iconFile}</string>\n</dict></plist>`);
+			await fs.promises.writeFile(join(app, 'Contents', 'Resources', 'icon.icns'), icns);
+			return app;
+		};
+		assert.deepStrictEqual({
+			atLeast128: width(pickIcnsPng(icns, 128)),
+			atLeast64: width(pickIcnsPng(icns, 64)),
+			largerThanAny: width(pickIcnsPng(icns, 512)),
+			truncated: width(pickIcnsPng(icns.subarray(0, icns.length - 4), 128)),
+			icon: await readMacAppIcon(await createApp('Helper.app', 'icon'), 128),
+			withExtension: await readMacAppIcon(await createApp('Extension.app', 'icon.icns'), 128) !== undefined,
+			outsideTheApp: await readMacAppIcon(await createApp('Escaping.app', '../../../Helper.app/Contents/Resources/icon'), 128),
+			missingApp: await readMacAppIcon(join(tmpDir, 'Missing.app'), 128),
+		}, {
+			atLeast128: 128,
+			atLeast64: 128,
+			largerThanAny: 256,
+			truncated: 256,
+			icon: `data:image/png;base64,${png(128).toString('base64')}`,
+			withExtension: true,
+			outsideTheApp: undefined,
+			missingApp: undefined,
 		});
 	});
 });

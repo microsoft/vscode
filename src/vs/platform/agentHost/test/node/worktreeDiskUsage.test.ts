@@ -8,25 +8,364 @@ import { execFile } from 'child_process';
 import { link, lstat, mkdir, mkdtemp, open, opendir, rm, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
+import type { Database } from '@vscode/sqlite3';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { measureWorktreeDiskUsage } from '../../node/worktreeDiskUsage.js';
+import { SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
+import { AgentHostDatabase, IAgentHostDatabase } from '../../node/agentHostDatabase.js';
+import type { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostWorktreeDiskUsageService, measureWorktreeDiskUsage } from '../../node/worktreeDiskUsage.js';
 
 suite('HostWorktreeDiskUsage', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const databases: AgentHostDatabase[] = [];
+	const summaries = new Map<string, SessionSummary>();
+	const stateManager = new class extends mock<AgentHostStateManager>() {
+		override getSessionSummary(session: string) { return summaries.get(session); }
+		override getSurfacedSessionSummary(session: string) { return summaries.get(session); }
+	}();
 	let root: string;
 
 	setup(async () => {
+		summaries.clear();
 		root = URI.file(await mkdtemp(join(tmpdir(), 'worktree-disk-usage-'))).fsPath;
 	});
 
 	teardown(async () => {
+		for (const database of databases.splice(0)) {
+			await database.close();
+		}
 		await rm(root, { recursive: true, force: true });
+	});
+
+	function setStatus(session: URI, status: SessionStatus, modifiedAt = 'before'): void {
+		summaries.set(session.toString(), {
+			resource: session.toString(), provider: 'copilotcli', title: 'Test', status, createdAt: 'before', modifiedAt,
+		});
+	}
+
+	async function sharedDatabase(worktree: URI, owners: readonly URI[]): Promise<AgentHostDatabase> {
+		const path = join(root, 'agent-host.db');
+		const database = disposables.add(new AgentHostDatabase(path));
+		databases.push(database);
+		for (const owner of owners) {
+			await database.registerSessionV2(owner.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		}
+		const sqlite3 = await import('@vscode/sqlite3');
+		const raw = await new Promise<Database>((resolve, reject) => {
+			const connection = new sqlite3.default.Database(path, error => error ? reject(error) : resolve(connection));
+		});
+		try {
+			await new Promise<void>((resolve, reject) => raw.run(`INSERT INTO worktree_co_owners (session_uri, worktree_path, repository_root, branch)
+				SELECT session_uri, ?, ?, ? FROM sessions_v2`, [worktree.toString(), URI.file(root).toString(), 'main'], error => error ? reject(error) : resolve()));
+		} finally {
+			await new Promise<void>((resolve, reject) => raw.close(error => error ? reject(error) : resolve()));
+		}
+		return database;
+	}
+
+	test('persists sizes across host restarts and only scans changed sessions', async () => {
+		const worktree = URI.file(join(root, 'worktree'));
+		await mkdir(worktree.fsPath);
+		await writeFile(join(worktree.fsPath, 'file'), 'contents');
+		const expectedSize = Number((await lstat(join(worktree.fsPath, 'file'), { bigint: true })).blocks * 512n);
+		const databasePath = join(root, 'agent-host.db');
+		let database = new AgentHostDatabase(databasePath);
+		const session = URI.parse('ahp-session:/cached');
+		const other = URI.parse('ahp-session:/other');
+		let scans = 0;
+		const fileSystem = {
+			lstat: (path: string) => lstat(path, { bigint: true }),
+			opendir: (path: string) => { scans++; return opendir(path); },
+		};
+		try {
+			for (const resource of [session, other]) {
+				await database.registerSessionV2(resource.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+			}
+			const service = disposables.add(new AgentHostWorktreeDiskUsageService(fileSystem, database, stateManager));
+			const [initial] = await Promise.all([
+				service.measure(worktree, CancellationToken.None, session),
+				service.measure(worktree, CancellationToken.None, session),
+				service.measure(worktree, CancellationToken.None, session),
+			]);
+			await database.close();
+			database = new AgentHostDatabase(databasePath);
+			const restarted = disposables.add(new AgentHostWorktreeDiskUsageService(fileSystem, database, stateManager));
+			const restored = await restarted.measure(worktree, CancellationToken.None, session);
+			await database.updateSessionModifiedTime(other.toString(), 2);
+			await restarted.measure(worktree, CancellationToken.None, session);
+			const unchangedScans = scans;
+			await database.updateSessionModifiedTime(session.toString(), 2);
+			const changed = await restarted.measure(worktree, CancellationToken.None, session);
+			await rm(worktree.fsPath, { recursive: true });
+			const removed = await restarted.measure(worktree, CancellationToken.None, session);
+			assert.deepStrictEqual({ initial, restored, changed, unchangedScans, scans, removed }, {
+				initial: expectedSize, restored: expectedSize, changed: expectedSize, unchangedScans: 1, scans: 2, removed: undefined,
+			});
+		} finally {
+			await database.close();
+		}
+	});
+
+	for (const failure of ['cancelled', 'failed'] as const) {
+		test(`does not persist ${failure} measurements`, async () => {
+			let writes = 0;
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const database = new class extends mock<IAgentHostDatabase>() {
+				override async readWorktreeCoOwners() { return []; }
+				override async getWorktreeDiskUsageRevision() { return 'revision'; }
+				override async readWorktreeDiskUsage() { return undefined; }
+				override async writeWorktreeDiskUsage() { writes++; }
+			}();
+			const service = disposables.add(new AgentHostWorktreeDiskUsageService({
+				lstat: path => lstat(path, { bigint: true }),
+				opendir: async path => {
+					if (failure === 'cancelled') {
+						cancellation.cancel();
+						return opendir(path);
+					}
+					throw new Error('Cannot read directory');
+				},
+			}, database, stateManager));
+			await assert.rejects(service.measure(URI.file(root), cancellation.token, URI.parse('session:/test')),
+				failure === 'cancelled' ? isCancellationError : /Cannot read directory/);
+			assert.strictEqual(writes, 0);
+		});
+	}
+
+	test('does not cache a measurement when the session changes during its scan', async () => {
+		let revision = 'before';
+		let writes = 0;
+		const database = new class extends mock<IAgentHostDatabase>() {
+			override async readWorktreeCoOwners() { return []; }
+			override async getWorktreeDiskUsageRevision() { return revision; }
+			override async readWorktreeDiskUsage() { return undefined; }
+			override async writeWorktreeDiskUsage() { writes++; }
+		}();
+		const service = disposables.add(new AgentHostWorktreeDiskUsageService({
+			lstat: path => lstat(path, { bigint: true }),
+			opendir: async path => { revision = 'after'; return opendir(path); },
+		}, database, stateManager));
+		assert.deepStrictEqual({
+			size: await service.measure(URI.file(root), CancellationToken.None, URI.parse('session:/test')),
+			writes,
+		}, { size: 0, writes: 0 });
+	});
+
+	test('does not reuse a cached size after deletion and recreation even when the inode is reused', async () => {
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const session = URI.parse('ahp-session:/recreated');
+		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		const worktree = URI.file(join(root, 'worktree'));
+		await mkdir(worktree.fsPath);
+		let scans = 0;
+		let generation = 1n;
+		const service = disposables.add(new AgentHostWorktreeDiskUsageService({
+			lstat: async path => {
+				const stat = await lstat(path, { bigint: true });
+				return path === worktree.fsPath ? Object.assign(stat, { ino: 1n, birthtimeNs: generation }) : stat;
+			},
+			opendir: path => { scans++; return opendir(path); },
+		}, database, stateManager));
+		await service.measure(worktree, CancellationToken.None, session);
+		await rm(worktree.fsPath, { recursive: true });
+		generation++;
+		await mkdir(worktree.fsPath);
+		await writeFile(join(worktree.fsPath, 'new-file'), 'contents');
+		const expectedSize = Number((await lstat(join(worktree.fsPath, 'new-file'), { bigint: true })).blocks * 512n);
+		setStatus(session, SessionStatus.InProgress);
+		const active = await service.measure(worktree, CancellationToken.None, session);
+		setStatus(session, SessionStatus.Idle);
+		const size = await service.measure(worktree, CancellationToken.None, session);
+		assert.deepStrictEqual({ active, size, scans }, { active: expectedSize, size: expectedSize, scans: 3 });
+	});
+
+	test('measures live without reading or writing the cache when creation time is unavailable', async () => {
+		let scans = 0;
+		let reads = 0;
+		let writes = 0;
+		const database = new class extends mock<IAgentHostDatabase>() {
+			override async readWorktreeCoOwners() { return []; }
+			override async getWorktreeDiskUsageRevision() { return 'revision'; }
+			override async readWorktreeDiskUsage() { reads++; return 42; }
+			override async writeWorktreeDiskUsage() { writes++; }
+		}();
+		const service = disposables.add(new AgentHostWorktreeDiskUsageService({
+			lstat: async path => Object.assign(await lstat(path, { bigint: true }), { birthtimeNs: 0n }),
+			opendir: path => { scans++; return opendir(path); },
+		}, database, stateManager));
+		const sizes = [];
+		for (let i = 0; i < 2; i++) {
+			sizes.push(await service.measure(URI.file(root), CancellationToken.None, URI.parse('session:/test')));
+		}
+		assert.deepStrictEqual({ sizes, scans, reads, writes }, { sizes: [0, 0], scans: 2, reads: 0, writes: 0 });
+	});
+
+	test('shares one cold scan between concurrent co-owners and reuses it after restart', async () => {
+		const worktree = URI.file(join(root, 'worktree'));
+		await mkdir(worktree.fsPath);
+		const owners = [URI.parse('session:/first'), URI.parse('session:/second')];
+		const database = await sharedDatabase(worktree, owners);
+		let scans = 0;
+		const fileSystem = {
+			lstat: (path: string) => lstat(path, { bigint: true }),
+			opendir: (path: string) => { scans++; return opendir(path); },
+		};
+		const service = disposables.add(new AgentHostWorktreeDiskUsageService(fileSystem, database, stateManager));
+		const sizes = await Promise.all(owners.map(owner => service.measure(worktree, CancellationToken.None, owner)));
+		await database.close();
+		const reopened = disposables.add(new AgentHostDatabase(join(root, 'agent-host.db')));
+		databases.push(reopened);
+		const restarted = disposables.add(new AgentHostWorktreeDiskUsageService(fileSystem, reopened, stateManager));
+		const restored = await restarted.measure(worktree, CancellationToken.None, owners[1]);
+		const unchangedScans = scans;
+		await reopened.updateSessionModifiedTime(owners[1].toString(), 2);
+		const changed = await restarted.measure(worktree, CancellationToken.None, owners[0]);
+		assert.deepStrictEqual({ sizes, restored, changed, unchangedScans, scans }, {
+			sizes: [0, 0], restored: 0, changed: 0, unchangedScans: 1, scans: 2,
+		});
+	});
+
+	for (const status of [SessionStatus.InProgress, SessionStatus.InputNeeded]) {
+		test(`measures a new worktree on request while an owner has status ${status}`, async () => {
+			const worktree = URI.file(join(root, 'worktree'));
+			await mkdir(worktree.fsPath);
+			const owner = URI.parse('session:/active');
+			const database = await sharedDatabase(worktree, [owner]);
+			setStatus(owner, status);
+			let scans = 0;
+			const service = disposables.add(new AgentHostWorktreeDiskUsageService({
+				lstat: path => lstat(path, { bigint: true }),
+				opendir: path => { scans++; return opendir(path); },
+			}, database, stateManager));
+			const active = await service.measure(worktree, CancellationToken.None, owner);
+			const activeScans = scans;
+			setStatus(owner, SessionStatus.Idle);
+			const idle = await service.measure(worktree, CancellationToken.None, owner);
+			assert.deepStrictEqual({ active, activeScans, idle, scans }, { active: 0, activeScans: 1, idle: 0, scans: 2 });
+		});
+
+		test(`refreshes the estimate on request while a co-owner has status ${status}`, async () => {
+			const worktree = URI.file(join(root, 'worktree'));
+			await mkdir(worktree.fsPath);
+			const owners = [URI.parse('session:/idle'), URI.parse('session:/active')];
+			const database = await sharedDatabase(worktree, owners);
+			setStatus(owners[0], SessionStatus.Idle);
+			setStatus(owners[1], SessionStatus.Idle);
+			let scans = 0;
+			const service = disposables.add(new AgentHostWorktreeDiskUsageService({
+				lstat: path => lstat(path, { bigint: true }),
+				opendir: path => { scans++; return opendir(path); },
+			}, database, stateManager));
+			await service.measure(worktree, CancellationToken.None, owners[0]);
+			setStatus(owners[1], status);
+			const sizes = [];
+			const expectedSizes = [];
+			for (const bytes of [8192, 16384]) {
+				await writeFile(join(worktree.fsPath, 'file'), Buffer.alloc(bytes, 1));
+				expectedSizes.push(Number((await lstat(join(worktree.fsPath, 'file'), { bigint: true })).blocks * 512n));
+				sizes.push(await service.measure(worktree, CancellationToken.None, owners[0]));
+			}
+			const active = await service.measure(worktree, CancellationToken.None, owners[1]);
+			const activeScans = scans;
+			const expected = Number((await lstat(join(worktree.fsPath, 'file'), { bigint: true })).blocks * 512n);
+			setStatus(owners[1], SessionStatus.Idle);
+			const idle = await service.measure(worktree, CancellationToken.None, owners[0]);
+			await service.measure(worktree, CancellationToken.None, owners[1]);
+			assert.deepStrictEqual({ sizes, active, idle, activeScans, scans }, { sizes: expectedSizes, active: expected, idle: expected, activeScans: 4, scans: 5 });
+		});
+	}
+
+	test('refreshes the active worktree on request while unchanged idle worktrees reuse the database after restart', async () => {
+		const worktrees = [URI.file(join(root, 'first')), URI.file(join(root, 'second'))];
+		const owners = [URI.parse('session:/first'), URI.parse('session:/second')];
+		const path = join(root, 'agent-host.db');
+		const database = disposables.add(new AgentHostDatabase(path));
+		databases.push(database);
+		for (let i = 0; i < owners.length; i++) {
+			await mkdir(worktrees[i].fsPath);
+			await database.registerSessionV2(owners[i].toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+			setStatus(owners[i], SessionStatus.Idle);
+		}
+		const scans = [0, 0];
+		const fileSystem = {
+			lstat: (path: string) => lstat(path, { bigint: true }),
+			opendir: (path: string) => { scans[worktrees.findIndex(worktree => worktree.fsPath === path)]++; return opendir(path); },
+		};
+		const service = disposables.add(new AgentHostWorktreeDiskUsageService(fileSystem, database, stateManager));
+		for (let i = 0; i < owners.length; i++) {
+			await service.measure(worktrees[i], CancellationToken.None, owners[i]);
+		}
+		setStatus(owners[0], SessionStatus.InProgress);
+		await writeFile(join(worktrees[0].fsPath, 'new-file'), 'changed');
+		await database.updateSessionModifiedTime(owners[0].toString(), 2);
+		const active = await service.measure(worktrees[0], CancellationToken.None, owners[0]);
+		await database.close();
+		const reopened = disposables.add(new AgentHostDatabase(path));
+		databases.push(reopened);
+		const restarted = disposables.add(new AgentHostWorktreeDiskUsageService(fileSystem, reopened, stateManager));
+		setStatus(owners[0], SessionStatus.Idle);
+		const expected = Number((await lstat(join(worktrees[0].fsPath, 'new-file'), { bigint: true })).blocks * 512n);
+		for (let refresh = 0; refresh < 2; refresh++) {
+			for (let i = 0; i < owners.length; i++) {
+				await restarted.measure(worktrees[i], CancellationToken.None, owners[i]);
+			}
+		}
+		assert.deepStrictEqual({ active, scans }, { active: expected, scans: [3, 1] });
+	});
+
+	for (const status of [SessionStatus.InProgress, SessionStatus.Idle]) {
+		test(`does not save a scan when co-owner activity changes during measurement to status ${status}`, async () => {
+			const worktree = URI.file(join(root, 'worktree'));
+			await mkdir(worktree.fsPath);
+			const owners = [URI.parse('session:/idle'), URI.parse('session:/changing')];
+			const database = await sharedDatabase(worktree, owners);
+			setStatus(owners[1], SessionStatus.Idle);
+			let scans = 0;
+			const service = disposables.add(new AgentHostWorktreeDiskUsageService({
+				lstat: path => lstat(path, { bigint: true }),
+				opendir: path => {
+					if (++scans === 1) {
+						setStatus(owners[1], status, 'after');
+					}
+					return opendir(path);
+				},
+			}, database, stateManager));
+			const first = await service.measure(worktree, CancellationToken.None, owners[0]);
+			setStatus(owners[1], SessionStatus.Idle, 'after');
+			const second = await service.measure(worktree, CancellationToken.None, owners[0]);
+			const cached = await service.measure(worktree, CancellationToken.None, owners[1]);
+			assert.deepStrictEqual({ first, second, cached, scans }, { first: 0, second: 0, cached: 0, scans: 2 });
+		});
+	}
+
+	test('scans instead of reusing or saving the cache if the owner starts work during lookup', async () => {
+		const session = URI.parse('session:/changing');
+		let invalidations = 0;
+		let writes = 0;
+		let scans = 0;
+		const database = new class extends mock<IAgentHostDatabase>() {
+			override async readWorktreeCoOwners() { return []; }
+			override async getWorktreeDiskUsageRevision() { return 'revision'; }
+			override async readWorktreeDiskUsage() {
+				setStatus(session, SessionStatus.InProgress);
+				return 42;
+			}
+			override async deleteWorktreeDiskUsage() { invalidations++; }
+			override async writeWorktreeDiskUsage() { writes++; }
+		}();
+		const service = disposables.add(new AgentHostWorktreeDiskUsageService({
+			lstat: path => lstat(path, { bigint: true }),
+			opendir: async path => { scans++; return opendir(path); },
+		}, database, stateManager));
+		const size = await service.measure(URI.file(root), CancellationToken.None, session);
+		assert.deepStrictEqual({ size, invalidations, writes, scans }, { size: 0, invalidations: 1, writes: 0, scans: 1 });
 	});
 
 	test('sums allocated bytes including dependencies without following directory symlinks', async () => {

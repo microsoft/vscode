@@ -25,6 +25,7 @@ import { isClientPluginStandalone } from '../../../../../../platform/agentHost/c
 import { type ISyncableMcpServer, type ISyncedCustomizationBundlerOptions, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
@@ -188,6 +189,21 @@ suite('SyncedCustomizationBundler', () => {
 		const destUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/my-rules.md' });
 		const content = await fileService.readFile(destUri);
 		assert.strictEqual(content.value.toString(), '# My rules\nDo X');
+	});
+
+	test('bundles client-authored instruction content without reading a source file', async () => {
+		const bundler = createBundler();
+		const uri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/builtin/images.mdc' });
+		const file = { uri, type: PromptsType.instructions, source: AICustomizationSources.builtin, content: '---\nalwaysApply: true\n---\nShow images.' };
+		const first = await bundler.bundle([file]);
+		const second = await bundler.bundle([file]);
+		const changed = await bundler.bundle([{ ...file, content: `${file.content}\nUse view.` }]);
+		const bundledUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/images.mdc' });
+		const content = await fileService.readFile(bundledUri);
+		assert.deepStrictEqual({
+			content: content.value.toString(), reused: first?.ref.nonce === second?.ref.nonce, changed: first?.ref.nonce !== changed?.ref.nonce,
+			source: bundler.getOrigin(bundledUri)?.uri.toString(),
+		}, { content: `${file.content}\nUse view.`, reused: true, changed: true, source: bundledUri.toString() });
 	});
 
 	test('bundles files into correct directories by type', async () => {

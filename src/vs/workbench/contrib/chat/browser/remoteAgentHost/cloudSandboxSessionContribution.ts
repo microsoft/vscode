@@ -37,7 +37,7 @@ import {
 	type ICloudSandboxDiscoveredSession,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
-import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { findRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -54,7 +54,6 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { CloudSandboxSessionHandler } from './cloudSandboxSessionHandler.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
-import { sealMissionControlMcpCredential } from './missionControlCredentialSealing.js';
 import { withSessionInitiator } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { readCloudSandboxProjects } from '../../../../../platform/agentHost/common/meta/cloudSandboxProjectMeta.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
@@ -108,7 +107,9 @@ function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDisco
  * connected so reconnecting does not visibly regroup the session.
  *
  * The `https` URI identifies the repository but is not backed by a file system provider, so a
- * session discovered this way cannot browse its files until it connects.
+ * session discovered this way cannot browse its files until it connects. The Agents window reads
+ * a folder of this form, `https://github.com/<owner>/<repo>`, as naming the session's repository
+ * (see `getSessionFolderGitHubRepository`), so it groups with its repository before it connects.
  */
 export function discoveredSessionProject(repoName: string | undefined): IAgentSessionMetadata['project'] {
 	if (!repoName) {
@@ -213,7 +214,6 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		@IHostService private readonly _hostService: IHostService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IAgentHostService private readonly _localAgentHostService: IAgentHostService,
 	) {
 		super();
 
@@ -225,28 +225,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			address => {
 				const connection = this._remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === address)?.connection;
 				const userLocal = connection?.type === RemoteAgentHostEntryType.CloudSandbox && connection.environmentKind === 'user-local';
-				const customization = createCloudSandboxConnectionCustomization(address, this._cloudSandboxService, userLocal, async request => {
-					if (!userLocal) {
-						throw new Error('User-local MC sealing requires a user-local connection.');
-					}
-					const environment = await this._apiService.getEnvironment(connection.environmentId, CancellationToken.None);
-					const client = this._remoteAgentHostService.getConnection(address);
-					const root = client?.rootState.value;
-					if (environment.id !== connection.environmentId || !client || !root || root instanceof Error) {
-						throw new Error('Mission Control environment or host is unavailable for sealing.');
-					}
-					const initialization = client.initializeResult.get();
-					const result = await sealMissionControlMcpCredential(request, environment.encryption_keys, root, initialization?._meta, sealingRequest => {
-						if (!this._localAgentHostService.sealMissionControlCredential) {
-							throw new Error('Trusted local credential sealing is unavailable.');
-						}
-						return this._localAgentHostService.sealMissionControlCredential(sealingRequest);
-					});
-					if (this._remoteAgentHostService.getConnection(address) !== client || client.initializeResult.get() !== initialization) {
-						throw new CancellationError();
-					}
-					return result;
-				})!;
+				const customization = createCloudSandboxConnectionCustomization(address, this._cloudSandboxService, userLocal)!;
 				return {
 					...customization,
 					registerChatSessionContentProvider: (sessionType, provider) => this._registerLiveSessionProvider(sessionType, provider),
@@ -254,6 +233,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					// Sessions drafted under the creation type carry its model identifiers into the environment.
 					modelIdentifierAliases: [SessionType.CloudSandbox],
 					isSessionTitlePlaceholder: isCloudSandboxPlaceholderTitle,
+					useSessionTitleForDefaultChat: true,
 				};
 			},
 		));

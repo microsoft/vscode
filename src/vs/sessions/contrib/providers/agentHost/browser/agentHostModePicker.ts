@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { IAction } from '../../../../../base/common/actions.js';
@@ -107,7 +108,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		trigger.ariaHasPopup = 'listbox';
 		trigger.ariaExpanded = 'false';
 		this._triggerElement = trigger;
-		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({ content: this._getTriggerTooltip(this._getActiveContext()?.tooltip ?? '') })));
+		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({ content: this._getTriggerTooltip(this._getActiveContext()?.tooltip ?? ''), style: HoverStyle.Pointer })));
 
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, e => {
@@ -137,7 +138,12 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			if (!configProvider || this._providerListeners.has(provider.id)) {
 				continue;
 			}
-			this._providerListeners.set(provider.id, configProvider.onDidChangeSessionConfig(() => this._updateTrigger()));
+			// Updating the trigger replaces its label, so ignore other sessions to keep clicks from being lost.
+			this._providerListeners.set(provider.id, configProvider.onDidChangeSessionConfig(sessionId => {
+				if (sessionId === this._session.get()?.sessionId) {
+					this._updateTrigger();
+				}
+			}));
 		}
 	}
 
@@ -454,7 +460,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 	}
 
 	protected override _watchActionItems(items: readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[]): IDisposable {
-		return this._permissionPicker.watchSandboxToggle(items);
+		return this._permissionDelegate.isModePickerCombined.get() ? this._permissionPicker.watchActionItems(items) : this._permissionPicker.watchSandboxToggle(items);
 	}
 
 	protected override _getAccessibilityProvider(): Partial<IListAccessibilityProvider<IActionListItem<IAgentHostSessionEnumPickerItem | IAction>>> {

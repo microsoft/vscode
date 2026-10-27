@@ -8,10 +8,13 @@ import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event, Relay } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue, observableFromEvent } from '../../../base/common/observable.js';
 import { mark } from '../../../base/common/performance.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
+import { ArtifactIntegrationRequest, ArtifactIntegrationUpdate, IArtifactIntegrationTransport } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
+import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactChatAction } from '../common/artifactIntegrationChat.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, IChannelClient, IChannelServer, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
@@ -53,10 +56,12 @@ import {
 	IAgentCreateChatWorkspace,
 	IAgentCreateSessionConfig,
 	IAgentCustomizationInstallation,
+	IAgentCustomizationInstallationApplyResult,
 	IAgentCustomizationInstallationRequest,
 	IAgentCustomizationInstallationReview,
 	IAgentCustomizationMarketplaceSearchRequest,
 	IAgentCustomizationMarketplaceSearchResult,
+	type IAgentExtensionInventory,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
 	IAgentHostManagementService,
@@ -87,6 +92,7 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/stat
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import { NonReconnectableTransportError } from '../common/state/sessionTransport.js';
+import type { IRemoteAgentHostReconnectPolicy } from '../common/reconnectPolicy.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
@@ -94,6 +100,20 @@ import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomat
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 
 const LOG_PREFIX = '[AgentHost:renderer]';
+
+/**
+ * Until a slowly starting host registers its protocol channel, each attempt fails after the
+ * host's one-second unknown-channel timeout. Retrying a local utility process is cheap, so retry
+ * every second rather than backing off to 30 seconds, which would leave the window disconnected
+ * long after the host is ready. A failed attempt takes about two seconds, so 75 attempts keep
+ * roughly the default policy's two-and-a-half-minute budget before reporting a failed start.
+ */
+const LOCAL_RECONNECT_POLICY: IRemoteAgentHostReconnectPolicy = {
+	autoRestore: true,
+	initialDelayMs: 1000,
+	maxDelayMs: 1000,
+	maxAttempts: 75,
+};
 
 function notifyOnFatalAgentHostStartError(notificationService: INotificationService): void {
 	notificationService.error(localize(
@@ -192,6 +212,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _onAgentHostStart = this._register(new Emitter<void>());
 	readonly onAgentHostStart = this._onAgentHostStart.event;
 
+	/** Keeps early subscribers connected to the lazily created protocol client. */
+	readonly connectionAvailable = observableFromEvent(this, Event.any(this.onAgentHostStart, this.onAgentHostExit),
+		() => this._protocolClient?.connectionAvailable.get() ?? false);
+
 	// Consumers can subscribe before prewarming creates the protocol client.
 	private readonly _onDidAction = this._register(new Relay<ActionEnvelope>());
 	readonly onDidAction = this._onDidAction.event;
@@ -199,6 +223,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly onDidNotification = this._onDidNotification.event;
 	private readonly _onMcpNotification = this._register(new Relay<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
+	private readonly _artifactIntegrationUpdates = this._register(new Relay<ArtifactIntegrationUpdate>());
+	private readonly _artifactIntegrationReset = this._register(new Relay<void>());
+	readonly artifactIntegrationTransport = {
+		onDidUpdate: this._artifactIntegrationUpdates.event,
+		onDidReset: this._artifactIntegrationReset.event,
+		available: this.connectionAvailable,
+		request: (request: ArtifactIntegrationRequest) => this._requireClient().artifactIntegrationTransport.request(request),
+	};
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -259,12 +291,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				AgentHostProtocolClient,
 				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 				() => this._createTransport(),
-				{ clientId: this.clientId, clientInfo: this._clientInfo },
+				{ clientId: this.clientId, clientInfo: this._clientInfo, reconnectPolicy: LOCAL_RECONNECT_POLICY },
 			));
 			this._register(this._protocolClient.registerMcpAuthenticationHandler(async request => this._mcpAuthenticationHandler?.(request) ?? false));
 			this._onDidAction.input = this._protocolClient.onDidAction;
 			this._onDidNotification.input = this._protocolClient.onDidNotification;
 			this._onMcpNotification.input = this._protocolClient.onMcpNotification;
+			this._artifactIntegrationUpdates.input = this._protocolClient.artifactIntegrationTransport.onDidUpdate;
+			this._artifactIntegrationReset.input = this._protocolClient.artifactIntegrationTransport.onDidReset;
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
 			this._register(this._protocolClient.onDidFatalClose(() => {
 				if (!this._didConnectInitially) {
@@ -381,6 +415,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			throw new Error('Local agent host is not connected.');
 		}
 		return this._protocolClient;
+	}
+
+	openTcpConnection(target: { host: string; port: number }) {
+		return this._requireClient().openTcpConnection(target);
 	}
 
 	setAuthenticationPending(pending: boolean): void {
@@ -523,6 +561,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().importSession(session);
 	}
 
+	dispatchBackgroundChatAction(chat: string, action: ArtifactChatAction): Promise<void> {
+		return this._requireClient().dispatchBackgroundChatAction(chat, action);
+	}
+
+	serveArtifactIntegrations(createServer: () => IArtifactIntegrationTransport & IDisposable, integrations: IObservable<readonly ArtifactIntegrationDescriptor[]>): IDisposable {
+		return this._requireClient().serveArtifactIntegrations(createServer, integrations);
+	}
+
 	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
 		return this._requireClient().moveSession(session, destination, after);
 	}
@@ -561,6 +607,22 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
 		return this._getManagementService().uninstallPlugin(provider, request, session, chat);
+	}
+
+	listPluginInstallations(provider: string, session?: URI, chat?: URI) {
+		return this._getManagementService().listPluginInstallations(provider, session, chat);
+	}
+
+	setPluginEnabled(provider: string, plugin: string, enabled: boolean): Promise<void> {
+		return this._getManagementService().setPluginEnabled(provider, plugin, enabled);
+	}
+
+	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		return this._getManagementService().listAgentExtensions(session, chat);
+	}
+
+	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+		return this._getManagementService().setAgentExtensionEnabled(extensionId, enabled, session, chat);
 	}
 
 	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
@@ -615,7 +677,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().prepareCustomizationInstallation(provider, session, request);
 	}
 
-	applyCustomizationInstallation(provider: string, operationId: string): Promise<void> {
+	applyCustomizationInstallation(provider: string, operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
 		return this._getManagementService().applyCustomizationInstallation(provider, operationId);
 	}
 
@@ -718,8 +780,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().resourceResolve(params);
 	}
 
-	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
-		return this._requireClient().measureWorktreeDiskUsage(root, token);
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
+		return this._requireClient().measureWorktreeDiskUsage(root, token, session);
+	}
+
+	sessionWorktreeCleanup(session: URI, retry: boolean) {
+		return this._requireClient().sessionWorktreeCleanup(session, retry);
 	}
 
 	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
@@ -791,6 +857,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	getMissionControlEnvironmentId(): Promise<string | undefined> {
 		return this._getManagementService().getMissionControlEnvironmentId();
+	}
+
+	getMissionControlEnvironmentName(): Promise<string | undefined> {
+		return this._getManagementService().getMissionControlEnvironmentName();
 	}
 
 }

@@ -117,6 +117,36 @@ suite('Copilot SDK - managed settings', function () {
 				warnings: ['server.contextTier', 'server.effortLevel'],
 			},
 			{
+				name: 'reports a configured Fusion tier beside the legacy Auto tier it supersedes',
+				layers: [
+					{ source: 'device', settings: { fusionTier: { overridable: 'max' } } },
+					{ source: 'server', settings: { autoTier: 'intelligence' } },
+				],
+				values: { autoTier: 'intelligence', fusionTier: 'max' },
+				meta: {
+					autoTier: { overridable: false, source: 'server' },
+					fusionTier: { overridable: true, source: 'device' },
+				},
+				warnings: [],
+			},
+			{
+				name: 'reports an unmanaged Fusion tier as overridable',
+				layers: [{ source: 'server', settings: { fusionTier: 'unmanaged', autoTier: 'intelligence' } }],
+				values: { autoTier: 'intelligence', fusionTier: 'unmanaged' },
+				meta: {
+					autoTier: { overridable: false, source: 'server' },
+					fusionTier: { overridable: true, source: 'server' },
+				},
+				warnings: [],
+			},
+			{
+				name: 'ignores the retired Ensemble tier key',
+				layers: [{ source: 'server', settings: { ensembleTier: 'high' } }],
+				values: undefined,
+				meta: undefined,
+				warnings: ['server.ensembleTier'],
+			},
+			{
 				name: 'does not turn options without a managed model into global defaults',
 				layers: [{ source: 'server', settings: { effortLevel: 'high', contextTier: 'long_context' } }],
 				values: undefined,

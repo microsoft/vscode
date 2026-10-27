@@ -48,10 +48,15 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 			throw new GitHubRequestError('Invalid Mission Control operation', 'validation');
 		}
 		const feed = metadata.path === '/feed/connect';
+		const identity = metadata.path === '/environments/tokens';
 		if (feed && (!this.endpoint.feedApiBaseUri || metadata.method !== 'GET' || bodyText !== undefined)) {
 			throw new GitHubRequestError('No approved Mission Control feed endpoint is configured for this operation', 'validation');
 		}
-		const endpoint = feed ? { ...this.endpoint, apiBaseUri: this.endpoint.feedApiBaseUri! } : this.endpoint;
+		if (identity && (!this.endpoint.identityApiBaseUri || metadata.method !== 'POST' || bodyText !== '{}')) {
+			throw new GitHubRequestError('No approved Mission Control identity endpoint is configured for this operation', 'validation');
+		}
+		const endpoint = feed ? { ...this.endpoint, apiBaseUri: this.endpoint.feedApiBaseUri! }
+			: identity ? { ...this.endpoint, apiBaseUri: this.endpoint.identityApiBaseUri! } : this.endpoint;
 		const { url } = resolveReadApiUrl(endpoint.apiBaseUri, metadata.path);
 		const { mutation, sensitive, retry } = missionControlRequestPolicy(metadata);
 		let credential = await withGitHubCredentialDeadline(signal, signal => this.credentials.getCredential(signal), undefined, metadata.options?.deadline);

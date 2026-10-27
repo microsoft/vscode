@@ -224,14 +224,14 @@ MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
 	command: showPanelCommand,
 	group: SessionActivityBarGroup.Panel,
-	order: 0,
+	order: 1,
 	when: ContextKeyExpr.and(sessionActivityBarPanelWhen, PanelVisibleContext.toNegated())
 });
 
 MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
 	command: hidePanelCommand,
 	group: SessionActivityBarGroup.Panel,
-	order: 0,
+	order: 1,
 	when: ContextKeyExpr.and(sessionActivityBarPanelWhen, PanelVisibleContext)
 });
 

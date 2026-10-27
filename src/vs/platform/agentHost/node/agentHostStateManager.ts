@@ -445,6 +445,10 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _onDidEmitEnvelope = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidEmitEnvelope: Event<ActionEnvelope> = this._onDidEmitEnvelope.event;
 
+	/** Fires when a restored chat's history finished loading into its state. */
+	private readonly _onDidResolveChatState = this._register(new Emitter<URI>());
+	readonly onDidResolveChatState: Event<URI> = this._onDidResolveChatState.event;
+
 	private readonly _onDidRejectClientAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidRejectClientAction: Event<ActionEnvelope> = this._onDidRejectClientAction.event;
 
@@ -925,6 +929,7 @@ export class AgentHostStateManager extends Disposable {
 				if (restored.turns.length > 0) {
 					this._markSessionUsed(entry.session);
 				}
+				this._onDidResolveChatState.fire(chat);
 			}
 			return entry.state;
 		})();
@@ -1865,8 +1870,9 @@ export class AgentHostStateManager extends Disposable {
 	 *
 	 * Owners are reassigned first, then `session/chatRemoved` (source), `session/chatAdded` and
 	 * `session/chatsReordered` (target) are dispatched and both summaries recomputed, all synchronously, so
-	 * nothing runs between a chat leaving the source and joining the target. A `session/chatRemoved` listener
-	 * tells a moved chat from a deleted one by {@link chatRemovalReason}.
+	 * nothing runs between a chat leaving the source and joining the target. When an unread chat counting toward read
+	 * state moved, the target then becomes unread and the source read once all its remaining counted chats are. A
+	 * `session/chatRemoved` listener tells a moved chat from a deleted one by {@link chatRemovalReason}.
 	 */
 	transferChats(source: URI, target: URI, chats: readonly URI[], after: URI | undefined): void {
 		const sourceEntry = this._sessionStates.get(source);
@@ -1913,6 +1919,7 @@ export class AgentHostStateManager extends Disposable {
 		for (const session of [source, target]) {
 			this._applySessionAggregate(session, this._sessionStates.get(session)!.state.chats);
 		}
+		this._synchronizeSessionReadAfterMove(summaries, source, target);
 	}
 
 	/**
@@ -1920,12 +1927,14 @@ export class AgentHostStateManager extends Disposable {
 	 * `chats[0]` is its default chat (`summary.defaultChat`), followed by its descendants. Each chat keeps its state,
 	 * changesets, canvases and in-progress turn. The session is registered first, then owners are reassigned,
 	 * `session/chatRemoved` is dispatched on the source and the new session is announced with its catalog, all
-	 * synchronously, so nothing runs between the chats leaving the source and joining the new session.
+	 * synchronously, so nothing runs between the chats leaving the source and joining the new session. When an unread
+	 * chat counting toward read state was promoted, the source then becomes read once all its remaining counted chats are.
 	 */
 	/**
 	 * Moves a session whose only chats are its default chat and that chat's private descendants under `target` (Block 4,
 	 * VS Code-internal): the chats become chats of `target` as {@link transferChats} makes them, the default chat with
 	 * the source's effective title, and the source session ends ({@link deleteSession}) while the moved chats live on.
+	 * `target` then becomes unread when an unread chat counting toward read state moved.
 	 * The source announces no `session/chatRemoved`: it is removed as a whole. `movable` is whether `chats[0]`, a peer
 	 * of `target` now, may move: its `session/chatAdded` announces that, so it is never a transient non-movable peer.
 	 */
@@ -1982,6 +1991,7 @@ export class AgentHostStateManager extends Disposable {
 			}
 		}
 		this._applySessionAggregate(target, this._sessionStates.get(target)!.state.chats);
+		this._synchronizeSessionReadAfterMove(summaries, undefined, target);
 		this.deleteSession(source);
 	}
 
@@ -2007,6 +2017,10 @@ export class AgentHostStateManager extends Disposable {
 		const summaries = chats.map(chat => this._movedChatSummary(chat, summary.provider));
 		const state = createSessionState(summary);
 		state.lifecycle = SessionLifecycle.Ready;
+		// The new session is read exactly when the chats it takes are, as every read change keeps it.
+		state.status = withSessionStatusFlag(state.status, SessionStatus.IsRead, summaries
+			.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity))
+			.every(chat => isSessionStatusRead(chat.status)));
 		if (config) {
 			state.config = config;
 		}
@@ -2034,6 +2048,7 @@ export class AgentHostStateManager extends Disposable {
 		this._emitSessionAdded(this._toSummary(target, this._sessionStates.get(target)!));
 		this._announceChatsMoved(chats, target);
 		this._applySessionAggregate(source, this._sessionStates.get(source)!.state.chats);
+		this._synchronizeSessionReadAfterMove(summaries, source, undefined);
 	}
 
 	/** A moving chat's summary as its destination session lists it: it keeps its agent, reported when it differs from the destination's. */
@@ -2077,6 +2092,28 @@ export class AgentHostStateManager extends Disposable {
 			for (const chat of chats) {
 				this._chatsInTransfer.delete(chat);
 			}
+		}
+	}
+
+	/**
+	 * Updates read state after the chats `moved` left `source` and joined `target` (either may be absent), only when an
+	 * unread chat counting toward read state moved: `target` becomes unread, and `source` read once all its remaining
+	 * counted chats are. Moving only read chats leaves both flags alone, so a session marked unread as a whole stays so.
+	 * Dispatched like any other host read change, so subscribers see `session/isReadChanged` and it is persisted.
+	 */
+	private _synchronizeSessionReadAfterMove(moved: readonly ChatSummary[], source: URI | undefined, target: URI | undefined): void {
+		if (!moved.some(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity) && !isSessionStatusRead(chat.status))) {
+			return;
+		}
+		const sourceState = source === undefined ? undefined : this._sessionStates.get(source)?.state;
+		if (source !== undefined && sourceState && !isSessionStatusRead(sourceState.status) && sourceState.chats
+			.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity))
+			.every(chat => isSessionStatusRead(chat.status))) {
+			this.dispatchServerAction(source, { type: ActionType.SessionIsReadChanged, isRead: true });
+		}
+		const targetState = target === undefined ? undefined : this._sessionStates.get(target)?.state;
+		if (target !== undefined && targetState && isSessionStatusRead(targetState.status)) {
+			this.dispatchServerAction(target, { type: ActionType.SessionIsReadChanged, isRead: false });
 		}
 	}
 
@@ -2933,11 +2970,12 @@ export class AgentHostStateManager extends Disposable {
 					const { wasRead: chatWasRead, isRead: chatIsRead } = readTransition;
 					if (!chatIsRead && sessionIsRead) {
 						sessionReadStateToSynchronize = { session: sessionKey, isRead: false };
-					} else if (chatIsRead && !chatWasRead && !sessionIsRead
-						&& session.chats
-							.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity))
-							.every(chat => isSessionStatusRead(chat.status))) {
-						sessionReadStateToSynchronize = { session: sessionKey, isRead: true };
+					} else if (chatIsRead && !sessionIsRead) {
+						const aggregateChats = session.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity));
+						// A redundant read keeps a multi-chat session marked unread, but a sole chat's read state is its session's.
+						if ((!chatWasRead || aggregateChats.length === 1) && aggregateChats.every(chat => isSessionStatusRead(chat.status))) {
+							sessionReadStateToSynchronize = { session: sessionKey, isRead: true };
+						}
 					}
 				}
 			}
@@ -3273,13 +3311,9 @@ export class AgentHostStateManager extends Disposable {
 
 	/**
 	 * Aggregates a session's chat catalog into the derived session-summary
-	 * fields per the protocol rules: activity bits come from the default chat
-	 * (else the most recently modified chat) with `InputNeeded`/`Error`/
-	 * `InProgress` promoted whenever any chat raises them; the `activity` string
-	 * follows the chat driving the resulting status; `modifiedAt` is the max
-	 * across chats. Promotion precedence is `InputNeeded` > `Error` >
-	 * `InProgress`, so a running peer (sub) chat surfaces as `InProgress` on the
-	 * session even when the default chat is idle.
+	 * fields, promoting `InputNeeded` before `InProgress` over the default chat's
+	 * status (else the most recently modified chat's). Activity follows the
+	 * driving chat; `modifiedAt` is the max across chats.
 	 */
 	private _aggregateChatSummaries(chats: readonly ChatSummary[], defaultChat: URI | undefined): { status?: SessionStatus; activity?: string; modifiedAt?: number } {
 		if (chats.length === 0) {
@@ -3290,7 +3324,6 @@ export class AgentHostStateManager extends Disposable {
 			?? chats.reduce((a, b) => Date.parse(b.modifiedAt) > Date.parse(a.modifiedAt) ? b : a);
 		let status = base.status & activityMask;
 		let driver = base;
-		const errorChat = chats.find(c => (c.status & SessionStatus.Error) === SessionStatus.Error);
 		const inputChat = chats.find(c => (c.status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded);
 		// `InputNeeded` is a superset of the `InProgress` bit, so exclude
 		// input-needed chats here to find one that is purely streaming.
@@ -3298,9 +3331,6 @@ export class AgentHostStateManager extends Disposable {
 		if (inputChat) {
 			status = SessionStatus.InputNeeded;
 			driver = inputChat;
-		} else if (errorChat) {
-			status = SessionStatus.Error;
-			driver = errorChat;
 		} else if (inProgressChat) {
 			status = SessionStatus.InProgress;
 			driver = inProgressChat;

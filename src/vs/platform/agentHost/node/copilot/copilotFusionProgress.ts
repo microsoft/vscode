@@ -180,6 +180,11 @@ export class CopilotFusionProgress {
 		return toolCall ? readToolCallMeta(toolCall).fusionPhase?.model : undefined;
 	}
 
+	/** The workflow pattern the runtime resolved for a Fusion run in this turn. */
+	getPattern(fusionId: string): FusionPhase['pattern'] | undefined {
+		return this._patterns.get(fusionId);
+	}
+
 	reset(): void {
 		this._milestones.clear();
 		this._finishedFusions.clear();
@@ -190,6 +195,15 @@ export class CopilotFusionProgress {
 		this._interrupted = false;
 		this._phaseTools.clear();
 		this._patterns.clear();
+	}
+
+	/** Reports the running phase again as new, for a turn that takes over its in-flight workflow. */
+	resumeRunningPhase(): ICopilotFusionProgressUpdate | undefined {
+		const toolCall = this._phase && this._phaseTools.get(getFusionPhaseToolCallId(this._phase.fusionId, this._phase.phaseId));
+		if (!this._phase || !toolCall) {
+			return undefined;
+		}
+		return { activity: this._activity, phase: { toolCall, isNew: true, presentation: getFusionPhasePresentation(this._phase.phaseKind) } };
 	}
 
 	interrupt(timestamp?: string): ICopilotFusionProgressUpdate | undefined {

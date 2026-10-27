@@ -29,6 +29,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostWorkspaceTrustConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
+import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createContextSizeConfigSchemaPropertyFromLimits, getModelContextSize } from '../../common/agentModelConfiguration.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
@@ -77,6 +78,7 @@ import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js'
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../shared/workspacelessInstructions.js';
+import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
@@ -109,7 +111,7 @@ import type { TurnDiffUpdatedNotification } from './protocol/generated/v2/TurnDi
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileReadRoots, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileReadRoots, codexServiceTierOverride, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
 import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
@@ -174,7 +176,7 @@ import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadRespo
 import type { TurnSettingsUpdateResponse } from './protocol/generated/v2/TurnSettingsUpdateResponse.js';
 import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
 import { ensurePortableCodexProxyProvider } from './codexProviderConfiguration.js';
-import { parseCodexModelSelection, toCodexModelSelectionId, toCodexModelProvider } from '../../common/codexModelSelection.js';
+import { CODEX_COPILOT_MODEL_PROVIDER, parseCodexModelSelection, toCodexModelSelectionId, toCodexModelProvider } from '../../common/codexModelSelection.js';
 export { parseCodexModelSelection, toCodexModelSelectionId } from '../../common/codexModelSelection.js';
 import { reportCodexProviderSwitch } from './codexProviderSwitchTelemetry.js';
 import { formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
@@ -287,7 +289,6 @@ const MCP_TOOL_APPROVAL_ANSWER_DECLINE = '__codex_mcp_decline__';
  * chat-only models carry `/chat/completions` (neither is usable by codex).
  */
 const CODEX_RESPONSES_ENDPOINT = '/responses';
-const CODEX_COPILOT_MODEL_PROVIDER = 'vscode-proxy';
 const CODEX_COPILOT_MODEL_GROUP = 'copilot';
 const CODEX_OPENAI_MODEL_PROVIDER = 'openai';
 const CODEX_MODEL_CATALOG_TIMEOUT_MS = 15_000;
@@ -705,7 +706,7 @@ interface ICodexSession {
 	 * replaced with the host-resolved working directory (the isolated worktree
 	 * for worktree-isolation sessions) before `thread/start` locks the codex
 	 * subprocess `cwd`. When the client supplies none (e.g. an editor window
-	 * with no workspace folder open), a managed temp folder is lazily created
+	 * with no workspace folder open), a managed scratch directory is lazily created
 	 * as a fallback at materialize time (tracked by
 	 * {@link managedWorkingDirectory} for cleanup). Mutable so both the
 	 * worktree swap and the lazy assignment can happen after a provisional
@@ -721,7 +722,7 @@ interface ICodexSession {
 	 */
 	workingDirectories?: readonly URI[];
 	/**
-	 * Set to the temp folder created for this session when no working
+	 * Set to the scratch directory created for this session when no working
 	 * directory was supplied, so the chat-dispose ref-tracking reclaim
 	 * (see {@link CodexAgent._reclaimManagedWorkingDirectoryIfNotLive}) can
 	 * remove it. `undefined` when the client supplied a working directory.
@@ -5385,7 +5386,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * Register a backing whose codex thread is deferred (see
 	 * {@link ICodexSession.threadId} for why). `thread/start` happens on
 	 * prewarm, the first `sendMessage`, or `getChatMetadata` for restore — by
-	 * which point a managed temp folder can be created lazily if the client
+	 * which point a managed scratch directory can be created lazily if the client
 	 * gave no working directory, instead of rejecting the creation.
 	 */
 	private _deferChatBacking(sessionId: string, options: IAgentCreateChatOptions | undefined, target: ICodexTargetChat): ICodexSession {
@@ -5464,7 +5465,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * top-level codex thread of its own (session id == thread id), so the
 	 * thread has to exist before the creation can name it as the chat's exact
 	 * backing. It runs in the host-resolved working directory, or in a managed
-	 * temp folder when the session has none, and inherits nothing from the
+	 * scratch directory when the session has none, and inherits nothing from the
 	 * parent session beyond the resolved options and its live active clients.
 	 */
 	private async _startChatBacking(context: IAgentChatContext, options: IAgentCreateChatOptions | undefined, target: ICodexTargetChat): Promise<ICodexSession> {
@@ -5525,6 +5526,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
 					model: resolvedModel.modelId,
 					modelProvider: resolvedModel.modelProvider,
+					...codexServiceTierOverride(resolvedModel.modelProvider),
 					approvalPolicy,
 					permissions,
 					approvalsReviewer,
@@ -5909,6 +5911,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
 				'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider),
 			};
+			const forkModelProvider = resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider;
 			const forkHookTrust = await this._buildSessionHookTrustState(forkConnection.client, forkCwd);
 			const connection = forkConnection;
 			// Without a cwd of its own, the fork runs in its source thread's.
@@ -5925,6 +5928,7 @@ export class CodexAgent extends Disposable implements IAgent {
 						runtimeWorkspaceRoots,
 					} : {}),
 					...(resolvedModel ? { model: resolvedModel.modelId, modelProvider: resolvedModel.modelProvider } : {}),
+					...codexServiceTierOverride(forkModelProvider),
 					config: forkConfig,
 					approvalPolicy,
 					permissions,
@@ -6046,22 +6050,20 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._otelService.getSessionTraceContext(session.sessionId, session.sessionUri.toString());
 	}
 
-	private async _createManagedWorkingDirectory(ownerId: string): Promise<URI> {
-		const directory = URI.file(join(os.tmpdir(), 'vscode-agent-codex', ownerId));
-		await fs.promises.mkdir(directory.fsPath, { recursive: true });
-		return directory;
+	private _createManagedWorkingDirectory(ownerId: string): Promise<URI> {
+		return ensureWorkspacelessScratchDir(this._environmentService.userHome, ownerId);
 	}
 
 	private async _removeManagedWorkingDirectory(directory: URI): Promise<void> {
 		try {
 			await fs.promises.rm(directory.fsPath, { recursive: true, force: true });
 		} catch (err) {
-			this._logService.info(`[Codex] failed to remove managed temp folder ${directory.fsPath}: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.info(`[Codex] failed to remove managed scratch directory ${directory.fsPath}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 
 	/**
-	 * Abandon this session's own managed temp folder ahead of adopting a
+	 * Abandon this session's own managed scratch directory ahead of adopting a
 	 * different (host- or user-supplied) working directory. Clears the
 	 * in-memory field, removes the folder from disk via its known explicit
 	 * path, and persists the clear so a later reclaim — this process or a
@@ -6089,9 +6091,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		if (!session.workingDirectory) {
-			// No working directory was supplied (e.g. an editor window with no
-			// workspace folder open). Codex requires one, so create a managed
-			// per-session temp folder and remember it for cleanup on dispose.
+			// Keep owned scratch across restarts when no workspace was supplied.
 			const managedWorkingDirectory = await this._createManagedWorkingDirectory(session.sessionId);
 			if (session.disposed || !session.chatChannel) {
 				await this._removeManagedWorkingDirectory(managedWorkingDirectory);
@@ -6099,7 +6099,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			session.workingDirectory = managedWorkingDirectory;
 			session.managedWorkingDirectory = managedWorkingDirectory;
-			this._logService.info(`[Codex] no working directory supplied for session=${session.sessionUri.toString()}; using managed temp folder ${session.workingDirectory.fsPath}`);
+			this._logService.info(`[Codex] no working directory supplied for session=${session.sessionUri.toString()}; using managed scratch directory ${session.workingDirectory.fsPath}`);
 		}
 		await this._refreshSessionMcpDiscovery(session);
 		if (session.disposed || !session.chatChannel) {
@@ -6165,6 +6165,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				...(selectedCapabilityRoots.length ? { selectedCapabilityRoots } : {}),
 				model: resolvedModel.modelId,
 				modelProvider: resolvedModel.modelProvider,
+				...codexServiceTierOverride(resolvedModel.modelProvider),
 				approvalPolicy,
 				permissions: customizationLaunch.skillPermissionProfile ?? permissions,
 				approvalsReviewer,
@@ -7021,9 +7022,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.mcpController?.dispose();
 		this._sessionMcpDiscoveries.get(sessionId)?.dispose();
 		this._sessionMcpDiscoveries.delete(sessionId);
-		// Remove the managed temp folder created for a session that had no
-		// client-supplied working directory. Best-effort; the OS temp dir is
-		// reclaimed anyway, but clean up proactively so it doesn't accumulate.
+		// Preserve scratch for resumable chats; age-based cleanup would delete their working data.
 		if (deleteManagedWorkingDirectory && session.managedWorkingDirectory) {
 			await this._removeManagedWorkingDirectory(session.managedWorkingDirectory);
 		}
@@ -8644,19 +8643,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _isWorkspaceTrusted(resource: URI, trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey)): boolean {
-		if (!trust) {
-			return false;
-		}
-		if (!trust.enabled) {
-			return true;
-		}
-		return trust.trustedUris.some(uri => {
-			try {
-				return extUriBiasedIgnorePathCase.isEqualOrParent(resource, URI.parse(uri));
-			} catch {
-				return false;
-			}
-		});
+		return isAgentHostWorkspaceTrusted(resource, trust);
 	}
 
 	/** Adds current hook grants to the per-thread config, rejecting a changed authorization context. */

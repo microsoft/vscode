@@ -205,3 +205,14 @@ export const inactiveSessionViewForeground = registerColor(
 	'inactiveSessionView.foreground', agentsPanelForeground,
 	localize('inactiveSessionView.foreground', 'Foreground color of an inactive session view in the agent sessions window.')
 );
+
+// ============================================================================
+// Agents window graphic (Welcome page)
+// ============================================================================
+
+// `charts.orange` falls back to the translucent find match highlight, which disappears in high contrast.
+export const agentsWindowGraphicOrange = registerColor(
+	'agentsWindowGraphic.orange',
+	{ dark: '#D18616', light: '#C26E00', hcDark: '#FFB04D', hcLight: '#A34D00' },
+	localize('agentsWindowGraphic.orange', 'Orange used for a project and for code in the graphic that explains the Agents window on the Welcome page.')
+);

@@ -26,7 +26,7 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxAuthenti
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { createChatState, createDefaultChatSummary, createSessionState, MessageKind, RootState, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createChatState, createDefaultChatSummary, createSessionState, MessageKind, RootState, SessionModelInfo, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -174,6 +174,8 @@ function reservedSession(): ICloudSandboxReservedSession {
 
 function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly enabled?: boolean;
+	readonly draftModels?: readonly SessionModelInfo[];
+	readonly hostModels?: readonly SessionModelInfo[];
 	readonly earlyPreparation?: boolean;
 	readonly reserveSession?: (request: ICloudSandboxReserveSessionRequest) => Promise<ICloudSandboxReservedSession>;
 	readonly sessionFeedEnabled?: boolean;
@@ -272,7 +274,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		}] as IAgentSessionMetadata[],
 	};
 	const scmRepositories = new Map<IGitRepository, ISCMRepository>((options?.scmRepositories ?? state.repositories).map(repository => [repository, scmRepository(repository)]));
-	const rootState: RootState = { agents: [{ provider: CLOUD_SANDBOX_AGENT_PROVIDER, displayName: 'Copilot', description: '', models: [] }] };
+	const rootState: RootState = { agents: [{ provider: CLOUD_SANDBOX_AGENT_PROVIDER, displayName: 'Copilot', description: '', models: [...options?.hostModels ?? []] }] };
 	const connection = new class extends mock<IAgentConnection>() {
 		override readonly clientId = 'editor-client';
 		override readonly rootState = upcastPartial<IAgentSubscription<RootState>>({ value: rootState, onDidChange: Event.None });
@@ -474,7 +476,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const catalogLoads: boolean[] = [];
 	instantiationService.stub(ICloudSandboxModelCatalogService, new class extends mock<ICloudSandboxModelCatalogService>() {
 		override readonly onDidChange = Event.None;
-		override readonly catalog = undefined;
+		override readonly catalog = options?.draftModels ? { models: options.draftModels } : undefined;
 		override load(retry?: boolean): void { catalogLoads.push(retry === true); }
 	}());
 	const languageModelVendors: string[] = [];
@@ -638,7 +640,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		 * Send the first turn of a draft to the creation participant, the way the chat widget does
 		 * for a draft locked to it. Option picks are recorded on the draft first.
 		 */
-		startDraft: (prompt: string, draftOptions?: { readonly resource?: URI; readonly options?: ReadonlyChatSessionOptionsMap; readonly token?: CancellationToken; readonly model?: string; readonly variables?: readonly IChatRequestVariableEntry[]; readonly attachedContext?: readonly IChatRequestVariableEntry[] }) => {
+		startDraft: (prompt: string, draftOptions?: { readonly resource?: URI; readonly options?: ReadonlyChatSessionOptionsMap; readonly token?: CancellationToken; readonly model?: string; readonly modelConfiguration?: Record<string, unknown>; readonly variables?: readonly IChatRequestVariableEntry[]; readonly attachedContext?: readonly IChatRequestVariableEntry[] }) => {
 			const draft = draftOptions?.resource ?? URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' });
 			for (const [optionId, value] of draftOptions?.options ?? []) {
 				chatSessionsService.setSessionOption(draft, optionId, value);
@@ -653,6 +655,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 				variables: { variables: [...(draftOptions?.variables ?? [])] },
 				location: ChatAgentLocation.Chat,
 				userSelectedModelId: draftOptions?.model,
+				modelConfiguration: draftOptions?.modelConfiguration,
 			};
 			draftRequests.set(draft.toString(), upcastPartial<IChatRequestModel>({
 				id: request.requestId,
@@ -1036,6 +1039,7 @@ suite('Editor cloud sandbox discovery', () => {
 				type,
 				hiddenFromPicker: contribution.hideFromSessionTypePicker,
 				canDelegate: contribution.canDelegate,
+				inputPlaceholder: contribution.inputPlaceholder,
 				// The chat widget locks a draft to the participant named after its type.
 				participant: h.agents.get(type)?.fullName,
 			})),
@@ -1044,8 +1048,8 @@ suite('Editor cloud sandbox discovery', () => {
 			created: h.calls.created,
 		}, {
 			providers: [
-				{ type: CLOUD_SANDBOX_SESSION_TYPE, hiddenFromPicker: false, canDelegate: false, participant: 'Cloud' },
-				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, participant: undefined },
+				{ type: CLOUD_SANDBOX_SESSION_TYPE, hiddenFromPicker: false, canDelegate: false, inputPlaceholder: 'Chat with Copilot Cloud', participant: 'Cloud' },
+				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, inputPlaceholder: 'Chat with Copilot Cloud', participant: undefined },
 			],
 			repositoryOptions: [],
 			created: 0,
@@ -1199,16 +1203,43 @@ suite('Editor cloud sandbox discovery', () => {
 				resolved: h.calls.resolvedConfigs,
 				initialConfig: customization?.resolveInitialSessionConfig?.(newResource),
 				aliases: customization?.modelIdentifierAliases,
+				useSessionTitleForDefaultChat: customization?.useSessionTitleForDefaultChat,
 				// The host titles a session after its id until the agent names it.
 				placeholderTitles: ['new-session', 'Fix the build'].map(title => customization?.isSessionTitlePlaceholder?.(title, newResource)),
 			}, {
 				resolved: [draftConfig, ...(supportsImageGeneration ? [initialConfig] : [])],
 				initialConfig,
 				aliases: [CLOUD_SANDBOX_SESSION_TYPE],
+				useSessionTitleForDefaultChat: true,
 				placeholderTitles: [true, false],
 			});
 			h.controllers.get(sessionType)?.notifySessionMaterialized?.(newResource);
 			assert.strictEqual(customization?.resolveInitialSessionConfig?.(newResource), undefined);
+		});
+	}
+
+	for (const accepted of [true, false]) {
+		test(`editor validates draft context with the real host before commit and first send (${accepted})`, async () => {
+			const model: SessionModelInfo = { id: 'context-model', provider: CLOUD_SANDBOX_AGENT_PROVIDER, name: 'Context Model' };
+			const hostModel: SessionModelInfo = { ...model, configSchema: { type: 'object', properties: { contextTier: { type: 'string', title: 'Context', enum: accepted ? ['default', 'long_context'] : ['default'] } } } };
+			const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+			const h = createHarness(store, {
+				draftModels: [model], hostModels: [hostModel],
+				createSession: async () => created,
+				connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+			});
+			h.state.result = { kind: 'complete', sessions: [] };
+			await h.refresh();
+			const sending = h.startDraft('Use long context', { model: `${CLOUD_SANDBOX_SESSION_TYPE}:context-model`, modelConfiguration: { contextTier: 'long_context' } });
+			if (accepted) {
+				await sending;
+			} else {
+				await assert.rejects(sending, /cannot apply.*contextTier.*prompt was not sent/);
+			}
+			assert.deepStrictEqual({
+				configurations: h.sends.map(send => send.options?.userSelectedModelConfiguration),
+				committed: h.aliases.length > 0,
+			}, { configurations: accepted ? [{ contextTier: 'long_context' }] : [], committed: accepted });
 		});
 	}
 
@@ -1240,7 +1271,7 @@ suite('Editor cloud sandbox discovery', () => {
 	});
 
 	for (const supportsImageGeneration of [false, true]) {
-		test(`drafts without config picks negotiate native image support (supported: ${supportsImageGeneration})`, async () => {
+		test(`drafts send displayed defaults and negotiate native image support (supported: ${supportsImageGeneration})`, async () => {
 			const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
 			const h = createHarness(store, {
 				createSession: async () => created,
@@ -1251,12 +1282,14 @@ suite('Editor cloud sandbox discovery', () => {
 			await h.refresh();
 			await h.startDraft('Generate an image');
 			const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
+			const defaults = { mode: 'interactive', approvalMode: 'assisted' };
+			const initialConfig = { ...defaults, ...(supportsImageGeneration ? { imageGeneration: true } : {}) };
 			assert.deepStrictEqual({
 				resolved: h.calls.resolvedConfigs,
 				initialConfig: h.customizations.get(address)?.resolveInitialSessionConfig?.(newResource),
 			}, {
-				resolved: supportsImageGeneration ? [{}, { imageGeneration: true }] : [{}],
-				initialConfig: supportsImageGeneration ? { imageGeneration: true } : undefined,
+				resolved: supportsImageGeneration ? [defaults, initialConfig] : [defaults],
+				initialConfig,
 			});
 		});
 	}
@@ -1742,7 +1775,10 @@ suite('Editor cloud sandbox discovery', () => {
 		const label = () => h.items().find(item => isEqual(item.resource, newResource))?.label;
 		const seeded = label();
 		// The host titles the session after its id until the agent names it.
-		h.state.hostSessions = [{ session: newSession, summary: created.sessionId, startTime: Date.now(), modifiedTime: Date.now(), status: SessionStatus.InProgress }];
+		h.state.hostSessions = [{
+			session: newSession, summary: created.sessionId, startTime: Date.now(), modifiedTime: Date.now(), status: SessionStatus.InProgress,
+			chats: [{ chat: URI.parse('custom-chat:/opaque-main'), kind: 'default', summary: 'main' }],
+		}];
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
 		const listed = label();
 		h.notifications.fire({ type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: newSession.toString(), changes: { title: created.sessionId } });

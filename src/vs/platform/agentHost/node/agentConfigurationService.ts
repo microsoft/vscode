@@ -30,6 +30,7 @@ import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
 import { ChatOriginKind, isAhpChatChannel, parseSubagentSessionUri, readSessionWorkspaceless, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { applyChatConfigLayers, filterChatConfigValues, getCompleteChatConfigValues, getEffectiveChatConfig, isChatConfigProperty, splitChatConfigPatch, withChatSchemaDefaults } from '../common/sessionConfigProperties.js';
 import { inheritedChatFolders } from './agentChatContext.js';
+import { getSessionSummarySources } from './agentHostChatsInUse.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { type ISessionSandboxPolicy, readSessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
@@ -77,7 +78,8 @@ export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManag
 
 /**
  * Returns the working directories covered by a session's cumulative Session
- * Changes: the session's own followed by every chat's, without duplicates.
+ * Changes: the session's own followed by those of the chats in use
+ * ({@link getSessionSummarySources}), without duplicates.
  */
 export function getSessionSummaryWorkingDirectories(stateManager: AgentHostStateManager, session: ProtocolURI): readonly ProtocolURI[] | undefined {
 	const state = stateManager.getSessionState(session);
@@ -87,7 +89,7 @@ export function getSessionSummaryWorkingDirectories(stateManager: AgentHostState
 
 	const workingDirectories: ProtocolURI[] = [];
 	const seen = new Set<ProtocolURI>();
-	for (const owner of [session, ...state.chats.map(chat => chat.resource)]) {
+	for (const owner of [session, ...getSessionSummarySources(stateManager, session, stateManager.getDefaultChat(session))]) {
 		for (const workingDirectory of getEffectiveWorkingDirectories(stateManager, owner) ?? []) {
 			if (!seen.has(workingDirectory)) {
 				seen.add(workingDirectory);

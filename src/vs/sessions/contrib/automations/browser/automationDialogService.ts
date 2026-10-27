@@ -5,7 +5,7 @@
 
 import './media/automationDialog.css';
 import * as DOM from '../../../../base/browser/dom.js';
-import { ButtonBar, IButton } from '../../../../base/browser/ui/button/button.js';
+import { Button, ButtonBar, IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -24,7 +24,6 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -33,12 +32,12 @@ import { createWorkbenchDialogOptions } from '../../../../workbench/browser/part
 import { IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { automationScheduleToLocal, automationScheduleToUTC } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
-import { IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationRepositoryOwnershipUnavailableError, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
-import { AutomationSessionConfigurationCapture, createAutomationTarget, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
+import { AutomationDialogMessageSource, AutomationSessionConfigurationCapture, createAutomationTarget, getAutomationDialogProviders, IAutomationDialogMessage, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
 
 const $ = DOM.$;
@@ -91,7 +90,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAutomationService private readonly automationService: IAutomationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) { }
@@ -148,6 +146,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let getBranch: () => string | undefined = () => initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined;
 		let waitForAutomationSessionSync: (token: CancellationToken) => Promise<void> = async () => { };
 		let setSaving: (saving: boolean, committing?: boolean) => void = () => { };
+		let setOwnership: (ownership: IFormState['ownership']) => void = () => { };
 		let getCustomizationIds: () => readonly string[] | undefined = () => undefined;
 		let waitForCustomizationChoices: (token: CancellationToken) => Promise<void> = async () => { };
 		let progressBar: ProgressBar | undefined;
@@ -159,6 +158,61 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
 		let focusFirst: () => void = () => { };
 		let setRepositoryWarningVisible: (visible: boolean) => void = () => { };
+		const dialogMessages = new Map<AutomationDialogMessageSource, IAutomationDialogMessage>();
+		let notificationCenter: HTMLElement | undefined;
+		let notificationIcon: HTMLElement | undefined;
+		let notificationText: HTMLElement | undefined;
+		let notificationAction: Button | undefined;
+		let activeNotificationAction: IAutomationDialogMessage['action'];
+		let renderedNotification: { readonly source: AutomationDialogMessageSource; readonly severity: IAutomationDialogMessage['severity']; readonly text: string; readonly actionLabel: string | undefined } | undefined;
+		const messagePriority: readonly AutomationDialogMessageSource[] = ['operationError', 'saveError', 'targetValidation', 'scheduleValidation', 'toolCatalogError', 'immutableSettings', 'repositoryWarning'];
+		const updateNotificationCenter = () => {
+			const candidate = messagePriority
+				.map(source => ({ source, message: dialogMessages.get(source) }))
+				.find(candidate => candidate.message !== undefined);
+			const message = candidate?.message;
+			if (!notificationCenter || !notificationIcon || !notificationText) {
+				return;
+			}
+			activeNotificationAction = message?.action;
+			const next = candidate && message ? { source: candidate.source, severity: message.severity, text: message.text, actionLabel: message.action?.label } : undefined;
+			if (renderedNotification?.source === next?.source
+				&& renderedNotification?.severity === next?.severity
+				&& renderedNotification?.text === next?.text
+				&& renderedNotification?.actionLabel === next?.actionLabel) {
+				return;
+			}
+			renderedNotification = next;
+			if (message) {
+				DOM.show(notificationCenter);
+				notificationCenter.setAttribute('aria-hidden', 'false');
+			} else {
+				DOM.hide(notificationCenter);
+				notificationCenter.setAttribute('aria-hidden', 'true');
+			}
+			notificationCenter.classList.toggle('error', message?.severity === 'error');
+			notificationCenter.classList.toggle('warning', message?.severity === 'warning');
+			notificationCenter.classList.toggle('info', message?.severity === 'info');
+			if (notificationAction) {
+				notificationAction.label = message?.action?.label ?? '';
+				DOM.setVisibility(!!message?.action, notificationAction.element);
+			}
+			if (!message) {
+				return;
+			}
+			notificationCenter.setAttribute('role', message.severity === 'error' ? 'alert' : 'status');
+			DOM.clearNode(notificationIcon);
+			DOM.append(notificationIcon, renderIcon(message.severity === 'error' ? Codicon.error : message.severity === 'warning' ? Codicon.warning : Codicon.info)).setAttribute('aria-hidden', 'true');
+			notificationText.textContent = message.text;
+		};
+		const setDialogMessage = (source: AutomationDialogMessageSource, message: IAutomationDialogMessage | undefined) => {
+			if (message) {
+				dialogMessages.set(source, message);
+			} else {
+				dialogMessages.delete(source);
+			}
+			updateNotificationCenter();
+		};
 		let saveInProgress = false;
 		const saveCancellation = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const completion = new DeferredPromise<IAutomationDialogResult | undefined>();
@@ -171,7 +225,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 		const cancelButtonLabel = localize('automation.dialog.cancel', "Cancel");
 		const savingButtonLabel = localize('automation.dialog.saving', "Saving…");
 		const captureErrorMessage = localize('automation.dialog.captureError', "The automation wasn't saved because its session configuration couldn't be captured. Check the provider connection and try again.");
-
 		const buildResult = (sessionConfigurationCapture: Exclude<AutomationSessionConfigurationCapture, { readonly kind: 'failed' }>): IAutomationDialogResult | undefined => {
 			const localSchedule: IAutomationSchedule = {
 				interval: state.interval,
@@ -252,6 +305,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			}
 
 			saveInProgress = true;
+			setDialogMessage('operationError', undefined);
 			showSaveError(undefined);
 			setSaving(true);
 			progressBar?.infinite().show();
@@ -301,7 +355,11 @@ export class AutomationDialogService implements IAutomationDialogService {
 					if (!commitInProgress) {
 						dialogTelemetry.captureFailed();
 					}
-					showSaveError(commitInProgress ? getErrorMessage(error) : captureErrorMessage);
+					const message = commitInProgress ? getErrorMessage(error) : captureErrorMessage;
+					if (!isEdit && state.ownership === 'repository' && error instanceof AutomationRepositoryOwnershipUnavailableError) {
+						setOwnership('user');
+					}
+					showSaveError(message);
 					shouldFocusError = true;
 				}
 			} finally {
@@ -344,15 +402,29 @@ export class AutomationDialogService implements IAutomationDialogService {
 				renderFooter: container => {
 					container.classList.add('dialog-buttons', 'automation-dialog-footer-actions');
 					container.parentElement?.classList.add('dialog-buttons-row', 'automation-dialog-footer-row');
+					notificationCenter = DOM.append(container, $('.automation-dialog-notification-center', {
+						id: 'automation-dialog-notification-center',
+						'aria-live': 'polite',
+						'aria-atomic': 'true',
+						tabindex: '-1',
+					}));
+					notificationIcon = DOM.append(notificationCenter, $('span.automation-dialog-notification-icon'));
+					notificationText = DOM.append(notificationCenter, $('span.automation-dialog-notification-text'));
+					notificationAction = disposables.add(new Button(notificationCenter, { ...defaultButtonStyles, secondary: true }));
+					disposables.add(notificationAction.onDidClick(() => activeNotificationAction?.run()));
+					disposables.add(DOM.addDisposableListener(notificationCenter, DOM.EventType.MOUSE_DOWN, event => {
+						if (!notificationAction?.element.contains(event.target as Node)) {
+							event.preventDefault();
+						}
+					}));
+					DOM.hide(notificationAction.element);
+					DOM.hide(notificationCenter);
 					if (!isEdit || state.ownership === 'repository') {
-						const repositoryWarning = DOM.append(container, $('.automation-owner-warning', { role: 'status', 'aria-live': 'polite' }));
-						DOM.append(repositoryWarning, renderIcon(Codicon.warning)).setAttribute('aria-hidden', 'true');
-						DOM.append(repositoryWarning, $('span', undefined, isEdit
+						const repositoryWarning = isEdit
 							? localize('automation.owner.repositoryEditWarning', "This automation is visible to everyone with repository access, and can be edited by anyone with write access.")
-							: localize('automation.owner.repositoryCreateWarning', "This automation will be visible to everyone with repository access, and can be edited by anyone with write access.")));
+							: localize('automation.owner.repositoryCreateWarning', "This automation will be visible to everyone with repository access, and can be edited by anyone with write access.");
 						setRepositoryWarningVisible = visible => {
-							repositoryWarning.classList.toggle('visible', visible);
-							repositoryWarning.setAttribute('aria-hidden', String(!visible));
+							setDialogMessage('repositoryWarning', visible ? { severity: 'warning', text: repositoryWarning } : undefined);
 						};
 						setRepositoryWarningVisible(state.ownership === 'repository');
 					}
@@ -389,12 +461,13 @@ export class AutomationDialogService implements IAutomationDialogService {
 					const scrollable = DOM.append(container, $('.automation-dialog-scrollable'));
 					const formPane = DOM.append(scrollable, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => this.notificationService.error(error), this.quickInputService, setRepositoryWarningVisible);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus());
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
 					waitForAutomationSessionSync = handle.waitForAutomationSessionSync;
 					setSaving = handle.setSaving;
+					setOwnership = handle.setOwnership;
 					getCustomizationIds = handle.getCustomizationIds;
 					waitForCustomizationChoices = handle.waitForCustomizationChoices;
 					showSaveError = handle.showSaveError;
@@ -404,6 +477,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						DOM.getWindow(container),
 						() => [
 							...getFocusableElements(),
+							...(notificationAction ? [notificationAction.element] : []),
 							...(saveButton ? [saveButton.element] : []),
 							...(cancelButton ? [cancelButton.element] : []),
 						],
@@ -436,7 +510,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						const blocked = handle.getSaveBlockedReason(validation.sessionTypeError, validation.scheduleError);
 						if (saveButton && blocked?.message !== saveBlockedMessage) {
 							saveBlockedMessage = blocked?.message;
-							saveBlockedHover.value = blocked ? this.hoverService.setupDelayedHover(saveButton.element, { content: blocked.message }) : undefined;
+							saveBlockedHover.value = blocked ? this.hoverService.setupDelayedHover(saveButton.element, { content: blocked.message, appearance: { showPointer: true } }) : undefined;
 							if (blocked) {
 								saveButton.element.setAttribute('aria-describedby', blocked.elementId);
 							} else {

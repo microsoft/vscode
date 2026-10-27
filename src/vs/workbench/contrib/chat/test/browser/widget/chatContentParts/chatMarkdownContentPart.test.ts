@@ -17,6 +17,8 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { IMenuService, MenuId } from '../../../../../../../platform/actions/common/actions.js';
+import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { SymbolKind, SymbolTag } from '../../../../../../../editor/common/languages.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
@@ -424,6 +426,7 @@ suite('ChatMarkdownContentPart', () => {
 		const resource = toAgentHostUri(URI.file('/remote/my project/image.png'), 'sandbox');
 		let fileService: FileService;
 		let browserResources: BrowserResourceService;
+		let resolveImage: ((href: string) => string) | undefined;
 
 		function useFileService(service: FileService): void {
 			browserResources?.dispose();
@@ -434,12 +437,13 @@ suite('ChatMarkdownContentPart', () => {
 		}
 
 		setup(async () => {
+			resolveImage = undefined;
 			fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(AGENT_HOST_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
 			useFileService(fileService);
 			disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
 				provideChatSessionContent: async () => { throw new Error('Unexpected session resolution'); },
-				resolveChatResponseUri: (_resource, href, kind) => rewriteAgentHostLinkTarget(href, 'sandbox', undefined, kind === 'image' ? directory : undefined),
+				resolveChatResponseUri: (_resource, href, kind) => kind === 'image' && resolveImage ? resolveImage(href) : rewriteAgentHostLinkTarget(href, 'sandbox', undefined, kind === 'image' ? directory : undefined),
 			}));
 			await fileService.createFolder(toAgentHostUri(directory, 'sandbox'));
 			await fileService.writeFile(resource, imageBytes);
@@ -450,12 +454,24 @@ suite('ChatMarkdownContentPart', () => {
 			if (image.complete && image.naturalWidth > 0) {
 				return image;
 			}
+
 			const loaded = new DeferredPromise<void>();
 			disposables.add(addDisposableListener(image, 'load', () => loaded.complete()));
 			disposables.add(addDisposableListener(image, 'error', () => loaded.error(new Error('Image failed to decode'))));
 			await loaded.p;
 			return image;
 		}
+
+		test('renders a tool-result snapshot without reading the inaccessible sandbox file', async () => {
+			resolveImage = () => `data:image/png;base64,${encodeBase64(imageBytes)}`;
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const part = createMarkdownPart('![Screenshot](/tmp/unavailable.png)');
+			const image = await waitForImage(part);
+			assert.deepStrictEqual({
+				bytes: new Uint8Array(await (await fetch(image.src)).arrayBuffer()), alt: image.alt, reads: read.callCount,
+			}, { bytes: new Uint8Array(imageBytes.buffer), alt: 'Screenshot', reads: 0 });
+		});
 
 		for (const target of ['file:///remote/my%20project/image.png', '/remote/my%20project/image.png', './image.png', toAgentHostUri(URI.file('/remote/my project/image.png'), 'sandbox').toString()]) {
 			test(`loads ${target} through the owning file provider`, async () => {
@@ -651,8 +667,8 @@ suite('ChatMarkdownContentPart', () => {
 			}, {
 				images: [
 					{ alt: 'Robot', role: 'button', tabIndex: 0, label: 'Open image Robot' },
-					{ alt: 'Linked', role: null, tabIndex: -1, label: null },
-					{ alt: 'Remote', role: null, tabIndex: -1, label: null },
+					{ alt: 'Linked', role: null, tabIndex: 0, label: null },
+					{ alt: 'Remote', role: null, tabIndex: 0, label: null },
 				],
 				opened: [0, 1].map(() => ({ resource: resource.toString(), data: undefined, sessionResource: 'chat-session://test/session1', imageId: getChatMarkdownImageId('test-response-id', resource) })),
 			});
@@ -697,6 +713,27 @@ suite('ChatMarkdownContentPart', () => {
 				imageId: getChatMarkdownImageId('test-response-id', target),
 			})),
 		);
+	});
+
+	test('uses the image menu rather than editor and Explorer navigation for file images', async () => {
+		const requestedMenus: MenuId[] = [];
+		const actionLabels: string[][] = [];
+		instantiationService.stub(IMenuService, upcastPartial<IMenuService>({
+			getMenuActions: menuId => {
+				requestedMenus.push(menuId);
+				return [];
+			}
+		}));
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			showContextMenu: delegate => { actionLabels.push(delegate.getActions?.().map(action => action.label) ?? []); }
+		}));
+		const part = createMarkdownPart('![File](file:///workspace/image.png)');
+		part.domNode.querySelector('img')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		await Promise.resolve();
+		assert.deepStrictEqual({ requestedMenus, actionLabels }, {
+			requestedMenus: [MenuId.ChatImageContext],
+			actionLabels: [['Copy Image', 'Copy Image Path']],
+		});
 	});
 
 	test('renders plain markdown without code blocks', () => {

@@ -66,6 +66,11 @@ body {
 	--vscode-shadow-depth-y: 0 5px 10px -4px rgba(0, 0, 0, 0.04);
 }
 
+.monaco-workbench.sash-grippers-hidden {
+	--sash-grip-opacity: 0;
+	--sash-grip-transition-duration: 0.3s;
+}
+
 /* Disable panel/part shadows when the setting is off (preserves floating modals, notifications, etc.) */
 .monaco-workbench.no-shadows .part.titlebar,
 .monaco-workbench.no-shadows .part.activitybar,

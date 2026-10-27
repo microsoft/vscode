@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'path';
 import { IPromptWorkspaceLabels, PromptWorkspaceLabels } from '../src/extension/context/node/resolvers/promptWorkspaceLabels';
-import { INewWorkspacePreviewContentManager, NewWorkspacePreviewContentManagerImpl } from '../src/extension/intents/node/newIntent';
 import { IntentError } from '../src/extension/prompt/node/intents';
 import { ISimulationModelConfig } from '../src/extension/test/node/services';
 import { IToolsService } from '../src/extension/tools/common/toolsService';
@@ -446,7 +445,6 @@ export const executeTestOnce = async (
 	testingServiceCollection.define(ISimulationTestContext, simulationTestRuntime);
 	testingServiceCollection.define(ILogService, new SyncDescriptor(LogServiceImpl, [[new ConsoleLog(`🪵 ${currentTestRunInfo.test.fullName} (Run #${currentTestRunInfo.testRunNumber + 1}):\n`), simulationTestRuntime]]));
 
-	testingServiceCollection.define(INewWorkspacePreviewContentManager, new SyncDescriptor(NewWorkspacePreviewContentManagerImpl));
 
 	let snapshots: TestSnapshotsImpl | undefined;
 	if (test.options.location) {
