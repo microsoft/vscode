@@ -93,6 +93,7 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 	constructor(
 		private readonly container: HTMLElement,
+		private readonly scrollableElement: DomScrollableElement | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
@@ -231,11 +232,36 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 		const index = this.getIndexOfTrustedUriEntry(item);
 		if (index !== -1) {
 			this.table.reveal(index);
+			this.revealInScrollableElement(index);
 			if (focus) {
 				this.table.domFocus();
 				this.table.setFocus([index]);
 			}
 			this.table.setSelection([index]);
+		}
+	}
+
+	/**
+	 * The table is laid out to fit all of its rows, so scrolling happens in the surrounding
+	 * scrollable element rather than in the table itself.
+	 */
+	private revealInScrollableElement(index: number): void {
+		if (!this.scrollableElement) {
+			return;
+		}
+
+		this.scrollableElement.scanDomNode();
+		const viewportTop = this.scrollableElement.getDomNode().getBoundingClientRect().top;
+		const viewportHeight = this.scrollableElement.getScrollDimensions().height;
+		const rowTop = this.table.getHTMLElement().getBoundingClientRect().top - viewportTop
+			+ TrustedUriTableVirtualDelegate.HEADER_ROW_HEIGHT + index * TrustedUriTableVirtualDelegate.ROW_HEIGHT;
+		const rowBottom = rowTop + TrustedUriTableVirtualDelegate.ROW_HEIGHT;
+		const { scrollTop } = this.scrollableElement.getScrollPosition();
+
+		if (rowTop < 0) {
+			this.scrollableElement.setScrollPosition({ scrollTop: scrollTop + rowTop });
+		} else if (rowBottom > viewportHeight) {
+			this.scrollableElement.setScrollPosition({ scrollTop: scrollTop + rowBottom - viewportHeight });
 		}
 	}
 
@@ -992,7 +1018,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const configurationTitle = append(this.configurationContainer, $('.workspace-trusted-folders-title'));
 		configurationTitle.innerText = localize('trustedFoldersAndWorkspaces', "Trusted Folders & Workspaces");
 
-		this.workspaceTrustedUrisTable = this._register(this.instantiationService.createInstance(WorkspaceTrustedUrisTable, this.configurationContainer));
+		this.workspaceTrustedUrisTable = this._register(this.instantiationService.createInstance(WorkspaceTrustedUrisTable, this.configurationContainer, this.bodyScrollBar));
 	}
 
 	private createAffectedFeaturesElement(parent: HTMLElement): void {

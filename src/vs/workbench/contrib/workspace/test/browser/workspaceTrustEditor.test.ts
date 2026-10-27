@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -126,13 +128,13 @@ suite('WorkspaceTrustedUrisTable', () => {
 		container.remove();
 	});
 
-	function createTable(names: string[]): void {
+	function createTable(names: string[], scrollableElement?: DomScrollableElement): void {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		dialogService = instantiationService.createInstance(PickerFileDialogService);
 		trustService = store.add(new FakeWorkspaceTrustManagementService(names.map(folder)));
 		instantiationService.stub(IFileDialogService, dialogService);
 		instantiationService.stub(IWorkspaceTrustManagementService, trustService);
-		table = store.add(instantiationService.createInstance(WorkspaceTrustedUrisTable, container));
+		table = store.add(instantiationService.createInstance(WorkspaceTrustedUrisTable, container, scrollableElement));
 		table.updateTable();
 	}
 
@@ -186,6 +188,39 @@ suite('WorkspaceTrustedUrisTable', () => {
 			focusedState(['c-two', 'm-middle', 'n-three', 'z-last'], 'm-middle'),
 			focusedState(['c-two', 'n-three', 'z-last', 'zz-end'], 'zz-end'),
 		]);
+	});
+
+	test('reveals the added folder in the surrounding scrollable element', async () => {
+		// Mirrors the editor: the table is laid out to fit all rows inside a constrained-height
+		// scrollable body that is scrolled down to the Add Folder button.
+		const content = mainWindow.document.createElement('div');
+		const scrollableElement = store.add(new DomScrollableElement(content, { vertical: ScrollbarVisibility.Auto }));
+		const viewport = scrollableElement.getDomNode();
+		viewport.style.height = '200px';
+		content.style.height = '200px';
+		const spacer = content.appendChild(mainWindow.document.createElement('div'));
+		spacer.style.height = '300px';
+		content.appendChild(container);
+		mainWindow.document.body.appendChild(viewport);
+		try {
+			createTable(Array.from({ length: 20 }, (_, i) => `n-${String(i).padStart(2, '0')}`), scrollableElement);
+			scrollableElement.scanDomNode();
+			scrollableElement.setScrollPosition({ scrollTop: Number.MAX_SAFE_INTEGER });
+			const scrollTopBefore = scrollableElement.getScrollPosition().scrollTop;
+
+			await addFolder([folder('a-first')]);
+
+			const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === 'a-first')!;
+			const rowRect = row.getBoundingClientRect();
+			const viewportRect = viewport.getBoundingClientRect();
+			assert.deepStrictEqual({
+				scrolledUp: scrollableElement.getScrollPosition().scrollTop < scrollTopBefore,
+				rowVisible: rowRect.top >= viewportRect.top && rowRect.bottom <= viewportRect.bottom,
+				focused: getState().focused,
+			}, { scrolledUp: true, rowVisible: true, focused: ['a-first'] });
+		} finally {
+			viewport.remove();
+		}
 	});
 
 	test('moves focus only after the addition completes', async () => {
