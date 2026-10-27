@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { ISessionSummaryHoverService, SessionSummaryHoverService } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
 import { ChatMcpAuthenticationContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMcpAuthenticationContentPart.js';
 import { IChatMcpAuthenticationRequired } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
@@ -42,6 +43,7 @@ function renderAuthenticationPart(context: ComponentFixtureContext): void {
 		colorTheme: context.theme,
 		additionalServices: registration => {
 			registerChatFixtureServices(registration);
+			registration.define(ISessionSummaryHoverService, SessionSummaryHoverService);
 			registration.defineInstance(IAgentHostCustomizationService, customizationService);
 		},
 	});
