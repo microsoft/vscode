@@ -274,6 +274,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		let measurementFailed = false;
 		try {
 			sizeBytes = await this.sessionsManagementService.getSessionWorktreeDiskUsage?.(session, token);
+			measurementFailed = sizeBytes === undefined;
 		} catch (error) {
 			if (token.isCancellationRequested) {
 				throw error;
@@ -557,7 +558,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	private _filterWorktrees(worktrees: readonly ISessionWorktree[]): readonly ISessionWorktree[] {
-		return worktrees.filter(worktree => worktree.isMeasuring || worktree.measurementFailed || !worktree.session.isArchived.get() || (worktree.sizeBytes !== undefined && worktree.sizeBytes > 0));
+		return worktrees.filter(worktree => worktree.isMeasuring || worktree.measurementFailed || !worktree.session.isArchived.get() || worktree.sizeBytes !== 0);
 	}
 
 	async cleanupWorktrees(selected: readonly ISessionWorktreeCleanupCandidate[], onProgress?: (progress: SessionWorktreeCleanupProgress) => void): Promise<boolean> {

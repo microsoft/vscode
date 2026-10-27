@@ -37,6 +37,7 @@ import { AgentHostTransportFailureReason } from '../../../../../platform/agentHo
 import { supportsAgentHostArtifactRemoval, supportsAgentHostCreateChatWorkspace } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSessionImport } from '../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
 import { supportsAgentHostSessionMove } from '../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
+import { supportsAgentHostWorktreeDiskUsage } from '../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
@@ -7188,7 +7189,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const session = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
-		if (!session || !connection) {
+		if (!session || !connection?.measureWorktreeDiskUsage || !supportsAgentHostWorktreeDiskUsage(connection.initializeResult.get())) {
 			return undefined;
 		}
 		const worktrees = new Map<string, URI>();
@@ -7203,11 +7204,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sizes: (number | undefined)[] = [];
 		for (const worktreeUri of worktrees.values()) {
-			sizes.push(await connection.measureWorktreeDiskUsage?.(worktreeUri, token, session.backendUri));
+			sizes.push(await connection.measureWorktreeDiskUsage(worktreeUri, token, session.backendUri));
 		}
-		if (sizes.every(size => size === undefined)) {
-			return undefined;
-		}
+		// A supported host returns undefined for a root that no longer exists.
 		return sizes.reduce<number>((total, size) => total + (size ?? 0), 0);
 	}
 

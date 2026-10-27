@@ -20,6 +20,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -690,6 +691,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	for (const status of [ProtocolSessionStatus.Idle, ProtocolSessionStatus.InProgress, ProtocolSessionStatus.InputNeeded]) {
 		test(`forwards the advertised identity so the host decides whether all worktree owners are idle (${status})`, async () => {
+			connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } }, undefined);
 			const sessions: (string | undefined)[] = [];
 			connection.measureWorktreeDiskUsage = async (_root, _token, session) => {
 				sessions.push(session?.toString());
@@ -708,8 +710,31 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}
 
+	for (const availability of ['available', 'disconnected', 'unsupported', 'missing-method']) {
+		test(`distinguishes removed storage from unavailable worktree measurement (${availability})`, async () => {
+			let measurements = 0;
+			if (availability !== 'unsupported') {
+				connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } }, undefined);
+			}
+			if (availability !== 'missing-method') {
+				connection.measureWorktreeDiskUsage = async () => { measurements++; return undefined; };
+			}
+			const provider = createProvider(disposables, connection, { noConnection: availability === 'disconnected' });
+			provider.seedSessions([createSession('removed-worktree', {
+				session: URI.parse('other-host:/opaque/session'),
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/removed-worktree'),
+			})]);
+			assert.deepStrictEqual({
+				size: await provider.getSessionWorktreeDiskUsage(provider.getSessions()[0].sessionId),
+				measurements,
+			}, { size: availability === 'available' ? 0 : undefined, measurements: availability === 'available' ? 1 : 0 });
+		});
+	}
+
 	for (const sandbox of [false, true]) {
 		test(sandbox ? 'does not measure cloud sandbox worktrees' : 'continues measuring ordinary remote worktrees', async () => {
+			connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } }, undefined);
 			let resourceRequests = 0;
 			const aggregateRequests: URI[] = [];
 			connection.measureWorktreeDiskUsage = async root => {

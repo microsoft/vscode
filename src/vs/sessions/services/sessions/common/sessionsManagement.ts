@@ -584,7 +584,7 @@ export interface ISessionsManagementService {
 	/** Permanently imports an external session through its provider without sending a message. */
 	importSession(session: ISession): Promise<void>;
 
-	/** Returns the current on-disk size of the session's isolated worktree. */
+	/** Returns the current on-disk size, zero for confirmed absent storage, or undefined when measurement is unavailable. */
 	getSessionWorktreeDiskUsage?(session: ISession, token?: CancellationToken): Promise<number | undefined>;
 
 	/** Reports cleanup status, optionally retrying removal without restoring or deleting session history. */
