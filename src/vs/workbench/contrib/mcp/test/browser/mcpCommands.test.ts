@@ -5,13 +5,18 @@
 
 import assert from 'assert';
 import { constObservable } from '../../../../../base/common/observable.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IAgentHostCustomizationService } from '../../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { ContributionEnablementState } from '../../../chat/common/enablement.js';
-import { findLocalMcpServer } from '../../browser/mcpCommands.js';
-import { IMcpServer, IMcpService } from '../../common/mcpTypes.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { findLocalMcpServer, McpBrowseCommand, McpBrowsePageCommand, ShowInstalledMcpServersCommand } from '../../browser/mcpCommands.js';
+import { IMcpServer, IMcpService, InstalledMcpServersViewId } from '../../common/mcpTypes.js';
 
 type AgentHostMcpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
 
@@ -48,7 +53,7 @@ function agentHostServer(id: string, name: string): AgentHostMcpServer {
 }
 
 suite('MCP commands', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('findLocalMcpServer matches exact, unambiguous definition IDs and labels', () => {
 		const byId = new TestMcpServer('extension.server', 'Extension Server');
@@ -70,5 +75,59 @@ suite('MCP commands', () => {
 			ambiguousLabel: undefined,
 			unmatched: undefined,
 		});
+	});
+
+	test('browse command opens the MCP customizations marketplace', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const calls: { id: string; args: unknown[] }[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override executeCommand<R = unknown>(id: string, ...args: unknown[]): Promise<R | undefined> {
+				calls.push({ id, args });
+				return Promise.resolve(undefined);
+			}
+		}());
+
+		await instantiationService.invokeFunction(accessor => new McpBrowseCommand().run(accessor));
+
+		assert.deepStrictEqual(calls, [{
+			id: AICustomizationManagementCommands.OpenMarketplace,
+			args: [AICustomizationManagementSection.McpServers],
+		}]);
+	});
+
+	test('extensions browse action searches for MCP servers', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const searches: string[] = [];
+		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+			override openSearch(searchValue: string): Promise<void> {
+				searches.push(searchValue);
+				return Promise.resolve();
+			}
+		}());
+
+		await instantiationService.invokeFunction(accessor => new McpBrowsePageCommand().run(accessor));
+
+		assert.deepStrictEqual(searches, ['@mcp ']);
+	});
+
+	test('show installed resets the Extensions search before opening the view', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const calls: string[] = [];
+		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+			override openSearch(searchValue: string): Promise<void> {
+				calls.push(`search:${searchValue}`);
+				return Promise.resolve();
+			}
+		}());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			openView: async id => {
+				calls.push(`view:${id}`);
+				return null;
+			}
+		}));
+
+		await instantiationService.invokeFunction(accessor => new ShowInstalledMcpServersCommand().run(accessor));
+
+		assert.deepStrictEqual(calls, ['search:', `view:${InstalledMcpServersViewId}`]);
 	});
 });

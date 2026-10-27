@@ -5,10 +5,12 @@
 
 import { $ } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
+import { animateChatProgress } from '../chatProgressAnimation.js';
 // NOTE: the chrome's stylesheet is deliberately NOT imported here. It is owned by
 // `chatThinkingContentPart.ts`, and pulling it in from this base would hoist a
 // large stylesheet earlier in the bundle and change the cascade for everything
@@ -26,6 +28,8 @@ export abstract class ChatThinkingStyleContentPart extends ChatCollapsibleConten
 
 	private _thinkingActive = false;
 	private _shimmerSpan: HTMLElement | undefined;
+	private readonly _shimmerTitleAnimation = this._register(new MutableDisposable());
+	private readonly _spinnerAnimation = this._register(new MutableDisposable());
 
 	/** Whether the row is still working. */
 	protected get thinkingActive(): boolean {
@@ -78,6 +82,7 @@ export abstract class ChatThinkingStyleContentPart extends ChatCollapsibleConten
 			labelElement.textContent = '';
 			this._shimmerSpan = $('span.chat-thinking-title-shimmer');
 			labelElement.appendChild(this._shimmerSpan);
+			this._shimmerTitleAnimation.value = animateChatProgress(this._shimmerSpan);
 		}
 		this._shimmerSpan.textContent = text;
 	}
@@ -87,6 +92,7 @@ export abstract class ChatThinkingStyleContentPart extends ChatCollapsibleConten
 	 * label as static content. Does not touch the DOM.
 	 */
 	protected forgetShimmerTitle(): void {
+		this._shimmerTitleAnimation.clear();
 		this._shimmerSpan = undefined;
 	}
 
@@ -112,7 +118,13 @@ export abstract class ChatThinkingStyleContentPart extends ChatCollapsibleConten
 		const label = $('span.chat-thinking-spinner-label');
 		label.textContent = message;
 		row.appendChild(label);
+		this._spinnerAnimation.value = animateChatProgress(label);
 		return { row, label };
+	}
+
+	protected removeThinkingSpinnerRow(row: HTMLElement): void {
+		this._spinnerAnimation.clear();
+		row.remove();
 	}
 }
 

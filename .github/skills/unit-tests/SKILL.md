@@ -13,6 +13,8 @@ If the `runTests` tool is available, **prefer it** over running shell commands. 
 - Pass test names via the `testNames` parameter to filter which tests run.
 - Set `mode="coverage"` to collect coverage.
 
+The tool runs tests discovered by VS Code's registered test controllers; it does not compile the repository or invoke a shell test command. If discovery is unavailable, pending, or reports no executed tests, treat the request as unvalidated and use the repository's configured test command. Review per-file and test-name diagnostics for partially matched requests instead of repeatedly checking the same paths.
+
 Example (conceptual): run tests in `src/vs/editor/test/common/model.test.ts` with test name filter `"should split lines"`.
 
 ## Fallback: Shell scripts
@@ -94,6 +96,16 @@ Override the default Mocha timeout for long-running tests.
 
 ```bash
 ./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --timeout 10000
+```
+
+#### `--workers <count>` - Run all test files in parallel processes
+
+Spreads a run of **all** test files across `<count>` worker processes. The count is required, and capped at one worker per CPU and per 2 GB of memory, because every worker loads all test files. Every worker loads all test files and runs the files it claims, in the usual order. It is ignored, and the run uses a single window or process, with `--run`, `--runList`, `--runGlob`, bare file paths, `--grep`, `--coverage` or `--dev`. With `--rerun-failed-files`, the failures of all workers are rerun in a single window or process. When a worker fails, the runner prints the test files it ran, in order, to pass to `--run` to reproduce the failure. `npm run test-node` and `npm run test-browser` accept it as well; the browser runner starts its own browser in every worker, runs the browsers one at a time, and ignores it with `--debug`.
+
+```bash
+./scripts/test.sh --workers 4
+npm run test-node -- --workers 4
+npm run test-browser -- --browser chromium --workers 4
 ```
 
 ### Integration tests

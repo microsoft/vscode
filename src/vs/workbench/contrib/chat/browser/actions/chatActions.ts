@@ -1082,24 +1082,21 @@ export function registerChatActions() {
 				title: localize2('interactiveSession.focusNotice.label', "Chat: Toggle Focus Between Notice and Input"),
 				category: CHAT_CATEGORY,
 				f1: true,
-				// The Agents composer is not a chat widget, so it never sets
-				// `inChatSession`; it reports its own focus instead.
-				precondition: ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.inChatComposer),
+				precondition: ChatContextKeys.inChatSession,
 				keybinding: [{
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 					when: ContextKeyExpr.or(
 						ChatContextKeys.inChatSession,
 						ChatContextKeys.inChatTip,
-						ChatContextKeys.inChatComposer
 					),
 				}]
 			});
 		}
 
 		run(accessor: ServicesAccessor): void {
-			// Resolved through the notice hub rather than the chat widget service so
-			// this also works in the Agents window, whose composer is not a chat widget.
+			// Resolved through the notice hub rather than the chat widget service, as
+			// chat inputs in different surfaces do not share a widget registry.
 			if (!accessor.get(IChatInputNoticeHubService).toggleNoticeFocus()) {
 				alert(localize('chat.notice.focusUnavailable', "No chat notice."));
 			}
@@ -1544,13 +1541,12 @@ export function registerChatActions() {
 		}
 	});
 
-	// Show a direct gear action to open the Customizations editor
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		command: {
 			id: AICustomizationManagementCommands.OpenEditor,
 			title: localize2('openChatCustomizations', "Open Customizations"),
 			category: CHAT_CATEGORY,
-			icon: Codicon.gear
+			icon: Codicon.extensions
 		},
 		group: 'navigation',
 		when: ContextKeyExpr.and(

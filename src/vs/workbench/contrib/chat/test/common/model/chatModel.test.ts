@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -31,7 +32,7 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
@@ -135,6 +136,24 @@ suite('ChatModel', () => {
 		]);
 	});
 
+	test('artifact action snapshots survive JSON and operation log roundtrips without changing prompt text', () => {
+		const presentation = createTestArtifactRequestPresentation();
+		const data: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat, responderUsername: 'bot',
+			requests: [{
+				requestId: 'artifact-request', message: { text: 'Model-facing instructions', parts: [] }, variableData: { variables: [] },
+				response: [], isSystemInitiated: true, requestSource: 'artifactIntegration', artifactRequest: presentation,
+			}],
+		};
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, { value: data, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const operationLog = new ChatSessionOperationLog();
+		assert.deepStrictEqual([model.toJSON(), operationLog.read(operationLog.createInitial(model))].map(value => {
+			const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = restored.getRequests()[0];
+			return { prompt: request.message.text, source: request.requestSource, presentation: request.artifactRequest };
+		}), Array(2).fill({ prompt: 'Model-facing instructions', source: 'artifactIntegration', presentation }));
+	});
+
 	test('backfills and persists legacy Agent Merge sources without reclassifying other requests', () => {
 		const prompt = '<agent_merge_state>\nAuthorized actions this run: fix failed required CI checks\n</agent_merge_state>';
 		const exportedData: IExportableChatData = {
@@ -235,6 +254,53 @@ suite('ChatModel', () => {
 		assert.strictEqual(model.getRequests().length, 0);
 		assert.ok(model.sessionId);
 		assert.ok(model.timestamp > 0);
+	});
+
+	test('response.request does not scan the transcript and stays correct across removal and insertion', () => {
+		const addRequests = (count: number) => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const requests = Array.from({ length: count }, (_, i) => model.addRequest({ text: `r${i}`, parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, `id${i}`));
+			const counter = { idReads: 0 };
+			for (const request of requests) {
+				const id = request.id;
+				Object.defineProperty(request, 'id', { get: () => { counter.idReads++; return id; } });
+			}
+			return { model, requests, counter };
+		};
+		const lookups = 50;
+		const readsForTranscript = (count: number) => {
+			const { requests, counter } = addRequests(count);
+			const last = requests[count - 1].response!;
+			assert.strictEqual(last.request, requests[count - 1]);
+			counter.idReads = 0;
+			for (let i = 0; i < lookups; i++) {
+				void last.request;
+			}
+			return counter.idReads;
+		};
+		const small = readsForTranscript(20);
+		const large = readsForTranscript(400);
+
+		const { model, requests } = addRequests(200);
+		const last = requests[199].response!;
+		const first = requests[0].response!;
+		assert.strictEqual(last.request, requests[199]);
+		model.removeRequest('id0');
+		const afterRemoval = { last: last.request === requests[199], first: first.request };
+		model.addRequest({ text: 'inserted', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'inserted', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { index: 1 });
+
+		// A scan would read ids in proportion to the transcript size; a hinted lookup reads a small constant per call.
+		assert.deepStrictEqual({
+			boundedPerCall: [small, large].every(reads => reads <= lookups * 2),
+			independentOfTranscriptSize: small === large,
+			afterRemoval,
+			afterInsertion: last.request === requests[199],
+		}, {
+			boundedPerCall: true,
+			independentOfTranscriptSize: true,
+			afterRemoval: { last: true, first: undefined },
+			afterInsertion: true,
+		});
 	});
 
 	test('preserves Agent Host message metadata and latest-call detail across serialization', () => {
@@ -442,6 +508,27 @@ suite('ChatModel', () => {
 		});
 	});
 
+	test('a progress message with the same id replaces its row and a removal drops it', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		const rows = () => request.response!.response.value.map(part => part.kind === 'progressMessage' ? `${part.id}:${part.content.value}` : part.kind);
+
+		model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'activity', content: new MarkdownString('Loading') });
+		model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'activity', content: new MarkdownString('Still loading') });
+		const replaced = rows();
+		model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'other', content: new MarkdownString(), remove: true });
+		model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'activity', content: new MarkdownString(), remove: true });
+		const removed = rows();
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Answer') });
+
+		assert.deepStrictEqual({ replaced, removed, final: rows() }, {
+			replaced: ['activity:Still loading'],
+			removed: [],
+			final: ['markdownContent'],
+		});
+	});
+
 	test('a refinement of the same model call updates usage without recounting its tokens', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const text = 'hello';
@@ -480,12 +567,285 @@ suite('ChatModel', () => {
 			completionTokenCount: 2,
 			sessionCost: 11,
 		});
+
 		const restoredSeparateCosts = testDisposables.add(instantiationService.createInstance(
 			ChatModel,
 			{ value: JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3, serializer: undefined! },
 			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
 		));
 		assert.strictEqual(restoredSeparateCosts.sessionCost, 11);
+	});
+
+	test('session credit status changes without numeric changes and survives serialization', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'image';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		for (const sessionCopilotCreditsStatus of ['complete', 'partial'] as const) {
+			model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 2, sessionCopilotCredits: 1, sessionCopilotCreditsStatus });
+			assert.strictEqual(model.sessionCostStatus, sessionCopilotCreditsStatus);
+		}
+		const restored = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+		assert.deepStrictEqual({ cost: restored.sessionCost, status: restored.sessionCostStatus, tokens: restored.getRequests()[0].response?.completionTokenCount },
+			{ cost: 1, status: 'partial', tokens: 2 });
+	});
+
+	test('aggregate-only billing updates a canceled chat and persists without changing its response', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
+		model.cancelRequest(request);
+		const before = request.response?.toJSON();
+		const changes: string[] = [];
+		testDisposables.add(model.onDidChange(event => changes.push(event.kind)));
+		const operationLog = new ChatSessionOperationLog();
+		const initial = operationLog.createInitial(model);
+		model.setSessionCost({ credits: 0.6, status: 'complete' });
+		model.setSessionCost({ credits: 0.6, status: 'complete' });
+		model.setSessionCost({ credits: 0.6, status: 'partial' });
+		const mutation = operationLog.write(model);
+		const logged = operationLog.read(mutation.op === 'replace' ? mutation.data : VSBuffer.concat([initial, mutation.data]));
+		const exported = model.toJSON();
+		const restored = testDisposables.add(instantiationService.createInstance(
+			ChatModel, { value: JSON.parse(JSON.stringify(exported)) as ISerializableChatData3, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+		));
+		assert.deepStrictEqual({
+			cost: restored.sessionCost, status: restored.sessionCostStatus,
+			response: request.response?.toJSON(), changes,
+			persisted: exported.sessionCostInfo,
+			logged: logged.sessionCostInfo,
+		}, {
+			cost: 0.6, status: 'partial', response: before,
+			changes: ['setSessionCost', 'setSessionCost'],
+			persisted: { credits: 0.6, status: 'partial' }, logged: { credits: 0.6, status: 'partial' },
+		});
+	});
+
+	test('stale aggregate billing cannot erase newer response costs or claim they are complete', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'chat', parts: [] }, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 4, copilotCredits: 0.85 });
+		model.setSessionCost({ credits: 0.6, status: 'complete' });
+		assert.deepStrictEqual(model.sessionCostInfo, { credits: 0.85, status: 'partial' });
+		model.setSessionCost({ credits: 0.85, status: 'complete' });
+		model.acceptResponseProgress(request, {
+			kind: 'usage', promptTokens: 10, completionTokens: 4, copilotCredits: 0.85,
+			sessionCopilotCredits: 0.85, sessionCopilotCreditsStatus: 'partial',
+		});
+		assert.deepStrictEqual(model.sessionCostInfo, { credits: 0.85, status: 'partial' });
+		model.setSessionCost({ credits: 0.85, status: 'complete' });
+		assert.deepStrictEqual(model.sessionCostInfo, { credits: 0.85, status: 'complete' });
+	});
+
+	for (const source of ['response', 'aggregate', 'both'] as const) {
+		test(`billing roundoff does not make complete ${source} totals partial`, () => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			let totalNanoAiu = 0;
+			for (const nanoAiu of [100_000_000, 200_000_000]) {
+				totalNanoAiu += nanoAiu;
+				const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
+				model.acceptResponseProgress(request, {
+					kind: 'usage', promptTokens: 1, completionTokens: 1, copilotCredits: nanoAiu / 1_000_000_000,
+					...(source !== 'aggregate' ? { sessionCopilotCredits: totalNanoAiu / 1_000_000_000, sessionCopilotCreditsStatus: 'complete' as const } : {}),
+				});
+			}
+			if (source !== 'response') {
+				model.setSessionCost({ credits: 0.3, status: 'complete' });
+			}
+			const exported = model.toJSON();
+			const restored = testDisposables.add(instantiationService.createInstance(
+				ChatModel, { value: JSON.parse(JSON.stringify(exported)) as ISerializableChatData3, serializer: undefined! },
+				{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+			));
+			const statuses = [model.sessionCostStatus, restored.sessionCostStatus];
+			restored.setSessionCost({ credits: 0.3, status: 'complete' });
+			statuses.push(restored.sessionCostStatus);
+			assert.deepStrictEqual(statuses, ['complete', 'complete', 'complete']);
+		});
+	}
+
+	test('one nano-AIU of real unreported billing still makes a total partial', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		for (const nanoAiu of [100_000_000, 200_000_001]) {
+			const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 1, completionTokens: 1, copilotCredits: nanoAiu / 1_000_000_000 });
+		}
+		model.setSessionCost({ credits: 0.3, status: 'complete' });
+		const before = model.sessionCostStatus;
+		model.setSessionCost({ credits: 300_000_001 / 1_000_000_000, status: 'complete' });
+		assert.deepStrictEqual([before, model.sessionCostStatus], ['partial', 'complete']);
+	});
+
+	test('billing precision preserves fractional nano-AIU and long fractional sums', () => {
+		const observations = [];
+		for (const charges of [[0.25, 0.5], Array.from({ length: 100 }, () => 70_000_000)]) {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			for (const nanoAiu of charges) {
+				const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
+				model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 1, completionTokens: 1, copilotCredits: nanoAiu / 1_000_000_000 });
+			}
+			model.setSessionCost({ credits: charges.reduce((total, charge) => total + charge, 0) / 1_000_000_000, status: 'complete' });
+			observations.push({ quarterNanoAiu: Math.round(model.sessionCost * 4_000_000_000), status: model.sessionCostStatus });
+		}
+		assert.deepStrictEqual(observations, [
+			{ quarterNanoAiu: 3, status: 'complete' },
+			{ quarterNanoAiu: 28_000_000_000, status: 'complete' },
+		]);
+	});
+
+	test('aggregate-only billing preserves its maximum across stale snapshots and serialization', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		model.setSessionCost({ credits: 1, status: 'complete' });
+		model.setSessionCost({ credits: 0.6, status: 'complete' });
+		const exported = model.toJSON();
+		const restored = testDisposables.add(instantiationService.createInstance(
+			ChatModel, { value: JSON.parse(JSON.stringify(exported)) as ISerializableChatData3, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+		));
+		assert.deepStrictEqual({
+			live: model.sessionCostInfo,
+			persisted: exported.sessionCostInfo,
+			restored: restored.sessionCostInfo,
+		}, {
+			live: { credits: 1, status: 'partial' },
+			persisted: { credits: 1, status: 'partial' },
+			restored: { credits: 1, status: 'partial' },
+		});
+		model.setSessionCost({ credits: 1, status: 'complete' });
+		assert.deepStrictEqual(model.sessionCostInfo, { credits: 1, status: 'complete' });
+	});
+
+	for (const reason of [ChatRequestRemovalReason.Removal, ChatRequestRemovalReason.Resend, ChatRequestRemovalReason.Adoption]) {
+		test(`aggregate billing starts a new history scope after request removal (${reason})`, () => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const retained = model.addRequest({ text: 'retained', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(retained, { kind: 'usage', promptTokens: 10, completionTokens: 4, copilotCredits: 0.25, sessionCopilotCredits: 0.25 });
+			const removed = model.addRequest({ text: 'removed', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(removed, { kind: 'usage', promptTokens: 10, completionTokens: 4, copilotCredits: 0.75, sessionCopilotCredits: 1 });
+			model.setSessionCost({ credits: 1, status: 'complete' });
+			if (reason === ChatRequestRemovalReason.Adoption) {
+				const destination = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+				destination.adoptRequest(removed);
+			} else {
+				model.removeRequest(removed.id, reason);
+			}
+			model.setSessionCost({ credits: 0.25, status: 'complete' });
+			assert.deepStrictEqual(model.sessionCostInfo, { credits: 0.25, status: 'complete' });
+			model.setSessionCost({ credits: 0.1, status: 'complete' });
+			assert.deepStrictEqual(model.sessionCostInfo, { credits: 0.25, status: 'partial' });
+			model.removeRequest(retained.id);
+			model.setSessionCost({ credits: 0, status: 'complete' });
+			assert.deepStrictEqual(model.sessionCostInfo, { credits: 0, status: 'complete' });
+		});
+	}
+
+	test('aggregate billing does not reset for absent requests or checkpoint previews', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'preview', parts: [] }, { variables: [] }, 0);
+		model.setSessionCost({ credits: 1, status: 'complete' });
+		model.setCheckpoint(request.id);
+		model.resetCheckpoint();
+		model.removeRequest('not-in-history');
+		model.setSessionCost({ credits: 0.6, status: 'complete' });
+		assert.deepStrictEqual(model.sessionCostInfo, { credits: 1, status: 'partial' });
+	});
+
+	test('response-only billing reconciles complete and unavailable snapshots with the per-turn floor', () => {
+		const cases = [
+			{ copilotCredits: 0.6, sessionCopilotCredits: 0, sessionCopilotCreditsStatus: 'unavailable' },
+			{ copilotCredits: 0.6, sessionCopilotCredits: 0, sessionCopilotCreditsStatus: 'complete' },
+			{ copilotCredits: 0.6, sessionCopilotCredits: 0.6, sessionCopilotCreditsStatus: 'unavailable' },
+			{ copilotCredits: 0.6, sessionCopilotCredits: 0.6, sessionCopilotCreditsStatus: 'complete' },
+			{ copilotCredits: 0, sessionCopilotCredits: 0, sessionCopilotCreditsStatus: 'complete' },
+			{ copilotCredits: 0, sessionCopilotCredits: 0, sessionCopilotCreditsStatus: 'unavailable' },
+			{ copilotCredits: 0.6, sessionCopilotCredits: 0, sessionCopilotCreditsStatus: undefined },
+		] as const;
+		assert.deepStrictEqual(cases.map(usage => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 4, ...usage });
+			return { credits: model.sessionCost, status: model.sessionCostStatus };
+		}), [
+			{ credits: 0.6, status: 'partial' },
+			{ credits: 0.6, status: 'partial' },
+			{ credits: 0.6, status: 'partial' },
+			{ credits: 0.6, status: 'complete' },
+			{ credits: 0, status: 'complete' },
+			{ credits: 0, status: 'unavailable' },
+			{ credits: 0.6, status: undefined },
+		]);
+	});
+
+	test('aggregate billing validates totals and preserves unknown and explicit zero statuses', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		assert.strictEqual(model.sessionCostInfo, undefined);
+		for (const credits of [-1, NaN, Infinity]) {
+			model.setSessionCost({ credits, status: 'complete' });
+		}
+		assert.strictEqual(model.sessionCostInfo, undefined);
+		model.setSessionCost({ credits: 0 });
+		assert.deepStrictEqual(model.sessionCostInfo, { credits: 0, status: undefined });
+		model.setSessionCost({ credits: 0, status: 'unavailable' });
+		assert.deepStrictEqual(model.sessionCostInfo, { credits: 0, status: 'unavailable' });
+		model.setSessionCost({ credits: 0, status: 'complete' });
+		assert.deepStrictEqual(model.sessionCostInfo, { credits: 0, status: 'complete' });
+	});
+
+	test('image consumption totals do not become chat context tokens on restore', () => {
+		for (const completionTokens of [0, 4]) {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const text = 'image';
+			const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, {
+				kind: 'usage', promptTokens: 10, completionTokens,
+				modelTotals: [
+					{ model: 'chat-model', inputTokens: 10, outputTokens: 4, cachedTokens: 0 },
+					{ model: 'image-model', inputTokens: 21, outputTokens: 196, cachedTokens: 0 },
+				],
+			});
+			const restored = testDisposables.add(instantiationService.createInstance(
+				ChatModel,
+				{ value: JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3, serializer: undefined! },
+				{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+			));
+			assert.deepStrictEqual([request, restored.getRequests()[0]].map(item => ({
+				contextOutput: item.response?.usage?.completionTokens,
+				consumptionOutput: item.response?.completionTokenCount,
+			})), [
+				{ contextOutput: completionTokens, consumptionOutput: 200 },
+				{ contextOutput: completionTokens, consumptionOutput: 200 },
+			]);
+		}
+	});
+
+	test('legacy model totals do not become the last model call on restore', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 200 });
+		const exported = model.toJSON();
+		const totals = [
+			undefined,
+			[],
+			[
+				{ model: 'chat-model', inputTokens: 10, outputTokens: 4, cachedTokens: 0 },
+				{ model: 'image-model', inputTokens: 21, outputTokens: 196, cachedTokens: 0 },
+			],
+		];
+		assert.deepStrictEqual(totals.map(modelTotals => {
+			const restored = testDisposables.add(instantiationService.createInstance(
+				ChatModel, { value: { ...exported, requests: [{ ...exported.requests[0], modelTotals }] }, serializer: undefined! },
+				{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+			));
+			const response = restored.getRequests()[0].response;
+			return { contextOutput: response?.usage?.completionTokens, consumptionOutput: response?.completionTokenCount };
+		}), [
+			{ contextOutput: 200, consumptionOutput: 200 },
+			{ contextOutput: 0, consumptionOutput: 0 },
+			{ contextOutput: 0, consumptionOutput: 200 },
+		]);
 	});
 
 	test('the session total and the summed turns each provide a floor for session cost', () => {
@@ -585,9 +945,10 @@ suite('ChatModel', () => {
 			assert.deepStrictEqual(response.value.map(part => part.kind === 'thinking' ? {
 				kind: part.kind,
 				value: part.value,
+				reasoningStartedAt: part.reasoningStartedAt,
 				reasoningDurationMs: part.reasoningDurationMs,
 			} : { kind: part.kind }), [
-				{ kind: 'thinking', value: ['First', ' thought'], reasoningDurationMs: 1500 },
+				{ kind: 'thinking', value: ['First', ' thought'], reasoningStartedAt: 1000, reasoningDurationMs: 1500 },
 				{ kind: 'markdownContent' },
 			]);
 		} finally {
@@ -606,7 +967,54 @@ suite('ChatModel', () => {
 			request.response?.complete();
 
 			const thinkingPart = request.response?.entireResponse.value.find(part => part.kind === 'thinking');
-			assert.strictEqual(thinkingPart?.kind === 'thinking' ? thinkingPart.reasoningDurationMs : undefined, 2300);
+			assert.deepStrictEqual(thinkingPart?.kind === 'thinking' ? { startedAt: thinkingPart.reasoningStartedAt, durationMs: thinkingPart.reasoningDurationMs } : undefined, { startedAt: 1000, durationMs: 2300 });
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('keeps the recorded timing of restored reasoning instead of timing the replay', () => {
+		const clock = sinon.useFakeTimers({ now: 9000 });
+		try {
+			const response = testDisposables.add(new Response([]));
+			response.updateContent({ kind: 'thinking', id: 'recorded', value: 'Recorded reasoning', reasoningStartedAt: 1000, reasoningDurationMs: 4200 }, false, true);
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Between') }, false, true);
+			response.updateContent({ kind: 'thinking', id: 'untimed', value: 'Untimed reasoning' }, false, true);
+			clock.tick(800);
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') }, false, true);
+			response.finalizeReasoningDuration();
+
+			assert.deepStrictEqual(response.value.flatMap(part => part.kind === 'thinking'
+				? [{ id: part.id, startedAt: part.reasoningStartedAt, durationMs: part.reasoningDurationMs }]
+				: []), [
+				{ id: 'recorded', startedAt: 1000, durationMs: 4200 },
+				{ id: 'untimed', startedAt: undefined, durationMs: undefined },
+			]);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('leaves tool calls replayed from history untimed', async () => {
+		const clock = sinon.useFakeTimers({ now: 9000 });
+		try {
+			const response = testDisposables.add(new Response([]));
+			const rebuilt = new ChatToolInvocation({ invocationMessage: 'Reading a.ts' }, { id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal }, 'rebuilt', undefined, {});
+			response.updateContent(rebuilt, false, true);
+			response.updateContent({ kind: 'externalToolInvocationUpdate', toolCallId: 'external', toolName: 'search', isComplete: true, invocationMessage: 'Searched' }, false, true);
+			response.updateContent({ kind: 'externalToolInvocationUpdate', toolCallId: 'live', toolName: 'search', isComplete: false, invocationMessage: 'Searching' });
+			clock.tick(700);
+			response.updateContent({ kind: 'externalToolInvocationUpdate', toolCallId: 'live', toolName: 'search', isComplete: true, invocationMessage: 'Searched' });
+			clock.tick(300);
+			await rebuilt.didExecuteTool(undefined);
+
+			assert.deepStrictEqual(response.value.flatMap(part => part.kind === 'toolInvocation'
+				? [{ toolCallId: part.toolCallId, startedAt: part.startedAt, completedAt: part.completedAt }]
+				: []), [
+				{ toolCallId: 'rebuilt', startedAt: undefined, completedAt: undefined },
+				{ toolCallId: 'external', startedAt: undefined, completedAt: undefined },
+				{ toolCallId: 'live', startedAt: 9000, completedAt: 9700 },
+			]);
 		} finally {
 			clock.restore();
 		}

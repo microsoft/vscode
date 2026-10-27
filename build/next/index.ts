@@ -21,6 +21,7 @@ import packageJson from '../../package.json' with { type: 'json' };
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
 import { bundleDevTunnelsWeb, devTunnelsWebOutDir } from './devTunnelsWeb.ts';
+import { agentHostCryptoOutDir, bundleAgentHostCrypto } from './agentHostCrypto.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
 import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
@@ -90,6 +91,7 @@ const workerEntryPoints = [
 	'vs/workbench/services/languageDetection/browser/languageDetectionWebWorkerMain',
 	'vs/workbench/services/search/worker/localFileSearchMain',
 	'vs/workbench/contrib/output/common/outputLinkComputerMain',
+	'vs/workbench/contrib/mediaPreview/browser/imageEncoderWorkerMain',
 	'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain',
 ];
 
@@ -106,7 +108,6 @@ const desktopEntryPoints = [
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/localTranscription/node/localTranscriptionMain',
 	'vs/platform/terminal/node/ptyHostMain',
-	'vs/platform/sandbox/node/mxcMain',
 	'vs/platform/agentHost/node/agentHostMain',
 	'vs/platform/agentHost/node/diffWorkerMain',
 	'vs/workbench/api/node/extensionHostProcess',
@@ -136,7 +137,6 @@ const serverEntryPoints = [
 	'vs/workbench/api/node/extensionHostProcess',
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
-	'vs/platform/sandbox/node/mxcMain',
 	'vs/platform/agentHost/node/agentHostMain',
 	'vs/platform/agentHost/node/diffWorkerMain',
 ];
@@ -696,6 +696,14 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	// Compile standalone TypeScript files (like Electron preload scripts) that cannot be bundled
 	await compileStandaloneFiles(path.join(REPO_ROOT, SRC_DIR), outDirPath, target, doMinify, sourceMapBaseUrl);
 
+	if (target !== 'server') {
+		await bundleAgentHostCrypto({
+			minify: doMinify,
+			outDir: path.join(outDir, agentHostCryptoOutDir),
+			sourceMapBaseUrl: sourceMapBaseUrl ? `${sourceMapBaseUrl}/${agentHostCryptoOutDir}` : undefined,
+		});
+	}
+
 	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
 		await bundleDevTunnelsWeb({
 			minify: doMinify,
@@ -728,6 +736,7 @@ async function watch(): Promise<void> {
 	try {
 		await transpile(outDir, false);
 		await copyAllNonTsFiles(outDir, false);
+		await bundleAgentHostCrypto({ outDir: path.join(outDir, agentHostCryptoOutDir) });
 		console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
 	} catch (err) {
 		console.error('[watch] Initial build failed:', err);
@@ -883,6 +892,7 @@ async function main(): Promise<void> {
 					const t1 = Date.now();
 					await transpile(outDir, options.excludeTests);
 					await copyAllNonTsFiles(outDir, options.excludeTests);
+					await bundleAgentHostCrypto({ outDir: path.join(outDir, agentHostCryptoOutDir) });
 					console.log(`[transpile] Done in ${Date.now() - t1}ms`);
 				}
 				break;

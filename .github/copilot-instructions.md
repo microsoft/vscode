@@ -68,6 +68,10 @@ Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests and `scr
 
 ## Coding Guidelines
 
+### Markdown
+
+- Do not hard-wrap Markdown prose to a fixed line width. Keep each paragraph on one source line and let the editor or renderer wrap it naturally. Preserve structural line breaks in lists, tables, code blocks, and intentional Markdown hard breaks.
+
 ### Indentation
 
 We use tabs, not spaces.

@@ -145,6 +145,7 @@ export class SettingsEditor2 extends EditorPane {
 		'@tag:experimental',
 		`@tag:${EXP_ASSIGNMENT_SETTING_TAG}`,
 		'@tag:agentMerge',
+		'@tag:chatPermissions',
 		`@tag:${ADVANCED_SETTING_TAG}`,
 		`@${ID_SETTING_TAG}`,
 		`@${EXTENSION_SETTING_TAG}`,

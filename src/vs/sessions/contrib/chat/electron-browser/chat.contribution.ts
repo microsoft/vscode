@@ -46,6 +46,9 @@ import { isAgentsWindowInvitationSource } from '../../../../workbench/contrib/ch
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import '../../../../workbench/contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
+import './chatBackgroundTool.contribution.js';
+import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 
 /** Revokes editor request ownership when the next request is submitted here. */
@@ -111,16 +114,18 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			const cancellation = new CancellationTokenSource();
 			this._openIntent.value = toDisposable(() => cancellation.dispose(true));
 			const workspaceUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
-			const sessionResource = args[1] ? URI.revive(args[1] as UriComponents) : undefined;
+			const showNewSession = args[1] === 'new';
+			const sessionResource = args[1] && !showNewSession ? URI.revive(args[1] as UriComponents) : undefined;
 			const source = isAgentsWindowOpenSource(args[2]) ? args[2] : AgentsWindowOpenSource.Unknown;
 			const onboardingSessionResource = isAgentsWindowInvitationSource(source) && args[5] ? URI.revive(args[5] as UriComponents) : undefined;
 			const workspaceArgumentIsDefault = args[3] === true;
-			if (args[4] !== undefined && !isAgentsWindowDraft(args[4])) {
+			const draftPayload = showNewSession || source === AgentsWindowOpenSource.Link ? args[4] : undefined;
+			if (draftPayload !== undefined && !isAgentsWindowDraft(draftPayload)) {
 				this.logService.error('[AgentsHandoff] Invalid draft payload');
 				this.notificationService.warn(localize('agentsHandoff.invalidDraft', "The draft could not be copied. Your prompt and attachments are still in the editor."));
 				return;
 			}
-			const draft = args[4];
+			const draft = draftPayload;
 			const noWorkspace = source === AgentsWindowOpenSource.Link && draft !== undefined && workspaceUri === undefined;
 			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${workspaceUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
 			const telemetry = this._startWindowOpenTelemetry(source, {
@@ -129,7 +134,6 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 				workspaceArgumentIsDefault,
 			});
 
-			const showNewSession = onboardingSessionResource !== undefined && sessionResource === undefined;
 			const handoff = () => this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft, noWorkspace, showNewSession);
 			const opening = onboardingSessionResource && (!sessionResource || isEqual(onboardingSessionResource, sessionResource))
 				? this._invitationOnboarding.runWithHandoff(handoff, async () => {
@@ -217,7 +221,9 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			await this.openExistingSession(sessionResource, token);
 			return;
 		}
-		if (showNewSession) {
+		const resolved = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
+		const folderUri = resolved.folderUri ?? (draft ? workspaceUri : undefined);
+		if (showNewSession && !folderUri && !draft) {
 			await raceCancellation(this.lifecycleService.when(LifecyclePhase.Restored), token);
 			if (!token.isCancellationRequested) {
 				this.newSessionComposerService.notifyUserNavigation();
@@ -225,10 +231,11 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			}
 			return;
 		}
-		const resolved = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
-		const folderUri = resolved.folderUri ?? (draft ? workspaceUri : undefined);
 		if (folderUri || draft) {
-			await this._workspaceHandoff.selectWorkspace({ folderUri, preferDevContainer: resolved.preferDevContainer, isDefault, draft, noWorkspace }, state => telemetry?.recordWorkspaceHandoffState(state));
+			if (showNewSession) {
+				this.newSessionComposerService.notifyUserNavigation();
+			}
+			await this._workspaceHandoff.selectWorkspace({ folderUri, preferDevContainer: resolved.preferDevContainer, isDefault, draft, noWorkspace, revealNewSession: showNewSession }, state => telemetry?.recordWorkspaceHandoffState(state));
 		}
 	}
 
@@ -391,6 +398,8 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(AgentsWindowRequestActivity.ID, AgentsWindowRequestActivity, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionsCopilotConfigSlashSubmitHandlerContribution.ID, SessionsCopilotConfigSlashSubmitHandlerContribution, WorkbenchPhase.AfterRestored);
+// Desktop only: in browsers, capturing the window asks the user to pick a screen.
+registerWorkbenchContribution2(ScreenshotWindowToolContribution.ID, ScreenshotWindowToolContribution, WorkbenchPhase.Eventually);
 
 // Renderer-side BYOK language-model handler that backs the node agent host's
 // OpenAI proxy, mirroring the registration in the workbench's

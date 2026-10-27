@@ -5,8 +5,9 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { Action } from '../../../../../base/common/actions.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -45,10 +46,13 @@ import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { runServerUpgrade } from './remoteHostOptions.js';
+import { confirmTunnelDeletion, runServerUpgrade } from './remoteHostOptions.js';
 import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ConnectMissionControlEnvironmentCommand } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
+import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 /** Action / command IDs registered by this file. */
 export const RemoteAgentHostCommandIds = {
@@ -57,6 +61,7 @@ export const RemoteAgentHostCommandIds = {
 	addNewSSHHost: 'workbench.action.sessions.addNewSSHHost',
 	configureSSHHosts: 'workbench.action.sessions.configureSSHHosts',
 	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',
+	connectViaMissionControl: 'workbench.action.sessions.connectViaMissionControl',
 	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
 	manageRemoteAgentHosts: 'workbench.action.sessions.manageRemoteAgentHosts',
 	updateRemoteAgentHost: 'workbench.action.sessions.updateRemoteAgentHost',
@@ -132,6 +137,35 @@ registerAction2(class extends Action2 {
 			await remoteAgentHostService.waitForConnection(parsed.parsed.address);
 		} catch {
 			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RemoteAgentHostCommandIds.connectViaMissionControl,
+			title: localize2('connectMissionControlHost', "GitHub Environments..."),
+			icon: Codicon.remote,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true), ContextKeyExpr.equals(`config.${GitHubEnvironmentsEnabledSettingId}`, true), GitHubEnvironmentsAvailableContext),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, onBack?: () => void): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const notificationService = accessor.get(INotificationService);
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		try {
+			const environmentId = await commandService.executeCommand<string | undefined>(ConnectMissionControlEnvironmentCommand, onBack);
+			if (environmentId) {
+				await promptForRemoteFolder(cloudSandboxAddress(environmentId), sessionsProvidersService, sessionsService, sessionsPartService);
+			}
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				notificationService.error(error);
+			}
 		}
 	}
 });
@@ -412,7 +446,7 @@ async function connectToConfiguredSSHHost(
 			connectWithProgress(accessor, config, suggestedName)
 		);
 		if (connectionAddress) {
-			await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connectionAddress));
+			await instantiationService.invokeFunction(accessor => promptForRemoteFolder(connectionAddress, accessor.get(ISessionsProvidersService), accessor.get(ISessionsService), accessor.get(ISessionsPartService)));
 		}
 		return;
 	}
@@ -536,7 +570,7 @@ async function promptForCredentialsAndConnect(
 		connectWithProgress(accessor, config, host)
 	);
 	if (connectionAddress) {
-		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connectionAddress));
+		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(connectionAddress, accessor.get(ISessionsProvidersService), accessor.get(ISessionsService), accessor.get(ISessionsPartService)));
 	}
 }
 
@@ -610,23 +644,21 @@ export async function connectWithProgress(
  * pre-select the chosen folder in the workspace picker.
  */
 async function promptForRemoteFolder(
-	accessor: ServicesAccessor,
 	address: string,
+	sessionsProvidersService: ISessionsProvidersService,
+	sessionsService: ISessionsService,
+	sessionsPartService: ISessionsPartService,
 ): Promise<void> {
-	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsService = accessor.get(ISessionsService);
-	const sessionsPartService = accessor.get(ISessionsPartService);
-
 	// The factory-backed entry fires onDidChangeConnections before its handshake completes, so the provider should exist by now.
 	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === address);
 	if (!provider) {
-		return;
+		throw new Error(localize('remoteFolderProviderUnavailable', "The connected environment is not available for folder browsing."));
 	}
 
 	// Use the provider's existing browse action to show the folder picker
 	const browseAction = provider.browseActions[0];
 	if (!browseAction) {
-		return;
+		throw new Error(localize('remoteFolderBrowsingUnavailable', "The connected environment does not support folder browsing."));
 	}
 
 	const workspace = await browseAction.run();
@@ -638,8 +670,9 @@ async function promptForRemoteFolder(
 		return;
 	}
 
-	sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
+	provider.showInEnvironmentPicker?.();
+	await sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
 }
 
 registerAction2(class extends Action2 {
@@ -647,7 +680,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: RemoteAgentHostCommandIds.connectViaSSH,
 			title: localize2('connectViaSSH', "Connect to Remote Agent Host via SSH"),
-			shortTitle: localize2('connectViaSSHShort', "SSH"),
+			shortTitle: localize2('connectViaSSHShort', "SSH..."),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.remote,
@@ -986,13 +1019,7 @@ async function promptToConnectViaTunnel(
 			tunnelPicker.ignoreFocusOut = true;
 			let keepOpen = true;
 			try {
-				const confirmation = await dialogService.confirm({
-					type: 'warning',
-					message: localize('tunnelDeleteConfirmation', "Are you sure you want to delete dev tunnel '{0}'?", event.item.tunnel.name),
-					detail: localize('tunnelDeleteDetail', "The tunnel may be recreated if a machine starts hosting it again."),
-					primaryButton: localize('tunnelDeleteButton', "&&Delete"),
-				});
-				if (!confirmation.confirmed) {
+				if (!await confirmTunnelDeletion(dialogService, event.item.tunnel.name)) {
 					return;
 				}
 				if (isHostedTunnel(event.item.tunnel)) {
@@ -1089,30 +1116,7 @@ async function promptForTunnelFolder(
 
 	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 
-	// The provider is created by TunnelAgentHostContribution when the
-	// tunnel is cached (via onDidChangeTunnels / _reconcileProviders).
-	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === tunnelAddress);
-	if (!provider) {
-		return;
-	}
-
-	// Use the provider's existing browse action to show the folder picker
-	const browseAction = provider.browseActions[0];
-	if (!browseAction) {
-		return;
-	}
-
-	const workspace = await browseAction.run();
-	if (!workspace) {
-		return;
-	}
-	const folderUri = workspace.folders[0]?.root;
-	if (!folderUri) {
-		return;
-	}
-
-	sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
+	await promptForRemoteFolder(tunnelAddress, sessionsProvidersService, sessionsService, sessionsPartService);
 }
 
 registerAction2(class extends Action2 {
@@ -1120,10 +1124,10 @@ registerAction2(class extends Action2 {
 		super({
 			id: RemoteAgentHostCommandIds.connectViaTunnel,
 			title: localize2('connectViaTunnel', "Connect to Remote Agent Host via Dev Tunnel"),
-			shortTitle: localize2('connectViaTunnelShort', "Tunnels"),
+			shortTitle: localize2('connectViaTunnelShort', "Dev Tunnels..."),
 			category: SessionsCategories.Sessions,
 			f1: true,
-			icon: Codicon.cloud,
+			icon: Codicon.remote,
 			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
 			menu: {
 				id: Menus.SessionWorkspaceManage,
@@ -1158,13 +1162,11 @@ async function promptToConnectViaWSL(
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 
-	const installAction = new Action(
-		'wsl.openDocs',
-		localize('wslInstallDocsAction', "Install WSL"),
-		undefined,
-		true,
-		() => openerService.open(URI.parse(WSL_INSTALL_DOCS_URL)),
-	);
+	const installAction = toAction({
+		id: 'wsl.openDocs',
+		label: localize('wslInstallDocsAction', "Install WSL"),
+		run: () => openerService.open(URI.parse(WSL_INSTALL_DOCS_URL)),
+	});
 
 	if (!(await wslService.isWSLAvailable())) {
 		notificationService.notify({
@@ -1284,27 +1286,7 @@ async function promptForWSLFolder(
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const wslAddress = `wsl:${distro}`;
-	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === wslAddress);
-	if (!provider) {
-		return;
-	}
-
-	const browseAction = provider.browseActions[0];
-	if (!browseAction) {
-		return;
-	}
-
-	const workspace = await browseAction.run();
-	if (!workspace) {
-		return;
-	}
-	const folderUri = workspace.folders[0]?.root;
-	if (!folderUri) {
-		return;
-	}
-
-	sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
+	await promptForRemoteFolder(wslAddress, sessionsProvidersService, sessionsService, sessionsPartService);
 }
 
 registerAction2(class extends Action2 {

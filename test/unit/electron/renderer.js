@@ -66,6 +66,7 @@ const path = require('path');
 const glob = require('glob');
 const util = require('util');
 const coverage = require('../coverage');
+const { trackTestFiles, distributeTestFiles } = require('../parallel.ts');
 const { pathToFileURL } = require('url');
 
 // Disabled custom inspect. See #38847
@@ -172,6 +173,12 @@ async function loadTestModules(opts) {
 	if (opts.excludeRunGlob) {
 		const excludedFiles = new Set(await globAsync(opts.excludeRunGlob, { cwd: loadFn._out }));
 		files = files.filter(file => !excludedFiles.has(file));
+	}
+	if (opts.runList) {
+		// --runList: the listed test files as compiled modules relative to the output folder (src/vs/a.test.ts is vs/a.test.js)
+		const runList = new Set(fs.readFileSync(opts.runList, 'utf8').split(/\r?\n/).map(line => line.trim().replace(/\\/g, '/')).filter(line => line.length > 0).map(line => line.replace(/^src\//, '').replace(/\.ts$/, '.js')));
+		files = files.filter(file => runList.has(file));
+		console.log(`Running the ${files.length} test files of the ${runList.size} files listed in ${opts.runList}`);
 	}
 	let modules = files.map(file => file.replace(/\.js$/, ''));
 	if (opts.testSplit) {
@@ -290,23 +297,38 @@ async function loadTests(opts) {
 		await perTestCoverage?.startTest();
 	});
 
-	teardown(async () => {
+	teardown(async function () {
 		await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
+
+		const failures = [];
 
 		// should not have unexpected output
 		if (_testsWithUnexpectedOutput && !opts.dev) {
-			assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
+			failures.push('Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
 		}
 
 		// should not have unexpected errors
 		const errors = _unexpectedErrors.concat(_loaderErrors);
 		if (errors.length) {
-			const msg = [];
 			for (const error of errors) {
 				console.error(`Error: Test run should not have unexpected errors:\n${error}`);
-				msg.push(String(error));
 			}
-			assert.ok(false, `Error: Test run should not have unexpected errors:\n${msg.join('\n')}`);
+			failures.push(`Error: Test run should not have unexpected errors:\n${errors.map(String).join('\n')}`);
+		}
+
+		// judge the next test on its own,
+		// including the console.error calls
+		// above
+		_testsWithUnexpectedOutput = false;
+		_unexpectedErrors.length = 0;
+		_loaderErrors.length = 0;
+
+		if (failures.length) {
+			// there are no actual and expected values to diff
+			const error = Object.assign(new assert.AssertionError({ message: failures.join('\n') }), { showDiff: false });
+
+			// fail the test that just ran instead of this hook: when a root-level hook fails, mocha skips every remaining test
+			/** @type {Mocha.Hook} */ (this.test).error(error);
 		}
 	});
 
@@ -342,7 +364,14 @@ function serializeRunnable(runnable) {
 		async: runnable.async,
 		slow: runnable.slow(),
 		speed: runnable.speed,
-		duration: runnable.duration
+		duration: runnable.duration,
+		// the test file (module path) for the main process to rerun. Root-level hooks
+		// have none on purpose: their failure stops the whole run, so rerunning a single
+		// file would not cover the tests that never ran
+		file: runnable.file,
+		// a failed test is rerun by itself, a failed hook with the rest of its suite
+		type: runnable.type,
+		parentTitle: runnable.parent?.fullTitle()
 	};
 }
 
@@ -461,7 +490,14 @@ async function runTests(opts) {
 		mocha.timeout(opts.timeout);
 	}
 
+	// a worker process of a parallel run (see parallel.ts) only runs the test files it claims
+	const testFiles = opts.workerDir ? trackTestFiles(mocha.suite) : undefined;
+
 	await loadTests(opts);
+
+	if (testFiles) {
+		distributeTestFiles(mocha.suite, testFiles, { workerId: opts.worker, workerDir: opts.workerDir });
+	}
 
 	const runner = mocha.run(async () => {
 		await createCoverageReport(opts);

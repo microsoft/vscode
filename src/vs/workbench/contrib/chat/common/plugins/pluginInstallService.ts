@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IMarketplaceReference } from './marketplaceReference.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
 
 export const IPluginInstallService = createDecorator<IPluginInstallService>('pluginInstallService');
@@ -65,6 +66,9 @@ export interface IPluginInstallService {
 	 * the plugin in the marketplace service's installed plugins storage.
 	 */
 	installPlugin(plugin: IMarketplacePlugin, token?: CancellationToken): Promise<void>;
+
+	/** Validates policy and obtains user trust for a marketplace before installing from it. */
+	ensureMarketplaceTrusted(reference: IMarketplaceReference, token?: CancellationToken): Promise<boolean>;
 
 	/**
 	 * Removes the exact installed plugin entry and performs best-effort source cleanup.

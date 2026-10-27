@@ -1,0 +1,59 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "FIRST_READY".
+    response:
+      content: FIRST_READY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "SECOND_READY".
+    response:
+      content: SECOND_READY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://claude/${uuid_0}?chat=${uuid_1}", into "agent-host-session://claude/${uuid_0}", and after "agent-host-session://claude/${uuid_0}", then reply exactly "moved".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: mcp__host__move_session
+          input:
+            session: agent-host-session://claude/${uuid_0}?chat=${uuid_1}
+            into: agent-host-session://claude/${uuid_0}
+            after: agent-host-session://claude/${uuid_0}
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://claude/${uuid_0}?chat=${uuid_1}", into "agent-host-session://claude/${uuid_0}", and after "agent-host-session://claude/${uuid_0}", then reply exactly "moved".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: mcp__host__move_session
+              input:
+                session: agent-host-session://claude/${uuid_0}?chat=${uuid_1}
+                into: agent-host-session://claude/${uuid_0}
+                after: agent-host-session://claude/${uuid_0}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Nested session reordered in its session (agent-host-session://claude/${uuid_0}?chat=${uuid_1}).
+    response:
+      content: moved
+      stopReason: end_turn

@@ -98,7 +98,7 @@ export abstract class AbstractMultiProviderAgentHostConfigSchemaRegistrar<TTarge
 	) {
 		super();
 
-		for (const provider of this._sessionsProvidersService.getProviders()) {
+		for (const provider of this._sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
 			this._onProviderAdded(provider);
 		}
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {

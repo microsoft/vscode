@@ -592,7 +592,7 @@ export class BreadcrumbsControl {
 		if (!available) {
 			return;
 		}
-		const actions = createEditorTypeActions(available, this._editorResolverService, this._commandService, this._editorService);
+		const actions = createEditorTypeActions(available, this._editorGroup, this._editorResolverService, this._commandService, this._editorService);
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => editorTypeNode,
 			getActions: () => actions
@@ -643,7 +643,7 @@ export class BreadcrumbsControl {
 		let picker: BreadcrumbsFilePicker | BreadcrumbsOutlinePicker;
 		let pickerAnchor: { x: number; y: number };
 
-		interface IHideData { didPick?: boolean; source?: BreadcrumbsControl }
+		interface IHideData { didPick?: boolean; sideBySide?: boolean; source?: BreadcrumbsControl }
 
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {
@@ -653,7 +653,7 @@ export class BreadcrumbsControl {
 					picker = this._instantiationService.createInstance(BreadcrumbsOutlinePicker, parent, event.item.model.resource);
 				}
 
-				const selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
+				const selectListener = picker.onWillPickElement(sideBySide => this._contextViewService.hideContextView({ source: this, didPick: true, sideBySide }));
 				const zoomListener = PixelRatio.getInstance(dom.getWindow(this.domNode)).onDidChange(() => this._contextViewService.hideContextView({ source: this }));
 
 				const focusTracker = dom.trackFocus(parent);
@@ -708,7 +708,7 @@ export class BreadcrumbsControl {
 				return pickerAnchor;
 			},
 			onHide: (data?: IHideData) => {
-				if (!data?.didPick) {
+				if (!data?.didPick || data.sideBySide) {
 					picker.restoreViewState();
 				}
 				this._breadcrumbsPickerShowing = false;

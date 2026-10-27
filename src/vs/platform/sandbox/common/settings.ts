@@ -19,9 +19,19 @@ export interface IAgentSandboxUserConfiguredPaths {
 	deniedPaths?: string[];
 }
 
+/** Environment variable names and their credential injection destinations. */
+export interface IAgentSandboxMaskedCredentials {
+	envVars?: Record<string, { injectHosts: string[] }>;
+}
+
 /** Converts path separators for the sandbox's execution OS without resolving paths or patterns. */
 export function normalizeSandboxFileSystemPath(path: string, os: OperatingSystem): string {
 	return os === OperatingSystem.Windows ? path.replace(/\//g, '\\') : path;
+}
+
+/** Whether the Local harness can sandbox terminal commands on the execution OS. */
+export function isTerminalSandboxSupported(os: OperatingSystem): boolean {
+	return os !== OperatingSystem.Windows;
 }
 
 /**
@@ -41,7 +51,6 @@ export const enum AgentSandboxSettingId {
 	AgentSandboxRetryWithAllowNetworkRequests = 'chat.agent.sandbox.retryWithAllowNetworkRequests',
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
 	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
-	AgentSandboxWindowsFileSystem = 'chat.agent.sandbox.fileSystem.windows',
 	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
 }
 

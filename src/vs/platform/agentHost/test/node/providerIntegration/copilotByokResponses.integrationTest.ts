@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient } from '@github/copilot-sdk';
+import { CopilotClient, defineTool } from '@github/copilot-sdk';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
@@ -21,12 +21,13 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	type SdkSession = Awaited<ReturnType<CopilotClient['createSession']>>;
+	type SdkSessionOptions = Parameters<CopilotClient['createSession']>[0];
 
 	/**
 	 * Runs the bundled SDK against the BYOK proxy, with {@link chat} playing the
 	 * renderer bridge for model `acme/test-model`.
 	 */
-	async function withSdkSession(sessionId: string, chat: IByokLmBridgeConnection['chat'], run: (session: SdkSession) => Promise<void>): Promise<void> {
+	async function withSdkSession(sessionId: string, chat: IByokLmBridgeConnection['chat'], run: (session: SdkSession) => Promise<void>, sessionOptions: Pick<SdkSessionOptions, 'tools' | 'availableTools'> = {}): Promise<void> {
 		const baseDirectory = await mkdtemp(`${tmpdir()}/byok-responses-sdk-`);
 		const models = store.add(new Emitter<IByokLmModelInfo[]>());
 		const registry = new ByokLmBridgeRegistry();
@@ -52,7 +53,8 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				sessionId,
 				model: 'test-model',
 				reasoningEffort: 'medium',
-				availableTools: [],
+				tools: sessionOptions.tools,
+				availableTools: sessionOptions.availableTools ?? [],
 				provider: {
 					type: 'openai',
 					wireApi: 'responses',
@@ -101,7 +103,13 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 			};
 		}, async session => {
 			const reasoning: string[] = [];
+			const usage: Array<{ inputTokens?: number; outputTokens?: number; reasoningTokens?: number }> = [];
 			session.on('assistant.reasoning', event => reasoning.push(event.data.content));
+			session.on('assistant.usage', event => usage.push({
+				inputTokens: event.data.inputTokens,
+				outputTokens: event.data.outputTokens,
+				reasoningTokens: event.data.reasoningTokens,
+			}));
 
 			const result = await session.sendAndWait({ prompt: 'Reply exactly hello.' }, 30_000);
 			const secondResult = await session.sendAndWait({ prompt: 'Reply exactly second.' }, 30_000);
@@ -111,6 +119,7 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				result: result?.type === 'assistant.message' ? result.data.content : undefined,
 				secondResult: secondResult?.type === 'assistant.message' ? secondResult.data.content : undefined,
 				reasoning,
+				usage,
 				firstRequest: {
 					vendor: captured[0]?.vendor,
 					modelId: captured[0]?.modelId,
@@ -122,6 +131,10 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				result: 'hello',
 				secondResult: 'second',
 				reasoning: ['considered options'],
+				usage: [
+					{ inputTokens: 1, outputTokens: 2, reasoningTokens: 1 },
+					{ inputTokens: 0, outputTokens: 0, reasoningTokens: 0 },
+				],
 				firstRequest: {
 					vendor: 'acme',
 					modelId: 'test-model',
@@ -135,6 +148,71 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 					encryptedContent: 'opaque',
 				},
 			});
+		});
+	});
+
+	test('bundled SDK preserves provider state through a tool continuation', async function () {
+		this.timeout(120_000);
+
+		const captured: IByokLmChatRequest[] = [];
+		await withSdkSession('byok-responses-tool-continuation', async request => {
+			captured.push(request);
+			if (captured.length === 1) {
+				return {
+					responseId: 'resp_provider_1',
+					output: [
+						{ type: 'reasoning', id: 'rs_provider', summary: ['Calling echo'], encryptedContent: 'opaque' },
+						{ type: 'function_call', callId: 'call_1', name: 'echo', argumentsJson: '{}' },
+					],
+				};
+			}
+			return {
+				responseId: 'resp_provider_2',
+				output: [{ type: 'message', content: [{ type: 'text', text: 'final response' }] }],
+			};
+		}, async session => {
+			const result = await session.sendAndWait({ prompt: 'Call echo once, then reply exactly final response.' }, 30_000);
+
+			assert.deepStrictEqual({
+				result: result?.type === 'assistant.message' ? result.data.content : undefined,
+				requestCount: captured.length,
+				firstRequest: {
+					vendor: captured[0]?.vendor,
+					modelId: captured[0]?.modelId,
+					inputTypes: captured[0]?.input.map(item => item.type),
+					reasoningEffort: captured[0]?.reasoningEffort,
+				},
+				secondRequest: {
+					previousResponseId: captured[1]?.previousResponseId,
+					input: captured[1]?.input.map(item => item.type === 'function_call_output'
+						? { type: item.type, callId: item.callId, output: item.output }
+						: { type: item.type }),
+				},
+			}, {
+				result: 'final response',
+				requestCount: 2,
+				firstRequest: {
+					vendor: 'acme',
+					modelId: 'test-model',
+					inputTypes: ['message'],
+					reasoningEffort: 'medium',
+				},
+				secondRequest: {
+					previousResponseId: 'resp_provider_1',
+					input: [{ type: 'function_call_output', callId: 'call_1', output: 'echo result' }],
+				},
+			});
+		}, {
+			tools: [
+				defineTool('echo', {
+					description: 'Returns a fixed echo result.',
+					parameters: { type: 'object', properties: {}, additionalProperties: false },
+					handler: async () => 'echo result',
+					skipPermission: true,
+					defer: 'never',
+				}),
+			],
+			availableTools: ['custom:echo'],
 		});
 	});
 

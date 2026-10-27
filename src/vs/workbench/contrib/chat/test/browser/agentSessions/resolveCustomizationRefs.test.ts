@@ -269,6 +269,19 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('contributes image guidance only to remote Copilot sessions even without user customizations', async () => {
+		const results = [];
+		for (const sessionType of ['remote-sandbox-copilot', 'remote-sandbox-claude', 'remote-sandbox-codex', SessionType.AgentHostCopilot]) {
+			const bundler = new FakeBundler();
+			await resolveCustomizationRefs(makeFileService(), makePromptsService(new Map()), new FakeSyncProvider(), makeAgentPluginService(), makeMcpService(), makeConfigurationResolverService(), toBundlers(bundler), sessionType, undefined);
+			results.push(bundler.received.flat().map(file => ({
+				type: file.type, name: file.uri.path.split('/').pop(), alwaysApply: file.content?.includes('alwaysApply: true'),
+				view: file.content?.includes('call `view` on the path once first'),
+			})));
+		}
+		assert.deepStrictEqual(results, [[{ type: PromptsType.instructions, name: 'vscode-local-images.mdc', alwaysApply: true, view: true }], [], [], []]);
+	});
+
 	test('passes built-in skills to the bundler as loose files', async () => {
 		const builtin = URI.file('/builtin/create-pr/SKILL.md');
 		const promptsService = makePromptsService(new Map([
@@ -814,7 +827,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 	for (const windowRemoteAuthority of [null, 'ssh-remote+devbox']) {
 		for (const sessionType of [SessionType.AgentHostCopilot, 'remote-ssh-remote+devbox-copilotcli', 'agent-host-claude']) {
-			test(`bundles Copilot-home servers for ${sessionType} in window ${windowRemoteAuthority}`, async () => {
+			test(`does not bundle Copilot-home servers for ${sessionType} in window ${windowRemoteAuthority}`, async () => {
 				const bundler = new FakeBundler();
 				const servers = [null, 'ssh-remote+devbox', 'ssh-remote+other'].map(remoteAuthority => makeMcpServer({
 					id: `copilot.${remoteAuthority}.server`,
@@ -839,12 +852,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 					windowRemoteAuthority,
 				);
 
-				assert.deepStrictEqual(bundler.receivedMcp.flat().map(server => server.name),
-					sessionType !== SessionType.AgentHostCopilot
-						? ['copilot.null.server', 'copilot.ssh-remote+devbox.server', 'copilot.ssh-remote+other.server']
-						: windowRemoteAuthority === null
-							? ['copilot.ssh-remote+devbox.server', 'copilot.ssh-remote+other.server']
-							: ['copilot.null.server', 'copilot.ssh-remote+other.server']);
+				assert.deepStrictEqual(bundler.receivedMcp.flat().map(server => server.name), []);
 			});
 		}
 	}

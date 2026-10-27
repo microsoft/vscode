@@ -27,6 +27,7 @@ export interface IDevTunnelsWebRequestOptions {
 
 /** Browser-compatible subset of the Dev Tunnels management client. */
 export interface IDevTunnelsWebManagementClient {
+	additionalRequestHeaders?: Record<string, string>;
 	listTunnels(
 		clusterId: string | undefined,
 		domain: string | undefined,

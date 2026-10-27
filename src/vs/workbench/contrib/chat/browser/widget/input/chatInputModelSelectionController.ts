@@ -75,6 +75,8 @@ export class ChatInputModelSelectionController extends Disposable {
 	private readonly _onDidChangeUserSelectedModel = this._register(new Emitter<{ readonly fromModelId: string; readonly toModelId: string }>());
 	readonly onDidChangeUserSelectedModel = this._onDidChangeUserSelectedModel.event;
 	private _selectionReason: ModelSelectionReason | undefined;
+	/** The model {@link currentModel} is shown in place of, see {@link applyEquivalentSelection}. */
+	private _equivalentOf: string | undefined;
 	private _pendingProgrammaticSelection: IPendingProgrammaticSelection | undefined;
 
 	constructor(
@@ -96,6 +98,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	/** Drops what spoke for the outgoing conversation, so it is not read as the incoming one's. */
 	beginConversationSwitch(): void {
 		this._selectionReason = undefined;
+		this._equivalentOf = undefined;
 		this._clearPendingProgrammaticSelection();
 	}
 
@@ -121,32 +124,37 @@ export class ChatInputModelSelectionController extends Disposable {
 		rollbackOnError = false,
 	): void {
 		if (!isUserAction) {
-			this._display(model);
-			apply();
+			if (this._display(model)) {
+				apply();
+			}
 			return;
 		}
 		this._clearPendingProgrammaticSelection();
 		const previousModel = this._currentModel.get();
 		const previousReason = this._selectionReason;
 		const previousRememberedSelection = this._intendedModel;
-		this._currentModel.set(model, undefined);
 		this._selectionReason = ModelSelectionReason.UserSelection;
 		this._remember({ modelId: model.identifier, model, reason: ModelSelectionReason.UserSelection });
 		this._diagnostics.report('explicit-selection', { model: model.identifier }, 'info');
-		try {
-			apply();
-			this._diagnostics.report('explicit-selection-applied', { model: model.identifier }, 'info');
-		} catch (error) {
-			if (rollbackOnError) {
-				this._currentModel.set(previousModel, undefined);
-				this._selectionReason = previousReason;
-				this._remember(previousRememberedSelection);
+		if (this._display(model)) {
+			try {
+				apply();
+				if (this._stillShown(model)) {
+					this._diagnostics.report('explicit-selection-applied', { model: model.identifier }, 'info');
+				}
+			} catch (error) {
+				if (rollbackOnError) {
+					this._currentModel.set(previousModel, undefined);
+					this._selectionReason = previousReason;
+					this._remember(previousRememberedSelection);
+				}
+				this._diagnostics.report('explicit-selection-failed', { model: model.identifier, error: String(error) }, 'error');
+				throw error;
 			}
-			this._diagnostics.report('explicit-selection-failed', { model: model.identifier, error: String(error) }, 'error');
-			throw error;
 		}
-		if (previousModel && previousModel.identifier !== model.identifier) {
-			this._onDidChangeUserSelectedModel.fire({ fromModelId: previousModel.identifier, toModelId: model.identifier });
+		const selectedModel = this._currentModel.get();
+		if (previousModel && selectedModel && previousModel.identifier !== selectedModel.identifier) {
+			this._onDidChangeUserSelectedModel.fire({ fromModelId: previousModel.identifier, toModelId: selectedModel.identifier });
 		}
 	}
 
@@ -154,6 +162,22 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._clearPendingProgrammaticSelection();
 		this._remember({ modelId: model.identifier, model, reason: ModelSelectionReason.ProgrammaticSelection });
 		this._applyModel(model, ModelSelectionReason.ProgrammaticSelection);
+	}
+
+	/**
+	 * Shows `model` as the current selection presented differently (the picker shows HydraFusion as
+	 * Fusion at High). The selection keeps its reason, so a fallback stays a fallback, and
+	 * the conversation's intended model moves only if it was the model being re-presented.
+	 */
+	applyEquivalentSelection(model: ILanguageModelChatMetadataAndIdentifier): void {
+		const currentModel = this._currentModel.get();
+		const intended = this._intendedModel;
+		if (intended && currentModel && intended.modelId === currentModel.identifier) {
+			this._remember({ modelId: model.identifier, model, reason: intended.reason });
+		}
+		this._diagnostics.report('equivalent-selection', { model: model.identifier, replaces: currentModel?.identifier, reason: this._selectionReason }, 'info');
+		this._applyModel(model, this._selectionReason);
+		this._equivalentOf = currentModel?.identifier;
 	}
 
 	requestProgrammaticSelection(
@@ -188,7 +212,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 		const resolveSelection = (): InitialModelSelectionResult => {
 			const models = this._pool();
-			const configuredModel = resolveConfiguredModel(this._runtime.getConfiguredModelValue(), models);
+			const configuredModel = this._configuredModel(models);
 			let resolution = resolveModelIdentifier(models, rememberedModelId, false);
 			if (resolution.kind === 'pending' && this._runtime.isModelAbsenceConclusive?.(resolution.identifier)) {
 				resolution = { kind: 'unavailable', identifier: resolution.identifier };
@@ -248,7 +272,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			return;
 		}
 		const models = this._pool(sessionType);
-		const configuredModel = resolveConfiguredModel(this._runtime.getConfiguredModelValue(), models);
+		const configuredModel = this._configuredModel(models);
 		const defaultModel = configuredModel ?? this._defaultModel(models);
 		this._diagnostics.report('select-default', {
 			configuredModel: configuredModel?.identifier,
@@ -280,7 +304,12 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!this._runtime.isEmpty() || claimedByConversation) {
 			return undefined;
 		}
-		return resolveConfiguredModel(this._runtime.getConfiguredModelValue(), this._pool());
+		return this._configuredModel(this._pool());
+	}
+
+	private _configuredModel(models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
+		return models.find(model => model.metadata.managedModelDefaults?.model)
+			?? resolveConfiguredModel(this._runtime.getConfiguredModelValue(), models);
 	}
 
 	applyConfiguredDefault(): boolean {
@@ -288,7 +317,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!configuredModel) {
 			return false;
 		}
-		if (configuredModel.identifier === this._currentModel.get()?.identifier) {
+		if (this._isSelected(configuredModel.identifier)) {
 			if (this._selectionReason !== ModelSelectionReason.ConfiguredDefault) {
 				this._selectionReason = ModelSelectionReason.ConfiguredDefault;
 				return true;
@@ -317,7 +346,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (this._runtime.isEmpty()
 			&& this._selectionReason === ModelSelectionReason.FirstAvailable
 			&& declaredDefault
-			&& reconciledCurrentModel?.identifier !== declaredDefault.identifier) {
+			&& !this._isSelected(declaredDefault.identifier)) {
 			// Still the first thing on offer, only now the pool has said which that is.
 			this._applyModel(declaredDefault, ModelSelectionReason.FirstAvailable);
 			return;
@@ -570,9 +599,32 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 	}
 
-	/** Shows `model` without touching the authority already in force. */
-	private _display(model: ILanguageModelChatMetadataAndIdentifier): void {
+	/** Shows `model`; see {@link _stillShown} for the result. */
+	private _display(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		if (model.identifier !== this._currentModel.get()?.identifier) {
+			this._equivalentOf = undefined;
+		}
 		this._currentModel.set(model, undefined);
+		return this._stillShown(model);
+	}
+
+	/** Whether `modelId` is the current model, or the one it is shown in place of. */
+	private _isSelected(modelId: string): boolean {
+		return this._currentModel.get()?.identifier === modelId || this._equivalentOf === modelId;
+	}
+
+	/**
+	 * False once something selected another model in place of `model` while it was being shown or
+	 * applied (the picker normalizes what it is shown). That selection stands, so the caller
+	 * finishes nothing on top of it.
+	 */
+	private _stillShown(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		const shown = this._currentModel.get();
+		if (shown?.identifier === model.identifier) {
+			return true;
+		}
+		this._diagnostics.report('selection-superseded', { model: model.identifier, by: shown?.identifier }, 'info');
+		return false;
 	}
 
 	/**
@@ -581,8 +633,9 @@ export class ChatInputModelSelectionController extends Disposable {
 	 */
 	private _applyModel(model: ILanguageModelChatMetadataAndIdentifier, reason: ModelSelectionReason | undefined): void {
 		this._selectionReason = reason;
-		this._display(model);
-		this._runtime.applyModel(model);
+		if (this._display(model)) {
+			this._runtime.applyModel(model);
+		}
 	}
 
 	private _reportInitialization(configuredModel: string | undefined, rememberedModel: string | undefined, selection: InitialModelSelectionResult): void {

@@ -6,6 +6,12 @@ parameters:
     default: false
   - name: VSCODE_QUALITY
     type: string
+  # Whether to include the steps and jobs that need a privileged service
+  # connection (signing, CDN uploads, Copilot test setup). Only
+  # sdk-validation-build.yml sets this to false.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+    default: true
 
 jobs:
 - job: macOS_${{ parameters.VSCODE_ARCH }}_CLI
@@ -22,7 +28,7 @@ jobs:
     VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
   templateContext:
     outputs:
-      - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+      - ${{ if and(not(parameters.VSCODE_CHECK_ONLY), eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true)) }}:
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_cli_darwin_$(VSCODE_ARCH)_cli/vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
           artifactName: vscode_cli_darwin_$(VSCODE_ARCH)_cli
@@ -92,6 +98,15 @@ jobs:
             OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-osx/lib
             OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-osx/include
 
+    - template: ../copilot-shim/copilot-shim-compile.yml@self
+      parameters:
+        ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+          COPILOT_SHIM_TARGET: x86_64-apple-darwin
+        ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+          COPILOT_SHIM_TARGET: aarch64-apple-darwin
+        COPILOT_SHIM_ARTIFACT: unsigned_copilot_shim_darwin_$(VSCODE_ARCH)
+        COPILOT_SHIM_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+
     - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
       - template: ../common/publish-artifact.yml@self
         parameters:
@@ -100,46 +115,60 @@ jobs:
           displayName: Publish unsigned CLI
           sbomEnabled: false
 
-      - script: |
-          set -e
-          mkdir -p $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
-          cp $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
-        displayName: Prepare CLI for signing
+      # The macOS compile job adds the Copilot shim to the client and server builds, which signs it.
+      - template: ../common/publish-artifact.yml@self
+        parameters:
+          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_copilot_shim_darwin_$(VSCODE_ARCH).zip
+          artifactName: unsigned_copilot_shim_darwin_$(VSCODE_ARCH)
+          displayName: Publish unsigned Copilot shim
+          sbomEnabled: false
 
-      - task: ExtractFiles@1
-        displayName: Extract unsigned CLI (for SBOM)
-        inputs:
-          archiveFilePatterns: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
-          destinationFolder: $(Build.ArtifactStagingDirectory)/sign/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+      # Signing needs the ESRP connection. The SDK validation pipeline
+      # (sdk-validation-build.yml) only uses the unsigned CLI.
+      - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+        - script: |
+            set -e
+            mkdir -p $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+            cp $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
+          displayName: Prepare CLI for signing
 
-      - task: UseDotNet@2
-        inputs:
-          version: 6.x
+        - task: ExtractFiles@1
+          displayName: Extract unsigned CLI (for SBOM)
+          inputs:
+            archiveFilePatterns: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
+            destinationFolder: $(Build.ArtifactStagingDirectory)/sign/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
 
-      - task: EsrpCodeSigning@6
-        inputs:
-          UseMSIAuthentication: true
-          ConnectedServiceName: vscode-esrp
-          AppRegistrationClientId: $(ESRP_CLIENT_ID)
-          AppRegistrationTenantId: $(ESRP_TENANT_ID)
-          AuthAKVName: vscode-esrp
-          AuthSignCertName: esrp-sign
-          FolderPath: .
-          Pattern: noop
-        displayName: 'Install ESRP Tooling'
+        - task: UseDotNet@2
+          inputs:
+            version: 6.x
 
-      - script: node build/azure-pipelines/common/sign.ts $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli "*.zip"
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: ✍️ Codesign
+        - task: EsrpCodeSigning@6
+          inputs:
+            UseMSIAuthentication: true
+            ConnectedServiceName: vscode-esrp
+            AppRegistrationClientId: $(ESRP_CLIENT_ID)
+            AppRegistrationTenantId: $(ESRP_TENANT_ID)
+            AuthAKVName: vscode-esrp
+            AuthSignCertName: esrp-sign
+            FolderPath: .
+            Pattern: noop
+          displayName: 'Install ESRP Tooling'
 
-      - script: node build/azure-pipelines/common/sign.ts $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll notarize-darwin $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli "*.zip"
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: ✍️ Notarize
+        - script: node build/azure-pipelines/common/sign.ts $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli "*.zip"
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          displayName: ✍️ Codesign
 
-      - script: |
-          set -e
-          mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_cli_darwin_$(VSCODE_ARCH)_cli
-          mv $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip $(Build.ArtifactStagingDirectory)/out/vscode_cli_darwin_$(VSCODE_ARCH)_cli/vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
-        displayName: Rename signed artifact
+        - script: node build/azure-pipelines/common/sign.ts $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll notarize-darwin $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli "*.zip"
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          displayName: ✍️ Notarize
+
+        - script: |
+            set -e
+            mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_cli_darwin_$(VSCODE_ARCH)_cli
+            mv $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip $(Build.ArtifactStagingDirectory)/out/vscode_cli_darwin_$(VSCODE_ARCH)_cli/vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
+          displayName: Rename signed artifact
+
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - template: ../copilot-shim/copilot-shim-quality.yml@self

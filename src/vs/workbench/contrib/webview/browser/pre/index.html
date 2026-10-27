@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-sn80KfA+MU1XygyWiC6Pi0aLZubC6RmEK+O6llFPkGg=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-Q3Tfcw0dGu/YD4dGBrRqBeOnmRMAH8HbKxArK4YSXBc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -739,6 +739,40 @@
 			return e.keyCode === 116;
 		}
 
+		// #region Mouse activity forwarding
+		const handleMouseMove = (() => {
+			/** @type {{ x: number; y: number } | undefined} */
+			let lastPosition;
+			/** @type {import('../webviewMessages').FromWebviewMessage['did-mouse-move'] | undefined} */
+			let pendingEvent;
+			let scheduled = false;
+
+			return (/** @type {MouseEvent} */ event) => {
+				if (!event.isTrusted || (lastPosition?.x === event.screenX && lastPosition.y === event.screenY)) {
+					return;
+				}
+				lastPosition = { x: event.screenX, y: event.screenY };
+				pendingEvent = { screenX: event.screenX, screenY: event.screenY };
+				if (scheduled) {
+					return;
+				}
+				scheduled = true;
+				window.requestAnimationFrame(() => {
+					scheduled = false;
+					const event = pendingEvent;
+					pendingEvent = undefined;
+					if (!event) {
+						return;
+					}
+					hostMessaging.postMessage('did-mouse-move', {
+						screenX: event.screenX,
+						screenY: event.screenY,
+					});
+				});
+			};
+		})();
+		// #endregion Mouse activity forwarding
+
 		let isHandlingScroll = false;
 
 		/**
@@ -920,6 +954,7 @@
 		// Also forward events before the contents of the webview have loaded
 		window.addEventListener('keydown', handleInnerKeydown);
 		window.addEventListener('keyup', handleInnerKeyup);
+		window.addEventListener('mousemove', handleMouseMove, true);
 		window.addEventListener('dragenter', handleInnerDragStartEvent);
 		window.addEventListener('dragover', handleInnerDragEvent);
 		window.addEventListener('drag', handleInnerDragEvent);
@@ -950,6 +985,9 @@
 					applyStyles(target.contentDocument, target.contentDocument.body);
 				}
 			});
+
+			/** @type {WeakMap<Document, HTMLElement>} */
+			const lastFocusedElements = new WeakMap();
 
 			// propagate focus
 			hostMessaging.onMessage('focus', () => {
@@ -1130,6 +1168,12 @@
 
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 						contentWindow.addEventListener('wheel', handleWheel);
+						contentWindow.addEventListener('focusin', () => {
+							const focused = /** @type {HTMLElement | null} */ (contentDocument.activeElement);
+							if (focused && focused !== contentDocument.body && focused !== contentDocument.documentElement) {
+								lastFocusedElements.set(contentDocument, focused);
+							}
+						});
 
 						if (wasFocused) {
 							contentWindow.focus();
@@ -1186,6 +1230,7 @@
 					contentWindow.addEventListener('auxclick', handleAuxClick);
 					contentWindow.addEventListener('keydown', handleInnerKeydown);
 					contentWindow.addEventListener('keyup', handleInnerKeyup);
+					contentWindow.addEventListener('mousemove', handleMouseMove, true);
 					contentWindow.addEventListener('contextmenu', e => {
 						if (e.defaultPrevented) {
 							// Extension code has already handled this event
@@ -1273,7 +1318,16 @@
 				if (!target) {
 					return;
 				}
-				assertIsDefined(target.contentDocument).execCommand(data);
+				const contentDocument = assertIsDefined(target.contentDocument);
+				const lastFocused = lastFocusedElements.get(contentDocument);
+				const selection = contentDocument.getSelection();
+				// Restoring focus to an input would discard a selection in non-focusable content.
+				if ((!selection || selection.isCollapsed)
+					&& (contentDocument.activeElement === contentDocument.body || contentDocument.activeElement === contentDocument.documentElement)
+					&& lastFocused?.isConnected && lastFocused.ownerDocument === contentDocument) {
+					lastFocused.focus({ preventScroll: true });
+				}
+				contentDocument.execCommand(data);
 			});
 
 			/** @type {string | undefined} */

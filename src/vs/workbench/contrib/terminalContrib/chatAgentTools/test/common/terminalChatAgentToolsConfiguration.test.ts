@@ -52,6 +52,23 @@ suite('Terminal chat agent tools configuration', () => {
 		}, { enabled: ['off', 'on'], windows: undefined });
 	});
 
+	test('tags terminal approval and sandbox settings as chat permissions', () => {
+		const expectedSettingIds = [
+			TerminalChatAgentToolsSettingId.EnableAutoApprove,
+			TerminalChatAgentToolsSettingId.AutoApprove,
+			TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts,
+			TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules,
+			TerminalChatAgentToolsSettingId.BlockDetectedFileWrites,
+			...Object.keys(terminalChatAgentToolsConfiguration).filter(key => key.startsWith('chat.agent.sandbox.')),
+		];
+		assert.deepStrictEqual(
+			Object.entries(terminalChatAgentToolsConfiguration)
+				.filter(([, setting]) => setting.tags?.includes('chatPermissions'))
+				.map(([key]) => key).sort(),
+			expectedSettingIds.sort(),
+		);
+	});
+
 	test('adds sandbox search keywords and ordering to settings consumed by the Agent Host Copilot sandbox', () => {
 		const settingIds = [
 			[AgentSandboxSettingId.AgentSandboxEnabled, 10],
@@ -66,7 +83,6 @@ suite('Terminal chat agent tools configuration', () => {
 			[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths, 65],
 			[AgentSandboxSettingId.AgentSandboxLinuxFileSystem, 70],
 			[AgentSandboxSettingId.AgentSandboxMacFileSystem, 80],
-			[AgentSandboxSettingId.AgentSandboxWindowsFileSystem, 90],
 		] as const;
 		assert.deepStrictEqual(
 			Object.entries(terminalChatAgentToolsConfiguration)
@@ -108,6 +124,20 @@ suite('Terminal chat agent tools configuration', () => {
 		})));
 	});
 
+	test('does not register the unimplemented sandbox masked environment variables setting', async () => {
+		const settingId = 'chat.agent.sandbox.maskedEnvironmentVariables';
+		const defaults = await store.add(new DefaultConfiguration(new NullLogService())).initialize();
+		assert.deepStrictEqual({
+			setting: terminalChatAgentToolsConfiguration[settingId],
+			registered: configurationRegistry.getConfigurationProperties()[settingId],
+			default: defaults.getValue(settingId),
+		}, {
+			setting: undefined,
+			registered: undefined,
+			default: undefined,
+		});
+	});
+
 	test('registers Copilot user-configured paths and warns about legacy filesystem settings', () => {
 		const setting = terminalChatAgentToolsConfiguration[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths];
 		assert.deepStrictEqual({
@@ -120,7 +150,6 @@ suite('Terminal chat agent tools configuration', () => {
 			legacy: [
 				AgentSandboxSettingId.AgentSandboxLinuxFileSystem,
 				AgentSandboxSettingId.AgentSandboxMacFileSystem,
-				AgentSandboxSettingId.AgentSandboxWindowsFileSystem,
 			].map(key => {
 				const legacy = terminalChatAgentToolsConfiguration[key];
 				return [legacy.markdownDeprecationMessage, legacy.deprecationMessageShowInSettings, legacy.deprecated];
@@ -132,7 +161,7 @@ suite('Terminal chat agent tools configuration', () => {
 			default: { readwritePaths: [], readonlyPaths: [], deniedPaths: [] },
 			restricted: true,
 			additionalProperties: false,
-			legacy: Array.from({ length: 3 }, () => [
+			legacy: Array.from({ length: 2 }, () => [
 				'This setting will be deprecated soon. For the Copilot Agent Host sandbox, use `#chat.agent.sandbox.fileSystem.userConfiguredPaths#` instead.', true, undefined,
 			]),
 		});
@@ -298,7 +327,7 @@ suite('Terminal chat agent tools configuration', () => {
 			assert.deepStrictEqual({
 				values, type: setting.type, restricted: setting.restricted, tags: setting.tags,
 				placeholder: setting.markdownDescription?.includes('This setting has no effect yet.'),
-			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: undefined, placeholder: false });
+			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: ['chatPermissions'], placeholder: false });
 		});
 	}
 

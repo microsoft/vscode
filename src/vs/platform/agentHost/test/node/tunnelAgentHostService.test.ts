@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { TunnelManagementHttpClient } from '@microsoft/dev-tunnels-management';
 import * as net from 'net';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { isTunnelGatewaySelectionRejectedError, TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME } from '../../common/tunnelAgentHost.js';
@@ -80,6 +83,34 @@ class FakeRelayClient implements ITunnelRelayClient {
 	}
 }
 
+suite('TunnelAgentHostService - correlation', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
+	test('uses the injected telemetry session and retains the operation across enumeration requests', async () => {
+		const requests: Record<string, string>[] = [];
+		sinon.stub(TunnelManagementHttpClient.prototype, 'listTunnels').callsFake(async function captureHeaders(this: TunnelManagementHttpClient) {
+			requests.push({ ...this.additionalRequestHeaders });
+			return [];
+		});
+		const telemetry = sinon.spy(NullTelemetryService, 'publicLog2');
+		const service = store.add(new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService));
+		await service.listTunnels('token', 'github', ['additional-tunnel']);
+		const operationId = requests[0]['X-Tunnels-VSCode-Client-Operation-Id'];
+		assert.deepStrictEqual({
+			telemetry: telemetry.firstCall.args,
+			sessions: requests.map(request => request['X-Tunnels-VSCode-Session-Id']),
+			operations: requests.map(request => request['X-Tunnels-VSCode-Client-Operation-Id']),
+			uniqueRequests: new Set(requests.map(request => request['X-Tunnels-VSCode-Client-Request-Id'])).size,
+		}, {
+			telemetry: ['tunnelServiceOperation', { tunnelSessionId: NullTelemetryService.sessionId, operationId, operation: 'list' }],
+			sessions: [NullTelemetryService.sessionId, NullTelemetryService.sessionId],
+			operations: [operationId, operationId],
+			uniqueRequests: 2,
+		});
+	});
+});
+
 suite('TunnelAgentHostService - withTimeout', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -143,7 +174,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('completeSelection sends the selection immediately, then resolves once the gateway acknowledges', async () => {
-		const service = new TunnelAgentHostMainService(new NullLogService());
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
 		try {
 			const { ws, pending } = createPending();
 			setPendingGatewaySelectionForTests(service, 'sel1', pending);
@@ -182,7 +213,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 	});
 
 	test('completeSelection throws for an unknown selection id', async () => {
-		const service = new TunnelAgentHostMainService(new NullLogService());
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
 		try {
 			await assert.rejects(
 				() => service.completeSelection('does-not-exist', { instanceId: 'x' }),
@@ -194,7 +225,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 	});
 
 	test('completeSelection surfaces a gateway rejection and closes pending resources without switching targets', async () => {
-		const service = new TunnelAgentHostMainService(new NullLogService());
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
 		try {
 			const { ws, relayClient, pending } = createPending();
 			setPendingGatewaySelectionForTests(service, 'sel1', pending);
@@ -222,7 +253,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 	});
 
 	test('completeSelection reports a transport failure as a plain error, never as a gateway rejection', async () => {
-		const service = new TunnelAgentHostMainService(new NullLogService());
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
 		try {
 			const { ws, pending } = createPending();
 			setPendingGatewaySelectionForTests(service, 'sel1', pending);
@@ -238,7 +269,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 	});
 
 	test('cancelSelection disposes the pending socket and relay client, and is safe to call again or with an unknown id', async () => {
-		const service = new TunnelAgentHostMainService(new NullLogService());
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
 		try {
 			const { ws, relayClient, pending } = createPending();
 			setPendingGatewaySelectionForTests(service, 'sel1', pending);
@@ -258,7 +289,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 	});
 
 	test('completeSelection fails once the pending socket has already closed unexpectedly', async () => {
-		const service = new TunnelAgentHostMainService(new NullLogService());
+		const service = new TunnelAgentHostMainService(new NullLogService(), NullTelemetryService);
 		try {
 			// Wire the unexpected-close callback the same way prepareSelection
 			// does in production: remove the entry from the pending map.

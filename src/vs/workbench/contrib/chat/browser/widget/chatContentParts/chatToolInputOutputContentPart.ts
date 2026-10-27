@@ -7,7 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -28,6 +28,7 @@ import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
+import { animateChatProgress } from '../chatProgressAnimation.js';
 
 export interface IChatCollapsibleIOCodePart {
 	kind: 'code';
@@ -50,6 +51,8 @@ export interface IChatCollapsibleIODataPart {
 	audience?: LanguageModelPartAudience[];
 	mimeType: string | undefined;
 	uri: URI;
+	/** Display and suggested save name, without changing the resource used to load the bytes. */
+	name?: string;
 }
 
 export type ChatCollapsibleIOPart = IChatCollapsibleIOCodePart | IChatCollapsibleIODataPart;
@@ -58,6 +61,7 @@ export interface IChatCollapsibleInputData extends IChatCollapsibleIOCodePart { 
 export interface IChatCollapsibleOutputData {
 	parts: ChatCollapsibleIOPart[];
 	showCollapsedResources?: boolean;
+	renderMetadata?: (container: HTMLElement) => IDisposable;
 }
 
 export class ChatCollapsibleInputOutputContentPart extends Disposable {
@@ -107,6 +111,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
+		this._register(animateChatProgress(titleEl.root));
 		const elements = dom.h('.chat-confirmation-widget.chat-confirmation-widget-collapsible');
 		const contentAnimation = dom.h('.chat-confirmation-widget-message-animation', [
 			dom.h('.chat-confirmation-widget-message-animation-inner@inner'),
@@ -227,6 +232,9 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			));
 			this._outputSubPart = outputSubPart;
 			contents.output.appendChild(outputSubPart.domNode);
+			if (output.renderMetadata) {
+				this._register(output.renderMetadata(contents.root));
+			}
 		}
 
 		return contents.root;

@@ -606,6 +606,11 @@ export interface SessionConfigPropertySchema extends ConfigPropertySchema {
 	enumDynamic?: boolean;
 	/** When `true`, the user may change this property after session creation */
 	sessionMutable?: boolean;
+	/**
+	 * When `true`, the property may be set per chat with `chat/configChanged`.
+	 * The chat's value overrides the session's value for that chat only.
+	 */
+	chatMutable?: boolean;
 }
 
 /**

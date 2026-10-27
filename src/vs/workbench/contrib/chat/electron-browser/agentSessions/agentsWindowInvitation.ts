@@ -399,7 +399,7 @@ export class AgentsWindowInvitationContribution extends Disposable implements IW
 			}
 			const revealSession = this.configurationService.getValue<boolean>(ChatConfiguration.AgentsWindowBannerRevealCurrentSession) !== false;
 			await this.nativeHostService.openAgentsWindow({
-				sessionResource: revealSession ? presentation.resource.toJSON() : undefined,
+				reveal: revealSession ? presentation.resource.toJSON() : 'new',
 				onboardingSessionResource: presentation.resource.toJSON(),
 				source: presentation.scenario.source,
 			});

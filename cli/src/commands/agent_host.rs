@@ -298,7 +298,6 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		Arc::new(ReqwestSimpleHttp::with_client(ctx.http.clone())),
 		AgentHostConfig {
 			server_data_dir: args.server_data_dir.clone(),
-			user_data_dir: args.user_data_dir.clone(),
 			github_environment,
 			telemetry_level: if ctx.args.global_options.disable_telemetry {
 				Some(TelemetryLevel::Off)
