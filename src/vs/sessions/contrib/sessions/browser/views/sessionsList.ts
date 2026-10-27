@@ -1631,6 +1631,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 		this.renderSession(element, template, getSessionTitleMatches(element, node.filterData));
 	}
 
+	renderTwistie(element: SessionListItem, twistieElement: HTMLElement): boolean {
+		// The twistie is a sibling of the row contents, so it needs its own depth to step in with them.
+		setSessionGroupDepth(twistieElement, isSessionItem(element) ? this.options.getGroupDepth?.(element) ?? 0 : 0);
+		return false;
+	}
+
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
 		template.elementDisposables.clear();
 		setSessionGroupDepth(template.container, this.options.getGroupDepth?.(element) ?? 0);

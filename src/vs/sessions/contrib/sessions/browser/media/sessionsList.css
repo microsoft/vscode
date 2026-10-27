@@ -1370,6 +1370,15 @@
 	margin-left: calc((var(--session-group-depth, 0) + 1) * var(--session-group-indent, 0px));
 }
 
+/* Session twisties are positioned within the row, so they step in by the same amount as the row's contents. */
+.sessions-list-control .monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
+	translate: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px)) 0;
+}
+
+.sessions-list-control.indent-items .monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
+	translate: calc((var(--session-group-depth, 0) + 1) * var(--session-group-indent, 0px)) 0;
+}
+
 /* Session groups render like sections, with an inline name editor. */
 .session-group {
 	.session-group-description {
