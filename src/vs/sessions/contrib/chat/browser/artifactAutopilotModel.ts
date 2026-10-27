@@ -9,8 +9,7 @@ import { derived, IObservable, observableSignal } from '../../../../base/common/
 import { localize } from '../../../../nls.js';
 import { ArtifactAutomationOption, ArtifactContributionSnapshot, ArtifactSnapshot, artifactOptionDisabledValue, IArtifactModel, isArtifactOptionEnabled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { canEnableArtifactAutomationOption } from '../../../../platform/artifactIntegrations/common/artifactAutomationConfiguration.js';
-import { describeArtifactAutomationConsent, describeArtifactAutomationScope } from '../../../../platform/artifactIntegrations/common/artifactAutomationConsent.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { describeArtifactAutomationConsent } from '../../../../platform/artifactIntegrations/common/artifactAutomationConsent.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ArtifactDetailsViewState, artifactViewKey, IArtifactAutopilotGroupViewData, IArtifactAutopilotRuleViewData } from './artifactDetailsView.js';
 
@@ -30,7 +29,6 @@ export class ArtifactAutopilotModel extends Disposable {
 		private readonly state: ArtifactDetailsViewState,
 		private readonly run: (operation: () => Promise<void>) => Promise<void>,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 		this.data = derived(this, reader => {
@@ -51,7 +49,7 @@ export class ArtifactAutopilotModel extends Disposable {
 						: localize('artifactAutopilot.enabled', "{0} of {1} on", enabled, eligible.length),
 					toggleLabel: groups.length > 1 ? localize('artifactAutopilot.providerRules', "All Available Autopilot Rules: {0}", contribution.label)
 						: localize('artifactAutopilot.allRules', "All Available Autopilot Rules"),
-					description: localize('artifactAutopilot.masterHelp', "Enable all available rules for this provider using the policies shown in their dropdowns, or turn off all enabled rules. Unavailable rules are not enabled. Enabling is confirmed before saving."),
+					description: localize('artifactAutopilot.masterHelp', "Enable all available rules for this provider using the policies shown in their dropdowns, or turn off all enabled rules. Unavailable rules are not enabled."),
 					rules: options.map(option => this.rule(contribution, option, snapshot)),
 					setExpanded: expanded => {
 						if (expanded) {
@@ -189,7 +187,6 @@ export class ArtifactAutopilotModel extends Disposable {
 			this.changed.trigger(undefined);
 			try {
 				const values: Record<string, boolean | string> = {};
-				const descriptions: string[] = [];
 				for (const option of this.options(contribution)) {
 					const current = contribution.configuration.values[option.id];
 					if (isArtifactOptionEnabled(option, current) === enabled || (enabled && !canEnableArtifactAutomationOption(contribution, option))) {
@@ -200,24 +197,13 @@ export class ArtifactAutopilotModel extends Disposable {
 						throw new Error(localize('artifactPolicyUnavailable', "No enabled policy is available for {0}.", option.label));
 					}
 					values[option.id] = enabled ? choice?.value ?? true : artifactOptionDisabledValue(option);
-					const label = choice && enabled ? localize('artifactAutopilot.ruleChoice', "{0}: {1}", option.label, choice.label) : option.label;
-					descriptions.push(localize('artifactAutopilot.ruleConsent', "{0}: {1}", label, describeArtifactAutomationConsent(contribution, option).join(' ')));
 				}
 				if (!Object.keys(values).length) {
 					return;
 				}
-				if (enabled && !(await this.dialogService.confirm({
-					type: 'warning',
-					message: localize('artifactAutopilot.confirm', "Enable these Autopilot rules?"),
-					detail: localize('artifactAutopilot.confirmDetail', "{0}\n\n{1}\n\nAutopilot rules may run as soon as their conditions are met.", descriptions.join('\n\n'), describeArtifactAutomationScope(this.location(contribution))),
-					primaryButton: localize('artifactAutopilot.enable', "Enable Autopilot"),
-				})).confirmed) {
-					return;
-				}
-				if (!this._store.isDisposed) {
-					await this.model.configure(integrationId, contribution.configuration.revision, values);
-					status(localize('artifactAutopilot.saved', "Artifact Autopilot updated."));
-				}
+				// Save without awaiting user input first: any outside click, such as in a dialog, closes the details panel and disposes this model.
+				await this.model.configure(integrationId, contribution.configuration.revision, values);
+				status(localize('artifactAutopilot.saved', "Artifact Autopilot updated."));
 			} finally {
 				this.pendingGroups.delete(integrationId);
 				this.changed.trigger(undefined);

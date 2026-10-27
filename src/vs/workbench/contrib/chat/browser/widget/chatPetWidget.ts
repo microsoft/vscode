@@ -2452,6 +2452,8 @@ export class ChatPetWidget extends Disposable {
 		this._throwAnimation.clear();
 		this._button.element.classList.remove('bounce-impact');
 		this._button.element.style.transform = '';
+		// Commit the reset before transitions resume, so completed spins do not unwind on landing.
+		this._button.element.getBoundingClientRect();
 		this._button.element.classList.remove('throwing');
 		if (!target && !this._enabled) {
 			return;

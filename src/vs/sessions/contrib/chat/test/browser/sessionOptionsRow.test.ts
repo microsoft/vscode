@@ -9,6 +9,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SessionOptionsRow } from '../../browser/sessionOptionsRow.js';
+import { getSessionPickerId } from '../../browser/sessionPickerToolbar.js';
 
 suite('Sessions - SessionOptionsRow', () => {
 
@@ -84,5 +85,63 @@ suite('Sessions - SessionOptionsRow', () => {
 		hasDetails.set(false, undefined);
 
 		assert.deepStrictEqual({ focused: document.activeElement?.getAttribute('aria-label'), toggleHidden: sessionOptionsRow.toggle.element.hidden }, { focused: 'folder', toggleHidden: true });
+	});
+
+	test('pickers collapse to their icon and open their context menu only in the experimental layout', () => {
+		const document = mainWindow.document;
+		const container = document.body.appendChild(document.createElement('div'));
+		store.add(toDisposable(() => container.remove()));
+		const row = container.appendChild(document.createElement('div'));
+		const picker = (parent: HTMLElement, id: string) => {
+			const slot = parent.appendChild(document.createElement('div'));
+			slot.className = 'sessions-chat-picker-slot';
+			slot.setAttribute('data-session-picker-id', id);
+			const label = slot.appendChild(document.createElement('a')).appendChild(document.createElement('span'));
+			label.className = 'sessions-chat-dropdown-label';
+			label.textContent = id;
+			return slot;
+		};
+		const workspace = picker(row, 'workspace');
+		const useExperimentalLayout = observableValue('useExperimentalLayout', true);
+		const iconOnlyPickerIds = observableValue<ReadonlySet<string>>('iconOnlyPickerIds', new Set());
+		const contextMenus: string[] = [];
+		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
+			user: 'test',
+			useExperimentalLayout,
+			screenReaderOptimized: constObservable(false),
+			expanded: constObservable(true),
+			collapsedShowIcons: constObservable(true),
+			setExpanded: () => { },
+			iconOnlyPickers: {
+				iconOnlyPickerIds,
+				getPickerId: element => getSessionPickerId(element),
+				showContextMenu: pickerId => contextMenus.push(pickerId),
+			},
+		}));
+		const environment = picker(sessionOptionsRow.details, 'environment');
+		const harness = picker(sessionOptionsRow.details, 'harness');
+		const snapshot = () => {
+			sessionOptionsRow.layout();
+			const contextMenuCount = contextMenus.length;
+			const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+			harness.querySelector('.sessions-chat-dropdown-label')!.dispatchEvent(event);
+			return {
+				iconOnly: [workspace, environment, harness].filter(element => element.classList.contains('compact-picker')).map(element => element.getAttribute('data-session-picker-id')),
+				contextMenu: contextMenus.slice(contextMenuCount),
+				handled: event.defaultPrevented,
+			};
+		};
+
+		const states = [snapshot()];
+		iconOnlyPickerIds.set(new Set(['workspace', 'environment']), undefined);
+		states.push(snapshot());
+		useExperimentalLayout.set(false, undefined);
+		states.push(snapshot());
+
+		assert.deepStrictEqual(states, [
+			{ iconOnly: [], contextMenu: ['harness'], handled: true },
+			{ iconOnly: ['workspace', 'environment'], contextMenu: ['harness'], handled: true },
+			{ iconOnly: [], contextMenu: [], handled: false },
+		]);
 	});
 });

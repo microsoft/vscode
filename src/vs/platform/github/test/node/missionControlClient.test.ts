@@ -675,6 +675,36 @@ suite('Mission Control client', () => {
 		}, { connections: [{ status: 200, data: connection }, { status: 200, data: connection }], attempts: 5, validators: Array(5).fill(null) });
 	});
 
+	test('mints identity credentials only on the approved gateway without sharing or caching', async () => {
+		const options = clientOptions();
+		const identity = { token: 'identity-secret', expires_in: 3600, expires_at: date };
+		const { client, requests } = setup(() => Response.json(identity, { headers: { etag: '"private"' } }), {
+			...options,
+			missionControl: { endpoint: { ...options.missionControl!.endpoint, identityApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' } },
+		});
+		const credentials = await Promise.all([client.environments.mintIdentityToken(signal()), client.environments.mintIdentityToken(signal())]);
+		assert.deepStrictEqual({
+			credentials,
+			requests: requests.map(request => ({
+				url: request.url.href, method: request.init.method, body: request.init.body,
+				integration: new Headers(request.init.headers).get('Copilot-Integration-Id'),
+				validator: new Headers(request.init.headers).get('If-None-Match'),
+			})),
+		}, {
+			credentials: [identity, identity],
+			requests: Array.from({ length: 2 }, () => ({
+				url: 'https://api.github.com/cmc_internal/api/agents/environments/tokens',
+				method: 'POST', body: '{}', integration: 'test-integration', validator: null,
+			})),
+		});
+	});
+
+	test('does not guess an identity endpoint when its gateway is not configured', async () => {
+		const { client, requests } = setup(() => Response.json({ token: 'must-not-be-requested' }));
+		await assert.rejects(client.environments.mintIdentityToken(signal()), { kind: 'validation' });
+		assert.deepStrictEqual(requests, []);
+	});
+
 	test('negotiates task feed credentials on the approved gateway without caching or coalescing', async () => {
 		const feed = {
 			url: 'wss://relay.example.test/?access_token=feed-secret',

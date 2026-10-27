@@ -21,6 +21,8 @@ import { Schemas } from '../../../../../../base/common/network.js';
  */
 export interface IAgentHostSessionListConnection {
 	readonly onDidNotification: Event<INotification>;
+	/** Fires when the same logical connection finishes reconnecting. */
+	readonly onDidReconnect?: Event<void>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	disposeChat(chat: URI): Promise<void>;
 	disposeSession(session: URI): Promise<void>;
@@ -114,6 +116,14 @@ export class AgentHostSessionListStore extends Disposable {
 		super();
 
 		this._register(this._connection.onDidNotification(n => this._onNotification(n)));
+
+		// Sessions may have changed on the host while the connection was down.
+		if (this._connection.onDidReconnect) {
+			this._register(this._connection.onDidReconnect(() => {
+				this.resetCache();
+				void this.refresh(CancellationToken.None);
+			}));
+		}
 
 		// Re-fetch the session list whenever the set of VS Code workspace
 		// folders changes, since filtering depends on it. The agent host itself

@@ -13,16 +13,22 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { Menus } from '../../../../browser/menus.js';
-import { SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
+import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput } from '../../../../../workbench/common/editor.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
 import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import '../../browser/pullRequestActions.js';
+import { createPullRequestChangesEditorInput } from '../../browser/pullRequestChangesMultiDiffSourceResolver.js';
 import { SessionPullRequestPresentationModel } from '../../browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../browser/githubService.js';
-import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.js';
+import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../common/types.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
@@ -72,8 +78,14 @@ class TestOpenerService extends mock<IOpenerService>() {
 }
 
 suite('Pull Request Actions', () => {
-
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('does not require a separate PR activity action opt-in command or context-menu item', () => {
+		const commandId = 'workbench.action.agentSessions.toggleSessionActivityBarGitHubActions';
+		const item = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isIMenuItem)
+			.find(item => item.command.id === commandId);
+		assert.deepStrictEqual({ item, command: CommandsRegistry.getCommand(commandId) }, { item: undefined, command: undefined });
+	});
 
 	test('shared presentation model preserves live pull request status icons', () => {
 		const pullRequest = upcastPartial<IGitHubPullRequest>({
@@ -177,7 +189,7 @@ suite('Pull Request Actions', () => {
 		});
 	});
 
-	test('Open Pull Request and Copy Pull Request URL are contributed to a dedicated context menu group', () => {
+	test('Open Pull Request joins the open actions and Copy Pull Request URL the copy actions', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'workbench.agentSessions.action.openPullRequest' || item.command.id === 'workbench.agentSessions.action.copyPullRequestUrl');
@@ -187,9 +199,9 @@ suite('Pull Request Actions', () => {
 			group: item.group,
 			order: item.order,
 			hasPullRequestGate: (item.when?.serialize() ?? '').includes(SessionHasPullRequestContext.key),
-		})).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [
-			{ id: 'workbench.agentSessions.action.openPullRequest', group: '2_pullRequest', order: 0, hasPullRequestGate: true },
-			{ id: 'workbench.agentSessions.action.copyPullRequestUrl', group: '2_pullRequest', order: 1, hasPullRequestGate: true },
+		})).sort((a, b) => a.id.localeCompare(b.id)), [
+			{ id: 'workbench.agentSessions.action.copyPullRequestUrl', group: '3_copy', order: 2, hasPullRequestGate: true },
+			{ id: 'workbench.agentSessions.action.openPullRequest', group: 'navigation', order: 4, hasPullRequestGate: true },
 		]);
 	});
 
@@ -212,6 +224,48 @@ suite('Pull Request Actions', () => {
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, session));
 
 		assert.deepStrictEqual(clipboardService.writes, [pullRequestUri.toString(true)]);
+	});
+
+	test('Open Pull Request is available in the activity bar only with an associated pull request', () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === 'workbench.agentSessions.action.openPullRequest');
+		const withPullRequest = new Context(1, null);
+		withPullRequest.setValue(sessionActivityBarChatActionContext('workbench.agentSessions.action.openPullRequest').key, true);
+		const withoutPullRequest = new Context(2, null);
+
+		assert.deepStrictEqual(items.map(item => ({
+			group: item.group,
+			order: item.order,
+			icon: item.command.icon,
+			visibleWithPullRequest: item.when?.evaluate(withPullRequest),
+			visibleWithoutPullRequest: item.when?.evaluate(withoutPullRequest),
+		})), [{
+			group: SessionActivityBarGroup.SidePanel,
+			order: 100,
+			icon: Codicon.gitPullRequest,
+			visibleWithPullRequest: true,
+			visibleWithoutPullRequest: false,
+		}]);
+	});
+
+	test('Open Pull Request falls back to the active session without an explicit target', async () => {
+		const pullRequestUri = URI.parse('https://github.com/owner/repo/pull/1');
+		const session = createSessionWithPullRequest(pullRequestUri);
+		const instantiationService = new TestInstantiationService();
+		const openerService = new TestOpenerService();
+		instantiationService.stub(IOpenerService, openerService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({ workspace: session.workspace }));
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequest')!.handler(accessor));
+
+		assert.deepStrictEqual(openerService.opened, [{
+			resource: pullRequestUri,
+			openExternal: true,
+			allowContributedOpeners: true,
+		}]);
 	});
 
 	test('Copy Pull Request URL is a no-op when the session has no pull request', async () => {
@@ -316,6 +370,41 @@ suite('Pull Request Actions', () => {
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, { pullRequest: secondPullRequest }));
 
 		assert.deepStrictEqual(clipboardService.writes, [secondPullRequestUri.toString(true)]);
+	});
+
+	test('Open Pull Request Changes opens the pull request changes editor input', async () => {
+		const pullRequest = { owner: 'upstream', repo: 'project', number: 7, uri: URI.parse('https://github.com/upstream/project/pull/7') };
+		const opened: IResourceMultiDiffEditorInput[] = [];
+		let revealed = 0;
+
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(undefined);
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				if (isResourceMultiDiffEditorInput(args[0])) {
+					opened.push(args[0]);
+				}
+				return undefined;
+			}
+		});
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override revealEditorPartExplicitly(): void {
+				revealed++;
+			}
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID)!.handler(accessor, { pullRequest }));
+
+		const expected = createPullRequestChangesEditorInput(pullRequest);
+		assert.deepStrictEqual({
+			revealed,
+			opened: opened.map(editor => ({ multiDiffSource: editor.multiDiffSource?.toString(true), label: editor.label, pinned: editor.options?.pinned, resources: editor.resources })),
+		}, {
+			revealed: 1,
+			opened: [{ multiDiffSource: expected.multiDiffSource?.toString(true), label: '#7', pinned: true, resources: undefined }],
+		});
 	});
 
 });

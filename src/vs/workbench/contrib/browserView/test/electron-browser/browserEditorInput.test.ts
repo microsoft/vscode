@@ -19,6 +19,7 @@ import { BrowserViewSharingState, IBrowserViewSessionRequest, IBrowserViewContex
 import { IUntypedEditorInput, Verbosity } from '../../../../common/editor.js';
 import { applyAvailableEditorIds } from '../../../../common/contextkeys.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IEditorService, type PreferredGroup } from '../../../../services/editor/common/editorService.js';
 import { formatBrowserEditorList, getBrowserPageResourceNavigationError } from '../../electron-browser/tools/browserToolHelpers.js';
@@ -408,7 +409,7 @@ suite('BrowserEditorInput', () => {
 		}, {}, {}));
 		const contextKey = new RawContextKey<string>('browserEditorAvailableEditorIds', '').bindTo(instantiationService.get(IContextKeyService));
 
-		applyAvailableEditorIds(contextKey, input, editorResolverService);
+		applyAvailableEditorIds(contextKey, input, editorResolverService, instantiationService.get(IModelService));
 
 		assert.strictEqual(contextKey.get()?.split(',').includes('test.browserEditor'), true);
 	});

@@ -141,7 +141,7 @@ suite('AgentHostChannelDelivery', () => {
 		}
 	});
 
-	test('a paced sender stays within the peer receive budget when delivery is bunched', async () => {
+	test('a paced sender stays within the peer receive budget when delivery is bunched', () => {
 		const clock = sinon.useFakeTimers();
 		try {
 			// The receiver checks controls when they arrive. A busy peer or congested
@@ -154,7 +154,9 @@ suite('AgentHostChannelDelivery', () => {
 				for (let i = 0; i < 16; i++) {
 					sender.scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel: `test:/${(ms * 16 + i) % 256}`, consumedBytes: ms } });
 				}
-				await clock.tickAsync(1);
+				// Controls are paced with timers only, so ticking synchronously avoids a real
+				// (and in browsers, clamped) timer per millisecond, which can exceed the test timeout
+				clock.tick(1);
 			}
 			for (const text of queued.splice(0)) {
 				const message = parseProtocolMessage(text);

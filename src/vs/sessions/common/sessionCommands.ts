@@ -25,6 +25,9 @@ export const RENAME_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.renameChat';
 /** Archives one or more sessions. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.archiveSession';
 
+/** Archives all sessions in a custom group. Registered in `sessionsViewActions.ts`. */
+export const ARCHIVE_SESSION_GROUP_COMMAND_ID = 'sessionsView.markAllInGroupAsDone';
+
 /** Archives the given sessions and offers to undo it from the Sessions view. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID = 'sessionsViewPane.archiveSessionsWithUndo';
 
@@ -71,6 +74,7 @@ export const SESSION_GRID_FOCUS_COMMANDS = {
 } as const;
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorkspacePicker';
+export const OPEN_REMOTES_EDITOR_COMMAND_ID = 'sessions.openRemotes';
 
 export const FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID = 'sessions.focusNewSessionEnvironmentPicker';
 

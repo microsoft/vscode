@@ -143,6 +143,15 @@ suite('LocalAgentHostServiceClient events', () => {
 		assert.deepStrictEqual([beforeStart, service.clientConnectionKind], [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.Local]);
 	});
 
+	test('reads the environment display name from local host management', async () => {
+		const { service } = createService();
+		const managementService = new class extends mock<IAgentHostManagementService>() {
+			override async getMissionControlEnvironmentName() { return 'Host-owned name (VS Code Insiders)'; }
+		}();
+		sinon.stub(Object.getPrototypeOf(service), '_getManagementService').returns(managementService);
+		assert.strictEqual(await service.getMissionControlEnvironmentName(), 'Host-owned name (VS Code Insiders)');
+	});
+
 	test('routes title-only and prompt-bearing creation through AHP, while retaining legacy model management routing', async () => {
 		const { service, createdChats } = createService();
 		const managementChats: { session: URI; chat: URI; options: IAgentCreateChatRequestOptions }[] = [];

@@ -6,6 +6,8 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -47,6 +49,7 @@ const ISOLATION_OPTIONS: readonly IIsolationOption[] = [
 
 export interface IIsolationPickerOptions {
 	readonly user: string;
+	readonly hoverDelegate?: IHoverDelegate;
 	readonly onSelect: (isolation: SessionIsolation) => void;
 }
 
@@ -57,6 +60,7 @@ export interface IIsolationPickerOptions {
 export class IsolationPicker extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _hoverDelegate: IHoverDelegate;
 	private _isolation: SessionIsolation = 'folder';
 	private _trigger: HTMLElement | undefined;
 	private _isOpen = false;
@@ -67,6 +71,7 @@ export class IsolationPicker extends Disposable {
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
+		this._hoverDelegate = _options.hoverDelegate ?? this._register(createInstantHoverDelegate());
 		this._register(toDisposable(() => {
 			if (this._isOpen) {
 				this._actionWidgetService.hide(true);
@@ -97,7 +102,7 @@ export class IsolationPicker extends Disposable {
 				this.showPicker();
 			}
 		}));
-		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({ content: this._getOption(this._isolation).description })));
+		this._renderDisposables.add(this._hoverService.setupManagedHover(this._hoverDelegate, trigger, () => this._getOption(this._isolation).description));
 		this._updateTrigger();
 	}
 

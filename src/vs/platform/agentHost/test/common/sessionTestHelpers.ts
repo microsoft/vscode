@@ -37,6 +37,9 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _onDidChangeMetadata = new Emitter<void>();
 	/** Fires after every metadata write, for tests that wait for a write issued in the background. */
 	readonly onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
+	private readonly _onDidChangeChatRows = new Emitter<void>();
+	/** Fires after every write of a chat draft or persisted turn, for tests that wait for a write issued in the background. */
+	readonly onDidChangeChatRows: Event<void> = this._onDidChangeChatRows.event;
 
 	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
 	private readonly _metadata = new ObservedMetadata(() => this._onDidChangeMetadata.fire());
@@ -321,6 +324,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		} else {
 			this._drafts.delete(key);
 		}
+		this._onDidChangeChatRows.fire();
 	}
 
 	async getChatDraft(chat: URI): Promise<Message | undefined> {
@@ -467,6 +471,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		}
 		const seq = record.seq ?? Math.max(0, ...[...this._persistedTurns.values()].map(turn => turn.seq)) + 1;
 		this._persistedTurns.set(record.turnId, { ...record, seq });
+		this._onDidChangeChatRows.fire();
 	}
 
 	async getPersistedTurns(): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
@@ -481,6 +486,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		for (const id of turnIds) {
 			this._persistedTurns.delete(id);
 		}
+		this._onDidChangeChatRows.fire();
 	}
 
 	async remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void> {
@@ -819,6 +825,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		copyWorktreeIncludeFiles: async () => { },
 		symlinkWorktreeFolders: async () => [],
 		addExistingWorktree: async () => { },
+		isWorktreeRegistered: async () => true,
 		removeWorktree: async () => { },
 		branchExists: async () => false,
 		createBranch: async () => { },

@@ -3008,7 +3008,11 @@ export class McpListWidget extends Disposable {
 		add.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button', 'plugin-card-icon-button');
 		add.icon = Codicon.add;
 		this.firstCardFocusElement ??= add.element;
-		disposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration, workspaceFolder)));
+		disposables.add(add.onDidClick(() => this.addServer(workspaceFolder)));
+	}
+
+	addServer(workspaceFolder?: URI): Promise<void> {
+		return this.commandService.executeCommand(McpCommandIds.AddConfiguration, workspaceFolder);
 	}
 
 	private updateHeaderActions(): void {

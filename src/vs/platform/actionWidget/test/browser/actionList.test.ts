@@ -89,6 +89,10 @@ function createActionListWidget(disposables: ReturnType<typeof ensureNoDisposabl
 	}
 	document.body.appendChild(widget.domNode);
 	disposables.add({ dispose: () => widget.domNode.remove() });
+	if (widget.footerContainer) {
+		document.body.appendChild(widget.footerContainer);
+		disposables.add({ dispose: () => widget.footerContainer?.remove() });
+	}
 	widget.layout(200, 200);
 
 	return widget;
@@ -196,6 +200,169 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the footer name is independently keyboard-operable without selecting a row', () => {
+		let renames = 0;
+		let selections = 0;
+		const widget = createActionListWidget(disposables, {
+			onSelect: () => selections++,
+			listOptions: {
+				showFilter: false,
+				footerText: 'Shared as \'Workstation\'.',
+				footerAction: toAction({ id: 'rename', label: 'Workstation', tooltip: 'Rename Remote Environment', run: () => renames++ }),
+			},
+		});
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		const link = widget.footerContainer!.querySelector<HTMLElement>('.monaco-link')!;
+		dispatchKeyDown(list, { key: 'Tab' });
+		const tabFocus = isActiveElement(link);
+		dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
+		const shiftTabFocus = isActiveElement(list);
+		dispatchKeyDown(list, { key: 'Tab' });
+		dispatchKeyDown(link, { key: 'Enter', keyCode: 13 });
+		assert.deepStrictEqual({
+			tabFocus, shiftTabFocus, renames, selections,
+			label: link.getAttribute('aria-label'),
+			popup: link.getAttribute('aria-haspopup'),
+			text: widget.footerContainer?.textContent,
+		}, {
+			tabFocus: true, shiftTabFocus: true, renames: 1, selections: 0,
+			label: 'Rename Remote Environment', popup: 'dialog', text: 'Shared as \'Workstation\'.',
+		});
+	});
+
+	test('footer navigation only intercepts forward Tab from the list and Shift+Tab from the link', () => {
+		const widget = createActionListWidget(disposables, {
+			listOptions: {
+				showFilter: true,
+				footerText: 'Shared as Workstation',
+				footerAction: toAction({ id: 'rename', label: 'Workstation', run: () => { } }),
+			},
+		});
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		const link = widget.footerContainer!.querySelector<HTMLElement>('.monaco-link')!;
+		const reverseFromList = dispatchKeyDown(list, { key: 'Tab', shiftKey: true });
+		const reverseKeptListFocus = isActiveElement(list);
+		const forwardFromList = dispatchKeyDown(list, { key: 'Tab' });
+		const forwardFocusedLink = isActiveElement(link);
+		const forwardFromLink = dispatchKeyDown(link, { key: 'Tab' });
+		const reverseFromLink = dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
+		assert.deepStrictEqual({
+			reverseFromList: reverseFromList.defaultPrevented,
+			reverseKeptListFocus,
+			forwardFromList: forwardFromList.defaultPrevented,
+			forwardFocusedLink,
+			forwardFromLink: forwardFromLink.defaultPrevented,
+			reverseFromLink: reverseFromLink.defaultPrevented,
+			reverseFocusedList: isActiveElement(list),
+		}, {
+			reverseFromList: false,
+			reverseKeptListFocus: true,
+			forwardFromList: true,
+			forwardFocusedLink: true,
+			forwardFromLink: false,
+			reverseFromLink: true,
+			reverseFocusedList: true,
+		});
+	});
+
+	test('the footer links the name rather than matching text in the status prefix', () => {
+		const widget = createActionListWidget(disposables, {
+			listOptions: {
+				footerText: 'Registered as GitHub environment \'GitHub\'.',
+				footerAction: toAction({ id: 'rename', label: 'GitHub', run: () => { } }),
+			},
+		});
+		assert.deepStrictEqual({
+			before: widget.footerContainer?.firstChild?.textContent,
+			link: widget.footerContainer?.querySelector('.monaco-link')?.textContent,
+		}, { before: 'Registered as GitHub environment \'', link: 'GitHub' });
+	});
+
+	test('label icons are decorative, preserve the selection icon, and reset when a row is reused', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('GitHub Environments'), labelIcon: Codicon.github, group: { title: '', icon: Codicon.check } }],
+			listOptions: { showFilter: false },
+		});
+		const before = {
+			check: !!widget.domNode.querySelector('.codicon-check'),
+			icon: !!widget.domNode.querySelector('.action-list-label-icon.codicon-github'),
+			decorative: widget.domNode.querySelector('.action-list-label-icon')?.getAttribute('aria-hidden'),
+			label: widget.domNode.querySelector('.title')?.textContent,
+		};
+		widget.updateItems([action('Off')]);
+		assert.deepStrictEqual({
+			before,
+			after: {
+				staleIcon: !!widget.domNode.querySelector('.codicon-github'),
+				iconWidth: widget.domNode.querySelector('.action-list-label-icon')?.getBoundingClientRect().width,
+				label: widget.domNode.querySelector('.title')?.textContent,
+			},
+		}, {
+			before: { check: true, icon: true, decorative: 'true', label: 'GitHub Environments' },
+			after: { staleIcon: false, iconWidth: 0, label: 'Off' },
+		});
+	});
+
+	test('wrapped details resize rows without clipping or overlapping subsequent items', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('Remote environment'), detail: 'Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot. '.repeat(3) }, action('Next')],
+			listOptions: { showFilter: false, wrapDetails: true },
+		});
+		const wrapper = document.createElement('div');
+		wrapper.classList.add('action-widget');
+		widget.domNode.parentElement?.insertBefore(wrapper, widget.domNode);
+		wrapper.appendChild(widget.domNode);
+		disposables.add({ dispose: () => wrapper.remove() });
+		widget.layout(600, 180);
+		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action');
+		const detail = rows[0].querySelector<HTMLElement>('.detail')!;
+		const narrowHeight = rows[0].getBoundingClientRect().height;
+		const narrow = {
+			wraps: detail.getBoundingClientRect().height > 14,
+			fitsWidth: detail.scrollWidth <= detail.clientWidth,
+			fitsHeight: detail.getBoundingClientRect().bottom <= rows[0].getBoundingClientRect().bottom,
+			noOverlap: rows[1].getBoundingClientRect().top >= rows[0].getBoundingClientRect().bottom,
+		};
+		widget.layout(600, 360);
+		assert.deepStrictEqual({
+			...narrow,
+			shrinksWhenWidened: rows[0].getBoundingClientRect().height < narrowHeight,
+			measuredTotal: widget.computeListHeight() === [...rows].reduce((sum, row) => sum + row.getBoundingClientRect().height, 0),
+		}, { wraps: true, fitsWidth: true, fitsHeight: true, noOverlap: true, shrinksWhenWidened: true, measuredTotal: true });
+	});
+
+	test('wrapped details release the explicit width before a natural-width layout', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('Remote environment'), detail: 'A wrapping description for this remote environment.' }],
+			listOptions: { showFilter: false, wrapDetails: true },
+		});
+		const wrapper = document.createElement('div');
+		wrapper.classList.add('action-widget');
+		wrapper.style.width = '240px';
+		widget.domNode.parentElement?.insertBefore(wrapper, widget.domNode);
+		wrapper.appendChild(widget.domNode);
+		disposables.add({ dispose: () => wrapper.remove() });
+		widget.layout(200, 180);
+		const explicitWidth = widget.domNode.style.width;
+		widget.layout(200);
+		const naturalWidth = { style: widget.domNode.style.width, measured: widget.domNode.getBoundingClientRect().width };
+		widget.layout(200, 300);
+		assert.deepStrictEqual({ explicitWidth, naturalWidth, updatedWidth: widget.domNode.style.width }, {
+			explicitWidth: '180px', naturalWidth: { style: '', measured: 240 }, updatedWidth: '300px',
+		});
+	});
+
+	test('the footer describes the list for screen readers', () => {
+		const widget = createActionListWidget(disposables, { listOptions: { footerText: 'Shared as Test Machine' } });
+		const describedBy = widget.domNode.querySelector('[aria-describedby]')?.getAttribute('aria-describedby');
+		assert.deepStrictEqual({
+			describedBy: describedBy === widget.footerContainer?.id,
+			text: widget.footerContainer?.textContent,
+		}, { describedBy: true, text: 'Shared as Test Machine' });
+	});
 
 	test('keeps shared badges borderless and sized without workbench size tokens', () => {
 		const widget = createActionListWidget(disposables, {
@@ -411,6 +578,33 @@ suite('ActionListWidget', () => {
 
 		rows[2].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'third');
+	});
+
+	test('pointer movement to a disabled hover row restores list focus before hiding the previous toolbar', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('enabled'), toolbarActions: [toAction({ id: 'configure', label: 'Configure', run: () => { } })] },
+				{ ...action('disabled'), disabled: true, hover: { content: 'Unavailable' } },
+			],
+			listOptions: { showFilter: false, tabThroughItemActions: true },
+		});
+		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+		widget.focus();
+		rows[0].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.focus();
+		const before = widget.getFocusedElement()?.item?.id;
+		rows[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		rows[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		const after = widget.getFocusedElement()?.item?.id;
+		const focusRestored = document.activeElement === widget.domNode.querySelector('.monaco-list');
+		widget.focusNext();
+
+		assert.deepStrictEqual({ before, after, focusRestored, keyboardRecovered: widget.getFocusedElement()?.item?.id }, {
+			before: 'enabled',
+			after: undefined,
+			focusRestored: true,
+			keyboardRecovered: 'enabled',
+		});
 	});
 
 	for (const filterAsCombobox of [false, true]) {
@@ -1124,6 +1318,25 @@ suite('ActionListWidget', () => {
 		await timeout(0);
 		assert.ok(widget.domNode.textContent?.includes('server-ranked-result'));
 	}));
+
+	test('matches nonvisual filter text without rendering it', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('shared'), filterText: 'owner-one/shared' },
+				{ ...action('shared'), filterText: 'owner-two/shared' },
+			],
+		});
+
+		typeFilter(widget, 'owner-one/shared');
+
+		assert.deepStrictEqual({
+			rows: getVisibleRowText(widget),
+			nonvisualTextRendered: widget.domNode.textContent?.includes('owner-one/shared'),
+		}, {
+			rows: ['shared'],
+			nonvisualTextRendered: false,
+		});
+	});
 
 	test('ignores stale dynamic filter results', async () => {
 		const firstResult = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();

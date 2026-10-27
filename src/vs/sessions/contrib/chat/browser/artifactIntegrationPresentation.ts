@@ -7,20 +7,21 @@ import './media/artifactIntegrations.css';
 import { $, append, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { ArtifactActionView, ArtifactContributionSnapshot, ArtifactRun, ArtifactSnapshot, getArtifactActionAvailability, IArtifactModel, isArtifactOptionEnabled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionView, ArtifactContributionSnapshot, ArtifactRun, ArtifactSnapshot, getArtifactActionAvailability, getArtifactMainContribution, IArtifactModel, isArtifactOptionEnabled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { getArtifactThemeIcon as icon, renderArtifactIcon } from '../../../../platform/artifactIntegrations/browser/artifactDetailsList.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { ChatPillActionViewItem, IChatPill, IChatPillEntry } from '../../../../workbench/browser/chatPills.js';
+import { ChatPillActionViewItem, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../workbench/browser/chatPills.js';
 import { ArtifactButtons, IArtifactButton } from './artifactButtons.js';
 import { ArtifactDetailsSelection, ArtifactDetailsViewState, IArtifactActionViewData } from './artifactDetailsView.js';
 
@@ -29,6 +30,50 @@ export interface IArtifactDetailsHost {
 	readonly selected: IObservable<ArtifactIntegrationPresentation | undefined>;
 	toggle(presentation: ArtifactIntegrationPresentation, target: HTMLElement, section?: ArtifactDetailsSelection): void;
 	release(presentation: ArtifactIntegrationPresentation): void;
+}
+
+/** The number of Autopilot rules enabled across an artifact's integrations. */
+export function countEnabledArtifactAutomations(snapshot: ArtifactSnapshot): number {
+	return snapshot.contributions.reduce((count, contribution) =>
+		count + contribution.options.filter(option => isArtifactOptionEnabled(option, contribution.configuration.values[option.id])).length, 0);
+}
+
+/**
+ * The status sections an artifact shows beside its main part: each integration section, a Sign In section while
+ * authentication is required, and the number of enabled Autopilot rules. Activating one opens the artifact's
+ * details on the matching list, action or Autopilot.
+ */
+export function getArtifactStatusButtons(presentation: ArtifactIntegrationPresentation, snapshot: ArtifactSnapshot, expanded: boolean, open: (target: HTMLElement, selection: ArtifactDetailsSelection) => void): IArtifactButton[] {
+	const controls = presentation.detailsHost.id;
+	const buttons: IArtifactButton[] = snapshot.contributions.flatMap(contribution => contribution.view.sections.map(section => ({
+		id: JSON.stringify([contribution.integrationId, section.id]), label: section.label, icon: icon(section.icon),
+		description: section.description,
+		ariaLabel: localize('artifactSectionDetails', "Show details: {0}", section.description ?? section.label),
+		expanded, controls,
+		run: target => open(target, [contribution.integrationId, section.detailsId]),
+	})));
+	for (const contribution of snapshot.contributions) {
+		const authentication = presentation.authenticationButton(contribution);
+		if (authentication) {
+			buttons.push({
+				...authentication, enabled: true, expanded, controls,
+				run: target => open(target, [contribution.integrationId]),
+			});
+		}
+	}
+	const enabledAutomations = countEnabledArtifactAutomations(snapshot);
+	if (enabledAutomations) {
+		buttons.push({
+			id: 'artifact-automations', label: String(enabledAutomations), icon: Codicon.robot,
+			description: enabledAutomations === 1
+				? localize('artifactAutomationEnabled', "1 Autopilot rule enabled")
+				: localize('artifactAutomationsEnabled', "{0} Autopilot rules enabled", enabledAutomations),
+			ariaLabel: localize('artifactShowAutomations', "Show Autopilot: {0} enabled", enabledAutomations),
+			expanded, controls,
+			run: target => open(target, 'autopilot'),
+		});
+	}
+	return buttons;
 }
 
 export class ArtifactIntegrationPresentation extends Disposable {
@@ -42,7 +87,7 @@ export class ArtifactIntegrationPresentation extends Disposable {
 		readonly model: IArtifactModel,
 		private readonly invokingChat: (reader?: IReader) => string | undefined,
 		readonly detailsHost: IArtifactDetailsHost,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notifications: INotificationService,
 	) {
 		super();
@@ -65,11 +110,19 @@ export class ArtifactIntegrationPresentation extends Disposable {
 				}
 				detailsHost.toggle(this, target);
 			}));
-		this.inlinePill = {
-			action: this.action,
-			createActionViewItem: options => instantiationService.createInstance(ArtifactIntegrationPill, this, this.action, options),
-		};
+		this.inlinePill = this.createPill(constObservable(undefined));
 		this._register(toDisposable(() => detailsHost.release(this)));
+	}
+
+	/**
+	 * A pill for this artifact, with a trailing action button such as Unpin. The surface placing the pill owns that
+	 * action, so pills with different trailing actions can show the same artifact.
+	 */
+	createPill(trailingAction: IObservable<IChatPillAction | undefined>): IChatPill {
+		return {
+			action: this.action,
+			createActionViewItem: options => this.instantiationService.createInstance(ArtifactIntegrationPill, this, this.action, trailingAction, options),
+		};
 	}
 
 	decorate(entry: IChatPillEntry, reader: IReader): IChatPillEntry {
@@ -78,7 +131,7 @@ export class ArtifactIntegrationPresentation extends Disposable {
 		if (snapshot.contributions.length === 0) {
 			return entry;
 		}
-		const main = snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId)?.view.main;
+		const main = getArtifactMainContribution(snapshot)?.view.main;
 		return {
 			...entry, label: main?.label ?? entry.label, icon: main ? icon(main.icon) : entry.icon,
 			inlinePill: this.inlinePill, hover: undefined,
@@ -124,11 +177,13 @@ export class ArtifactIntegrationPresentation extends Disposable {
 }
 
 class ArtifactIntegrationPill extends ChatPillActionViewItem {
+	private readonly hoverLifecycleOptions = { groupId: generateUuid() };
 	private sections: ArtifactButtons | undefined;
 
 	constructor(
 		private readonly presentation: ArtifactIntegrationPresentation,
 		action: Action,
+		private readonly trailingAction: IObservable<IChatPillAction | undefined>,
 		options: IActionViewItemOptions,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
@@ -139,10 +194,11 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 	protected override get buttonModifierClass(): string { return 'chat-dropdown-pill-button'; }
 
 	protected override renderContent(): void {
-		this.sections = this._register(new ArtifactButtons(append(this.element!, $('.chat-pill-sections.artifact-pill-sections')), this.hoverService, 'pill'));
+		this.sections = this._register(new ArtifactButtons(append(this.element!, $('.chat-pill-sections.artifact-pill-sections')), this.hoverService, 'pill', this.hoverLifecycleOptions));
 		this._register(this.hoverService.setupDelayedHover(this.button!.element, () => ({
 			content: this.mainDescription(),
-		})));
+			style: HoverStyle.Pointer,
+		}), this.hoverLifecycleOptions));
 		this._register(autorun(reader => {
 			const snapshot = this.presentation.snapshot.read(reader);
 			const host = this.presentation.detailsHost;
@@ -154,37 +210,11 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 			this.button!.element.setAttribute('aria-expanded', String(selected));
 			this.button!.element.setAttribute('aria-controls', host.id);
 			this.button!.element.dataset.artifactDetailsOwner = host.id;
-			const sections: IArtifactButton[] = snapshot.contributions.flatMap(contribution => contribution.view.sections.map(section => ({
-				id: JSON.stringify([contribution.integrationId, section.id]), label: section.label, icon: icon(section.icon),
-				description: section.description,
-				ariaLabel: localize('artifactSectionDetails', "Show details: {0}", section.description ?? section.label),
-				expanded: selected, controls: host.id,
-				run: target => host.toggle(this.presentation, target, [contribution.integrationId, section.detailsId]),
-			})));
-			for (const contribution of snapshot.contributions) {
-				const authentication = this.presentation.authenticationButton(contribution);
-				if (authentication) {
-					sections.push({
-						...authentication, enabled: true, expanded: selected, controls: host.id,
-						run: target => host.toggle(this.presentation, target, [contribution.integrationId]),
-					});
-				}
-			}
-			const enabledAutomations = snapshot.contributions.reduce((count, contribution) =>
-				count + contribution.options.filter(option => isArtifactOptionEnabled(option, contribution.configuration.values[option.id])).length, 0);
-			if (enabledAutomations) {
-				sections.push({
-					id: 'artifact-automations', label: String(enabledAutomations), icon: Codicon.robot,
-					description: enabledAutomations === 1
-						? localize('artifactAutomationEnabled', "1 Autopilot rule enabled")
-						: localize('artifactAutomationsEnabled', "{0} Autopilot rules enabled", enabledAutomations),
-					ariaLabel: localize('artifactShowAutomations', "Show Autopilot: {0} enabled", enabledAutomations),
-					expanded: selected, controls: host.id,
-					run: () => host.toggle(this.presentation, this.button!.element, 'autopilot'),
-				});
-			}
+			const sections = getArtifactStatusButtons(this.presentation, snapshot, selected, (target, selection) =>
+				host.toggle(this.presentation, selection === 'autopilot' ? this.button!.element : target, selection));
 			this.sections!.update(sections);
 			this.element!.classList.toggle('chat-pill-segmented', sections.length > 0);
+			this.updatePromotedAction(this.trailingAction.read(reader), Codicon.unpin, this.hoverService);
 		}));
 	}
 
@@ -198,19 +228,16 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 
 	protected override getLabelText(): string {
 		const snapshot = this.presentation.snapshot.get();
-		return snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId)?.view.main?.label
-			?? this.presentation.baseEntry?.label ?? snapshot.artifact.label;
+		return getArtifactMainContribution(snapshot)?.view.main?.label ?? this.presentation.baseEntry?.label ?? snapshot.artifact.label;
 	}
 
 	protected override getIconElement(): HTMLElement | undefined {
-		const snapshot = this.presentation.snapshot.get();
-		const main = snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId)?.view.main;
+		const main = getArtifactMainContribution(this.presentation.snapshot.get())?.view.main;
 		return renderArtifactIcon(main ? icon(main.icon) : this.presentation.baseEntry?.icon ?? Codicon.link, 'chat-pill-icon');
 	}
 
 	private mainDescription(): string {
-		const snapshot = this.presentation.snapshot.get();
-		return snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId)?.view.main?.description ?? this.getLabelText();
+		return getArtifactMainContribution(this.presentation.snapshot.get())?.view.main?.description ?? this.getLabelText();
 	}
 
 	protected override getAriaLabel(): string {

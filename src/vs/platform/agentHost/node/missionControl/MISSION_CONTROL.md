@@ -28,6 +28,16 @@ Backend tests supply `IMissionControlOptions` directly to `MissionControlEnviron
 
 The backend setting's experimental feature tag does not restrict availability to development builds.
 
+### Disable mirrored repository metadata
+
+Set the unregistered, default-off `chat.agentHost.experimentalMissionControl.disableRepositoryMetadata` setting to `true` in the host owner's local User settings to skip repository resolution and omit the `project` field from newly registered mirrored sessions. Application user settings also apply; workspace, workspace-folder, remote-user, and default values cannot enable it. Session actions and SDK metadata continue to be mirrored, and local AHP project identity and the environment's project catalogue are unchanged.
+
+```json
+"chat.agentHost.experimentalMissionControl.disableRepositoryMetadata": true
+```
+
+Changes apply to subsequent mirror registrations without disconnecting clients. A mirrored session's project identity is immutable, including for backfill; changing the setting does not rewrite sessions already registered in the running host or remove metadata already published to Mission Control. Restart the Agent Host and use a new session when comparing the two behaviors.
+
 ## Environment identity, name and ownership
 
 The registered name is `VS Code`, `VS Code Insiders`, or `VS Code OSS`; other product variants use their product short name. The same host-owned name is sent on registration and every heartbeat. This display label is not identity.

@@ -202,21 +202,19 @@ suite('ModelPickerConfiguration', () => {
 		});
 	});
 
-	// A producer that cannot resolve a default leaves it `undefined`, which must
-	// not be stringified into the label. The group is dropped from the readout.
-	test('omits an unresolved group from the label rather than rendering "undefined"', () => {
+	test('describes an unspecified effort as the model default rather than selecting the first value', () => {
 		assert.deepStrictEqual(render(createModel({ omitEffortDefault: true })), {
 			visible: true,
-			label: '32K',
-			ariaLabel: 'Test Model details, Context: 32K',
+			label: 'Model default · 32K',
+			ariaLabel: 'Test Model details, Effort Level: Model default, Context: 32K',
 		});
 	});
 
 	test('keeps unresolved settings reachable without guessing', () => {
 		assert.deepStrictEqual(render(createModel({ omitEffortDefault: true, omitContextDefault: true })), {
 			visible: true,
-			label: 'Configure',
-			ariaLabel: 'Test Model details, Configure',
+			label: 'Model default',
+			ariaLabel: 'Test Model details, Effort Level: Model default',
 		});
 	});
 
@@ -224,7 +222,7 @@ suite('ModelPickerConfiguration', () => {
 		const model = createModel();
 		assert.deepStrictEqual(render({ ...model, metadata: { ...model.metadata, configurationSchema: undefined, maxContextWindowTokens: 200000 } }), {
 			visible: true,
-			label: '200K',
+			label: 'Max 200K',
 			ariaLabel: 'Test Model details, Max context: 200K',
 		});
 	});

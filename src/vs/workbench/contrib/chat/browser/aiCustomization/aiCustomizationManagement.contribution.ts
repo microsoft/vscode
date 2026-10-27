@@ -604,7 +604,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 });
 
 // Show Plugin action - navigates to the parent plugin detail page
-const SHOW_PLUGIN_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.showPlugin';
+const SHOW_PLUGIN_AI_CUSTOMIZATION_ID = AICustomizationManagementCommands.ShowPlugin;
 registerAction2(class extends Action2 {
 	constructor() {
 		super({

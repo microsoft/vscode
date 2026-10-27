@@ -459,6 +459,101 @@ suite('SessionGroupsService', () => {
 		assert.strictEqual(service.getGroup(a.id)?.name, 'Renamed');
 	});
 
+	test('group appearance persists independently through nesting, renaming, deletion, and undo', () => {
+		const parent = service.createGroup('Parent');
+		const child = service.createGroup('Child', ['s1'], parent.id);
+		service.setGroupIcon(parent.id, 'rocket');
+		service.setGroupColor(parent.id, 'charts.blue');
+		service.setGroupIcon(child.id, 'beaker');
+		service.setGroupColor(child.id, 'charts.green');
+		service.renameGroup(child.id, 'Renamed');
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		const deleted = reloaded.deleteGroup(parent.id)!;
+		reloaded.restoreGroups(deleted);
+		assert.deepStrictEqual({
+			parent: reloaded.getGroup(parent.id),
+			child: reloaded.getGroup(child.id),
+			membership: reloaded.getGroupOfSession('s1'),
+		}, {
+			parent: { ...parent, icon: 'rocket', color: 'charts.blue' },
+			child: { ...child, name: 'Renamed', icon: 'beaker', color: 'charts.green' },
+			membership: child.id,
+		});
+	});
+
+	test('icon and color reset independently and unchanged appearance does not emit', () => {
+		const group = service.createGroup('Group');
+		const changes: { groupsChanged: boolean; members: string[] }[] = [];
+		disposables.add(service.onDidChange(event => changes.push({ groupsChanged: event.groupsChanged, members: [...event.membershipChanged] })));
+		service.setGroupIcon(group.id, 'rocket');
+		service.setGroupColor(group.id, 'charts.blue');
+		service.setGroupIcon(group.id, 'rocket');
+		service.setGroupColor(group.id, 'charts.blue');
+		service.setGroupIcon('missing', 'rocket');
+		service.setGroupColor('missing', 'charts.blue');
+		service.setGroupIcon(group.id, undefined);
+		const iconReset = service.getGroup(group.id);
+		service.setGroupColor(group.id, undefined);
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		assert.deepStrictEqual({
+			iconReset,
+			reloaded: reloaded.getGroup(group.id),
+			changes,
+		}, {
+			iconReset: { ...group, icon: undefined, color: 'charts.blue' },
+			reloaded: group,
+			changes: Array.from({ length: 4 }, () => ({ groupsChanged: true, members: [] })),
+		});
+	});
+
+	test('grouping-section appearance persists without custom groups and stays independent by identity', () => {
+		const ids = ['workspace:vscode', 'repository:microsoft/vscode', 'environment:host-a', 'environment:host-b'];
+		for (const [index, id] of ids.entries()) {
+			service.setSectionIcon(id, index === 0 ? 'folder' : 'rocket');
+			service.setSectionColor(id, index === 0 ? 'terminal.ansiBlue' : 'terminal.ansiGreen');
+		}
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		reloaded.setSectionIcon(ids[1], undefined);
+		reloaded.setSectionColor(ids[2], undefined);
+		const again = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		assert.deepStrictEqual(ids.map(id => again.getSectionAppearance(id)), [
+			{ icon: 'folder', color: 'terminal.ansiBlue' },
+			{ color: 'terminal.ansiGreen' },
+			{ icon: 'rocket' },
+			{ icon: 'rocket', color: 'terminal.ansiGreen' },
+		]);
+	});
+
+	test('section appearance survives parent deletion and does not change order or memberships', () => {
+		const sectionId = 'environment:remote-host';
+		const parent = service.createGroup('Parent');
+		service.moveSection(sectionId, parent.id);
+		service.setSectionIcon(sectionId, 'server');
+		service.setSectionColor(sectionId, 'terminal.ansiCyan');
+		service.deleteGroup(parent.id);
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		assert.deepStrictEqual({
+			parent: reloaded.getGroupOfSection(sectionId),
+			appearance: reloaded.getSectionAppearance(sectionId),
+		}, { parent: undefined, appearance: { icon: 'server', color: 'terminal.ansiCyan' } });
+	});
+
+	test('section resets remove empty overrides, and unchanged updates do not emit', () => {
+		const events: boolean[] = [];
+		disposables.add(service.onDidChange(event => events.push(event.groupsChanged)));
+		service.setSectionIcon('workspace:Workspace', 'rocket');
+		service.setSectionColor('workspace:Workspace', 'terminal.ansiBlue');
+		service.setSectionIcon('workspace:Workspace', 'rocket');
+		service.setSectionColor('workspace:Workspace', 'terminal.ansiBlue');
+		service.setSectionIcon('workspace:Workspace', undefined);
+		service.setSectionColor('workspace:Workspace', undefined);
+		assert.deepStrictEqual({
+			appearance: service.getSectionAppearance('workspace:Workspace'),
+			stored: storageService.get('sessionsListControl.groups', StorageScope.PROFILE),
+			events,
+		}, { appearance: undefined, stored: undefined, events: [false, false, false, false] });
+	});
+
 	test('delete group removes group and membership', () => {
 		const a = service.createGroup('A', ['s1', 's2']);
 		service.deleteGroup(a.id);

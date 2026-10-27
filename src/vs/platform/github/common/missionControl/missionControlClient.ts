@@ -20,6 +20,8 @@ export interface ApiEndpoint {
 	readonly apiBaseUri: string;
 	/** Approved feed gateway; the Copilot-hosted task proxy does not serve feed negotiation. */
 	readonly feedApiBaseUri?: string;
+	/** Approved credential gateway; the task proxy does not serve identity-token exchanges. */
+	readonly identityApiBaseUri?: string;
 	/** The integration identity supplied by the hosting application. */
 	readonly integrationId: string;
 	/** The optional GitHub API version; omitted unless explicitly configured. */
@@ -131,7 +133,7 @@ export class MissionControlClient {
 
 export const parseMissionControlOptions = parse.object<MissionControlClientOptions>({
 	endpoint: parse.object<ApiEndpoint>({
-		apiBaseUri: parse.nonEmptyString, feedApiBaseUri: parse.optional(parse.nonEmptyString), integrationId: parse.nonEmptyString, apiVersion: parse.optional(parse.string),
+		apiBaseUri: parse.nonEmptyString, feedApiBaseUri: parse.optional(parse.nonEmptyString), identityApiBaseUri: parse.optional(parse.nonEmptyString), integrationId: parse.nonEmptyString, apiVersion: parse.optional(parse.string),
 	}),
 });
 
@@ -201,6 +203,7 @@ function normalizeEndpoint(endpoint: ApiEndpoint): ApiEndpoint {
 	return Object.freeze({
 		apiBaseUri, integrationId: endpoint.integrationId, apiVersion: endpoint.apiVersion,
 		...(endpoint.feedApiBaseUri ? { feedApiBaseUri: normalizeReadApiBaseUri(endpoint.feedApiBaseUri) } : {}),
+		...(endpoint.identityApiBaseUri ? { identityApiBaseUri: normalizeReadApiBaseUri(endpoint.identityApiBaseUri) } : {}),
 	});
 }
 

@@ -178,6 +178,7 @@ class StandaloneDialogService implements IDialogService {
 
 	_serviceBrand: undefined;
 
+	readonly hasDialog = false;
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;
 
