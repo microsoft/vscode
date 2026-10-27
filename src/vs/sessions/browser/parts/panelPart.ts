@@ -35,7 +35,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { getSessionsPartFrameInset } from './agentsPartCard.js';
+import { AGENTS_SIDE_PANE_STACKED_CLASS, getSessionsPartFrameInset } from './agentsPartCard.js';
 import { EditorHeaderControl } from '../../../workbench/browser/parts/editor/editorHeaderControl.js';
 
 function getPanelTabBarHeight(showLabels: boolean, compact: boolean): number | undefined {
@@ -248,7 +248,9 @@ export class PanelPart extends AbstractPaneCompositePart {
 			? AGENTS_FLOATING_PANEL_GAP
 			: 0;
 		const editorPaneVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		// Stacked, the side pane is above the column of the panel, not beside it.
 		const marginRight = !compact && this.layoutService.getPanelAlignment() === 'center' && editorPaneVisible
+			&& !this.layoutService.mainContainer.classList.contains(AGENTS_SIDE_PANE_STACKED_CLASS)
 			? AGENTS_FLOATING_PANEL_GAP
 			: 0;
 		super.layout(

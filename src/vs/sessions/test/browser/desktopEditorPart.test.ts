@@ -12,6 +12,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { decodeKeybinding, ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { OS } from '../../../base/common/platform.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
@@ -463,5 +464,48 @@ suite('Sessions - Desktop editor part empty group', () => {
 		entry('Browser').click();
 
 		assert.deepStrictEqual({ ran, ariaDisabled: entry('Browser').getAttribute('aria-disabled') }, { ran: [], ariaDisabled: 'true' });
+	});
+});
+
+suite('Sessions - Desktop editor part Session Activity Bar host', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	interface IHostHarness {
+		readonly host: HTMLElement;
+		readonly height: ISettableObservable<number>;
+	}
+
+	function layoutHost(inColumn: boolean): IHostHarness {
+		const layout = Reflect.get(DesktopMainEditorPart.prototype, '_layoutSessionActivityBarHost') as (this: object) => void;
+		const partElement = mainWindow.document.createElement('div');
+		// The view of the workbench grid the host shows in, beside the stacked side pane and the Sessions Part.
+		const column = mainWindow.document.createElement('div');
+		const host = append(inColumn ? column : partElement, $('.session-activity-bar-editor-host'));
+		const height = observableValue('height', 0);
+		const harness = Object.assign(Object.create(DesktopMainEditorPart.prototype), {
+			element: partElement,
+			_sessionActivityBarHost: host,
+			_sessionActivityBarHostActive: constObservable(true),
+			_sessionActivityBarOccupancy: { occupied: constObservable(true) },
+			_sessionActivityBarStackedColumn: constObservable(inColumn),
+			_sessionActivityBarHostHeight: height,
+			_sessionActivityBarColumnHeight: 720,
+		});
+		Object.defineProperty(harness, 'contentDimension', { value: { width: 798, height: 298 } });
+		Object.defineProperty(harness, 'activeGroup', { value: { titleHeight: { offset: 35 } } });
+		layout.call(harness);
+		return { host, height };
+	}
+
+	test('stacked, fills its column of the workbench grid from the top, the full height of the side pane and the Sessions Part; with the chat hidden, below the editor tabs', () => {
+		const geometry = ({ host, height }: IHostHarness) => ({ top: host.style.top, height: host.style.height, area: height.get() });
+
+		assert.deepStrictEqual({ stacked: geometry(layoutHost(true)), editorOnly: geometry(layoutHost(false)) }, {
+			// The height the grid laid the column out at, from right under the title bar.
+			stacked: { top: '0px', height: '720px', area: 720 },
+			// At the right edge of the editor, below its tabs, as before.
+			editorOnly: { top: '35px', height: '263px', area: 263 },
+		});
 	});
 });

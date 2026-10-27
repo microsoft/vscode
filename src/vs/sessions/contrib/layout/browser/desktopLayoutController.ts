@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { IReader } from '../../../../base/common/observable.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
@@ -17,6 +17,8 @@ import { BaseLayoutController } from './baseSessionLayoutController.js';
 import { IDesktopLayoutContext } from './desktop/desktopLayoutStrategy.js';
 import { DesktopDetailPanelCoordinator } from './desktop/desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktop/desktopDockedTabsCoordinator.js';
+import { DesktopLayoutModeCoordinator } from './desktop/desktopLayoutModeCoordinator.js';
+import { DesktopStackedChatController } from './desktop/desktopStackedChatController.js';
 import { DesktopDraftSessionStrategy } from './desktop/desktopDraftSessionStrategy.js';
 import { DesktopExistingSessionStrategy } from './desktop/desktopExistingSessionStrategy.js';
 import { DesktopOwnerCompositionStore } from './desktop/desktopOwnerCompositionStore.js';
@@ -57,6 +59,8 @@ export class DesktopLayoutController extends BaseLayoutController {
 	private _existingSession: DesktopExistingSessionStrategy | undefined;
 	private _managedTabs: DesktopDockedTabsCoordinator | undefined;
 	protected _compositionStore: DesktopOwnerCompositionStore | undefined;
+	protected _layoutMode: DesktopLayoutModeCoordinator | undefined;
+	protected _stackedChat: DesktopStackedChatController | undefined;
 	private _changesEditorTransitionPhase: ChangesEditorTransitionPhase = 'idle';
 	private _onDidChangeChangesEditorTransition: Emitter<void> | undefined;
 	private readonly _changesEditorTransitionContextKey = DesktopChangesEditorTransitionContext.bindTo(this._contextKeyService);
@@ -146,6 +150,9 @@ export class DesktopLayoutController extends BaseLayoutController {
 		this._registerPersistedOwnerKeys(this._compositionStore.ownerKeys);
 		const visibilityStore = this._instantiationService.createInstance(DesktopVisibilityProfileStore, this._sharedChatLayout);
 		const detailPanel = this._register(this._instantiationService.createInstance(DesktopDetailPanelCoordinator));
+		// Before the strategies, so that it leaves a maximized editor area before they restore the side pane of a newly focused chat.
+		this._layoutMode = this._register(this._instantiationService.createInstance(DesktopLayoutModeCoordinator, this._ctx));
+		this._stackedChat = this._register(this._instantiationService.createInstance(DesktopStackedChatController, this._ctx, this._layoutMode));
 
 		this._existingSession = this._register(this._instantiationService.createInstance(DesktopExistingSessionStrategy, this._ctx, visibilityStore, detailPanel));
 		this._register(this._instantiationService.createInstance(DesktopDraftSessionStrategy, this._ctx, detailPanel, visibilityStore));
@@ -193,10 +200,12 @@ export class DesktopLayoutController extends BaseLayoutController {
 	 * A session-switch restore closes/opens the docked editors (empty working-set
 	 * apply, managed-tab reconciliation), so suppress editor-part auto-visibility
 	 * for the whole restore to avoid closing the side pane or mistaking a
-	 * layout-driven close for a user dismissing a managed tab.
+	 * layout-driven close for a user dismissing a managed tab. Likewise, a side
+	 * pane the restore hides on its way to the next composition does not show the
+	 * hidden chat (Editor only) again; that is checked once the restore ends.
 	 */
-	protected override _suppressEditorVisibilityDuringRestore(): IDisposable | undefined {
-		return this._layoutService.suppressEditorPartAutoVisibility();
+	protected override _suppressDuringSessionLayoutRestore(): IDisposable | undefined {
+		return combinedDisposable(this._layoutService.suppressEditorPartAutoVisibility(), this._layoutService.suppressShowChatOnHiddenSidePane());
 	}
 
 	protected override get _isEditorPartVisibilityPerSession(): boolean {

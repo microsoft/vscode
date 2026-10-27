@@ -50,6 +50,8 @@ import { AccessibilityCommandId } from '../../../accessibility/common/accessibil
 import { MultiDiffEditor } from '../../browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolverService, MultiDiffEditorItem } from '../../browser/multiDiffSourceResolverService.js';
+import { hasSameFileListItems } from '../../browser/multiDiffEditorFileList.js';
+import { DocumentDiffItemViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { MultiDiffEditorWithFileListWidget } from '../../browser/multiDiffEditorWithFileListWidget.js';
 import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListPosition, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListVisibleContext, multiDiffEditorExperimentalFileListSetting, setMultiDiffEditorFileListViewMode } from '../../common/multiDiffEditor.js';
 
@@ -569,5 +571,13 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 			shown: { position: 'left', visible: true, diffWidth: 700 },
 			rightAgain: { position: 'right', visible: true, diffWidth: 700 },
 		});
+	});
+
+	test('only rebuilds the file list for different items', () => {
+		const [a, b] = [{}, {}] as DocumentDiffItemViewModel[];
+		assert.deepStrictEqual(
+			[hasSameFileListItems([a, b], [a, b]), hasSameFileListItems([a, b], [b, a]), hasSameFileListItems([a], [a, b]), hasSameFileListItems([], [])],
+			[true, false, false, true],
+		);
 	});
 });

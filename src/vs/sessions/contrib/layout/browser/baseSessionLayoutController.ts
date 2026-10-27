@@ -37,7 +37,7 @@ import { Parts } from '../../../../workbench/services/layout/browser/layoutServi
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus } from '../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../common/contextkeys.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
@@ -776,13 +776,6 @@ export abstract class BaseLayoutController extends Disposable {
 							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate())
 						},
 						{
-							// Replaces the title bar entry while the Session Activity Bar shows its layout actions.
-							id: Menus.SessionActivityBar,
-							group: SessionActivityBarGroup.SidePanel,
-							order: 0,
-							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext)
-						},
-						{
 							id: MenuId.MenubarAppearanceMenu,
 							group: '2_workbench_layout',
 							order: 2,
@@ -946,7 +939,7 @@ export abstract class BaseLayoutController extends Disposable {
 	 */
 	protected _withSessionLayoutRestore(work: () => void | Promise<unknown>): void {
 		this._restoringSessionLayoutDepth++;
-		const suppression = this._suppressEditorVisibilityDuringRestore();
+		const suppression = this._suppressDuringSessionLayoutRestore();
 		let settledSync = true;
 		try {
 			const result = work();
@@ -972,11 +965,12 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	/**
-	 * Hook to suppress editor-part auto-visibility for the whole session-switch
-	 * restore. The base restore causes no layout-driven editor closes, so it
-	 * returns `undefined`.
+	 * Hook to suppress, for the whole session-switch restore, what the restore's
+	 * intermediate part visibility would otherwise trigger, such as editor-part
+	 * auto-visibility. The base restore causes no layout-driven editor closes, so
+	 * it returns `undefined`.
 	 */
-	protected _suppressEditorVisibilityDuringRestore(): IDisposable | undefined {
+	protected _suppressDuringSessionLayoutRestore(): IDisposable | undefined {
 		return undefined;
 	}
 

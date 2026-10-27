@@ -9,9 +9,33 @@
 	position: relative;
 }
 
+/* At the right edge of the editor area, below its tabs, while the chat is below the editor or hidden; the editor makes room for it while it is occupied. */
+.monaco-workbench .session-activity-bar-editor-host {
+	position: absolute;
+	right: 0;
+	width: var(--session-activity-bar-column-width);
+	z-index: 17;
+	pointer-events: none;
+}
+
+.monaco-workbench .session-activity-bar-editor-host > .session-activity-bar {
+	pointer-events: auto;
+}
+
+/* A chat window stacked or Editor only: the column of its own beside the groups, from the top of the window to its bottom,
+ * with the chat's background, as beside the chat. */
+.monaco-workbench .session-activity-bar-editor-host.stacked-column {
+	background-color: var(--vscode-activeSessionView-background);
+}
+
+/* Set off from the groups by one line where they are flush (compact), as the cards' borders do otherwise. */
+.monaco-workbench.modern-ui-compact .session-activity-bar-editor-host.stacked-column {
+	box-shadow: inset var(--vscode-strokeThickness) 0 0 0 var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent));
+}
+
 .monaco-workbench .session-activity-bar.docked {
 	position: absolute;
-	/* With an equal gap on either side in its column (`SESSION_ACTIVITY_BAR_COLUMN_WIDTH`). */
+	/* With an equal gap on either side in its column (`SESSION_ACTIVITY_BAR_COLUMN_WIDTH`), beside the chat or at the edge of an editor area. */
 	right: var(--vscode-spacing-size20);
 	/* Above the chat transcript's layers (sticky scroll 13, scrollbar 14, prompt timeline rail 15, state indicator 16);
 	 * below the chat's hovers. */

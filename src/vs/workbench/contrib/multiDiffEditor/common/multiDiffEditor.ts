@@ -205,3 +205,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 	},
 });
+
+/**
+ * An editor pane that hosts the changed files list of a multi diff editor.
+ */
+export interface IMultiDiffEditorFileListHost {
+	/** Moves focus into the changed files list. */
+	focusFileList(): void;
+	/** Whether the host offers Toggle Files in its editor title, which its help then describes instead of the workbench's own actions. */
+	readonly togglesFileListFromEditorTitle?: boolean;
+}
+
+export function isMultiDiffEditorFileListHost(editor: object | undefined): editor is IMultiDiffEditorFileListHost {
+	return !!editor && typeof (editor as Partial<IMultiDiffEditorFileListHost>).focusFileList === 'function';
+}

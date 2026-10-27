@@ -103,7 +103,7 @@ suite('EditorCanvasContextService', () => {
 			models.set([...models.get(), model], undefined);
 			widgets.push(widget);
 			widgetAdded.fire(widget);
-			const input = store.add(new CanvasInput({ ...owner, canvas: canvas.resource }, canvas, groupsService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false })));
+			const input = store.add(new CanvasInput({ ...owner, canvas: canvas.resource }, canvas, groupsService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }), service));
 			return {
 				owner, input, widget, model, canvases, canvasContext,
 				setVisible: (value: boolean) => { visible = value; visibilityChanged.fire(widget); },

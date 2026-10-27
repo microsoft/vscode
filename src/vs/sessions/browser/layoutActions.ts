@@ -10,6 +10,7 @@ import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
+import { ChatWindowHasSessionHeaderContext } from '../services/chatWindow/browser/chatWindowService.js';
 import { Menus, SessionActivityBarGroup } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
@@ -256,7 +257,8 @@ MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
 			icon: Codicon.pinned,
 		},
 	},
-	when: IsAuxiliaryWindowContext,
+	// Not for chat windows with a session header, which takes the place of their title bar; the command stays in the Command Palette.
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext, ChatWindowHasSessionHeaderContext.negate()),
 	group: 'navigation',
 	order: 0
 });

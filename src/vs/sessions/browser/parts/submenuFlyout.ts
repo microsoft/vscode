@@ -32,11 +32,18 @@ export interface ISubmenuFlyoutOptions {
 	 * right and {@link AnchorAlignment.RIGHT} to its left. It flips when the preferred side has no room.
 	 */
 	readonly anchorAlignment?: AnchorAlignment;
+	/**
+	 * Whether it opens after a short hover over the anchor and closes shortly after the pointer leaves, as a menu's own
+	 * submenus do (the default). Otherwise it opens only from the anchor's owner or its keys, and stays open, as a
+	 * dropdown does, until an item is chosen, it is cancelled, or the pointer is pressed outside.
+	 */
+	readonly openOnHover?: boolean;
 }
 
 /**
  * Shows a submenu beside an entry like a menu's own submenus: it opens after a short
- * hover, stays open while the pointer moves into it, and supports the keyboard. The
+ * hover, unless {@link ISubmenuFlyoutOptions.openOnHover} is off, stays open while the
+ * pointer moves into it, and supports the keyboard. The
  * context view places it on the preferred side of the anchor, or the other side when
  * the preferred one has no room.
  */
@@ -64,18 +71,20 @@ export class SubmenuFlyout extends Disposable {
 		anchor.setAttribute('aria-haspopup', 'menu');
 		anchor.setAttribute('aria-expanded', 'false');
 
-		this._register(addDisposableListener(anchor, EventType.MOUSE_ENTER, () => {
-			this.hideScheduler.cancel();
-			if (!this.isOpen) {
-				this.showScheduler.schedule();
-			}
-		}));
-		this._register(addDisposableListener(anchor, EventType.MOUSE_LEAVE, () => {
-			this.showScheduler.cancel();
-			if (this.isOpen) {
-				this.hideScheduler.schedule();
-			}
-		}));
+		if (options.openOnHover ?? true) {
+			this._register(addDisposableListener(anchor, EventType.MOUSE_ENTER, () => {
+				this.hideScheduler.cancel();
+				if (!this.isOpen) {
+					this.showScheduler.schedule();
+				}
+			}));
+			this._register(addDisposableListener(anchor, EventType.MOUSE_LEAVE, () => {
+				this.showScheduler.cancel();
+				if (this.isOpen) {
+					this.hideScheduler.schedule();
+				}
+			}));
+		}
 		this._register(addDisposableListener(anchor, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (options.openKeys.some(key => event.equals(key))) {
@@ -83,6 +92,13 @@ export class SubmenuFlyout extends Disposable {
 				this.show(true);
 			}
 		}));
+	}
+
+	/** Closes the flyout, if it is open. */
+	hide(): void {
+		this.showScheduler.cancel();
+		this.hideScheduler.cancel();
+		this.flyout.clear();
 	}
 
 	/** Opens the flyout, or moves focus into it when it is already open and `focus` is set. */
@@ -133,8 +149,10 @@ export class SubmenuFlyout extends Disposable {
 					}
 				}));
 
-				disposables.add(addDisposableListener(container, EventType.MOUSE_ENTER, () => this.hideScheduler.cancel()));
-				disposables.add(addDisposableListener(container, EventType.MOUSE_LEAVE, () => this.hideScheduler.schedule()));
+				if (this.options.openOnHover ?? true) {
+					disposables.add(addDisposableListener(container, EventType.MOUSE_ENTER, () => this.hideScheduler.cancel()));
+					disposables.add(addDisposableListener(container, EventType.MOUSE_LEAVE, () => this.hideScheduler.schedule()));
+				}
 
 				const targetWindow = getWindow(container);
 				disposables.add(addDisposableListener(targetWindow, EventType.BLUR, () => this.flyout.clear()));
