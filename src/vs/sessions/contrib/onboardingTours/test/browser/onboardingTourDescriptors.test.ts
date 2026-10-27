@@ -28,8 +28,8 @@ suite('OnboardingTourDescriptors', () => {
 			NEW_SESSION_VIEW_V3_TOUR_ID,
 			SESSION_ARCHIVE_TOUR_ID,
 		].filter(id => !descriptors.has(id)), []);
-		assert.deepStrictEqual(NEW_SESSION_VIEW_V2_VARIATIONS, ['default', 'workspaceAndModel']);
-		assert.deepStrictEqual(descriptors.get(NEW_SESSION_VIEW_V2_TOUR_ID)?.developerModeVariations, ['default', 'workspaceAndModel']);
+		assert.deepStrictEqual(NEW_SESSION_VIEW_V2_VARIATIONS, ['default', 'workspaceAndModel', 'mentalModelAndModels']);
+		assert.deepStrictEqual(descriptors.get(NEW_SESSION_VIEW_V2_TOUR_ID)?.developerModeVariations, ['default', 'workspaceAndModel', 'mentalModelAndModels']);
 		assert.deepStrictEqual(NEW_SESSION_VIEW_V3_VARIATIONS, ['prompt', 'githubPrompt', 'options']);
 		assert.deepStrictEqual(descriptors.get(NEW_SESSION_VIEW_V3_TOUR_ID)?.developerModeVariations, ['prompt', 'githubPrompt', 'options']);
 	});

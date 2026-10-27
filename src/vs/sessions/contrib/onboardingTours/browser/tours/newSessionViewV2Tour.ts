@@ -14,7 +14,7 @@ import { createNewSessionViewRecentTourWhen, createNewSessionViewWorkspaceStep }
 
 export const NEW_SESSION_VIEW_V2_TOUR_ID = 'sessions.onboarding.newSessionViewV2';
 export const NEW_SESSION_VIEW_V2_VARIATION_TREATMENT = 'onb.newSessionViewV2.variation';
-export const NEW_SESSION_VIEW_V2_VARIATIONS = ['default', 'workspaceAndModel'] as const;
+export const NEW_SESSION_VIEW_V2_VARIATIONS = ['default', 'workspaceAndModel', 'mentalModelAndModels'] as const;
 export type NewSessionViewV2Variation = typeof NEW_SESSION_VIEW_V2_VARIATIONS[number];
 
 onboardingScenarioRegistry.registerDescriptor({ id: NEW_SESSION_VIEW_V2_TOUR_ID, developerModeVariations: NEW_SESSION_VIEW_V2_VARIATIONS });
@@ -55,19 +55,47 @@ const newSessionViewV2Payload: ISpotlightPayload = {
 	],
 };
 
+const workspaceAndModelWorkspaceStep: ISpotlightStep = {
+	...createNewSessionViewWorkspaceStep({ requireSelection: false }),
+	when: SessionWorkspacePickerVisibleContext,
+	openTarget: 'ifUnselected',
+	advanceOnTargetSelection: true,
+};
+
 const workspaceAndModelPayload: ISpotlightPayload = {
 	steps: [
-		{
-			...createNewSessionViewWorkspaceStep({ requireSelection: false }),
-			when: SessionWorkspacePickerVisibleContext,
-			openTarget: 'ifUnselected',
-			advanceOnTargetSelection: true,
-		},
+		workspaceAndModelWorkspaceStep,
 		{
 			...modelPickerStep,
 			openTarget: false,
 		},
 	],
+};
+
+const mentalModelAndModelsPayload: ISpotlightPayload = {
+	steps: [
+		{
+			...workspaceAndModelWorkspaceStep,
+			title: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.workspace.title', "Pick a project for this session"),
+			description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.workspace.description', "Unlike a normal VS Code window, you aren't locked to one folder. Point this session at any repo or folder—or switch projects anytime without opening a new window."),
+			selectedContent: {
+				title: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.workspace.selected.title', "Pick a project for this session"),
+				description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.workspace.selected.description', "We've selected your current project to get you started. You can point each new session at any repo or folder—all from this window."),
+			},
+		},
+		{
+			...modelPickerStep,
+			openTarget: false,
+			title: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.model.title', "All your favorite models, one place"),
+			description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.model.description', "Claude, GPT, Gemini, and more—the best models from across the industry are ready to go. Pick your favorite or switch anytime."),
+		},
+	],
+};
+
+const newSessionViewV2VariationPayloads: Record<NewSessionViewV2Variation, ISpotlightPayload> = {
+	default: newSessionViewV2Payload,
+	workspaceAndModel: workspaceAndModelPayload,
+	mentalModelAndModels: mentalModelAndModelsPayload,
 };
 
 /** Builds the interactive new-session view tour. */
@@ -88,7 +116,7 @@ export function createNewSessionViewV2Tour(
 			kind: SPOTLIGHT_PRESENTATION_KIND,
 			payload: {
 				...newSessionViewV2Payload,
-				resolveSteps: resolveVariation ? async () => (await resolveVariation() === 'workspaceAndModel' ? workspaceAndModelPayload : newSessionViewV2Payload).steps : undefined,
+				resolveSteps: resolveVariation ? async () => newSessionViewV2VariationPayloads[await resolveVariation()].steps : undefined,
 			},
 		},
 	};

@@ -44,6 +44,12 @@ export interface ISpotlightStep {
 	/** Callout body (localized string or markdown). */
 	readonly description: string | IMarkdownString;
 
+	/** Replaces {@link title} and {@link description} when the target already has a selected value as the step shows. */
+	readonly selectedContent?: {
+		readonly title: string;
+		readonly description: string | IMarkdownString;
+	};
+
 	/** Localized primary button label, replacing the default Next or Done. */
 	readonly nextButtonLabel?: string;
 

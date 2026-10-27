@@ -906,11 +906,13 @@ suite('SpotlightPresentation', () => {
 				createTarget(container, 'test.spotlight.collapsedModel', { open: () => { modelOpened++; } });
 				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
 				const buttons: { readonly hidden: boolean; readonly label: string | null }[] = [];
+				const titles: (string | null)[] = [];
 				const result = await presentation.run(createScenario('test.spotlight.optionalSelection', {
 					id: 'workspace',
 					targetId,
 					title: 'Workspace',
 					description: 'Choose a workspace or continue',
+					selectedContent: { title: 'Selected workspace', description: 'Switch workspaces' },
 					openTarget: 'ifUnselected',
 					allowTargetInteraction: true,
 					advanceOnTargetSelection: true,
@@ -927,6 +929,7 @@ suite('SpotlightPresentation', () => {
 					onDidShow: () => {
 						const next = container.getElementsByClassName('monaco-button')[2] as HTMLElement;
 						buttons.push({ hidden: next.style.display === 'none', label: next.textContent });
+						titles.push(container.getElementsByClassName('spotlight-callout-title')[0].textContent);
 						const isWorkspaceStep = buttons.length === 1;
 						disposables.add(disposableTimeout(() => {
 							if (isWorkspaceStep && action === 'select') {
@@ -937,10 +940,11 @@ suite('SpotlightPresentation', () => {
 						}, 0));
 					},
 				});
-				assert.deepStrictEqual({ opened, modelOpened, buttons, selectionListenerRetained: selected.hasListeners(), result }, {
+				assert.deepStrictEqual({ opened, modelOpened, buttons, titles, selectionListenerRetained: selected.hasListeners(), result }, {
 					opened: preselected ? 0 : 1,
 					modelOpened: 0,
 					buttons: [{ hidden: false, label: 'Next' }, { hidden: false, label: 'Done' }],
+					titles: [preselected ? 'Selected workspace' : 'Workspace', 'Model'],
 					selectionListenerRetained: false,
 					result: {
 						outcome: OnboardingOutcome.Completed,
