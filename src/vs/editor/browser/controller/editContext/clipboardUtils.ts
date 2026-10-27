@@ -141,10 +141,10 @@ interface InMemoryClipboardMetadata {
 
 const ClipboardEventUtils = {
 
-	getTextData(clipboardData: IReadableClipboardData | DataTransfer, getFilePath: (file: File) => string | undefined): [string, ClipboardStoredMetadata | null] {
+	getTextData(clipboardData: IReadableClipboardData | DataTransfer, getFilePath: (file: File) => string | undefined, metadataMime = 'vscode-editor-data'): [string, ClipboardStoredMetadata | null] {
 		const text = clipboardData.getData(Mimes.text);
 		let metadata: ClipboardStoredMetadata | null = null;
-		const rawmetadata = clipboardData.getData('vscode-editor-data');
+		const rawmetadata = clipboardData.getData(metadataMime);
 		if (typeof rawmetadata === 'string') {
 			try {
 				metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
@@ -165,23 +165,22 @@ const ClipboardEventUtils = {
 		return [text, metadata];
 	},
 
-	setTextData(clipboardData: IWritableClipboardData, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
+	getClipboardApiTextData(clipboardData: DataTransfer, getFilePath: (file: File) => string | undefined): [string, ClipboardStoredMetadata | null] {
+		return ClipboardEventUtils.getTextData(clipboardData, getFilePath, editorDataMime);
+	},
+
+	setTextData(clipboardData: IWritableClipboardData, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata, metadataMime = 'vscode-editor-data'): void {
 		clipboardData.setData(Mimes.text, text);
 		if (typeof html === 'string') {
 			clipboardData.setData('text/html', html);
 		}
-		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
+		clipboardData.setData(metadataMime, JSON.stringify(metadata));
+	},
+
+	setClipboardApiTextData(clipboardData: IWritableClipboardData, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
+		ClipboardEventUtils.setTextData(clipboardData, text, html, metadata, editorDataMime);
 	}
 };
-
-function getClipboardApiTextData(clipboardData: DataTransfer, getFilePath: (file: File) => string | undefined): [string, ClipboardStoredMetadata | null] {
-	return ClipboardEventUtils.getTextData({
-		...createReadableClipboardData(clipboardData),
-		getData: type => type === 'vscode-editor-data'
-			? clipboardData.getData(editorDataMime) || clipboardData.getData(type)
-			: clipboardData.getData(type),
-	}, getFilePath);
-}
 
 /**
  * Readable clipboard data for paste operations.
@@ -328,9 +327,7 @@ export function createClipboardCopyEventFromData(clipboardData: IWritableClipboa
 		clipboardData,
 		dataToCopy,
 		ensureClipboardGetsEditorData: (): void => {
-			ClipboardEventUtils.setTextData({
-				setData: (type, value) => clipboardData.setData(type === 'vscode-editor-data' ? editorDataMime : type, value),
-			}, dataToCopy.text, dataToCopy.html, metadata);
+			ClipboardEventUtils.setClipboardApiTextData(clipboardData, dataToCopy.text, dataToCopy.html, metadata);
 			storeMetadataInMemory(dataToCopy.text, metadata, isFirefox);
 			logService.trace('ensureClipboardGetsEditorSelection with id : ', metadata.id, ' with text.length: ', dataToCopy.text.length);
 		},
@@ -347,9 +344,6 @@ export function createClipboardCopyEventFromData(clipboardData: IWritableClipboa
 export function createClipboardPasteEvent(e: ClipboardEvent, getFilePath: (file: File) => string | undefined = getPathForFile): IClipboardPasteEvent {
 	let handled = false;
 	let [text, metadata] = e.clipboardData ? ClipboardEventUtils.getTextData(e.clipboardData, getFilePath) : ['', null];
-	if (!metadata && e.clipboardData?.getData(editorDataMime)) {
-		[text, metadata] = getClipboardApiTextData(e.clipboardData, getFilePath);
-	}
 	metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 	return {
 		clipboardData: createReadableClipboardData(e.clipboardData),
@@ -371,7 +365,7 @@ export function createClipboardPasteEvent(e: ClipboardEvent, getFilePath: (file:
  */
 export function createClipboardPasteEventFromData(clipboardData: DataTransfer, getFilePath: (file: File) => string | undefined = getPathForFile): IClipboardPasteEvent {
 	let handled = false;
-	let [text, metadata] = getClipboardApiTextData(clipboardData, getFilePath);
+	let [text, metadata] = ClipboardEventUtils.getClipboardApiTextData(clipboardData, getFilePath);
 	metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 	return {
 		clipboardData: createReadableClipboardData(clipboardData),

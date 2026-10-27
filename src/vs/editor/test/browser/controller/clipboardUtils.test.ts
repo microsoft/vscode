@@ -77,6 +77,7 @@ suite('ClipboardUtils - Clipboard API', () => {
 				const metadata: ClipboardStoredMetadata = JSON.parse(clipboardData.getData(metadataMime));
 				assert.deepStrictEqual({
 					isCut: event.isCut,
+					types: Array.from(clipboardData.types).sort(),
 					text: clipboardData.getData('text/plain'),
 					html: clipboardData.getData('text/html'),
 					metadata: { ...metadata, id: typeof metadata.id },
@@ -85,6 +86,7 @@ suite('ClipboardUtils - Clipboard API', () => {
 					handled: event.isHandled,
 				}, {
 					isCut,
+					types: ['application/x-test', metadataMime, 'text/html', 'text/plain'].sort(),
 					text: 'source',
 					html: event.dataToCopy.html,
 					metadata: {
@@ -103,7 +105,7 @@ suite('ClipboardUtils - Clipboard API', () => {
 		}
 	});
 
-	test('DOM and Clipboard API paste factories accept legacy editor metadata', () => {
+	test('DOM and Clipboard API paste factories read their own editor metadata formats', () => {
 		const metadata: ClipboardStoredMetadata = {
 			version: 1,
 			id: 'legacy-paste',
@@ -112,14 +114,16 @@ suite('ClipboardUtils - Clipboard API', () => {
 			multicursorText: ['left', 'right'],
 			mode: 'test-language',
 		};
-		const clipboardData = new DataTransfer();
-		clipboardData.setData('text/plain', 'left\nright');
-		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
-		const browserEvent = new ClipboardEvent('paste', { clipboardData });
-		assert.deepStrictEqual([
-			createClipboardPasteEvent(browserEvent).metadata,
-			createClipboardPasteEventFromData(clipboardData).metadata,
-		], [metadata, metadata]);
+		for (const metadataMime of ['vscode-editor-data', 'application/vnd.code.editor-data']) {
+			const clipboardData = new DataTransfer();
+			clipboardData.setData('text/plain', 'left\nright');
+			clipboardData.setData(metadataMime, JSON.stringify(metadata));
+			const browserEvent = new ClipboardEvent('paste', { clipboardData });
+			assert.deepStrictEqual([
+				createClipboardPasteEvent(browserEvent).metadata,
+				createClipboardPasteEventFromData(clipboardData).metadata,
+			], metadataMime === 'vscode-editor-data' ? [metadata, null] : [null, metadata]);
+		}
 	});
 
 	test('DOM and Clipboard API paste factories handle browser events independently', async () => {
@@ -134,7 +138,8 @@ suite('ClipboardUtils - Clipboard API', () => {
 		for (const useDomEvent of [true, false]) {
 			const clipboardData = new DataTransfer();
 			clipboardData.setData('text/plain', 'left\nright');
-			clipboardData.setData('application/vnd.code.editor-data', JSON.stringify(metadata));
+			const metadataMime = useDomEvent ? 'vscode-editor-data' : 'application/vnd.code.editor-data';
+			clipboardData.setData(metadataMime, JSON.stringify(metadata));
 			clipboardData.setData('application/x-test', 'provider data');
 			const browserEvent = new ClipboardEvent('paste', { clipboardData, cancelable: true });
 			const event = useDomEvent

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createFileDataTransferItem, createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../common/dataTransfer.js';
-import { getActiveWindow } from './dom.js';
+import { $, getActiveWindow, isHTMLElement } from './dom.js';
 
 /**
  * The Async Clipboard API requires "web " on custom-format keys, even when VS Code both writes and reads the data.
@@ -16,6 +16,7 @@ const standardFormats = new Set(['text/plain', 'text/html', 'image/png']);
 
 /**
  * Requires both rich read/write APIs, not just text-only support; this does not check permissions.
+ * Both APIs are available in Chrome 76+, Edge 79+, Firefox 127+, and Safari 13.1+.
  * @see https://developer.mozilla.org/en-US/docs/Web/API/Clipboard#instance_methods
  */
 export function supportsClipboardData(): boolean {
@@ -66,4 +67,23 @@ export function writeClipboardData(data: IReadonlyVSDataTransfer): Promise<void>
 			: Promise.resolve(item.asString()).then(text => new Blob([text], { type: mime }));
 	}
 	return clipboard.write(Object.keys(items).length ? [new ClipboardItem(items)] : []);
+}
+
+export function writeTextUsingExecCommand(text: string, activeDocument: Document): boolean {
+	const activeElement = activeDocument.activeElement;
+	const textArea: HTMLTextAreaElement = activeDocument.body.appendChild($('textarea', { 'aria-hidden': true }));
+	textArea.style.height = '1px';
+	textArea.style.width = '1px';
+	textArea.style.position = 'absolute';
+	try {
+		textArea.value = text;
+		textArea.focus();
+		textArea.select();
+		return activeDocument.execCommand('copy');
+	} finally {
+		if (isHTMLElement(activeElement)) {
+			activeElement.focus();
+		}
+		textArea.remove();
+	}
 }

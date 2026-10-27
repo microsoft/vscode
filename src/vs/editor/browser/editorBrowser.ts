@@ -1053,7 +1053,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	_getViewModel(): IViewModel | null;
 
-	/** @internal */
+	/**
+	 * Fires the clipboard copy or cut interception event.
+	 * @internal
+	 * */
 	triggerOnWillCopyOrCut(event: IClipboardCopyEvent): void;
 
 	/**

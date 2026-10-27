@@ -6351,7 +6351,7 @@ export const EditorOptions = {
 		EditorOption.experimentalClipboardApi, 'experimentalClipboardApi', false,
 		{
 			tags: ['experimental'],
-			description: nls.localize('experimentalClipboardApi', "Controls whether editor cut, copy, and paste commands use the experimental Async Clipboard API instead of legacy clipboard events.")
+			description: nls.localize('experimentalClipboardApi', "Controls whether editor cut, copy, and paste commands use the experimental Async Clipboard API instead of legacy clipboard DOM events.")
 		}
 	)),
 	experimentalGpuAcceleration: register(new EditorStringEnumOption(

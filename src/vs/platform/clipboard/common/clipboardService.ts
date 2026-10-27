@@ -20,7 +20,6 @@ export interface IClipboardService {
 
 	/**
 	 * Reads rich text, custom string data, and images using the Clipboard API.
-	 * Returns undefined when native clipboard formats require a paste event.
 	 */
 	readData(): Promise<IReadonlyVSDataTransfer | undefined>;
 

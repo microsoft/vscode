@@ -8,6 +8,7 @@ import { createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer }
 import { IClipboardService } from '../../common/clipboardService.js';
 
 export class TestClipboardService implements IClipboardService {
+
 	readonly supportsClipboardData: boolean = true;
 
 	private data: IReadonlyVSDataTransfer = new VSDataTransfer();

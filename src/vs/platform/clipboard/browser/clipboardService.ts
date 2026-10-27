@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, isWebkitWebView } from '../../../base/browser/browser.js';
-import { readClipboardData, supportsClipboardData, writeClipboardData } from '../../../base/browser/clipboard.js';
-import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from '../../../base/browser/dom.js';
+import { readClipboardData, supportsClipboardData, writeClipboardData, writeTextUsingExecCommand } from '../../../base/browser/clipboard.js';
+import { addDisposableListener, getActiveDocument, getActiveWindow, onDidRegisterWindow } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
@@ -13,6 +13,7 @@ import { hash } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IReadonlyVSDataTransfer } from '../../../base/common/dataTransfer.js';
+import { localize } from '../../../nls.js';
 import { IClipboardService } from '../common/clipboardService.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { ILogService } from '../../log/common/log.js';
@@ -101,7 +102,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		]);
 	}
 
-	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
+	protected webKitPendingClipboardWrite: { data: DeferredPromise<string>; result: Promise<void> } | undefined;
 
 	// In Safari, it has the following note:
 	//
@@ -117,9 +118,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	// This function sets up some handlers to work around that behavior.
 	private installWebKitWriteTextWorkaround(): void {
 		const handler = () => {
-			// Guard access to navigator.clipboard, it is only present in a secure context.
-			// Returning early leaves `webKitPendingClipboardWritePromise` unset, so `writeText`
-			// keeps falling through to `fallbackWriteText` and copying still works.
+			// Clipboard APIs are only exposed in secure contexts.
 			const clipboard = getActiveWindow().navigator.clipboard;
 			if (!clipboard) {
 				return;
@@ -128,18 +127,20 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 			const currentWritePromise = new DeferredPromise<string>();
 
 			// Cancel the previous promise since we just created a new one in response to this new event
-			if (this.webKitPendingClipboardWritePromise && !this.webKitPendingClipboardWritePromise.isSettled) {
-				this.webKitPendingClipboardWritePromise.cancel();
+			if (this.webKitPendingClipboardWrite && !this.webKitPendingClipboardWrite.data.isSettled) {
+				this.webKitPendingClipboardWrite.data.cancel();
 			}
-			this.webKitPendingClipboardWritePromise = currentWritePromise;
+			this.webKitPendingClipboardWrite = undefined;
 
 			// The ctor of ClipboardItem allows you to pass in a promise that will resolve to a string.
 			// This allows us to pass in a Promise that will either be cancelled by another event or
 			// resolved with the contents of the first call to this.writeText.
 			// see https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/ClipboardItem#parameters
-			clipboard.write([new ClipboardItem({
+			const result = clipboard.write([new ClipboardItem({
 				'text/plain': currentWritePromise.p,
-			})]).catch(async err => {
+			})]);
+			this.webKitPendingClipboardWrite = { data: currentWritePromise, result };
+			result.catch(err => {
 				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || !currentWritePromise.isRejected) {
 					this.logService.error(err);
 				}
@@ -167,11 +168,14 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 			return;
 		}
 
-		if (this.webKitPendingClipboardWritePromise) {
+		if (this.webKitPendingClipboardWrite) {
 			// For Safari, we complete this Promise which allows the call to `navigator.clipboard.write()`
 			// above to resolve and successfully copy to the clipboard. If we let this continue, Safari
 			// would throw an error because this call stack doesn't appear to originate from a user gesture.
-			return this.webKitPendingClipboardWritePromise.complete(text);
+			const pendingWrite = this.webKitPendingClipboardWrite;
+			this.webKitPendingClipboardWrite = undefined;
+			await pendingWrite.data.complete(text);
+			return pendingWrite.result;
 		}
 
 		// Guard access to navigator.clipboard with try/catch
@@ -190,25 +194,9 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 	private fallbackWriteText(text: string): void {
 		this.logService.trace('BrowserClipboardService#fallbackWriteText');
-		const activeDocument = getActiveDocument();
-		const activeElement = activeDocument.activeElement;
-
-		const textArea: HTMLTextAreaElement = activeDocument.body.appendChild($('textarea', { 'aria-hidden': true }));
-		textArea.style.height = '1px';
-		textArea.style.width = '1px';
-		textArea.style.position = 'absolute';
-
-		textArea.value = text;
-		textArea.focus();
-		textArea.select();
-
-		activeDocument.execCommand('copy');
-
-		if (isHTMLElement(activeElement)) {
-			activeElement.focus();
+		if (!writeTextUsingExecCommand(text, getActiveDocument())) {
+			throw new Error(localize('clipboard.copyFailed', "Unable to copy to the clipboard."));
 		}
-
-		textArea.remove();
 	}
 
 	async readText(type?: string): Promise<string> {
