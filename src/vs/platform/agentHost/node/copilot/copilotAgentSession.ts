@@ -6737,6 +6737,12 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
 		try {
+			if (isAutoModel(model) && contextTier === 'default') {
+				const result = await this._awaitControlPlaneRpc('session.options.update', this._wrapper.session.rpc.options.update({ contextTier }));
+				if (!result.success) {
+					throw new Error('The runtime did not reset the context tier.');
+				}
+			}
 			await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
 				reasoningEffort,
 				contextTier,
