@@ -527,7 +527,7 @@ suite('AgentService - chats with their own agent', () => {
 		});
 	});
 
-	test('when the agents of chats can\'t be read, a restarted host neither restores nor disposes a chat with its own agent under the session\'s agent', async () => {
+	test('when the agents of chats can\'t be read, a restarted host restores the peer chats on the session\'s agent, as with the gate off, but never disposes one there', async () => {
 		const sessionDatabase = new TestSessionDatabase();
 		const first = createService(true, { sessionDatabase });
 		const { session, chat } = await createSessionWithSecondChat(first.service);
@@ -541,17 +541,61 @@ suite('AgentService - chats with their own agent', () => {
 		try {
 			await restarted.service.restoreSession(session);
 			const restoredChats = getTestAgentStateManager(restarted.service).getSessionState(session.toString())?.chats.map(candidate => candidate.resource);
+			const restoredAgent = getTestAgentHostProviderService(restarted.service).getProviderForChat(session, chat)?.id;
 			getTestAgentStateManager(restarted.service).deleteSession(session.toString());
 			await restarted.service.disposeSession(session);
 
 			assert.deepStrictEqual({
 				restoredPeer: restoredChats?.includes(chat.toString()),
+				restoredAgent,
 				disposedBySecond: restarted.second.disposedChats,
 				disposedByCopilot: restarted.copilot.disposedChats.includes(chat.toString()),
-			}, { restoredPeer: false, disposedBySecond: [], disposedByCopilot: false });
+			}, { restoredPeer: true, restoredAgent: 'copilot', disposedBySecond: [], disposedByCopilot: false });
 		} finally {
 			first.catalogDatabase.readChatAgentProviders = read;
 		}
+	});
+
+	test('a chat with its own agent whose backing must be recreated after a failed workspace change gets it from its own agent, with its own config', async () => {
+		const { service, copilot, second } = createService(true);
+		const { session, chat } = await createSessionWithSecondChat(service);
+		getTestAgentServiceComposition(service).configurationService.updateChatConfig({ session: session.toString(), chat: chat.toString() }, { mode: 'plan' });
+		const configs: unknown[] = [];
+		const createChat = second.chats.createChat;
+		second.chats.createChat = (candidate, context, options) => {
+			configs.push(options?.config);
+			return createChat(candidate, context, options);
+		};
+		const internals = service as unknown as { _chatsNeedingBacking: Set<string>; _recreatePendingChatBacking(session: string, chat: string, credentials: undefined): Promise<void> };
+		internals._chatsNeedingBacking.add(chat.toString());
+
+		await internals._recreatePendingChatBacking(session.toString(), chat.toString(), undefined);
+
+		assert.deepStrictEqual({ second: createdIn(second), copilotCreatedChat: createdIn(copilot).includes(chat.toString()), configs }, {
+			second: [chat.toString(), chat.toString()],
+			copilotCreatedChat: false,
+			configs: [{ mode: 'plan' }],
+		});
+	});
+
+	test('a stale record naming the session\'s own agent is ignored and deleted on restore: the chat follows its session', async () => {
+		const { service, catalogDatabase } = createService(true);
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		await service.createChat(session, chat);
+		await timeout(0);
+		await catalogDatabase.recordChatAgentProvider!(chat.toString(), 'copilot');
+		(service as unknown as { _chatAgentProviders: unknown })._chatAgentProviders = undefined;
+
+		getTestAgentStateManager(service).deleteSession(session.toString());
+		await service.restoreSession(session);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			provider: chatSummary(service, session, chat)?.provider,
+			ownSchema: getTestAgentStateManager(service).getChatOwnConfigSchema(chat.toString()),
+			recorded: (await catalogDatabase.readChatAgentProviders?.())?.has(chat.toString()),
+		}, { provider: undefined, ownSchema: undefined, recorded: false });
 	});
 
 	test('a chat with its own agent hands its own agent and model to chats it creates, and lists the agents chats may use', async () => {
@@ -813,11 +857,20 @@ suite('AgentService - chats with their own agent', () => {
 			await timeout(0);
 			startTurn(off.service, offChat);
 			startTurn(noChats.service, noChatsChat);
+			const noConfig = createMoveService(true);
+			const noConfigSource = await createSessionOf(noConfig.service, 'copilot', 'agent');
+			const noConfigTarget = await createSessionOf(noConfig.service, 'second', 'plan');
+			const noConfigChat = URI.parse(buildChatUri(noConfigSource, 'native'));
+			await noConfig.service.createChat(noConfigSource, noConfigChat);
+			await timeout(0);
+			startTurn(noConfig.service, noConfigChat);
+			noConfig.copilot.resolveChatConfig = async () => { throw new Error('offline'); };
 
 			assert.deepStrictEqual({
 				gateOff: await refusal(off.service.moveChat(offSource, offChat, { kind: 'session', session: offTarget, after: undefined })),
 				noMultipleChats: await refusal(noChats.service.moveChat(noChatsSource, noChatsChat, { kind: 'session', session: noChatsTarget, after: undefined })),
-			}, { gateOff: 'differentProvider', noMultipleChats: 'differentProvider' });
+				noConfig: await refusal(noConfig.service.moveChat(noConfigSource, noConfigChat, { kind: 'session', session: noConfigTarget, after: undefined })),
+			}, { gateOff: 'differentProvider', noMultipleChats: 'agentWithoutChats', noConfig: 'agentConfigUnavailable' });
 		});
 	});
 });

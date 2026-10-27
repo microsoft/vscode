@@ -214,6 +214,9 @@ const refusalMessages: { readonly [K in AgentChatMoveRefusal]: string } = {
 	[AgentChatMoveRefusal.NotSingleChat]: 'This session has nested sessions; move them out first, or move each nested session on its own.',
 	[AgentChatMoveRefusal.NotStarted]: 'This session has no messages yet; it can be moved after its first message.',
 	[AgentChatMoveRefusal.DifferentCredentialOwner]: 'Sessions with different credential owners can\'t be combined; pick a destination that uses the same account, or move it to its own session.',
+	[AgentChatMoveRefusal.AgentUnavailable]: 'The agent of this session is unknown or disabled on this host, so it can\'t move to a session of another agent or become its own session; ask the user to enable that agent.',
+	[AgentChatMoveRefusal.AgentWithoutChats]: 'The destination session\'s agent can\'t host sessions of another agent, or this session\'s agent can\'t join one; pick a destination session whose agent supports multiple chats, or one of the same agent.',
+	[AgentChatMoveRefusal.AgentConfigUnavailable]: 'The agent of this session couldn\'t describe its settings for the move; try again.',
 };
 
 /** For a whole session, `notMovable` means it isn't a session of its own anymore or couldn't be opened, not the reasons a nested session stays. */

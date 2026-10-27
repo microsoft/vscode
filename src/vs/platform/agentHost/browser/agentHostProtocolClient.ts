@@ -565,17 +565,17 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			: undefined;
 	}
 
+	/** The versions offered in `initialize`; read on every connection, so the setting applies from the next one. */
+	private _offeredProtocolVersions(): string[] {
+		return getAgentHostClientProtocolVersions(this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true);
+	}
+
 	/**
 	 * The latest `initialize` response from the host, or `undefined` if
 	 * the handshake has not completed yet. Exposed observably so callers can
 	 * react as advertised capabilities (telemetry, `completionTriggerCharacters`,
 	 * `terminalCommandPrefix`, ...) arrive.
 	 */
-	/** The versions offered in `initialize`; read on every connection, so the setting applies from the next one. */
-	private _offeredProtocolVersions(): string[] {
-		return getAgentHostClientProtocolVersions(this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true);
-	}
-
 	get initializeResult(): IObservable<InitializeResult | undefined> {
 		return this._initializeResult;
 	}

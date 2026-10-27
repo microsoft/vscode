@@ -159,7 +159,7 @@ suite('SessionServerTools', () => {
 				workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session\'s workspace.' },
 				worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session\'s isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set.' },
 				title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
-				model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+				model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 			},
 			required: ['prompt', 'title'],
 		});
@@ -2359,17 +2359,56 @@ suite('SessionServerTools', () => {
 			const off = definition();
 			gate.harnesses = ['copilotcli', 'claude'];
 			const on = definition();
-			const { harness, ...otherProperties } = on.inputSchema?.properties ?? {};
+			const { harness, model: onModel, ...otherProperties } = on.inputSchema?.properties ?? {};
+			const { model: offModel, ...offProperties } = off.inputSchema?.properties ?? {};
 			assert.deepStrictEqual({
 				offHarness: off.inputSchema?.properties?.harness,
 				onOtherwiseUnchanged: { ...on.inputSchema, properties: otherProperties },
+				model: [offModel, onModel],
 				harness,
 				addedDescription: on.description?.slice(off.description?.length),
 			}, {
 				offHarness: undefined,
-				onOtherwiseUnchanged: off.inputSchema,
+				onOtherwiseUnchanged: { ...off.inputSchema, properties: offProperties },
+				model: [
+					{ type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+					{ type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+				],
 				harness: { type: 'string', description: 'Optional harness (agent) for the new chat: one of `copilot`, `claude`. Only valid with relationship `currentSession`. Defaults to the current session\'s harness. A chat on another harness starts with that harness\'s defaults; `model`, when given, must belong to it.' },
 				addedDescription: ' With `currentSession`, set `harness` to create the chat on another agent, for example to have a different agent review the work.',
+			});
+			stateManager.dispose();
+		});
+
+		test('with chats unable to use another agent, the tool definitions read as before multiple agents (gate-off parity)', () => {
+			const stateManager = new AgentHostStateManager(new NullLogService());
+			const session = 'copilot:/s1';
+			stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session) });
+			const gate: { harnesses?: readonly string[] } = {};
+			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({ getChatHarnesses: () => gate.harnesses }))]);
+			const read = () => {
+				const definitions = host.getDefinitionsForSession(session);
+				const description = (name: string) => definitions.find(tool => tool.name === name)!.description;
+				return {
+					listSessions: description(SessionServerToolName.ListSessions)?.includes('A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and an `openLink` that names that chat in `send_message`, `get_session_context` and `rename_chat`.'),
+					getCurrentSession: description(SessionServerToolName.GetCurrentSession)?.includes('Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`.'),
+					model: definitions.find(tool => tool.name === SessionServerToolName.CreateSession)!.inputSchema?.properties?.model,
+					mentionsHarness: definitions.some(tool => JSON.stringify(tool).includes('harness') || JSON.stringify(tool).includes('uses the same agent')),
+				};
+			};
+			const off = read();
+			gate.harnesses = ['copilotcli', 'claude'];
+			const on = read();
+			// The strings of origin/main before chats could use their own agents (5893cd55828).
+			assert.deepStrictEqual({ off, onMentionsHarness: on.mentionsHarness, onListSessions: on.listSessions }, {
+				off: {
+					listSessions: true,
+					getCurrentSession: true,
+					model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+					mentionsHarness: false,
+				},
+				onMentionsHarness: true,
+				onListSessions: false,
 			});
 			stateManager.dispose();
 		});
@@ -3523,6 +3562,9 @@ suite('SessionServerTools', () => {
 				[AgentChatMoveRefusal.NotSingleChat]: true,
 				[AgentChatMoveRefusal.NotStarted]: true,
 				[AgentChatMoveRefusal.DifferentCredentialOwner]: true,
+				[AgentChatMoveRefusal.AgentUnavailable]: true,
+				[AgentChatMoveRefusal.AgentWithoutChats]: true,
+				[AgentChatMoveRefusal.AgentConfigUnavailable]: true,
 			};
 			const refusing = (reason: AgentChatMoveRefusal) => createMoveGroup({ applyChatMove: async () => { throw new AgentChatMoveRefusedError(reason, 'host detail'); } }).group;
 			const messages: string[] = [];
@@ -3538,8 +3580,8 @@ suite('SessionServerTools', () => {
 				endAnchorGone: await run(refusing(AgentChatMoveRefusal.InvalidAnchor), { session: link(source, 'peer'), into: target }),
 				givenAnchorGone: await run(refusing(AgentChatMoveRefusal.InvalidAnchor), { session: link(source, 'peer'), into: target, after: link(target) }),
 			}, {
-				count: 19,
-				distinct: 19,
+				count: 22,
+				distinct: 22,
 				oneSentenceEach: true,
 				hostDetailHidden: true,
 				endAnchorGone: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.Conflict, false)}`,
@@ -3637,7 +3679,7 @@ suite('SessionServerTools', () => {
 				off: { descriptions: base, chats: 3 },
 				on: {
 					// Right after the sentence about `chats`, before the rest of the description.
-					descriptions: Object.fromEntries(Object.entries(base).map(([name, description]) => [name, description?.replace(name === SessionServerToolName.ListSessions ? 'than its session.' : 'on a different agent.', match => `${match} \`move_session\` takes these links too.`)])),
+					descriptions: Object.fromEntries(Object.entries(base).map(([name, description]) => [name, description?.replace(name === SessionServerToolName.ListSessions ? 'and `rename_chat`.' : 'like `list_sessions`.', match => `${match} \`move_session\` takes these links too.`)])),
 					chats: 3,
 				},
 				baseMentionsMove: false,
