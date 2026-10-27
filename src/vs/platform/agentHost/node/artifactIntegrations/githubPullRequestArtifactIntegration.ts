@@ -594,9 +594,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 					title: main ? snapshot.core.value?.title ?? `#${this.resource.target.number}` : detailsId === 'checks'
 						? checks.length ? localize('prArtifact.checksTitle', "Checks ({0}/{1})", completedWithoutFailure, checks.length) : localize('prArtifact.checks', "Checks")
 						: localize('prArtifact.commentsTitle', "Comments ({0})", threads.length),
-					description: main ? snapshot.core.value?.body : total > 200
+					description: main ? undefined : total > 200
 						? localize('prArtifact.detailsDescriptionPage', "{0}\nShowing {1}-{2} of {3}.", description, start + 1, Math.min(start + 200, total), total) : description,
-					descriptionFormat: main ? 'markdown' : undefined,
 					links: ids.flatMap(id => [
 						...view.stateActions.some(action => action.id === id) ? [{ kind: 'action' as const, actionId: id }] : [],
 						{ kind: 'automation' as const, optionId: id },
