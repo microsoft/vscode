@@ -22,6 +22,8 @@ import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxili
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IEditorGroupsService, IEditorPart, IFloatingEditorPart } from '../../common/editorGroupsService.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import '../../../../browser/actions/layoutActions.js';
 
 class TestFloatingEditorPartLayoutService extends TestLayoutService {
 
@@ -29,6 +31,7 @@ class TestFloatingEditorPartLayoutService extends TestLayoutService {
 	override onDidLayoutMainContainer = this._onDidLayoutMainContainer.event;
 
 	override mainContainer = mainWindow.document.createElement('div');
+	override activeContainer = this.mainContainer;
 
 	resizeMainContainer(dimension: IDimension): void {
 		this.mainContainerDimension = dimension;
@@ -179,6 +182,44 @@ suite('Floating Editor Part', () => {
 			stored: { width: 400, height: 450 },
 			shown: { width: 400, height: 450 },
 			sizeChanges: [],
+		});
+
+		part.close();
+	});
+
+	test('the commands that resize the editor resize the focused floating part, within its size limits', async () => {
+		const { parts, layoutService, instantiationService } = await createParts();
+		mainWindow.document.body.appendChild(layoutService.mainContainer); // attached, so the part can take focus
+		disposables.add({ dispose: () => layoutService.mainContainer.remove() });
+		const part = await parts.createFloatingEditorPart({ title: 'Floating', size: { width: 300, height: 300 } });
+		const element = getElements(layoutService)[0];
+		const sizeChanges: IDimension[] = [];
+		disposables.add(part.onDidChangeSize(size => sizeChanges.push(size)));
+		const run = (commandId: string, times = 1) => {
+			for (let i = 0; i < times; i++) {
+				instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(commandId)!.handler(accessor));
+			}
+			return getElementSize(element);
+		};
+
+		const unfocused = { focused: parts.focusedFloatingEditorPart, size: run('workbench.action.increaseViewWidth') };
+		part.activeGroup.focus();
+		const focused = parts.focusedFloatingEditorPart === part;
+		const wider = run('workbench.action.increaseViewWidth');
+		const lower = run('workbench.action.decreaseViewHeight');
+		const largest = run('workbench.action.increaseViewSize', 20);
+		const smallest = run('workbench.action.decreaseViewSize', 20);
+
+		// The main window of the test layout service is 800x600, and the default minimum size is 280x240
+		assert.deepStrictEqual({ unfocused, focused, wider, lower, largest, smallest, stored: part.size, sizeChanges: sizeChanges.length }, {
+			unfocused: { focused: undefined, size: { width: 300, height: 300 } },
+			focused: true,
+			wider: { width: 360, height: 300 },
+			lower: { width: 360, height: 240 },
+			largest: { width: 768, height: 568 },
+			smallest: { width: 280, height: 240 },
+			stored: { width: 280, height: 240 },
+			sizeChanges: 1 + 1 + 7 + 9, // until the width reaches the maximum and then the minimum size
 		});
 
 		part.close();

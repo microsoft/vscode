@@ -964,6 +964,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> { throw new Error('Method not implemented.'); }
 	createModalEditorPart(): Promise<IModalEditorPart> { throw new Error('Method not implemented.'); }
 	createFloatingEditorPart(): Promise<IFloatingEditorPart> { throw new Error('Method not implemented.'); }
+	readonly focusedFloatingEditorPart: IFloatingEditorPart | undefined = undefined;
 }
 
 export class TestEditorGroupView implements IEditorGroupView {
@@ -1725,6 +1726,8 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	createFloatingEditorPart(): Promise<IFloatingEditorPart> {
 		throw new Error('Method not implemented.');
 	}
+
+	readonly focusedFloatingEditorPart: IFloatingEditorPart | undefined = undefined;
 
 	getScopedInstantiationService(part: IEditorPart): IInstantiationService {
 		throw new Error('Method not implemented.');

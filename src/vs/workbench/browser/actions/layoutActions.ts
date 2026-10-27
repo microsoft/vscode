@@ -1144,9 +1144,17 @@ abstract class BaseResizeViewAction extends Action2 {
 
 	protected static readonly RESIZE_INCREMENT = 60; // This is a css pixel size
 
-	protected resizePart(widthChange: number, heightChange: number, layoutService: IWorkbenchLayoutService, partToResize?: Parts): void {
+	protected resizePart(widthChange: number, heightChange: number, accessor: ServicesAccessor, partToResize?: Parts): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 		if (layoutService.activeContainer !== layoutService.mainContainer) {
 			return; // we do not support resizing in auxiliary windows
+		}
+
+		// A focused floating editor part resizes itself, as it floats over the parts of the window
+		const floatingEditorPart = accessor.get(IEditorGroupsService).focusedFloatingEditorPart;
+		if (floatingEditorPart && (partToResize === undefined || partToResize === Parts.EDITOR_PART)) {
+			floatingEditorPart.resize(widthChange, heightChange);
+			return;
 		}
 
 		let part: Parts | undefined;
@@ -1187,7 +1195,7 @@ class IncreaseViewSizeAction extends BaseResizeViewAction {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT, BaseResizeViewAction.RESIZE_INCREMENT, accessor.get(IWorkbenchLayoutService));
+		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT, BaseResizeViewAction.RESIZE_INCREMENT, accessor);
 	}
 }
 
@@ -1203,7 +1211,7 @@ class IncreaseViewWidthAction extends BaseResizeViewAction {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT, 0, accessor.get(IWorkbenchLayoutService), Parts.EDITOR_PART);
+		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT, 0, accessor, Parts.EDITOR_PART);
 	}
 }
 
@@ -1219,7 +1227,7 @@ class IncreaseViewHeightAction extends BaseResizeViewAction {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		this.resizePart(0, BaseResizeViewAction.RESIZE_INCREMENT, accessor.get(IWorkbenchLayoutService), Parts.EDITOR_PART);
+		this.resizePart(0, BaseResizeViewAction.RESIZE_INCREMENT, accessor, Parts.EDITOR_PART);
 	}
 }
 
@@ -1235,7 +1243,7 @@ class DecreaseViewSizeAction extends BaseResizeViewAction {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT, -BaseResizeViewAction.RESIZE_INCREMENT, accessor.get(IWorkbenchLayoutService));
+		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT, -BaseResizeViewAction.RESIZE_INCREMENT, accessor);
 	}
 }
 
@@ -1250,7 +1258,7 @@ class DecreaseViewWidthAction extends BaseResizeViewAction {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT, 0, accessor.get(IWorkbenchLayoutService), Parts.EDITOR_PART);
+		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT, 0, accessor, Parts.EDITOR_PART);
 	}
 }
 
@@ -1266,7 +1274,7 @@ class DecreaseViewHeightAction extends BaseResizeViewAction {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		this.resizePart(0, -BaseResizeViewAction.RESIZE_INCREMENT, accessor.get(IWorkbenchLayoutService), Parts.EDITOR_PART);
+		this.resizePart(0, -BaseResizeViewAction.RESIZE_INCREMENT, accessor, Parts.EDITOR_PART);
 	}
 }
 

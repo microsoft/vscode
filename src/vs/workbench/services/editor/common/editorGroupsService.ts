@@ -628,6 +628,14 @@ export interface IFloatingEditorPart extends IEditorPart {
 	resetSize(): void;
 
 	/**
+	 * Resizes the part by the given amounts from the size it shows, as the
+	 * user does from its edges or with the commands that resize the editor:
+	 * within the main window and not below its minimum size. Fires
+	 * {@link onDidChangeSize} when the size changed.
+	 */
+	resize(widthChange: number, heightChange: number): void;
+
+	/**
 	 * Changes the title shown in the header of the part, which is also
 	 * its accessible name.
 	 */
@@ -829,6 +837,11 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * It is not part of working sets: applying one leaves it open.
 	 */
 	createFloatingEditorPart(options: IFloatingEditorPartOptions): Promise<IFloatingEditorPart>;
+
+	/**
+	 * The floating editor part that has focus, if any.
+	 */
+	readonly focusedFloatingEditorPart: IFloatingEditorPart | undefined;
 
 	/**
 	 * Returns the instantiation service that is scoped to the

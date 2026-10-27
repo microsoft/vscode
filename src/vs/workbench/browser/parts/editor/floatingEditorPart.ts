@@ -189,6 +189,12 @@ export class FloatingEditorPart {
 		}));
 		disposables.add(this.layoutService.onDidLayoutMainContainer(() => layout()));
 		disposables.add(editorPart.onDidResetSize(() => layout()));
+		disposables.add(editorPart.onDidRequestResize(({ widthChange, heightChange }) => {
+			const { width, height } = resizableElement.size;
+			resizableElement.layout(height + heightChange, width + widthChange); // within the minimum and maximum size
+			layoutEditorPart();
+			editorPart.updateSize(resizableElement.size);
+		}));
 		layout();
 
 		// Dispose after the part closed, so that all listeners of `onWillClose` run first
@@ -254,6 +260,14 @@ class FloatingEditorPartImpl extends EditorPart implements IFloatingEditorPart {
 	resetSize(): void {
 		this._size = FloatingEditorPart.getDefaultSize(this.layoutService);
 		this._onDidResetSize.fire();
+	}
+
+	private readonly _onDidRequestResize = this._register(new Emitter<{ readonly widthChange: number; readonly heightChange: number }>());
+	/** Fired when the part is resized by an amount, which its layout then applies within its size limits. */
+	readonly onDidRequestResize = this._onDidRequestResize.event;
+
+	resize(widthChange: number, heightChange: number): void {
+		this._onDidRequestResize.fire({ widthChange, heightChange });
 	}
 
 	/** Records the size the user resized the part to. */

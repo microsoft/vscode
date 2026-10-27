@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { distinct } from '../../../../base/common/arrays.js';
 import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart.js';
 import { ModalEditorPart } from './modalEditorPart.js';
-import { FloatingEditorPart } from './floatingEditorPart.js';
+import { FloatingEditorPart, ICreateFloatingEditorPartResult } from './floatingEditorPart.js';
 import { MultiWindowParts } from '../../part.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -23,7 +23,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { getActiveElement, IDimension, isAncestor, isHTMLElement } from '../../../../base/browser/dom.js';
+import { getActiveElement, IDimension, isAncestor, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -123,7 +123,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 	private readonly mapPartToInstantiationService = new Map<number /* window ID */, IInstantiationService>();
 	private modalPartInstantiationService: IInstantiationService | undefined;
-	private readonly mapFloatingPartToInstantiationService = new Map<IEditorPart, IInstantiationService>();
+	private readonly floatingParts = new Map<IEditorPart, Pick<ICreateFloatingEditorPartResult, 'part' | 'instantiationService'>>();
 
 	/** Parts that working sets leave alone, and that window restore does not capture. */
 	private readonly partsExcludedFromWorkingSets = new Set<IEditorPart>();
@@ -157,7 +157,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 
 		// Floating Parts share the main window, so they are not found by window
-		const floatingPartInstantiationService = this.mapFloatingPartToInstantiationService.get(part);
+		const floatingPartInstantiationService = this.floatingParts.get(part)?.instantiationService;
 		if (floatingPartInstantiationService) {
 			return floatingPartInstantiationService;
 		}
@@ -198,14 +198,25 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(FloatingEditorPart, this).create(options);
 
 		// Keep instantiation service
-		this.mapFloatingPartToInstantiationService.set(part, instantiationService);
-		disposables.add(toDisposable(() => this.mapFloatingPartToInstantiationService.delete(part)));
+		this.floatingParts.set(part, { part, instantiationService });
+		disposables.add(toDisposable(() => this.floatingParts.delete(part)));
 		this.excludeFromWorkingSets(part, disposables);
 
 		// Events
 		this._onDidAddGroup.fire(part.activeGroup);
 
 		return part;
+	}
+
+	get focusedFloatingEditorPart(): IFloatingEditorPart | undefined {
+		for (const { part } of this.floatingParts.values()) {
+			const container = part.getContainer();
+			if (container && isAncestorOfActiveElement(container)) {
+				return part;
+			}
+		}
+
+		return undefined;
 	}
 
 	//#endregion
@@ -335,7 +346,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	 * share the main window and keep a label of their own.
 	 */
 	private getWindowParts(): EditorPart[] {
-		return this.parts.filter(part => !this.mapFloatingPartToInstantiationService.has(part));
+		return this.parts.filter(part => !this.floatingParts.has(part));
 	}
 
 	private registerEditorPartListeners(part: EditorPart, disposables: DisposableStore): void {
