@@ -2385,7 +2385,8 @@ suite('SessionServerTools', () => {
 			const session = 'copilot:/s1';
 			stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session) });
 			const gate: { harnesses?: readonly string[] } = {};
-			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({ getChatHarnesses: () => gate.harnesses }))]);
+			const accessor = createAccessor({ getChatHarnesses: () => gate.harnesses, isChatMoveEnabled: () => true, supportsChatMoves: () => true });
+			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(accessor), createSessionMoveToolGroup(accessor, () => true)]);
 			const read = () => {
 				const definitions = host.getDefinitionsForSession(session);
 				const description = (name: string) => definitions.find(tool => tool.name === name)!.description;
@@ -2394,14 +2395,16 @@ suite('SessionServerTools', () => {
 					getCurrentSession: description(SessionServerToolName.GetCurrentSession)?.includes('Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`.'),
 					model: definitions.find(tool => tool.name === SessionServerToolName.CreateSession)!.inputSchema?.properties?.model,
 					mentionsHarness: definitions.some(tool => JSON.stringify(tool).includes('harness') || JSON.stringify(tool).includes('uses the same agent')),
+					moveSession: description(SessionServerToolName.MoveSession),
 				};
 			};
 			const off = read();
 			gate.harnesses = ['copilotcli', 'claude'];
 			const on = read();
 			// The strings of origin/main before chats could use their own agents (5893cd55828).
-			assert.deepStrictEqual({ off, onMentionsHarness: on.mentionsHarness, onListSessions: on.listSessions }, {
+			assert.deepStrictEqual({ off, onMentionsHarness: on.mentionsHarness, onListSessions: on.listSessions, onMoveSession: on.moveSession?.includes('it can move into a session of another agent when that agent supports multiple chats.') }, {
 				off: {
+					moveSession: 'Move a nested session or a whole session when the user asks to reorganize sessions: reorder a nested session within its session, move it into another session, make it its own session (`independent`), or move a session that has no nested sessions into another session as a nested session. Pass `into` for every move except `independent`, which takes neither `into` nor `after`. Use this only when the user asks to move or reorganize sessions; never to tidy up sessions on your own. To start new work, use `create_session` instead. A moved session keeps its history, folders and running work, including a session without a workspace; both sessions must use the same agent. Get links from `list_sessions` or `get_current_session`: a session\'s `openLink`, or for a nested session the `openLink` listed for it in the session\'s `chats`. The user is asked to confirm every move. When it moves the chat this tool runs in, the move happens after this turn ends: make it your final tool call.',
 					listSessions: true,
 					getCurrentSession: true,
 					model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
@@ -2409,6 +2412,7 @@ suite('SessionServerTools', () => {
 				},
 				onMentionsHarness: true,
 				onListSessions: false,
+				onMoveSession: true,
 			});
 			stateManager.dispose();
 		});

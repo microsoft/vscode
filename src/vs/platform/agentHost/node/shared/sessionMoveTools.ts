@@ -35,6 +35,10 @@ const moveSessionInputSchema: ToolDefinition['inputSchema'] = {
 	},
 };
 
+/** `move_session`'s sentence on agents, and its wording where chats of the session may use their own agents. */
+const moveSessionSameAgentSentence = 'A moved session keeps its history, folders and running work, including a session without a workspace; both sessions must use the same agent.';
+const moveSessionOwnAgentSentence = 'A moved session keeps its history, folders, running work and agent, including a session without a workspace; it can move into a session of another agent when that agent supports multiple chats.';
+
 /** The `move_session` tool, offered only while moving chats is enabled. */
 export const moveSessionToolDefinition: IAgentServerToolDefinition = {
 	name: SessionServerToolName.MoveSession,
@@ -403,6 +407,10 @@ export function createSessionMoveToolGroup(accessor: ISessionServerToolAccessor,
 		getDisplay: (_toolName, args, result) => getMoveSessionDisplay(args, result, (session, chatId) => accessor.isKnownSessionLink(session, chatId)),
 		isEnabled: toolName => toolName === SessionServerToolName.MoveSession && accessor.isChatMoveEnabled(),
 		isEnabledForSession: (_toolName, sessionUri) => accessor.supportsChatMoves(URI.parse(sessionUri)),
+		// Mentions moves across agents only while chats of the session may use their own agents; otherwise it reads as before.
+		getDefinitionForSession: (definition, sessionUri) => definition.name === SessionServerToolName.MoveSession && accessor.getChatHarnesses?.(URI.parse(sessionUri)) !== undefined
+			? { ...definition, description: definition.description?.replace(moveSessionSameAgentSentence, moveSessionOwnAgentSentence) }
+			: definition,
 		canRequireConfirmation: toolName => sessionToolRequiresConfirmation(toolName),
 		async execute(_stateManager, context, _toolName, rawArgs): Promise<string> {
 			if (!accessor.isChatMoveEnabled()) {
