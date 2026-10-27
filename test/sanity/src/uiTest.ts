@@ -17,6 +17,19 @@ const galleryUrlPattern = /^https:\/\/[^/]*(\.vsassets\.io|marketplace\.visualst
 /** Request headers that are not replayed by the Node-side gallery probe: credentials, HTTP/2 pseudo-headers and connection-level headers. */
 const unreplayedHeaderPattern = /^(:|cookie$|authorization$|host$|connection$|keep-alive$|transfer-encoding$|upgrade$|content-length$|accept-encoding$)/i;
 
+/** Response headers that are not saved, since they can carry session credentials. */
+const unsavedResponseHeaderPattern = /^set-cookie$/i;
+
+function savedResponseHeaders(headers: Iterable<[string, string]>): Record<string, string> {
+	const result: Record<string, string> = {};
+	for (const [name, value] of headers) {
+		if (!unsavedResponseHeaderPattern.test(name)) {
+			result[name] = value;
+		}
+	}
+	return result;
+}
+
 /** How many distinct failed gallery URLs are probed from Node per test. */
 const maxGalleryProbes = 10;
 
@@ -378,7 +391,7 @@ export class UITest {
 				this.context.log(`Gallery request returned ${response.status()}: ${request.method()} ${response.url()}`);
 				const failure: GalleryRequestFailure = { time: new Date().toISOString(), method: request.method(), url: response.url(), status: response.status() };
 				failures.push(failure);
-				response.allHeaders().then(headers => failure.responseHeaders = headers, () => { });
+				response.allHeaders().then(headers => failure.responseHeaders = savedResponseHeaders(Object.entries(headers)), () => { });
 				probe(request);
 			}
 		};
@@ -418,7 +431,7 @@ export class UITest {
 			});
 			result.status = response.status;
 			result.statusText = response.statusText;
-			result.responseHeaders = Object.fromEntries(response.headers.entries());
+			result.responseHeaders = savedResponseHeaders(response.headers.entries());
 			result.bodyBytes = (await response.arrayBuffer()).byteLength;
 		} catch (error) {
 			const cause = error instanceof Error && error.cause instanceof Error ? ` (cause: ${error.cause.message})` : '';
