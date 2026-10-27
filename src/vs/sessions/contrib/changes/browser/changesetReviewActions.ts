@@ -9,7 +9,9 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IChangesViewService } from '../common/changesViewService.js';
+import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getChangesOfSession, IChangesViewService } from '../common/changesViewService.js';
 import { findChangesEditorFileChange, getChangesEditorFileResource } from './changesEditorLabels.js';
 import { SessionChangesFileResourceContext } from './changesMultiDiffSourceResolver.js';
 import { ChangesetReviewedFilesContext, ChangesetReviewSupportContext } from './changesViewService.js';
@@ -45,12 +47,18 @@ export class ChangesetReviewAction extends Action2 {
 		}
 
 		const changesViewService = accessor.get(IChangesViewService);
-		if (changesViewService.activeSessionChangesetObs.get()?.capabilities?.review !== true) {
+		// The editor passes its own session; the file toolbar and keybindings fall back to the active one.
+		const session = resolveSessionActionTarget(accessor, args[1]);
+		if (!session) {
+			return;
+		}
+		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).mainWindowActiveSession.get(), session);
+		if (changes.changesetObs.get()?.capabilities?.review !== true) {
 			return;
 		}
 
 		// Guard against a resource forwarded by a stale editor row (e.g. mid session switch).
-		const change = findChangesEditorFileChange(resource, changesViewService.activeSessionChangesObs.get());
+		const change = findChangesEditorFileChange(resource, changes.changesObs.get());
 		if (!change) {
 			return;
 		}
@@ -69,7 +77,7 @@ export class ChangesetReviewAction extends Action2 {
 		}
 
 		// Set the review state
-		changesViewService.setChangesetFilesReviewState([fileResource], review);
+		changesViewService.setChangesetFilesReviewState([fileResource], review, session);
 	}
 }
 
