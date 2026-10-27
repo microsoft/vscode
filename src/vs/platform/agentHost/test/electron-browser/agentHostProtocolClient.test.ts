@@ -5066,6 +5066,28 @@ suite('AgentHostProtocolClient', () => {
 			}, { transports: 2, replacementMethods: ['initialize'], capability: {} });
 		});
 
+		test('does not re-initialize when the first handshake already advertises chats with their own agents (a local host seeded by its starter)', async () => {
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, true);
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequest(transports[0], 'initialize');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, multipleChatProviders: {}, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: true } } } }] },
+			});
+			await connecting;
+			// The client's own mirror of the setting confirms the host's gate.
+			transports[0].fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 2, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: true } },
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual({ transports: transports.length, capability: client.initializeResult.get()?.multipleChatProviders }, { transports: 1, capability: {} });
+		});
+
 		test('does not re-initialize for chats with their own agents with the setting off', async () => {
 			const { transports } = await connectWithHostGateTurningOn(false);
 			await timeout(10);
