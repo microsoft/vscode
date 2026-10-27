@@ -23,6 +23,8 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IEditorGroupsService, IEditorPart, IFloatingEditorPart } from '../../common/editorGroupsService.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { OverlayLayoutElement } from '../../../../../base/browser/overlayLayoutElement.js';
+import { timeout } from '../../../../../base/common/async.js';
 import '../../../../browser/actions/layoutActions.js';
 
 class TestFloatingEditorPartLayoutService extends TestLayoutService {
@@ -223,6 +225,46 @@ suite('Floating Editor Part', () => {
 		});
 
 		part.close();
+	});
+
+	test('the part that takes focus or activates a group is raised above the other floating parts, with its overlays', async () => {
+		const { parts, layoutService } = await createParts();
+		layoutService.mainContainer.classList.add('monaco-workbench'); // so the styles of floating parts apply
+		mainWindow.document.body.appendChild(layoutService.mainContainer);
+		disposables.add({ dispose: () => layoutService.mainContainer.remove() });
+		const first = await parts.createFloatingEditorPart({ title: 'First' });
+		const second = await parts.createFloatingEditorPart({ title: 'Second' });
+		const [firstElement, secondElement] = getElements(layoutService);
+
+		// Overlays, such as webviews, positioned over the editor area of each part
+		const overlays = [firstElement, secondElement].map(element => {
+			const overlay = disposables.add(new OverlayLayoutElement());
+			mainWindow.document.body.appendChild(overlay.root);
+			overlay.setAnchorElement(element.querySelector<HTMLElement>('.content')!);
+			return overlay;
+		});
+		const describe = async () => {
+			await timeout(0); // the overlays follow the classes of the parts
+			return {
+				parts: [firstElement, secondElement].map(element => Number(mainWindow.getComputedStyle(element).zIndex)),
+				overlays: overlays.map(overlay => Number(overlay.content.style.zIndex)),
+			};
+		};
+
+		const created = await describe();
+		first.activeGroup.focus();
+		const firstFocused = await describe();
+		second.activateGroup(second.activeGroup);
+		const secondActivated = await describe();
+
+		assert.deepStrictEqual({ created, firstFocused, secondActivated }, {
+			created: { parts: [36, 38], overlays: [37, 39] },
+			firstFocused: { parts: [38, 36], overlays: [39, 37] },
+			secondActivated: { parts: [36, 38], overlays: [37, 39] },
+		});
+
+		first.close();
+		second.close();
 	});
 
 	test('close moves editors that need confirmation to the main part and closes the others', async () => {

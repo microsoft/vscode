@@ -48,6 +48,9 @@ export class FloatingEditorPart {
 
 	private static nextId = 1;
 
+	/** The floating part raised above the others; they all float in the main window. */
+	private static raisedPart: HTMLElement | undefined;
+
 	constructor(
 		private readonly editorPartsView: IEditorPartsView,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -196,6 +199,26 @@ export class FloatingEditorPart {
 			editorPart.updateSize(resizableElement.size);
 		}));
 		layout();
+
+		// Raise the part, with its overlays such as webviews, above the other floating parts when it takes focus or
+		// activates a group, so that their overlays cannot paint over it or take its input
+		const root = resizableElement.domNode;
+		const raise = () => {
+			if (FloatingEditorPart.raisedPart === root) {
+				return; // already raised: changing its classes would make overlays update
+			}
+			FloatingEditorPart.raisedPart?.classList.remove('raised');
+			root.classList.add('raised');
+			FloatingEditorPart.raisedPart = root;
+		};
+		disposables.add(addDisposableListener(root, EventType.FOCUS_IN, () => raise()));
+		disposables.add(editorPart.onDidActivateGroup(() => raise()));
+		disposables.add(toDisposable(() => {
+			if (FloatingEditorPart.raisedPart === root) {
+				FloatingEditorPart.raisedPart = undefined;
+			}
+		}));
+		raise();
 
 		// Dispose after the part closed, so that all listeners of `onWillClose` run first
 		disposables.add(Event.once(editorPart.onDidClose)(() => disposables.dispose()));

@@ -3,13 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Floats over the content of the main window, above its sashes, below notifications, menus, hovers, modal editors,
- * Quick Input and dialogs. Webviews in it stack just above it (see OverlayLayoutElement). */
+/* Floats over the content of the main window, above its sashes (35), below hovers and action widgets (40), and so
+ * below notifications, menus, modal editors, Quick Input and dialogs. The part that last took focus or activated a
+ * group is raised above the other floating parts. Overlays of a part, such as webviews, stack one level above it (see
+ * OverlayLayoutElement), so those of the other parts (37) stay below the raised part (38). */
 .monaco-workbench > .monaco-floating-editor-part {
 	position: absolute;
-	z-index: 40;
+	z-index: 36;
 	box-shadow: var(--vscode-shadow-xl);
 	border-radius: var(--vscode-cornerRadius-xLarge);
+
+	&.raised {
+		z-index: 38;
+	}
 }
 
 .monaco-workbench > .monaco-floating-editor-part > .floating-editor-part {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getComputedStyle, setParentFlowTo } from './dom.js';
+import { getComputedStyle, getWindow, setParentFlowTo } from './dom.js';
 import { IDisposable } from '../common/lifecycle.js';
 import { generateUuid } from '../common/uuid.js';
 
@@ -33,6 +33,7 @@ export class OverlayLayoutElement implements IDisposable {
 
 	private _currentAnchor?: { readonly element: HTMLElement; readonly name: string };
 	private _clippingAnchor?: { readonly element: HTMLElement; readonly name: string };
+	private _zIndexSource?: { readonly element: HTMLElement; readonly observer: MutationObserver };
 
 	/**
 	 * The root element that contains the overlay element.
@@ -66,6 +67,8 @@ export class OverlayLayoutElement implements IDisposable {
 	}
 
 	public dispose(): void {
+		this._zIndexSource?.observer.disconnect();
+		this._zIndexSource = undefined;
 		this.root.remove();
 	}
 
@@ -107,18 +110,36 @@ export class OverlayLayoutElement implements IDisposable {
 	/**
 	 * Walk up from the anchor element to find the nearest ancestor with an explicit
 	 * z-index and place the overlay one level above it. This ensures the overlay sits
-	 * above modal layers or other stacking contexts.
+	 * above modal layers or other stacking contexts. The z-index follows changes to the
+	 * classes of that ancestor, such as one raising it above others.
 	 */
 	private _updateZIndex(anchorElement: HTMLElement): void {
-		let zIndex = '';
+		let source: HTMLElement | undefined;
 		for (let el: HTMLElement | null = anchorElement; el; el = el.parentElement) {
 			const computed = getComputedStyle(el).zIndex;
 			if (computed && computed !== 'auto') {
-				zIndex = String(Number(computed) + 1);
+				source = el;
 				break;
 			}
 		}
-		this.content.style.zIndex = zIndex;
+
+		this._applyZIndex(source);
+
+		if (this._zIndexSource?.element !== source) {
+			this._zIndexSource?.observer.disconnect();
+			this._zIndexSource = undefined;
+			if (source) {
+				const zIndexSource = source;
+				const observer = new (getWindow(zIndexSource).MutationObserver)(() => this._applyZIndex(zIndexSource));
+				observer.observe(zIndexSource, { attributes: true, attributeFilter: ['class'] });
+				this._zIndexSource = { element: zIndexSource, observer };
+			}
+		}
+	}
+
+	private _applyZIndex(source: HTMLElement | undefined): void {
+		const computed = source ? getComputedStyle(source).zIndex : undefined;
+		this.content.style.zIndex = computed && computed !== 'auto' ? String(Number(computed) + 1) : '';
 	}
 
 	private _updateClipping(clippingContainer: HTMLElement | undefined): void {
