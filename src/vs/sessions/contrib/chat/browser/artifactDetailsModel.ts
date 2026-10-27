@@ -132,7 +132,7 @@ export class ArtifactDetailsModel extends Disposable {
 		const loading = snapshot.contributions.some(contribution => contribution.view.availability.kind === 'loading')
 			|| !!(main && contribution && !requiresAuthentication(contribution) && (!mainDetails || mainDetails.availability.kind === 'loading'));
 		const title = mainDetails?.title || snapshot.artifact.label;
-		const description = (mainDetails ? getArtifactDetailsDescription(mainDetails) : '') || (mainDetails?.availability.kind === 'available' ? localize('artifactNoDescription', "No description provided.") : '');
+		const description = mainDetails ? getArtifactDetailsDescription(mainDetails) : '';
 		const message = [...new Set([
 			...snapshot.contributions.map(contribution => availabilityText(contribution.view.availability)),
 			...(main && contribution && !requiresAuthentication(contribution) ? [availabilityText(mainDetails?.availability)] : []),

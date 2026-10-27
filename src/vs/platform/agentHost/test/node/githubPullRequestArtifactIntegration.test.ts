@@ -270,7 +270,7 @@ suite('GitHub pull request artifact integration', () => {
 		], [JSON.stringify(['api.github.com', '1']), undefined, undefined, { addressReviews: false, fixCI: false, resolveConflicts: false, markReady: false, merge: 'never' }]);
 	}));
 
-	test('details expose the actual title and body, and lists do not depend on nonempty pill sections', () => run(async store => {
+	test('details expose the actual title without the body, and lists do not depend on nonempty pill sections', () => run(async store => {
 		const original = createPullRequestArtifactSnapshot();
 		const title = 'Preserve keyboard focus when artifact state refreshes';
 		const body = '## Description\n\nKeep the **selected control** stable.\n\n- Cover keyboard navigation\n- Preserve the draft';
@@ -287,8 +287,8 @@ suite('GitHub pull request artifact integration', () => {
 			commentSection: view.sections.some(section => section.id === 'comments'),
 			comments: comments.details.get().items, emptyDescription: main.details.get().description,
 		}, {
-			main: { title, description: body, format: 'markdown' }, lists: ['checks', 'comments'],
-			commentSection: false, comments: [], emptyDescription: '',
+			main: { title, description: undefined, format: undefined }, lists: ['checks', 'comments'],
+			commentSection: false, comments: [], emptyDescription: undefined,
 		});
 	}));
 
