@@ -29,7 +29,7 @@ import { LoggerService } from '../../log/node/loggerService.js';
 import { OtlpEmitterLogger, OtlpLogEmitter } from '../common/otlp/otlpLogEmitter.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
-import { shutdownAgentHostBeforeDispose } from './agentHostShutdown.js';
+import { parseShutdownTimeoutArg, shutdownAgentHostBeforeDispose } from './agentHostShutdown.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { createAgentHostRuntime } from './agentHostBootstrap.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -65,8 +65,6 @@ function log(msg: string): void {
 // ---- Options ----------------------------------------------------------------
 
 const connectionTokenRegex = /^[0-9A-Za-z_-]+$/;
-
-const DEFAULT_SHUTDOWN_TIMEOUT_MS = 4500;
 
 interface IServerOptions {
 	readonly port: number;
@@ -113,17 +111,12 @@ async function parseServerOptions(): Promise<IServerOptions> {
 	const claudeSdkRoot = (claudeSdkRootIdx >= 0 ? argv[claudeSdkRootIdx + 1] : process.env[AgentHostClaudeSdkRootEnvVar]) ?? '';
 	const codexSdkRootIdx = argv.indexOf('--codex-sdk-root');
 	const codexSdkRoot = (codexSdkRootIdx >= 0 ? argv[codexSdkRootIdx + 1] : process.env[AgentHostCodexAgentSdkRootEnvVar]) ?? '';
-	const shutdownTimeoutIdx = argv.indexOf('--shutdown-timeout');
-	const rawShutdownTimeout = shutdownTimeoutIdx >= 0 ? argv[shutdownTimeoutIdx + 1] : undefined;
-	if (shutdownTimeoutIdx >= 0 && (rawShutdownTimeout === undefined || rawShutdownTimeout.startsWith('--'))) {
-		log(`Error: Missing value for --shutdown-timeout; expected milliseconds (e.g. ${DEFAULT_SHUTDOWN_TIMEOUT_MS})`);
+	const shutdownTimeout = parseShutdownTimeoutArg(argv);
+	if (shutdownTimeout.error !== undefined) {
+		log(`Error: ${shutdownTimeout.error}`);
 		process.exit(1);
 	}
-	const shutdownTimeoutMs = rawShutdownTimeout !== undefined ? Number(rawShutdownTimeout) : DEFAULT_SHUTDOWN_TIMEOUT_MS;
-	if (!Number.isSafeInteger(shutdownTimeoutMs) || shutdownTimeoutMs <= 0) {
-		log(`Error: --shutdown-timeout must be a positive number of milliseconds, got '${rawShutdownTimeout}'`);
-		process.exit(1);
-	}
+	const shutdownTimeoutMs = shutdownTimeout.timeoutMs;
 	const quiet = argv.includes('--quiet');
 
 	// Connection token
