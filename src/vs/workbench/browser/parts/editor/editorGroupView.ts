@@ -1211,6 +1211,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return;
 		}
 
+		// An editor the part does not take opens where the part says instead, however it was to open here: opened, moved,
+		// copied or dropped. The title of the other group is updated now, as this group's title is not for that editor.
+		const redirect = this.groupsView.redirectEditor?.(editor, this);
+		if (redirect) {
+			return redirect instanceof EditorGroupView ? redirect.doOpenEditor(editor, options, { ...internalOptions, skipTitleUpdate: false }) : redirect.openEditor(editor, options);
+		}
+
 		// Fire the event letting everyone know we are about to open an editor
 		this._onWillOpenEditor.fire({ editor, groupId: this.id });
 
@@ -1485,6 +1492,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalMoveCopyOptions): boolean {
 		const keepCopy = internalOptions?.keepCopy;
+
+		// An editor the target's part does not take goes where that part says instead, whose title is updated now as the
+		// caller updates the target's; back where it is, it stays.
+		const redirect = target.groupsView.redirectEditor?.(editor, target);
+		if (redirect instanceof EditorGroupView) {
+			if (redirect === this) {
+				return true;
+			}
+			target = redirect;
+			internalOptions = { ...internalOptions, skipTitleUpdate: false };
+		}
 
 		// Validate that we can move
 		if (!keepCopy || editor.hasCapability(EditorInputCapabilities.Singleton) /* singleton editors will always move */) {

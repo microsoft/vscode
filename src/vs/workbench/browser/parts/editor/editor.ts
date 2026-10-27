@@ -230,6 +230,12 @@ export interface IEditorGroupsView {
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
+
+	/**
+	 * The group of another part that `editor` opens in instead of `group`, for an editor this part does not take; see
+	 * `ICreateEditorPartOptions.redirectEditor`.
+	 */
+	redirectEditor?(editor: EditorInput, group: IEditorGroupView): IEditorGroup | undefined;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;

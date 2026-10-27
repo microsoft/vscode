@@ -10,7 +10,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IMenu, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
-import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { EditorPartEmbeddedContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { TaskExecutionSupportedContext } from '../../tasks/common/taskService.js';
 import { ICreateTerminalOptions, ITerminalLocationOptions, ITerminalService } from './terminal.js';
 import { TerminalCommandId, TERMINAL_VIEW_ID } from '../common/terminal.js';
@@ -704,7 +704,8 @@ export function setupTerminalMenus(): void {
 			id: TerminalCommandId.MoveToTerminalPanel,
 			title: terminalStrings.moveToTerminalPanel
 		},
-		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		// An embedded editor part owns its terminals, such as a feature that shows them in place of the panel.
+		when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), EditorPartEmbeddedContext.toNegated()),
 		group: '2_files'
 	});
 
