@@ -1,0 +1,1 @@
+{"status":"0","message":"NOTOK","result":"Missing chainid parameter (required for v2 api), please see https://api.etherscan.io/v2/chainlist for the list of supported chainids"}
