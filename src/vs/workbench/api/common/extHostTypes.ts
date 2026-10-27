@@ -2696,7 +2696,18 @@ export enum NotebookVariablesRequestKind {
 
 @es5ClassCompat
 export class TimelineItem implements vscode.TimelineItem {
-	constructor(public label: string, public timestamp: number) { }
+	label?: string;
+	resourceUri?: URI;
+
+	constructor(label: string, timestamp: number);
+	constructor(resourceUri: URI, timestamp: number);
+	constructor(arg1: string | URI, public timestamp: number) {
+		if (URI.isUri(arg1)) {
+			this.resourceUri = arg1;
+		} else {
+			this.label = arg1;
+		}
+	}
 }
 
 export enum TimelineTriggerKind {
