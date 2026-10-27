@@ -12,12 +12,6 @@ export const Schemes = Object.freeze({
 	untitled: 'untitled',
 });
 
-export const Mimes = Object.freeze({
-	plain: 'text/plain',
-	uriList: 'text/uri-list',
-});
-
-
 export function getDocumentDir(uri: vscode.Uri): vscode.Uri | undefined {
 	const docUri = getParentDocumentUri(uri);
 	if (docUri.scheme === Schemes.untitled) {
