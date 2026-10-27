@@ -461,7 +461,7 @@ async function executeClipboardApiPaste(editor: IActiveCodeEditor, clipboardServ
 				const clipboardData = await toDataTransfer(data);
 				const event = createClipboardPasteEventFromData(clipboardData);
 				editor.triggerOnWillPaste(event);
-				if (event.isHandled) {
+				if (event.isHandled || !event.text) {
 					// Paste providers can handle rich formats; do not also run the plain-text fallback below.
 					return;
 				}
