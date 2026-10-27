@@ -56,7 +56,9 @@ function spawnAsync(command: string, args: string[], opts: child_process.SpawnOp
 }
 
 /**
- * Installs a separate pnpm install root. pnpm uses `--frozen-lockfile` by default in CI.
+ * Installs a separate pnpm install root. The install is frozen when the install that runs this
+ * script is: in CI (pnpm's default), with `--frozen-lockfile` (exported by the root `.pnpmfile.mts`)
+ * or with `pnpm_config_frozen_lockfile=true`. Otherwise it updates an outdated lockfile.
  */
 async function pnpmInstallAsync(dir: string, env: NodeJS.ProcessEnv): Promise<void> {
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
@@ -283,7 +285,7 @@ async function main() {
 	log('.', `Running ${parallelTasks.length} pnpm installs with concurrency ${concurrency}...`);
 	await runWithConcurrency(parallelTasks, concurrency);
 
-		child_process.execSync('git config pull.rebase merges');
+	child_process.execSync('git config pull.rebase merges');
 	child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
 
 	finishCloudSandbox();

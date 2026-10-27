@@ -101,3 +101,44 @@ export function applyNativeBuildEnv(rootDir: string, options: NativeBuildOptions
 		}
 	}
 }
+
+/**
+ * The pnpm commands that install with a frozen lockfile: `pnpm ci` and its aliases.
+ */
+const frozenLockfileCommands = new Set(['ci', 'clean-install', 'ic', 'install-clean']);
+
+/**
+ * Exports the `--frozen-lockfile` option of the running pnpm command as `pnpm_config_frozen_lockfile`,
+ * so that the `pnpm install` that the root postinstall runs in each separate install root follows
+ * it. `pnpm ci` (and its aliases) counts as `--frozen-lockfile`, unless the option turns it off.
+ * pnpm passes neither its command line options nor its CI default to install scripts, but the
+ * root `.pnpmfile.mts` runs in the pnpm process, whose `argv` is pnpm's command line. Without the
+ * option, nothing is exported: in CI the nested installs are frozen by pnpm's own default, and a
+ * `pnpm_config_frozen_lockfile` set by the caller is inherited.
+ */
+export function exportFrozenLockfileOption(argv: readonly string[] = process.argv, env: NodeJS.ProcessEnv = process.env): void {
+	let frozen: boolean | undefined;
+	let command: string | undefined;
+	// argv[0] is Node.js and argv[1] pnpm's script
+	for (let i = 2; i < argv.length; i++) {
+		const arg = argv[i];
+		if (arg === '--') {
+			break;
+		}
+		if (arg === '--frozen-lockfile' || arg === '--frozen-lockfile=true') {
+			frozen = true;
+		} else if (arg === '--no-frozen-lockfile' || arg === '--frozen-lockfile=false') {
+			frozen = false;
+		} else if (arg === '-C' || arg === '--dir') {
+			i++; // the folder, as in `pnpm -C <folder> ci`
+		} else if (command === undefined && !arg.startsWith('-')) {
+			command = arg;
+		}
+	}
+	if (frozen === undefined && command !== undefined && frozenLockfileCommands.has(command)) {
+		frozen = true;
+	}
+	if (frozen !== undefined) {
+		env.pnpm_config_frozen_lockfile = String(frozen);
+	}
+}
