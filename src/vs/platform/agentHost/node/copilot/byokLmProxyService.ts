@@ -382,13 +382,11 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			? connection.onDidDelta(delta => {
 				if (delta.requestId === requestId) {
 					const frames = emitter.push(delta);
-					if (committed) {
+					// `write` commits the stream first, so visible output commits and
+					// invisible output is staged until something visible arrives. Both
+					// paths also stay off a response the client already abandoned.
+					if (committed || hasVisibleDelta(delta)) {
 						write(frames);
-					} else if (hasVisibleDelta(delta)) {
-						commitStream();
-						for (const frame of frames) {
-							res.write(frame);
-						}
 					} else {
 						stagedFrames.push(...frames);
 					}
