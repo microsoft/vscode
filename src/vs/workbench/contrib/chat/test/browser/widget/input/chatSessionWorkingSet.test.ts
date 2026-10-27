@@ -24,7 +24,7 @@ import { ContextKeyService } from '../../../../../../../platform/contextkey/brow
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
-import { IEditorPane, IUntypedEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
+import { ITextDiffEditorPane, IUntypedEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
 import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
@@ -43,7 +43,7 @@ import { IChatViewModel } from '../../../../common/model/chatViewModel.js';
 suite('ChatSessionWorkingSet', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keepEnabled?: IObservable<boolean>, keepResult?: Promise<boolean>, editingSession?: () => IChatEditingSession | undefined, openedPane?: IEditorPane) {
+	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keepEnabled?: IObservable<boolean>, keepResult?: Promise<boolean>, editingSession?: () => IChatEditingSession | undefined, openedPane?: ITextDiffEditorPane) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.OpenChangedFileInDiffEditor]: openInDiffEditor, [ChatConfiguration.EditorWorkingSetEnabled]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
@@ -79,7 +79,7 @@ suite('ChatSessionWorkingSet', () => {
 		}));
 		const opened: (EditorInput | IUntypedEditorInput)[] = [];
 		instantiationService.stub(IEditorService, {
-			openEditor: async (input: EditorInput | IUntypedEditorInput) => {
+			openEditor: async (input: EditorInput | IUntypedEditorInput): Promise<ITextDiffEditorPane | undefined> => {
 				opened.push(input);
 				return openedPane;
 			},
@@ -513,7 +513,7 @@ suite('ChatSessionWorkingSet', () => {
 
 	test('reveals the first edit after opening a working set file', async () => {
 		const file = URI.file('/changed.ts');
-		const pane = upcastPartial<IEditorPane>({});
+		const pane = upcastPartial<ITextDiffEditorPane>({});
 		const reveals: { readonly first: boolean; readonly preserveFocus: boolean | undefined }[] = [];
 		let editorIntegrationPaneMatches = false;
 		const integration = upcastPartial<IModifiedFileEntryEditorIntegration>({
