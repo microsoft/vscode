@@ -22,6 +22,7 @@ import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.j
 import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Selection } from '../../../common/core/selection.js';
 import { Handler } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { CopyPasteController } from '../../dropOrPasteInto/browser/copyPasteController.js';
@@ -219,7 +220,17 @@ async function executeClipboardApiCopy(editor: IActiveCodeEditor, clipboardServi
 }
 
 async function executeClipboardApiCut(editor: IActiveCodeEditor, clipboardService: IClipboardService, logService: ILogService): Promise<void> {
+	const model = editor.getModel();
+	const versionId = model.getVersionId();
+	const selections = editor.getSelections();
+	const isCutStateCurrent = () => editor.getModel() === model
+		&& model.getVersionId() === versionId
+		&& Selection.selectionsArrEqual(selections, editor.getSelections());
 	const result = await tryWriteClipboardApiData(editor, clipboardService, logService, true);
+	if (!isCutStateCurrent()) {
+		logService.trace('Skipping clipboard cut because the editor state changed during the clipboard write.');
+		return;
+	}
 	if (result) {
 		editor.trigger('keyboard', Handler.Cut, undefined);
 		return;
@@ -228,8 +239,13 @@ async function executeClipboardApiCut(editor: IActiveCodeEditor, clipboardServic
 		const editContext = editor.getOption(EditorOption.effectiveEditContext);
 		if (editContext) {
 			const execCommandCopy = executeClipboardCopyWithWorkaround(editor, clipboardService);
-			if (!execCommandCopy) {
+			if (execCommandCopy === false) {
 				throw new Error(nls.localize('clipboard.cutFailed', "Unable to cut to the clipboard."));
+			}
+			await execCommandCopy;
+			if (!isCutStateCurrent()) {
+				logService.trace('Skipping clipboard cut because the editor state changed during the clipboard fallback.');
+				return;
 			}
 			editor.trigger(undefined, Handler.Cut, undefined);
 		} else {

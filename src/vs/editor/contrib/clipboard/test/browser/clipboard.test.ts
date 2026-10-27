@@ -30,6 +30,7 @@ import { Handler } from '../../../../common/editorCommon.js';
 import { ILanguageService } from '../../../../common/languages/language.js';
 import { WorkspaceEdit } from '../../../../common/languages.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { TestCommandService } from '../../../../test/browser/editorTestServices.js';
 import { CopyAction, CutAction, PasteAction } from '../../browser/clipboard.js';
@@ -84,6 +85,27 @@ suite('Editor clipboard commands', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	const cutStateChanges = ['primary selection', 'secondary selection', 'content', 'model'] as const;
+
+	function changeCutState(editor: ITestCodeEditor, change: typeof cutStateChanges[number]): void {
+		const selections = editor.getSelections();
+		switch (change) {
+			case 'primary selection':
+				selections[0] = new Selection(1, 14, 1, 19);
+				break;
+			case 'secondary selection':
+				selections[1] = new Selection(1, 14, 1, 19);
+				break;
+			case 'content':
+				editor.getModel().setValue(`${editor.getValue()}!`);
+				break;
+			case 'model':
+				editor.setModel(disposables.add(createTextModel(editor.getValue())));
+				break;
+		}
+		editor.setSelections(selections);
+	}
 
 	test('registers cut and copy commands', () => {
 		assert.deepStrictEqual([CutAction, CopyAction].map(action => action && CommandsRegistry.getCommand(action.id)?.id), [
@@ -434,6 +456,47 @@ suite('Editor clipboard commands', () => {
 				legacyCopies: 0,
 			});
 		});
+	});
+
+	test('cancels a pending rich cut when its captured editor state changes', async () => {
+		for (const writeSucceeds of [false, true]) {
+			for (const change of cutStateChanges) {
+				await withClipboardEditor('first second third', {}, async ({ editor, clipboard, run }) => {
+					editor.setSelections([new Selection(1, 1, 1, 6), new Selection(1, 7, 1, 13)]);
+					const written = new DeferredPromise<void>();
+					sinon.stub(clipboard, 'writeData').returns(written.p);
+					const execCommand = stubEditorExecCommand(editor);
+					const writeText = sinon.spy(clipboard, 'writeText');
+					const cutCommand = sinon.spy(editor, 'trigger').withArgs(sinon.match.any, Handler.Cut, undefined);
+					const cut = run(CutAction);
+					changeCutState(editor, change);
+					const model = editor.getModel();
+					const text = editor.getValue();
+					const selections = editor.getSelections();
+					if (writeSucceeds) {
+						written.complete();
+					} else {
+						written.error(new Error('Rich clipboard write failed'));
+					}
+					await cut;
+					assert.deepStrictEqual({
+						text: editor.getValue(),
+						selections: editor.getSelections(),
+						modelUnchanged: editor.getModel() === model,
+						legacyCommands: execCommand.callCount,
+						textWrites: writeText.callCount,
+						cutCommands: cutCommand.callCount,
+					}, {
+						text,
+						selections,
+						modelUnchanged: true,
+						legacyCommands: 0,
+						textWrites: 0,
+						cutCommands: 0,
+					}, JSON.stringify({ writeSucceeds, change }));
+				});
+			}
+		}
 	});
 
 	test('reports copy and cut fallback failures without deleting the selection', async () => {
@@ -860,6 +923,115 @@ suite('Editor clipboard commands', () => {
 	});
 
 	if (isNative) {
+		test('waits for the EditContext fallback write before cutting and preserves undo', async () => {
+			for (const supportsClipboardData of [false, true]) {
+				await withClipboardEditor('first second third', { editContext: true }, async ({ editor, clipboard, run }) => {
+					assert.ok(editor.getOption(EditorOption.effectiveEditContext));
+					editor.setSelection(new Selection(1, 1, 1, 6));
+					sinon.stub(clipboard, 'supportsClipboardData').value(supportsClipboardData);
+					sinon.stub(clipboard, 'writeData').rejects(new Error('Rich clipboard write failed'));
+					stubEditorExecCommand(editor);
+					const writeStarted = new DeferredPromise<void>();
+					const written = new DeferredPromise<void>();
+					sinon.stub(clipboard, 'writeText').callsFake(() => {
+						writeStarted.complete();
+						return written.p;
+					});
+					const cutCommand = sinon.spy(editor, 'trigger').withArgs(sinon.match.any, Handler.Cut, undefined);
+					const cut = run(CutAction);
+					try {
+						await Promise.race([writeStarted.p, cut.then(() => { throw new Error('Cut completed before starting the fallback write'); })]);
+						const beforeWrite = { text: editor.getValue(), cutCommands: cutCommand.callCount };
+						written.complete();
+						await cut;
+						const afterWrite = editor.getValue();
+						await editor.getModel().undo();
+						assert.deepStrictEqual({ beforeWrite, afterWrite, afterUndo: editor.getValue(), cutCommands: cutCommand.callCount }, {
+							beforeWrite: { text: 'first second third', cutCommands: 0 },
+							afterWrite: ' second third',
+							afterUndo: 'first second third',
+							cutCommands: 1,
+						});
+					} finally {
+						if (!written.isSettled) {
+							written.complete();
+						}
+						await cut;
+					}
+				});
+			}
+		});
+
+		test('cancels a pending EditContext fallback cut when its captured editor state changes', async () => {
+			for (const supportsClipboardData of [false, true]) {
+				for (const change of cutStateChanges) {
+					await withClipboardEditor('first second third', { editContext: true }, async ({ editor, clipboard, run }) => {
+						assert.ok(editor.getOption(EditorOption.effectiveEditContext));
+						editor.setSelections([new Selection(1, 1, 1, 6), new Selection(1, 7, 1, 13)]);
+						sinon.stub(clipboard, 'supportsClipboardData').value(supportsClipboardData);
+						sinon.stub(clipboard, 'writeData').rejects(new Error('Rich clipboard write failed'));
+						stubEditorExecCommand(editor);
+						const writeStarted = new DeferredPromise<void>();
+						const written = new DeferredPromise<void>();
+						const writeText = sinon.stub(clipboard, 'writeText').callsFake(() => {
+							writeStarted.complete();
+							return written.p;
+						});
+						const cutCommand = sinon.spy(editor, 'trigger').withArgs(sinon.match.any, Handler.Cut, undefined);
+						const cut = run(CutAction);
+						try {
+							await Promise.race([writeStarted.p, cut.then(() => { throw new Error('Cut completed before starting the fallback write'); })]);
+							changeCutState(editor, change);
+							const model = editor.getModel();
+							const text = editor.getValue();
+							const selections = editor.getSelections();
+							written.complete();
+							await cut;
+							assert.deepStrictEqual({
+								text: editor.getValue(),
+								selections: editor.getSelections(),
+								modelUnchanged: editor.getModel() === model,
+								textWrites: writeText.callCount,
+								cutCommands: cutCommand.callCount,
+							}, {
+								text,
+								selections,
+								modelUnchanged: true,
+								textWrites: 1,
+								cutCommands: 0,
+							}, JSON.stringify({ supportsClipboardData, change }));
+						} finally {
+							if (!written.isSettled) {
+								written.complete();
+							}
+							await cut;
+						}
+					});
+				}
+			}
+		});
+
+		test('does not cut when the EditContext fallback write rejects', async () => {
+			for (const supportsClipboardData of [false, true]) {
+				await withClipboardEditor('first second third', { editContext: true }, async ({ editor, clipboard, run }) => {
+					assert.ok(editor.getOption(EditorOption.effectiveEditContext));
+					editor.setSelection(new Selection(1, 1, 1, 6));
+					sinon.stub(clipboard, 'supportsClipboardData').value(supportsClipboardData);
+					sinon.stub(clipboard, 'writeData').rejects(new Error('Rich clipboard write failed'));
+					stubEditorExecCommand(editor);
+					const error = new Error('Fallback clipboard write failed');
+					const writeText = sinon.stub(clipboard, 'writeText').rejects(error);
+					const cutCommand = sinon.spy(editor, 'trigger').withArgs(sinon.match.any, Handler.Cut, undefined);
+					await assert.rejects(run(CutAction), err => err === error);
+					assert.deepStrictEqual({ text: editor.getValue(), textWrites: writeText.callCount, cutCommands: cutCommand.callCount }, {
+						text: 'first second third',
+						textWrites: 1,
+						cutCommands: 0,
+					});
+				});
+			}
+		});
+
 		test('uses the workaround text fallback when Electron does not fire a copy event', async () => {
 			for (const supportsClipboardData of [false, true]) {
 				await withClipboardEditor('copy this', {}, async ({ editor, clipboard, run }) => {
