@@ -267,3 +267,91 @@
 .agent-sessions-workbench.monaco-workbench .part.titlebar .window-title.has-fixed-title > .command-center {
 	display: none;
 }
+
+/* A chat window's title bar shows its session header in place of its title, as the top row of the window. */
+.monaco-workbench .part.titlebar .session-header-host {
+	display: none;
+}
+
+.monaco-workbench .part.titlebar.hosts-session-header .session-header-host {
+	display: flex;
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 100%;
+	align-items: center;
+	box-sizing: border-box;
+	/* Above the drag region of the title bar, as its toolbars are, so that its title and actions take clicks; its empty space moves the window. */
+	position: relative;
+	z-index: 2500;
+}
+
+/* The same optical offset as the toolbars of the title bar, so that the header lines up with them. */
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar.hosts-session-header .session-header-host {
+	padding-top: var(--vscode-spacing-size20);
+}
+
+/* The header gives way to the title bar's actions, its title shortening, rather than pushing them out of the title bar. */
+.monaco-workbench .part.titlebar.hosts-session-header > .sessions-titlebar-container > .titlebar-left {
+	min-width: 0;
+}
+
+/* The header takes the room the actions leave, and the actions of the session follow it as one group at the right. */
+.monaco-workbench .part.titlebar.hosts-session-header > .sessions-titlebar-container.has-center > .titlebar-left {
+	flex: 1 1 auto;
+}
+
+.monaco-workbench .part.titlebar.hosts-session-header > .sessions-titlebar-container.has-center > .titlebar-right {
+	gap: var(--vscode-spacing-size40);
+}
+
+/* One gap between the groups of actions, as between those of the main window's title bar: a group whose actions all hide themselves, such as the Create Pull Request bar without changes, takes no room, and Open in VS Code adds none of its own after it. */
+.monaco-workbench .part.titlebar.hosts-session-header > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container:not(:has(.action-item:not([style*="display: none"]))) {
+	display: none;
+}
+
+.monaco-workbench .part.titlebar.hosts-session-header > .sessions-titlebar-container > .titlebar-right .open-in-vscode-titlebar-widget {
+	margin-right: 0;
+}
+
+/* The inset at the right of the title bar, which the main window's has after its layout actions, is after the last of the actions, those of the header (see above). */
+.monaco-workbench .part.titlebar.hosts-session-header > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container {
+	padding-right: 0;
+}
+
+/* The actions of the hosted session header, such as its More Actions, last of the actions of the session. */
+.monaco-workbench .part.titlebar .session-header-actions-host {
+	display: none;
+}
+
+.monaco-workbench .part.titlebar.hosts-session-header .session-header-actions-host {
+	display: flex;
+	/* Last at the right, at the inset its host gives, such as to be centered above the Session Activity Bar's column below as its entries are; else at the inset of the main window's title bar. */
+	padding-right: var(--session-header-actions-inset, var(--vscode-spacing-size80));
+	flex-shrink: 0;
+	height: 100%;
+	align-items: center;
+	box-sizing: border-box;
+	-webkit-app-region: no-drag;
+	position: relative;
+	z-index: 2500;
+}
+
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar.hosts-session-header .session-header-actions-host {
+	padding-top: var(--vscode-spacing-size20);
+}
+
+/* Above the chat's column only, the window controls at the right (Windows, Linux) stay at the top right of the window, where the editor area beside the chat leaves them room. */
+.monaco-workbench .part.titlebar.header-chat-column > .sessions-titlebar-container > .titlebar-right > .window-controls-container {
+	position: fixed;
+	top: 0;
+	right: 0;
+}
+
+.monaco-workbench .part.titlebar.hosts-session-header > .sessions-titlebar-container.has-center > .titlebar-center,
+.monaco-workbench .part.titlebar.hosts-session-header > .sessions-titlebar-container.has-center > .titlebar-right {
+	flex: 0 0 auto;
+}
+
+.monaco-workbench .part.titlebar.hosts-session-header > .sessions-titlebar-container > .titlebar-center > .window-title {
+	display: none;
+}

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
-import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
-import { timeout } from '../../../../base/common/async.js';
+import { $, append, getActiveWindow, IDimension } from '../../../../base/browser/dom.js';
+import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
@@ -42,8 +42,9 @@ import { SessionView } from '../../../browser/parts/sessionView.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
 import { IsQuickChatSessionContext, SessionWorkspaceIsVirtualContext } from '../../../common/contextkeys.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
+import { agentsPanelBackground } from '../../../common/theme.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
-import { computeSessionGridLayout, SessionGridCell, SessionLayoutMode, SessionTerminalPosition } from '../../../common/sessionGridLayout/sessionGridLayout.js';
+import { computeSessionGridLayout, ISessionGridLayout, SessionGridCell, SessionHeaderSpan, SessionLayoutMode, SessionTerminalPosition } from '../../../common/sessionGridLayout/sessionGridLayout.js';
 import { ChatWindowContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowHasEditorContext, ChatWindowHasSessionActivityBarContext, ChatWindowHasSessionHeaderContext, ChatWindowIdContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalPositionContext, ChatWindowTerminalShownContext, IChatWindow, IChatWindowContent, IChatWindowEditorArea, IChatWindowHandle, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost, isChatWindowHandle, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ISessionsPartService, IWindowSessionViewHost } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -174,6 +175,70 @@ export function createChatWindowSessionViewHost(focusWindow: () => void, focusCh
  */
 export function createChatWindowContextKeyService(contextKeyService: IContextKeyService, auxiliaryWindow: { readonly window: { readonly document: Document }; readonly container: HTMLElement }): IScopedContextKeyService {
 	return contextKeyService.createScoped(auxiliaryWindow.window.document.body);
+}
+
+/**
+ * Leaves room for the window controls where they are at the top right of the window (Windows, Linux), while the header is
+ * above the chat's column only and the editor area runs to the top of the window: in the top row of the editor area's
+ * group at the top right of the window, whose toolbar then shows left of them. Returns the height of that row, from the
+ * top of the card the editor area is in, its border included, so that a header as tall ends where the row does.
+ */
+export function reserveChatWindowControls(editorArea: HTMLElement, windowControlsWidth: number): number {
+	editorArea.style.setProperty('--chat-window-controls-width', `${windowControlsWidth}px`);
+	const bounds = editorArea.getBoundingClientRect();
+	const top = (editorArea.closest('.chat-window-cell-card') ?? editorArea).getBoundingClientRect().top;
+	let rowHeight = 0;
+	// The groups as they show, rather than as the editor part arranges them: the one at the top right of the window.
+	// eslint-disable-next-line no-restricted-syntax
+	for (const group of editorArea.querySelectorAll<HTMLElement>('.editor-group-container')) {
+		const groupBounds = group.getBoundingClientRect();
+		const topRight = groupBounds.height > 0 && Math.abs(groupBounds.top - bounds.top) < 1 && Math.abs(groupBounds.right - bounds.right) < 1;
+		group.classList.toggle('chat-window-reserves-controls', topRight && windowControlsWidth > 0);
+		if (topRight) {
+			// The row of the tabs, which the title shows first, above the editor's header if it has one; else the toolbar of
+			// the empty group.
+			const title = Array.from(group.children).find(child => (child.classList.contains('title') || child.classList.contains('editor-group-container-toolbar')) && child.getBoundingClientRect().height > 0);
+			const row = title?.classList.contains('title') ? Array.from(title.children).find(child => child.getBoundingClientRect().height > 0) ?? title : title;
+			rowHeight = row ? Math.round(row.getBoundingClientRect().bottom - top) : 0;
+		}
+	}
+	return rowHeight;
+}
+
+/**
+ * Makes the title row of a chat window (`titlebar`) as tall as the row of tabs of its editor area, as it shows (see
+ * {@link reserveChatWindowControls}) or, hidden, as it last showed (`lastRowHeight`), so that the two line up beside each
+ * other and the row keeps its height in every layout. Returns the height of the row of tabs, 0 while never shown.
+ */
+export function alignChatWindowTitleRow(titlebar: IAuxiliaryTitlebarPart | TitlebarPart, editorArea: HTMLElement, windowControlsWidth: number, lastRowHeight: number): number {
+	const rowHeight = reserveChatWindowControls(editorArea, windowControlsWidth) || lastRowHeight;
+	if (titlebar instanceof TitlebarPart) {
+		titlebar.setHeight(rowHeight || undefined);
+	}
+	return rowHeight;
+}
+
+/**
+ * Centers the header's actions (`actionsHost`, last at the right of the title bar `titlebar`) above the Session Activity
+ * Bar's column, at the right of the window below the title bar, as the entries of the column are: by the inset after them.
+ */
+export function alignChatWindowHeaderActions(titlebar: HTMLElement, actionsHost: HTMLElement): void {
+	const actions = actionsHost.firstElementChild?.getBoundingClientRect().width ?? 0;
+	const inset = actions ? Math.max(0, Math.round((SESSION_ACTIVITY_BAR_COLUMN_WIDTH - actions) / 2)) : undefined;
+	if (inset === undefined) {
+		titlebar.style.removeProperty('--session-header-actions-inset');
+	} else {
+		titlebar.style.setProperty('--session-header-actions-inset', `${inset}px`);
+	}
+}
+
+/**
+ * Whether the title row of a chat window is right above its chat (Side by Side, over the chat's column; Chat Only): the
+ * two are then one surface, as the main window's session header and chat are. Above the editor area's card (Stacked,
+ * Editor Only), the title row stays the title bar.
+ */
+export function isChatWindowTitleRowOverChat(layout: Pick<ISessionGridLayout, 'mode' | 'header'>): boolean {
+	return layout.header === SessionHeaderSpan.ChatColumn || layout.mode === SessionLayoutMode.ChatOnly;
 }
 
 /** What the chat window binds for its menus, keybindings and title bar on a context key service of its own. */
@@ -688,28 +753,84 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 		// The cells are cards, as the main window's parts are, unless Layout Density is compact, which keeps them flush.
 		const applyCardStyles = () => {
+			const theme = this._themeService.getColorTheme();
 			for (const view of cells.values()) {
-				applyAgentsPartCardStyles(view.element.firstElementChild as HTMLElement, this._themeService.getColorTheme());
+				applyAgentsPartCardStyles(view.element.firstElementChild as HTMLElement, theme);
 			}
+			// The chat's background, for the title row to take while it is right above the chat.
+			titlebar?.element.style.setProperty('--chat-window-chat-background', theme.getColor(agentsPanelBackground)?.toString() ?? '');
 		};
 		applyCardStyles();
 		disposables.add(this._themeService.onDidColorThemeChange(applyCardStyles));
 		const updateGap = () => gridHost.setGap(this._configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP);
 		updateGap();
+		// The cards' borders change with the density too, once its class is on the window: their contents then take the room
+		// inside them again.
+		const relayoutCells = disposables.add(new MutableDisposable());
 		disposables.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
 				updateGap();
+				relayoutCells.value = disposableTimeout(() => gridHost.relayoutCells(), 0);
 			}
 		}));
 
+		// The header row (the title bar) is above the chat's column only while the editor is beside the chat: the editor
+		// then runs to the top of the window, its top row centered with the header. Else it is across the window, above
+		// every cell. The same on every platform: where the window controls are at the top right (Windows, Linux), they
+		// stay there, above the editor area, which leaves them room. The grid takes the whole window either way, and makes
+		// room for the header itself, so that a mode shows with the sizes it had.
+		let lastDimension: IDimension | undefined;
+		const layoutTitlebar = () => {
+			if (!titlebar || !lastDimension) {
+				return;
+			}
+			const chatColumn = gridHost.headerSpan === SessionHeaderSpan.ChatColumn;
+			hostElement.classList.toggle('chat-window-header-chat-column', chatColumn);
+			titlebar.element.classList.toggle('header-chat-column', chatColumn);
+			const overChat = !!gridHost.layout && isChatWindowTitleRowOverChat(gridHost.layout);
+			hostElement.classList.toggle('chat-window-title-over-chat', overChat);
+			titlebar.element.classList.toggle('title-over-chat', overChat);
+			const width = chatColumn ? gridHost.getCellWidth(SessionGridCell.Chat) || lastDimension.width : lastDimension.width;
+			titlebar.element.style.width = chatColumn ? `${width}px` : '';
+			let rowHeight = 0;
+			if (editorArea) {
+				const windowControls = chatColumn && titlebar instanceof TitlebarPart ? titlebar.rightWindowControlsContainer?.offsetWidth ?? 0 : 0;
+				rowHeight = alignChatWindowTitleRow(titlebar, editorArea.element as HTMLElement, windowControls, gridHost.besideTitleHeight);
+			}
+			if (titlebar instanceof TitlebarPart) {
+				alignChatWindowHeaderActions(titlebar.element, titlebar.getSessionHeaderActionsHost());
+			}
+			titlebar.layout(width, titlebar.height, 0, 0);
+			if (editorArea) {
+				gridHost.setHeader(titlebar.height, true, rowHeight);
+			}
+		};
+		if (titlebar) {
+			// Above the grid, which is below it in the DOM.
+			titlebar.element.style.position = 'relative';
+			titlebar.element.style.zIndex = '1';
+		}
 		disposables.add(auxiliaryWindow.onWillLayout(dimension => {
-			const titlebarHeight = titlebar?.height ?? 0;
-			titlebar?.layout(dimension.width, titlebarHeight, 0, 0);
-			hostElement.style.top = `${titlebarHeight}px`;
-			hostElement.style.height = `${Math.max(0, dimension.height - titlebarHeight)}px`;
+			lastDimension = dimension;
+			gridHost.setHeader(titlebar?.height ?? 0, !!titlebar, gridHost.besideTitleHeight);
+			hostElement.style.top = '0';
+			hostElement.style.height = `${dimension.height}px`;
 			hostElement.style.width = `${dimension.width}px`;
-			gridHost.layoutGrid(dimension.width, Math.max(0, dimension.height - titlebarHeight));
+			gridHost.layoutGrid(dimension.width, dimension.height);
+			layoutTitlebar();
 		}));
+		// The chat's column changes width with a sash, and the header's span with the mode.
+		disposables.add(gridHost.onDidLayoutCells(() => layoutTitlebar()));
+		// Once the editor area shows what changed, such as the row of tabs of its first editor, or the density its card's
+		// border: after the change, also while the window does not show, which runs no animation frames.
+		const relayoutTitlebar = disposables.add(new MutableDisposable());
+		const scheduleLayoutTitlebar = () => relayoutTitlebar.value = disposableTimeout(() => layoutTitlebar(), 0);
+		if (editorArea) {
+			// Its groups change as they split, are added and removed.
+			disposables.add(editorArea.onDidLayout(() => layoutTitlebar()));
+			// Its row of tabs changes height with their height, whether they show, and the density, once rendered again.
+			disposables.add(Event.any<unknown>(editorArea.onDidChangeEditorPartOptions, Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)))(() => scheduleLayoutTitlebar()));
+		}
 
 		const window = new ChatWindow(state, auxiliaryWindow, editorArea, sessionView, content, sessionObs, () => parts.every(part => part.close()));
 		window.attachInputOnly(inputOnly);
@@ -732,8 +853,14 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (editorArea) {
 			const part = editorArea;
 			disposables.add(trackEditorAreaEditors(part, {
-				onDidOpenEditor: () => window.showEditor(),
-				onDidCloseLastEditor: () => window.setLayout(SessionLayoutMode.ChatOnly),
+				onDidOpenEditor: () => {
+					window.showEditor();
+					scheduleLayoutTitlebar();
+				},
+				onDidCloseLastEditor: () => {
+					window.setLayout(SessionLayoutMode.ChatOnly);
+					scheduleLayoutTitlebar();
+				},
 				isClosing: () => window.closing || unloading || disposables.isDisposed,
 			}));
 			// Its empty groups offer the same Add Tab entries as the main window's.
@@ -756,6 +883,15 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		window.setContent({ ...content, chat: windowSession.scopedChatResource, editorArea: content.editorArea ? {} : undefined });
 		window.setSession(windowSession);
 		sessionView.openSession(windowSession, {});
+
+		// The session header is the top row of the window in every layout, also while the chat shows only its input: it shows
+		// in the title bar, in place of the title, which shows again only while the header does not.
+		if (titlebar instanceof TitlebarPart) {
+			const headerTitlebar = titlebar;
+			sessionView.setHeaderHost(headerTitlebar.getSessionHeaderHost(), headerTitlebar.getSessionHeaderActionsHost());
+
+			disposables.add(autorun(reader => headerTitlebar.setHostsSessionHeader(sessionView.headerShown.read(reader))));
+		}
 
 		disposables.add(autorun(reader => {
 			const title = window.content.read(reader).title?.read(reader) || kind.title;

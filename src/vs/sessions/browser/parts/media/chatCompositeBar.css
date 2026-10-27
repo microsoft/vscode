@@ -38,6 +38,27 @@
 	max-width: none;
 }
 
+/* The top row of its window, in the title bar: centered in it, after the window controls; its empty space moves the window. */
+.session-header-bar.window-chrome {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	-webkit-app-region: drag;
+}
+
+.session-header-bar.window-chrome > .chat-composite-bar-header {
+	max-width: none;
+	margin: 0;
+}
+
+.session-header-bar.window-chrome .chat-composite-bar-session-title,
+.session-header-bar.window-chrome .chat-composite-bar-title-actions {
+	-webkit-app-region: no-drag;
+}
+
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */
 .chat-composite-bar.session-chat-tabs-bar {
 	padding: 0 var(--vscode-spacing-size20);
