@@ -51,7 +51,11 @@ export function getChatMoveRefusal(error: unknown): AgentChatMoveRefusal | undef
  * A user-facing explanation of why a host refused a move. `chatSharesFolder` tells a {@link AgentChatMoveRefusal.Workspaceless}
  * refusal of a chat that shares its folder with another chat of its session from one that has no folder (or lost it).
  */
-export function getChatMoveRefusalMessage(reason: AgentChatMoveRefusal, chatSharesFolder: boolean): string {
+export function getChatMoveRefusalMessage(reason: AgentChatMoveRefusal, chatSharesFolder: boolean, toNewSession = false): string {
+	if (toNewSession && reason === AgentChatMoveRefusal.Unsupported) {
+		// A host takes a chat into a new session only with a conversation of its own, which the client can't tell beforehand.
+		return localize('chatMoveRefusal.unsupportedNewSession', "This chat has no conversation of its own yet, so it can't be moved into a new session.");
+	}
 	switch (reason) {
 		case AgentChatMoveRefusal.Disabled:
 			return localize('chatMoveRefusal.disabled', "Moving chats is turned off.");
@@ -100,7 +104,7 @@ export function getChatMoveRefusalMessage(reason: AgentChatMoveRefusal, chatShar
  * Replaces a host refusal by a {@link SessionMoveRefusedError} explaining it; other errors are returned unchanged.
  * `chatSharesFolder`: whether the moved chat shares its folder with another chat of its session.
  */
-export function toChatMoveError(error: unknown, chatSharesFolder: boolean): unknown {
+export function toChatMoveError(error: unknown, chatSharesFolder: boolean, toNewSession = false): unknown {
 	const reason = getChatMoveRefusal(error);
-	return reason === undefined ? error : new SessionMoveRefusedError(getChatMoveRefusalMessage(reason, chatSharesFolder));
+	return reason === undefined ? error : new SessionMoveRefusedError(getChatMoveRefusalMessage(reason, chatSharesFolder, toNewSession));
 }

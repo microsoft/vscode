@@ -2645,6 +2645,41 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('a chat on another agent than its session\'s, such as one moved in from a session of that agent, restores its models from that agent', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'moved-in');
+			const defaultChat = buildDefaultChatUri(backend);
+			const ownAgentChat = buildChatUri(backend.toString(), 'own-agent');
+			const sameAgentChat = buildChatUri(backend.toString(), 'same-agent');
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Moved', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			};
+			const ownAgent = { ...createDefaultChatSummary(summary, ownAgentChat), provider: 'claude' };
+			const sameAgent = createDefaultChatSummary(summary, sameAgentChat);
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat,
+				chats: [createDefaultChatSummary(summary, defaultChat), ownAgent, sameAgent],
+			});
+			const withTurn = (chat: ReturnType<typeof createDefaultChatSummary>, model: string): ChatState => ({
+				...createChatState(chat),
+				turns: [{ id: `${model}-turn`, state: TurnState.Complete, message: { text: 'Before the move', origin: { kind: MessageKind.User }, model: { id: model } }, responseParts: [], usage: undefined }],
+			});
+			agentHostService.chatStates.set(ownAgentChat, withTurn(ownAgent, 'claude-haiku'));
+			agentHostService.chatStates.set(sameAgentChat, withTurn(sameAgent, 'gpt'));
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: backend.path });
+			const historyModels = async (chat: string) => {
+				const session = disposables.add(await sessionHandler.provideChatSessionContent(resource.with({ fragment: getAgentHostChatId(chat) }), CancellationToken.None));
+				return session.history.flatMap(item => item.type === 'request' ? [item.modelId] : []);
+			};
+
+			assert.deepStrictEqual({ ownAgent: await historyModels(ownAgentChat), sameAgent: await historyModels(sameAgentChat) }, {
+				// The chat's model selection stays its own agent's: it is sent as is, not dropped as another session type's.
+				ownAgent: ['agent-host-claude:claude-haiku'],
+				sameAgent: ['agent-host-copilot:gpt'],
+			});
+		});
+
 		test('resolves tool-result image bytes only in the owning opaque chat', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const backend = AgentSession.uri('copilot', 'tool-images');

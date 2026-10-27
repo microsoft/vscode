@@ -7271,7 +7271,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			await connection.moveChat(backendChat, backendDestination);
 		} catch (error) {
-			throw toChatMoveError(error, source.chatSharesScratchFolder(chatUri));
+			throw toChatMoveError(error, source.chatSharesScratchFolder(chatUri), backendDestination.kind === 'newSession');
 		}
 	}
 

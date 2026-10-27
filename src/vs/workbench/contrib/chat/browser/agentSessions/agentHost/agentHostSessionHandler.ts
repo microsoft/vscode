@@ -7366,8 +7366,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!rawModelId) {
 			return undefined;
 		}
-		const prefix = `${getChatSessionType(sessionResource)}:`;
+		const prefix = `${this._getChatModelVendor(sessionResource)}:`;
 		return rawModelId.startsWith(prefix) ? rawModelId : `${prefix}${rawModelId}`;
+	}
+
+	/**
+	 * The language model vendor of the chat `sessionResource` names: its session type, or for a chat backed by another
+	 * agent than its session's (e.g. one moved in from a session of that agent), the session type of that agent, whose
+	 * models the chat selects from. A chat's turns name raw model ids of its own agent.
+	 */
+	private _getChatModelVendor(sessionResource: URI): string {
+		const sessionType = getChatSessionType(sessionResource);
+		if (!sessionResource.fragment || !sessionType.endsWith(this._config.provider)) {
+			return sessionType;
+		}
+		const state = this._getRawSessionState(this._resolveSessionUri(sessionResource).toString());
+		const chatProvider = state?.chats.find(summary => getAgentHostChatId(summary.resource) === sessionResource.fragment)?.provider;
+		return chatProvider && chatProvider !== state.provider
+			? `${sessionType.slice(0, sessionType.length - this._config.provider.length)}${chatProvider}`
+			: sessionType;
 	}
 
 	private _getTurnResponseDetails(sessionResource: URI, backendSession: URI, turn: Turn | undefined): string | undefined {

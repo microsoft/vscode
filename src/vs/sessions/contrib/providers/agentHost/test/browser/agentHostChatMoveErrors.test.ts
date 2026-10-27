@@ -53,4 +53,17 @@ suite('Agent Host Chat Move Errors', () => {
 			noFolder: 'This chat\'s folder is missing, so it can\'t be moved.',
 		});
 	});
+
+	test('explains an unsupported move into a new session as the chat having no conversation of its own yet', () => {
+		const refusal = new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Chat x has no recorded conversation of its own to take into a new session.', { reason: AgentChatMoveRefusal.Unsupported });
+		const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+		assert.deepStrictEqual({
+			newSession: message(toChatMoveError(refusal, false, true)),
+			session: message(toChatMoveError(refusal, false)),
+		}, {
+			newSession: 'This chat has no conversation of its own yet, so it can\'t be moved into a new session.',
+			session: 'This chat can\'t be moved there.',
+		});
+	});
 });
