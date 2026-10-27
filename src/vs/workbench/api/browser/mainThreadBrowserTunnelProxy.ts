@@ -22,6 +22,8 @@ import { ExtHostBrowserTunnelProxyShape, ExtHostContext, MainContext, MainThread
 export class MainThreadBrowserTunnelProxy extends Disposable implements MainThreadBrowserTunnelProxyShape {
 
 	private readonly _proxy: ExtHostBrowserTunnelProxyShape;
+	/** Only the local extension host runs browser proxies, so only it may open connections on agent host networks. */
+	private readonly _isProxyHost: boolean;
 	/** Destination connections opened on agent host networks. The extension host closes each when its proxy no longer uses it. */
 	private readonly _networkConnections = this._register(new DisposableMap<number, IAgentHostTcpConnection>());
 	private _nextNetworkConnectionId = 0;
@@ -33,8 +35,9 @@ export class MainThreadBrowserTunnelProxy extends Disposable implements MainThre
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostBrowserTunnelProxy);
+		this._isProxyHost = extHostContext.extensionHostKind === ExtensionHostKind.LocalProcess;
 
-		if (extHostContext.extensionHostKind === ExtensionHostKind.LocalProcess) {
+		if (this._isProxyHost) {
 			this._register(this._browserViewWorkbenchService.registerNetworkProxyProvider({
 				acquire: authority => this._proxy.$acquireNetworkProxy(authority),
 				release: authority => this._proxy.$releaseNetworkProxy(authority),
@@ -43,6 +46,9 @@ export class MainThreadBrowserTunnelProxy extends Disposable implements MainThre
 	}
 
 	async $openNetworkConnection(authority: string, host: string, port: number): Promise<number> {
+		if (!this._isProxyHost) {
+			throw new Error('Only the local extension host can open browser network connections');
+		}
 		const connection = this._agentHostConnectionsService.getConnectionByAuthority(authority);
 		if (!connection) {
 			throw new Error(`Agent host network ${authority} is not connected`);

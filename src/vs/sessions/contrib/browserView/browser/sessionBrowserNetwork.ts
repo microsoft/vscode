@@ -53,8 +53,9 @@ interface ISessionHost {
  * Browser tabs opened from the new-session composer follow its draft: when the
  * draft is replaced (another host or folder), or starts on a different host
  * (e.g. a dev container), the tabs are recreated on the new network at the
- * same URL. Tabs merely activated while the composer is shown, and tabs of
- * other drafts (e.g. one still starting in the background), are left alone.
+ * same URL. Tabs merely activated while the composer is shown, tabs of other
+ * drafts (e.g. one still starting in the background), and tabs hidden with a
+ * session that is not shown are left alone.
  */
 export class SessionBrowserNetworkContribution extends Disposable implements IWorkbenchContribution {
 
@@ -104,14 +105,15 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 			}
 		}));
 
-		// The composer got a draft: tabs opened while it had none follow it.
+		// The composer got a draft, or replaced it without a replacement event (e.g. a quick chat on another host):
+		// tabs opened while it had none, or for the previous draft, follow it.
 		this._register(runOnChange(this._sessionsManagementService.newSession, (draft, previous) => {
-			if (draft && !previous) {
-				void this._composerTabMoves.queue(() => this._moveComposerTabs(undefined, draft, false));
+			if (draft) {
+				void this._composerTabMoves.queue(() => this._moveComposerTabs(previous?.sessionId, draft, false));
 			}
 		}));
 
-		// The draft was replaced before sending (another host or folder).
+		// The draft was replaced before sending (another host or folder), including while preparing it for sending.
 		this._register(this._sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => {
 			void this._composerTabMoves.queue(() => this._moveComposerTabs(from.sessionId, to, false));
 		}));
@@ -228,6 +230,12 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 	 * partitioned) only move when their scope can use the difference.
 	 */
 	private async _reopenOnSessionNetwork(input: BrowserEditorInput, session: ISession): Promise<void> {
+		const groups = this._editorGroupsService.groups.filter(group => group.contains(input));
+		if (!groups.length) {
+			// A hidden tab (e.g. in the saved editors of a session not shown) keeps its network. Replacing it would
+			// lose its page, and the saved editors would still restore it.
+			return;
+		}
 		const host: ISessionHost = { authority: this._getSessionAuthority(session), session };
 		const network = this._getNetwork(host.authority);
 		const affinity = this._getStorageAffinity(host);
@@ -251,14 +259,12 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 			associatedResource: input.associatedResource,
 		});
 		this._trackComposerTab(replacement, session.sessionId);
-		for (const group of this._editorGroupsService.groups) {
-			if (group.contains(input)) {
-				await group.replaceEditors([{
-					editor: input,
-					replacement,
-					options: { pinned: group.isPinned(input), sticky: group.isSticky(input), inactive: !group.isActive(input), preserveFocus: true },
-				}]);
-			}
+		for (const group of groups) {
+			await group.replaceEditors([{
+				editor: input,
+				replacement,
+				options: { pinned: group.isPinned(input), sticky: group.isSticky(input), inactive: !group.isActive(input), preserveFocus: true },
+			}]);
 		}
 		if (!input.isDisposed()) {
 			input.dispose(true);

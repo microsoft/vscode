@@ -177,18 +177,13 @@ suite('SessionBrowserNetworkContribution', () => {
 		});
 	});
 
-	test('moves tabs opened from the composer with their own draft, keeping their storage scope', async () => {
-		const draftA = session('draftA', 'agenthost-a', '/repo');
-		const draftB = session('draftB', 'agenthost-b', '/repo');
-		const draftC = session('draftC', 'agenthost-b', '/other');
-		const started = session('started', 'agenthost-b', '/repo');
+	/** The composer's draft and browser tabs, in one editor group where replacing a tab swaps it in place. */
+	function createComposer(initialDraft: ISession) {
 		const hosts: Record<string, string> = { 'agenthost-a': 'host-a', 'agenthost-b': 'host-b' };
-		const newSession = observableValue<ISession | undefined>('draft', draftA);
+		const newSession = observableValue<ISession | undefined>('draft', initialDraft);
 		const onWillOpenEditor = store.add(new Emitter<IEditorWillOpenEvent>());
 		const onDidReplaceNewDraftSession = store.add(new Emitter<{ from: ISession; to: ISession }>());
 		const onDidReplaceSession = store.add(new Emitter<{ from: ISession; to: ISession }>());
-
-		// One editor group; replacing a tab swaps it in place.
 		const tabs: BrowserEditorInput[] = [];
 		const group = upcastPartial<IEditorGroup>({
 			contains: editor => tabs.includes(editor as BrowserEditorInput),
@@ -223,9 +218,22 @@ suite('SessionBrowserNetworkContribution', () => {
 			tabs.push(input);
 			return input;
 		};
-		const affinity = (authority: string, folder: string) => JSON.stringify([authority, extUri.getComparisonKey(URI.file(folder))]);
-		const hostA = agentHostAuthority('host-a');
-		const hostB = agentHostAuthority('host-b');
+		return {
+			newSession, onWillOpenEditor, onDidReplaceNewDraftSession, onDidReplaceSession, tabs, created, createInput, open,
+			dispose: () => created.forEach(input => input.dispose(true)),
+		};
+	}
+
+	const affinity = (authority: string, folder: string) => JSON.stringify([authority, extUri.getComparisonKey(URI.file(folder))]);
+	const hostA = agentHostAuthority('host-a');
+	const hostB = agentHostAuthority('host-b');
+
+	test('moves tabs opened from the composer with their own draft, keeping their storage scope', async () => {
+		const draftA = session('draftA', 'agenthost-a', '/repo');
+		const draftB = session('draftB', 'agenthost-b', '/repo');
+		const draftC = session('draftC', 'agenthost-b', '/other');
+		const started = session('started', 'agenthost-b', '/repo');
+		const { newSession, onWillOpenEditor, onDidReplaceNewDraftSession, onDidReplaceSession, tabs, created, createInput, open } = createComposer(draftA);
 
 		open('page', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } });
 		open('global', { scope: BrowserViewStorageScope.Global });
@@ -270,6 +278,35 @@ suite('SessionBrowserNetworkContribution', () => {
 			for (const input of created) {
 				input.dispose(true);
 			}
+		}
+	});
+
+	test('moves tabs with a draft replaced without an event, and leaves hidden tabs untouched', async () => {
+		const draft = session('draft', 'agenthost-a', '/repo');
+		const quickChat = session('quick', 'agenthost-b');
+		const started = session('started', 'agenthost-b', '/repo');
+		const composer = createComposer(draft);
+		const shown = composer.open('shown', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } });
+		const hidden = composer.open('hidden', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } });
+		// Hidden with its session's other editors, as when the user switches to another session.
+		composer.tabs.splice(composer.tabs.indexOf(hidden), 1);
+
+		// The composer switches the draft to a quick chat on another host, which fires no replacement event.
+		composer.newSession.set(quickChat, undefined);
+		await timeout(0);
+		const afterQuickChat = composer.tabs.map(tab => [tab.url, tab.session]);
+		composer.onDidReplaceSession.fire({ from: quickChat, to: started });
+		await timeout(0);
+
+		try {
+			assert.deepStrictEqual({ afterQuickChat, shownReplaced: shown.isDisposed(), hidden: [hidden.isDisposed(), hidden.session] }, {
+				// A workspace-less quick chat has no storage partition.
+				afterQuickChat: [['http://shown/', { scope: BrowserViewStorageScope.Workspace, network: { authority: hostB } }]],
+				shownReplaced: true,
+				hidden: [false, { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } }],
+			});
+		} finally {
+			composer.dispose();
 		}
 	});
 });

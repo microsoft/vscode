@@ -337,7 +337,8 @@ export class TunnelProxy extends Disposable {
 			return;
 		}
 
-		const host = parsed.hostname;
+		// URL keeps IPv6 literals bracketed; connections and the request API take the bare address.
+		const host = parsed.hostname.replace(/^\[(?<address>.*)\]$/, '$<address>');
 		const port = parseInt(parsed.port, 10) || 80;
 
 		if (!host) {
@@ -490,7 +491,14 @@ export class TunnelProxy extends Disposable {
 		localSocket.on('end', () => remoteSocket.end());
 		// Once the client is gone, nothing reads the remote side, so a pull-based
 		// stream would never observe EOF and keep its upstream connection open.
-		localSocket.on('close', () => remoteSocket.destroy());
+		// A client that closed in order first gets its queued data and half-close delivered.
+		localSocket.on('close', hadError => {
+			if (hadError || !remoteSocket.writableEnded || remoteSocket.writableFinished) {
+				remoteSocket.destroy();
+			} else {
+				remoteSocket.once('finish', () => remoteSocket.destroy());
+			}
+		});
 		localSocket.on('error', () => remoteSocket.destroy());
 
 		remoteSocket.pipe(localSocket);
