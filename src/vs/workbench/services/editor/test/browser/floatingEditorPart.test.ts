@@ -225,17 +225,24 @@ suite('Floating Editor Part', () => {
 		const nextFrames = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
 		const describe = () => ({ header: header.offsetHeight, editorHeight: editorPart.contentDimension.height });
 
-		const initial = describe();
-		header.style.height = `${initial.header + 20}px`;
+		// The styles of the part do not apply in tests, so the height of its unstyled header
+		// depends on the test runner: give the header explicit heights
+		header.style.boxSizing = 'border-box';
+		header.style.overflow = 'hidden';
+		header.style.height = '30px';
 		await nextFrames(); // the resize observer of the header
+		const initial = describe();
+		header.style.height = '50px';
+		await nextFrames();
 		const taller = describe();
 		layoutService.resizeMainContainer({ width: 1000, height: 900 });
 		const afterMainLayout = describe();
 
+		// The part is 300 high with a border of 1 above and below
 		assert.deepStrictEqual({ initial, taller, afterMainLayout }, {
-			initial: { header: initial.header, editorHeight: 300 - 2 - initial.header },
-			taller: { header: initial.header + 20, editorHeight: 300 - 2 - initial.header - 20 },
-			afterMainLayout: { header: initial.header + 20, editorHeight: 300 - 2 - initial.header - 20 },
+			initial: { header: 30, editorHeight: 300 - 2 - 30 },
+			taller: { header: 50, editorHeight: 300 - 2 - 50 },
+			afterMainLayout: { header: 50, editorHeight: 300 - 2 - 50 },
 		});
 
 		part.close();
