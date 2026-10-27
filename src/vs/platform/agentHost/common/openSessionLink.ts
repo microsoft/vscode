@@ -33,28 +33,32 @@ const AGENT_HOST_CHAT_LINK_PATH_SEGMENT = '/chat/';
 const AGENT_HOST_NEW_SESSION_LINK_AUTHORITY = 'new';
 
 /**
- * Target of an {@link AGENT_HOST_SESSION_LINK_SCHEME} new-session link: what the
- * Agents window's new-session composer should be prepared with. The prompt is
- * only a draft; it is never sent on the user's behalf.
+ * Target of an {@link AGENT_HOST_SESSION_LINK_SCHEME} new-session link: the
+ * agent host, agent, folder, and draft prompt a new session should be prepared
+ * with. The prompt is only a draft; it is never sent on the user's behalf.
  */
 export interface IAgentHostNewSessionLink {
-	/** A local `file:` folder, or a folder on a remote agent host ({@link toAgentHostUri}). */
+	/** The remote agent host, or `undefined` for the local agent host. */
+	readonly connectionAuthority: string | undefined;
+	/** The agent provider (for example `copilotcli` or `claude`), or `undefined` for the default agent. */
+	readonly agent: string | undefined;
+	/** A local `file:` folder, or a folder on the remote agent host ({@link toAgentHostUri}). */
 	readonly folderUri: URI | undefined;
 	readonly draft: IAgentsWindowDraft | undefined;
 }
 
 /**
- * Builds a link that opens the Agents window's new-session composer with an
- * agent host, a folder on that host, and a draft prompt preselected.
+ * Builds a link that opens a new agent host session with an agent host, a
+ * folder on that host, and a draft prompt preselected.
  *
- * Shape: `agent-host-session://new?connectionAuthority=<authority>&folder=<path>&prompt=<text>`.
+ * Shape: `agent-host-session://new?connectionAuthority=<authority>&agent=<provider>&folder=<path>&prompt=<text>`.
  * Without `connectionAuthority` (or its human-writable alternative
- * `host=<address>`), `folder` is a folder on the local machine. All parameters
+ * `host=<address>`), the session runs on the local agent host. All parameters
  * are optional. Values are percent-encoded twice; hand-written links may encode
  * values without `%`, `&`, or `=` only once. A new-session link has no path, so
  * it never matches a session.
  */
-export function buildNewSessionLinkUri(options: { readonly connectionAuthority?: string; readonly folder?: string; readonly prompt?: string }): string {
+export function buildNewSessionLinkUri(options: { readonly connectionAuthority?: string; readonly agent?: string; readonly folder?: string; readonly prompt?: string }): string {
 	// Values are encoded twice so they survive `URI`'s own decoding of the query (see parseNewSessionLinkUri).
 	const query = Object.entries(options)
 		.flatMap(([name, value]) => value ? [`${name}=${encodeURIComponent(encodeURIComponent(value))}`] : [])
@@ -81,6 +85,8 @@ export function parseNewSessionLinkUri(uri: URI | string): IAgentHostNewSessionL
 	const folder = query.get('folder') || undefined;
 	const prompt = query.get('prompt') || undefined;
 	return {
+		connectionAuthority,
+		agent: query.get('agent') || undefined,
 		folderUri: folder ? (connectionAuthority ? toAgentHostUri(URI.file(folder), connectionAuthority) : URI.file(folder)) : undefined,
 		draft: prompt ? { inputText: prompt, attachments: '[]' } : undefined,
 	};

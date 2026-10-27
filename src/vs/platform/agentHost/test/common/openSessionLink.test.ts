@@ -37,33 +37,30 @@ suite('openSessionLink', () => {
 		assert.deepStrictEqual([undefined, 'local'].map(authority => parseOpenSessionLinkConnectionAuthority(buildOpenSessionLinkUri(backend, undefined, undefined, authority))), [undefined, 'local']);
 	});
 
-	test('new-session links select a host folder and a draft prompt without addressing a session', () => {
-		const remote = buildNewSessionLinkUri({ connectionAuthority: 'localhost__8123', folder: '/home/me/project', prompt: 'Fix the tests & explain' });
+	test('new-session links select a host, agent, folder, and draft prompt without addressing a session', () => {
+		const remote = buildNewSessionLinkUri({ connectionAuthority: 'localhost__8123', agent: 'claude', folder: '/home/me/project', prompt: 'Fix the tests & explain' });
 		const parse = (link: string | URI) => {
 			const parsed = parseNewSessionLinkUri(link);
-			return parsed && { folderUri: parsed.folderUri?.toString(), draft: parsed.draft };
+			return parsed && { ...parsed, folderUri: parsed.folderUri?.toString() };
 		};
+		const remoteFolder = toAgentHostUri(URI.file('/home/me/project'), 'localhost__8123').toString();
 		assert.deepStrictEqual({
 			remote: parse(remote),
 			remoteAsUri: parse(URI.parse(remote)),
 			remoteByAddress: parse('agent-host-session://new?host=localhost:8123&folder=/home/me/project&prompt=Fix%20it'),
+			hostOnly: parse('agent-host-session://new?host=localhost:8123'),
 			local: parse('agent-host-session://new?folder=/home/me/project'),
 			empty: parse('agent-host-session://new'),
 			session: parse('agent-host-session://new/session-id'),
 			otherScheme: parse('vscode://new?folder=/home/me/project'),
 			addressesNoSession: [remote, 'agent-host-session://new'].map(link => parseOpenSessionLinkUri(link)),
 		}, {
-			remote: {
-				folderUri: toAgentHostUri(URI.file('/home/me/project'), 'localhost__8123').toString(),
-				draft: { inputText: 'Fix the tests & explain', attachments: '[]' },
-			},
-			remoteAsUri: {
-				folderUri: toAgentHostUri(URI.file('/home/me/project'), 'localhost__8123').toString(),
-				draft: { inputText: 'Fix the tests & explain', attachments: '[]' },
-			},
-			remoteByAddress: { folderUri: toAgentHostUri(URI.file('/home/me/project'), 'localhost__8123').toString(), draft: { inputText: 'Fix it', attachments: '[]' } },
-			local: { folderUri: URI.file('/home/me/project').toString(), draft: undefined },
-			empty: { folderUri: undefined, draft: undefined },
+			remote: { connectionAuthority: 'localhost__8123', agent: 'claude', folderUri: remoteFolder, draft: { inputText: 'Fix the tests & explain', attachments: '[]' } },
+			remoteAsUri: { connectionAuthority: 'localhost__8123', agent: 'claude', folderUri: remoteFolder, draft: { inputText: 'Fix the tests & explain', attachments: '[]' } },
+			remoteByAddress: { connectionAuthority: 'localhost__8123', agent: undefined, folderUri: remoteFolder, draft: { inputText: 'Fix it', attachments: '[]' } },
+			hostOnly: { connectionAuthority: 'localhost__8123', agent: undefined, folderUri: undefined, draft: undefined },
+			local: { connectionAuthority: undefined, agent: undefined, folderUri: URI.file('/home/me/project').toString(), draft: undefined },
+			empty: { connectionAuthority: undefined, agent: undefined, folderUri: undefined, draft: undefined },
 			session: undefined,
 			otherScheme: undefined,
 			addressesNoSession: [undefined, undefined],
