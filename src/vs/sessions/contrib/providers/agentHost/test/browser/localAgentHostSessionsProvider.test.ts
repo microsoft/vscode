@@ -11202,6 +11202,50 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		}
 
+		test('shows a pull request icon only on the chat that recorded it', () => {
+			const provider = createProviderWithPullRequestModels();
+			const directory = URI.file('/work/vscode');
+			const session = setupMultiChatSession(provider, 'multi-pr-icon', [directory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-pr-icon').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const discovered: SessionState['_meta'] = {
+				githubData: {
+					[directory.toString()]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'] },
+				},
+			};
+			const chats = [
+				makeChatSummary(defaultChat, 'Main', ProtocolSessionStatus.Idle, [directory.toString()]),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [directory.toString()]),
+			];
+			const readIcons = () => {
+				const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+				return {
+					session: session.completedStateIcon?.get()?.id,
+					main: session.mainChat.get().completedStateIcon?.get()?.id,
+					peer: peer?.completedStateIcon?.get()?.id,
+				};
+			};
+
+			// Discovered on the shared worktree only: the main chat owns the session folder.
+			agentHost.setSessionState('multi-pr-icon', 'copilotcli', makeState(chats, { defaultChat, meta: discovered }));
+			const discoveredOnly = readIcons();
+
+			agentHost.setSessionState('multi-pr-icon', 'copilotcli', makeState(chats, {
+				defaultChat,
+				meta: withSessionArtifacts(discovered, [
+					{ id: 'peer-pr', chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				]),
+			}));
+			const recordedByPeer = readIcons();
+
+			const openIcon = computePullRequestIcon(GitHubPullRequestState.Open).id;
+			assert.deepStrictEqual({ discoveredOnly, recordedByPeer }, {
+				discoveredOnly: { session: openIcon, main: openIcon, peer: undefined },
+				recordedByPeer: { session: undefined, main: undefined, peer: openIcon },
+			});
+		});
+
 		test('remaps artifact ownership when a single chat catalog hydrates without attributing unknown owners', () => {
 			const provider = createProviderWithPullRequestModels();
 			const rawId = 'pr-owner-hydration';
