@@ -1,0 +1,17 @@
+{
+	"name": "vscode-design-system",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "node dev.mjs",
+		"test": "node --test *.test.mjs"
+	},
+	"devDependencies": {
+		"@storybook/addon-docs": "10.6.3",
+		"@storybook/html-vite": "10.6.3",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0",
+		"storybook": "10.6.3",
+		"vite": "^7.3.1"
+	}
+}

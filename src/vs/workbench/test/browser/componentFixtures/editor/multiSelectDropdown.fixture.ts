@@ -57,9 +57,11 @@ async function render(context: ComponentFixtureContext): Promise<void> {
 	})));
 	button.element.click();
 	context.focus(container.querySelector<HTMLElement>('.monaco-list')!);
-	await waitForFixtureCondition(() => [...container.querySelectorAll('.scrollbar')].every(element =>
-		element.classList.contains('invisible') && dom.getWindow(element).getComputedStyle(element).opacity === '0'),
-		'Dropdown scrollbars must be idle before capture');
+	if (!context.isInteractive) {
+		await waitForFixtureCondition(() => [...container.querySelectorAll('.scrollbar')].every(element =>
+			element.classList.contains('invisible') && dom.getWindow(element).getComputedStyle(element).opacity === '0'),
+			'Dropdown scrollbars must be idle before capture');
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'editor/multiSelectDropdown' }, {
