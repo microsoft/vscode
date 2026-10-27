@@ -109,6 +109,6 @@ suite('pnpmLock', () => {
 	});
 
 	test('lockfile folders of projects', () => {
-		assert.deepStrictEqual(['', 'extensions/git', './extensions/git/', 'remote', 'build/npm/gyp', 'build/agent-sdk/agents/claude', 'src'].map(getLockfileFolder), ['', '', '', 'remote', 'build/npm/gyp', undefined, undefined]);
+		assert.deepStrictEqual(['', '.', 'extensions/git', './extensions/git/', '.vscode/extensions/vscode-extras', './.vscode/extensions/vscode-extras', 'remote', 'build/npm/gyp', 'build/agent-sdk/agents/claude', 'src', '.vscode'].map(getLockfileFolder), ['', '', '', '', '', '', 'remote', 'build/npm/gyp', undefined, undefined, undefined]);
 	});
 });

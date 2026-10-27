@@ -313,7 +313,7 @@ export function collectImporterPackages(lockfile: PnpmLockfile, importerId: stri
  * records the dependencies of `folder`, or `undefined` if the folder is not a pnpm project.
  */
 export function getLockfileFolder(folder: string): string | undefined {
-	const normalized = folder.split(path.sep).join('/').replace(/\/+$/, '').replace(/^\.\/?/, '');
+	const normalized = folder.split(path.sep).join('/').replace(/\/+$/, '').replace(/^\.(?:\/|$)/, '');
 	if (workspaceMembers.includes(normalized)) {
 		return '';
 	}
