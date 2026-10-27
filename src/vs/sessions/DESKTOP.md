@@ -193,3 +193,18 @@ Chat ownership, handle lifetime, delayed catalog hydration, and reload persisten
 ## 9. Implementation
 
 The workbench composition lives under `browser/`. Desktop strategies and their tests live under `contrib/layout/browser/desktop/` and `contrib/layout/test/browser/`.
+
+---
+
+## 10. Chat windows (experimental)
+
+Behind `sessions.chatWindows.enabled` (off by default), a chat can open in a window of its own: **Open in New Window** on a session or a chat in the sessions list, in the session header's More Actions, or **Open Chat in New Window** from the Command Palette. One window shows one chat; opening a chat that has a window reveals it, and the window closes when its chat is deleted or archived.
+
+A chat window is an auxiliary window with a grid of its own, laid out by the pure model in `common/sessionGridLayout/` (`computeSessionGridLayout`). Its cells are the session view of the chat, the editor area (an embedded editor part, the primary part of its window, kept out of working sets), the terminals (an embedded part of terminal editors) and a column for the Session Activity Bar while the chat is below the editor area (Stacked) or hidden (Editor Only). The grid is rebuilt from the model when its topology changes and only shows or hides cells otherwise; it is never read while it changes, and it is not serialized: windows are restored from their chat, editors and whether their terminals showed.
+
+- Layout: the title bar's Layout menu (Show Chat, Show Editor, Stacked); each of its actions can be shown as a button beside it. The four modes (Chat Only, Editor Only, Stacked, Side by Side) and Toggle Chat Conversation are commands of their own. The layout is remembered per chat, its defaults per kind.
+- Editors: the editor area opens every editor, and the terminals only terminals. Any other editor that would get into the terminals, however it is opened (including with the focus in a terminal, or to the side), moved, copied or dropped there, opens in the editor area instead, which shows; a terminal opened in the editor area moves to the terminals. The terminals' part enforces it itself (`ICreateEditorPartOptions.redirectEditor`), not its callers.
+- Terminals: Toggle Terminal (the panel and terminal keys), Terminal Position in their More Actions and in the context menu of their tabs (not while Stacked).
+- Actions run in a chat window act on that window: its title bar, Session Activity Bar and empty editor area pass its handle (`IChatWindowHandle`), which session actions resolve to the window's session.
+
+The main window is unchanged: none of these actions or menus apply outside chat windows. The implementation is in `contrib/chatWindow/` and `services/chatWindow/`, with its tests in `contrib/chatWindow/test/browser/`.
