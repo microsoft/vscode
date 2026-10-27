@@ -16,7 +16,7 @@ export const forceInstallMessage = 'Run \x1b[36mnode build/npm/fast-install.ts -
 /**
  * The files that decide whether dependencies need to be installed again: the `package.json` of
  * every project, the lockfile, workspace settings, `.npmrc` and pnpmfile of every install root,
- * and the dependency patches (`patchedDependencies`).
+ * the module that the pnpmfiles import, and the dependency patches (`patchedDependencies`).
  */
 export function collectInputFiles(): string[] {
 	const files: string[] = [];
@@ -34,6 +34,7 @@ export function collectInputFiles(): string[] {
 			}
 		}
 	}
+	files.push(path.join(root, 'build', 'npm', 'pnpm', 'nativeBuildEnv.ts'));
 
 	const patchesDir = path.join(root, 'build', 'npm', 'patches');
 	if (fs.existsSync(patchesDir)) {

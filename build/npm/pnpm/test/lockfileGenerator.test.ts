@@ -10,7 +10,7 @@ import path from 'path';
 import { suite, test, type TestContext } from 'node:test';
 import { createUniverse } from '../checks.ts';
 import { computePins, getPinnedDistTags, getShadowWorkspace, restoreImporterSpecifiers, type LockfilePlan } from '../lockfileGenerator.ts';
-import { getNativeBuildEnv, readNpmrc } from '../nativeBuildEnv.ts';
+import { exportFrozenLockfileOption, getNativeBuildEnv, readNpmrc } from '../nativeBuildEnv.ts';
 import { parseNpmLockfile, type NpmLockfile } from '../npmLockfile.ts';
 import { renderWorkspaceYaml, type NpmFolder } from '../workspaceConfig.ts';
 
@@ -103,6 +103,50 @@ suite('pnpm conversion: native build environment', () => {
 				npm_config_build_from_source: undefined,
 				npm_config_force_process_config: undefined,
 			},
+		]);
+	});
+
+	test('exports the --frozen-lockfile option of the pnpm command for the nested installs', () => {
+		const cases: [args: string, env?: NodeJS.ProcessEnv][] = [
+			['install'],
+			['install', { pnpm_config_frozen_lockfile: 'true' }],
+			['install --frozen-lockfile'],
+			['--frozen-lockfile i'],
+			['install --frozen-lockfile=false'],
+			['install --no-frozen-lockfile', { pnpm_config_frozen_lockfile: 'true' }],
+			['run test -- --frozen-lockfile'],
+			['ci'],
+			['clean-install'],
+			['ic'],
+			['install-clean'],
+			['-C /repo ci'],
+			['ci --no-frozen-lockfile'],
+			['ci --frozen-lockfile=false'],
+			['add ci'],
+			['run ci'],
+			['help ci'],
+		];
+		assert.deepStrictEqual(cases.map(([args, env = {}]) => {
+			exportFrozenLockfileOption(['/usr/bin/node', '/usr/bin/pnpm', ...args.split(' ')], env);
+			return `${args}: ${env.pnpm_config_frozen_lockfile}`;
+		}), [
+			'install: undefined',
+			'install: true',
+			'install --frozen-lockfile: true',
+			'--frozen-lockfile i: true',
+			'install --frozen-lockfile=false: false',
+			'install --no-frozen-lockfile: false',
+			'run test -- --frozen-lockfile: undefined',
+			'ci: true',
+			'clean-install: true',
+			'ic: true',
+			'install-clean: true',
+			'-C /repo ci: true',
+			'ci --no-frozen-lockfile: false',
+			'ci --frozen-lockfile=false: false',
+			'add ci: undefined',
+			'run ci: undefined',
+			'help ci: undefined',
 		]);
 	});
 });
