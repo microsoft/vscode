@@ -767,7 +767,7 @@ jobs:
     name: chat-lib - Test (Linux)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -782,7 +782,7 @@ jobs:
     name: chat-lib - Test (macOS)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: macos-latest
+    runs-on: macos-26
     timeout-minutes: 30
     permissions:
       contents: read
@@ -797,7 +797,7 @@ jobs:
     name: chat-lib - Test (Windows)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 30
     permissions:
       contents: read
