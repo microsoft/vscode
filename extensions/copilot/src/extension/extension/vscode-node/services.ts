@@ -112,7 +112,6 @@ import { IUserFeedbackService, UserFeedbackService } from '../../conversation/vs
 import { ConversationStore, IConversationStore } from '../../conversationStore/node/conversationStore';
 import { SimilarFilesContextService } from '../../inlineEdits/vscode-node/similarFilesContext';
 import { IIntentService, IntentService } from '../../intents/node/intentService';
-import { INewWorkspacePreviewContentManager, NewWorkspacePreviewContentManagerImpl } from '../../intents/node/newIntent';
 import { LanguageContextProviderService } from '../../languageContextProvider/vscode-node/languageContextProviderService';
 import { ILinkifyService, LinkifyService } from '../../linkify/common/linkifyService';
 import { DebugCommandToConfigConverter, IDebugCommandToConfigConverter } from '../../onboardDebug/node/commandToConfigConverter';
@@ -252,7 +251,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IGithubApiFetcherService, new SyncDescriptor(GithubApiFetcherService));
 	builder.define(IAdoCodeSearchService, new SyncDescriptor(AdoCodeSearchService));
 	builder.define(ISettingsEditorSearchService, new SyncDescriptor(SettingsEditorSearchServiceImpl));
-	builder.define(INewWorkspacePreviewContentManager, new SyncDescriptor(NewWorkspacePreviewContentManagerImpl));
 	builder.define(IPromptVariablesService, new SyncDescriptor(PromptVariablesServiceImpl));
 	builder.define(IPromptWorkspaceLabels, new SyncDescriptor(PromptWorkspaceLabels));
 	builder.define(IUserFeedbackService, new SyncDescriptor(UserFeedbackService));
