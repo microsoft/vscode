@@ -18,9 +18,145 @@
 	min-height: 0;
 }
 
+/* Input only: the chat input, with the latest message, its response and approvals above it, without the conversation. The host sizes
+ * the view to the input, so the widget sizes to it too. The conversation keeps rendering, out of the flow and unseen,
+ * so it is ready when shown and keeps routing what it renders into the input, such as questions. */
+.chat-view-chat.input-only .interactive-list {
+	position: absolute !important;
+	top: 0;
+	left: 0;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.chat-view-chat.input-only .interactive-session .chat-scroll-down,
+.chat-view-chat.input-only .interactive-session .chat-suggest-next-widget,
+.chat-view-chat.input-only .interactive-session .chat-welcome-view-container,
+.chat-view-chat.input-only .prompt-timeline-rail,
+.chat-view-chat.input-only .prompt-timeline-sticky {
+	display: none !important;
+}
+
+.chat-view-chat.input-only .interactive-session {
+	height: auto !important;
+}
+
+/* Sets the input, or the latest message above it, off from what the view sits below. Matches INPUT_ONLY_TOP_PADDING in chatView.ts. */
+.chat-view-chat.input-only {
+	box-sizing: border-box;
+	padding-top: var(--vscode-spacing-size120);
+}
+
+.chat-view-chat > .chat-view-input-only-status {
+	flex: 0 0 auto;
+	box-sizing: border-box;
+	/* Matches INPUT_ONLY_STATUS_HEIGHT in chatView.ts: the padding and the heights of the two rows. */
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120) 0;
+	display: flex;
+	flex-direction: column;
+	font-size: var(--vscode-fontSize-label1);
+	overflow: hidden;
+}
+
+/* In a session view, aligned with its input in the centered band. */
+:is(.part.sessionspart, .sessions-window-host) .chat-view-chat > .chat-view-input-only-status {
+	width: 100%;
+	max-width: var(--session-view-centered-content-max-width, 950px);
+	margin: 0 auto;
+	padding-left: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
+	padding-right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
+}
+
+/* The message, at the end of its row like in the conversation. */
+.chat-view-chat > .chat-view-input-only-status > .chat-view-input-only-request-row {
+	height: var(--vscode-spacing-size320);
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	min-width: 0;
+}
+
+/* Its response below it. */
+.chat-view-chat > .chat-view-input-only-status > .chat-view-input-only-response-row {
+	height: var(--vscode-spacing-size240);
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+/* The message reads like the request bubbles in the conversation, compact, at the end of the row. */
+.chat-view-chat > .chat-view-input-only-status .chat-view-input-only-request {
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 90%;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120) var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-chat-requestBubbleBackground);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+/* The state of the message's response, as chats show it in the sessions list. */
+.chat-view-chat > .chat-view-input-only-status .chat-view-input-only-request-icon {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+}
+
+.chat-view-chat > .chat-view-input-only-status .chat-view-input-only-request-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* The response's answer as one line, or what it does while it works. */
+.chat-view-chat > .chat-view-input-only-status .chat-view-input-only-response {
+	flex: 1 1 0;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-view-chat > .chat-view-input-only-status .chat-view-input-only-response-icon {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+}
+
+.chat-view-chat > .chat-view-input-only-status .chat-view-input-only-request-icon.hidden,
+.chat-view-chat > .chat-view-input-only-status .chat-view-input-only-response-icon.hidden {
+	display: none;
+}
+
+.chat-view-chat > .chat-view-input-only-status .chat-view-input-only-response-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-view-chat > .chat-view-input-only-status.hidden,
+.chat-view-chat > .chat-view-input-only-status > * > .hidden {
+	display: none;
+}
+
 /* Full width; their existing auto margins center them. */
-.agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .interactive-input-part,
-.agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .chat-suggest-next-widget {
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .chat-view-chat .interactive-session > .interactive-input-part,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .chat-view-chat .interactive-session > .chat-suggest-next-widget {
 	width: 100%;
 	margin-left: auto;
 	margin-right: auto;
@@ -125,8 +261,8 @@
 	max-width: none;
 }
 
-.monaco-workbench.vs.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows,
-.monaco-workbench.vs-dark.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
+.monaco-workbench.vs.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows,
+.monaco-workbench.vs-dark.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
 	background: transparent !important;
 
 	> .monaco-list-row {
@@ -211,9 +347,9 @@
 	display: none;
 }
 
-.agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container:not(.chat-sticky-progress),
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-session .interactive-item-container:not(.chat-sticky-progress),
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container:not(.chat-sticky-progress),
-.agent-sessions-workbench .part.sessionspart .interactive-session > .chat-suggest-next-widget,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-session > .chat-suggest-next-widget,
 .agent-sessions-workbench .chat-editor-relative .interactive-session > .chat-suggest-next-widget {
 	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
@@ -222,30 +358,30 @@
 	box-sizing: border-box;
 }
 
-.agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container:not(.chat-sticky-progress),
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-session .interactive-item-container:not(.chat-sticky-progress),
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container:not(.chat-sticky-progress) {
 	position: relative;
 }
 
-.agent-sessions-workbench .part.sessionspart .interactive-list .monaco-list-row.request > .monaco-tl-row > .monaco-tl-contents,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-list .monaco-list-row.request > .monaco-tl-row > .monaco-tl-contents,
 .agent-sessions-workbench .chat-editor-relative .interactive-list .monaco-list-row.request > .monaco-tl-row > .monaco-tl-contents {
 	overflow: visible;
 }
 
-.agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown a[data-href]:focus-visible:not(.chat-rich-link),
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-session .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown a[data-href]:focus-visible:not(.chat-rich-link),
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown a[data-href]:focus-visible:not(.chat-rich-link) {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: var(--vscode-spacing-size20);
 }
 
-.agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown:has(.interactive-result-code-block),
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown:has(.interactive-result-code-block),
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown:has(.interactive-result-code-block) {
 	max-width: 100%;
 }
 
 /* ---- Chat Output ---- */
 
-.agent-sessions-workbench .part.sessionspart .monaco-scrollable-element > .shadow.top {
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .monaco-scrollable-element > .shadow.top {
 	height: 16px;
 	background: linear-gradient(to bottom, var(--part-background), transparent);
 	box-shadow: none;
@@ -294,7 +430,7 @@
 	background-color: var(--vscode-agentsChatInput-background);
 }
 
-.agent-sessions-workbench .part.sessionspart .interactive-session .interactive-input-part,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-session .interactive-input-part,
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-input-part {
 	width: 100%;
 	max-width: var(--session-view-centered-content-max-width, 950px);
@@ -304,7 +440,7 @@
 	box-sizing: border-box;
 }
 
-.agent-sessions-workbench .part.sessionspart .interactive-session .chat-edit-input-container .interactive-input-part,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-session .chat-edit-input-container .interactive-input-part,
 .agent-sessions-workbench .chat-editor-relative .interactive-session .chat-edit-input-container .interactive-input-part {
 	padding: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40);
 }

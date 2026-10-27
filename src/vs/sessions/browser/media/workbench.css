@@ -298,7 +298,7 @@
  * dot is the pseudo-element and box shadows draw the outer dots; hide all three
  * while the full hover/drag highlight communicates the active resize target.
  */
-.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash::after,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .monaco-sash.agents-grid-gap-sash::after,
 .agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after,
 .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
 	content: '';
@@ -315,27 +315,27 @@
 	transform: translate(-50%, -50%);
 }
 
-.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash.disabled::after {
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .monaco-sash.agents-grid-gap-sash.disabled::after {
 	content: none;
 }
 
-.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash.vertical::after,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .monaco-sash.agents-grid-gap-sash.vertical::after,
 .agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after {
 	box-shadow: 0 calc(-1 * var(--agents-floating-panel-gap)) currentColor, 0 var(--agents-floating-panel-gap) currentColor;
 }
 
-.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash.horizontal::after,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .monaco-sash.agents-grid-gap-sash.horizontal::after,
 .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
 	box-shadow: calc(-1 * var(--agents-floating-panel-gap)) 0 currentColor, var(--agents-floating-panel-gap) 0 currentColor;
 }
 
-.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash:is(.hover, .active)::after,
+.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .monaco-sash.agents-grid-gap-sash:is(.hover, .active)::after,
 .agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:is(.hover, .active)::after,
 .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:is(.hover, .active)::after {
 	opacity: 0;
 }
 
-:is(.monaco-enable-motion .agent-sessions-workbench, .monaco-enable-motion.agent-sessions-workbench) .part.sessionspart .monaco-sash.agents-grid-gap-sash::after,
+:is(.monaco-enable-motion .agent-sessions-workbench, .monaco-enable-motion.agent-sessions-workbench) :is(.part.sessionspart, .sessions-window-host) .monaco-sash.agents-grid-gap-sash::after,
 :is(.monaco-enable-motion .agent-sessions-workbench, .monaco-enable-motion.agent-sessions-workbench):not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after,
 :is(.monaco-enable-motion .agent-sessions-workbench, .monaco-enable-motion.agent-sessions-workbench):not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
 	transition: opacity var(--sash-grip-transition-duration, 0.15s) ease-out;
@@ -343,7 +343,7 @@
 
 @media (forced-colors: active) {
 
-	.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash::after,
+	.agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .monaco-sash.agents-grid-gap-sash::after,
 	.agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after,
 	.agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
 		background: CanvasText;
