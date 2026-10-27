@@ -12,6 +12,11 @@ suite('getPnpmCommand', () => {
 	const files: Record<string, string> = {
 		// npm and pnpm install pnpm's bin as a symlink to bin/pnpm.mjs
 		'/usr/local/bin/pnpm': '/usr/local/lib/node_modules/pnpm/bin/pnpm.mjs',
+		// pnpm 12's npm package replaces its bins with the native executable on install
+		'/opt/pnpm12/bin/pnpm': '/opt/pnpm12/lib/node_modules/pnpm/pnpm',
+		// Corepack runs pnpm 12's native executable, which it downloads as pnpm-native
+		'/home/u/.cache/node/corepack/v1/pnpm/12.16.0/pnpm-native': '/home/u/.cache/node/corepack/v1/pnpm/12.16.0/pnpm-native',
+		'C:\\Users\\u\\AppData\\Local\\node\\corepack\\v1\\pnpm\\12.16.0\\pnpm-native.exe': 'C:\\Users\\u\\AppData\\Local\\node\\corepack\\v1\\pnpm\\12.16.0\\pnpm-native.exe',
 		'/home/u/.cache/node/corepack/v1/pnpm/11.28.8/bin/pnpm.cjs': '/home/u/.cache/node/corepack/v1/pnpm/11.28.8/bin/pnpm.cjs',
 		'/home/u/.local/share/pnpm/pnpm': '/home/u/.local/share/pnpm/pnpm',
 		'/usr/lib/node_modules/npm/bin/npm-cli.js': '/usr/lib/node_modules/npm/bin/npm-cli.js',
@@ -30,6 +35,9 @@ suite('getPnpmCommand', () => {
 	test('runs the pnpm of the current script, otherwise pnpm from PATH', () => {
 		assert.deepStrictEqual([
 			select('/usr/local/bin/pnpm', 'linux'),
+			select('/opt/pnpm12/bin/pnpm', 'linux'),
+			select('/home/u/.cache/node/corepack/v1/pnpm/12.16.0/pnpm-native', 'darwin'),
+			select('C:\\Users\\u\\AppData\\Local\\node\\corepack\\v1\\pnpm\\12.16.0\\pnpm-native.exe', 'win32'),
 			select('/home/u/.cache/node/corepack/v1/pnpm/11.28.8/bin/pnpm.cjs', 'darwin'),
 			select('/home/u/.local/share/pnpm/pnpm', 'linux'),
 			select('C:\\Program Files\\pnpm\\pnpm.exe', 'win32'),
@@ -40,6 +48,9 @@ suite('getPnpmCommand', () => {
 			select(undefined, 'win32'),
 		], [
 			{ command: '/usr/bin/node', args: ['/usr/local/lib/node_modules/pnpm/bin/pnpm.mjs'], shell: false },
+			{ command: '/opt/pnpm12/lib/node_modules/pnpm/pnpm', args: [], shell: false },
+			{ command: '/home/u/.cache/node/corepack/v1/pnpm/12.16.0/pnpm-native', args: [], shell: false },
+			{ command: 'C:\\Users\\u\\AppData\\Local\\node\\corepack\\v1\\pnpm\\12.16.0\\pnpm-native.exe', args: [], shell: false },
 			{ command: '/usr/bin/node', args: ['/home/u/.cache/node/corepack/v1/pnpm/11.28.8/bin/pnpm.cjs'], shell: false },
 			{ command: '/home/u/.local/share/pnpm/pnpm', args: [], shell: false },
 			{ command: 'C:\\Program Files\\pnpm\\pnpm.exe', args: [], shell: false },

@@ -21,7 +21,11 @@
  *       removed package is listed with a dependency path for the owner to review (no rule accepts
  *       it, even when the version exists in another npm lockfile),
  *   (j) every dependency that a package also declares as a peer is provided by a parent, because
- *       pnpm's hoisted linker doesn't install it otherwise (with `autoInstallPeers: false`).
+ *       pnpm's hoisted linker doesn't install it otherwise (with `autoInstallPeers: false`),
+ *   (k) the lockfile records the checksum of the root's pnpmfile (`pnpmfileChecksum`), which every
+ *       frozen install compares with the pnpmfile,
+ *   (l) the lockfile is a single YAML document: with `pmOnFail: ignore`, pnpm doesn't add the
+ *       `packageManagerDependencies` document that the lockfile readers can't parse.
  *
  * Distro roots: settings are read back against the distro's own `pnpm-workspace.yaml`; its
  * `allowBuilds` must be the conversion of `allowScripts`; without a `package-lock.json` (after the
@@ -40,10 +44,10 @@ import fs from 'fs';
 import path from 'path';
 import { parseArgs, isDeepStrictEqual } from 'util';
 import { load } from 'js-yaml';
-import { parsePnpmLockfile } from '../../lib/pnpmLock.ts';
+import { parsePnpmLockfile, type PnpmLockfile } from '../../lib/pnpmLock.ts';
 import { checkDirectDependencies, checkEdges, checkOverrides, checkPatches, checkPeerProvidedDependencies, checkProductionClosure, checkSshUrls, checkSubtrees, checkUniverse, createUniverse, type Finding, type RootUnderTest } from './checks.ts';
 import { getAllNpmLockfileFolders, getDistroRootFolders, getInstallRootFolders, loadInstallRoot, loadNpmFolder, type InstallRoot } from './installRoots.ts';
-import { loadSatisfies, runPnpm } from './lockfileGenerator.ts';
+import { getPnpmfileChecksum, loadSatisfies, runPnpm } from './lockfileGenerator.ts';
 import { getDiskSource, getNpmSource } from './npmSource.ts';
 import { knownSettingNames, pnpmVersion, type WorkspaceSettings } from './workspaceConfig.ts';
 
@@ -89,7 +93,7 @@ export function checkSettings(root: InstallRoot, dir: string, displayFolder: str
 	const toRelative = (file: string) => path.relative(dir, file).split(path.sep).join('/');
 	for (const name of knownSettingNames) {
 		const intended = root.settings[name];
-		// pnpm reports the pnpmfile as a list of absolute paths, and patch files as absolute paths
+		// pnpm may report the pnpmfile as a list of absolute paths, and patch files as absolute paths
 		const value = name === 'pnpmfile' && Array.isArray(actual[name]) ? (actual[name] as string[]).map(toRelative).join(',')
 			: name === 'patchedDependencies' && actual[name] && typeof actual[name] === 'object' ? Object.fromEntries(Object.entries(actual[name] as Record<string, string>).map(([key, file]) => [key, toRelative(file)]))
 				: actual[name];
@@ -118,8 +122,8 @@ function normalize(value: unknown): unknown {
 
 /**
  * Checks the converted `package.json` files: no npm-only fields left, and the pinned
- * `packageManager` in every install root (also distro roots: with pnpm 11's `pmOnFail: download`
- * another version would be downloaded and run).
+ * `packageManager` in every install root (also distro roots, which the root postinstall installs
+ * with the same pnpm).
  */
 function checkPackageJsons(root: InstallRoot, baseDir: string, displayFolder: string, keepNpmFields: boolean): Finding[] {
 	const findings: Finding[] = [];
@@ -135,6 +139,19 @@ function checkPackageJsons(root: InstallRoot, baseDir: string, displayFolder: st
 		findings.push({ check: 'setting', severity: 'error', root: displayFolder, message: `${path.posix.join(root.folder, 'package.json')} must have "packageManager": "pnpm@${pnpmVersion}", found ${JSON.stringify(rootJson.packageManager)}` });
 	}
 	return findings;
+}
+
+/**
+ * (k) The lockfile records the checksum of the root's pnpmfile, and none without a pnpmfile.
+ */
+export function checkPnpmfileChecksum(lockfile: PnpmLockfile, dir: string, settings: WorkspaceSettings, displayFolder: string): Finding[] {
+	const expected = getPnpmfileChecksum(dir, settings);
+	return lockfile.pnpmfileChecksum === expected ? [] : [{
+		check: 'setting',
+		severity: 'error',
+		root: displayFolder,
+		message: `pnpm-lock.yaml records pnpmfileChecksum ${JSON.stringify(lockfile.pnpmfileChecksum)}, but the pnpmfile's checksum is ${JSON.stringify(expected)}; run convert.ts`,
+	}];
 }
 
 /**
@@ -195,6 +212,10 @@ function main(): void {
 			continue;
 		}
 		const lockfileText = fs.readFileSync(lockfilePath, 'utf8');
+		if (/^---$/m.test(lockfileText)) {
+			findings.push({ check: 'setting', severity: 'error', root: display, message: 'pnpm-lock.yaml has more than one YAML document: pnpm adds `packageManagerDependencies` unless `pmOnFail` is `ignore`; run convert.ts' });
+			continue;
+		}
 		const underTest: RootUnderTest = {
 			folder: root.folder,
 			dir,
@@ -225,6 +246,7 @@ function main(): void {
 		run('ssh urls', () => checkSshUrls(display, lockfileText));
 		run('peer-provided dependencies', () => checkPeerProvidedDependencies(underTest));
 		run('settings', () => checkSettings(distro ? { ...root, settings: readWorkspaceSettings(dir) } : root, dir, display));
+		run('pnpmfile checksum', () => checkPnpmfileChecksum(underTest.lockfile, dir, distro ? readWorkspaceSettings(dir) : root.settings, display));
 		run('patches', () => checkPatches(underTest, ((distro ? readWorkspaceSettings(dir) : root.settings).patchedDependencies ?? {}) as Readonly<Record<string, string>>, display));
 		run('package.json', () => checkPackageJsons(root, baseDir, display, distro));
 		if (hasNpmState) {

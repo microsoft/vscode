@@ -8,10 +8,12 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { suite, test, type TestContext } from 'node:test';
+import { parsePnpmLockfile } from '../../../lib/pnpmLock.ts';
 import { createUniverse } from '../checks.ts';
-import { computePins, getPinnedDistTags, getShadowWorkspace, restoreImporterSpecifiers, type LockfilePlan } from '../lockfileGenerator.ts';
+import { addPnpmfileChecksum, computePins, getPinnedDistTags, getPnpmfileChecksum, getShadowWorkspace, restoreImporterSpecifiers, type LockfilePlan } from '../lockfileGenerator.ts';
 import { createNativeBuildHooks, getNativeBuildEnv, getNativeBuildExtraEnv, readNpmrc } from '../nativeBuildEnv.ts';
 import { parseNpmLockfile, type NpmLockfile } from '../npmLockfile.ts';
+import { checkPnpmfileChecksum } from '../verify-locks.ts';
 import { renderWorkspaceYaml, type NpmFolder } from '../workspaceConfig.ts';
 
 const fixture = path.join(import.meta.dirname, 'fixtures', 'workspace');
@@ -63,6 +65,37 @@ suite('pnpm conversion: lockfile generation', () => {
 				yaml: renderWorkspaceYaml({ nodeLinker: 'hoisted', patchedDependencies: { 'p': '.patches/p.patch' } }),
 				patchFiles: [{ source: path.join('/repo/remote', '../build/npm/patches/p.patch'), target: '.patches/p.patch' }],
 			},
+		]);
+	});
+
+	test('the lockfile gets the checksum that pnpm records for the pnpmfile', t => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpmfile-checksum-'));
+		t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+		// pnpm 12.16.0 records this checksum for this pnpmfile, with LF and with CRLF line endings
+		fs.writeFileSync(path.join(dir, 'lf.mjs'), 'export const hooks = { updateConfig(c) { return c; } };\n');
+		fs.writeFileSync(path.join(dir, 'crlf.mjs'), 'export const hooks = { updateConfig(c) { return c; } };\r\n');
+		const checksum = 'sha256-+FsN8NjyKs0W8ycSINvHQMEHDbbLZbkDHyZzLZ504ZQ=';
+		const withPatches = 'lockfileVersion: \'9.0\'\n\noverrides:\n  a: 1.0.0\n\npatchedDependencies:\n  a: 0123\n\nimporters:\n  .: {}\n';
+		const withoutPatches = 'lockfileVersion: \'9.0\'\n\nimporters:\n  .: {}\n';
+		const lockfile = parsePnpmLockfile(addPnpmfileChecksum(withoutPatches, checksum));
+		assert.deepStrictEqual([
+			getPnpmfileChecksum(dir, { pnpmfile: 'lf.mjs' }),
+			getPnpmfileChecksum(dir, { pnpmfile: 'crlf.mjs' }),
+			getPnpmfileChecksum(dir, {}),
+			addPnpmfileChecksum(withPatches, checksum),
+			addPnpmfileChecksum(withoutPatches, checksum),
+			checkPnpmfileChecksum(lockfile, dir, { pnpmfile: 'crlf.mjs' }, 'r').length,
+			checkPnpmfileChecksum(lockfile, dir, {}, 'r').map(f => f.severity),
+			checkPnpmfileChecksum(parsePnpmLockfile(withoutPatches), dir, {}, 'r').length,
+		], [
+			checksum,
+			checksum,
+			undefined,
+			`lockfileVersion: '9.0'\n\noverrides:\n  a: 1.0.0\n\npnpmfileChecksum: ${checksum}\n\npatchedDependencies:\n  a: 0123\n\nimporters:\n  .: {}\n`,
+			`lockfileVersion: '9.0'\n\npnpmfileChecksum: ${checksum}\n\nimporters:\n  .: {}\n`,
+			0,
+			['error'],
+			0,
 		]);
 	});
 });

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -285,8 +286,8 @@ function writeShadow(plan: LockfilePlan, shadow: string, pins: ReadonlyMap<strin
 			}
 		}
 	}
-	// The pnpmfile only sets environment variables for install scripts and exports no hooks, so it
-	// doesn't affect the lockfile; the copy doesn't have it.
+	// The pnpmfile only sets environment variables for scripts, so it doesn't affect the resolution;
+	// the copy doesn't have it. generateLockfile adds the checksum that pnpm records for it.
 	const workspace = getShadowWorkspace(plan);
 	for (const { source, target } of workspace.patchFiles) {
 		fs.mkdirSync(path.dirname(path.join(shadow, target)), { recursive: true });
@@ -318,16 +319,41 @@ export function getShadowWorkspace(plan: LockfilePlan): { readonly yaml: string;
  * Checks that pnpm accepts a lockfile as up to date for the real manifests and settings, without
  * resolving anything (`pnpm install --frozen-lockfile --lockfile-only`).
  */
-function validateLockfile(plan: LockfilePlan, shadow: string, text: string): void {
+function validateLockfile(plan: LockfilePlan, shadow: string, text: string, extraArgs: readonly string[] = []): void {
 	writeShadow(plan, shadow, undefined, []);
 	fs.writeFileSync(path.join(shadow, 'pnpm-lock.yaml'), text);
-	const result = runPnpm(['install', '--frozen-lockfile', '--lockfile-only', '--ignore-scripts', '--config.minimum-release-age=0'], shadow);
+	const result = runPnpm(['install', '--frozen-lockfile', '--lockfile-only', '--ignore-scripts', '--config.minimum-release-age=0', ...extraArgs], shadow);
 	if (result.status !== 0) {
 		throw new Error(`pnpm rejects the generated lockfile of ${plan.folder || '.'} (exit code ${result.status}):\n${result.stdout}\n${result.stderr}`);
 	}
 	if (fs.readFileSync(path.join(shadow, 'pnpm-lock.yaml'), 'utf8') !== text) {
 		throw new Error(`pnpm changed the generated lockfile of ${plan.folder || '.'} during validation.`);
 	}
+}
+
+/**
+ * Returns the `pnpmfileChecksum` that pnpm records in the lockfile of an install root whose
+ * pnpmfile has hooks: the SHA-256 of the pnpmfile with LF line endings (pnpm normalizes them, so a
+ * checkout with CRLF line endings gets the same lockfile), or `undefined` without a pnpmfile.
+ */
+export function getPnpmfileChecksum(sourceDir: string, settings: WorkspaceSettings): string | undefined {
+	if (typeof settings.pnpmfile !== 'string') {
+		return undefined;
+	}
+	const content = fs.readFileSync(path.join(sourceDir, settings.pnpmfile), 'utf8').replace(/\r\n/g, '\n');
+	return `sha256-${crypto.createHash('sha256').update(content).digest('base64')}`;
+}
+
+/**
+ * Adds `pnpmfileChecksum` to a lockfile generated without the pnpmfile, where pnpm writes it:
+ * directly before `patchedDependencies`, or before `importers` without patches.
+ */
+export function addPnpmfileChecksum(text: string, checksum: string): string {
+	const next = /^(?:patchedDependencies|importers):$/m.exec(text);
+	if (!next || /^pnpmfileChecksum:/m.test(text)) {
+		throw new Error('Cannot add pnpmfileChecksum to the lockfile.');
+	}
+	return `${text.slice(0, next.index)}pnpmfileChecksum: ${checksum}\n\n${text.slice(next.index)}`;
 }
 
 /**
@@ -409,6 +435,12 @@ export function generateLockfile(plan: LockfilePlan, options: GenerateOptions): 
 						log(`${plan.folder || '.'}: pnpm rejects the lockfile with dependencies aligned with npm, keeping pnpm's resolution: ${err instanceof Error ? err.message.split('\n')[0] : err}`);
 						aligned = [];
 					}
+				}
+				const checksum = getPnpmfileChecksum(plan.sourceDir, plan.settings);
+				if (checksum) {
+					finalText = addPnpmfileChecksum(finalText, checksum);
+					// The copy has no pnpmfile: pnpm accepts the recorded checksum only when ignoring it
+					validateLockfile(plan, path.join(temp, 'validate-checksum'), finalText, ['--ignore-pnpmfile']);
 				}
 				return {
 					text: finalText,
