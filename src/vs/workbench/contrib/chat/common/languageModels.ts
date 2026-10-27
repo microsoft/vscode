@@ -279,6 +279,11 @@ export interface ILanguageModelChatMetadata {
 	readonly autoModelDiscountPercent?: number;
 	/** Whether the agent host presents its Auto model as Copilot Fusion. */
 	readonly autoModelFusion?: boolean;
+	/**
+	 * The tier the agent host runs Copilot Fusion at for editor and terminal inline chat, whatever
+	 * effort level is selected, so inline chat offers none. Absent when the host pins no tier there.
+	 */
+	readonly autoModelFusionInlineChatTier?: string;
 	/** Set only on the agent host's Auto model presented as Fusion. */
 	readonly autoModelTierPromotions?: readonly IAutoModelTierPromotion[];
 	/** Auto's tiers come from the provider, which may hide some, including HydraFusion ones. */
@@ -474,7 +479,7 @@ export namespace ILanguageModelChatMetadata {
 	export const autoModelSelectionDocsUrl = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
 
 	/** Where Copilot Fusion's description links for more about it. */
-	export const fusionDocsUrl = 'https://docs.github.com/en/early-access/copilot/hydrafusion';
+	export const fusionDocsUrl = 'https://aka.ms/vscode-copilot-fusion';
 
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
@@ -1865,16 +1870,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 			group = allGroups.find(g => g.vendor === metadata.vendor);
 		}
 
-		// Merge new values into existing config, removing properties set to their schema default
+		// Reset keys must be removed from both persisted settings and the in-memory cache.
 		const existingConfig = this._modelConfigurations.get(modelId) ?? {};
 		const updatedConfig = { ...existingConfig, ...values };
 		const schema = metadata.configurationSchema;
-		if (schema?.properties) {
-			for (const [key, value] of Object.entries(updatedConfig)) {
-				const propSchema = schema.properties[key];
-				if (propSchema?.default !== undefined && propSchema.default === value && !metadata.configurationDefaultKeys?.includes(key)) {
-					delete updatedConfig[key];
-				}
+		for (const [key, value] of Object.entries(updatedConfig)) {
+			const propSchema = schema?.properties?.[key];
+			if (value === undefined || (propSchema?.default !== undefined && propSchema.default === value && !metadata.configurationDefaultKeys?.includes(key))) {
+				delete updatedConfig[key];
 			}
 		}
 

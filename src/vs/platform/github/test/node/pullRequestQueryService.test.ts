@@ -43,7 +43,7 @@ suite('PullRequestQueryService', () => {
 		}
 	}
 
-	function setup(server: ProgrammableGitHubServer, capabilities = availableCapabilities): {
+	function setup(server: ProgrammableGitHubServer, capabilities = availableCapabilities, now?: number): {
 		readonly query: PullRequestQueryService;
 		readonly ref: PullRequestRef;
 		readonly credential: GitHubCredential;
@@ -52,7 +52,7 @@ suite('PullRequestQueryService', () => {
 		const signal = new AbortController().signal;
 		const transport = disposables.add(new GitHubTransport(nodeFetch));
 		return {
-			query: new PullRequestQueryService(transport, new TestCapabilitiesService(capabilities), server.createEndpointService()),
+			query: new PullRequestQueryService(transport, new TestCapabilitiesService(capabilities), server.createEndpointService(), undefined, now === undefined ? undefined : { now: () => now }),
 			ref: { ...account, owner: 'octo', repo: 'repo', number: 7 },
 			credential: { account, token: 'token', generation: 1, signal },
 		};
@@ -380,6 +380,67 @@ suite('PullRequestQueryService', () => {
 				headSha: 'head-1',
 			};
 			assert.deepStrictEqual([first, second], [expected, expected]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('keeps expected check suites whose app is withheld and omits idle suites of other apps after a grace period', async () => {
+		await withServer(async server => {
+			const checkRun = { __typename: 'CheckRun', databaseId: 1, name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', isRequired: true };
+			const withheldApp = (node: number) => ({
+				type: 'FORBIDDEN',
+				path: ['repository', 'object', 'checkSuites', 'nodes', node, 'app'],
+				message: 'Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.',
+			});
+			const pushedAt = '2026-01-01T00:00:00Z';
+			server.enqueue(
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestChecks', response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)) }),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestExpectedCheckSuites',
+					response: gitHubGraphQLResponse({
+						repository: {
+							object: {
+								oid: 'head-1',
+								checkSuites: {
+									nodes: [
+										{ id: 'reported', status: 'COMPLETED', conclusion: 'SUCCESS', createdAt: pushedAt, app: null, checkRuns: { totalCount: 1 } },
+										{ id: 'withheld', status: 'QUEUED', conclusion: null, createdAt: pushedAt, app: null, checkRuns: { totalCount: 0 } },
+										{ id: 'actions', status: 'QUEUED', conclusion: null, createdAt: pushedAt, app: { name: 'GitHub Actions', slug: 'github-actions' }, checkRuns: { totalCount: 0 } },
+										{ id: 'idle', status: 'QUEUED', conclusion: null, createdAt: pushedAt, app: { name: 'Azure Boards', slug: 'azure-boards' }, checkRuns: { totalCount: 0 } },
+										{ id: 'delayed', status: 'QUEUED', conclusion: null, createdAt: '2026-01-01T00:00:15Z', app: { name: 'Third-Party CI', slug: 'third-party-ci' }, checkRuns: { totalCount: 0 } },
+										{ id: 'undated', status: 'QUEUED', conclusion: null, app: { name: 'Undated CI', slug: 'undated-ci' }, checkRuns: { totalCount: 0 } },
+										{ id: 'policy', status: 'COMPLETED', conclusion: 'FAILURE', createdAt: pushedAt, app: { name: 'Policy', slug: 'policy' }, checkRuns: { totalCount: 0 } },
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}, [withheldApp(0), withheldApp(1)]),
+				}),
+			);
+			const { query, ref, credential } = setup(server, availableCapabilities, Date.parse('2026-01-01T00:00:20Z'));
+
+			const result = await query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, new AbortController().signal);
+
+			assert.deepStrictEqual(result, {
+				fragment: 'checks',
+				value: {
+					headSha: 'head-1',
+					checks: [{ id: '1', type: 'checkRun', name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', required: true, detailsUrl: undefined, workflowName: undefined }],
+					requirednessComplete: true,
+					expectedSuites: [
+						{ id: 'reported', name: 'unknown', status: 'COMPLETED', conclusion: 'SUCCESS', checkRunsReported: true },
+						{ id: 'withheld', name: 'unknown', status: 'QUEUED', conclusion: undefined, checkRunsReported: false },
+						{ id: 'actions', name: 'GitHub Actions', status: 'QUEUED', conclusion: undefined, checkRunsReported: false },
+						{ id: 'delayed', name: 'Third-Party CI', status: 'QUEUED', conclusion: undefined, checkRunsReported: false },
+						{ id: 'undated', name: 'Undated CI', status: 'QUEUED', conclusion: undefined, checkRunsReported: false },
+						{ id: 'policy', name: 'Policy', status: 'COMPLETED', conclusion: 'FAILURE', checkRunsReported: false },
+					],
+					expectedSuitesComplete: true,
+				},
+				complete: true,
+				headSha: 'head-1',
+			});
 			server.assertSatisfied();
 		});
 	});

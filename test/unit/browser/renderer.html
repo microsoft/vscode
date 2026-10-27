@@ -278,6 +278,47 @@
 			}
 		}
 
+		// How this page claims the test files it runs as a worker of a parallel run (see parallel.ts),
+		// whose runner adds `parallelTestFiles` to the page. Mocha asks for the next suite to run
+		// synchronously, so the claims are synchronous requests.
+		function createTestFileClaims() {
+			const prefix = window.location.pathname.split('/')[1];
+			const maxAttempts = 3;
+			const call = (method, ...args) => {
+				for (let attempt = 1; ; attempt++) {
+					const request = new XMLHttpRequest();
+					let failure;
+					try {
+						request.open('POST', `/${prefix}/testFileClaims/${method}`, false);
+						request.setRequestHeader('Content-Type', 'application/json');
+						request.send(JSON.stringify(args));
+						if (request.status === 200) {
+							return JSON.parse(request.responseText);
+						}
+						failure = `${request.status} ${request.responseText}`;
+					} catch (error) {
+						// a synchronous request throws when its response does not arrive, which happens on busy machines
+						failure = String(error);
+					}
+					// the runner answers a repeated request as before
+					if (attempt < maxAttempts) {
+						console.warn(`Failed to ${method} test files (${failure}), retrying`);
+						continue;
+					}
+					// mocha does not report an error that it gets when it asks for the next suite, but stops the run
+					const error = new Error(`Failed to ${method} test files after ${maxAttempts} attempts: ${failure}`);
+					_rejectTestRun(error);
+					throw error;
+				}
+			};
+			return {
+				start: fileCount => call('start', fileCount),
+				claim: file => call('claim', file),
+				claimAll: () => call('claimAll'),
+				recordRun: files => call('recordRun', files),
+			};
+		}
+
 		async function loadModules(modules) {
 			for (const file of modules) {
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
@@ -315,12 +356,16 @@
 	</script>
 
 	<script type="text" id="bootstrap">
-		const {data: {modules, grep, rerunTargets}, manual} = await globalThis._VSCODE_TEST_RUN
+		const {data: {modules, grep, rerunTargets, claimTestFiles}, manual} = await globalThis._VSCODE_TEST_RUN
 
 		try {
 			// load
+			const testFiles = claimTestFiles ? parallelTestFiles.trackTestFiles(mocha.suite) : undefined;
 			await loadModules(modules);
 			prepareTestsForRerun(rerunTargets);
+			if (testFiles) {
+				parallelTestFiles.distributeTestFiles(mocha.suite, testFiles, createTestFileClaims());
+			}
 
 			// run
 			await new Promise((resolve, reject) => {

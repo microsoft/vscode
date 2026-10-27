@@ -14,6 +14,7 @@ import { createAgentHostResourceUriMapper } from '../../../../../platform/agentH
 import { CustomizationType, McpServerStatus, type Customization, type McpServerCustomization, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService, NullLoggerService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IOutputService } from '../../../../../workbench/services/output/common/output.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
@@ -67,6 +68,7 @@ suite('AgentHostCustomizationService', () => {
 			instantiationService,
 			new NullLogService(),
 			new class extends mock<IAgentHostActiveClientService>() { }(),
+			new TestNotificationService(),
 		));
 
 		await assertCodexSkillItems(service, sessionResource, store);
@@ -112,6 +114,7 @@ suite('AgentHostCustomizationService', () => {
 			activeClientService ?? new class extends mock<IAgentHostActiveClientService>() {
 				override isBundledMcpServer(): boolean { return false; }
 			}(),
+			new TestNotificationService(),
 		));
 		return { service, sessionResource };
 	}
@@ -168,6 +171,7 @@ suite('AgentHostCustomizationService', () => {
 			instantiationService,
 			new NullLogService(),
 			new class extends mock<IAgentHostActiveClientService>() { }(),
+			new TestNotificationService(),
 		));
 
 		assert.strictEqual(service.getBackendChatResource(sessionResource)?.toString(), backendChat.toString());

@@ -74,7 +74,7 @@ import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../comm
 import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
-import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotComputerUsePermissionSetup } from '../../node/copilot/copilotComputerUsePermissionSetup.js';
 import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
@@ -7794,6 +7794,36 @@ suite('CopilotAgentSession', () => {
 			first: ['sandbox', 'env', 'review', 'not-a-builtin'],
 			second: ['sandbox', 'env', 'review', 'not-a-builtin'],
 			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
+		});
+	});
+
+	test('refreshes runtime slash commands and signals plugin changes when managed plugins become ready', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		let pluginChanges = 0;
+		disposables.add(session.onDidChangeRuntimePlugins(() => pluginChanges++));
+		mockSession.commandListResult = { commands: [{ name: 'env', kind: 'builtin', description: 'Show loaded environment details', allowDuringAgentExecution: true }] };
+		const before = (await session.getRuntimeSlashCommands()).map(command => command.name);
+
+		mockSession.commandListResult = {
+			commands: [
+				{ name: 'env', kind: 'builtin', description: 'Show loaded environment details', allowDuringAgentExecution: true },
+				{ name: 'eval:setup', kind: 'skill', description: 'Set up evals', allowDuringAgentExecution: false },
+			],
+		};
+		mockSession.fire('session.info', { infoType: 'managed_plugins_complete', message: 'Plugins required by your organization admin are ready.' }, { agentId: 'agent-1' });
+		const afterSubagentEvent = (await session.getRuntimeSlashCommands()).map(command => command.name);
+		mockSession.fire('session.info', { infoType: 'managed_plugins_complete', message: 'Plugins required by your organization admin are ready.' });
+
+		assert.deepStrictEqual({
+			before,
+			afterSubagentEvent,
+			afterComplete: (await session.getRuntimeSlashCommands()).map(command => command.name),
+			pluginChanges,
+		}, {
+			before: ['sandbox', 'env'],
+			afterSubagentEvent: ['sandbox', 'env'],
+			afterComplete: ['sandbox', 'env', 'eval:setup'],
+			pluginChanges: 1,
 		});
 	});
 
@@ -28470,6 +28500,36 @@ Use the attached image as context.
 			});
 		}
 
+		test('re-enables an MCP server it disabled once its decision returns to the inherited default', async () => {
+			const serverName = 'github-copilot-connector-docs';
+			let enablement: CustomizationEnablement[] = [{ kind: CustomizationEnablementKind.Global, enabled: false }];
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [],
+				resolveCustomizationEnablement: () => ({
+					kind: 'resolved',
+					enablement,
+					enabled: enablement[0]?.enabled ?? true,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected', source: 'managed' }] };
+				},
+			});
+
+			await session.send('turn the server off');
+			enablement = [];
+			await session.send('restore the inherited default');
+			await session.send('leave the restored server alone');
+
+			assert.deepStrictEqual({
+				disable: mockSession.mcpDisableCalls,
+				enable: mockSession.mcpEnableCalls,
+			}, {
+				disable: [{ serverName }],
+				enable: [{ serverName }],
+			});
+		});
+
 		test('does not force-enable a newly discovered configured-disabled MCP server or infer intent from startup', async () => {
 			const serverName = 'context7';
 			let retained: readonly Customization[] = [];
@@ -31448,6 +31508,87 @@ Use the attached image as context.
 					type: ActionType.ChatToolCallAuthResolved,
 					turnId: 'turn-auth',
 					toolCallId: 'tool-auth',
+				}],
+			});
+		});
+
+		test('MCP tool call started while authentication is pending transitions to auth required', async () => {
+			const { session, mockSession, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-auth');
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'auth-tool',
+				serverName: 'github',
+				serverUrl: 'https://api.githubcopilot.com/mcp/',
+				reason: 'upscope',
+				resourceMetadata: JSON.stringify({
+					resource: 'https://api.githubcopilot.com/mcp/',
+					resource_name: 'GitHub MCP Server',
+					authorization_servers: ['https://github.com/login/oauth'],
+					scopes_supported: ['repo', 'notifications'],
+				}),
+				wwwAuthenticateParams: { scope: 'repo notifications', error: 'insufficient_scope' },
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+
+			for (const serverName of ['github', 'slack']) {
+				mockSession.fire('tool.execution_start', {
+					toolCallId: `tool-${serverName}`,
+					toolName: 'mcp_tool',
+					mcpServerName: serverName,
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+			}
+
+			const beforeResolve = reduceTurnSignals(signals, 'turn-auth').activeTurn?.responseParts
+				.filter(part => part.kind === ResponsePartKind.ToolCall)
+				.map(part => ({
+					toolCallId: part.toolCall.toolCallId,
+					status: part.toolCall.status,
+					...(part.toolCall.status === ToolCallStatus.AuthRequired ? { auth: part.toolCall.auth } : {}),
+				}));
+			const resolved = await session.resolveMcpAuthentication({
+				resource: 'https://api.githubcopilot.com/mcp/',
+				scopes: ['repo', 'notifications'],
+				token: 'token',
+			});
+			const authResult = await authPromise;
+			const resolvedPart = reduceTurnSignals(signals, 'turn-auth').activeTurn?.responseParts
+				.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tool-github');
+			const afterResolve = getActions(signals)
+				.filter(action => action.type === ActionType.ChatToolCallAuthResolved)
+				.map(action => action.type === ActionType.ChatToolCallAuthResolved ? action : undefined);
+
+			assert.deepStrictEqual({
+				beforeResolve,
+				resolved,
+				authResult,
+				afterResolveStatus: resolvedPart?.kind === ResponsePartKind.ToolCall ? resolvedPart.toolCall.status : undefined,
+				afterResolve,
+			}, {
+				beforeResolve: [{
+					toolCallId: 'tool-github',
+					status: ToolCallStatus.AuthRequired,
+					auth: {
+						reason: McpAuthRequiredReason.InsufficientScope,
+						resource: {
+							resource: 'https://api.githubcopilot.com/mcp/',
+							resource_name: 'GitHub MCP Server',
+							authorization_servers: ['https://github.com/login/oauth'],
+							scopes_supported: ['repo', 'notifications'],
+						},
+						requiredScopes: ['repo', 'notifications'],
+						description: 'insufficient_scope',
+					},
+				}, {
+					toolCallId: 'tool-slack',
+					status: ToolCallStatus.Running,
+				}],
+				resolved: true,
+				authResult: { kind: 'token', accessToken: 'token' },
+				afterResolveStatus: ToolCallStatus.Running,
+				afterResolve: [{
+					type: ActionType.ChatToolCallAuthResolved,
+					turnId: 'turn-auth',
+					toolCallId: 'tool-github',
 				}],
 			});
 		});

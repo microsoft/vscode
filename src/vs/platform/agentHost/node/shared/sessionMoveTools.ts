@@ -212,7 +212,7 @@ const refusalMessages: { readonly [K in AgentChatMoveRefusal]: string } = {
 	[AgentChatMoveRefusal.Conflict]: 'The sessions changed while moving; check them with `list_sessions` and try again.',
 	[AgentChatMoveRefusal.Unsupported]: 'This nested session has no conversation of its own yet, so it can\'t become its own session.',
 	[AgentChatMoveRefusal.NotSingleChat]: 'This session has nested sessions; move them out first, or move each nested session on its own.',
-	[AgentChatMoveRefusal.NotStarted]: 'This nested session has no messages yet; it can become its own session after its first message.',
+	[AgentChatMoveRefusal.NotStarted]: 'This session has no messages yet; it can be moved after its first message.',
 	[AgentChatMoveRefusal.DifferentCredentialOwner]: 'Sessions with different credential owners can\'t be combined; pick a destination that uses the same account, or move it to its own session.',
 };
 
