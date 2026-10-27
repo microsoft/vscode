@@ -3603,7 +3603,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (validated.error) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message);
 		}
-		const { uri, requestId } = validated.content;
+		const { uri, requestId, session } = validated.content;
 		let root: URI;
 		try {
 			root = URI.parse(uri, true);
@@ -3627,7 +3627,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const cancelOnDisconnect = client.disposables.add(toDisposable(() => cancellation.cancel()));
 		try {
 			const sizeBytes = await raceCancellationError(
-				this._agentService.measureWorktreeDiskUsage(root, cancellation.token),
+				this._agentService.measureWorktreeDiskUsage(root, cancellation.token, session ? URI.parse(session) : undefined),
 				cancellation.token,
 			);
 			return { sizeBytes };

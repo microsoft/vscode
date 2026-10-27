@@ -3375,6 +3375,28 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('duplicate preserves the source ownership', async () => {
+		const initialOwnership = async (ownership: IAutomationDescriptor['ownership']) => {
+			const { automationDialogService, automationService, instantiationService } = setup();
+			const source = automation({ ownership });
+			automationService.setAutomations([source]);
+			const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
+			assert.ok(command);
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+			return automationDialogService.lastOptions?.initialValues?.ownership;
+		};
+
+		assert.deepStrictEqual({
+			repository: await initialOwnership('repository'),
+			user: await initialOwnership('user'),
+			legacy: await initialOwnership(undefined),
+		}, {
+			repository: 'repository',
+			user: 'user',
+			legacy: undefined,
+		});
+	});
+
 	test('duplicate dialog failures are logged and reported to the user', async () => {
 		const { automationDialogService, automationService, dialogService, instantiationService, logService } = setup();
 		const source = automation();
@@ -4059,16 +4081,16 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			unreadActionIds: [
 				MARK_SESSION_READ_COMMAND_ID,
+				'sessionsViewPane.archiveSession',
 				'vs.actions.separator',
 				'sessionsViewPane.renameSession',
-				'sessionsViewPane.archiveSession',
 			],
 			archiveLabel: 'Archive',
 			readActionIds: [
 				MARK_SESSION_UNREAD_COMMAND_ID,
+				'sessionsViewPane.archiveSession',
 				'vs.actions.separator',
 				'sessionsViewPane.renameSession',
-				'sessionsViewPane.archiveSession',
 			],
 			commandCalls: [{
 				commandId: MARK_SESSION_READ_COMMAND_ID,
@@ -4551,13 +4573,13 @@ suite('AutomationsCardsWidget', () => {
 			disposables.add(provider);
 			return provider.provideContent();
 		};
-		const disabled = content().includes('a Run in the cloud switch follows the Name field');
+		const disabled = content().includes('a Run in the cloud switch, described as Preview, follows the Name field');
 		sessionsManagementService.providerSessionTypes = [{ providerId: 'cloud', sessionType: { id: 'cloud-agent', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.None } }];
 		automationService.getProviderConfiguration = id => id === 'cloud' ? upcastPartial<IAutomationProviderConfiguration>({ sessionTypes: ['cloud-agent'] }) : undefined;
 		const enabled = content();
 		assert.deepStrictEqual({
 			disabled,
-			enabledBeforeCreation: enabled.includes('a Run in the cloud switch follows the Name field'),
+			enabledBeforeCreation: enabled.includes('When creating an automation and cloud automations are enabled, a Run in the cloud switch, described as Preview, follows the Name field'),
 			triggerPlacement: enabled.includes('Trigger follows the tools controls'),
 		}, { disabled: false, enabledBeforeCreation: true, triggerPlacement: true });
 	});

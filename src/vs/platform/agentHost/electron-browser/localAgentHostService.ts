@@ -92,6 +92,7 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/stat
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import { NonReconnectableTransportError } from '../common/state/sessionTransport.js';
+import type { IRemoteAgentHostReconnectPolicy } from '../common/reconnectPolicy.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
@@ -99,6 +100,20 @@ import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomat
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 
 const LOG_PREFIX = '[AgentHost:renderer]';
+
+/**
+ * Until a slowly starting host registers its protocol channel, each attempt fails after the
+ * host's one-second unknown-channel timeout. Retrying a local utility process is cheap, so retry
+ * every second rather than backing off to 30 seconds, which would leave the window disconnected
+ * long after the host is ready. A failed attempt takes about two seconds, so 75 attempts keep
+ * roughly the default policy's two-and-a-half-minute budget before reporting a failed start.
+ */
+const LOCAL_RECONNECT_POLICY: IRemoteAgentHostReconnectPolicy = {
+	autoRestore: true,
+	initialDelayMs: 1000,
+	maxDelayMs: 1000,
+	maxAttempts: 75,
+};
 
 function notifyOnFatalAgentHostStartError(notificationService: INotificationService): void {
 	notificationService.error(localize(
@@ -276,7 +291,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				AgentHostProtocolClient,
 				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 				() => this._createTransport(),
-				{ clientId: this.clientId, clientInfo: this._clientInfo },
+				{ clientId: this.clientId, clientInfo: this._clientInfo, reconnectPolicy: LOCAL_RECONNECT_POLICY },
 			));
 			this._register(this._protocolClient.registerMcpAuthenticationHandler(async request => this._mcpAuthenticationHandler?.(request) ?? false));
 			this._onDidAction.input = this._protocolClient.onDidAction;
@@ -765,8 +780,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().resourceResolve(params);
 	}
 
-	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
-		return this._requireClient().measureWorktreeDiskUsage(root, token);
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
+		return this._requireClient().measureWorktreeDiskUsage(root, token, session);
 	}
 
 	sessionWorktreeCleanup(session: URI, retry: boolean) {

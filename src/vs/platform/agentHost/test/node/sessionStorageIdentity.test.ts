@@ -77,6 +77,20 @@ suite('Session storage identity compatibility', () => {
 		};
 	}
 
+	test('worktree size caching uses the existing session storage identity', async () => {
+		const db = await database();
+		const session = 'ahp-session:/cached-size';
+		const worktree = 'file:///worktree';
+		await db.prepareSessionStorage(session, 'copilotcli');
+		await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		const revision = (await db.getWorktreeDiskUsageRevision(session, worktree))!;
+		await db.writeWorktreeDiskUsage(session, worktree, revision, 1234);
+		assert.deepStrictEqual({
+			runtime: await db.readWorktreeDiskUsage(session, worktree, revision),
+			storage: await db.raw.readWorktreeDiskUsage(db.identity.toStorage(session), worktree, revision),
+		}, { runtime: 1234, storage: 1234 });
+	});
+
 	test('maps only registered local identities and preserves chat IDs and arbitrary text', () => {
 		const codec = new SessionStorageIdentity();
 		codec.add({ runtime: 'ahp-session:/new', storage: 'copilotcli:/new', provider: 'copilotcli' });

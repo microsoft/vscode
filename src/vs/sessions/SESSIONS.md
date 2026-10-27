@@ -42,6 +42,8 @@ The registry:
 
 Logical providers own creation choices. A provider can also own internal, connection-bound session backends, which use the same operation contract without contributing creation targets. Default enumeration returns only logical providers; existing-session consumers explicitly include backends. Lookup preserves existing sessions' backend routing identifiers. Backends are available only while their logical owner is registered, regardless of discovery order, and registration notifications include their availability changes.
 
+An existing-session provider may supply a creation target for New Session gestures when its execution workspace or backend is not reusable. The target is inherited only while its logical provider still advertises creation for that workspace.
+
 It does not aggregate sessions, choose a provider for an operation, or own UI state.
 
 ### `ISessionsManagementService`

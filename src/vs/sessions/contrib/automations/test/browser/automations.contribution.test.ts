@@ -36,6 +36,6 @@ suite('Automations Contribution', () => {
 	test('cloud gate defaults on with machine scope and automatic config treatment', () => {
 		const property = cloudAutomationEnabledProperty;
 		assert.deepStrictEqual({ id: CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, default: property.default, scope: property.scope, tags: property.tags, experiment: property.experiment },
-			{ id: 'chat.automations.cloud.enabled', default: true, scope: ConfigurationScope.MACHINE, tags: ['onExP'], experiment: { mode: 'auto' } });
+			{ id: 'chat.automations.cloud.enabled', default: true, scope: ConfigurationScope.MACHINE, tags: ['preview', 'onExP'], experiment: { mode: 'auto' } });
 	});
 });

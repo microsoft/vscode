@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.72.0",
+  "version": "0.73.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.144.0",
+    "vscode": "^1.145.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -6272,7 +6272,7 @@
         {
           "command": "github.copilot.cli.sessions.rename",
           "when": "sessionType == copilotcli && sessionProviderId == default-copilot",
-          "group": "1_edit@4"
+          "group": "4_manage@2"
         }
       ],
       "chat/multiDiff/context": [
@@ -6989,7 +6989,7 @@
     "@google/genai": "1.30.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
-    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.212.0",
     "@opentelemetry/exporter-logs-otlp-grpc": "^0.219.0",

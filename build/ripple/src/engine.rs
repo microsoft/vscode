@@ -473,8 +473,8 @@ pub fn changed_nodes(
 	let mut base_seeds = Vec::new();
 	for path in paths {
 		let data = !base.role(path).is_module() && !head.role(path).is_module();
-		head_seeds.extend(hg.dir_dependents(path, data).0);
-		base_seeds.extend(bg.dir_dependents(path, data).0);
+		head_seeds.extend(hg.readers(path, data).0);
+		base_seeds.extend(bg.readers(path, data).0);
 		let bi = base.find(path);
 		let hi = head.find(path);
 		let bf = bi.and_then(|i| base.entries[i as usize].facts.clone());
@@ -576,6 +576,10 @@ pub struct Selection {
 	pub run_all_integration: Option<String>,
 	/// npm packages whose resolved version changed.
 	pub packages: usize,
+	/// The nodes that the change changed in the head and in the base graph, which the selected
+	/// tests depend on: declarations (see `changed_nodes`), packages and injected globals.
+	pub head_seeds: Vec<u32>,
+	pub base_seeds: Vec<u32>,
 }
 
 fn collect(snap: &Snapshot, marks: &[bool], out: &mut HashSet<Arc<str>>) {
@@ -692,27 +696,21 @@ pub fn select(
 		run_all,
 		run_all_integration,
 		packages,
+		head_seeds,
+		base_seeds,
 	};
-	dependent_tests(head, hg, &head_seeds, &mut sel.decl);
-	dependent_tests(base, bg, &base_seeds, &mut sel.decl);
+	dependent_tests(head, hg, &sel.head_seeds, &mut sel.decl);
+	dependent_tests(base, bg, &sel.base_seeds, &mut sel.decl);
 	let is_data = |p: &str| !base.role(p).is_module() && !head.role(p).is_module();
 	let head_files: Vec<u32> = paths
 		.iter()
 		.filter_map(|p| head.find(p))
-		.chain(
-			paths
-				.iter()
-				.flat_map(|p| hg.dir_dependents(p, is_data(p)).1),
-		)
+		.chain(paths.iter().flat_map(|p| hg.readers(p, is_data(p)).1))
 		.collect();
 	let base_files: Vec<u32> = paths
 		.iter()
 		.filter_map(|p| base.find(p))
-		.chain(
-			paths
-				.iter()
-				.flat_map(|p| bg.dir_dependents(p, is_data(p)).1),
-		)
+		.chain(paths.iter().flat_map(|p| bg.readers(p, is_data(p)).1))
 		.collect();
 	for runtime in [false, true] {
 		let out = if runtime {
@@ -1596,6 +1594,56 @@ mod tests {
 	}
 
 	#[test]
+	fn repository_paths_depend_on_the_file_and_module_paths_on_what_it_loads() {
+		let files = [
+			("src/app/dep.ts", "export function start() { return 1; }\n"),
+			(
+				"src/app/main.ts",
+				"import { start } from './dep.js';\nstart();\n",
+			),
+			// A fake tree whose file names happen to be repository paths: code does not run a
+			// module that a path from the repository root names.
+			(
+				"src/app/test/tree.test.ts",
+				"const tree = [{ path: 'src/app/main.ts' }];\ntest('a', () => tree);\n",
+			),
+			// An entry point by path alias, which a process runs.
+			(
+				"src/lib/starter.ts",
+				"export function spawn() { return fork('lib/worker'); }\n",
+			),
+			(
+				"src/lib/worker.ts",
+				"import { start } from '../app/dep.js';\nstart();\n",
+			),
+			(
+				"src/lib/test/starter.test.ts",
+				"import { spawn } from '../starter.js';\ntest('a', () => spawn());\n",
+			),
+		];
+		let changed = |path: &str, content: &'static str| -> Vec<String> {
+			let head: Vec<(&str, &str)> = files
+				.iter()
+				.map(|&(p, c)| (p, if p == path { content } else { c }))
+				.collect();
+			selected(&files, &head)
+		};
+		assert_eq!(
+			(
+				changed("src/app/dep.ts", "export function start() { return 2; }\n"),
+				changed(
+					"src/app/main.ts",
+					"// Starts.\nimport { start } from './dep.js';\nstart();\n"
+				),
+			),
+			(
+				vec!["src/lib/test/starter.test.ts".to_owned()],
+				vec!["src/app/test/tree.test.ts".to_owned()]
+			)
+		);
+	}
+
+	#[test]
 	fn reordering_members_with_load_time_effects_selects_their_users() {
 		let test = (
 			"src/app/test/a.test.ts",
@@ -2210,6 +2258,43 @@ mod tests {
 				vec!["src/lib/test/root/root.test.ts".to_owned()],
 				vec![]
 			)
+		);
+	}
+
+	#[test]
+	fn paths_explain_how_a_test_reaches_a_change() {
+		let test = (
+			"src/app/test/a.test.ts",
+			"test('a', async () => { const { Service } = await import('../lib.js'); return new Service().send(); });\n",
+		);
+		let lib = |body| ("src/app/lib.ts", body);
+		let base = [lib("export class Service { send() { return 1; } }\n"), test];
+		let head = [lib("export class Service { send() { return 2; } }\n"), test];
+		let (snap, seeds) = (snapshot(&head), selection(&base, &head).head_seeds);
+		let graph = Graph::build(&snap, for_tests());
+		let mut targets = vec![false; graph.node_count()];
+		for s in seeds {
+			targets[s as usize] = true;
+		}
+		let roots: Vec<u32> = graph
+			.file_nodes(snap.find(test.0).unwrap() as usize)
+			.collect();
+		let path: Vec<(String, Option<String>)> = graph
+			.path_from(&roots, &[], &targets)
+			.unwrap()
+			.into_iter()
+			.map(|(v, opener)| (graph.label(&snap, v), opener.map(|o| graph.label(&snap, o))))
+			.collect();
+		assert_eq!(
+			path,
+			vec![
+				("src/app/test/a.test.ts :: <init>".to_owned(), None),
+				("src/app/lib.ts (whole module)".to_owned(), None),
+				(
+					"src/app/lib.ts :: Service.prototype.send".to_owned(),
+					Some("src/app/test/a.test.ts :: <init>".to_owned())
+				),
+			]
 		);
 	}
 }

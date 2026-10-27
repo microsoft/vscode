@@ -74,8 +74,9 @@ impl Snapshot {
 enum Res {
 	None,
 	File(u32),
-	/// A directory, such as a fixture folder read by a test: index into `Linker::dirs`.
-	Dir(u32),
+	/// A file or directory that code reads by path, such as a grammar or a fixture folder that a
+	/// test reads: index into `Linker::reads`.
+	Read(u32),
 	/// The data files (not modules) of a directory that code reads by a computed path: index into
 	/// `Linker::data_dirs`.
 	DataDir(u32),
@@ -218,8 +219,8 @@ struct Linker<'s> {
 	new_surfaces: Vec<(u32, u32)>,
 	packages: HashMap<String, u32>,
 	globals: HashMap<String, u32>,
-	dirs: Vec<Box<str>>,
-	dir_index: HashMap<Box<str>, u32>,
+	reads: Vec<Box<str>>,
+	read_index: HashMap<Box<str>, u32>,
 	/// Computed paths: (directory, static start, static end of the path in the directory).
 	data_dirs: Vec<DataPattern>,
 	data_dir_index: HashMap<DataPattern, u32>,
@@ -285,8 +286,8 @@ impl<'s> Linker<'s> {
 		let p = p.trim_end_matches('/');
 		let range = self.snap.under(p);
 		if !range.is_empty() {
-			if let Some(&d) = self.dir_index.get(p) {
-				return Res::Dir(d);
+			if let Some(&d) = self.read_index.get(p) {
+				return Res::Read(d);
 			}
 			// Tests that read a folder read data (fixtures, media, scripts). Strings that name a
 			// folder of source code are almost always path manipulation.
@@ -297,19 +298,19 @@ impl<'s> Linker<'s> {
 			if code * 2 > range.len() && range.len() > 30 {
 				return Res::None;
 			}
-			return Res::Dir(self.dir(p));
+			return Res::Read(self.read(p));
 		}
 		Res::None
 	}
 
-	/// The id of a directory read by path.
-	fn dir(&mut self, p: &str) -> u32 {
-		if let Some(&d) = self.dir_index.get(p) {
+	/// The id of a file or directory read by path.
+	fn read(&mut self, p: &str) -> u32 {
+		if let Some(&d) = self.read_index.get(p) {
 			return d;
 		}
-		let d = self.dirs.len() as u32;
-		self.dirs.push(p.into());
-		self.dir_index.insert(p.into(), d);
+		let d = self.reads.len() as u32;
+		self.reads.push(p.into());
+		self.read_index.insert(p.into(), d);
 		d
 	}
 
@@ -375,7 +376,14 @@ impl<'s> Linker<'s> {
 					if let Some((start, end)) = &s.data {
 						self.data_dir(&entry.path, &s.specifier, s.root, start, end)
 					} else if s.root {
-						self.resolve_path(&s.specifier)
+						// No module specifier is a path from the repository root, so code reads the
+						// file that such a string names, or the string only looks like a path (the
+						// files of a fake tree). It depends on the file's content, never on what a
+						// module it names loads.
+						match self.resolve_path(&s.specifier) {
+							Res::File(t) => Res::Read(self.read(&snap.entries[t as usize].path)),
+							r => r,
+						}
 					} else {
 						self.resolve_specifier(&entry.path, &s.specifier)
 					}
@@ -609,13 +617,26 @@ pub struct Scratch {
 	pending: HashMap<u64, Vec<u32>>,
 }
 
+/// How a search reached the nodes it visited (see `Graph::path_from`).
+#[derive(Default)]
+struct Trace {
+	/// The node whose edge led to each visited or waiting node.
+	from: HashMap<u32, u32>,
+	/// The node that used each name first, which opened the instance methods of that name.
+	named_by: HashMap<u64, u32>,
+}
+
 pub struct Graph {
 	/// First node of each snapshot entry.
 	pub base: Vec<u32>,
-	/// Owning entry of each node, or `u32::MAX` for packages.
+	/// Owning entry of each node, or `u32::MAX` for the nodes standing for packages, injected
+	/// globals and whole modules.
 	pub node_file: Vec<u32>,
 	pub packages: HashMap<String, u32>,
-	/// Number of nodes owned by files; package nodes follow.
+	/// The module that each node standing for a whole module stands for (see `Linker::surface`).
+	surfaces: HashMap<u32, u32>,
+	/// Number of nodes owned by files; the nodes standing for packages, injected globals and whole
+	/// modules follow.
 	file_nodes_end: u32,
 	nodes: Csr,
 	forward: Csr,
@@ -627,8 +648,8 @@ pub struct Graph {
 	files_all: Csr,
 	/// File-level reverse runtime loads.
 	files_runtime: Csr,
-	/// Nodes and files that read a directory by path, keyed by directory.
-	dirs: HashMap<Box<str>, (Vec<u32>, Vec<u32>)>,
+	/// Nodes and files that read a file or directory by path, keyed by path.
+	reads: HashMap<Box<str>, (Vec<u32>, Vec<u32>)>,
 	/// Nodes and files that read data files of a directory by a computed path, by directory, with
 	/// the static start and end of the path in the directory.
 	data_dirs: HashMap<Box<str>, Vec<(Box<str>, Box<str>, u32, u32)>>,
@@ -665,8 +686,8 @@ impl Graph {
 			new_surfaces: Vec::new(),
 			packages: HashMap::new(),
 			globals: HashMap::new(),
-			dirs: Vec::new(),
-			dir_index: HashMap::new(),
+			reads: Vec::new(),
+			read_index: HashMap::new(),
 			data_dirs: Vec::new(),
 			data_dir_index: HashMap::new(),
 			file_nodes_end: next,
@@ -675,7 +696,7 @@ impl Graph {
 		let mut loads: Vec<Box<[u32]>> = vec![Box::new([]); n];
 		let mut load_order: Vec<Box<[Load]>> = vec![Box::new([]); n];
 		let mut load_edges: Vec<(u32, u32)> = Vec::new();
-		let mut dir_refs: Vec<(u32, u32, u32)> = Vec::new();
+		let mut read_refs: Vec<(u32, u32, u32)> = Vec::new();
 		let mut data_dir_refs: Vec<(u32, u32, u32)> = Vec::new();
 		let mut edges: Vec<(u32, u32)> = Vec::new();
 		let mut files_all: Vec<(u32, u32)> = Vec::new();
@@ -732,7 +753,7 @@ impl Graph {
 						}
 						Ref::All(spec) => match linker.spec_res(f, *spec) {
 							Res::File(t) => edges.push((u, linker.surface(t))),
-							Res::Dir(d) => dir_refs.push((d, u, f)),
+							Res::Read(d) => read_refs.push((d, u, f)),
 							Res::DataDir(d) => data_dir_refs.push((d, u, f)),
 							Res::Pkg(p) => edges.push((u, p)),
 							_ => {}
@@ -783,7 +804,7 @@ impl Graph {
 			let reads = loaders.reach(roots);
 			for (folder, tests) in folders {
 				for f in tests.into_iter().filter(|&f| reads[f as usize]) {
-					dir_refs.push((linker.dir(folder), base[f as usize], f));
+					read_refs.push((linker.read(folder), base[f as usize], f));
 				}
 			}
 		}
@@ -932,9 +953,10 @@ impl Graph {
 		}
 		let packages = std::mem::take(&mut linker.packages);
 		let globals = std::mem::take(&mut linker.globals);
-		let mut dirs: HashMap<Box<str>, (Vec<u32>, Vec<u32>)> = HashMap::new();
-		for (d, u, f) in dir_refs {
-			let entry = dirs.entry(linker.dirs[d as usize].clone()).or_default();
+		let surfaces = linker.surfaces.iter().map(|(&f, &s)| (s, f)).collect();
+		let mut reads: HashMap<Box<str>, (Vec<u32>, Vec<u32>)> = HashMap::new();
+		for (d, u, f) in read_refs {
+			let entry = reads.entry(linker.reads[d as usize].clone()).or_default();
 			entry.0.push(u);
 			entry.1.push(f);
 		}
@@ -944,7 +966,7 @@ impl Graph {
 			data_dirs.entry(dir).or_default().push((start, end, u, f));
 		}
 		if std::env::var_os("RIPPLE_DEBUG").is_some() {
-			let mut list: Vec<(&Box<str>, &(Vec<u32>, Vec<u32>))> = dirs.iter().collect();
+			let mut list: Vec<(&Box<str>, &(Vec<u32>, Vec<u32>))> = reads.iter().collect();
 			list.sort_by_key(|(d, _)| (d.matches('/').count(), d.len()));
 			for (d, (_, files)) in list.iter().take(40) {
 				let names: Vec<&str> = files
@@ -953,7 +975,7 @@ impl Graph {
 					.map(|&f| &*snap.entries[f as usize].path)
 					.collect();
 				eprintln!(
-					"dir ref: {d} <- {} refs, e.g. {}",
+					"read by path: {d} <- {} refs, e.g. {}",
 					files.len(),
 					names.join(", ")
 				);
@@ -961,7 +983,7 @@ impl Graph {
 		}
 		let swapped: Vec<(u32, u32)> = edges.iter().copied().collect();
 		Self {
-			dirs,
+			reads,
 			data_dirs,
 			globals,
 			loads,
@@ -983,6 +1005,7 @@ impl Graph {
 			base,
 			node_file,
 			packages,
+			surfaces,
 			unresolved,
 		}
 	}
@@ -1074,6 +1097,47 @@ impl Graph {
 		targets: &[bool],
 		scratch: &mut Scratch,
 	) -> bool {
+		self.search::<false>(roots, names, targets, scratch, &mut Trace::default())
+			.is_some()
+	}
+
+	/// How code that starts at `roots` reaches a target node (see `reaches_from`), if it does: a
+	/// path from a root to the target, each node with, for an instance method, the node whose use
+	/// of the method's name opened it (none for names that `names` or `IMPLICIT_METHODS` give). The
+	/// search is breadth first, so the path is short.
+	pub fn path_from(
+		&self,
+		roots: &[u32],
+		names: &[u64],
+		targets: &[bool],
+	) -> Option<Vec<(u32, Option<u32>)>> {
+		let mut trace = Trace::default();
+		let target =
+			self.search::<true>(roots, names, targets, &mut Scratch::default(), &mut trace)?;
+		let mut path = Vec::new();
+		let mut v = Some(target);
+		while let Some(n) = v {
+			let gate = self.gate[n as usize];
+			let opener = (gate != 0)
+				.then(|| trace.named_by.get(&gate).copied())
+				.flatten();
+			path.push((n, opener));
+			v = trace.from.get(&n).copied();
+		}
+		path.reverse();
+		Some(path)
+	}
+
+	/// The search of `reaches_from`, which returns the target node it reaches. It searches depth
+	/// first, or with `TRACE`, breadth first while recording into `trace` how it reaches nodes.
+	fn search<const TRACE: bool>(
+		&self,
+		roots: &[u32],
+		names: &[u64],
+		targets: &[bool],
+		scratch: &mut Scratch,
+		trace: &mut Trace,
+	) -> Option<u32> {
 		scratch.stamp += 1;
 		if scratch.visited.len() < self.node_file.len() {
 			scratch.visited.resize(self.node_file.len(), 0);
@@ -1083,21 +1147,31 @@ impl Graph {
 		scratch.used.extend(self.implicit.iter().copied());
 		scratch.used.extend(names.iter().copied());
 		scratch.pending.clear();
-		let mut stack: Vec<u32> = roots.to_vec();
-		for &n in &stack {
+		// A stack, or a queue from `next` on when searching breadth first.
+		let mut queue: Vec<u32> = roots.to_vec();
+		let mut next = 0;
+		for &n in &queue {
 			scratch.visited[n as usize] = stamp;
 		}
-		while let Some(n) = stack.pop() {
+		while let Some(n) = if TRACE {
+			next += 1;
+			queue.get(next - 1).copied()
+		} else {
+			queue.pop()
+		} {
 			if targets[n as usize] {
-				return true;
+				return Some(n);
 			}
 			for &name in self.uses.of(n) {
 				if scratch.used.insert(name) {
+					if TRACE {
+						trace.named_by.insert(name, n);
+					}
 					if let Some(waiting) = scratch.pending.remove(&name) {
 						for v in waiting {
 							if scratch.visited[v as usize] != stamp {
 								scratch.visited[v as usize] = stamp;
-								stack.push(v);
+								queue.push(v);
 							}
 						}
 					}
@@ -1107,25 +1181,62 @@ impl Graph {
 				if scratch.visited[v as usize] == stamp {
 					continue;
 				}
+				if TRACE {
+					trace.from.entry(v).or_insert(n);
+				}
 				let g = self.gate[v as usize];
 				if g != 0 && !scratch.used.contains(&g) {
 					scratch.pending.entry(g).or_default().push(v);
 					continue;
 				}
 				scratch.visited[v as usize] = stamp;
-				stack.push(v);
+				queue.push(v);
 			}
 		}
-		false
+		None
 	}
 
-	/// Nodes and files that read a directory containing `path`, including, for a data file (not
-	/// a module), the directories that computed paths read.
-	pub fn dir_dependents(&self, path: &str, data: bool) -> (Vec<u32>, Vec<u32>) {
-		let (mut nodes, mut files) = (Vec::new(), Vec::new());
+	/// A readable name of a node: the path and key of a declaration, the path of a file that is
+	/// not analyzed or of a module that code references as a whole, a package or a global.
+	pub fn label(&self, snap: &Snapshot, v: u32) -> String {
+		let named = |nodes: &HashMap<String, u32>| {
+			nodes
+				.iter()
+				.find(|&(_, &n)| n == v)
+				.map(|(name, _)| name.clone())
+		};
+		let f = self.node_file[v as usize];
+		if let Some(entry) = snap.entries.get(f as usize) {
+			return match &entry.facts {
+				Some(facts) => format!(
+					"{} :: {}",
+					entry.path,
+					facts.decls[(v - self.base[f as usize]) as usize].key
+				),
+				None => entry.path.to_string(),
+			};
+		}
+		if let Some(&m) = self.surfaces.get(&v) {
+			format!("{} (whole module)", snap.entries[m as usize].path)
+		} else if let Some(name) = named(&self.packages) {
+			format!("package {name}")
+		} else if let Some(name) = named(&self.globals) {
+			format!("global {name}")
+		} else {
+			format!("node {v}")
+		}
+	}
+
+	/// Nodes and files that read `path` or a directory containing it, including, for a data file
+	/// (not a module), the directories that computed paths read.
+	pub fn readers(&self, path: &str, data: bool) -> (Vec<u32>, Vec<u32>) {
+		let (mut nodes, mut files) = match self.reads.get(path) {
+			Some((n, f)) => (n.clone(), f.clone()),
+			None => (Vec::new(), Vec::new()),
+		};
 		for (i, _) in path.match_indices('/') {
 			let dir = &path[..i];
-			if let Some((n, f)) = self.dirs.get(dir) {
+			if let Some((n, f)) = self.reads.get(dir) {
 				nodes.extend_from_slice(n);
 				files.extend_from_slice(f);
 			}

@@ -9,6 +9,8 @@ import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/br
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { getTestSessionResource } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
@@ -29,6 +31,23 @@ const NESTED_CHAT_SESSION: ISessionsListFixtureSession = {
 		{ id: 'task-a', title: 'Task A', minutesAgo: 18 },
 		{ id: 'task-b', title: 'Task B', minutesAgo: 43 },
 	],
+};
+const BAKEOFF_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'attempt-one', title: 'First attempt', workspace: 'vscode', status: SessionStatus.InProgress },
+	{ id: 'attempt-two', title: 'Second attempt', workspace: 'vscode', status: SessionStatus.InProgress },
+];
+const BAKEOFF_COMPARISON: ISessionComparison = {
+	id: 'bakeoff',
+	groupId: 'bakeoff',
+	title: 'Improve session navigation',
+	prompt: 'Improve session navigation',
+	createdAt: 1,
+	participants: BAKEOFF_SESSIONS.map((session, index) => ({
+		id: session.id,
+		role: SessionComparisonParticipantRole.Attempt,
+		sessionResource: getTestSessionResource(session.id),
+		harness: { providerId: 'local', sessionTypeId: 'copilot', label: 'Copilot', modelLabel: index === 0 ? 'Claude Opus 5' : 'GPT-5.4' },
+	})),
 };
 const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
 	id: 'nested-archive',
@@ -222,6 +241,24 @@ const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
 //#endregion
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_Bakeoff: defineSessionsListFixture({
+		sessions: BAKEOFF_SESSIONS,
+		groups: [{ id: 'bakeoff', name: BAKEOFF_COMPARISON.title, sessions: BAKEOFF_SESSIONS.map(session => session.id) }],
+		comparisons: [BAKEOFF_COMPARISON],
+		view: { grouping: SessionsGrouping.Date, reducedMotion: false },
+	}, { virtualTime: { enabled: false }, additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Bakeoff_MixedHarnesses: defineSessionsListFixture({
+		sessions: BAKEOFF_SESSIONS,
+		groups: [{ id: 'bakeoff', name: BAKEOFF_COMPARISON.title, sessions: BAKEOFF_SESSIONS.map(session => session.id) }],
+		comparisons: [{
+			...BAKEOFF_COMPARISON,
+			participants: BAKEOFF_COMPARISON.participants.map((participant, index) => index === 0 ? participant : {
+				...participant,
+				harness: { ...participant.harness, sessionTypeId: 'claude', label: 'Claude' },
+			}),
+		}],
+		view: { grouping: SessionsGrouping.Date, reducedMotion: false },
+	}, { virtualTime: { enabled: false }, additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 
 	//#region Sections and placement
 
@@ -638,7 +675,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { contextMenu: { group: 'hotfixes' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The context menu of the Hotfixes subgroup is open, offering Mark All as Read, Create Subgroup, Rename..., and Delete Group.'],
+		expectedVisualDescriptions: ['The context menu of the Hotfixes subgroup is open, offering New Session, then Mark All as Read and Archive All, then Create Subgroup, then Change Icon..., Change Color..., Rename..., and Delete Group.'],
 	}),
 	SessionsList_NestedGroups_DragIntoGroup: defineSessionsListFixture({
 		sessions: NESTED_GROUP_SESSIONS,
@@ -1052,7 +1089,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		header: { navigationShortcuts: true, customizationsCount: 8, customizationMigrationsAvailable: true },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small warning dot beside its label.'],
+		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small activity badge dot beside its label.'],
 	}),
 	SessionsList_CustomizationsExtensionSuggestionsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'suggestions', title: 'Review the generated diagrams', workspace: 'vscode', minutesAgo: 5 }],

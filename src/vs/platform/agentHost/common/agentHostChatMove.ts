@@ -51,6 +51,8 @@ export interface IChatMoveEligibility extends IChatMoveStructuralEligibility {
 	readonly worktreeFolder: boolean;
 	/** Its session's legacy chat catalog can't be converted for now: its conversion is parked ({@link AgentChatMoveRefusal.LegacyCatalog}). */
 	readonly legacyCatalog: boolean;
+	/** It has no turn yet, so nothing of it exists beyond its composer ({@link AgentChatMoveRefusal.NotStarted}). */
+	readonly notStarted: boolean;
 }
 
 /**
@@ -76,7 +78,8 @@ export function isChatMovable(eligibility: IChatMoveEligibility): boolean {
 		&& !eligibility.workspaceless
 		&& !eligibility.converting
 		&& !eligibility.worktreeFolder
-		&& !eligibility.legacyCatalog;
+		&& !eligibility.legacyCatalog
+		&& !eligibility.notStarted;
 }
 
 /** Where a chat moves: another position in its own session, another existing session, or a new session. */
@@ -105,7 +108,7 @@ export const enum AgentChatMoveRefusal {
 	Unsupported = 'unsupported',
 	/** A session moves under another session only while its default chat is its only chat (Block 4, VS Code-internal). */
 	NotSingleChat = 'notSingleChat',
-	/** A chat becomes its own session only once its first turn started, which is when every agent persists its conversation. */
+	/** A chat moves, or becomes its own session, only once its first turn started, which is when every agent persists its conversation. */
 	NotStarted = 'notStarted',
 	/**
 	 * The chat's session and the destination session are sponsored by different credential owners, or only one of them is.
