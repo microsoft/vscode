@@ -38,6 +38,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.MACHINE,
+			included: false,
 			tags: ['experimental', 'advanced'],
 			description: localize('chat.agentSessions.inbox.enabled', "Enables the Sessions Inbox: a prioritized, actionable notifications view. When disabled, the Inbox entry in the Sessions list, the Inbox view, and its Show Inbox command are hidden."),
 			experiment: { mode: 'auto' },
