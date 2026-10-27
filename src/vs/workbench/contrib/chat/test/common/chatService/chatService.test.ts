@@ -1626,25 +1626,33 @@ suite('ChatService', () => {
 		});
 	}
 
-	for (const { name, firstIsSystem, secondIsSystem, expectSystem } of [
-		{ name: 'two notifications', firstIsSystem: true, secondIsSystem: true, expectSystem: true },
-		{ name: 'notification then user input', firstIsSystem: true, secondIsSystem: false, expectSystem: false },
-		{ name: 'user input then notification', firstIsSystem: false, secondIsSystem: true, expectSystem: false },
+	for (const { name, firstIsSystem, secondIsSystem, expectedInvocations, expectedYields, expectedLabel } of [
+		{ name: 'two notifications', firstIsSystem: true, secondIsSystem: true, expectedInvocations: [{ message: 'message 1\n\nmessage 2', isSystemInitiated: true }], expectedYields: ['task'], expectedLabel: 'Terminal completed' },
+		{ name: 'notification then user input', firstIsSystem: true, secondIsSystem: false, expectedInvocations: [{ message: 'message 1', isSystemInitiated: true }, { message: 'message 2', isSystemInitiated: false }], expectedYields: ['task', 'message 1'], expectedLabel: undefined },
+		{ name: 'user input then notification', firstIsSystem: false, secondIsSystem: true, expectedInvocations: [{ message: 'message 1', isSystemInitiated: false }, { message: 'message 2', isSystemInitiated: true }], expectedYields: ['task', 'message 1'], expectedLabel: 'Terminal completed' },
 	]) {
 		test(`steering batches preserve user turn boundaries: ${name}`, async () => {
 			const started = new DeferredPromise<void>();
 			const complete = new DeferredPromise<void>();
 			const invoked: { message: string; isSystemInitiated: boolean }[] = [];
+			const messagesByRequestId = new Map<string, string>();
+			const yieldedRequestIds: string[] = [];
 			const agentId = 'notificationAgent';
 			testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
 			testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
 				async invoke(request) {
+					messagesByRequestId.set(request.requestId, request.message);
 					invoked.push({ message: request.message, isSystemInitiated: !!request.isSystemInitiated });
 					if (invoked.length === 1) {
 						started.complete();
 						await complete.p;
 					}
 					return {};
+				},
+				setYieldRequested(requestId, value) {
+					if (value) {
+						yieldedRequestIds.push(requestId);
+					}
 				},
 			}));
 			const service = createChatService();
@@ -1670,9 +1678,10 @@ suite('ChatService', () => {
 				ChatSendResult.assertSent(result);
 				await result.data.responseCompletePromise;
 			}
-			assert.deepStrictEqual({ invoked, label: model.lastRequest?.systemInitiatedLabel, pending: model.getPendingRequests().length }, {
-				invoked: [{ message: 'task', isSystemInitiated: false }, { message: 'message 1\n\nmessage 2', isSystemInitiated: expectSystem }],
-				label: expectSystem ? 'Terminal completed' : undefined,
+			assert.deepStrictEqual({ invoked, yields: yieldedRequestIds.map(id => messagesByRequestId.get(id)), label: model.lastRequest?.systemInitiatedLabel, pending: model.getPendingRequests().length }, {
+				invoked: [{ message: 'task', isSystemInitiated: false }, ...expectedInvocations],
+				yields: expectedYields,
+				label: expectedLabel,
 				pending: 0,
 			});
 		});
