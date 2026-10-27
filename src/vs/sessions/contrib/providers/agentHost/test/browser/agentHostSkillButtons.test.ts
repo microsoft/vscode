@@ -93,6 +93,8 @@ class FakeNonAgentHostProvider {
 class FakeSessionsService extends mock<ISessionsService>() {
 	declare readonly _serviceBrand: undefined;
 	override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+	override readonly mainWindowActiveSession = this.activeSession;
+	override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 	setActiveSession(s: IActiveSession | undefined): void {
 		this.activeSession.set(s, undefined);
 	}

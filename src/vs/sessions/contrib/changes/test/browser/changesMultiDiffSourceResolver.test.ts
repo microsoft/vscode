@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -30,6 +30,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
+			override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 			override readonly activeSessionChangesObs = activeChanges;
 			override readonly activeSessionLoadingObs = loading;
 			override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
@@ -74,6 +75,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			override readonly activeSessionResourceObs = activeSessionResource;
 			override readonly activeSessionChangesObs = activeChanges;
 			override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
+			override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 		}();
 		let resolver: IMultiDiffSourceResolver | undefined;
 		const resolverService = new class extends mock<IMultiDiffSourceResolverService>() {
@@ -114,6 +116,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 					createChange('/workspace/src/lib/c.ts'),
 				]);
 				override readonly viewModeObs = viewMode;
+				override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 			}(),
 			new class extends mock<IMultiDiffSourceResolverService>() {
 				override registerResolver() { return Disposable.None; }
@@ -164,6 +167,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			const resolver = disposables.add(new ChangesMultiDiffSourceResolver(
 				new class extends mock<IChangesViewService>() {
 					override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
+					override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 					override readonly activeSessionChangesObs = changes;
 					override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 				}(),

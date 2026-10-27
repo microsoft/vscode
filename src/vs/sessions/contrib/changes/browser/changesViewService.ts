@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
-import { derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, ISettableObservable, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -16,7 +16,7 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
@@ -132,8 +132,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	private readonly _changesetSelectionsBySession = new ResourceMap<ISessionChangesetSelections>();
 	private readonly _changesetSelectionChanged = observableSignal('changesView.changesetSelectionChanged');
 
-	setChangesetId(changesetId: string | undefined): void {
-		const activeSession = this.sessionsService.activeSession.get();
+	setChangesetId(changesetId: string | undefined, sessionResource?: URI): void {
+		const activeSession = this._resolveSession(sessionResource);
 		const activeChat = activeSession?.activeChat.get();
 		if (!activeSession || !activeChat) {
 			return;
@@ -156,8 +156,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		});
 	}
 
-	showChangeset(changeset: ISessionChangeset): void {
-		const activeSession = this.sessionsService.activeSession.get();
+	showChangeset(changeset: ISessionChangeset, sessionResource?: URI): void {
+		const activeSession = this._resolveSession(sessionResource);
 		const activeChat = activeSession?.activeChat.get();
 		if (!activeSession || !activeChat) {
 			return;
@@ -169,6 +169,37 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 				transientChangeset: changeset,
 			});
 			this._changesetSelectionChanged.trigger(tx);
+		});
+	}
+
+	/** The session the main window shows, or the session with `sessionResource`, in the main window or in a window of its own. */
+	private _resolveSession(sessionResource: URI | undefined, reader?: IReader): IActiveSession | undefined {
+		const mainWindowSession = this.sessionsService.mainWindowActiveSession.read(reader);
+		if (!sessionResource || isEqual(mainWindowSession?.resource, sessionResource)) {
+			return mainWindowSession;
+		}
+		return this.sessionsService.windowSessions.read(reader).find(session => isEqual(session.resource, sessionResource))
+			?? this.sessionsService.visibleSessions.read(reader).find(session => isEqual(session?.resource, sessionResource))
+			?? undefined;
+	}
+
+	getSessionChanges(sessionResource: URI): IObservable<readonly ISessionFileChange[]> {
+		return derivedObservableWithCache<readonly ISessionFileChange[]>(this, (reader, lastValue) => {
+			const session = this._resolveSession(sessionResource, reader);
+			const chat = session?.activeChat.read(reader);
+			const changesets = chat?.changesets.read(reader);
+			if (!session || !chat || !changesets) {
+				return lastValue ?? [];
+			}
+			this._changesetSelectionChanged.read(reader);
+			const selection = this._changesetSelectionsBySession.get(session.resource)?.chats.get(chat.resource);
+			const changeset = selection?.transientChangeset
+				?? (selection?.selectedChangesetId ? changesets.find(candidate => candidate.id === selection.selectedChangesetId && candidate.isEnabled.read(reader)) : undefined)
+				?? findDefaultChangeset(changesets, reader);
+			if (!changeset) {
+				return [];
+			}
+			return changeset.isLoadingChanges.read(reader) ? lastValue ?? [] : changeset.changes.read(reader);
 		});
 	}
 
@@ -195,7 +226,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 		// Active session resource
 		this.activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
 			return activeSession?.resource;
 		});
 		this.activeSessionSectionCollapseStateObs = derivedOpts({ equalsFn: structuralEquals }, reader => {
@@ -206,12 +237,12 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 		// Active session type
 		this.activeSessionTypeObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
 			return activeSession?.sessionType;
 		});
 
 		this.activeSessionIsVirtualWorkspaceObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
 			return activeSession?.activeChat.read(reader).workspace.read(reader)?.isVirtualWorkspace ?? false;
 		});
 
@@ -222,7 +253,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 				return true;
 			}
 
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
 			const workspace = activeSession?.activeChat.read(reader).workspace.read(reader);
 			return workspace?.folders[0].gitRepository !== undefined;
 		});
@@ -235,7 +266,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 		// Changesets
 		const currentChangesetsObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);
 			const changesets = activeChat?.changesets.read(reader);
 			this._changesetSelectionChanged.read(reader);
@@ -253,7 +284,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 		this.activeSessionChangesetsLoadingObs = derived(reader => currentChangesetsObs.read(reader) === undefined);
 		this.activeSessionChangesetsObs = derivedObservableWithCache<readonly ISessionChangeset[] | undefined>(this, (reader, lastValue) => {
-			if (!this.sessionsService.activeSession.read(reader)) {
+			if (!this.sessionsService.mainWindowActiveSession.read(reader)) {
 				return undefined;
 			}
 			const changesets = currentChangesetsObs.read(reader);
@@ -262,7 +293,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 		// Changeset
 		const activeSessionChangesetProjectionObs = derivedObservableWithCache<IActiveChangesetProjection>(this, (reader, lastValue) => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);
 			const chatWorkspace = activeChat?.workspace.read(reader);
 			this._changesetSelectionChanged.read(reader);
@@ -322,7 +353,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const activeChangesStateObs = derivedObservableWithCache<IActiveChangesState>(this, (reader, lastValue) => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
 			if (!changeset) {
-				const activeSession = this.sessionsService.activeSession.read(reader);
+				const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
 				return {
 					changeset: undefined,
 					changes: [],
@@ -361,7 +392,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		});
 
 		const activeSessionBaseBranchProtection = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
 			return activeSession?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchProtected;
 		});
 
@@ -382,7 +413,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		});
 
 		this.activeSessionLoadingObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
 			const activeSessionLoading = activeSession?.loading.read(reader) ?? true;
 			const activeSessionChangesetsLoading = this.activeSessionChangesetsLoadingObs.read(reader);
 			const activeSessionChangeset = this.activeSessionChangesetObs.read(reader);
@@ -616,7 +647,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 				return lastValue;
 			}
 
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);
 			const activeSessionChanges = activeChat?.changes.read(reader) ?? [];
 			const workspace = activeChat?.workspace.read(reader);
