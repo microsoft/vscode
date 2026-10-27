@@ -527,6 +527,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 	private readonly _sessionsV2Backfilled = new Set<string>();
 	private readonly _sessionsV2Exclusions = new Map<string, IAgentHostDatabaseSessionsV2Exclusion>();
 	private readonly _tombstones = new Set<string>();
+	private readonly _hiddenSessions = new Map<string, string>();
 	private readonly _agentMergeEnabled = new Set<string>();
 	private readonly _provisionalSessions = new Set<string>();
 	private readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
@@ -578,7 +579,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		this._beforeWrite();
-		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
+		if (registerOptions.checkTombstone && (this._tombstones.has(session) || this._hiddenSessions.has(session))) {
 			return false;
 		}
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
@@ -592,6 +593,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		this._sessions.set(session, { ...next, modifiedTime: Math.max(existing?.modifiedTime ?? modifiedTime, modifiedTime) });
 		if (!registerOptions.checkTombstone) {
 			this._tombstones.delete(session);
+			this._hiddenSessions.delete(session);
 		}
 		return true;
 	}
@@ -734,8 +736,26 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
 	}
 
+	override async hideSession(session: string, provider: string): Promise<void> {
+		await this.unregisterRuntimeSession(session);
+		this._tombstones.delete(session);
+		this._hiddenSessions.set(session, provider);
+	}
+
+	override async isSessionHidden(session: string): Promise<boolean> {
+		return this._hiddenSessions.has(session);
+	}
+
+	override async listHiddenSessions(): Promise<readonly { readonly session: string; readonly provider: string }[]> {
+		return [...this._hiddenSessions].map(([session, provider]) => ({ session, provider }));
+	}
+
 	async isSessionTombstoned(session: string): Promise<boolean> {
 		return this._tombstones.has(session);
+	}
+
+	override async isSessionSuppressed(session: string): Promise<boolean> {
+		return this._tombstones.has(session) || this._hiddenSessions.has(session);
 	}
 
 	async markSessionTombstoned(session: string): Promise<void> {
@@ -746,12 +766,14 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 	async clearSessionTombstone(session: string): Promise<void> {
 		this._beforeWrite();
 		this._tombstones.delete(session);
+		this._hiddenSessions.delete(session);
 	}
 
 	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		this._beforeWrite();
 		if (registerOptions.discoveryBackingSession !== undefined
 			&& (this._tombstones.has(registerOptions.discoveryBackingSession)
+				|| this._hiddenSessions.has(registerOptions.discoveryBackingSession)
 				|| registerOptions.discoveryBackingSession !== session && (this._sessionV2Registrations.has(registerOptions.discoveryBackingSession) || this._sessions.has(registerOptions.discoveryBackingSession))
 				|| [...this._sessionsV2Exclusions.values()].some(exclusion =>
 					(exclusion.session === session && exclusion.provider !== sessionOptions.provider
@@ -759,7 +781,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 					&& (exclusion.reason === 'providerAbsent' || exclusion.reason === 'staleExternal')))) {
 			return false;
 		}
-		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
+		if (registerOptions.checkTombstone && (this._tombstones.has(session) || this._hiddenSessions.has(session))) {
 			return false;
 		}
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
@@ -777,6 +799,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
 		if (!registerOptions.checkTombstone) {
 			this._tombstones.delete(session);
+			this._hiddenSessions.delete(session);
 		}
 		if (registerOptions.provisional) {
 			this._provisionalSessions.add(session);
@@ -843,7 +866,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 
 	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		this._beforeWrite();
-		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
+		if (registerOptions.checkTombstone && (this._tombstones.has(session) || this._hiddenSessions.has(session))) {
 			return false;
 		}
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
@@ -855,6 +878,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
 		if (!registerOptions.checkTombstone) {
 			this._tombstones.delete(session);
+			this._hiddenSessions.delete(session);
 		}
 		return true;
 	}
@@ -1106,6 +1130,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	private readonly _sessionsV2Backfilled = new Set<string>();
 	private readonly _sessionsV2Exclusions = new Map<string, IAgentHostDatabaseSessionsV2Exclusion>();
 	private readonly _tombstones = new Set<string>();
+	private readonly _hiddenSessions = new Map<string, string>();
 	private readonly _agentMergeEnabled = new Set<string>();
 	private readonly _provisionalSessions = new Set<string>();
 	private readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
@@ -1117,7 +1142,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	lastModifiedTimesBatchSize = 0;
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
-		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
+		if (registerOptions.checkTombstone && (this._tombstones.has(session) || this._hiddenSessions.has(session))) {
 			return false;
 		}
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
@@ -1127,6 +1152,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 			: { session, provider, startTime, modifiedTime, external: source === 'discovery', source });
 		if (!registerOptions.checkTombstone) {
 			this._tombstones.delete(session);
+			this._hiddenSessions.delete(session);
 		}
 		return true;
 	}
@@ -1243,8 +1269,26 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
 	}
 
+	override async hideSession(session: string, provider: string): Promise<void> {
+		await this.unregisterRuntimeSession(session);
+		this._tombstones.delete(session);
+		this._hiddenSessions.set(session, provider);
+	}
+
+	override async isSessionHidden(session: string): Promise<boolean> {
+		return this._hiddenSessions.has(session);
+	}
+
+	override async listHiddenSessions(): Promise<readonly { readonly session: string; readonly provider: string }[]> {
+		return [...this._hiddenSessions].map(([session, provider]) => ({ session, provider }));
+	}
+
 	async isSessionTombstoned(session: string): Promise<boolean> {
 		return this._tombstones.has(session);
+	}
+
+	override async isSessionSuppressed(session: string): Promise<boolean> {
+		return this._tombstones.has(session) || this._hiddenSessions.has(session);
 	}
 
 	async markSessionTombstoned(session: string): Promise<void> {
@@ -1253,11 +1297,13 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 
 	async clearSessionTombstone(session: string): Promise<void> {
 		this._tombstones.delete(session);
+		this._hiddenSessions.delete(session);
 	}
 
 	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		if (registerOptions.discoveryBackingSession !== undefined
 			&& (this._tombstones.has(registerOptions.discoveryBackingSession)
+				|| this._hiddenSessions.has(registerOptions.discoveryBackingSession)
 				|| registerOptions.discoveryBackingSession !== session && (this._sessionV2Registrations.has(registerOptions.discoveryBackingSession) || this._sessions.has(registerOptions.discoveryBackingSession))
 				|| [...this._sessionsV2Exclusions.values()].some(exclusion =>
 					(exclusion.session === session && exclusion.provider !== sessionOptions.provider
@@ -1321,7 +1367,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	}
 
 	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
-		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
+		if (registerOptions.checkTombstone && (this._tombstones.has(session) || this._hiddenSessions.has(session))) {
 			return false;
 		}
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
@@ -1333,6 +1379,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
 		if (!registerOptions.checkTombstone) {
 			this._tombstones.delete(session);
+			this._hiddenSessions.delete(session);
 		}
 		return true;
 	}
@@ -8980,6 +9027,41 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
+		test('an ephemeral folder session sends without persisting a diff base', async () => {
+			const db = new TestSessionDatabase();
+			const directory = URI.file('/workspace/repo');
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async () => directory;
+			git.getDefaultBranch2 = async () => ({ kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' });
+			git.getCurrentBranch = async () => 'feature';
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, git));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({
+				legacyChatUris: true,
+				provider: agent.id,
+				workingDirectories: [directory],
+				config: { [SessionConfigKey.Isolation]: 'folder' },
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+			const chat = buildDefaultChatUri(session);
+			svc.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: new Date().toISOString(),
+				message: { text: 'send this message', origin: { kind: MessageKind.User } },
+			}, 'client', 1);
+			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'the message should reach the provider');
+
+			assert.deepStrictEqual({
+				sendMessageCalls: agent.sendMessageCalls.length,
+				baseBranch: await db.getMetadata(META_DIFF_BASE_BRANCH),
+			}, {
+				sendMessageCalls: 1,
+				baseBranch: undefined,
+			});
+		});
+
 		test('folder send uses the folder and branch selected after draft creation', async () => {
 			const db = new TestSessionDatabase();
 			const original = URI.file('/workspace/original');
@@ -9497,12 +9579,12 @@ suite('AgentService (node dispatcher)', () => {
 		test('new standard allocations skip tombstones and occupied raw-ID directories', async () => {
 			const tombstoned: string[] = [];
 			const database = new class extends TestAgentHostOrchestratorDatabase {
-				override async isSessionTombstoned(session: string): Promise<boolean> {
+				override async isSessionSuppressed(session: string): Promise<boolean> {
 					if (session.startsWith('ahp-session:') && tombstoned.length === 0) {
 						tombstoned.push(session);
 						await this.markSessionTombstoned(session);
 					}
-					return super.isSessionTombstoned(session);
+					return super.isSessionSuppressed(session);
 				}
 			}();
 			const occupied: URI[] = [];
@@ -20411,14 +20493,14 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.listSessions();
 			const session = AgentSession.uri('copilot', 'announcement-retry');
 			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
-			const originalIsTombstoned = registry.isTombstoned.bind(registry);
+			const originalIsSuppressed = registry.isSuppressed.bind(registry);
 			let fail = true;
-			registry.isTombstoned = async candidate => {
+			registry.isSuppressed = async candidate => {
 				if (fail && candidate.toString() === session.toString()) {
 					fail = false;
 					throw new Error('transient tombstone read failure');
 				}
-				return originalIsTombstoned(candidate);
+				return originalIsSuppressed(candidate);
 			};
 
 			agent.fireDiscoveredChats([discoveredChat(session, false)]);
@@ -30169,7 +30251,137 @@ suite('AgentService (node dispatcher)', () => {
 			]);
 		});
 
-		test('ephemeral session teardown clears its discovery tombstone', async () => {
+		test('ephemeral sessions accept central state writes and teardown deletes their hidden state', async () => {
+			const perSession = createPerSessionDataService();
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			// Like Copilot, a provisional provider returns backing data that is persisted before the session is hidden.
+			class ProvisionalBackedAgent extends MockAgent {
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => ({
+						...await expectCreatedChat(base.createChat(chat, context, options)),
+						providerData: 'sdk-session',
+						provisional: true,
+					}),
+				}));
+			}
+			registerTestAgentProvider(svc, disposables.add(new ProvisionalBackedAgent('copilot')));
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const session = await svc.createSession({
+				legacyChatUris: true,
+				provider: 'copilot',
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+			await getTestSessionStateStore(svc).update(session, 'configValues', () => '{}', SessionStateMirrorFlush.Immediate);
+			const before = {
+				configValues: (await database.readSessionState(session.toString()))?.values.find(value => value.key === 'configValues')?.value,
+				hidden: await registry.isHidden(session),
+				tombstoned: await registry.isTombstoned(session),
+				suppressed: await registry.isSuppressed(session),
+			};
+			await svc.disposeSession(session);
+
+			assert.deepStrictEqual({
+				before,
+				after: {
+					state: await database.readSessionState(session.toString()),
+					hidden: await registry.isHidden(session),
+					tombstoned: await registry.isTombstoned(session),
+				},
+			}, {
+				before: { configValues: '{}', hidden: true, tombstoned: false, suppressed: true },
+				after: { state: undefined, hidden: false, tombstoned: false },
+			});
+		});
+
+		test('ephemeral sessions accept default-chat title snapshots', async () => {
+			const perSession = createPerSessionDataService();
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, disposables.add(new MockAgent('copilot')));
+			const session = await svc.createSession({
+				legacyChatUris: true,
+				provider: 'copilot',
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+			const defaultChat = URI.parse(buildDefaultChatUri(session));
+			const persistence = getTestChatPersistenceService(svc);
+			const snapshotError = await persistence.persistDefaultChatTitleSnapshot(session, defaultChat, 'Original title').then(() => undefined, error => String(error));
+
+			assert.deepStrictEqual({
+				snapshotError,
+				hidden: await database.isSessionHidden(session.toString()),
+				tombstoned: await database.isSessionTombstoned(session.toString()),
+			}, {
+				snapshotError: undefined,
+				hidden: true,
+				tombstoned: false,
+			});
+		});
+
+		test('provider registration sweeps hidden sessions left by a previous host with their cold backings', async () => {
+			const swept = new DeferredPromise<void>();
+			class HiddenSessionDatabase extends AgentHostDatabase {
+				override async clearSessionTombstone(session: string): Promise<void> {
+					await super.clearSessionTombstone(session);
+					await swept.complete();
+				}
+			}
+			const disposed: { chat: string; backing: string | undefined }[] = [];
+			class BackedAgent extends MockAgent {
+				private _backing: string | undefined;
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => ({
+						...await base.createChat(chat, context, options),
+						providerData: 'hidden-sdk-session',
+					}),
+				}));
+				override async materializeChat(_chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
+					this._backing = providerData;
+				}
+				override async disposeChat(_session: URI, chat: URI): Promise<void> {
+					disposed.push({ chat: chat.toString(), backing: this._backing });
+				}
+			}
+			const perSession = createPerSessionDataService();
+			const database = disposables.add(new HiddenSessionDatabase(':memory:'));
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			const creating = createService();
+			registerTestAgentProvider(creating, disposables.add(new BackedAgent('copilot')));
+			const session = await creating.createSession({
+				legacyChatUris: true,
+				provider: 'copilot',
+				_meta: withEphemeralSessionMeta(undefined, true),
+			});
+			await creating.whenCatalogReconciliationIdle();
+
+			const restarted = createService();
+			registerTestAgentProvider(restarted, disposables.add(new BackedAgent('copilot')));
+			await swept.p;
+
+			assert.deepStrictEqual({
+				disposed,
+				hidden: await database.isSessionHidden(session.toString()),
+				tombstoned: await database.isSessionTombstoned(session.toString()),
+				state: await database.readSessionState(session.toString()),
+			}, {
+				disposed: [{ chat: buildDefaultChatUri(session), backing: 'hidden-sdk-session' }],
+				hidden: false,
+				tombstoned: false,
+				state: undefined,
+			});
+		});
+
+		test('ephemeral session teardown clears its hidden marker', async () => {
 			const perSession = createPerSessionDataService();
 			const agent = disposables.add(new MockAgent('copilot'));
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -30181,15 +30393,15 @@ suite('AgentService (node dispatcher)', () => {
 				provider: 'copilot',
 				_meta: withEphemeralSessionMeta(undefined, true),
 			});
-			const tombstonedBeforeDispose = await registry.isTombstoned(session);
+			const hiddenBeforeDispose = await registry.isHidden(session);
 			await svc.disposeSession(session);
 
 			assert.deepStrictEqual({
-				tombstonedBeforeDispose,
-				tombstonedAfterDispose: await registry.isTombstoned(session),
+				hiddenBeforeDispose,
+				hiddenAfterDispose: await registry.isHidden(session),
 			}, {
-				tombstonedBeforeDispose: true,
-				tombstonedAfterDispose: false,
+				hiddenBeforeDispose: true,
+				hiddenAfterDispose: false,
 			});
 		});
 

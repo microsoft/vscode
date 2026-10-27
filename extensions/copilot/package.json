@@ -576,31 +576,6 @@
         }
       },
       {
-        "name": "copilot_createNewWorkspace",
-        "displayName": "%github.copilot.tools.createNewWorkspace.name%",
-        "toolReferenceName": "newWorkspace",
-        "legacyToolReferenceFullNames": [
-          "new/newWorkspace"
-        ],
-        "icon": "$(new-folder)",
-        "userDescription": "%github.copilot.tools.createNewWorkspace.userDescription%",
-        "when": "config.github.copilot.chat.newWorkspaceCreation.enabled",
-        "modelDescription": "Get comprehensive setup steps to help the user create complete project structures in a VS Code workspace. This tool is designed for full project initialization and scaffolding, not for creating individual files.\n\nWhen to use this tool:\n- User wants to create a new complete project from scratch\n- Setting up entire project frameworks (TypeScript projects, React apps, Node.js servers, etc.)\n- Initializing Model Context Protocol (MCP) servers with full structure\n- Creating VS Code extensions with proper scaffolding\n- Setting up Next.js, Vite, or other framework-based projects\n- User asks for \"new project\", \"create a workspace\", \"set up a [framework] project\"\n- Need to establish complete development environment with dependencies, config files, and folder structure\n\nWhen NOT to use this tool:\n- Creating single files or small code snippets\n- Adding individual files to existing projects\n- Making modifications to existing codebases\n- User asks to \"create a file\" or \"add a component\"\n- Simple code examples or demonstrations\n- Debugging or fixing existing code\n\nThis tool provides complete project setup including:\n- Folder structure creation\n- Package.json and dependency management\n- Configuration files (tsconfig, eslint, etc.)\n- Initial boilerplate code\n- Development environment setup\n- Build and run instructions\n\nUse other file creation tools for individual files within existing projects.",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "query": {
-              "type": "string",
-              "description": "The query to use to generate the new workspace. This should be a clear and concise description of the workspace the user wants to create."
-            }
-          },
-          "required": [
-            "query"
-          ]
-        },
-        "tags": []
-      },
-      {
         "name": "copilot_createNewJupyterNotebook",
         "displayName": "Create New Jupyter Notebook",
         "icon": "$(notebook)",
@@ -1273,7 +1248,6 @@
         "description": "",
         "tools": [
           "memory",
-          "newWorkspace",
           "resolveMemoryFileUri",
           "switchAgent",
           "toolSearch",
@@ -1354,23 +1328,6 @@
             "name": "fix",
             "description": "%copilot.workspace.fix.description%",
             "sampleRequest": "%copilot.workspace.fix.sampleRequest%"
-          },
-          {
-            "name": "new",
-            "description": "%copilot.workspace.new.description%",
-            "sampleRequest": "%copilot.workspace.new.sampleRequest%",
-            "isSticky": true,
-            "disambiguation": [
-              {
-                "category": "create_new_workspace_or_extension",
-                "description": "The user wants to create a complete Visual Studio Code workspace from scratch, such as a new application or a Visual Studio Code extension. Use this category only if the question relates to generating or creating new workspaces in Visual Studio Code. Do not use this category for updating existing code or generating sample code snippets",
-                "examples": [
-                  "Scaffold a Node server.",
-                  "Create a sample project which uses the fileSystemProvider API.",
-                  "react application"
-                ]
-              }
-            ]
           },
           {
             "name": "newNotebook",
@@ -1484,23 +1441,6 @@
             "name": "fix",
             "description": "%copilot.workspace.fix.description%",
             "sampleRequest": "%copilot.workspace.fix.sampleRequest%"
-          },
-          {
-            "name": "new",
-            "description": "%copilot.workspace.new.description%",
-            "sampleRequest": "%copilot.workspace.new.sampleRequest%",
-            "isSticky": true,
-            "disambiguation": [
-              {
-                "category": "create_new_workspace_or_extension",
-                "description": "The user wants to create a complete Visual Studio Code workspace from scratch, such as a new application or a Visual Studio Code extension. Use this category only if the question relates to generating or creating new workspaces in Visual Studio Code. Do not use this category for updating existing code or generating sample code snippets",
-                "examples": [
-                  "Scaffold a Node server.",
-                  "Create a sample project which uses the fileSystemProvider API.",
-                  "react application"
-                ]
-              }
-            ]
           },
           {
             "name": "newNotebook",
@@ -3237,11 +3177,6 @@
             "default": false,
             "markdownDescription": "%github.copilot.config.scopeSelection%"
           },
-          "github.copilot.chat.useProjectTemplates": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.useProjectTemplates%"
-          },
           "github.copilot.nextEditSuggestions.enabled": {
             "type": "boolean",
             "default": true,
@@ -3900,22 +3835,6 @@
               "onExP"
             ],
             "markdownDescription": "%github.copilot.chat.languageContext.inline.typescript.enabled%"
-          },
-          "github.copilot.chat.newWorkspaceCreation.enabled": {
-            "type": "boolean",
-            "default": true,
-            "tags": [
-              "experimental"
-            ],
-            "description": "%github.copilot.config.newWorkspaceCreation.enabled%"
-          },
-          "github.copilot.chat.newWorkspace.useContext7": {
-            "type": "boolean",
-            "default": false,
-            "tags": [
-              "experimental"
-            ],
-            "markdownDescription": "%github.copilot.config.newWorkspace.useContext7%"
           },
           "github.copilot.chat.notebook.followCellExecution.enabled": {
             "type": "boolean",
@@ -6755,20 +6674,6 @@
       }
     ],
     "chatSkills": [
-      {
-        "path": "./assets/prompts/skills/project-setup-info-local/SKILL.md",
-        "when": "!config.github.copilot.chat.newWorkspace.useContext7",
-        "sessionTypes": [
-          "local"
-        ]
-      },
-      {
-        "path": "./assets/prompts/skills/project-setup-info-context7/SKILL.md",
-        "when": "config.github.copilot.chat.newWorkspace.useContext7",
-        "sessionTypes": [
-          "local"
-        ]
-      },
       {
         "path": "./assets/prompts/skills/troubleshoot/SKILL.md",
         "sessionTypes": [

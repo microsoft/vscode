@@ -1728,6 +1728,17 @@ suite('Artifact Integration Presentation', () => {
 		assert.deepStrictEqual({ errors: f.errors, acquired: a.acquired, requests: a.authentications }, { errors: ['The artifact operation failed: Authentication failed'], acquired: [], requests: ['test', 'test'] });
 	});
 
+	test('sign-in opens the page that authorizes the current credential instead of signing in again', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		const authorizationUrl = 'https://github.com/orgs/octo/sso?authorization_request=example';
+		updateContribution(a, c => ({ ...c, authentication: { enabled: true }, view: { ...c.view, availability: { kind: 'authenticationRequired', reason: 'Authorize single sign-on.', authorizationUrl }, sections: [], lists: [] } }));
+		const panel = await open(f, a);
+		button(panel, 'Sign In').click();
+		await settle(f);
+		assert.deepStrictEqual({ opened: f.openedItems, requests: a.authentications, errors: f.errors }, { opened: [authorizationUrl], requests: [], errors: [] });
+	});
+
 	test('missing descriptions are hidden, and errors stay visible', async () => {
 		const f = fixture();
 		const a = f.artifact();

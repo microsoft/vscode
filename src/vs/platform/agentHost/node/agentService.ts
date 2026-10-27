@@ -1025,6 +1025,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _provisionalSessionKeys = new Set<string>();
 	private _provisionalSessionKeysLoaded: Promise<void> | undefined;
+	private _hiddenSessionsAtStartup: ReturnType<AgentSessionRegistry['listHidden']> | undefined;
 	private _movedChatOriginsLoaded: Promise<void> | undefined;
 	/** Copies moved chats' pre-move attachments into their own storage (Block 4b). */
 	private readonly _attachmentMigration: AgentHostAttachmentMigration;
@@ -1790,7 +1791,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const resolved = await this._resolveWorkingDirectoryForResume(URI.parse(params.session), sessionId, pickedFolderUri);
 
 			const config = this._configurationService.getSessionConfigValues(params.session);
-			if (config?.[SessionConfigKey.Isolation] === 'folder') {
+			if (config?.[SessionConfigKey.Isolation] === 'folder' && !this._stateManager.isEphemeralSession(params.session)) {
 				const session = URI.parse(params.session);
 				const scope = resolveBranchChangesetScopeForSource(this._stateManager, params.chat);
 				const source = resolveBranchChangesetScopeForOwner(this._stateManager, scope.ownerUri)?.sourceUri ?? params.chat;
@@ -1983,6 +1984,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _onDidRegisterProvider(provider: IAgent): void {
+		void this._disposeHiddenSessions(provider).catch(err => this._logService.warn(`[AgentService] Failed to sweep hidden sessions for ${provider.id}`, err));
 		this._registerSkillCompletionProvider();
 		const initialMigration = this._trackInitialProviderMigration(provider, this._ensureSessionsV2Imported(provider));
 		// Persisted enablement must resume without a client opening the session.
@@ -1990,6 +1992,35 @@ export class AgentService extends Disposable implements IAgentService {
 			.then(() => initialMigration)
 			.then(() => this._restoreAgentMergeMonitoredSessions())
 			.catch(err => this._logService.warn('[AgentService] Failed to restore Agent-Merge-enabled sessions', err));
+	}
+
+	/** Retries teardown of hidden sessions left behind by a previous host. */
+	private async _disposeHiddenSessions(provider: IAgent): Promise<void> {
+		if (this._store.isDisposed) {
+			return;
+		}
+		const hiddenSessions = await (this._hiddenSessionsAtStartup ??= this._sessionRegistry.listHidden());
+		for (const { session, provider: providerId } of hiddenSessions) {
+			if (this._store.isDisposed || this._providerService.getProvider(provider.id) !== provider) {
+				return;
+			}
+			if (providerId !== provider.id || this._stateManager.getSessionState(session.toString())) {
+				continue;
+			}
+			try {
+				this._providerService.associateSession(session, provider.id);
+				const creation = this._sessionCreationSequencer.peek(AgentSession.id(session));
+				await this._sessionResidency.runDisposal(session, async () => {
+					await creation?.catch(() => undefined);
+					// Rechecked once a concurrent creation settles: it may have revived the URI.
+					if (!this._stateManager.getSessionState(session.toString()) && await this._sessionRegistry.isHidden(session)) {
+						await this._doDisposeSession(session, 'delete');
+					}
+				});
+			} catch (err) {
+				this._logService.warn(`[AgentService] Failed to dispose hidden session ${session.toString()}`, err);
+			}
+		}
 	}
 
 	private _trackInitialProviderMigration(provider: IAgent, migration: Promise<void>): Promise<void> {
@@ -4136,7 +4167,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * sessions are never resurrected: registration goes through
 	 * {@link AgentSessionRegistry.register}, which atomically declines to
 	 * (re-)register a session that is (or concurrently becomes)
-	 * tombstoned, rather than trusting a separate up-front tombstone check that
+	 * tombstoned or hidden, rather than trusting a separate up-front suppression check that
 	 * could race a concurrent {@link disposeSession}.
 	 *
 	 * `undefined` from the provider means it cannot enumerate yet (its SDK may
@@ -4279,7 +4310,7 @@ export class AgentService extends Disposable implements IAgentService {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
-				if (!isEqual(session, providerSession) && await this._sessionRegistry.isTombstoned(providerSession)) {
+				if (!isEqual(session, providerSession) && await this._sessionRegistry.isSuppressed(providerSession)) {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
@@ -4332,7 +4363,7 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 				} else {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
-					this._logService.trace(`[AgentService] discovery: ${session.toString()} was not registered (tombstoned)`);
+					this._logService.trace(`[AgentService] discovery: ${session.toString()} was not registered (suppressed)`);
 				}
 				return registered;
 			} catch (err) {
@@ -4809,7 +4840,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/** Returns registered candidates. Tombstones remain candidates so registration can reject them atomically. */
+	/** Returns registered candidates. Suppressed sessions remain candidates so registration can reject them atomically. */
 	private async _filterKnownSessions(provider: AgentProvider, sessions: readonly URI[]): Promise<ReadonlySet<string>> {
 		const registered = await this._sessionRegistry.listSessionKeys();
 		const resolutions = usesStandardSessionUris(provider)
@@ -5068,7 +5099,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const storageAccessesAtStart = this._storageAccessCounts();
 		// The registry is the source of truth for top-level sessions. Internal
 		// chat backings and subagent sessions never enter it; ephemeral sessions
-		// are tombstoned at creation. A transiently missing provider snapshot no
+		// are hidden at creation. A transiently missing provider snapshot no
 		// longer evicts a session.
 		let allRegistered = await this._listRegisteredSessions();
 		if (allRegistered.length === 0) {
@@ -5813,7 +5844,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._announcedSurfacedKeys.add(key);
 		try {
-			if (await this._sessionRegistry.isTombstoned(meta.session)) {
+			if (await this._sessionRegistry.isSuppressed(meta.session)) {
 				this._announcedSurfacedKeys.delete(key);
 				return;
 			}
@@ -5935,7 +5966,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const keys = await this._sessionRegistry.listRuntimeCompatibleSessionKeys();
 				if ([...keys].some(key => AgentSession.id(key) === AgentSession.id(requested))
 					|| await this._fileService.exists(this._sessionDataService.getSessionDataDir(requested))
-					|| await this._sessionRegistry.isTombstoned(requested)) {
+					|| await this._sessionRegistry.isSuppressed(requested)) {
 					throw new Error(`Session storage identity is already in use: ${requested.toString()}`);
 				}
 			}
@@ -6006,8 +6037,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (isEphemeral) {
 			try {
 				await this._retryRegistryMutation(
-					() => this._sessionRegistry.tombstone(session),
-					`tombstoning ephemeral session ${session.toString()}`,
+					() => this._sessionRegistry.hide(session, provider.id),
+					`hiding ephemeral session ${session.toString()}`,
 				);
 				if (!isIdleProvisional) {
 					this._invalidateSessionList();
@@ -7675,7 +7706,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const load = (async () => {
 			// A passive metadata update in progress finishes before this load reads the state it writes.
 			await this._passiveMetadataSequencer.queue(sessionKey, async () => { });
-			if (await this._sessionRegistry.isTombstoned(session)) {
+			if (await this._sessionRegistry.isSuppressed(session)) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionKey}`);
 			}
 			if (await this._isWorkspaceConversionQuarantined(session)) {
@@ -9464,7 +9495,7 @@ export class AgentService extends Disposable implements IAgentService {
 		do {
 			session = AgentSession.uri(legacy ? provider.id : 'ahp-session', generateUuid());
 		} while (registeredIds.has(AgentSession.id(session))
-		|| await this._sessionRegistry.isTombstoned(session)
+		|| await this._sessionRegistry.isSuppressed(session)
 			|| await this._fileService.exists(this._sessionDataService.getSessionDataDir(session)));
 		return session;
 	}
@@ -9483,7 +9514,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			await this._orchestratorDatabase.prepareSessionStorage?.(session.toString(), provider.id);
 			const providerConfig = config ? this._toProviderConfig(config) : undefined;
-			const generation = await this._sessionRegistry.isTombstoned(session) ? generateUuid() : undefined;
+			const generation = await this._sessionRegistry.isSuppressed(session) ? generateUuid() : undefined;
 			const defaultChatUri = URI.parse(mintDefaultChatUri(this._creatorUsesLegacyChatUris(config) ? 'shaped' : 'opaque', session.toString(), generation));
 			this._orchestratorDatabase.recordChatStorageIdentity(session.toString(), defaultChatUri.toString(), { kind: 'default', generation });
 			if (config?.credentials) {
@@ -10456,7 +10487,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let peerChatDeletionBegun = false;
 		let sessionStateDeletion: { dispose(): void } | undefined;
 		try {
-			const isEphemeral = this._stateManager.isEphemeralSession(sessionKey);
+			const isHidden = this._stateManager.isEphemeralSession(sessionKey) || await this._sessionRegistry.isHidden(session);
 			const isIdleProvisional = this._stateManager.isIdleProvisionalSession(sessionKey);
 			const sessionChats = this._stateManager.getSessionState(session.toString())?.chats ?? [];
 			for (const chat of sessionChats) {
@@ -10539,17 +10570,11 @@ export class AgentService extends Disposable implements IAgentService {
 			const stateDeletion = this._sessionStateStore.beginDeletion(session);
 			sessionStateDeletion = stateDeletion;
 			await stateDeletion.whenDrained;
-			if (!isEphemeral) {
-				traceStage('tombstone');
-				await this._retryRegistryMutation(
-					() => this._sessionRegistry.tombstone(session, worktreeRemovals),
-					`unregistration for ${session.toString()}`,
-				);
-			} else {
-				for (const removal of worktreeRemovals) {
-					await this._orchestratorDatabase.upsertPendingWorktreeRemoval(removal);
-				}
-			}
+			traceStage('tombstone');
+			await this._retryRegistryMutation(
+				() => this._sessionRegistry.tombstone(session, worktreeRemovals),
+				`unregistration for ${session.toString()}`,
+			);
 			// Also when the session records no removal: it may have kept another session's worktree in use.
 			this._worktreeCleanup.schedule();
 			// The sessions it shared worktrees with may no longer share them: their older-build copy follows (Block 5).
@@ -10600,11 +10625,11 @@ export class AgentService extends Disposable implements IAgentService {
 			// The durable marker is dropped with the registration itself; keep the
 			// mirror listing reads in step with it.
 			this._provisionalSessionKeys.delete(sessionKey);
-			if (isEphemeral) {
-				traceStage('clearEphemeralTombstone');
+			if (isHidden) {
+				traceStage('clearHiddenTombstone');
 				await this._retryRegistryMutation(
 					() => this._sessionRegistry.clearTombstone(session),
-					`clearing ephemeral session tombstone for ${session.toString()}`,
+					`clearing hidden session tombstone for ${session.toString()}`,
 				);
 			}
 		} finally {
@@ -13312,13 +13337,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._stateManager.getSessionState(sessionStr)) {
 			return;
 		}
-		// A session explicitly deleted (tombstoned) must not be revived by a
-		// stale restore request — e.g. a client re-subscribing to a URI it
-		// still remembers after the session was deleted. Failing fast here
-		// (before any provider-side restoration work) also avoids the
-		// registration below silently declining later and leaving state
-		// partially hydrated.
-		if (await this._sessionRegistry.isTombstoned(session)) {
+		// Refuse deleted or hidden sessions before provider restoration can partially hydrate them.
+		if (await this._sessionRegistry.isSuppressed(session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 		}
 		const unresolvedRegistration = await this._orchestratorDatabase.getSessionV2Registration(sessionStr);
@@ -13354,8 +13374,8 @@ export class AgentService extends Disposable implements IAgentService {
 				readable = false;
 				this._logService.warn(`[AgentService] restore: initial catalog migration for provider ${agent.id} failed; a metadata miss will be reported as unavailable, not missing`, err);
 			}
-			// This wait can be lengthy, so re-check that a delete has not landed meanwhile.
-			if (await this._sessionRegistry.isTombstoned(session)) {
+			// This wait can be lengthy, so re-check that the session was not deleted or hidden meanwhile.
+			if (await this._sessionRegistry.isSuppressed(session)) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 			}
 			return readable;
@@ -13514,7 +13534,7 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 		const ownerKey = owner.toString();
-		// Live throwaway sessions are deliberately tombstoned to exclude them from discovery.
+		// Live throwaway sessions are hidden and deliberately unregistered.
 		if (this._stateManager.isEphemeralSession(ownerKey)) {
 			return;
 		}
@@ -13990,10 +14010,7 @@ export class AgentService extends Disposable implements IAgentService {
 			`registration for restored session ${session.toString()}`,
 		);
 		if (!registered) {
-			// Tombstoned between the early check in `_doRestoreSession` and
-			// here (e.g. a concurrent `disposeSession` landed while this
-			// restore was reading turns/metadata). Fail the same way an
-			// up-front tombstone would, before any state-manager mutation.
+			// Refuse a session deleted or hidden during restoration before mutating state.
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 		}
 		this._invalidateSessionList();

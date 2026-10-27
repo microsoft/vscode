@@ -2878,8 +2878,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				directSourceId: request.directSourceId,
 			}));
 		}
-		await Promises.settled(this._allLiveSessions().map(candidate =>
-			this._queueChat(candidate.sessionId, candidate.sessionId, 'reloadPluginUninstall', () => candidate.reloadPlugins('uninstall'))));
+		await Promises.settled([
+			...this._allLiveSessions().map(candidate =>
+				this._queueChat(candidate.sessionId, candidate.sessionId, 'reloadPluginUninstall', () => candidate.reloadPlugins('uninstall'))),
+			this._refreshDiscoveredCustomizations(),
+		]);
 	}
 
 	async listPluginInstallations() {
@@ -3066,9 +3069,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const liveSession = this._findPluginOperationSession(session, chat);
 		if (liveSession) {
 			await liveSession.installPlugin(request.source);
-			return;
+		} else {
+			await this._retryAfterClosedConnection('installPlugin', client => client.rpc.plugins.install({ source: request.source }));
 		}
-		await this._retryAfterClosedConnection('installPlugin', client => client.rpc.plugins.install({ source: request.source }));
+		await this._refreshDiscoveredCustomizations();
 	}
 
 	async retryManagedPlugins(session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]> {
@@ -3124,6 +3128,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const result = liveSession
 			? await liveSession.removePluginMarketplace(name, force)
 			: await this._retryAfterClosedConnection('removePluginMarketplace', client => client.rpc.plugins.marketplaces.remove({ name, force }));
+		if (result.removed) {
+			await this._refreshDiscoveredCustomizations();
+		}
 		return {
 			removed: result.removed,
 			dependentPlugins: result.dependentPlugins,
@@ -3156,8 +3163,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._customizationInstallations.prepare(request);
 	}
 
-	applyCustomizationInstallation(operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
-		return this._customizationInstallations.apply(operationId);
+	async applyCustomizationInstallation(operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
+		const result = await this._customizationInstallations.apply(operationId);
+		await this._refreshDiscoveredCustomizations();
+		return result;
+	}
+
+	private async _refreshDiscoveredCustomizations(): Promise<void> {
+		await Promise.all([...this._activeClients.values()].map(client => client.pluginController.refreshDiscovery()));
 	}
 
 	recoverCustomizationInstallations(_session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
@@ -8631,7 +8644,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const autoTier = isAutoModel(model.id)
 			? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, context.ownerSessionId, context.surface?.isInlineChatSurface === true) ?? (hasCopilotManagedAutoPreference(policy) ? undefined : null)
 			: undefined;
-		await entry.setModel(model.id, resolveCopilotReasoningEffort(requestedModel, this._configurationService, this._logService, context.ownerSessionId), omittedContextDefault ? undefined : getCopilotContextTier(requestedModel, longContextWindow, freeLongContext), autoTier, model);
+		const contextTier = omittedContextDefault ? undefined : getCopilotContextTier(requestedModel, longContextWindow, freeLongContext);
+		await entry.setModel(model.id, resolveCopilotReasoningEffort(requestedModel, this._configurationService, this._logService, context.ownerSessionId), contextTier ?? (isAutoModel(model.id) ? 'default' : undefined), autoTier, model);
 		this._pendingModelSelections.delete(context.chatKey);
 	}
 
@@ -9052,7 +9066,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}, () => {
 			this._slashCommandProvider.clearCache();
-			activeClient.pluginController.refreshDiscovery();
+			void activeClient.pluginController.refreshDiscovery();
 		});
 	}
 
@@ -9803,8 +9817,9 @@ class SessionDiscoveredEntry extends Disposable {
 	}
 
 	/** Re-runs discovery for changes no watched file reports, such as plugins the runtime installed. */
-	refresh(): void {
-		this._settled = this._queueRefresh(true);
+	refresh(): Promise<void> {
+		this._settled = this._queueRefresh(true, 0);
+		return this._settled;
 	}
 
 	/** Whether no discovery refresh is queued or running. */
@@ -10182,10 +10197,11 @@ class CustomizationAnchor extends Disposable {
 	}
 
 	/** Re-runs on-disk discovery if it has started; an anchor that has not discovered yet will see current state when it does. */
-	refreshDiscovery(): void {
+	refreshDiscovery(): Promise<void> | undefined {
 		if (!this._store.isDisposed) {
-			this._discovered.value?.refresh();
+			return this._discovered.value?.refresh();
 		}
+		return undefined;
 	}
 }
 
@@ -10345,10 +10361,8 @@ class SessionPluginController extends Disposable {
 	}
 
 	/** Re-runs discovery for every live anchor set; a changed published set republishes the session's customizations. */
-	public refreshDiscovery(): void {
-		for (const { anchor } of this._anchors.values()) {
-			anchor.refreshDiscovery();
-		}
+	public async refreshDiscovery(): Promise<void> {
+		await Promise.all([...this._anchors.values()].map(({ anchor }) => anchor.refreshDiscovery()));
 	}
 
 	private _onDidChangeAnchor(anchor: CustomizationAnchor): void {

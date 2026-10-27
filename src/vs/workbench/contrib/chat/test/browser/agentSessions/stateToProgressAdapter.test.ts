@@ -4444,6 +4444,7 @@ suite('stateToProgressAdapter', () => {
 				configurationChanged: notice(AgentSystemNotificationKind.AgentMergeConfigurationChanged),
 				disabled: notice(AgentSystemNotificationKind.AgentMergeDisabled),
 				pullRequestMerged: notice(AgentSystemNotificationKind.AgentMergePullRequestMerged),
+				blocked: notice(AgentSystemNotificationKind.AgentMergeBlocked),
 				// An unrecognized kind must still render, using the default check.
 				unknown: activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 					kind: ResponsePartKind.SystemNotification,
@@ -4455,6 +4456,7 @@ suite('stateToProgressAdapter', () => {
 				configurationChanged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.settingsGear, collapsible: true, renderInlineTiming: true },
 				disabled: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.circleSlash, renderInlineTiming: true },
 				pullRequestMerged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, renderInlineTiming: true },
+				blocked: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.warning, renderInlineTiming: true },
 				unknown: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state') },
 			});
 		});

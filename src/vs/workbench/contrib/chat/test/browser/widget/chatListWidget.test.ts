@@ -2836,15 +2836,25 @@ suite('ChatListWidget', () => {
 							content: new MarkdownString(Array.from({ length: 20 }, (_, index) => `Following paragraph ${index}.`).join('\n\n')),
 						});
 						widget.refresh();
-						await timeout(40);
+						// Hold the 180ms collapse 40ms in. A real 40ms timer can fire after the transition
+						// has already ended on a loaded machine, and then the response no longer completes mid-collapse.
 						const animations = preview.getAnimations({ subtree: true });
-						const runningTransition = animations.some(animation => animation.playState === 'running');
+						for (const animation of animations) {
+							animation.pause();
+							animation.currentTime = 40;
+						}
+						await nextFrame();
+						await nextFrame();
+						const runningTransition = animations.some(animation => Number(animation.currentTime) < Number(animation.effect?.getTiming().duration));
 						if (canceled) {
 							request.response?.cancel();
 						} else {
 							request.response?.complete();
 						}
 						widget.refresh();
+						for (const animation of animations) {
+							animation.play();
+						}
 						await Promise.all(animations.map(animation => animation.finished));
 						await waitForStableLayout(widget);
 
