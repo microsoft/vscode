@@ -228,6 +228,8 @@ class MockCopilotSession {
 	onAbort: (() => void) | undefined;
 	modelGate: Promise<void> | undefined;
 	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
+	readonly modelOperations: string[] = [];
+	contextTierUpdateSuccess = true;
 	readonly providerSyncCalls: ICopilotByokSessionConfig[] = [];
 	agentSelectGate: Promise<void> | undefined;
 	agentDeselectGate: Promise<void> | undefined;
@@ -485,6 +487,7 @@ class MockCopilotSession {
 	}
 	async setModel(...args: Parameters<CopilotSession['setModel']>) {
 		this.setModelCalls.push(args);
+		this.modelOperations.push(`setModel:${args[0]}`);
 		await this.modelGate;
 	}
 	async disconnect() {
@@ -904,6 +907,10 @@ class MockCopilotSession {
 		},
 		options: {
 			update: async (params: Parameters<CopilotSession['rpc']['options']['update']>[0]) => {
+				if (params.contextTier !== undefined) {
+					this.modelOperations.push(`contextTier:${params.contextTier}`);
+					return { success: this.contextTierUpdateSuccess };
+				}
 				if (params.imageGeneration !== undefined) {
 					this.imageGenerationOptionsUpdates.push(params.imageGeneration);
 					if (params.imageGeneration.enabled !== undefined) {
@@ -2808,6 +2815,23 @@ suite('CopilotAgentSession', () => {
 			['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: null }],
 			['gpt-5', { reasoningEffort: 'low', contextTier: 'default' }],
 			['auto', { reasoningEffort: undefined, contextTier: undefined }],
+		]);
+	});
+
+	test('resets the context tier before switching to Auto', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.setModel('auto', undefined, 'default', 'hydrafusion');
+		await session.setModel('gpt-5', 'low', 'default');
+		await session.setModel('auto');
+		mockSession.contextTierUpdateSuccess = false;
+		await assert.rejects(session.setModel('auto', undefined, 'default', 'hydrafusion'), /did not reset the context tier/);
+
+		assert.deepStrictEqual(mockSession.modelOperations, [
+			'contextTier:default', 'setModel:auto',
+			'setModel:gpt-5',
+			'setModel:auto',
+			'contextTier:default',
 		]);
 	});
 
