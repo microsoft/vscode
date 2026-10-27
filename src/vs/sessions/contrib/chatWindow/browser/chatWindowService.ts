@@ -49,7 +49,8 @@ import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEdit
 import { ChatModelHold, closeChatWindowsOfGoneChats, followReplacedWindowSessions, IChatWindowOpening, InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
 import { deserializeChatWindowEditors, serializeChatWindowEditors } from './chatWindowEditors.js';
 import { ChatWindowCellView, ChatWindowCellSizing, ChatWindowGridHost, IChatWindowCellConstraints } from './chatWindowGridHost.js';
-import { ChatWindowChatLayouts, ChatWindowDefaults, ChatWindowState } from './chatWindowState.js';
+import { ChatWindowInputOnlyController } from './chatWindowInputOnly.js';
+import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from './chatWindowState.js';
 
 /** The size of a chat window, unless its kind has one. */
 const CHAT_WINDOW_DEFAULT_SIZE = { width: 1200, height: 800 };
@@ -232,6 +233,7 @@ class ChatWindow implements IChatWindow {
 	private _closed = false;
 	/** Set while it closes, so that editors closing with it do not change its layout. */
 	closing = false;
+	private _inputOnly: ChatWindowInputOnlyController | undefined;
 
 	constructor(
 		readonly state: ChatWindowState,
@@ -279,9 +281,14 @@ class ChatWindow implements IChatWindow {
 		this.state.setSplitLayout(splitLayout);
 	}
 
+	attachInputOnly(inputOnly: ChatWindowInputOnlyController): void {
+		this._inputOnly = inputOnly;
+	}
+
 	toggleConversation(): void {
 		if (this.state.layout.get() === SessionLayoutMode.Stacked) {
-			this.state.setInputOnly(!this.state.inputOnly.get());
+			// Toggles what shows, which the window may have chosen while it was too short, not what was last chosen.
+			this._inputOnly?.toggleConversation();
 		}
 	}
 
@@ -339,6 +346,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 	private readonly _opening = new InFlightOperations<IChatWindow | undefined>();
 	private readonly _chatLayouts: ChatWindowChatLayouts;
+	private readonly _chatSizes: ChatWindowChatSizes;
 
 	/** What each chat window holds on to while its view binds to the chat: the loaded model of the chat; see {@link ChatModelHold}. */
 	private readonly _heldChats = new Map<ChatWindow, ChatModelHold>();
@@ -364,6 +372,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		super();
 
 		this._chatLayouts = new ChatWindowChatLayouts(_storageService);
+		this._chatSizes = new ChatWindowChatSizes(_storageService);
 
 		// A chat window shows its session for as long as the session shows in a window: closing the session closes it.
 		this._register(followReplacedWindowSessions(this._windows, this._sessionsService.windowSessions));
@@ -481,6 +490,17 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			[IEditorService, editorAreaEditorService],
 		)));
 
+		// The window's context, bound on the window and on its editor parts, which are scoped to the global context.
+		const editorGroup = editorArea ? observableFromEvent(this, editorArea.onDidActivateGroup, () => editorArea!.activeGroup) : observableValue<IEditorGroup | undefined>(this, undefined);
+		const editorAreaEditor = observableFromEvent(this, editorAreaEditorService.onDidActiveEditorChange, () => editorArea ? editorAreaEditorService.activeEditorPane?.getId() ?? '' : '');
+		const contextValues: IChatWindowContextValues = { kind, windowId, hasEditorArea, state, session: sessionObs, editorGroup, editorAreaEditor };
+		disposables.add(bindChatWindowContext(windowContextKeyService, contextValues));
+		for (const part of parts) {
+			const partContextKeyService = this._editorGroupsService.getScopedInstantiationService(part).invokeFunction(accessor => accessor.get(IContextKeyService));
+			disposables.add(bindChatWindowContext(partContextKeyService, contextValues));
+		}
+
+
 		// The title bar, as other windows of the Agents window have one; it shows the title of the chat.
 		let titlebar: IAuxiliaryTitlebarPart | undefined;
 		if (isNative && hasCustomTitlebar(this._configurationService)) {
@@ -524,6 +544,22 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const activityBarEnabled = observableFromEvent(this, this._configurationService.onDidChangeConfiguration, () => !!kind.showActivityBar && this._configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING) !== false);
 
 		const gridHost = disposables.add(new ChatWindowGridHost(hostElement, cells, (cell, axis) => getChatWindowDefaultSizing(cell, axis)));
+		// The sizes the cells last showed with for this chat come back, also after a reload.
+		const sizes = this._chatSizes.get(chatResource);
+		if (sizes) {
+			gridHost.importSizes(sizes);
+		}
+		// What the window shows is what it shows again, for its chat: its layout and the sizes of its cells.
+		const saveSizes = () => {
+			const chat = sessionObs.get()?.activeChat.get().resource ?? chatResource;
+			this._chatSizes.set(chat, gridHost.exportSizes());
+			if (hasEditorArea) {
+				this._chatLayouts.set(chat, { mode: state.layout.get(), splitLayout: state.splitLayout.get(), inputOnly: state.inputOnly.get() });
+			}
+		};
+		disposables.add(this._storageService.onWillSaveState(saveSizes));
+		disposables.add(auxiliaryWindow.onBeforeUnload(saveSizes));
+
 		const gridLayout = derived(this, reader => computeSessionGridLayout({
 			mode: state.layout.read(reader),
 			terminalPosition: state.terminalPosition.read(reader),
@@ -547,6 +583,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			}
 			sessionView.setPartVisible(chatShown);
 		}));
+
+		const inputOnly = disposables.add(new ChatWindowInputOnlyController(sessionView, state, gridHost, chatCell, hostElement, gridLayout, CELL_CONSTRAINTS[SessionGridCell.Chat], CELL_CONSTRAINTS[SessionGridCell.SidePane].minimumHeight));
 
 		// The cells are cards, as the main window's parts are, unless Layout Density is compact, which keeps them flush.
 		const applyCardStyles = () => {
@@ -574,16 +612,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}));
 
 		const window = new ChatWindow(state, auxiliaryWindow, editorArea, sessionView, content, sessionObs, () => parts.every(part => part.close()));
-
-		// The window's context, bound on the window and on its editor parts, which are scoped to the global context.
-		const editorGroup = editorArea ? observableFromEvent(this, editorArea.onDidActivateGroup, () => editorArea!.activeGroup) : observableValue<IEditorGroup | undefined>(this, undefined);
-		const editorAreaEditor = observableFromEvent(this, editorAreaEditorService.onDidActiveEditorChange, () => editorArea ? editorAreaEditorService.activeEditorPane?.getId() ?? '' : '');
-		const contextValues: IChatWindowContextValues = { kind, windowId, hasEditorArea, state, session: sessionObs, editorGroup, editorAreaEditor };
-		disposables.add(bindChatWindowContext(windowContextKeyService, contextValues));
-		for (const part of parts) {
-			const partContextKeyService = this._editorGroupsService.getScopedInstantiationService(part).invokeFunction(accessor => accessor.get(IContextKeyService));
-			disposables.add(bindChatWindowContext(partContextKeyService, contextValues));
-		}
+		window.attachInputOnly(inputOnly);
 
 		if (editorArea) {
 			const part = editorArea;

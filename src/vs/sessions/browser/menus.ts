@@ -31,6 +31,8 @@ export const Menus = {
 	BlockedSessionsHeader: new MenuId('SessionsBlockedSessionsHeader'),
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
+	/** The Layout menu of a chat window: how it shows its chat and its editor area. */
+	ChatWindowLayout: new MenuId('SessionsChatWindowLayout'),
 	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
