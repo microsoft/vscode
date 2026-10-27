@@ -1728,17 +1728,18 @@ suite('Artifact Integration Presentation', () => {
 		assert.deepStrictEqual({ errors: f.errors, acquired: a.acquired, requests: a.authentications }, { errors: ['The artifact operation failed: Authentication failed'], acquired: [], requests: ['test', 'test'] });
 	});
 
-	test('missing descriptions never fall back to a status sentence, and errors stay visible', async () => {
+	test('missing descriptions are hidden, and errors stay visible', async () => {
 		const f = fixture();
 		const a = f.artifact();
-		a.details.main.set({ ...a.details.main.get(), description: '' }, undefined);
+		a.details.main.set({ ...a.details.main.get(), description: undefined }, undefined);
 		a.details.comments.set({ ...a.details.comments.get(), items: [], availability: { kind: 'error', reason: 'Reviews could not be loaded.' } }, undefined);
 		const panel = await open(f, a);
 		assert.deepStrictEqual({
 			description: panel.querySelector('.artifact-details-description-content')?.textContent,
+			hidden: panel.querySelector<HTMLElement>('.artifact-details-description')?.hidden,
 			error: panel.querySelectorAll('.artifact-state-list-message')[1]?.textContent,
 			expand: panel.querySelector('.artifact-description-actions') === null,
-		}, { description: 'No description provided.', error: 'Reviews could not be loaded.', expand: true });
+		}, { description: '', hidden: true, error: 'Reviews could not be loaded.', expand: true });
 	});
 
 	test('a short description has no expansion control; remote Markdown is rendered safely as plain text', async () => {

@@ -48,8 +48,8 @@ class OpenPullRequestAction extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.SessionItemContextMenu,
-				group: '2_pullRequest',
-				order: 0,
+				group: 'navigation',
+				order: 4,
 				when: SessionHasPullRequestContext
 			}, {
 				id: Menus.SessionActivityBar,
@@ -118,8 +118,8 @@ class CopyPullRequestUrlAction extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.SessionItemContextMenu,
-				group: '2_pullRequest',
-				order: 1,
+				group: '3_copy',
+				order: 2,
 				when: SessionHasPullRequestContext
 			}],
 		});

@@ -73,6 +73,10 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
+export function getChatInputSessionLinkAccessibilityHelp(): string {
+	return localize('chat.inputSessionLinks', "Session links in the chat input can be opened without sending your message. Place the cursor in a session link and run Open Link{0} from the Command Palette, or use the editor's modifier-click gesture.", '<keybinding:editor.action.openLink>');
+}
+
 export function getCloudSandboxPreparationAccessibilityHelp(): string {
 	return localize('chat.cloudSandboxEarlyPreparation', "When {0} is enabled, typing in a new Cloud chat, with or without a repository, can prepare cloud resources in the background. Your message is not sent and no conversation is added to the session list until you press Send. Send waits for pending preparation and reuses it when possible, otherwise it can continue without early preparation. While the window is running, VS Code attempts to release unused preparation after five minutes, when you change repositories, or when you turn the setting off.", CloudSandboxEarlyPreparationSettingId);
 }
@@ -83,6 +87,9 @@ export function getModelPickerConfigurationAccessibilityHelp(): string {
 
 export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported(), sessionWorkingSetEnabled: boolean = false, sessionWorkingSetUndo: boolean = false, sessionWorkingSetReviewEnabled: boolean = true): string {
 	const content = [];
+	if (type !== 'inlineChat') {
+		content.push(getChatInputSessionLinkAccessibilityHelp());
+	}
 	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
 	if (hasSessionWorkingSet) {
 		const headingActions = !sessionWorkingSetReviewEnabled
@@ -90,7 +97,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			: sessionWorkingSetUndo
 				? localize('chat.sessionWorkingSet.headingKeepUndo', "The Keep, Undo, and View All Edits buttons after the heading keep or undo the changes to every file in the working set, or open all of them in a diff editor. Undo in the heading asks for confirmation.")
 				: localize('chat.sessionWorkingSet.headingKeep', "The Keep and View All Edits buttons after the heading keep the changes to every file in the working set, or open all of them in a diff editor.");
-		content.push(localize('chat.sessionWorkingSet', "The working set above the input lists changes across the whole session instead of showing a Changes pill. Use Tab or Shift+Tab to reach its heading and press Enter or Space to expand or collapse it. {0} Use Tab to reach the file list, Up and Down Arrow to choose a file, and Enter to open it. Files open in a live review diff by default, following the chat.editing.openChangedFileInDiffEditor setting. Hold Alt when opening a file to reverse that preference. Each file announces its path and added and removed line counts.", headingActions));
+		content.push(localize('chat.sessionWorkingSet', "The working set above the input lists changes across the whole session instead of showing a Changes pill. Use Tab or Shift+Tab to reach its heading and press Enter or Space to expand or collapse it. {0} Use Tab to reach the file list, Up and Down Arrow to choose a file, and Enter to open it in a regular editor at its first edit. Each file announces its path and added and removed line counts.", headingActions));
 		content.push(!sessionWorkingSetReviewEnabled
 			? localize('chat.sessionWorkingSet.fileView', "To inspect the chosen file's changes, press Tab to reach Open Changes in Diff Editor, then Enter or Space.")
 			: sessionWorkingSetUndo
@@ -164,6 +171,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			content.push(localize('workbench.action.chat.openAgentHostFolderPicker', 'When starting an agent session in a multi-root workspace, you can choose which root folder it runs in by invoking the Folder command{0}, then selecting a folder from the list.', '<keybinding:workbench.action.chat.openAgentHostFolderPicker>'));
 			content.push(localize('chat.agentHostApprovalsPicker', 'When an agent session exposes approval presets, use Tab to reach the Approvals picker and choose how it handles workspace access, commands, and the internet.'));
 			content.push(localize('chat.agentHostSandboxPolicy', "In Copilot agent-host sessions, use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report."));
+			content.push(localize('chat.agentHostSandboxDiagnostics', "When a sandbox dependency warning appears above the input, use Tab to reach Troubleshooting Guide or, when permitted, Disable Sandboxing. Press Enter or Space to activate the button. Disable Sandboxing turns sandboxing off for this session and in settings; organization policy still applies."));
 			content.push(getModePickerAccessibilityHelp());
 		}
 		if (sessionStatusPillsSupported) {

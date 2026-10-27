@@ -2526,7 +2526,7 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 				id: MARK_SESSION_READ_COMMAND_ID,
 				title: localize('markAutomationRunSessionReadAction', "Mark as Read"),
 			},
-			group: '0_read',
+			group: '1_state',
 			order: 1,
 			when: ContextKeyExpr.and(SessionIsReadContext.negate(), SessionIsArchivedContext.negate()),
 		}),
@@ -2535,7 +2535,7 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 				id: MARK_SESSION_UNREAD_COMMAND_ID,
 				title: localize('markAutomationRunSessionUnreadAction', "Mark as Unread"),
 			},
-			group: '0_read',
+			group: '1_state',
 			order: 1,
 			when: ContextKeyExpr.and(SessionIsReadContext, SessionIsArchivedContext.negate()),
 		}),
@@ -2544,7 +2544,7 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 				id: RENAME_SESSION_COMMAND_ID,
 				title: localize('renameAutomationRunSessionAction', "Rename..."),
 			},
-			group: '1_edit',
+			group: '4_manage',
 			order: 1,
 			when: SessionSupportsRenameContext,
 		}),
@@ -2555,7 +2555,7 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 				icon: archivePresentation.archive.icon,
 				precondition: AutomationRunCanArchiveContext,
 			},
-			group: menu === Menus.AutomationsHistoryItem ? 'navigation' : '1_edit',
+			group: menu === Menus.AutomationsHistoryItem ? 'navigation' : '1_state',
 			order: 2,
 			when: SessionIsArchivedContext.negate(),
 		})),
@@ -2564,7 +2564,7 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 				id: UNARCHIVE_SESSION_COMMAND_ID,
 				title: archivePresentation.unarchive.title,
 			},
-			group: '1_edit',
+			group: '1_state',
 			order: 2,
 			when: SessionIsArchivedContext,
 		}),
@@ -2808,9 +2808,9 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.automations.duplicate',
-			title: localize2('duplicateAutomation', "Duplicate"),
+			title: localize2('duplicateAutomation', "Duplicate..."),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 2, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasEventTriggerContext.negate()) }],
+			menu: [{ id: Menus.AutomationCardContext, group: '3_copy', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasEventTriggerContext.negate()) }],
 		});
 	}
 
@@ -2836,6 +2836,7 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 			const result = await automationDialogService.showAutomationDialog({
 				initialValues: {
 					name,
+					...(automation.ownership ? { ownership: automation.ownership } : {}),
 					prompt: automation.prompt,
 					schedule: automation.schedule,
 					target: automation.target,
@@ -2877,9 +2878,9 @@ registerAction2(class ExportAutomationAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.automations.export',
-			title: localize2('exportAutomation', "Export"),
+			title: localize2('exportAutomation', "Export..."),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 3, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardIsCloudContext.negate()) }],
+			menu: [{ id: Menus.AutomationCardContext, group: '3_copy', order: 2, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardIsCloudContext.negate()) }],
 		});
 	}
 
@@ -2939,7 +2940,7 @@ registerAction2(class OpenAutomationOnGitHubAction extends Action2 {
 			title: localize2('openAutomationOnGitHub', "Open on GitHub"),
 			icon: Codicon.linkExternal,
 			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasExternalResourceContext),
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 3.5, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasExternalResourceContext) }],
+			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardHasExternalResourceContext) }],
 		});
 	}
 
@@ -2967,9 +2968,9 @@ registerAction2(class DeleteAutomationAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.automations.delete',
-			title: localize2('deleteAutomationContextMenu', "Delete"),
+			title: localize2('deleteAutomationContextMenu', "Delete..."),
 			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanDeleteContext),
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 4, when: ChatAutomationsEnabledContext }],
+			menu: [{ id: Menus.AutomationCardContext, group: '4_manage', order: 1, when: ChatAutomationsEnabledContext }],
 		});
 	}
 
@@ -2990,7 +2991,7 @@ registerAction2(class DisableAutomationAction extends Action2 {
 			id: 'sessions.automations.disable',
 			title: localize2('disableAutomationContextMenu', "Disable"),
 			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanUpdateContext),
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardEnabledContext) }],
+			menu: [{ id: Menus.AutomationCardContext, group: '1_state', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardEnabledContext) }],
 		});
 	}
 
@@ -3005,7 +3006,7 @@ registerAction2(class EnableAutomationAction extends Action2 {
 			id: 'sessions.automations.enable',
 			title: localize2('enableAutomationContextMenu', "Enable"),
 			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanUpdateContext),
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardEnabledContext.negate()) }],
+			menu: [{ id: Menus.AutomationCardContext, group: '1_state', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardEnabledContext.negate()) }],
 		});
 	}
 
