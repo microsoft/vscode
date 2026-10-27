@@ -1565,6 +1565,47 @@ suite('ChatService', () => {
 		await response.data.responseCompletePromise;
 	});
 
+	test('clears a forwarded yield request when the request ends', async () => {
+		const firstStarted = new DeferredPromise<void>();
+		const completeFirst = new DeferredPromise<void>();
+		const messagesByRequestId = new Map<string, string>();
+		const forwarded: { requestId: string; value: boolean }[] = [];
+		testDisposables.add(chatAgentService.registerAgent('yieldAgent', { ...getAgentData('yieldAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('yieldAgent', {
+			async invoke(request) {
+				messagesByRequestId.set(request.requestId, request.message);
+				if (messagesByRequestId.size === 1) {
+					firstStarted.complete();
+					await completeFirst.p;
+				}
+				return {};
+			},
+			setYieldRequested(requestId, value) {
+				forwarded.push({ requestId, value });
+			},
+		}));
+
+		const testService = createChatService();
+		const model = testDisposables.add(startSessionModel(testService)).object;
+		const first = await testService.sendRequest(model.sessionResource, 'first request', { agentId: 'yieldAgent' });
+		ChatSendResult.assertSent(first);
+		await firstStarted.p;
+		const steering = await testService.sendRequest(model.sessionResource, 'steering message', { agentIdSilent: 'yieldAgent', queue: ChatRequestQueueKind.Steering });
+		assert.ok(ChatSendResult.isQueued(steering));
+		completeFirst.complete();
+		await first.data.responseCompletePromise;
+		const sent = await steering.deferred;
+		ChatSendResult.assertSent(sent);
+		await sent.data.responseCompletePromise;
+
+		assert.deepStrictEqual(forwarded.map(({ requestId, value }) => ({ message: messagesByRequestId.get(requestId), value })), [
+			{ message: 'first request', value: false },
+			{ message: 'first request', value: true },
+			{ message: 'first request', value: false },
+			{ message: 'steering message', value: false },
+		]);
+	});
+
 	for (const duringActiveRequest of [true, false]) {
 		test(`system notifications retain their provenance after ${duringActiveRequest ? 'steering an active' : 'resuming an idle'} task`, async () => {
 			const started = new DeferredPromise<void>();

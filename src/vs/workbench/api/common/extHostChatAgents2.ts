@@ -1012,7 +1012,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				agent.extension,
 				this._logService
 			);
-			inFlightRequest = { requestId: requestDto.requestId, extRequest, extension: agent.extension, hooks: request.hooks, yieldRequested: this._yieldRequestedBeforeInvoke.has(requestDto.requestId) };
+			inFlightRequest = { requestId: requestDto.requestId, extRequest, extension: agent.extension, hooks: request.hooks, yieldRequested: this._yieldRequestedBeforeInvoke.delete(requestDto.requestId) };
 			this._inFlightRequests.add(inFlightRequest);
 
 

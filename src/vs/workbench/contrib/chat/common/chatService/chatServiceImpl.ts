@@ -2149,10 +2149,18 @@ export class ChatService extends Disposable implements IChatService {
 					this.generateInitialChatTitleIfNeeded(model, requestProps, defaultAgent, token);
 					const pendingRequest = this._pendingRequests.get(sessionResource);
 					if (pendingRequest) {
+						let yieldForwardedRequestId: string | undefined;
 						store.add(autorun(reader => {
 							const yieldRequested = pendingRequest.yieldRequested.read(reader);
 							if (request) {
+								yieldForwardedRequestId = yieldRequested ? request.id : undefined;
 								this.chatAgentService.setYieldRequested(agent.id, request.id, yieldRequested);
+							}
+						}));
+						// Clear a forwarded yield when the request ends, including when the agent was never invoked
+						store.add(toDisposable(() => {
+							if (yieldForwardedRequestId) {
+								this.chatAgentService.setYieldRequested(agent.id, yieldForwardedRequestId, false);
 							}
 						}));
 						pendingRequest.requestId ??= requestProps.requestId;
