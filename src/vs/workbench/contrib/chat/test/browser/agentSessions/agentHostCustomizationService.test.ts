@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { IReference } from '../../../../../../base/common/lifecycle.js';
+import { IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -173,6 +174,13 @@ class TestSessionSubscription extends mock<IAgentSubscription<SessionState>>() {
 
 suite('AbstractAgentHostCustomizationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function captureStatus(): () => string {
+		const host = document.body.appendChild(document.createElement('div'));
+		store.add(toDisposable(() => host.remove()));
+		setARIAContainer(host);
+		return () => [...host.querySelectorAll('.monaco-status')].map(element => element.textContent).join('');
+	}
 
 	function createSut(authenticationError?: Error, options: { readonly authenticationSessions?: AuthenticationSession[]; readonly authenticationTargets?: Array<{ id: string; name: string }>; readonly notifications?: string[]; readonly configure?: (instantiationService: TestInstantiationService) => void } = {}): TestAgentHostCustomizationService {
 		const authenticationSessions = options.authenticationSessions ?? [{ id: 'test-session', accessToken: 'token', scopes: [], account: { id: 'test-account', label: 'Test Account' } }];
@@ -539,6 +547,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 	});
 
 	test('reports silent MCP authentication until no authorized session is found', async () => {
+		const readStatus = captureStatus();
 		const sut = createSut(undefined, { authenticationSessions: [] });
 		const session = URI.parse('vscode-agent-session:///session-1');
 		sut.setTarget(session, new FakeTarget([
@@ -559,9 +568,11 @@ suite('AbstractAgentHostCustomizationService', () => {
 		assert.deepStrictEqual({
 			before,
 			after: sut.getMcpServers(session).map(server => server.authenticating),
+			status: readStatus(),
 		}, {
 			before: [true, false],
 			after: [false, false],
+			status: '',
 		});
 	});
 
@@ -819,7 +830,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 			id: 'connector-session', accessToken: 'connector-token', scopes: ['read:user', 'user:email', 'write:plugin_gateway_connections'], account: { id: 'test-account', label: 'Test Account' },
 		};
 
-		function createConnectorSut(onRefresh: (sut: TestAgentHostCustomizationService) => Promise<void> | void) {
+		function createConnectorSut(onRefresh: (sut: TestAgentHostCustomizationService) => Promise<void> | void, authorizationError?: Error) {
 			const operations: string[] = [];
 			const notifications: string[] = [];
 			const sut: TestAgentHostCustomizationService = createSut(undefined, {
@@ -834,6 +845,9 @@ suite('AbstractAgentHostCustomizationService', () => {
 					instantiationService.stub(ICopilotConnectorsService, new class extends mock<ICopilotConnectorsService>() {
 						override async authorize(): Promise<AuthenticationSession> {
 							operations.push('authorize');
+							if (authorizationError) {
+								throw authorizationError;
+							}
 							return fullScopeSession;
 						}
 						override async refreshAgentHostSessions(connectorName?: string): Promise<void> {
@@ -851,6 +865,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 			['Connector-scope challenge', undefined, undefined],
 		] as const) {
 			test(`signs in through Connector authorization by ${identification} and forwards no MCP token`, async () => {
+				const readStatus = captureStatus();
 				const session = URI.parse('vscode-agent-session:///session-1');
 				const target = new FakeTarget([connectorAuthRequired(meta)]);
 				const { sut, operations, notifications } = createConnectorSut(sut => {
@@ -862,9 +877,10 @@ suite('AbstractAgentHostCustomizationService', () => {
 				target.onAuthenticate = request => operations.push(`authenticate:${request.resource}`);
 
 				const result = await sut.authenticateMcpServer(session, 'workiq');
-				assert.deepStrictEqual({ silent, result, operations, starts: target.startCalls, tokens: target.authenticateCalls.map(call => [call.resource, call.token]), notifications }, {
+				assert.deepStrictEqual({ silent, result, status: readStatus(), operations, starts: target.startCalls, tokens: target.authenticateCalls.map(call => [call.resource, call.token]), notifications }, {
 					silent: [{ authenticating: false, connectorName: meta ? 'workiqmcp' : undefined }],
 					result: true,
+					status: 'Authenticated connector-workiq.',
 					operations: ['authorize', 'authenticate:https://api.github.com', `refresh:${refreshed}`],
 					starts: [],
 					tokens: [['https://api.github.com', 'connector-token']],
@@ -900,6 +916,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 		}
 
 		test('reports an actionable failure when the Connector asks for the same authorization again', async () => {
+			const readStatus = captureStatus();
 			const meta = withMcpServerConnectorNameMeta(withMcpServerDisplayNameMeta(undefined, 'Work IQ'), 'workiqmcp');
 			const session = URI.parse('vscode-agent-session:///session-1');
 			const target = new FakeTarget([connectorAuthRequired(meta)]);
@@ -910,13 +927,31 @@ suite('AbstractAgentHostCustomizationService', () => {
 			sut.setTarget(session, target);
 
 			const result = await sut.authenticateMcpServer(session, 'workiq');
-			assert.deepStrictEqual({ result, operations, tokens: target.authenticateCalls.map(call => call.resource), notifications }, {
+			assert.deepStrictEqual({ result, status: readStatus(), operations, tokens: target.authenticateCalls.map(call => call.resource), notifications }, {
 				result: false,
+				status: 'Authenticating Work IQ (Connector)...',
 				operations: ['authorize', 'refresh:workiqmcp'],
 				tokens: ['https://api.github.com'],
 				notifications: [`${Severity.Warning}:Work IQ (Connector) still cannot access Copilot connectors. Authorize Copilot connectors with the same GitHub account that you use for GitHub Copilot, then sign in again.`],
 			});
 		});
+
+		for (const cancelled of [false, true]) {
+			test(`announces Connector authorization ${cancelled ? 'cancellation' : 'errors through one notification'}`, async () => {
+				const readStatus = captureStatus();
+				const session = URI.parse('vscode-agent-session:///session-1');
+				const target = new FakeTarget([connectorAuthRequired(undefined)]);
+				const { sut, operations, notifications } = createConnectorSut(() => assert.fail('Must not refresh after failed authorization'), cancelled ? new CancellationError() : new Error('Sign-in failed'));
+				sut.setTarget(session, target);
+
+				assert.deepStrictEqual({ result: await sut.authenticateMcpServer(session, 'workiq'), status: readStatus(), operations, notifications }, {
+					result: false,
+					status: cancelled ? 'Authentication for connector-workiq was cancelled.' : 'Authenticating connector-workiq...',
+					operations: ['authorize'],
+					notifications: cancelled ? [] : [`${Severity.Error}:Could not authorize Copilot connectors for connector-workiq: Sign-in failed`],
+				});
+			});
+		}
 	});
 
 	for (const stage of ['start', 'resource discovery', 'authorization metadata', 'provider creation', 'session lookup', 'session creation', 'token forwarding']) {
@@ -1008,7 +1043,59 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 	}
 
+	for (const outcome of ['success', 'timeout', 'unavailable', 'cancelled', 'error'] as const) {
+		test(`announces interactive authentication progress and ${outcome} without duplicating notifications`, async () => {
+			const readStatus = captureStatus();
+			const notifications: string[] = [];
+			const sut = createSut(outcome === 'cancelled' ? new CancellationError() : outcome === 'error' ? new Error('Sign-in failed') : undefined, { notifications });
+			const session = URI.parse('vscode-agent-session:///session-1');
+			const server: McpServerCustomization = {
+				...mcpServer('server-1', 'internal-name'),
+				_meta: withMcpServerDisplayNameMeta(undefined, 'Server One'),
+				state: {
+					kind: McpServerStatus.AuthRequired,
+					reason: McpAuthRequiredReason.Required,
+					resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
+				},
+			};
+			const target = new FakeTarget([server]);
+			const forwarded = new DeferredPromise<void>();
+			target.onAuthenticate = () => { forwarded.complete(); };
+			sut.setTarget(session, target);
+			if (outcome === 'timeout') {
+				sut.setMcpAuthenticationVerificationTimeout(0);
+			}
+
+			const pending = sut.authenticateMcpServer(session, server.id);
+			const started = readStatus();
+			if (outcome !== 'cancelled' && outcome !== 'error') {
+				await forwarded.p;
+				await timeout(0);
+				if (outcome === 'success') {
+					sut.updateTarget(target, [{ ...server, state: { kind: McpServerStatus.Ready } }]);
+				} else if (outcome === 'unavailable') {
+					sut.updateTarget(target, []);
+				}
+			}
+
+			const messages = {
+				success: 'Authenticated Server One (Connector).',
+				timeout: 'Server One (Connector) is still connecting. Authentication has not been confirmed.',
+				unavailable: 'Authentication for Server One (Connector) did not complete.',
+				cancelled: 'Authentication for Server One (Connector) was cancelled.',
+				error: 'Authenticating Server One (Connector)...',
+			};
+			assert.deepStrictEqual({ result: await pending, started, completed: readStatus(), notifications }, {
+				result: outcome === 'success',
+				started: 'Authenticating Server One (Connector)...',
+				completed: messages[outcome],
+				notifications: outcome === 'error' ? [`${Severity.Error}:Unable to sign in to Server One (Connector): Sign-in failed`] : [],
+			});
+		});
+	}
+
 	test('does not notify for missing servers or a sign-in that resolves no provider', async () => {
+		const readStatus = captureStatus();
 		const notifications: string[] = [];
 		const sut = createSut(undefined, {
 			notifications,
@@ -1036,8 +1123,9 @@ suite('AbstractAgentHostCustomizationService', () => {
 			},
 		}]));
 
-		assert.deepStrictEqual({ missingSession, stoppedServer, missingServer, noProvider: await sut.authenticateMcpServer(session, 'server-1'), notifications }, {
-			missingSession: false, stoppedServer: false, missingServer: false, noProvider: false, notifications: [],
+		const noProvider = await sut.authenticateMcpServer(session, 'server-1');
+		assert.deepStrictEqual({ missingSession, stoppedServer, missingServer, noProvider, status: readStatus(), notifications }, {
+			missingSession: false, stoppedServer: false, missingServer: false, noProvider: false, status: 'Authentication for Server One did not complete.', notifications: [],
 		});
 	});
 

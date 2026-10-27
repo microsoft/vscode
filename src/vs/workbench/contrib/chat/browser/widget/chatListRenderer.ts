@@ -4692,7 +4692,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'mcpServersStarting') {
 				return this.renderMcpServersInteractionRequired(content, context, templateData);
 			} else if (content.kind === 'mcpAuthenticationRequired') {
-				return this.instantiationService.createInstance(ChatMcpAuthenticationContentPart, content, {
+				return this.instantiationService.createInstance(ChatMcpAuthenticationContentPart, content, context, {
 					onDidAuthenticate: () => this.refreshProgressAfterInteraction(context, templateData),
 					onDidRemoveFocusedAction: () => this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput(),
 				});

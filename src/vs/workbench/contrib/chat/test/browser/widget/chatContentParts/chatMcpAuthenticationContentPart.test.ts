@@ -4,23 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { setARIAContainer } from '../../../../../../../base/browser/ui/aria/aria.js';
+import { alert, setARIAContainer } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { McpServerStatus } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { ACTION_ID_FOCUS_CHAT_CONFIRMATION, registerChatAccessibilityActions } from '../../../../browser/actions/chatAccessibilityActions.js';
+import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
 import { ChatMcpAuthenticationContentPart } from '../../../../browser/widget/chatContentParts/chatMcpAuthenticationContentPart.js';
 import { IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer } from '../../../../common/chatService/chatService.js';
-import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
+import { IChatRendererContent, IChatResponseViewModel, IChatViewModel } from '../../../../common/model/chatViewModel.js';
+import { IChatModel } from '../../../../common/model/chatModel.js';
+import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 
 suite('ChatMcpAuthenticationContentPart', () => {
 	type McpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
@@ -30,6 +35,8 @@ suite('ChatMcpAuthenticationContentPart', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
+
+	suiteSetup(() => registerChatAccessibilityActions());
 
 	setup(() => {
 		disposables = store.add(new DisposableStore());
@@ -66,7 +73,12 @@ suite('ChatMcpAuthenticationContentPart', () => {
 			servers,
 			isUsed: false,
 		};
-		const part = disposables.add(instantiationService.createInstance(ChatMcpAuthenticationContentPart, data, { onDidAuthenticate, onDidRemoveFocusedAction }));
+		const context = upcastPartial<IChatContentPartRenderContext>({
+			content: [],
+			contentIndex: -1,
+			element: upcastPartial<IChatResponseViewModel>({ sessionResource: URI.revive(data.sessionResource) }),
+		});
+		const part = disposables.add(instantiationService.createInstance(ChatMcpAuthenticationContentPart, data, context, { onDidAuthenticate, onDidRemoveFocusedAction }));
 		return {
 			part,
 			data,
@@ -82,6 +94,103 @@ suite('ChatMcpAuthenticationContentPart', () => {
 	function attach(part: ChatMcpAuthenticationContentPart): void {
 		document.body.appendChild(part.domNode);
 		disposables.add(toDisposable(() => part.domNode.remove()));
+	}
+
+	for (const resolved of [false, true]) {
+		test(`Focus Chat Confirmation ${resolved ? 'ignores a resolved' : 'reveals and toggles focus for a non-blocking'} MCP authentication prompt in an earlier response`, async () => {
+			const { part, data } = createPart(
+				[{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }],
+				[server('mcp', 'MCP', McpServerStatus.AuthRequired)],
+			);
+			attach(part);
+			data.isUsed = resolved;
+			const input = document.createElement('button');
+			document.body.appendChild(input);
+			disposables.add(toDisposable(() => input.remove()));
+			const response = upcastPartial<IChatResponseViewModel>({
+				setVote: () => { },
+				response: upcastPartial<IChatResponseViewModel['response']>({ value: [data] }),
+			});
+			const laterResponse = upcastPartial<IChatResponseViewModel>({
+				setVote: () => { },
+				response: upcastPartial<IChatResponseViewModel['response']>({ value: [] }),
+			});
+			const revealed: IChatResponseViewModel[] = [];
+			const widget = upcastPartial<IChatWidget>({
+				domNode: part.domNode,
+				viewModel: upcastPartial<IChatViewModel>({
+					model: upcastPartial<IChatModel>({ requestNeedsInput: observableValue('needsInput', undefined) }),
+					getItems: () => [response, laterResponse],
+				}),
+				reveal: item => {
+					assert.strictEqual(item, response);
+					revealed.push(response);
+				},
+				focusInput: () => input.focus(),
+			});
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getAllWidgets: () => [widget] }));
+			const command = CommandsRegistry.getCommand(ACTION_ID_FOCUS_CHAT_CONFIRMATION);
+			assert.ok(command);
+			input.focus();
+			await instantiationService.invokeFunction(command.handler);
+			const focusedConfirmation = document.activeElement === part.domNode.querySelector('.chat-confirmation-widget-container');
+			await instantiationService.invokeFunction(command.handler);
+
+			assert.deepStrictEqual({
+				focusedConfirmation,
+				focusedInput: document.activeElement === input,
+				reveals: revealed.length,
+			}, {
+				focusedConfirmation: !resolved,
+				focusedInput: true,
+				reveals: resolved ? 0 : 2,
+			});
+		});
+	}
+
+	for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
+		test(`${key === ' ' ? 'Space' : key} activates the confirmation button once and permits retry after unsuccessful authentication`, async () => {
+			const authentication = new DeferredPromise<boolean>();
+			let fallbackCount = 0;
+			const { part, authenticated } = createPart(
+				[{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }],
+				[server('mcp', 'MCP', McpServerStatus.AuthRequired)],
+				() => authentication.p,
+				undefined,
+				() => fallbackCount++,
+			);
+			attach(part);
+			const button = part.domNode.querySelector<HTMLElement>('.chat-confirmation-widget2 .monaco-button');
+			assert.ok(button);
+			button.focus();
+			const event = new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true });
+			button.dispatchEvent(event);
+			button.dispatchEvent(new KeyboardEvent('keyup', { key, keyCode, bubbles: true }));
+			const pending = {
+				authenticated: [...authenticated],
+				text: part.domNode.textContent,
+				hasButton: !!part.domNode.querySelector('[role="button"]'),
+				defaultPrevented: event.defaultPrevented,
+				fallbackCount,
+			};
+			authentication.complete(false);
+			await timeout(0);
+			const retry = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(retry);
+			retry.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
+			await timeout(0);
+
+			assert.deepStrictEqual({ pending, authenticated }, {
+				pending: {
+					authenticated: ['mcp'],
+					text: 'Authenticating MCP...',
+					hasButton: false,
+					defaultPrevented: true,
+					fallbackCount: 1,
+				},
+				authenticated: ['mcp', 'mcp'],
+			});
+		});
 	}
 
 	test('announces the dedicated authentication prompt when verbose progress updates are enabled', async () => {
@@ -110,13 +219,37 @@ suite('ChatMcpAuthenticationContentPart', () => {
 			initial,
 			muted,
 			updated: announcement(),
-			visible: part.domNode.textContent,
+			visible: part.domNode.textContent?.trim(),
 		}, {
-			initial: 'The MCP server Azure ExP requires authentication. Authenticate?',
-			muted: 'The MCP server Azure ExP requires authentication. Authenticate?',
-			updated: 'The MCP server GitHub requires authentication. Authenticate?',
-			visible: 'The MCP server GitHub requires authentication. Authenticate?',
+			initial: 'The MCP server Azure ExP requires authentication. Use the Authenticate button to continue.',
+			muted: 'The MCP server Azure ExP requires authentication. Use the Authenticate button to continue.',
+			updated: 'The MCP server GitHub requires authentication. Use the Authenticate button to continue.',
+			visible: 'MCP authentication requiredThe MCP server GitHub requires authentication.Authenticate',
 		});
+	});
+
+	test('does not replace the authentication outcome announcement when restoring the retry button', async () => {
+		const ariaHost = document.body.appendChild(document.createElement('div'));
+		disposables.add(toDisposable(() => ariaHost.remove()));
+		setARIAContainer(ariaHost);
+		await configurationService.setUserConfiguration(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates, true);
+		const { part } = createPart(
+			[{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }],
+			[server('mcp', 'MCP', McpServerStatus.AuthRequired)],
+			async () => {
+				alert('Unable to sign in to MCP.');
+				return false;
+			},
+		);
+		const action = part.domNode.querySelector<HTMLElement>('[role="button"]');
+		assert.ok(action);
+		action.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			announcement: [...ariaHost.querySelectorAll('.monaco-alert')].map(element => element.textContent).join(''),
+			retryAvailable: !!part.domNode.querySelector('[role="button"]'),
+		}, { announcement: 'Unable to sign in to MCP.', retryAvailable: true });
 	});
 
 	test('updates stale server names and authentication targets from live pending servers', async () => {
@@ -132,7 +265,7 @@ suite('ChatMcpAuthenticationContentPart', () => {
 			],
 		);
 
-		const initialText = part.domNode.textContent;
+		const initialText = part.domNode.textContent?.trim();
 		const initialAction = part.domNode.querySelector<HTMLElement>('[role="button"]');
 		assert.ok(initialAction);
 		setLiveServers([
@@ -146,7 +279,7 @@ suite('ChatMcpAuthenticationContentPart', () => {
 			server('slack-gh', 'Slack GitHub', McpServerStatus.Ready),
 			server('slack', 'Slack', McpServerStatus.Ready),
 		]);
-		const singularText = part.domNode.textContent;
+		const singularText = part.domNode.textContent?.trim();
 		const action = part.domNode.querySelector<HTMLElement>('[role="button"]');
 		assert.ok(action);
 		action.click();
@@ -162,8 +295,8 @@ suite('ChatMcpAuthenticationContentPart', () => {
 			hidden: part.domNode.style.display === 'none',
 			isUsed: data.isUsed,
 		}, {
-			initialText: 'The MCP servers Azure ExP, Slack GitHub require authentication. Authenticate?',
-			singularText: 'The MCP server Azure ExP requires authentication. Authenticate?',
+			initialText: 'MCP authentication requiredThe MCP servers Azure ExP, Slack GitHub require authentication.Authenticate',
+			singularText: 'MCP authentication requiredThe MCP server Azure ExP requires authentication.Authenticate',
 			initialActionIsRetained: true,
 			text: '',
 			authenticated: ['azure-exp'],
@@ -179,7 +312,7 @@ suite('ChatMcpAuthenticationContentPart', () => {
 			[server(runtimeServerId, runtimeServerId, McpServerStatus.AuthRequired, true, 'GitHub')],
 		);
 
-		const text = part.domNode.textContent;
+		const text = part.domNode.textContent?.trim();
 		part.domNode.querySelector<HTMLElement>('[role="button"]')?.click();
 		await timeout(0);
 
@@ -187,7 +320,7 @@ suite('ChatMcpAuthenticationContentPart', () => {
 			text,
 			authenticated,
 		}, {
-			text: 'The MCP server GitHub (Connector) requires authentication. Authenticate?',
+			text: 'MCP authentication requiredThe MCP server GitHub (Connector) requires authentication.Authenticate',
 			authenticated: [runtimeServerId],
 		});
 	});
