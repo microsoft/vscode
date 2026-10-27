@@ -114,7 +114,7 @@ suite('WorkspaceTrustedUrisTable', () => {
 	let table: WorkspaceTrustedUrisTable;
 
 	const folder = (name: string) => URI.file(`/trusted/${name}`);
-	const label = (element: Element | null | undefined) => element?.getAttribute('aria-label')?.match(/\/trusted\/(?<name>\S+) on /)?.groups?.name;
+	const label = (element: Element | null | undefined) => element?.getAttribute('aria-label')?.match(/[\\/]trusted[\\/](?<name>[^\s\\/]+) on /)?.groups?.name;
 
 	setup(() => {
 		container = mainWindow.document.createElement('div');
