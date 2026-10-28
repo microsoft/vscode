@@ -35,7 +35,7 @@ jobs:
   # job: the Ripple job reports a broken ripple.
   changes:
     name: Detect Changes
-    runs-on: ubuntu-24.04
+    runs-on: vscode-large-runners-ubuntu-8-core
     outputs:
       cli: ${{ steps.detect.outputs.cli }}
       copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
@@ -210,7 +210,7 @@ jobs:
     name: Compile & Hygiene
     needs: changes
     if: ${{ !cancelled() }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-ubuntu-8-core
     env:
       # Hygiene and ESLint check only the files that changed since this commit, unless
       # a change can affect other files (see build/lib/changedFiles.ts). The full checks
@@ -319,7 +319,7 @@ jobs:
     name: Monaco Editor
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.monaco-editor == 'true') }}
-    runs-on: ubuntu-latest
+    runs-on: vscode-large-runners-ubuntu-8-core
     timeout-minutes: 40
     permissions: {}
     env:
@@ -404,7 +404,7 @@ jobs:
     name: Telemetry
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.telemetry == 'true') }}
-    runs-on: ubuntu-latest
+    runs-on: vscode-large-runners-ubuntu-8-core
     permissions: {}
     steps:
       - name: Checkout microsoft/vscode
@@ -436,7 +436,7 @@ jobs:
     name: Ripple
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.ripple-changed == 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Check that ripple builds, passes its tests and plans the tests
         env:
@@ -524,7 +524,7 @@ jobs:
     name: Copilot - Check Test Cache
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-test-cache-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-ubuntu-8-core
     permissions:
       contents: read
       pull-requests: read
@@ -571,7 +571,7 @@ jobs:
     name: Copilot - Check Telemetry
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-telemetry-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-ubuntu-8-core
     permissions:
       contents: read
     steps:
@@ -592,7 +592,7 @@ jobs:
     name: Copilot - Test (Linux)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-ubuntu-8-core
     permissions:
       contents: read
     steps:
@@ -622,6 +622,10 @@ jobs:
 
       - name: Install system dependencies
         run: |
+          set -e
+          # The extension host tests launch VS Code, whose Chromium sandbox needs unprivileged
+          # user namespaces, which Ubuntu 24.04 restricts by default via AppArmor
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           sudo apt-get update
           sudo apt-get install -y xvfb libgtk-3-0 libgbm1
 
@@ -767,7 +771,7 @@ jobs:
     name: chat-lib - Test (Linux)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: ubuntu-24.04
+    runs-on: vscode-large-runners-ubuntu-8-core
     timeout-minutes: 30
     permissions:
       contents: read
@@ -836,7 +840,7 @@ jobs:
       - chat-lib-macos-tests
       - chat-lib-windows-tests
     if: ${{ always() }}
-    runs-on: ubuntu-24.04
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Check job results
         env:

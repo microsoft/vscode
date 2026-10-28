@@ -8,7 +8,7 @@ import * as sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
-import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, retry, timeout } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, readUInt16LE, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -75,6 +75,7 @@ import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatCo
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { getSubagentEditorResource, OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatThinkingContentPart } from '../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { IChatThinkingTitleRequest, IChatThinkingTitleService } from '../../../common/chatThinkingTitleService.js';
 import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { ChatTurnPillsContentPart } from '../../../browser/widget/chatContentParts/chatTurnPillsPart.js';
 import { aggregateChatEditDiffs } from '../../../browser/widget/chatContentParts/chatEditStatsButton.js';
@@ -2240,6 +2241,255 @@ suite('ChatListRenderer', () => {
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
 		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node };
 	}
+
+	suite('deferred row height updates', () => {
+		async function createHeightFixture() {
+			const fixture = createPersistentProgressRenderer();
+			fixture.model.acceptResponseProgress(fixture.request, { kind: 'markdownContent', content: new MarkdownString('Height measurement content') });
+			fixture.request.response!.complete();
+			fixture.renderer.renderElement(fixture.node, 0, fixture.template);
+			const nextFrame = () => new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(fixture.container), () => resolve()));
+			await nextFrame();
+			await nextFrame();
+			const height = Math.ceil(fixture.template.rowContainer.getBoundingClientRect().height);
+			assert.ok(height > 1);
+			const events: number[] = [];
+			fixture.disposables.add(fixture.renderer.onDidChangeItemHeight(event => events.push(event.height)));
+			const privateRenderer = fixture.renderer as unknown as {
+				_elementBeingRendered: ChatTreeItem | undefined;
+				fireItemHeightChange: ChatListItemRenderer['fireItemHeightChange'];
+				clearRenderedParts: ChatListItemRenderer['clearRenderedParts'];
+			};
+			return { ...fixture, privateRenderer, height, events, nextFrame };
+		}
+
+		test('coalesces a thousand render-time measurements without losing the final height', async () => {
+			const { privateRenderer, template, response, height, events, nextFrame } = await createHeightFixture();
+			const measurements = sinon.spy(template.rowContainer, 'getBoundingClientRect');
+			response.currentRenderedHeight = height - 1;
+			privateRenderer._elementBeingRendered = response;
+			for (let index = 0; index < 1000; index++) {
+				privateRenderer.fireItemHeightChange(template);
+			}
+			const duringRender = { measurements: measurements.callCount, events: [...events], stored: response.currentRenderedHeight };
+			privateRenderer._elementBeingRendered = undefined;
+			await nextFrame();
+			assert.deepStrictEqual({ duringRender, measurements: measurements.callCount, events, stored: response.currentRenderedHeight }, {
+				duringRender: { measurements: 1, events: [], stored: height - 1 },
+				measurements: 2, events: [height], stored: height,
+			});
+		});
+
+		test('preserves the initial notification when a coalesced remeasure returns to that height', async () => {
+			const { privateRenderer, template, response, height, events, nextFrame } = await createHeightFixture();
+			response.currentRenderedHeight = undefined;
+			template.allocatedHeight = height - 1;
+			privateRenderer.fireItemHeightChange(template, height);
+			privateRenderer._elementBeingRendered = response;
+			privateRenderer.fireItemHeightChange(template, height + 1);
+			privateRenderer._elementBeingRendered = undefined;
+			await nextFrame();
+			assert.deepStrictEqual({ events, stored: response.currentRenderedHeight }, { events: [height], stored: height });
+		});
+
+		test('preserves an unacknowledged initial height across rebuilding the same row', async () => {
+			const { renderer, privateRenderer, template, node, response, height, events, nextFrame } = await createHeightFixture();
+			response.currentRenderedHeight = undefined;
+			template.allocatedHeight = height - 1;
+			privateRenderer.fireItemHeightChange(template, height);
+			privateRenderer.clearRenderedParts(template);
+			renderer.renderElement(node, 0, template);
+			await nextFrame();
+			assert.deepStrictEqual({ events, stored: response.currentRenderedHeight }, { events: [height], stored: height });
+		});
+
+		test('drops queued height work when the row is virtualized', async () => {
+			const { renderer, privateRenderer, template, node, response, height, events, nextFrame } = await createHeightFixture();
+			response.currentRenderedHeight = height - 1;
+			privateRenderer._elementBeingRendered = response;
+			privateRenderer.fireItemHeightChange(template);
+			privateRenderer._elementBeingRendered = undefined;
+			renderer.disposeElement(node, 0, template);
+			await nextFrame();
+			assert.deepStrictEqual(events, []);
+		});
+
+		test('rebinding a template only delivers height updates for its new row', async () => {
+			const { disposables, model, viewModel, renderer, privateRenderer, template, node, response, height, nextFrame } = await createHeightFixture();
+			const elementIds: string[] = [];
+			disposables.add(renderer.onDidChangeItemHeight(event => elementIds.push(event.element.id)));
+			response.currentRenderedHeight = height - 1;
+			privateRenderer._elementBeingRendered = response;
+			privateRenderer.fireItemHeightChange(template);
+			privateRenderer._elementBeingRendered = undefined;
+			const text = 'Another request';
+			const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Another response with different content.') });
+			request.response!.complete();
+			const nextResponse = viewModel.getItems().find(item => isResponseVM(item) && item.requestId === request.id);
+			assert.ok(nextResponse);
+			nextResponse.currentRenderedHeight = height - 1;
+			renderer.renderElement({ ...node, element: nextResponse }, 0, template);
+			privateRenderer._elementBeingRendered = nextResponse;
+			privateRenderer.fireItemHeightChange(template);
+			privateRenderer._elementBeingRendered = undefined;
+			await nextFrame();
+			await nextFrame();
+			assert.deepStrictEqual({ oldNotified: elementIds.includes(response.id), newNotified: elementIds.includes(nextResponse.id) }, {
+				oldNotified: false, newNotified: true,
+			});
+		});
+	});
+
+	test('sticky progress preserves provider updates before the response is mounted', async () => {
+		const { model, request, container, renderer } = createPersistentProgressRenderer();
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		renderer.setWorkingProgressContainer(sticky, () => true);
+		const progress = sticky.querySelector('.chat-working-progress');
+		assert.ok(progress);
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Connecting to the workspace') });
+		await timeout(0);
+		assert.deepStrictEqual({
+			sameComponent: sticky.querySelector('.chat-working-progress') === progress,
+			label: progress.querySelector('.progress-step')?.textContent,
+			copies: container.querySelectorAll('.chat-working-progress').length,
+		}, {
+			sameComponent: true,
+			label: 'Connecting to the workspace',
+			copies: 1,
+		});
+	});
+
+	test('sticky progress replaces a stale anchor when a hidden completed turn resumes', async () => {
+		const { request, container, renderer, template, node } = createPersistentProgressRenderer();
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		renderer.setWorkingProgressContainer(sticky, () => false);
+		renderer.renderElement(node, 0, template);
+		const initial = template.value.querySelector('.chat-working-progress');
+		assert.ok(initial);
+
+		renderer.setVisible(false);
+		renderer.updateStickyProgress();
+		request.response!.complete();
+		await timeout(0);
+		request.response!.reopen();
+		await timeout(0);
+		renderer.setVisible(true);
+		renderer.renderElement(node, 0, template);
+		const resumed = template.value.querySelector<HTMLElement>('.chat-working-progress');
+		assert.deepStrictEqual({
+			oldProgressConnected: initial.isConnected,
+			resumedLabel: resumed?.textContent?.trim(),
+			resumedVisibility: resumed ? dom.getWindow(resumed).getComputedStyle(resumed).visibility : undefined,
+			inlineCopies: template.value.querySelectorAll('.chat-working-progress-anchor > .chat-working-progress').length,
+			stickyCopies: sticky.childElementCount,
+		}, {
+			oldProgressConnected: false,
+			resumedLabel: 'Working',
+			resumedVisibility: 'visible',
+			inlineCopies: 1,
+			stickyCopies: 0,
+		});
+	});
+
+	for (const interaction of ['question', 'plan review'] as const) {
+		test(`sticky progress keeps authoritative ${interaction} status while markdown is buffered`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { disposables, configurationService, model, request, response, container, renderer, template, node } = createPersistentProgressRenderer();
+			try {
+				const announcements = dom.$('div');
+				setARIAContainer(announcements);
+				disposables.add(toDisposable(() => announcements.remove()));
+				configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+				const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+				renderer.setWorkingProgressContainer(sticky, () => false);
+				renderer.renderElement(node, 0, template);
+				const progress = template.value.querySelector('.chat-working-progress');
+				assert.ok(progress);
+
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Buffered words. '.repeat(200)) });
+				model.acceptResponseProgress(request, interaction === 'question'
+					? new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true)
+					: new ChatPlanReviewData('Review plan', 'Check the changes.', [{ label: 'Implement' }], false));
+				await timeout(1);
+				const label = interaction === 'question' ? 'Waiting for your response' : 'Plan review required';
+				const readAnnouncements = () => [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+				const initiallyAnnounced = readAnnouncements();
+				assert.ok(initiallyAnnounced.includes(label));
+
+				response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 1, renderedParts: [] };
+				renderer.renderElement(node, 0, template);
+				await timeout(50);
+				const whileBuffered = {
+					status: progress.textContent?.replace(/\u00a0/g, ' ').trim(),
+					stillBuffered: (response.renderData?.renderedWordCount ?? 0) < 400,
+				};
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nMore details.') });
+				await timeout(0);
+				assert.deepStrictEqual({
+					whileBuffered,
+					announcements: readAnnouncements(),
+					sameComponent: template.value.querySelector('.chat-working-progress') === progress,
+				}, {
+					whileBuffered: { status: label, stillBuffered: true },
+					announcements: initiallyAnnounced,
+					sameComponent: true,
+				});
+			} finally {
+				disposables.dispose();
+			}
+		}));
+	}
+
+	for (const progressBorder of [false, true]) {
+		test(`sticky progress respects the initial progress border setting (${progressBorder})`, () => {
+			const { configurationService, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurationService.setUserConfiguration(ChatConfiguration.ProgressBorder, progressBorder);
+			const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			renderer.setWorkingProgressContainer(sticky, () => true);
+			renderer.renderElement(node, 0, template);
+			assert.deepStrictEqual({
+				sticky: sticky.querySelectorAll('.chat-working-progress').length,
+				inline: template.value.querySelectorAll('.chat-working-progress').length,
+				copies: container.querySelectorAll('.chat-working-progress').length,
+			}, { sticky: progressBorder ? 0 : 1, inline: progressBorder ? 1 : 0, copies: 1 });
+		});
+	}
+
+	test('sticky progress relocation does not reannounce or recreate the working status', () => {
+		const { disposables, configurationService, container, renderer, template, node } = createPersistentProgressRenderer();
+		const announcements = dom.$('div');
+		setARIAContainer(announcements);
+		disposables.add(toDisposable(() => announcements.remove()));
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let outside = false;
+		renderer.setWorkingProgressContainer(sticky, () => outside);
+		renderer.renderElement(node, 0, template);
+		const progress = template.value.querySelector('.chat-working-progress');
+		assert.ok(progress);
+		const initialAnnouncements = [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+		outside = true;
+		renderer.updateStickyProgress();
+		const pinned = sticky.contains(progress);
+		const pinnedAnnouncements = [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+		outside = false;
+		renderer.updateStickyProgress();
+		assert.deepStrictEqual({
+			pinned,
+			restored: template.value.contains(progress),
+			copies: container.querySelectorAll('.chat-working-progress').length,
+			initialAnnouncements,
+			pinnedAnnouncements,
+			returnedAnnouncements: [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent),
+		}, {
+			pinned: true,
+			restored: true,
+			copies: 1,
+			initialAnnouncements: ['Working', ''],
+			pinnedAnnouncements: ['Working', ''],
+			returnedAnnouncements: ['Working', ''],
+		});
+	});
 
 	suite('single-tool completed response collapse', () => {
 		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean): Promise<void> {
@@ -6467,9 +6717,12 @@ suite('ChatListRenderer', () => {
 		]);
 		const showAll = observableValue('showAll', true);
 		const data = createSessionSubagentsPillData(subagents, { showAll, setShowAll: value => showAll.set(value, undefined) });
-		const { disposables, instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+		const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer({
 			rendererOptions: { backgroundActivityPillSections: { subagents: data.inProgressSections } },
 		});
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let pinned = false;
+		renderer.setWorkingProgressContainer(sticky, () => pinned);
 		let visible = false;
 		let onHide = () => { };
 		let selectFirst = () => { };
@@ -6513,12 +6766,15 @@ suite('ChatListRenderer', () => {
 		const activations = [];
 		for (const keyCode of [undefined, 13, 32]) {
 			button.focus();
+			pinned = keyCode !== undefined;
+			renderer.updateStickyProgress();
 			if (keyCode === undefined) {
 				button.click();
 			} else {
 				button.dispatchEvent(new KeyboardEvent('keydown', { keyCode, bubbles: true }));
 			}
 			activations.push({
+				inExpectedHost: (pinned ? sticky : template.value).contains(button),
 				sameWidget: menu?.id === pillMenu?.id,
 				labels: menu?.labels,
 				anchoredToStatus: menu?.anchor === button,
@@ -6559,7 +6815,7 @@ suite('ChatListRenderer', () => {
 			popup: 'listbox',
 			expanded: 'false',
 			activations: Array.from({ length: 3 }, () => ({
-				sameWidget: true, labels: ['Subagents: In Progress', 'Background review', 'Foreground review'], anchoredToStatus: true, expanded: 'true',
+				inExpectedHost: true, sameWidget: true, labels: ['Subagents: In Progress', 'Background review', 'Foreground review'], anchoredToStatus: true, expanded: 'true',
 			})),
 			pillLabels: ['Subagents: In Progress', 'Background review', 'Foreground review', '', 'Subagents: Completed', 'Finished review'],
 			filteredLabels: ['Subagents: In Progress', 'Background review', 'Foreground review'],
@@ -8632,7 +8888,7 @@ suite('ChatListRenderer', () => {
 	for (const incremental of [false, true]) {
 		for (const grouped of [false, true]) {
 			for (const completeResponse of [false, true]) {
-				test(`persistent reasoning promotes one heading without repeating it (incremental=${incremental}, grouped=${grouped}, completeResponse=${completeResponse})`, () => {
+				test(`persistent reasoning reuses a single heading and keeps its details (incremental=${incremental}, grouped=${grouped}, completeResponse=${completeResponse})`, () => {
 					const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
 					configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
 					configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
@@ -8662,7 +8918,7 @@ suite('ChatListRenderer', () => {
 						initialTitle: 'Thinking',
 						completedTitle: 'Evaluating code and build processes',
 						ariaLabel: 'Evaluating code and build processes',
-						body: grouped ? ['Check the renderer.', 'Check the build.'] : ['Check the renderer.'],
+						body: grouped ? ['Evaluating code and build processes', 'Check the renderer.', 'Check the build.'] : ['Evaluating code and build processes', 'Check the renderer.'],
 					});
 					if (!completeResponse) {
 						request.response?.complete();
@@ -9931,7 +10187,7 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
-	test('conversation progress collapses reasoning and tool calls into one section that reports how long it took', async () => {
+	test('conversation progress collapses reasoning and tool calls into one section with its extracted heading', async () => {
 		const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
 		try {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Conversation });
@@ -9982,7 +10238,7 @@ suite('ChatListRenderer', () => {
 				thinking: { title: 'Planning the fix', expanded: 'false', order: ['section', 'progress'] },
 				reading: { title: 'Reading renderer.ts', expanded: 'false', order: ['section', 'progress'] },
 				thinkingAgain: { title: 'Thinking', expanded: 'false', order: ['section', 'progress'] },
-				finished: { title: 'Finished thinking after 4s', expanded: 'false', order: ['section', 'markdown', 'progress'] },
+				finished: { title: 'Planning the fix', expanded: 'false', order: ['section', 'markdown', 'progress'] },
 				rows: ['reasoning', 'tool', 'reasoning'],
 				toolChains: 0,
 			});
@@ -11148,6 +11404,49 @@ suite('ChatListRenderer', () => {
 				progressRows: 0,
 				toolbarHeight: progressHeight,
 				text,
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}));
+
+	test('completed tool chains keep tool headers while progressive content drains', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, configurationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer({
+			progressVerbosity: ChatProgressVerbosity.Compact,
+			rendererOptions: { progressMessageAtBottomOfResponse: () => false },
+		});
+		try {
+			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 20 }, (_, index) => `intro${index}`).join(' ')) });
+			for (const toolCallId of ['first', 'second']) {
+				model.acceptResponseProgress(request, {
+					kind: 'toolInvocationSerialized', toolId: 'read_file', toolCallId,
+					invocationMessage: 'Read file', pastTenseMessage: 'Read file',
+					isComplete: true, isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					originMessage: undefined, presentation: undefined, source: ToolDataSource.Internal,
+				});
+			}
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 80 }, (_, index) => `answer${index}`).join(' ')) });
+			request.response!.complete();
+			await timeout(1);
+			response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 20, renderedParts: [] };
+			renderer.renderElement(node, 0, template);
+			const button = template.value.querySelector<HTMLElement>('.chat-tool-chain-collapsible .monaco-button');
+			const during = {
+				draining: !!response.renderData,
+				visible: button?.checkVisibility(),
+				hasLabel: !!button?.textContent?.trim(),
+				reasoningDuration: button?.textContent?.startsWith('Thought for '),
+			};
+			await timeout(1000);
+			assert.deepStrictEqual({
+				during,
+				draining: !!response.renderData,
+				reasoningDuration: template.value.querySelector('.chat-tool-chain-collapsible .monaco-button')?.textContent?.startsWith('Thought for '),
+			}, {
+				during: { draining: true, visible: true, hasLabel: true, reasoningDuration: false },
+				draining: false,
+				reasoningDuration: false,
 			});
 		} finally {
 			disposables.dispose();
@@ -13632,6 +13931,194 @@ suite('ChatListRenderer', () => {
 	}
 
 	suite('section completion and working progress', () => {
+		test('generates a title when visible streamed reasoning finishes, but not when completed history is reopened', async () => {
+			const setup = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+			const { instantiationService, model, request, renderer, template, node, container } = setup;
+			container.style.cssText = 'position:fixed;top:0;left:0;width:500px;height:300px;overflow:auto';
+			const generated = new DeferredPromise<void>();
+			const requests: string[] = [];
+			instantiationService.stub(IChatThinkingTitleService, 'generateTitle', async (input: IChatThinkingTitleRequest) => {
+				requests.push(input.content);
+				generated.complete();
+				return 'Reviewed the implementation';
+			});
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'live-reasoning', value: 'Considering the implementation.' });
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The answer.') });
+			request.response!.complete();
+			renderer.renderElement(node, 0, template);
+			await raceTimeout(generated.p, 5000, () => assert.fail('The visible live completion did not request a title'));
+			await timeout(0);
+			const title = template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent;
+			const serialized = model.toJSON();
+			setup.disposables.dispose();
+
+			const restoredData = {
+				...serialized,
+				requests: [{
+					...serialized.requests[0],
+					response: [
+						{ kind: 'thinking' as const, id: 'untitled-history', value: 'Earlier reasoning without a saved title.' },
+						{ kind: 'markdownContent' as const, content: new MarkdownString('Earlier answer.') },
+					],
+				}],
+			};
+			const restored = createPersistentProgressRenderer({ initialData: { value: restoredData, serializer: new ChatSessionOperationLog() } });
+			restored.container.style.cssText = 'position:fixed;top:0;left:0;width:500px;height:300px;overflow:auto';
+			restored.instantiationService.stub(IChatThinkingTitleService, 'generateTitle', async () => {
+				requests.push('unexpected history backfill');
+				return 'Unexpected';
+			});
+			restored.renderer.renderElement(restored.node, 0, restored.template);
+			restored.renderer.setVisible(false);
+			restored.renderer.setVisible(true);
+			await timeout(400);
+			assert.deepStrictEqual({
+				requests, title,
+				restoredTitle: restored.template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent,
+			}, { requests: ['Considering the implementation.'], title: 'Reviewed the implementation', restoredTitle: 'Finished thinking' });
+		});
+
+		for (const values of [['First', 'Second'], ['', 'First', 'Second']]) {
+			test(`restored array reasoning preserves all text with the Finished thinking fallback (${JSON.stringify(values)})`, async () => {
+				const seed = createPersistentProgressRenderer();
+				seed.model.acceptResponseProgress(seed.request, { kind: 'markdownContent', content: new MarkdownString('Done') });
+				seed.request.response!.complete();
+				const serialized = seed.model.toJSON();
+				seed.disposables.dispose();
+				const value = {
+					...serialized,
+					requests: [{
+						...serialized.requests[0],
+						response: [{
+							kind: 'thinking' as const, id: 'timed-array', value: values, reasoningDurationMs: 1200,
+						}, ...(serialized.requests[0].response ?? [])],
+					}],
+				};
+				const { renderer, template, node } = createPersistentProgressRenderer({
+					persistentProgress: ChatProgressAnimation.Off,
+					thinkingStyle: ThinkingDisplayMode.Collapsed,
+					initialData: { value, serializer: new ChatSessionOperationLog() },
+				});
+				renderer.renderElement(node, 0, template);
+				const thinking = template.value.querySelector<HTMLElement>('.chat-thinking-box');
+				assert.ok(thinking);
+				const button = template.value.querySelector<HTMLElement>('.chat-thinking-box > .chat-used-context-label .monaco-button');
+				button?.click();
+				await Promise.all(thinking.getAnimations({ subtree: true }).map(animation => animation.finished));
+				const text = thinking.innerText;
+				assert.deepStrictEqual({
+					title: button?.textContent,
+					first: text?.includes('First'),
+					second: text?.includes('Second'),
+				}, { title: 'Finished thinking', first: true, second: true });
+			});
+		}
+
+		test('array reasoning keeps the Finished thinking fallback when timing arrives later', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+			const { disposables, model, request, renderer, template, node } = createPersistentProgressRenderer({
+				persistentProgress: ChatProgressAnimation.Off,
+				thinkingStyle: ThinkingDisplayMode.Collapsed,
+			});
+			try {
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Before') });
+				model.acceptResponseProgress(request, { kind: 'thinking', id: 'live-array', value: ['First', 'Second'] });
+				renderer.renderElement(node, 0, template);
+				await timeout(2500);
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Done') });
+				request.response!.complete();
+				renderer.renderElement(node, 0, template);
+				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Finished thinking');
+			} finally {
+				disposables.dispose();
+			}
+		}));
+
+		for (const sectionMarkers of [false, true]) {
+			test(`completed response bookkeeping checks active sections linearly (sectionMarkers=${sectionMarkers})`, () => {
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+				const sections = 120;
+				for (let index = 0; index < sections; index++) {
+					model.acceptResponseProgress(request, { kind: 'thinking', id: `reasoning-${index}`, value: `Reasoning ${index}` });
+					model.acceptResponseProgress(request, {
+						kind: 'toolInvocationSerialized', toolId: 'task', toolCallId: `subagent-${index}`,
+						source: ToolDataSource.Internal, isComplete: true,
+						invocationMessage: `Review ${index}`, pastTenseMessage: `Reviewed ${index}`,
+						isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+						originMessage: undefined, presentation: undefined,
+						toolSpecificData: { kind: 'subagent', description: `Review ${index}`, hasStarted: true, isActive: false },
+					});
+					if (sectionMarkers) {
+						model.acceptResponseProgress(request, { kind: 'thinking', value: '' });
+					}
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`Result ${index}`) });
+				}
+				request.response!.complete();
+				const thinkingChecks = sinon.spy(ChatThinkingContentPart.prototype, 'getIsActive');
+				const subagentChecks = sinon.spy(ChatSubagentContentPart.prototype, 'getIsActive');
+				renderer.renderElement(node, 0, template);
+				assert.deepStrictEqual({
+					thinkingChecksLinear: thinkingChecks.callCount <= sections * 20,
+					subagentChecksLinear: subagentChecks.callCount <= sections * 5,
+					completeContent: template.value.textContent?.includes(`Result ${sections - 1}`),
+					activeSections: template.renderedParts?.filter(part => part instanceof ChatThinkingContentPart || part instanceof ChatSubagentContentPart).filter(part => part.getIsActive()).length,
+				}, { thinkingChecksLinear: true, subagentChecksLinear: true, completeContent: true, activeSections: 0 });
+			});
+		}
+
+		for (const complete of [false, true]) {
+			test(`coalesces working progress updates from a burst of tool activity (complete=${complete})`, async () => {
+				let progressLookups = 0;
+				const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
+				const chatWidgetService = new class extends mock<IChatWidgetService>() {
+					override getWidgetBySessionResource() {
+						progressLookups++;
+						return undefined;
+					}
+				}();
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatWidgetService, backgroundShellCount });
+				for (let i = 0; i < 50; i++) {
+					model.acceptResponseProgress(request, new ChatToolInvocation(
+						{ invocationMessage: `Reading file ${i}` },
+						{ id: 'read_file', displayName: 'Read File', modelDescription: 'Read a file', source: ToolDataSource.Internal },
+						`read-${i}`, undefined, {},
+					));
+				}
+				if (complete) {
+					request.response!.complete();
+				}
+				renderer.renderElement(node, 0, template);
+				for (let i = 0; i < 50; i++) {
+					backgroundShellCount.set(i + 1, undefined);
+				}
+				progressLookups = 0;
+				await timeout(0);
+				assert.deepStrictEqual({ progressLookups, hasProgress: !!template.value.querySelector('.chat-working-progress') }, {
+					progressLookups: complete ? 0 : 1,
+					hasProgress: !complete,
+				});
+			});
+		}
+
+		test('drops queued progress work when the response template is recycled', async () => {
+			const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
+			let progressLookups = 0;
+			const chatWidgetService = new class extends mock<IChatWidgetService>() {
+				override getWidgetBySessionResource() {
+					progressLookups++;
+					return undefined;
+				}
+			}();
+			const { renderer, template, node } = createPersistentProgressRenderer({ chatWidgetService, backgroundShellCount });
+			renderer.renderElement(node, 0, template);
+			backgroundShellCount.set(1, undefined);
+			renderer.disposeElement(node, 0, template);
+			progressLookups = 0;
+			await timeout(0);
+			assert.strictEqual(progressLookups, 0);
+		});
+
 		for (const tail of ['subagents', 'completedSubagent', 'markdown', 'tool', 'runningTool', 'thinking']) {
 			test(`finishes sections and shows shimmer only after non-subagent content (${tail})`, async () => {
 				const context = createBackgroundSubagentRenderer();

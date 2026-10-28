@@ -31,7 +31,8 @@ import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js
 import { ChatSessionWorkingSetKeptChanges } from '../../../../browser/widget/input/chatSessionWorkingSet.js';
 import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IChatSessionFileChange2, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
@@ -190,6 +191,78 @@ suite('ChatInputPart', () => {
 		availabilityChanged.fire();
 		states.push(targetedModels.get());
 		assert.deepStrictEqual(states, [false, true, false, false]);
+	});
+
+	function createModelPoolInput(models: readonly ILanguageModelChatMetadataAndIdentifier[]) {
+		const sessionResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/session', fragment: 'peer' });
+		const revalidations: (string | undefined)[] = [];
+		const inputPart: ChatInputPart = Object.create(ChatInputPart.prototype);
+		Object.defineProperty(inputPart, 'currentModeKind', { value: ChatModeKind.Agent });
+		Object.assign(inputPart, {
+			location: ChatAgentLocation.Chat,
+			_inputModelSessionResource: sessionResource,
+			_widget: { viewModel: { model: { sessionResource } } },
+			_currentSessionTypeObservable: observableValue<string | undefined>('currentSessionType', 'agent-host-copilotcli'),
+			_modelSessionTypeOverride: observableValue<{ readonly resource: URI; readonly sessionType: string } | undefined>('override', undefined),
+			_modelSelectionController: { revalidateForSessionType: () => revalidations.push(inputPart.modelTargetSessionType) },
+			getAllMergedModels: () => [...models],
+			chatSessionsService: upcastPartial<IChatSessionsService>({ requiresCustomModelsForSessionType: () => true }),
+			languageModelsService: upcastPartial<ILanguageModelsService>({ isModelHidden: () => false }),
+		});
+		return { inputPart, revalidations };
+	}
+
+	function targetedModel(sessionType: string, id: string): ILanguageModelChatMetadataAndIdentifier {
+		return { identifier: `${sessionType}:${id}`, metadata: upcastPartial<ILanguageModelChatMetadata>({ id, name: id, targetChatSessionType: sessionType, isUserSelectable: true }) };
+	}
+
+	test('selects a chat\'s models from the session type it is answered by, never another one\'s', () => {
+		const copilot = targetedModel('agent-host-copilotcli', 'gpt');
+		const claude = targetedModel('agent-host-claude', 'claude-haiku');
+		const read = (input: ChatInputPart) => ({ target: input.modelTargetSessionType, models: (input as unknown as { getModels(): ILanguageModelChatMetadataAndIdentifier[] }).getModels().map(model => model.identifier) });
+
+		const withClaude = createModelPoolInput([copilot, claude]);
+		const sessionDefault = read(withClaude.inputPart);
+		withClaude.inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		const overridden = read(withClaude.inputPart);
+		withClaude.inputPart.setModelSessionTypeOverride(undefined);
+		const restored = read(withClaude.inputPart);
+
+		const emptyVendor = createModelPoolInput([copilot]);
+		emptyVendor.inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		const unresolved = createModelPoolInput([copilot, claude]);
+		unresolved.inputPart.setModelSessionTypeOverride({ sessionType: undefined });
+		const whileUnresolved = read(unresolved.inputPart);
+		unresolved.inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		const onceResolved = read(unresolved.inputPart);
+		const otherChat = createModelPoolInput([copilot, claude]);
+		otherChat.inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' }, URI.parse('agent-host-copilotcli:/session#incoming'));
+
+		assert.deepStrictEqual({ sessionDefault, overridden, restored, revalidations: withClaude.revalidations, emptyVendor: read(emptyVendor.inputPart), whileUnresolved, onceResolved, otherChat: { ...read(otherChat.inputPart), revalidations: otherChat.revalidations } }, {
+			sessionDefault: { target: 'agent-host-copilotcli', models: [copilot.identifier] },
+			overridden: { target: 'agent-host-claude', models: [claude.identifier] },
+			restored: { target: 'agent-host-copilotcli', models: [copilot.identifier] },
+			revalidations: ['agent-host-claude', 'agent-host-copilotcli'],
+			emptyVendor: { target: 'agent-host-claude', models: [] },
+			whileUnresolved: { target: 'agent-host-copilotcli', models: [] },
+			onceResolved: { target: 'agent-host-claude', models: [claude.identifier] },
+			// Set ahead for a chat that is not bound yet: the bound chat is not revalidated against it.
+			otherChat: { target: 'agent-host-copilotcli', models: [copilot.identifier], revalidations: [] },
+		});
+	});
+
+	test('replacing or dropping the bound chat\'s pool while switching away never revalidates it against another pool', () => {
+		const claude = targetedModel('agent-host-claude', 'claude-haiku');
+		const { inputPart, revalidations } = createModelPoolInput([targetedModel('agent-host-copilotcli', 'gpt'), claude]);
+		inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		const bound = revalidations.length;
+		inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-codex' }, URI.parse('agent-host-copilotcli:/session#incoming'), { revalidate: false });
+		inputPart.setModelSessionTypeOverride(undefined, undefined, { revalidate: false });
+		Object.assign(inputPart, { _widget: { viewModel: undefined } });
+		inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		inputPart.setModelSessionTypeOverride(undefined);
+
+		assert.deepStrictEqual({ bound, revalidations }, { bound: 1, revalidations: ['agent-host-claude'] });
 	});
 
 	test('lets a host that submits for itself decide whether its session options are valid', () => {

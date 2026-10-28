@@ -63,7 +63,6 @@ import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { getLabeledPickerResponsiveItems, hasSendableNewChatContent, IComposerRepositoryControls, INewChatComposerInputOptions, syncInputGitHubContextAttachments } from './newChatComposerInput.js';
 import { createSessionModelCommands, INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceInputDecorations } from './newChatVoice.js';
-import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { INewSessionComposer, INewSessionComposerPicker, INewSessionPromptOptionsController, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { NewSessionPromptOptionsPresenter } from './newSessionPromptOptions.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
@@ -435,9 +434,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			const inputVisible = this.options.inputVisible;
 			this._register(autorun(reader => bottomContainer.classList.toggle('hidden', !inputVisible.read(reader))));
 		}
-		const controlsContainer = dom.append(bottomContainer, dom.$('.new-chat-controls-container'));
-		let sessionControlsToolbar: MenuWorkbenchToolBar | undefined;
-
 		const secondaryControlsContainer = this._repositoryControlsHome = dom.append(bottomContainer, dom.$('.new-chat-secondary-controls-container'));
 		const repositoryControlsContainer = this._repositoryControlsContainer = dom.append(secondaryControlsContainer, dom.$('.new-chat-repo-config-container'));
 		this._register(dom.addDisposableListener(repositoryControlsContainer, dom.EventType.KEY_DOWN, event => this._navigateRepositionedRepositoryControls(event)));
@@ -477,13 +473,11 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}));
 		statusToolbar.context = { widget: this._widget } satisfies IChatExecuteActionContext;
 
-		const useExperimentalLayout = this.options.useExperimentalLayout ?? constObservable(false);
 		const updateVisibility = () => {
-			const sessionControlCount = sessionControlsToolbar?.getItemsLength() ?? 0;
 			const repositoryControlCount = repositoryControlsContainer.parentElement === secondaryControlsContainer
 				? (repositoryToolbar?.getItemsLength() ?? 0) + (hostRepositoryControls?.visible.get() ? 1 : 0)
 				: 0;
-			bottomContainer.classList.toggle('empty', sessionControlCount + repositoryControlCount + statusToolbar.getItemsLength() === 0);
+			bottomContainer.classList.toggle('empty', repositoryControlCount + statusToolbar.getItemsLength() === 0);
 		};
 		this._updateBottomContainerVisibility = updateVisibility;
 		if (repositoryToolbar) {
@@ -503,23 +497,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				bottomPickerResponsiveLayout.layout();
 			}));
 		}
-		this._register(autorun(reader => {
-			const experimental = useExperimentalLayout.read(reader);
-			bottomContainer.classList.toggle('standard-new-session-composer-layout', !experimental);
-			controlsContainer.classList.toggle('hidden', experimental);
-			// The experimental layout shows the session controls in the input toolbar instead.
-			if (!experimental) {
-				const sessionControlsContainer = dom.append(controlsContainer, dom.$('.sessions-chat-config-toolbar.new-chat-session-controls'));
-				const toolbar = sessionControlsToolbar = reader.store.add(createNewSessionControlToolbar(sessionControlsContainer, this._scopedInstantiationService, localize('sessionsSharedChatInput.sessionControlsRow', "Session controls"), this.pickerHoverDelegate));
-				reader.store.add(toolbar.onDidChangeMenuItems(updateVisibility));
-				reader.store.add(toDisposable(() => {
-					sessionControlsToolbar = undefined;
-					sessionControlsContainer.remove();
-				}));
-			}
-			updateVisibility();
-			bottomPickerResponsiveLayout.layout();
-		}));
+		updateVisibility();
+		bottomPickerResponsiveLayout.layout();
 	}
 
 	private _layoutWidget(): void {

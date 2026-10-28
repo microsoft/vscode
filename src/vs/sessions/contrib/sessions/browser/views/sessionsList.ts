@@ -61,7 +61,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -107,13 +107,13 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
-import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListMoveNotice, SessionsListSessionDrop } from './sessionsListChatMove.js';
+import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListMoveNotice, SessionsListSessionDrop } from './sessionsListChatMove.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { createSessionSummaryHover, getChatSummaryHoverData, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
+import { createSessionSummaryHover, getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -3162,6 +3162,8 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly reportExternalApplicationBadgeModeExperimentTrigger?: () => void;
 	readonly reportExternalApplicationBadgeShowFromExperimentTrigger?: () => void;
 	readonly getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
+	/** The harness label of a nested chat whose harness differs from its session's. */
+	readonly getChatHarnessLabel?: (session: ISession, chat: IChat, reader: IReader | undefined) => string | undefined;
 }
 
 class SessionsAccessibilityProvider {
@@ -3200,6 +3202,10 @@ class SessionsAccessibilityProvider {
 				const diffStats = chatStatus === SessionStatus.InProgress || chatStatus === SessionStatus.NeedsInput ? undefined : getChatListDiffStats(element.chat, reader);
 				if (diffStats) {
 					label = localize('sessionChatItemChangesAria', "{0}, {1} lines added, {2} lines removed", label, diffStats.insertions, diffStats.deletions);
+				}
+				const harnessLabel = this.options?.getChatHarnessLabel?.(element.session, element.chat, reader);
+				if (harnessLabel) {
+					label = localize('sessionChatItemHarnessAria', "{0}, uses harness {1}", label, harnessLabel);
 				}
 				const isArchived = element.chat.isArchived.read(reader);
 				const readLabel = !isArchived && !element.chat.isRead.read(reader)
@@ -3328,6 +3334,9 @@ class SessionsAccessibilityProvider {
 			if (eligible && badgeMode !== ExternalSessionApplicationBadgeMode.Off) {
 				this.options?.reportExternalApplicationBadgeShowFromExperimentTrigger?.();
 				label = localize('sessionItemExternalAria', "{0}, created in {1}", label, element.application.read(reader).label);
+			}
+			if (hasMixedChatHarnesses(element, reader)) {
+				label = localize('sessionItemMixedHarnessesAria', "{0}, chats use different harnesses", label);
 			}
 			if (!element.isArchived.read(reader) && !getSessionRowIsRead(element, reader, !!this.options?.deriveStatusFromMainChat)) {
 				label = localize('sessionItemUnreadAria', "{0}, unread", label);
@@ -3502,6 +3511,8 @@ interface ISessionsListDndDelegate {
 	getMovableDraggedChat(item: ISessionChatItem): { readonly session: ISession; readonly chat: IChat } | undefined;
 	/** Whether nested chat rows are shown in their session's chat order, so that a position among them is a position in that order. */
 	areChatPositionsShown(): boolean;
+	/** Whether chats may also move into sessions of other agents that offer their harness (see {@link isCrossAgentChatMoveEnabled}). */
+	isCrossAgentChatMoveEnabled(): boolean;
 	/** Whether the session can move under another session, when moving chats by drag and drop is on. */
 	canMoveSessionUnder(session: ISession): boolean;
 	/** Move the chat of `session` as the drop says. */
@@ -3748,7 +3759,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		} else if (targetElement && isSessionItem(targetElement)) {
 			target = { session: targetElement, chat: undefined, position: 'before' };
 		}
-		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target, this.delegate.areChatPositionsShown());
+		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target, this.delegate.areChatPositionsShown(), this.delegate.isCrossAgentChatMoveEnabled());
 		if (!drop) {
 			return undefined;
 		}
@@ -3803,7 +3814,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			isManuallyOrdered: () => this.delegate.isInManuallyOrderedSection(session),
 			isLastInSection: () => this.delegate.isLastRowOfSection(chatItem ?? session),
 			canPlace: position => !!this.resolveSessionDrop(sessions, session, undefined, position === 'before' ? ListViewTargetSector.TOP : ListViewTargetSector.BOTTOM),
-		}, this.delegate.areChatPositionsShown());
+		}, this.delegate.areChatPositionsShown(), this.delegate.isCrossAgentChatMoveEnabled());
 	}
 
 	private resolveSessionDrop(sessions: readonly ISession[], target: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
@@ -4657,6 +4668,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(sectionRenderer.automationStatus, {
 					grouping: this.options.grouping,
+					getChatHarnessLabel: (session, chat, reader) => getDistinctChatHarnessLabel(session, chat, sessionsProvidersService, reader),
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
 					getComparisonAttemptLabel: session => this.renderedComparisonAttemptLabels.get(session.sessionId),
@@ -4685,6 +4697,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					moveHeader: (header, drop) => this.moveHeader(header, drop),
 					getMovableDraggedChat: item => this.getMovableDraggedChat(item),
 					areChatPositionsShown: () => this.areChatPositionsShown(),
+					isCrossAgentChatMoveEnabled: () => isCrossAgentChatMoveEnabled(this.configurationService),
 					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
 					moveChat: (session, chat, drop) => this.moveChatByDrop(session, chat, drop),
 					moveSessionUnder: (session, target, after) => this.moveSessionUnderByDrop(session, target, after),
@@ -6724,7 +6737,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const positionsShown = this.areChatPositionsShown();
 		const target = positionsShown ? this.getAdjacentChatRow(item, direction) : undefined;
 		const movable = target && this.getMovableDraggedChat(item);
-		const drop = target && movable && getSessionsListChatDrop(movable.session, movable.chat, { session: target.session, chat: target.chat, position: direction === 'up' ? 'before' : 'after' }, positionsShown);
+		const drop = target && movable && getSessionsListChatDrop(movable.session, movable.chat, { session: target.session, chat: target.chat, position: direction === 'up' ? 'before' : 'after' }, positionsShown, isCrossAgentChatMoveEnabled(this.configurationService));
 		return movable && drop ? { session: movable.session, chat: movable.chat, drop } : undefined;
 	}
 
@@ -7578,7 +7591,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
-			[SessionItemHasMoveDestinationContext.key, getSessionMoveDestinations(element, this._sessionsManagementService.getSessions(), this._sessionsManagementService).length > 0],
+			[SessionItemHasMoveDestinationContext.key, getSessionMoveDestinations(element, this._sessionsManagementService.getSessions(), this._sessionsManagementService, isCrossAgentChatMoveEnabled(this.configurationService)).length > 0],
 			[SessionItemHasUnreadNestedSessionsContext.key, selectedSessions.some(session =>
 				!session.isArchived.get()
 				&& session.capabilities.get().supportsIndependentChatReadState === true
@@ -7671,7 +7684,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionChatItemCanMoveUpContext.key, this.getAdjacentChatMove(element, 'up') !== undefined],
 			[SessionChatItemCanMoveDownContext.key, this.getAdjacentChatMove(element, 'down') !== undefined],
 			[SessionChatItemCanMoveContext.key, this._sessionsManagementService.canMoveChat(element.session, element.chat)],
-			[SessionChatItemHasMoveDestinationContext.key, getChatMoveDestinations(element.session, element.chat, this._sessionsManagementService.getSessions(), this._sessionsManagementService).length > 0],
+			[SessionChatItemHasMoveDestinationContext.key, getChatMoveDestinations(element.session, element.chat, this._sessionsManagementService.getSessions(), this._sessionsManagementService, isCrossAgentChatMoveEnabled(this.configurationService)).length > 0],
 			[SessionProviderIdContext.key, element.session.providerId],
 		]);
 		const menu = this.menuService.createMenu(Menus.SessionChatItemContext, contextKeyService);

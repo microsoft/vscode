@@ -320,7 +320,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 				throw new Error(localize('remoteConnections.githubEnvironment.unavailable', "GitHub Environments are currently unavailable."));
 			}
 			if (backend === 'githubEnvironment' && this._configurationService.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) !== true) {
-				throw new Error(localize('remoteConnections.githubEnvironment.disabled', "GitHub Environments are disabled by your settings or organization policy."));
+				throw new Error(localize('remoteConnections.githubEnvironment.disabled', "GitHub Environments are disabled by your settings or your organization."));
 			}
 			if (backend === 'off') {
 				if (enabled) {

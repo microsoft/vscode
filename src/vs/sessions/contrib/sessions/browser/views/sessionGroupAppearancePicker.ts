@@ -56,6 +56,7 @@ export class SessionGroupAppearancePicker extends Disposable {
 			placeHolder: localize('selectGroupColor', "Select a color for the group"),
 			activeItem: items.find(item => item.id === currentColor),
 			matchOnDescription: true,
+			useNeutralSelection: true,
 		});
 		if (selected) {
 			setColor(selected.id);

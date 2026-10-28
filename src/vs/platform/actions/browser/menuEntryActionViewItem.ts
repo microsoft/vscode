@@ -498,7 +498,9 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 					this.update(action);
 				}
 			})
-			: this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
+			// Update before the action is awaited: long-running actions can change context and
+			// make toolbars dispose this item before `onDidRun` fires, losing the selection.
+			: this._dropdown.actionRunner.onWillRun((e: IRunEvent) => {
 				if (e.action instanceof MenuItemAction) {
 					this.update(e.action);
 				}

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { spy } from 'sinon';
 import { addDisposableListener, isActiveElement } from '../../../../base/browser/dom.js';
+import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { SubmenuAction, toAction } from '../../../../base/common/actions.js';
@@ -14,6 +15,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event as CommonEvent } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { IContextViewService } from '../../../contextview/browser/contextView.js';
@@ -1137,6 +1139,53 @@ suite('ActionListWidget', () => {
 			disabled: true,
 			title: 'Managed by your organization',
 		});
+	});
+
+	test('shows only the row hover for a standalone toggle row that has one', () => {
+		const switchHovers = new Map<HTMLElement, string | undefined>();
+		const previous = getBaseLayerHoverDelegate();
+		setBaseLayerHoverDelegate({
+			...previous,
+			setupDelayedHover: (target, options, lifecycleOptions) => {
+				if (target.classList.contains('monaco-switch')) {
+					const content = (typeof options === 'function' ? options() : options).content;
+					switchHovers.set(target, typeof content === 'string' ? content : undefined);
+				}
+				return previous.setupDelayedHover(target, options, lifecycleOptions);
+			},
+		});
+		disposables.add(toDisposable(() => setBaseLayerHoverDelegate(previous)));
+
+		const required = 'Sandboxing is required by your organization';
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{
+					...action('Locked'),
+					disabled: true,
+					hover: { content: required },
+					standaloneToggle: { label: 'Locked', title: required, checked: true, disabled: true, onChange: () => { } },
+				},
+				{
+					...action('Unlocked'),
+					standaloneToggle: { label: 'Unlocked', title: 'Run commands in a sandbox', checked: false, onChange: () => { } },
+				},
+				{
+					...action('Default'),
+					hover: { content: 'Copilot asks before running tools' },
+					inlineToggle: { label: 'Sandboxing for terminal', title: 'Managed by your organization', checked: true, disabled: true, onChange: () => { } },
+				},
+			],
+			listOptions: { showFilter: false },
+		});
+
+		assert.deepStrictEqual([...widget.domNode.querySelectorAll<HTMLElement>('.monaco-switch')].map(toggle => ({
+			ariaLabel: toggle.getAttribute('aria-label'),
+			switchHover: switchHovers.get(toggle),
+		})), [
+			{ ariaLabel: required, switchHover: undefined },
+			{ ariaLabel: 'Run commands in a sandbox', switchHover: 'Run commands in a sandbox' },
+			{ ariaLabel: 'Managed by your organization', switchHover: 'Managed by your organization' },
+		]);
 	});
 
 	test('renders an optional information icon after the standalone toggle label', () => {

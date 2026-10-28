@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -34,7 +35,7 @@ import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/r
 import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
 import { defaultAutoModeTier, getSupportedAutoModeTiers, isAutoAdvertisedAsFusion, isSupportedAutoModeTier, normalizeAutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
-import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
+import type { AgentCustomization, ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -61,7 +62,7 @@ import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemM
 import type { SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
-import { readAgentToolFullReferenceName } from '../../common/meta/agentToolDefinitionMeta.js';
+import { readAgentToolFullReferenceName, readAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
 export const CopilotReasoningEffortConfigKey = 'reasoningEffort';
@@ -176,6 +177,8 @@ type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<Sessi
 export interface ICopilotAppliedCustomizations {
 	readonly plugins: readonly ICopilotPluginInfo[];
 	readonly discoveredAgents: readonly IParsedAgent[];
+	/** SDK-native agents participate in selection, never in custom-agent registration. */
+	readonly nativeAgents?: readonly AgentCustomization[];
 	readonly additionalRootInstructions: readonly IParsedRule[];
 }
 
@@ -187,6 +190,7 @@ export interface IActiveClientSnapshot {
 	readonly tools: readonly ToolDefinition[];
 	readonly plugins: readonly ICopilotPluginInfo[];
 	readonly discoveredAgents: readonly IParsedAgent[];
+	readonly nativeAgents?: readonly AgentCustomization[];
 	/** Primary/home instructions load automatically; only secondary roots need forwarding (https://github.com/github/copilot-agent-runtime/issues/28228). */
 	readonly additionalRootInstructions: readonly IParsedRule[];
 	readonly mcpServers: AgentHostMcpServers;
@@ -223,6 +227,12 @@ export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizat
 	];
 }
 
+export function getCopilotAgentSelectionName(customizations: ICopilotAppliedCustomizations, uri: string): string | undefined {
+	const resource = URI.parse(uri);
+	return customizations.nativeAgents?.find(agent => isEqual(URI.parse(agent.uri), resource))?.id
+		?? getCopilotCustomAgents(customizations).find(agent => isEqual(agent.uri, resource))?.name;
+}
+
 /**
  * The set of client-tool names the agent sees for a snapshot — each tool's
  * `ToolDefinition.name` (the camelCase `toolReferenceName`). Gates prompt
@@ -231,6 +241,10 @@ export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizat
  */
 export function clientToolNamesFromSnapshot(snapshot: IActiveClientSnapshot): ReadonlySet<string> {
 	return new Set(snapshot.tools.map(tool => tool.name));
+}
+
+function trustedClientToolNames(tools: readonly ToolDefinition[]): ReadonlySet<string> {
+	return new Set(tools.filter(tool => readAgentToolOrigin(tool) !== 'mcpApp').map(tool => tool.name));
 }
 
 /**
@@ -422,6 +436,10 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 }
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
+
+function getNativeAgentSelection(plan: CopilotSessionLaunchPlan): AgentCustomization | undefined {
+	return plan.snapshot.nativeAgents?.find(agent => agent.id === plan.resolvedAgentName);
+}
 
 /** How the chat surface that created a chat's owning session scopes its runtime. */
 export type CopilotChatSurface = Pick<ICopilotSessionLaunchBase, 'hasScopedEditSurface' | 'isInlineChatSurface'>;
@@ -1114,7 +1132,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			const errCode = getCopilotSdkErrorCode(resumeError);
 			const errMsg = getErrorMessage(resumeError);
 			this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession failed: code=${errCode}, message=${errMsg}`);
-			if (plan.resolvedAgentName && isCustomAgentNotFoundError(resumeError)) {
+			if (plan.resolvedAgentName && !getNativeAgentSelection(plan) && isCustomAgentNotFoundError(resumeError)) {
 				fallbackPlan = { ...plan, resolvedAgentName: undefined };
 				fallbackConfig = { ...config, agent: undefined };
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
@@ -1199,7 +1217,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: omittedContextDefault ? undefined : getCopilotContextTier(model, plan.longContextWindow, plan.freeLongContext),
 			...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true)),
-			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			...(trustWorkingDirectory ? { trustWorkingDirectory } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		})));
@@ -1211,6 +1228,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		try {
 			// Avoid unpublished lazy-discovery events blocking native OTel: github/copilot-agent-runtime#27963.
 			await raw.rpc.agent.list();
+			const nativeAgent = getNativeAgentSelection(plan);
+			if (nativeAgent) {
+				await raw.rpc.agent.select({ name: nativeAgent.id });
+			}
 			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
 			await this._configureExecutionSubagentTool(raw, config);
@@ -1490,7 +1511,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
 		const resolveToolSearch = (names: ReadonlySet<string>): NonNullable<SessionConfig['toolSearch']> =>
 			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false };
-		const toolSearchActive = resolveToolSearch(filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools)).enabled === true;
+		const toolSearchActive = resolveToolSearch(filterClientToolNames(trustedClientToolNames(plan.snapshot.tools), availableTools, excludedTools)).enabled === true;
 		const serverTools = runtime.createServerSdkTools(toolSearchActive);
 		const extensionTools = createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService);
 		const hostToolNames = new Set([...shellTools, ...serverTools, ...extensionTools, ...computerUseTools].map(tool => tool.name));
@@ -1508,7 +1529,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const authoredCustomAgents = pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
 		const resolveToolConfiguration = (definitions: readonly ToolDefinition[], clientTools: readonly Tool[] = []): ICopilotResolvedClientToolConfiguration => {
 			const names = filterClientToolNames(new Set(definitions.map(tool => tool.name)), availableTools, excludedTools);
-			const toolSearch = resolveToolSearch(names);
+			const trustedNames = filterClientToolNames(trustedClientToolNames(definitions), availableTools, excludedTools);
+			const toolSearch = resolveToolSearch(trustedNames);
 			const promptOverrides = applyToolOverrides([...shellTools, ...clientTools, ...serverTools, ...extensionTools, ...computerUseTools]);
 			const promptContext: IAgentHostPromptContext = {
 				getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
@@ -1520,7 +1542,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				tools: promptOverrides.tools,
 				sessionConfig: {
 					toolSearch,
-					excludedTools: names.has(SEMANTIC_SEARCH_TOOL_NAME)
+					excludedTools: trustedNames.has(SEMANTIC_SEARCH_TOOL_NAME)
 						? configuredSdkExcludedTools
 						: [...new Set([...configuredSdkExcludedTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`])],
 					systemMessage: promptOverrides.systemPrompt !== undefined
@@ -1629,7 +1651,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
 			...toolConfiguration.sessionConfig,
-			agent: plan.resolvedAgentName,
+			agent: getNativeAgentSelection(plan) ? undefined : plan.resolvedAgentName,
 			skillDirectories,
 			instructionDirectories,
 			additionalDirectories,

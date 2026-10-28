@@ -85,6 +85,8 @@ import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from
 const $ = DOM.$;
 const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
 const OPEN_AUTOMATION_RUN_ON_GITHUB_COMMAND_ID = 'sessions.automations.openRunOnGitHub';
+const DELETE_AUTOMATION_HISTORY_COMMAND_ID = 'sessions.automations.deleteHistory';
+const RETRY_DELETE_AUTOMATION_HISTORY_COMMAND_ID = 'sessions.automations.retryDeleteHistory';
 const AutomationRunHasExternalResourceContext = new RawContextKey<boolean>('sessionsAutomationRunHasExternalResource', false);
 const AutomationRunCanStopContext = new RawContextKey<boolean>('sessionsAutomationRunCanStop', false);
 const AutomationRunStoppingContext = new RawContextKey<boolean>('sessionsAutomationRunStopping', false);
@@ -104,6 +106,8 @@ const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutom
 const AutomationCardCanUpdateContext = new RawContextKey<boolean>('sessionsAutomationCardCanUpdate', false);
 const AutomationCardHasExternalResourceContext = new RawContextKey<boolean>('sessionsAutomationCardHasExternalResource', false);
 const AutomationCardEnabledContext = new RawContextKey<boolean>('sessionsAutomationCardEnabled', false);
+const AutomationRunHistoryStateContext = new RawContextKey<string>('sessionsAutomationRunHistoryState', '');
+const AutomationRunCanDeleteHistoryContext = new RawContextKey<boolean>('sessionsAutomationRunCanDeleteHistory', false);
 const AutomationCardIsCloudContext = new RawContextKey<boolean>('sessionsAutomationCardIsCloud', false);
 const AutomationCardHasEventTriggerContext = new RawContextKey<boolean>('sessionsAutomationCardHasEventTrigger', false);
 
@@ -172,6 +176,11 @@ interface IAutomationHistoryGroup {
 	readonly temporaryRows: DisposableMap<string, IAutomationTemporaryRunRow>;
 	readonly sessionLists: DisposableMap<string, IAutomationHistorySessionList>;
 	readonly disposables: DisposableStore;
+}
+
+interface IAutomationHistoryOwnerRow extends IDisposable {
+	readonly element: HTMLElement;
+	update(run: IAutomationRun, name: string, state: 'retained' | 'deleting', canDelete: boolean): void;
 }
 
 interface IAutomationHistorySessionList extends IDisposable {
@@ -1436,9 +1445,11 @@ class AutomationRunSession implements ISession {
 class AutomationHistorySection extends Disposable {
 
 	private readonly container: HTMLElement;
+	private readonly ownersContainer: HTMLElement;
 	private readonly groupsContainer: HTMLElement;
 	private readonly headerDisposables = this._register(new DisposableStore());
 	private readonly persistentGroups = new Map<string, IAutomationHistoryGroup>();
+	private readonly persistentOwnerRows = this._register(new DisposableMap<string, IAutomationHistoryOwnerRow>());
 	private readonly runFocusTargets = new Map<string, { readonly list: SessionsFlatList; readonly container: HTMLElement; readonly session: ISession }>();
 	private readonly approvalModel: AgentSessionApprovalModel;
 	private renderedFocusableRunIds: string[] = [];
@@ -1477,6 +1488,7 @@ class AutomationHistorySection extends Disposable {
 		super();
 		this.chatModels = chatService.chatModels.map(models => [...models]);
 		this.container = DOM.append(parent, $('.automations-history'));
+		this.ownersContainer = DOM.append(this.container, $('.automations-history-owners'));
 		this.groupsContainer = DOM.append(this.container, $('.automations-history-groups'));
 		this.approvalModel = this._register(this.instantiationService.createInstance(AgentSessionApprovalModel));
 	}
@@ -1504,6 +1516,13 @@ class AutomationHistorySection extends Disposable {
 			|| isTemporaryAutomationRun(run)
 			|| (!!run.sessionResource && !!this.sessionsManagementService.getSession(run.sessionResource))
 		);
+		const historyOwners = new Map<string, IAutomationRun>();
+		for (const run of runs) {
+			if (this.automationService.getAutomationHistoryState?.(run.automationId) !== undefined && !historyOwners.has(run.automationId)) {
+				historyOwners.set(run.automationId, run);
+			}
+		}
+		this.updateHistoryOwners(historyOwners);
 		transaction(tx => {
 			this.currentRuns.set(sessionRuns, tx);
 			this.currentSessions.set(historySessions, tx);
@@ -1515,7 +1534,7 @@ class AutomationHistorySection extends Disposable {
 		this.runFocusTargets.clear();
 		this.renderedFocusableRunIds = [];
 
-		if (visibleRuns.length === 0) {
+		if (visibleRuns.length === 0 && historyOwners.size === 0) {
 			if (historyOwnedFocus) {
 				this.focusFallback.focus();
 			}
@@ -1588,7 +1607,7 @@ class AutomationHistorySection extends Disposable {
 		}
 		this.headerDisposables.clear();
 		this.headerRow = DOM.$('.automations-history-header');
-		this.container.insertBefore(this.headerRow, this.groupsContainer);
+		this.container.insertBefore(this.headerRow, this.ownersContainer);
 		const headerLabel = DOM.append(this.headerRow, $('span'));
 		headerLabel.textContent = localize('historyHeader', "History");
 
@@ -1651,6 +1670,65 @@ class AutomationHistorySection extends Disposable {
 		return entry;
 	}
 
+	private updateHistoryOwners(owners: ReadonlyMap<string, IAutomationRun>): void {
+		for (const id of this.persistentOwnerRows.keys()) {
+			if (!owners.has(id)) {
+				const row = this.persistentOwnerRows.get(id);
+				if (row && DOM.isAncestorOfActiveElement(row.element)) {
+					this.focusFallback.focus();
+				}
+				this.persistentOwnerRows.deleteAndDispose(id);
+			}
+		}
+		let index = 0;
+		for (const [id, run] of owners) {
+			const state = this.automationService.getAutomationHistoryState?.(id);
+			if (!state) {
+				continue;
+			}
+			let row = this.persistentOwnerRows.get(id);
+			if (!row) {
+				row = this.createHistoryOwnerRow(run);
+				this.persistentOwnerRows.set(id, row);
+			}
+			row.update(run, this.getAutomationName(run), state, this.automationService.canDeleteAutomationHistory?.(id) === true);
+			const current = this.ownersContainer.children.item(index++);
+			if (current !== row.element) {
+				this.ownersContainer.insertBefore(row.element, current);
+			}
+		}
+	}
+
+	private createHistoryOwnerRow(initialRun: IAutomationRun): IAutomationHistoryOwnerRow {
+		let run = initialRun;
+		const disposables = new DisposableStore();
+		const element = DOM.append(this.ownersContainer, $('.automations-history-owner.session-item', { role: 'group' }));
+		const main = DOM.append(element, $('.session-main'));
+		const title = DOM.append(main, $('span.session-title'));
+		const description = DOM.append(main, $('span.session-description'));
+		const actions = DOM.append(element, $('.automations-run-actions'));
+		const button = disposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+		disposables.add(button.onDidClick(() => void this.confirmAndDeleteHistory(run)));
+		return {
+			element,
+			update: (nextRun, name, state, canDelete) => {
+				run = nextRun;
+				title.textContent = name;
+				const retrying = state === 'deleting';
+				description.textContent = retrying
+					? localize('automationHistoryDeletionInterrupted', "Run history deletion was interrupted.")
+					: localize('automationHistoryRetained', "Run history is retained.");
+				button.label = retrying ? localize('retryDeleteHistory', "Retry Delete Run History") : localize('deleteHistory', "Delete Run History");
+				button.enabled = canDelete;
+				element.setAttribute('aria-label', localize('automationHistoryOwnerState', "{0}, {1}", name, description.textContent));
+			},
+			dispose: () => {
+				disposables.dispose();
+				element.remove();
+			},
+		};
+	}
+
 	private createSessionList(container: HTMLElement): IAutomationHistorySessionList {
 		const disposables = new DisposableStore();
 		const listContainer = DOM.append(container, $('.automations-run-session-list'));
@@ -1676,6 +1754,8 @@ class AutomationHistorySection extends Disposable {
 					[AutomationRunCanStopContext.key, run?.externalResource !== undefined && this.automationService.canStopRun?.(run) === true],
 					[AutomationRunStoppingContext.key, run !== undefined && this.stoppingRuns.read(reader).has(run.id)],
 					[AutomationRunCanArchiveContext.key, !run?.externalResource || canArchiveAutomationSession(session, reader)],
+					[AutomationRunHistoryStateContext.key, run ? this.automationService.getAutomationHistoryState?.(run.automationId) ?? '' : ''],
+					[AutomationRunCanDeleteHistoryContext.key, run ? this.automationService.canDeleteAutomationHistory?.(run.automationId) === true : false],
 				];
 			},
 		}));
@@ -1968,13 +2048,43 @@ class AutomationHistorySection extends Disposable {
 				}
 				await this.sessionsManagementService.archiveSession(session);
 				return true;
+			case DELETE_AUTOMATION_HISTORY_COMMAND_ID:
+			case RETRY_DELETE_AUTOMATION_HISTORY_COMMAND_ID:
+				await this.confirmAndDeleteHistory(run);
+				return true;
 			default:
 				return false;
 		}
 	}
 
+	private async confirmAndDeleteHistory(run: IAutomationRun): Promise<void> {
+		const name = this.getAutomationName(run);
+		const retrying = this.automationService.getAutomationHistoryState?.(run.automationId) === 'deleting';
+		const confirmed = await this.dialogService.confirm({
+			message: retrying
+				? localize('confirmRetryDeleteAutomationHistory', "Retry deleting run history for \"{0}\"?", name)
+				: localize('confirmDeleteRetainedAutomationHistory', "Delete run history for \"{0}\"?", name),
+			detail: localize('confirmDeleteRetainedAutomationHistoryDetail', "This permanently deletes every retained run for this automation."),
+			primaryButton: retrying ? localize('retryDelete', "Retry Delete") : localize('delete', "Delete"),
+		});
+		if (!confirmed.confirmed) {
+			return;
+		}
+		try {
+			if (!this.automationService.deleteAutomationHistory) {
+				throw new Error(localize('automationHistoryDeleteUnsupported', "This Automation provider does not support deleting retained run history."));
+			}
+			await this.automationService.deleteAutomationHistory(run.automationId);
+			status(localize('automationHistoryDeletedStatus', "Deleted run history for {0}", name));
+		} catch (error) {
+			this.logService.error('[AutomationsCards] Failed to delete retained Automation history', error);
+			await this.dialogService.error(localize('automationHistoryDeleteFailed', "Failed to delete run history."), getErrorMessage(error));
+		}
+	}
+
 	private getAutomationName(run: IAutomationRun): string {
 		return this.automationService.automations.get().find(automation => automation.id === run.automationId)?.name
+			?? this.automationService.getAutomationHistoryName?.(run.automationId)
 			?? localize('unknownAutomation', "Unknown");
 	}
 
@@ -2353,10 +2463,14 @@ async function confirmAndDeleteAutomation(
 		await showAutomationsDisabled(dialogService);
 		return;
 	}
+	const supportsHistoryChoice = automationService.supportsDeleteHistoryChoice?.(automation.id) === true;
 	const confirmed = await dialogService.confirm({
 		message: localize('confirmDeleteAutomation', "Delete automation \"{0}\"?", automation.name),
-		detail: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history."),
+		detail: supportsHistoryChoice
+			? localize('confirmDeleteHistoryChoice', "This will permanently delete the automation. Clear the checkbox to keep its run history.")
+			: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history."),
 		primaryButton: localize('delete', "Delete"),
+		...(supportsHistoryChoice ? { checkbox: { label: localize('deleteAutomationHistory', "Delete Run History"), checked: true } } : {}),
 	});
 	if (!confirmed.confirmed) {
 		return;
@@ -2370,7 +2484,7 @@ async function confirmAndDeleteAutomation(
 			if (!isEnabled()) {
 				throw new Error(localize('automationsDisabledBeforeDelete', "Automations were disabled before the automation could be deleted."));
 			}
-		});
+		}, supportsHistoryChoice ? { deleteHistory: confirmed.checkboxChecked !== false } : undefined);
 		status(localize('automationDeletedStatus', "Deleted automation {0}", automation.name));
 	} catch (error) {
 		logService.error('[AutomationsCards] Failed to delete automation', error);
@@ -2567,6 +2681,26 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 			group: '1_state',
 			order: 2,
 			when: SessionIsArchivedContext,
+		}),
+		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+			command: {
+				id: DELETE_AUTOMATION_HISTORY_COMMAND_ID,
+				title: localize('deleteRetainedAutomationHistoryAction', "Delete Run History..."),
+				precondition: AutomationRunCanDeleteHistoryContext,
+			},
+			group: '2_delete',
+			order: 1,
+			when: AutomationRunHistoryStateContext.isEqualTo('retained'),
+		}),
+		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
+			command: {
+				id: RETRY_DELETE_AUTOMATION_HISTORY_COMMAND_ID,
+				title: localize('retryDeleteRetainedAutomationHistoryAction', "Retry Delete Run History..."),
+				precondition: AutomationRunCanDeleteHistoryContext,
+			},
+			group: '2_delete',
+			order: 1,
+			when: AutomationRunHistoryStateContext.isEqualTo('deleting'),
 		}),
 	);
 }

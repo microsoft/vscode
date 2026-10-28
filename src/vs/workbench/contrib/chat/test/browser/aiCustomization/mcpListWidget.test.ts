@@ -1341,7 +1341,7 @@ suite('mcpListWidget', () => {
 		}, {
 			accessEnabled: false,
 			disabledClass: true,
-			message: 'Access to MCP servers is disabled by your organization. Contact your organization administrator for more information.',
+			message: 'Access to MCP servers is disabled by your organization. Contact your administrator for more information.',
 		});
 	});
 
