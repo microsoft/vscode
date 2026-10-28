@@ -153,12 +153,13 @@ registerAction2(class SelectSessionsProjectAction extends Action2 {
 			return [
 				{
 					label: `$(${Codicon.listFlat.id}) ${localize('allProjects', "All Projects")}`,
+					ariaLabel: selected ? localize('allProjects.aria', "All Projects") : localize('allProjects.selectedAria', "All Projects, selected"),
 					description: selected ? undefined : localize('allProjects.selected', "(Selected)"),
 				},
 				...(saved.length ? [{ type: 'separator' as const, label: localize('savedProjects', "Saved") }, ...saved.map(projectItem)] : []),
 				...(others.length ? [{ type: 'separator' as const, label: localize('otherProjects', "From Sessions") }, ...others.map(projectItem)] : []),
 				{ type: 'separator' },
-				{ label: `$(${Codicon.add.id}) ${localize('addProject', "Add Project...")}`, isAddProject: true },
+				{ label: `$(${Codicon.add.id}) ${localize('addProject', "Add Project...")}`, ariaLabel: localize('addProject.aria', "Add Project..."), isAddProject: true },
 			];
 		};
 
@@ -166,12 +167,25 @@ registerAction2(class SelectSessionsProjectAction extends Action2 {
 		const picker = disposables.add(quickInputService.createQuickPick<IProjectPickItem>({ useSeparators: true }));
 		picker.placeholder = localize('selectProject.placeholder', "Select a project to show its sessions");
 		picker.matchOnDescription = true;
-		picker.items = createItems();
-		const selectedKey = projectsService.selectedProject.get()?.key;
-		const active = picker.items.find((item): item is IProjectPickItem => item.type !== 'separator' && (selectedKey ? item.project?.key === selectedKey : !item.project && !item.isAddProject));
-		if (active) {
-			picker.activeItems = [active];
-		}
+		const itemId = (item: IProjectPickItem | undefined) => item?.isAddProject ? 'add' : item?.project?.key ?? 'all';
+		let activeId = projectsService.selectedProject.get()?.key ?? 'all';
+		disposables.add(picker.onDidChangeActive(([item]) => {
+			if (item) {
+				activeId = itemId(item);
+			}
+		}));
+		// Projects refine as lazily resolved repository metadata arrives; keep the active row across updates.
+		disposables.add(autorun(reader => {
+			projectsService.projects.read(reader);
+			projectsService.selectedProject.read(reader);
+			const id = activeId;
+			picker.items = createItems();
+			const active = picker.items.find((item): item is IProjectPickItem => item.type !== 'separator' && itemId(item) === id);
+			if (active) {
+				picker.activeItems = [active];
+			}
+		}));
+		projectsService.resolveRepositories();
 
 		disposables.add(picker.onDidTriggerItemButton(({ item, button }) => {
 			const project = item.project;
@@ -184,11 +198,9 @@ registerAction2(class SelectSessionsProjectAction extends Action2 {
 				void instantiationService.invokeFunction(openNewSessionInProject, project);
 			} else if (button === saveButton) {
 				projectsService.saveProject(project);
-				picker.items = createItems();
 				status(localize('projectSaved', "Saved project {0}.", project.label));
 			} else if (button === removeButton) {
 				projectsService.removeSavedProject(project);
-				picker.items = createItems();
 				status(localize('projectRemoved', "Removed {0} from saved projects.", project.label));
 			}
 		}));

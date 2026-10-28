@@ -42,6 +42,8 @@ suite('SessionProject', () => {
 			cloudPending: keyOf(folder(URI.parse('https://github.com/microsoft/vscode'))),
 			nonGitHubRepository: keyOf(folder(URI.file('/src/tool'), { uri: URI.file('/src/tool') })),
 			nonGitHubWorktree: keyOf(folder(URI.file('/src/tool.worktrees/a'), { uri: URI.file('/src/tool'), workTreeUri: URI.file('/src/tool.worktrees/a') })),
+			worktreeReportingItselfAsRepository: keyOf(folder(URI.file('/src/tool.worktrees/b'), { uri: URI.file('/src/tool.worktrees/b') })),
+			folderOutsideItsPendingWorktree: keyOf(folder(repo, { uri: repo, workTreeUri: URI.file('/src/vscode.worktrees/pending'), owner: 'microsoft', repo: 'vscode' })),
 			plainFolder: keyOf(folder(URI.file('/notes'))),
 		}, {
 			checkout: 'github:microsoft/vscode',
@@ -53,22 +55,26 @@ suite('SessionProject', () => {
 			cloudPending: 'github:microsoft/vscode',
 			nonGitHubRepository: 'git:file:///src/tool',
 			nonGitHubWorktree: 'git:file:///src/tool',
+			worktreeReportingItselfAsRepository: 'git:file:///src/tool',
+			folderOutsideItsPendingWorktree: 'github:microsoft/vscode',
 			plainFolder: 'folder:file:///notes',
 		});
 	});
 
 	test('names a subfolder project with its relative directory', () => {
-		assert.deepStrictEqual(getSessionProjectIdentity({
+		const identity = getSessionProjectIdentity({
 			root: URI.file('/src/vscode/extensions/git'),
 			name: 'git',
 			gitHubRepository: { owner: 'microsoft', repo: 'vscode' },
 			repositoryUri: URI.file('/src/vscode'),
-		}), {
+		});
+		assert.deepStrictEqual({ ...identity, repositoryUri: identity.repositoryUri?.toString() }, {
 			key: 'github:microsoft/vscode/extensions/git',
 			kind: 'repository',
 			label: 'vscode/extensions/git',
 			gitHubRepository: { owner: 'microsoft', repo: 'vscode' },
 			relativePath: 'extensions/git',
+			repositoryUri: 'file:///src/vscode',
 		});
 	});
 });

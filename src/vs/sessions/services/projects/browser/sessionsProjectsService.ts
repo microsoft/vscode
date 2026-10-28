@@ -132,6 +132,15 @@ export class SessionsProjectsService extends Disposable implements ISessionsProj
 		this._save(project, project.locations[0]);
 	}
 
+	resolveRepositories(): void {
+		for (const session of this._sessionsManagementService.getSessions()) {
+			const git = session.workspace.get()?.folders[0]?.gitRepository;
+			if (git && !git.gitHubInfo.get()) {
+				git.resolveGitHubInfo?.();
+			}
+		}
+	}
+
 	removeSavedProject(project: ISessionProject): void {
 		const keys = new Set([project.key, ...project.aliases]);
 		const saved = this._saved.get();
@@ -174,6 +183,26 @@ export class SessionsProjectsService extends Disposable implements ISessionsProj
 			}
 			project.sessionCount++;
 			addLocation(project, { folderUri: folder.root, providerId: session.providerId });
+		}
+
+		// A checkout without GitHub metadata yet, such as a worktree whose remote is still
+		// resolving, joins the GitHub project checked out at the same repository.
+		for (const [key, project] of byKey) {
+			const repositoryUri = project.identity.repositoryUri;
+			if (project.identity.gitHubRepository || !repositoryUri) {
+				continue;
+			}
+			const target = [...byKey.values()].find(candidate => candidate.identity.gitHubRepository
+				&& candidate.identity.relativePath === project.identity.relativePath
+				&& ((candidate.identity.repositoryUri && isEqual(candidate.identity.repositoryUri, repositoryUri)) || candidate.locations.some(location => isEqual(location.folderUri, repositoryUri))));
+			if (target) {
+				target.sessionCount += project.sessionCount;
+				target.aliases.push(key);
+				for (const location of project.locations) {
+					addLocation(target, location);
+				}
+				byKey.delete(key);
+			}
 		}
 
 		const savedProjects: IProjectBuilder[] = [];

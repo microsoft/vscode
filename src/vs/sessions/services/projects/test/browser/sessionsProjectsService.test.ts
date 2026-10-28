@@ -25,13 +25,13 @@ import { ISessionProject } from '../../common/sessionsProjects.js';
 const SCHEME = 'vscode-tests';
 const uri = (path: string) => URI.from({ scheme: SCHEME, path });
 
-function workspace(root: URI, gitHub?: { readonly owner: string; readonly repo: string }): ISessionWorkspace {
+function workspace(root: URI, gitHub?: { readonly owner: string; readonly repo: string }, gitUri?: URI): ISessionWorkspace {
 	const folder: ISessionFolder = {
 		root,
 		workingDirectory: root,
 		name: root.path.split('/').pop() ?? '',
 		description: undefined,
-		gitRepository: gitHub && { uri: root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(gitHub) },
+		gitRepository: (gitHub || gitUri) ? { uri: gitUri ?? root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(gitHub) } : undefined,
 	};
 	return { uri: root, label: folder.name, icon: Codicon.folder, folders: [folder], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
 }
@@ -131,6 +131,20 @@ suite('SessionsProjectsService', () => {
 			project: { key: 'github:microsoft/vscode/extensions/git', label: 'vscode/extensions/git', isSaved: true },
 			rootSessionInSubfolderProject: false,
 			keys: ['github:microsoft/vscode/extensions/git', 'github:microsoft/vscode'],
+		});
+	});
+
+	test('a worktree without GitHub metadata joins the GitHub project of its repository', () => {
+		const worktree = uri('/src/vscode.worktrees/feature');
+		const worktreeSession = new TestSession('local:2', 'local', workspace(worktree, undefined, worktree), 2);
+		const { service } = createService([
+			new TestSession('local:1', 'local', workspace(uri('/src/vscode'), { owner: 'microsoft', repo: 'vscode' }), 1),
+			worktreeSession,
+		]);
+		const [project] = service.projects.get();
+		assert.deepStrictEqual({ projects: snapshot(service), worktreeSessionInProject: service.isSessionInProject(worktreeSession, project) }, {
+			projects: [{ key: 'github:microsoft/vscode', label: 'vscode', isSaved: false, sessions: 2, aliases: [`git:${uri('/src/vscode').toString()}`], locations: ['local:/src/vscode', 'local:/src/vscode.worktrees/feature'] }],
+			worktreeSessionInProject: true,
 		});
 	});
 

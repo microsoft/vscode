@@ -71,6 +71,12 @@ export interface ISessionsProjectsService {
 	/** Saves a project so it remains listed without sessions. */
 	saveProject(project: ISessionProject): void;
 
+	/**
+	 * Starts resolving repository metadata that sessions expose lazily, so their
+	 * projects converge as it arrives. Call when projects are about to be shown.
+	 */
+	resolveRepositories(): void;
+
 	/** Forgets a saved project. It stays listed while it has sessions. */
 	removeSavedProject(project: ISessionProject): void;
 }
