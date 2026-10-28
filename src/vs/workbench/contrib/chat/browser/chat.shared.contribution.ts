@@ -690,6 +690,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agent.collapseCompletedResponses', "Controls whether completed chat responses collapse intermediate work while keeping the final response visible."),
 			default: true,
 		},
+		[ChatConfiguration.WindowedResponseRendering]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.windowedResponseRendering.enabled', "Controls whether very long chat responses render their most recent content first and render older content as it scrolls into view."),
+			default: true,
+			tags: ['experimental'],
+		},
 		'chat.detectParticipant.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),

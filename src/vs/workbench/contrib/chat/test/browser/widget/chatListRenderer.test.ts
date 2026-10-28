@@ -69,6 +69,7 @@ import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToI
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
+import { ChatDeferredContentPart } from '../../../browser/widget/chatDeferredResponseRendering.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
@@ -2240,6 +2241,211 @@ suite('ChatListRenderer', () => {
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
 		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node };
 	}
+
+	suite('windowed response rendering', () => {
+		type Setup = ReturnType<typeof createPersistentProgressRenderer>;
+
+		const completedTool = (toolCallId: string, data?: Partial<IChatToolInvocationSerialized>): IChatToolInvocationSerialized => ({
+			kind: 'toolInvocationSerialized',
+			toolCallId,
+			toolId: 'test_tool',
+			source: ToolDataSource.Internal,
+			invocationMessage: `Running ${toolCallId}`,
+			originMessage: undefined,
+			pastTenseMessage: `Ran ${toolCallId}`,
+			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			isComplete: true,
+			presentation: undefined,
+			toolSpecificData: undefined,
+			...data,
+		});
+
+		/**
+		 * Adds steps of reasoning, a tool call and answer text. Each step ends at a boundary unless `hasAnswer` says
+		 * otherwise, in which case its group continues into the next step.
+		 */
+		function addSteps({ model, request }: Setup, count: number, insertAfterStep?: (step: number) => void, hasAnswer = (_step: number) => true): void {
+			for (let step = 0; step < count; step++) {
+				model.acceptResponseProgress(request, { kind: 'thinking', value: `Reasoning about step ${step}` });
+				model.acceptResponseProgress(request, completedTool(`tool-${step}`));
+				if (hasAnswer(step)) {
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`Step ${step}`) });
+				}
+				insertAfterStep?.(step);
+			}
+		}
+
+		function createWindowedRenderer(options: Parameters<typeof createPersistentProgressRenderer>[0] = {}, windowed = true): Setup {
+			const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, ...options });
+			setup.configurationService.setUserConfiguration(ChatConfiguration.WindowedResponseRendering, windowed);
+			setup.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+			setup.configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+			return setup;
+		}
+
+		const renderedSteps = (root: HTMLElement) => Array.from(root.querySelectorAll('.chat-markdown-part'), part => part.textContent?.trim() ?? '').filter(text => /^Step \d+$/.test(text));
+
+		function describeDeferredRendering({ template }: Setup) {
+			return {
+				deferred: template.deferredRendering ? { start: template.deferredRendering.start, end: template.deferredRendering.end } : undefined,
+				placeholders: template.value.querySelectorAll('.chat-deferred-content-part').length,
+				gap: template.value.querySelector('.chat-deferred-content-gap')?.textContent,
+				steps: renderedSteps(template.value).join(', '),
+			};
+		}
+
+		/** Renders the deferred parts one chunk at a time, alternating between the newest and the oldest ones. */
+		function renderAllDeferredParts({ renderer, response, template }: Setup): number {
+			let chunks = 0;
+			for (; template.deferredRendering && chunks < 100; chunks++) {
+				const state = template.deferredRendering;
+				renderer.renderDeferredContentPart(response, chunks % 2 ? state.start : state.end - 1);
+			}
+			return chunks;
+		}
+
+		test('renders only the newest parts of a long response and older parts on demand', () => {
+			const short = createWindowedRenderer();
+			addSteps(short, 50);
+			short.renderer.renderElement(short.node, 0, short.template);
+			const long = createWindowedRenderer();
+			addSteps(long, 80);
+			long.renderer.renderElement(long.node, 0, long.template);
+			const initial = describeDeferredRendering(long);
+			long.renderer.renderDeferredContentPart(long.response, long.template.deferredRendering!.end - 1);
+			const newer = describeDeferredRendering(long);
+			long.renderer.renderDeferredContentPart(long.response, 0);
+			const older = describeDeferredRendering(long);
+
+			const steps = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, index) => `Step ${from + index}`).join(', ');
+			assert.deepStrictEqual({ short: describeDeferredRendering(short).deferred, initial, newer, older }, {
+				short: undefined,
+				// The range ends at the answer text of a step, so the next step starts a group as in a full render.
+				initial: { deferred: { start: 0, end: 201 }, placeholders: 201, gap: 'Show 201 Earlier Items', steps: steps(66, 79) },
+				newer: { deferred: { start: 0, end: 159 }, placeholders: 159, gap: 'Show 159 Earlier Items', steps: steps(52, 79) },
+				older: { deferred: { start: 42, end: 159 }, placeholders: 117, gap: 'Show 117 Earlier Items', steps: `${steps(0, 12)}, ${steps(52, 79)}` },
+			});
+			short.disposables.dispose();
+			long.disposables.dispose();
+		});
+
+		test('keeps a subagent group together', () => {
+			const setup = createWindowedRenderer();
+			const subagent = completedTool('subagent', { toolId: 'task', toolSpecificData: { kind: 'subagent', description: 'Investigate', isActive: false } });
+			addSteps(setup, 80, step => {
+				if (step === 60) {
+					setup.model.acceptResponseProgress(setup.request, subagent);
+				} else if (step === 70) {
+					setup.model.acceptResponseProgress(setup.request, completedTool('subagent-child', { subAgentInvocationId: 'subagent' }));
+				}
+			});
+			setup.renderer.renderElement(setup.node, 0, setup.template);
+			const content = setup.template.renderedContent ?? [];
+			const end = setup.template.deferredRendering?.end ?? -1;
+			const boundary = content[end];
+			assert.deepStrictEqual({
+				boundary: boundary?.kind === 'markdownContent' ? boundary.content.value : boundary?.kind,
+				subagentRendered: !(setup.template.renderedParts?.[content.indexOf(subagent)] instanceof ChatDeferredContentPart),
+			}, {
+				boundary: 'Step 60',
+				subagentRendered: true,
+			});
+			setup.disposables.dispose();
+		});
+
+		for (const { name, options } of [
+			{ name: 'verbose', options: {} },
+			{ name: 'compact', options: { progressVerbosity: ChatProgressVerbosity.Compact } },
+			{ name: 'conversation', options: { progressVerbosity: ChatProgressVerbosity.Conversation } },
+			{ name: 'tools in thinking', options: { collapsedTools: CollapsedToolsDisplayMode.Always } },
+			{ name: 'without persistent progress', options: { persistentProgress: ChatProgressAnimation.Off } },
+		]) {
+			for (const complete of [false, true]) {
+				test(`renders the same transcript as a full render once every part is rendered (${name}, complete=${complete})`, async () => {
+					const render = async (windowed: boolean) => {
+						const setup = createWindowedRenderer(options, windowed);
+						// Groups that span steps make chunk edges observable.
+						addSteps(setup, 100, undefined, step => step % 3 === 2);
+						if (complete) {
+							setup.request.response?.complete();
+						}
+						setup.renderer.renderElement(setup.node, 0, setup.template);
+						const deferred = setup.template.deferredRendering?.count ?? 0;
+						const chunks = renderAllDeferredParts(setup);
+						await timeout(0);
+						// Reasoning durations come from when each model accepted its parts, so they are not compared.
+						const transcript = Array.from(setup.template.value.children, child => `${child.classList[0]}: ${child.textContent?.replace(/\s+/g, ' ').replace(/ - \d+s\b/g, '').trim()}`);
+						setup.disposables.dispose();
+						return { deferred: deferred > 0, rendersInChunks: chunks > 1, transcript };
+					};
+					const full = await render(false);
+					const windowed = await render(true);
+					assert.deepStrictEqual({ full, windowed }, {
+						full: { deferred: false, rendersInChunks: false, transcript: full.transcript },
+						windowed: { deferred: true, rendersInChunks: true, transcript: full.transcript },
+					});
+				});
+			}
+		}
+
+		test('renders the collapsed steps of a completed response only once they are shown', () => {
+			const setup = createWindowedRenderer();
+			setup.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+			addSteps(setup, 80);
+			setup.request.response?.complete();
+			setup.renderer.renderElement(setup.node, 0, setup.template);
+			const disclosure = setup.template.completedResponseDisclosure;
+			const describe = () => ({
+				...describeDeferredRendering(setup),
+				label: disclosure?.querySelector('.completed-response-summary')?.textContent,
+				sameDisclosure: setup.template.completedResponseDisclosure === disclosure,
+				open: disclosure?.open,
+				placeholdersInside: disclosure?.querySelectorAll('.chat-deferred-content-part').length,
+				visibleSteps: renderedSteps(setup.template.value).filter(step => !disclosure?.contains(Array.from(setup.template.value.querySelectorAll('.chat-markdown-part')).find(part => part.textContent?.trim() === step) ?? null)).join(', '),
+			});
+			const collapsed = describe();
+			disclosure!.open = true;
+			setup.renderer.renderDeferredContentPart(setup.response, setup.template.deferredRendering!.start);
+			const opened = describe();
+			renderAllDeferredParts(setup);
+			const counted = setup.template.completedResponseDisclosure?.querySelector('.completed-response-summary')?.textContent;
+
+			assert.deepStrictEqual({ collapsed, opened, counted: /^Completed \d+ steps/.test(counted ?? '') }, {
+				collapsed: {
+					deferred: { start: 0, end: 240 }, placeholders: 240, gap: 'Show 240 Earlier Items', steps: 'Step 79',
+					label: 'Completed', sameDisclosure: true, open: false, placeholdersInside: 240, visibleSteps: 'Step 79',
+				},
+				opened: {
+					deferred: { start: 42, end: 240 }, placeholders: 198, gap: 'Show 198 Earlier Items', steps: `${Array.from({ length: 13 }, (_, index) => `Step ${index}`).join(', ')}, Step 79`,
+					label: 'Completed', sameDisclosure: true, open: true, placeholdersInside: 198, visibleSteps: 'Step 79',
+				},
+				counted: true,
+			});
+			setup.disposables.dispose();
+		});
+
+		test('renders every part once windowed rendering is turned off', () => {
+			const activeGroups = ({ template }: Setup) => template.renderedParts?.filter(part => part instanceof ChatThinkingContentPart && part.getIsActive()).length;
+			// Groups that span steps leave a group open at the end of the deferred range.
+			const add = (setup: Setup) => addSteps(setup, 100, undefined, step => step % 3 === 2);
+			const full = createWindowedRenderer({}, false);
+			add(full);
+			full.renderer.renderElement(full.node, 0, full.template);
+			const setup = createWindowedRenderer();
+			add(setup);
+			setup.renderer.renderElement(setup.node, 0, setup.template);
+			const before = describeDeferredRendering(setup).placeholders > 0;
+			setup.configurationService.setUserConfiguration(ChatConfiguration.WindowedResponseRendering, false);
+			setup.renderer.renderElement(setup.node, 0, setup.template);
+			assert.deepStrictEqual({ before, after: describeDeferredRendering(setup), activeGroups: activeGroups(setup) }, {
+				before: true,
+				after: { deferred: undefined, placeholders: 0, gap: undefined, steps: renderedSteps(full.template.value).join(', ') },
+				activeGroups: activeGroups(full),
+			});
+			full.disposables.dispose();
+			setup.disposables.dispose();
+		});
+	});
 
 	suite('single-tool completed response collapse', () => {
 		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean): Promise<void> {

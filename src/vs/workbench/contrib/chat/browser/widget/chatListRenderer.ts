@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { alert } from '../../../../../base/browser/ui/aria/aria.js';
+import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../../../base/browser/ui/list/list.js';
@@ -97,6 +97,7 @@ import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandCont
 import { ChatConfirmationContentPart } from './chatContentParts/chatConfirmationContentPart.js';
 import { DiffEditorPool, EditorPool } from './chatContentParts/chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from './chatContentParts/chatContentParts.js';
+import { ChatDeferredContentPart, ChatDeferredResponseRendering, computeDeferredRange, countMarkdownCodeBlocks, DEFERRED_RENDERING_CHUNK_PARTS, DEFERRED_RENDERING_INITIAL_PARTS, DEFERRED_RENDERING_MIN_DEFERRED_PARTS, DEFERRED_RENDERING_MIN_PARTS, getDeferredRenderingContentKey, getDeferredRenderingSide, getNextDeferredEnd, getNextDeferredStart, IDeferredRange, IDeferredRenderingContent } from './chatDeferredResponseRendering.js';
 import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
 import { ChatErrorConfirmationContentPart } from './chatContentParts/chatErrorConfirmationPart.js';
 import { ChatErrorContentPart } from './chatContentParts/chatErrorContentPart.js';
@@ -170,6 +171,13 @@ export interface IChatListItemTemplate {
 	 */
 	renderedPartsMounted?: boolean;
 	renderedContent?: ReadonlyArray<IChatRendererContent>;
+	/** The older parts of a very long response that render on demand, if any. */
+	deferredRendering?: ChatDeferredResponseRendering;
+	/**
+	 * Where deferred rendering stopped while parts were still deferred. The boundary there was rendered before them,
+	 * so the next pass ends the group they leave open, as the boundary would have in a full render.
+	 */
+	deferredRenderingEdgeToFinalize?: number;
 	completedResponseDisclosure?: HTMLDetailsElement;
 	completedResponseCollapseStartIndex?: number;
 	completedResponseCollapseEndIndex?: number;
@@ -402,6 +410,14 @@ export function formatCompletedResponseDisclosureLabel(stepCount: number, elapse
 	return elapsed
 		? localize('chat.responseCompletedStepsIn', "Completed {0} steps in {1}", stepCount, elapsed)
 		: localize('chat.responseCompletedSteps', "Completed {0} steps", stepCount);
+}
+
+/** The disclosure label while some of the steps are not rendered yet, so they cannot be counted. */
+export function formatUncountedCompletedResponseDisclosureLabel(elapsedMs: number | undefined): string {
+	const elapsed = formatChatResponseElapsedTime(elapsedMs);
+	return elapsed
+		? localize('chat.responseCompletedUncountedStepsIn', "Completed in {0}", elapsed)
+		: localize('chat.responseCompletedUncountedSteps', "Completed");
 }
 
 export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>): number {
@@ -686,6 +702,11 @@ export interface IChatRendererDelegate {
 	readonly stickyScrollTopPadding: number;
 	getEditingValue?(): string | undefined;
 	preserveScrollPosition?(target: HTMLElement): void;
+	/**
+	 * Keeps `anchor` at its position in the viewport while content is inserted above it in the row of `element`,
+	 * unless the list follows the end of the transcript.
+	 */
+	preserveScrollAnchor?(element: ChatTreeItem, anchor: HTMLElement): void;
 	onDidFinishProgressCollapse?(): void;
 
 	readonly onDidScroll?: Event<ScrollEvent>;
@@ -862,7 +883,8 @@ class PersistentBackgroundActivityTracker extends Disposable {
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
 	static readonly ID = 'item';
 
-	private readonly codeBlocksByResponseId = new Map<string, IChatCodeBlockInfo[]>();
+	/** The code blocks of each rendered part, by response. Ordered by document position when read. */
+	private readonly codeBlocksByResponseId = new Map<string, Map<IChatContentPart, readonly IChatCodeBlockInfo[]>>();
 	private readonly codeBlocksByEditorUri = new ResourceMap<IChatCodeBlockInfo>();
 	/** Re-applies a rendered part's code block registrations, which `disposeElement` drops when the row is virtualized. */
 	private readonly codeBlockRegistrationsByPart = new WeakMap<IChatContentPart, () => void>();
@@ -895,6 +917,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly subagentEditItems = new WeakMap<IChatContentPart, { subagentPart: ChatSubagentContentPart; partId: string }>();
 	private readonly subagentDisclosureObservers = new WeakMap<ChatSubagentContentPart, DisposableMap<string>>();
 	private readonly toolConfirmationObservation = this._register(new MutableDisposable());
+	/** Templates that show a response whose older parts render on demand. */
+	private readonly templatesWithDeferredRendering = new Set<IChatListItemTemplate>();
+	private readonly pendingDeferredRenderingCheck = this._register(new MutableDisposable<IDisposable>());
+	/** Set while parts that were deferred are rendered, which never animates progress collapses. */
+	private _isRenderingDeferredContent = false;
 
 	/** Track pending question carousels by session resource for auto-skip on chat submission */
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
@@ -1009,6 +1036,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 		this.observeToolConfirmations();
+		if (delegate.onDidScroll) {
+			this._register(delegate.onDidScroll(() => this.scheduleDeferredRenderingCheck()));
+		}
 	}
 
 	private _pendingDragController: ChatPendingDragController | undefined;
@@ -1136,9 +1166,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return 8;
 	}
 
+	/**
+	 * The code blocks of a response in document order. Parts can render out of order, for example when the older
+	 * parts of a long response render on demand, so the order comes from where the parts are rather than from
+	 * their code block numbers.
+	 */
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
-		const codeBlocks = this.codeBlocksByResponseId.get(response.id);
-		return codeBlocks ?? [];
+		const codeBlocksByPart = this.codeBlocksByResponseId.get(response.id);
+		if (!codeBlocksByPart) {
+			return [];
+		}
+		const entries = [...codeBlocksByPart];
+		entries.sort(([a], [b]) => compareDocumentOrder(a.domNode, b.domNode));
+		return entries.flatMap(([, codeBlocks]) => codeBlocks);
 	}
 
 	getStickyScrollSourceRange(element: ChatTreeItem, defaultRange: IStickyScrollNodeSourceRange): IStickyScrollNodeSourceRange | undefined {
@@ -1644,6 +1684,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private clearRenderedParts(templateData: IChatListItemTemplate): void {
 		this.pendingProgressContent.deleteAndDispose(templateData);
 		this.removeCompletedResponseDisclosure(templateData);
+		this.disposeDeferredRendering(templateData);
+		templateData.deferredRenderingEdgeToFinalize = undefined;
 		if (templateData.renderedParts) {
 			dispose(coalesce(templateData.renderedParts));
 			templateData.renderedParts = undefined;
@@ -2181,6 +2223,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.push(workingProgress);
 		}
 
+		this.prepareDeferredRendering(element, index, content, templateData);
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
 		this.finalizeCompletedResponseParts(element, templateData);
@@ -3197,6 +3240,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
 
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
+		this.prepareDeferredRendering(element, index, contentForThisTurn.content, templateData);
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
 		const contentIsAlreadyRendered = partsToRender.every(part => part === null);
 		if (!contentIsAlreadyRendered) {
@@ -3295,6 +3339,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderChatResponseBasic(element, index, templateData);
 			return true;
 		}
+		this.prepareDeferredRendering(element, index, contentForThisTurn.content, templateData);
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
 
 		const contentIsAlreadyRendered = partsToRender.every(part => part === null);
@@ -3344,7 +3389,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private deferProgressContent(thinking: ChatThinkingContentPart, templateData: IChatListItemTemplate): void {
-		if (this.pendingProgressContent.has(templateData)) {
+		// Parts rendered on demand are history, and they replace their placeholders in place.
+		if (this.pendingProgressContent.has(templateData) || this._isRenderingDeferredContent) {
 			return;
 		}
 		const animation = thinking.getPendingCollapseAnimation();
@@ -3414,6 +3460,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} finally {
 			pending.dispose();
 		}
+		this.updateDeferredRenderingGap(templateData);
 	}
 
 	private renderChatContentDiff(partsToRender: ReadonlyArray<IChatRendererContent | null>, contentForThisTurn: ReadonlyArray<IChatRendererContent>, element: IChatResponseViewModel, elementIndex: number, templateData: IChatListItemTemplate): void {
@@ -3446,11 +3493,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let codeBlockStartIndex = 0;
 		let treeStartIndex = 0;
 		let displacedWorkingPart: ChatWorkingProgressContentPart | undefined;
+		const deferredRendering = templateData.deferredRendering;
 		const renderParts = () => partsToRender.forEach((partToRender, contentIndex) => {
 			// Accumulate counts from the part that ended up at the previous index
 			if (contentIndex > 0) {
 				const prevPart = renderedParts[contentIndex - 1];
-				if (prevPart) {
+				if (prevPart instanceof ChatDeferredContentPart) {
+					codeBlockStartIndex += prevPart.estimatedCodeBlockCount;
+					if (prevPart.isTree) {
+						treeStartIndex++;
+					}
+				} else if (prevPart) {
 					codeBlockStartIndex += prevPart.codeblocks?.length ?? 0;
 					if (prevPart instanceof ChatTreeContentPart) {
 						treeStartIndex++;
@@ -3459,6 +3512,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 
 			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
+			if (partToRender && !alreadyRenderedPart && deferredRendering?.isDeferred(contentIndex)) {
+				const deferredPart = new ChatDeferredContentPart(
+					deferredRendering,
+					contentIndex,
+					partToRender.kind === 'markdownContent' && !this.hasEditCodeblockUri(partToRender) ? countMarkdownCodeBlocks(partToRender.content.value) : 0,
+					partToRender.kind === 'treeData',
+				);
+				renderedParts[contentIndex] = deferredPart;
+				appendContent(deferredPart.domNode);
+				return;
+			}
 			if (partToRender?.kind === 'progressMessage' && alreadyRenderedPart instanceof ChatProgressContentPart
 				&& alreadyRenderedPart.tryUpdateProgress(partToRender, contentForThisTurn.slice(contentIndex + 1), element)) {
 				renderedParts[contentIndex] = alreadyRenderedPart;
@@ -3730,6 +3794,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
+		if (deferredRendering?.needsLeadingFinalization) {
+			deferredRendering.needsLeadingFinalization = false;
+			this.finalizeDeferredRangeEdge(templateData, deferredRendering.start, element);
+		}
+		const deferredRenderingEdgeToFinalize = templateData.deferredRenderingEdgeToFinalize;
+		if (deferredRenderingEdgeToFinalize !== undefined) {
+			templateData.deferredRenderingEdgeToFinalize = undefined;
+			this.finalizeDeferredRangeEdge(templateData, deferredRenderingEdgeToFinalize, element);
+		}
+		this.updateDeferredRenderingGap(templateData);
+
 		if (!this.pendingProgressContent.has(templateData)) {
 			const animateCollapse = templateData.wasResponseComplete === false && element.isComplete;
 			this.updateCompletedResponseDisclosure(element, contentForThisTurn, templateData, animateCollapse);
@@ -3746,6 +3821,308 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		this.appendResponseContent(templateData, node, anchor?.parentElement === templateData.value ? anchor : retainedProgress);
 	}
+
+	//#region Rendering the older parts of long responses on demand
+
+	private isDeferredRenderingEnabled(): boolean {
+		return this.configService.getValue<boolean>(ChatConfiguration.WindowedResponseRendering) === true;
+	}
+
+	/**
+	 * Decides, before a render pass computes its diff, which parts of a very long response are not rendered yet.
+	 * A range is chosen only when a response is first rendered into a template. Afterwards it only shrinks as
+	 * parts are rendered on demand, and it is found again when the content of the response is reordered.
+	 */
+	private prepareDeferredRendering(element: IChatResponseViewModel, index: number, content: ReadonlyArray<IChatRendererContent>, templateData: IChatListItemTemplate): void {
+		const state = templateData.deferredRendering;
+		if (state) {
+			state.elementIndex = index;
+			if (state.elementId !== element.id || !this.isDeferredRenderingEnabled()) {
+				this.stopDeferredRendering(templateData);
+			} else if (state.count > 0) {
+				this.revalidateDeferredRendering(state, element, content, templateData);
+			}
+			return;
+		}
+		if (templateData.renderedParts?.length
+			|| content.length <= DEFERRED_RENDERING_MIN_PARTS
+			|| !this.isDeferredRenderingEnabled()
+			|| this.rendererOptions.renderStyle === 'minimal'
+			|| dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
+			return;
+		}
+
+		// The collapsed steps of a completed response are hidden anyway, so all of them render on demand.
+		const deferredContent = getDeferredRenderingContent(content);
+		const collapse = this.getCompletedResponseCollapseRange(element, content);
+		const collapsedRange = collapse && computeDeferredRange(deferredContent, collapse.end, collapse.start, DEFERRED_RENDERING_MIN_DEFERRED_PARTS);
+		const range = collapsedRange ?? computeDeferredRange(deferredContent, content.length - DEFERRED_RENDERING_INITIAL_PARTS, 0, DEFERRED_RENDERING_MIN_DEFERRED_PARTS);
+		if (!range) {
+			return;
+		}
+		this.traceLayout('prepareDeferredRendering', `rendering parts ${range.start} to ${range.end} of ${content.length} on demand`);
+		const deferredRendering = new ChatDeferredResponseRendering(element.id, range, content, () => this.renderMoreDeferredContentFromGap(templateData));
+		deferredRendering.elementIndex = index;
+		deferredRendering.matchesCompletedResponseCollapse = !!collapsedRange;
+		deferredRendering.needsLeadingFinalization = range.start > 0;
+		templateData.deferredRendering = deferredRendering;
+		this.templatesWithDeferredRendering.add(templateData);
+	}
+
+	/**
+	 * Finds the deferred range again after the content of a response was reordered, for example when a completed
+	 * response moved session outcome tools after its final answer, so that the parts around it stay rendered.
+	 */
+	private revalidateDeferredRendering(state: ChatDeferredResponseRendering, element: IChatResponseViewModel, content: ReadonlyArray<IChatRendererContent>, templateData: IChatListItemTemplate): void {
+		const startMatches = state.start === 0 || getDeferredRenderingContentKey(content[state.start - 1]) === state.startKey;
+		const endMatches = state.end < content.length && getDeferredRenderingContentKey(content[state.end]) === state.endKey;
+		if (startMatches && endMatches) {
+			return;
+		}
+		const end = endMatches ? state.end : findDeferredRenderingContentKey(content, state.endKey, Math.min(state.end, content.length - 1));
+		const partBeforeStart = startMatches ? state.start - 1 : findDeferredRenderingContentKey(content, state.startKey, Math.min(state.start - 1, content.length - 1));
+		// Content that moved forward cannot be matched safely, so render everything instead.
+		const range = end > 0 && (state.start === 0 || partBeforeStart >= 0)
+			? computeDeferredRange(getDeferredRenderingContent(content), end, state.start === 0 ? 0 : partBeforeStart + 1, 1)
+			: undefined;
+		if (range) {
+			state.setRange(range, content);
+		} else {
+			this.stopDeferredRendering(templateData);
+		}
+	}
+
+	/** Stops deferring while the response stays rendered. The parts that are still deferred render on the next pass. */
+	private stopDeferredRendering(templateData: IChatListItemTemplate): void {
+		const state = templateData.deferredRendering;
+		if (state?.count) {
+			templateData.deferredRenderingEdgeToFinalize = state.end;
+		}
+		this.disposeDeferredRendering(templateData);
+	}
+
+	/** Stops deferring. Parts that are still deferred render on the next pass. */
+	private disposeDeferredRendering(templateData: IChatListItemTemplate): void {
+		const state = templateData.deferredRendering;
+		if (!state) {
+			return;
+		}
+		state.clear();
+		state.dispose();
+		templateData.deferredRendering = undefined;
+		this.templatesWithDeferredRendering.delete(templateData);
+	}
+
+	/** The range of a completed response that its disclosure collapses, matching `updateCompletedResponseDisclosure`. */
+	private getCompletedResponseCollapseRange(element: IChatResponseViewModel, content: ReadonlyArray<IChatRendererContent>): IDeferredRange | undefined {
+		if (!element.isComplete || !this.configService.getValue<boolean>(ChatConfiguration.CollapseCompletedResponses)) {
+			return undefined;
+		}
+		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(annotateSpecialMarkdownContent(element.response.value), true);
+		const finalResponseStartIndex = responseFinalStartIndex === undefined ? undefined : responseFinalStartIndex + 1;
+		if (finalResponseStartIndex === undefined || !isFinalResponseRendered(content, finalResponseStartIndex)) {
+			return undefined;
+		}
+		const end = getCompletedResponseCollapseEndIndex(content, finalResponseStartIndex);
+		const workspaceTransitionIndex = content.findIndex(part => part.kind === 'systemNotification' && part.presentation === 'workspaceTransition');
+		const start = workspaceTransitionIndex >= 0 && workspaceTransitionIndex < end ? workspaceTransitionIndex + 1 : 0;
+		return { start, end };
+	}
+
+	/** Places the gap control after the last deferred part, or removes the state once every part is rendered. */
+	private updateDeferredRenderingGap(templateData: IChatListItemTemplate): void {
+		const state = templateData.deferredRendering;
+		if (!state) {
+			return;
+		}
+		if (state.count === 0) {
+			this.disposeDeferredRendering(templateData);
+			return;
+		}
+		const lastDeferred = templateData.renderedParts?.[state.end - 1]?.domNode;
+		// Content that waits for a progress animation is placed later, and the gap follows it then.
+		if (!lastDeferred?.parentNode || this.pendingProgressContent.get(templateData)?.fragment.contains(lastDeferred)) {
+			return;
+		}
+		if (lastDeferred.nextSibling !== state.gap) {
+			const hadFocus = dom.isAncestorOfActiveElement(state.gap);
+			lastDeferred.after(state.gap);
+			if (hadFocus) {
+				state.button.focus({ preventScroll: true });
+			}
+		}
+		this.scheduleDeferredRenderingCheck();
+	}
+
+	private scheduleDeferredRenderingCheck(): void {
+		if (this.pendingDeferredRenderingCheck.value || this.templatesWithDeferredRendering.size === 0) {
+			return;
+		}
+		this.pendingDeferredRenderingCheck.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.delegate.container), () => {
+			this.pendingDeferredRenderingCheck.clear();
+			this.checkDeferredRendering();
+		});
+	}
+
+	/**
+	 * Renders more of each long response whose deferred parts approach the visible part of the list, one chunk
+	 * per response and frame, until the deferred parts are farther than a viewport away.
+	 */
+	private checkDeferredRendering(): void {
+		if (!this._isVisible) {
+			return;
+		}
+		const viewport = this.delegate.container.getBoundingClientRect();
+		if (!viewport.height) {
+			return;
+		}
+		let renderedMore = false;
+		for (const templateData of this.templatesWithDeferredRendering) {
+			const state = templateData.deferredRendering;
+			const element = templateData.currentElement;
+			if (!state?.count || !state.gap.isConnected || !isResponseVM(element)) {
+				continue;
+			}
+			// Wait until the steps are collapsed rather than rendering them while the disclosure is being built.
+			if (state.matchesCompletedResponseCollapse && !templateData.completedResponseDisclosure
+				&& element.isComplete && this.configService.getValue<boolean>(ChatConfiguration.CollapseCompletedResponses)) {
+				continue;
+			}
+			const gap = state.gap.getBoundingClientRect();
+			// The gap has no box while a closed disclosure hides it.
+			if (!gap.width && !gap.height) {
+				continue;
+			}
+			const side = getDeferredRenderingSide(gap, viewport, state.preferOldest);
+			if (side && this.renderMoreDeferredContent(templateData, side)) {
+				renderedMore = true;
+			}
+		}
+		if (renderedMore) {
+			this.scheduleDeferredRenderingCheck();
+		}
+	}
+
+	private renderMoreDeferredContentFromGap(templateData: IChatListItemTemplate): void {
+		const before = templateData.deferredRendering?.count ?? 0;
+		if (!this.renderMoreDeferredContent(templateData, 'newest')) {
+			return;
+		}
+		const remaining = templateData.deferredRendering?.count ?? 0;
+		status(localize('chat.deferredContent.shown', "Showing {0} more items", before - remaining));
+		if (remaining > 0) {
+			templateData.deferredRendering?.button.focus({ preventScroll: true });
+		} else {
+			dom.findParentWithClass(templateData.rowContainer, 'monaco-list-row')?.focus({ preventScroll: true });
+		}
+	}
+
+	/**
+	 * Renders the next chunk of deferred parts on one side of the range: the newest ones, right above the rendered
+	 * content that follows the range, or the oldest ones, right after the rendered content that precedes it.
+	 * Rendering goes through the same path as a model change would, so the parts render exactly as they would
+	 * in a full render. Returns whether anything was rendered.
+	 */
+	private renderMoreDeferredContent(templateData: IChatListItemTemplate, side: 'oldest' | 'newest'): boolean {
+		const state = templateData.deferredRendering;
+		const element = templateData.currentElement;
+		const content = templateData.renderedContent;
+		if (!state?.count || !content || !isResponseVM(element) || element.id !== state.elementId
+			|| this.templateDataByRequestId.get(element.id) !== templateData
+			|| !templateData.rowContainer.isConnected
+			|| this.pendingProgressContent.has(templateData)
+			|| this._elementBeingRendered) {
+			return false;
+		}
+		const deferredContent = getDeferredRenderingContent(content);
+		const nextRange: IDeferredRange = side === 'oldest'
+			? { start: getNextDeferredStart(state, deferredContent, DEFERRED_RENDERING_CHUNK_PARTS), end: state.end }
+			: { start: state.start, end: getNextDeferredEnd(state, deferredContent, DEFERRED_RENDERING_CHUNK_PARTS) };
+		// The boundary that follows the rendered chunk would have ended the groups the chunk leaves open.
+		const chunkEnd = side === 'oldest' ? nextRange.start : state.end;
+		if (side === 'newest') {
+			// Keep the rendered content after the range in place while the chunk is inserted above it.
+			const anchor = this.getDeferredRenderingAnchor(templateData);
+			if (anchor) {
+				this.delegate.preserveScrollAnchor?.(element, anchor);
+			}
+		}
+		state.setRange(nextRange, content);
+		this._isRenderingDeferredContent = true;
+		try {
+			this.renderResponseContent(element, state.elementIndex, templateData);
+			this.finalizeDeferredRangeEdge(templateData, chunkEnd, element);
+		} finally {
+			this._isRenderingDeferredContent = false;
+		}
+		return true;
+	}
+
+	/** Re-renders the content of a response through the path its row uses, like a model change would. */
+	private renderResponseContent(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate): void {
+		const isStickyScrollTargetItem = getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element;
+		if (isStickyScrollTargetItem && (!element.isComplete || element.renderData)) {
+			if (this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering) && !element.renderData) {
+				this.doIncrementalRender(element, index, templateData);
+			} else {
+				this.doNextProgressiveRender(element, index, templateData, false);
+			}
+		} else {
+			this.renderChatResponseBasic(element, index, templateData);
+		}
+	}
+
+	/**
+	 * Ends the thinking group that the parts before `index` leave open, as rendering the boundary at `index` does
+	 * in a full render. Used where that boundary is not rendered in the same pass as the parts before it.
+	 */
+	private finalizeDeferredRangeEdge(templateData: IChatListItemTemplate, index: number, element: IChatResponseViewModel): void {
+		const thinking = this.getLastThinkingPart(templateData.renderedParts?.slice(0, index));
+		if (thinking) {
+			const wasRenderingDeferredContent = this._isRenderingDeferredContent;
+			this._isRenderingDeferredContent = true;
+			try {
+				this.finalizeThinkingPart(thinking, {
+					suppressProgressShimmer: this.isPersistentProgressEnabled() && this.rendererOptions.renderStyle !== 'minimal',
+					isConversation: this.isConversationProgress(),
+					readOnly: this.rendererOptions.readOnly,
+				}, templateData);
+			} finally {
+				this._isRenderingDeferredContent = wasRenderingDeferredContent;
+			}
+		}
+		if (element.isComplete) {
+			this.finalizeAllSubagentParts(templateData);
+		}
+	}
+
+	/** The first rendered element after the gap, which stays in place while newer deferred parts render above it. */
+	private getDeferredRenderingAnchor(templateData: IChatListItemTemplate): HTMLElement | undefined {
+		let node: HTMLElement | null | undefined = templateData.deferredRendering?.gap;
+		while (node && node !== templateData.value) {
+			const next = node.nextElementSibling;
+			if (dom.isHTMLElement(next)) {
+				return next;
+			}
+			node = node.parentElement;
+		}
+		return undefined;
+	}
+
+	/**
+	 * Renders more of a long response toward the part at `partIndex` if that part is not rendered yet, one chunk
+	 * per call. Returns whether anything was rendered, so a caller locating the part can try again.
+	 */
+	renderDeferredContentPart(element: ChatTreeItem, partIndex: number): boolean {
+		const templateData = this.templateDataByRequestId.get(element.id);
+		const state = templateData?.deferredRendering;
+		if (!templateData || !state?.isDeferred(partIndex)) {
+			return false;
+		}
+		return this.renderMoreDeferredContent(templateData, partIndex - state.start < state.end - partIndex ? 'oldest' : 'newest');
+	}
+
+	//#endregion
 
 	private updateCompletedResponseDisclosure(element: IChatResponseViewModel, content: ReadonlyArray<IChatRendererContent>, templateData: IChatListItemTemplate, animateCollapse: boolean): void {
 		if (this.pendingProgressContent.has(templateData)) {
@@ -3822,6 +4199,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
+		// Steps that are not rendered yet can't be counted, so the label omits the count until they are all rendered.
+		const deferredRendering = templateData.deferredRendering;
+		const hasDeferredSteps = !!deferredRendering && deferredRendering.count > 0
+			&& deferredRendering.start < collapseEndIndex && deferredRendering.end > collapseStartIndex;
+
 		if (existingDisclosure
 			&& templateData.completedResponseCollapseStartIndex === collapseStartIndex
 			&& templateData.completedResponseCollapseEndIndex === collapseEndIndex
@@ -3829,7 +4211,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			&& templateData.renderedParts?.slice(collapseStartIndex, collapseEndIndex).every((part, offset) => !part?.domNode || existingDisclosure.contains(part.domNode) !== warningIndexes.has(collapseStartIndex + offset))
 			// Chain rows can be removed after completion (hidden tools flush on the next frame), so the
 			// label must follow the rows that are actually left.
-			&& getVisibleCompletedResponseItemCount(Array.from(existingDisclosure.children).filter(child => child.tagName !== 'SUMMARY')) === templateData.completedResponseStepCount
+			&& (hasDeferredSteps
+				? templateData.completedResponseStepCount === undefined
+				: getVisibleCompletedResponseItemCount(Array.from(existingDisclosure.children).filter(child => child.tagName !== 'SUMMARY')) === templateData.completedResponseStepCount)
 		) {
 			return;
 		}
@@ -3850,8 +4234,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 		const nodesToCollapse = valueChildren.slice(collapseStartChildIndex, collapseEndChildIndex).filter(node => !warningNodes.has(node));
-		const stepCount = getVisibleCompletedResponseItemCount(nodesToCollapse);
-		if (stepCount < 2) {
+		const stepCount = hasDeferredSteps ? undefined : getVisibleCompletedResponseItemCount(nodesToCollapse);
+		if (stepCount !== undefined && stepCount < 2) {
 			const nextPart = templateData.renderedParts?.[collapseEndIndex];
 			if (restoreSummaryFocus && nextPart instanceof ChatSubagentContentPart) {
 				nextPart.focus();
@@ -3867,11 +4251,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const label = button.appendChild($('span.monaco-button-mdlabel'));
 		const chevron = button.appendChild($('span.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' }));
 		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
-		const disclosureLabel = formatCompletedResponseDisclosureLabel(stepCount, element.model.elapsedMs);
+		const disclosureLabel = stepCount === undefined
+			? formatUncountedCompletedResponseDisclosureLabel(element.model.elapsedMs)
+			: formatCompletedResponseDisclosureLabel(stepCount, element.model.elapsedMs);
 		label.textContent = disclosureLabel;
 		templateData.completedResponseDisclosureDisposables.add(this.hoverService.setupDelayedHover(label, { content: disclosureLabel }));
 
-		if (templateData.renderedPersistentProgress) {
+		// The edits of steps that are not rendered yet are unknown, so partial totals are not shown.
+		if (templateData.renderedPersistentProgress && !hasDeferredSteps) {
 			const diffButton = templateData.completedResponseDisclosureDisposables.add(new MutableDisposable<ChatEditStatsButton>());
 			const diffSources = this.getCompletedResponseDiffSources(templateData.renderedParts?.slice(collapseStartIndex, collapseEndIndex) ?? []);
 			templateData.completedResponseDisclosureDisposables.add(autorun(reader => {
@@ -3926,6 +4313,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.completedResponseDisclosureDisposables.add(dom.addDisposableListener(details, 'toggle', () => {
 			templateData.completedResponseDisclosureOpen = details.open;
 			updateExpansionState();
+			if (templateData.deferredRendering) {
+				// Opening the steps shows them from the first one, so render the oldest parts first.
+				templateData.deferredRendering.preferOldest = details.open;
+				this.scheduleDeferredRenderingCheck();
+			}
 		}));
 
 		// Unlike the `ChatCollapsibleContentPart`-based collapsibles, this disclosure is a plain
@@ -4138,6 +4530,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		for (let i = 0; i < contentToRender.length; i++) {
 			const content = contentToRender[i];
 			const renderedPart = renderedParts[i];
+			if (renderedPart instanceof ChatDeferredContentPart) {
+				// Checked first: a deferred part must not cost the slice of all following content below.
+				diff.push(renderedPart.isDeferred ? null : content);
+				continue;
+			}
 			const promotesStandaloneTool = (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized')
 				&& (isParentSubagentTool(content) || isImageGenerationToolInvocation(content)) && !!this.getThinkingPartOwner(renderedPart);
 			const groupsStandaloneTool = renderedPart instanceof ChatToolInvocationPart
@@ -4312,6 +4709,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const part = renderedParts[i];
 			if (part instanceof ChatThinkingContentPart && part.getIsActive()) {
 				return part;
+			}
+			// Deferred parts end at a boundary that ends any group before them, as it would in a full render.
+			if (part instanceof ChatDeferredContentPart && part.isDeferred) {
+				return undefined;
 			}
 		}
 
@@ -4573,7 +4974,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	/** Ends a thinking section the same way arriving answer text does. */
-	private finalizeThinkingPart(thinking: ChatThinkingContentPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): void {
+	private finalizeThinkingPart(thinking: ChatThinkingContentPart, context: Pick<IChatContentPartRenderContext, 'suppressProgressShimmer' | 'isConversation' | 'readOnly'>, templateData: IChatListItemTemplate): void {
 		if (context.suppressProgressShimmer) {
 			// A persistent preview collapses on its own as content streams in, so wait for a keyboard
 			// user to leave it rather than making the content they are on inert. Conversation sections
@@ -4840,7 +5241,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return citationsPart;
 	}
 
-	private handleRenderedCodeblocks(element: ChatTreeItem, part: IChatContentPart, codeBlockStartIndex: number, templateData: IChatListItemTemplate): void {
+	private handleRenderedCodeblocks(element: ChatTreeItem, part: IChatContentPart, templateData: IChatListItemTemplate): void {
 		if (!part.addDisposable || part.codeblocksPartId === undefined) {
 			return;
 		}
@@ -4861,22 +5262,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const store = new DisposableStore();
 			registrations.value = store;
 			const codeblocks = part.codeblocks?.slice() ?? [];
-			const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id) ?? [];
-			this.codeBlocksByResponseId.set(element.id, codeBlocksByResponseId);
+			let codeBlocksByPart = this.codeBlocksByResponseId.get(element.id);
+			if (!codeBlocksByPart) {
+				codeBlocksByPart = new Map();
+				this.codeBlocksByResponseId.set(element.id, codeBlocksByPart);
+			}
+			codeBlocksByPart.set(part, codeblocks);
 			store.add(toDisposable(() => {
-				const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id);
-				if (codeBlocksByResponseId) {
-					codeblocks.forEach((info, i) => {
-						const codeblock = codeBlocksByResponseId[codeBlockStartIndex + i];
-						if (codeblock?.ownerMarkdownPartId === part.codeblocksPartId) {
-							delete codeBlocksByResponseId[codeBlockStartIndex + i];
-						}
-					});
+				const codeBlocksByPart = this.codeBlocksByResponseId.get(element.id);
+				if (codeBlocksByPart?.get(part) === codeblocks) {
+					codeBlocksByPart.delete(part);
 				}
 			}));
 
-			codeblocks.forEach((info, i) => {
-				codeBlocksByResponseId[codeBlockStartIndex + i] = info;
+			codeblocks.forEach(info => {
 				const uri = info.uri;
 				if (uri) {
 					this.codeBlocksByEditorUri.set(uri, info);
@@ -4943,7 +5342,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						this.fireItemHeightChange(templateData);
 						this.updateWorkingProgress(templateData);
 					}));
-					this.handleRenderedCodeblocks(response, part, blockIndex, templateData);
+					this.handleRenderedCodeblocks(response, part, templateData);
 					return part;
 				});
 				batchPart.addDisposable(batchPart.onDidChangeHeight(() => {
@@ -4980,7 +5379,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						}
 					}));
 				}
-				this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, codeBlockStartIndex, templateData);
+				this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, templateData);
 			}
 			return { domNode: lazilyCreatedPart.domNode, disposable: lazilyCreatedPart, part: lazilyCreatedPart, isVisible: lazilyCreatedPart.isVisible };
 		};
@@ -5755,7 +6154,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
-			this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex, templateData);
+			this.handleRenderedCodeblocks(element, markdownPart, templateData);
 		}
 
 		const collapsedToolsMode = this.getCollapsedToolsMode();
@@ -5902,11 +6301,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// These maps are only read for the focused response which is always visible,
 		// so we can clean up entries for elements that leave the viewport.
 		if (ownsElementMappings) {
-			const codeBlocks = this.codeBlocksByResponseId.get(node.element.id);
-			if (codeBlocks) {
-				for (const info of codeBlocks) {
-					if (info?.uri) {
-						this.codeBlocksByEditorUri.delete(info.uri);
+			const codeBlocksByPart = this.codeBlocksByResponseId.get(node.element.id);
+			if (codeBlocksByPart) {
+				for (const codeBlocks of codeBlocksByPart.values()) {
+					for (const info of codeBlocks) {
+						if (info.uri) {
+							this.codeBlocksByEditorUri.delete(info.uri);
+						}
 					}
 				}
 				this.codeBlocksByResponseId.delete(node.element.id);
@@ -6041,6 +6442,141 @@ function isNestedSubagentContent(part: IChatRendererContent): boolean {
 		return !!part.subAgentInvocationId;
 	}
 	return part.kind === 'markdownContent' && !!extractSubAgentInvocationIdFromText(part.content.value);
+}
+
+/** The subagent group a part renders in, if any. */
+function getContentSubagentId(part: IChatRendererContent): string | undefined {
+	if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
+		return getSubagentId(part);
+	}
+	if (part.kind === 'hook' || part.kind === 'externalEdit') {
+		return part.subAgentInvocationId;
+	}
+	return part.kind === 'markdownContent' ? extractSubAgentInvocationIdFromText(part.content.value) : undefined;
+}
+
+/**
+ * Marks the parts that follow the first part of a subagent group up to its last part. Their subagent block is
+ * created by the group's first part and found again by id, so a deferred range must not separate them.
+ */
+function getSubagentGroupCoverage(content: ReadonlyArray<IChatRendererContent>): Uint8Array {
+	const groups = new Map<string, { first: number; last: number }>();
+	content.forEach((part, index) => {
+		const id = getContentSubagentId(part);
+		if (id) {
+			const group = groups.get(id);
+			if (group) {
+				group.last = index;
+			} else {
+				groups.set(id, { first: index, last: index });
+			}
+		}
+	});
+	const depthChanges = new Int32Array(content.length + 1);
+	for (const { first, last } of groups.values()) {
+		depthChanges[first + 1]++;
+		depthChanges[last + 1]--;
+	}
+	const coverage = new Uint8Array(content.length);
+	let depth = 0;
+	for (let index = 0; index < content.length; index++) {
+		depth += depthChanges[index];
+		coverage[index] = depth > 0 ? 1 : 0;
+	}
+	return coverage;
+}
+
+/**
+ * Whether rendering the part always ends the thinking group before it: answer text does (`renderMarkdown`)
+ * unless it is blank or carries an edit code block, and so do system notifications.
+ */
+function isDeferredRenderingBoundary(part: IChatRendererContent): boolean {
+	if (isNestedSubagentContent(part)) {
+		return false;
+	}
+	if (part.kind === 'markdownContent') {
+		return !!part.content.value.trim() && !hasCodeblockUriTag(part.content.value);
+	}
+	return part.kind === 'systemNotification';
+}
+
+/**
+ * Whether the part must always be rendered: it is still live or interactive, or it stays visible when completed
+ * steps collapse. Kinds that are not known to be settled history are protected too.
+ */
+function isProtectedFromDeferredRendering(part: IChatRendererContent): boolean {
+	switch (part.kind) {
+		case 'markdownContent':
+		case 'thinking':
+		case 'undoStop':
+		case 'references':
+		case 'codeCitations':
+		case 'info':
+		case 'hook':
+		case 'textEditGroup':
+		case 'notebookEditGroup':
+		case 'externalEdit':
+		case 'workspaceEdit':
+		case 'treeData':
+		case 'multiDiffData':
+		case 'elicitationSerialized':
+		case 'progressTaskSerialized':
+		case 'progressMessage':
+		case 'command':
+		case 'extensions':
+		case 'pullRequest':
+		case 'autoModeResolution':
+			return false;
+		case 'systemNotification':
+			return part.presentation === 'workspaceTransition';
+		case 'warning':
+			return !!part.keepVisibleWhenCollapsed;
+		case 'questionCarousel':
+		case 'planReview':
+		case 'confirmation':
+			return !part.isUsed;
+		case 'toolInvocation':
+		case 'toolInvocationSerialized':
+			return (part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))
+				|| isImageGenerationToolInvocation(part)
+				|| toolInvocationHasMcpAppData(part)
+				|| isActiveSubagentToolInvocation(part);
+		default:
+			return true;
+	}
+}
+
+function getDeferredRenderingContent(content: ReadonlyArray<IChatRendererContent>): IDeferredRenderingContent {
+	const subagentGroupCoverage = getSubagentGroupCoverage(content);
+	return {
+		length: content.length,
+		isBoundary: index => !subagentGroupCoverage[index] && isDeferredRenderingBoundary(content[index]),
+		isProtected: index => isProtectedFromDeferredRendering(content[index]),
+	};
+}
+
+/** The index of the last part at or before `from` with the given key, or -1. */
+function findDeferredRenderingContentKey(content: ReadonlyArray<IChatRendererContent>, key: string | undefined, from: number): number {
+	if (key === undefined) {
+		return -1;
+	}
+	for (let index = from; index >= 0; index--) {
+		if (getDeferredRenderingContentKey(content[index]) === key) {
+			return index;
+		}
+	}
+	return -1;
+}
+
+/** Orders connected nodes by their position in the document, followed by nodes that are not connected. */
+function compareDocumentOrder(a: Node | undefined, b: Node | undefined): number {
+	if (!a?.isConnected || !b?.isConnected) {
+		return Number(!a?.isConnected) - Number(!b?.isConnected);
+	}
+	if (a === b) {
+		return 0;
+	}
+	return a.compareDocumentPosition(b) & a.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
 }
 
 export function endsWithCompletedQuestionInteraction(parts: readonly IChatRendererContent[]): boolean {
