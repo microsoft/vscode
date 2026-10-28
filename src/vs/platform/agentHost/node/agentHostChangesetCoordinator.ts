@@ -696,9 +696,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetOperationService.scheduleRelatedOperationsUpdate(sessionStr);
 		if (this._changesetSubscriptions.getSessionSubscriptions(sessionStr).has(sessionStr)
 			&& getSummaryChangesetKind(this._stateManager.getSessionState(sessionStr)?.config?.values) === ChangesetKind.Branch) {
-			for (const chat of this._getChatsAffectedBySessionWorkingDirectoryChange(sessionStr)) {
-				this._ensureBranchSummarySubscription(chat.resource);
-			}
+			this._reconcileBranchSummaryResources(sessionStr);
 		} else {
 			this._changesets.recomputeSubscribedChangesets(sessionStr);
 		}

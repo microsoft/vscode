@@ -1447,6 +1447,54 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	}
 
+	test('detaching an archived summary-only side chat folder does not recreate its branch watcher', async () => {
+		const session = AgentSession.uri('mock', 'summary-only-archive').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const side = buildChatUri(session, 'side');
+		const defaultRoot = URI.file('/projects/default');
+		const sideRoot = URI.file('/projects/side');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[defaultRoot.toString(), defaultRoot],
+			[sideRoot.toString(), sideRoot],
+		])));
+		createSession(environment.stateManager, session, defaultRoot.toString());
+		environment.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectorySet, directory: defaultRoot.toString() });
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: sideRoot.toString() });
+		environment.stateManager.registerRestoredChatSummary(session, side, {
+			storageResource: creationTimeChatStorageResource(session, side, defaultChat),
+			workingDirectories: [sideRoot.toString()],
+			origin: { kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn' },
+		});
+		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(2);
+		const sideOwner = buildBranchChangesetOwner(session, [sideRoot.toString()]);
+
+		environment.stateManager.dispatchServerAction(side, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		await environment.monitor.waitForDisposals(1);
+		environment.changesets.clearRefreshes();
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: sideRoot.toString() });
+		await tick();
+		const afterDetach = {
+			refreshed: [...new Set(environment.changesets.branchRefreshes)],
+			acquisitions: [...environment.monitor.acquisitions],
+			disposals: [...environment.monitor.disposals],
+			sideHydrated: environment.stateManager.getChatState(side) !== undefined,
+		};
+		environment.stateManager.dispatchServerAction(side, { type: ActionType.ChatIsArchivedChanged, isArchived: false });
+		await environment.monitor.waitForAcquisitions(3);
+
+		assert.deepStrictEqual({ afterDetach, removedOwners: environment.changesets.removedOwners }, {
+			afterDetach: {
+				refreshed: [buildBranchChangesetOwner(session, [defaultRoot.toString()])],
+				acquisitions: [defaultRoot.toString(), sideRoot.toString()],
+				disposals: [sideRoot.toString()],
+				sideHydrated: false,
+			},
+			removedOwners: [sideOwner],
+		});
+	});
+
 	test('moving a chat to another session keeps its own changesets', async () => {
 		const session = AgentSession.uri('mock', 'move-source').toString();
 		const target = AgentSession.uri('mock', 'move-target').toString();

@@ -11733,6 +11733,53 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		for (const childFirst of [false, true]) {
+			test(`restoring nested archived chats ${childFirst ? 'child' : 'parent'}-first attaches only folders of chats in use`, async () => {
+				class MultiChatAgent extends MockAgent {
+					override async createChat(): Promise<IAgentCreateChatResult> {
+						return { providerData: 'peer-backing' };
+					}
+				}
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				registerTestAgentProvider(svc, disposables.add(new MultiChatAgent('copilot', {
+					multipleChats: { fork: true },
+					multipleWorkingDirectories: { immutablePrimary: true },
+				})));
+				const primary = URI.file('/workspace/primary');
+				const parentFolder = URI.file('/workspace/parent');
+				const sideFolder = URI.file('/workspace/side');
+				const nestedFolder = URI.file('/workspace/nested');
+				const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [primary] });
+				const parent = URI.parse(buildChatUri(session, 'parent'));
+				await svc.createChat(session, parent, { workingDirectories: [await svc.addSessionWorkingDirectoryForChat(session, parentFolder, { isolation: 'folder' })] });
+				const stateManager = getStateManager(svc);
+				const side = buildChatUri(session, 'side');
+				const nested = buildChatUri(session, 'nested');
+				for (const [chat, source, folder] of [[side, parent.toString(), sideFolder], [nested, side, nestedFolder]] as const) {
+					await svc.addSessionWorkingDirectoryForChat(session, folder, { isolation: 'folder' });
+					stateManager.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat, buildDefaultChatUri(session)), {
+						origin: { kind: ChatOriginKind.SideChat, chat: source, turnId: 'turn' },
+						workingDirectories: [folder.toString()],
+					});
+				}
+				const setArchived = async (chat: string, isArchived: boolean, sequence: number) => {
+					svc.dispatchAction(chat, { type: ActionType.ChatIsArchivedChanged, isArchived }, 'client', sequence);
+					await whenArchivedChatWorkspaceUpdatesSettled(svc, session);
+					return stateManager.getSessionSummary(session.toString())?.workingDirectories;
+				};
+				await setArchived(side, true, 1);
+				const afterArchive = await setArchived(parent.toString(), true, 2);
+				const afterFirstRestore = await setArchived(childFirst ? side : parent.toString(), false, 3);
+				const afterSecondRestore = await setArchived(childFirst ? parent.toString() : side, false, 4);
+
+				assert.deepStrictEqual({ afterArchive, afterFirstRestore, afterSecondRestore }, {
+					afterArchive: [primary.toString()],
+					afterFirstRestore: childFirst ? [primary.toString()] : [primary.toString(), parentFolder.toString()],
+					afterSecondRestore: [primary.toString(), parentFolder.toString(), sideFolder.toString(), nestedFolder.toString()],
+				});
+			});
+		}
+
 		test('subagents of unarchived chats keep only their spawning chat\'s folders attached when a peer chat is archived', async () => {
 			class MultiChatAgent extends MockAgent {
 				override async createChat(): Promise<IAgentCreateChatResult> {
@@ -32484,6 +32531,66 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 		}
+
+		test('a host restart does not reattach folders of an unarchived side chat under an archived parent', async () => {
+			const perSession = createPerSessionDataService();
+			const database = new RetainedAgentHostDatabase(':memory:');
+			disposables.add(toDisposable(() => void database.release()));
+			const primary = URI.file('/workspace/primary');
+			const createService = (knownSession?: URI) => {
+				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database));
+				const agent = disposables.add(new SideChatAgent('copilot', {
+					multipleChats: { fork: true },
+					multipleWorkingDirectories: { immutablePrimary: true },
+				}));
+				if (knownSession) {
+					agent.seedSession(knownSession);
+					agent.sessionMetadataOverrides = { workingDirectories: [primary] };
+				}
+				registerTestAgentProvider(service, agent);
+				return service;
+			};
+			const service = createService();
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [primary] });
+			const parent = URI.parse(buildChatUri(session, 'parent'));
+			const side = URI.parse(buildChatUri(session, 'side'));
+			const sideFolder = URI.file('/workspace/side');
+			await service.createChat(session, parent, { workingDirectories: [await service.addSessionWorkingDirectoryForChat(session, URI.file('/workspace/parent'), { isolation: 'folder' })] });
+			service.dispatchAction(parent.toString(), {
+				type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: new Date().toISOString(),
+				message: { text: 'Start a side chat', origin: { kind: MessageKind.User } },
+			}, 'client', 1);
+			service.dispatchAction(parent.toString(), { type: ActionType.ChatTurnComplete, turnId: 'source-turn', duration: 1 }, 'client', 2);
+			await service.createChat(session, side, {
+				sideChat: { source: parent, turnId: 'source-turn' },
+				workingDirectories: [await service.addSessionWorkingDirectoryForChat(session, sideFolder, { isolation: 'folder' })],
+			});
+			service.dispatchAction(parent.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 3);
+			await whenArchivedChatWorkspaceUpdatesSettled(service, session);
+			const afterArchive = getStateManager(service).getSessionSummary(session.toString())?.workingDirectories;
+			await service.whenCatalogReconciliationIdle();
+			await service.shutdown();
+			service.dispose();
+
+			const restarted = createService(session);
+			await restarted.restoreSession(session);
+			const restoredState = getStateManager(restarted);
+			assert.deepStrictEqual({
+				afterArchive,
+				afterRestart: restoredState.getSessionSummary(session.toString())?.workingDirectories,
+				sideFolders: restoredState.getSessionState(session.toString())?.chats.find(chat => chat.resource === side.toString())?.workingDirectories,
+				parentArchived: isSessionStatusArchived(restoredState.getSessionState(session.toString())?.chats.find(chat => chat.resource === parent.toString())?.status),
+				sideArchived: isSessionStatusArchived(restoredState.getSessionState(session.toString())?.chats.find(chat => chat.resource === side.toString())?.status),
+				sideHydrated: restoredState.getChatState(side.toString()) !== undefined,
+			}, {
+				afterArchive: [primary.toString()],
+				afterRestart: [primary.toString()],
+				sideFolders: [sideFolder.toString()],
+				parentArchived: true,
+				sideArchived: false,
+				sideHydrated: false,
+			});
+		});
 
 		test('resolves a restored peer side-chat source without resolving the target chat', async () => {
 			const db = new TestSessionDatabase();
