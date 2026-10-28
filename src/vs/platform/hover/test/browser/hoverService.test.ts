@@ -564,6 +564,46 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should re-evaluate a requested LEFT side on every layout as the content size changes', () => {
+			// Less room to the left of the target than to its right
+			const documentWidth = mainWindow.document.documentElement.clientWidth;
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(250, 100, 50, 20);
+			const hover = showHover('Growing content', target, {
+				position: { hoverPosition: HoverPosition.LEFT },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+
+			const layoutWithWidth = (clientWidth: number) => {
+				Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: clientWidth });
+				hoverWidget.layout();
+				const side = ['left', 'right', 'top', 'bottom'].find(c => pointer.classList.contains(c));
+				const style = mainWindow.getComputedStyle(pointer);
+				return side === 'left' ? `right@${hoverWidget.x} pointer-left:${style.left}`
+					: side === 'right' ? `left@${hoverWidget.x}`
+						: side === 'top' ? `below pointer-top:${style.top}`
+							: 'above';
+			};
+
+			assert.deepStrictEqual([
+				layoutWithWidth(100),
+				layoutWithWidth(300),
+				layoutWithWidth(documentWidth),
+				layoutWithWidth(documentWidth),
+				layoutWithWidth(100),
+			], [
+				`left@${250 - 3 - 102}`,
+				`right@${300 + 3} pointer-left:-3px`,
+				'below pointer-top:-3px',
+				'below pointer-top:-3px',
+				`left@${250 - 3 - 102}`,
+			]);
+			hover.dispose();
+		});
+
 		test('should use the maximum height of the hover when choosing a vertical fallback', () => {
 			const target = createTarget();
 			target.getBoundingClientRect = () => new DOMRect(100, 44, 100, 22);

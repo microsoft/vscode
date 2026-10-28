@@ -600,8 +600,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 					this._hoverPosition = HoverPosition.BELOW;
 				}
 			}
-			// Hover on the left is going beyond window.
-			if (target.left - this._hover.containerDomNode.clientWidth - hoverPointerOffset <= this._targetDocumentElement.clientLeft) {
+			// Hover on the left is going beyond window. Only applies while the hover is still on the
+			// left, so the BELOW fallback chosen above is not overridden
+			if (this._hoverPosition === HoverPosition.LEFT && target.left - this._hover.containerDomNode.clientWidth - hoverPointerOffset <= this._targetDocumentElement.clientLeft) {
 				this._hoverPosition = HoverPosition.RIGHT;
 			}
 		}
