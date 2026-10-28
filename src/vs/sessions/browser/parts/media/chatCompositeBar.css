@@ -811,57 +811,6 @@
 	border-right: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
 }
 
-/* Window chrome: the header is the top row of a window without a title bar. */
-.chat-composite-bar-window-chrome {
-	display: none;
-	align-items: center;
-	flex-shrink: 0;
-	gap: var(--vscode-spacing-size20, 2px);
-	-webkit-app-region: no-drag;
-}
-
-.session-header-bar.window-chrome .chat-composite-bar-window-chrome {
-	display: flex;
-}
-
-.session-header-bar.window-chrome {
-	-webkit-app-region: drag;
-}
-
-.session-header-bar.window-chrome > .chat-composite-bar-header {
-	max-width: none;
-	margin: 0;
-}
-
-/* The toolbar of the title row that holds the overflow (…) follows the window actions. */
-.session-header-bar.window-chrome .chat-composite-bar-window-chrome {
-	margin-left: auto;
-}
-
-.session-header-bar.window-chrome .chat-composite-bar-title-actions {
-	/* Replace the title row gap before the overflow with the gap between the window actions. */
-	margin-left: calc(var(--vscode-spacing-size20, 2px) - var(--chat-composite-bar-title-row-gap));
-}
-
-/* An empty window actions toolbar must not add its flex gap between its neighbors. */
-.session-header-bar.window-chrome .chat-composite-bar-window-chrome > .chat-composite-bar-toolbar.has-no-actions {
-	display: none;
-}
-
-/* The traffic lights of macOS sit over the leading edge. */
-.session-header-bar.window-chrome.has-traffic-lights > .chat-composite-bar-header {
-	padding-left: 78px;
-}
-
-.session-header-bar.window-chrome .chat-composite-bar-session-title,
-.session-header-bar.window-chrome .chat-composite-bar-title-actions {
-	-webkit-app-region: no-drag;
-}
-
-.session-header-bar.window-chrome .chat-composite-bar-window-chrome > .chat-composite-bar-toolbar {
-	margin-left: 0;
-}
-
 /* In the title bar of a chat window, above its editor area, the session header fills the row. */
 .session-header-host > .chat-composite-bar.session-header-bar,
 .session-header-host > .chat-composite-bar.session-header-bar > .chat-composite-bar-header {
