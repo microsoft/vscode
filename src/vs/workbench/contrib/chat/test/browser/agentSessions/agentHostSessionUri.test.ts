@@ -49,6 +49,7 @@ suite('Agent Host committed configuration identity', () => {
 		const writes: { channel: string; action: StateAction }[] = [];
 		const agentHostService = new class extends mock<IAgentHostService>() {
 			override readonly initializeResult = constObservable(undefined);
+			override readonly rootState = { value: undefined, verifiedValue: undefined, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
 			override dispatch(channel: string, action: StateAction) { writes.push({ channel, action }); }
 			override getSubscriptionUnmanaged() {
 				return { value: undefined, verifiedValue: undefined, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
@@ -99,6 +100,7 @@ suite('Agent Host committed configuration identity', () => {
 		const resolvedProviders: (string | undefined)[] = [];
 		const agentHostService = new class extends mock<IAgentHostService>() {
 			override readonly initializeResult = constObservable(undefined);
+			override readonly rootState = { value: undefined, verifiedValue: undefined, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
 			override dispatch(channel: string, action: StateAction) { writes.push({ channel, action }); }
 			override getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, uri: URI): IAgentSubscription<ComponentToState[T]> {
 				const value = states.get(uri.toString()) as ComponentToState[T] | undefined;
@@ -200,7 +202,7 @@ suite('Agent Host committed configuration identity', () => {
 		});
 	});
 
-	test('a change from the default chat writes what the session may set to the session on a host that applies it to the default chat, and to the default chat on an older host', () => {
+	test('a change from the default chat writes what the session may set to the session on a host that applies it to the default chat (chats with their own agents on), and to the default chat otherwise', () => {
 		const backendSession = URI.parse('copilotcli:/main');
 		const main = buildDefaultChatUri(backendSession);
 		const summary: ChatSummary = { resource: main, title: 'Main', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
@@ -217,9 +219,9 @@ suite('Agent Host committed configuration identity', () => {
 				values: { mode: 'interactive', isolation: 'folder' },
 			},
 		};
-		const write = (rootConfigKeys: readonly string[]) => {
+		const write = (rootConfigKeys: readonly string[], values: Record<string, unknown> = {}) => {
 			const writes: { channel: string; action: StateAction }[] = [];
-			const rootState: RootState = { agents: [], config: { schema: { type: 'object', properties: Object.fromEntries(rootConfigKeys.map(key => [key, { type: 'boolean', title: key }])) }, values: {} } };
+			const rootState: RootState = { agents: [], config: { schema: { type: 'object', properties: Object.fromEntries(rootConfigKeys.map(key => [key, { type: 'boolean', title: key }])) }, values } };
 			dispatchAgentHostConfigChange({
 				dispatch: (channel, action) => writes.push({ channel, action }),
 				rootState: { value: rootState, verifiedValue: rootState, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None },
@@ -227,11 +229,16 @@ suite('Agent Host committed configuration identity', () => {
 			return writes;
 		};
 
-		assert.deepStrictEqual({ current: write([ChatProvidersConfigKey.Enabled]), older: write([]) }, {
+		assert.deepStrictEqual({ current: write([ChatProvidersConfigKey.Enabled], { [ChatProvidersConfigKey.Enabled]: true }), gateOff: write([ChatProvidersConfigKey.Enabled], { [ChatProvidersConfigKey.Enabled]: false }), older: write([]) }, {
 			// Only what a chat alone may set reaches the default chat; each property is written once.
 			current: [
 				{ channel: main, action: { type: ActionType.ChatConfigChanged, config: { effort: 'high' } } },
 				{ channel: backendSession.toString(), action: { type: ActionType.SessionConfigChanged, config: { mode: 'plan', isolation: 'worktree' } } },
+			],
+			// With chats with their own agents off, a host behaves as an older one.
+			gateOff: [
+				{ channel: main, action: { type: ActionType.ChatConfigChanged, config: { mode: 'plan', effort: 'high' } } },
+				{ channel: backendSession.toString(), action: { type: ActionType.SessionConfigChanged, config: { isolation: 'worktree' } } },
 			],
 			// An older host lets the default chat's own value win over the session's.
 			older: [
@@ -241,7 +248,7 @@ suite('Agent Host committed configuration identity', () => {
 		});
 	});
 
-	test('a chat\'s effective config completes an older host\'s overlay with the session\'s values', () => {
+	test('a chat\'s effective config is an overlay on its session\'s unless its host publishes complete values (chats with their own agents on)', () => {
 		const session = {
 			schema: {
 				type: 'object' as const, properties: {
@@ -252,11 +259,11 @@ suite('Agent Host committed configuration identity', () => {
 			values: { mode: 'plan', isolation: 'folder' },
 		};
 		assert.deepStrictEqual({
-			// An older host publishes only what the chat set itself.
-			overlay: getAgentHostEffectiveChatConfig(session, { values: {} }, '1.0.0').values,
-			// A current host publishes the chat's values; one it omits is its default.
-			complete: getAgentHostEffectiveChatConfig(session, { values: {} }, '1.1.0').values,
-			completeSet: getAgentHostEffectiveChatConfig(session, { values: { mode: 'autopilot', isolation: 'worktree' } }, '1.1.0').values,
+			// An older host, or one with the setting off, publishes only what the chat set itself.
+			overlay: getAgentHostEffectiveChatConfig(session, { values: {} }, false).values,
+			// With the setting on, a host publishes the chat's values; one it omits is its default.
+			complete: getAgentHostEffectiveChatConfig(session, { values: {} }, true).values,
+			completeSet: getAgentHostEffectiveChatConfig(session, { values: { mode: 'autopilot', isolation: 'worktree' } }, true).values,
 		}, {
 			overlay: { mode: 'plan', isolation: 'folder' },
 			complete: { mode: 'interactive', isolation: 'folder' },

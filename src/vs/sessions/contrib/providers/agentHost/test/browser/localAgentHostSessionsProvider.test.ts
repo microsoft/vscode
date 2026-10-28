@@ -16373,8 +16373,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('a chat on its session\'s agent has the session\'s session-wide values and its own values, or their defaults, for what it may set', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('a chat on its session\'s agent has the session\'s session-wide values and its own values, or their defaults, for what it may set (chats with their own agents on)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const { provider, peer, peerSummary, show } = perChatSession('same-agent', true);
+		// A host publishes complete chat values while its chats may use their own agents.
+		agentHost.setRootState({ agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo], config: { schema: { type: 'object', properties: { [ChatProvidersConfigKey.Enabled]: { type: 'boolean', title: 'Multiple Chat Providers' } } }, values: { [ChatProvidersConfigKey.Enabled]: true } } });
 		await timeout(0);
 		const session = provider.getSessions().find(s => s.title.get() === 'same-agent')!;
 		await waitForSessionConfig(provider, session, c => !!c);
@@ -16515,7 +16517,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		test(`a peer chat writes what it may set to itself, while the main chat's writes go to the session on a host that applies them to the default chat, else to the default chat (current host: ${currentHost})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			// A host that applies session writes to its default chat always publishes this root config key.
 			const agents = (agentHost.rootState.value as RootState).agents;
-			agentHost.setRootState(currentHost ? { agents, config: { schema: { type: 'object', properties: { [ChatProvidersConfigKey.Enabled]: { type: 'boolean', title: 'Multiple Chat Providers' } } }, values: {} } } : { agents });
+			// A current host with chats with their own agents on applies session writes to its default chat.
+			agentHost.setRootState(currentHost ? { agents, config: { schema: { type: 'object', properties: { [ChatProvidersConfigKey.Enabled]: { type: 'boolean', title: 'Multiple Chat Providers' } } }, values: { [ChatProvidersConfigKey.Enabled]: true } } } : { agents });
 			const { provider, chat, peer, summary, sessionUri, show } = perChatSession(`per-chat-${currentHost}`, true);
 			await timeout(0);
 			const session = provider.getSessions().find(s => s.title.get() === `per-chat-${currentHost}`)!;

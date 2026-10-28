@@ -43,6 +43,7 @@ import { AgentHostSettingExperimentTrigger } from './agentHostSettingExperimentT
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { getSessionPullRequestUrl, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { getEffectiveChatConfig, withChatSchemaDefaults } from '../common/sessionConfigProperties.js';
+import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../common/agentHostChatProviders.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChat } from '../common/openSessionLink.js';
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
@@ -358,8 +359,9 @@ export class AgentSideEffects extends Disposable {
 			// A chat on another agent overlays that agent's config, never the session's.
 			const ownSchema = this._stateManager.getChatOwnConfigSchema(e.chat);
 			const sessionConfig = ownSchema ? { schema: ownSchema, values: withChatSchemaDefaults(ownSchema, undefined) } : this._stateManager.getSessionState(e.session)?.config;
-			const previousMode = getConfiguredSessionMode(sessionConfig && getEffectiveChatConfig(sessionConfig, e.previous));
-			const currentMode = getConfiguredSessionMode(sessionConfig && getEffectiveChatConfig(sessionConfig, e.current));
+			const completeValues = this._agentConfigService.getRootValue(chatProvidersRootConfigSchema, ChatProvidersConfigKey.Enabled) === true;
+			const previousMode = getConfiguredSessionMode(sessionConfig && getEffectiveChatConfig(sessionConfig, e.previous, completeValues));
+			const currentMode = getConfiguredSessionMode(sessionConfig && getEffectiveChatConfig(sessionConfig, e.current, completeValues));
 			const agent = this._options.getAgent(e.session, e.chat);
 			if (!previousMode || !currentMode || previousMode === currentMode || !agent) {
 				return;

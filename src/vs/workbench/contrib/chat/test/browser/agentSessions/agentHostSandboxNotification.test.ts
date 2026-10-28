@@ -1575,7 +1575,8 @@ suite('AgentHostSandboxNotification', () => {
 				override readonly initializeResult = constObservable(undefined);
 				// A host that applies session writes to its default chat.
 				override readonly rootState = (() => {
-					const value: RootState = { agents: [], config: { schema: { type: 'object', properties: { [ChatProvidersConfigKey.Enabled]: { type: 'boolean', title: 'Multiple Chat Providers' } } }, values: {} } };
+					// A host whose chats may use their own agents applies session writes to its default chat.
+					const value: RootState = { agents: [], config: { schema: { type: 'object', properties: { [ChatProvidersConfigKey.Enabled]: { type: 'boolean', title: 'Multiple Chat Providers' } } }, values: { [ChatProvidersConfigKey.Enabled]: true } } };
 					return { value, verifiedValue: value, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
 				})();
 				override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void {

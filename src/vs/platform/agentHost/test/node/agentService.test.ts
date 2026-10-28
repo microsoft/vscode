@@ -138,6 +138,7 @@ import { creationTimeChatStorageResource } from '../../node/agentHostStateManage
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { editChatListAsOldBuild, editChatStateAsOldBuild } from './sessionStateCompatibilityFixtures.js';
 import type { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
 import type { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
 import { chatReducer } from '../../common/state/protocol/channels-chat/reducer.js';
 
@@ -7584,7 +7585,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('with the real schema, a chat\'s own approvals and mode are validated, persisted and read through its chain, and an older client\'s session edit changes only the default chat', async () => {
+		test('with the real schema, a chat\'s own approvals and mode are validated, persisted and read through its chain, and an older client\'s session edit stays under them', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new class extends MockAgent {
 				override async createChat(): Promise<void> { }
@@ -7627,8 +7628,8 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				results: ['applied', 'Session configuration \'isolation\' cannot be set for a chat.', 'applied', 'applied'],
 				session: ['plan', 'assisted'],
-				// A session edit is the default chat's too: it replaces the default chat's own mode.
-				defaultChat: ['plan', 'assisted'],
+				// The default chat's own mode shadows the older client's session edit; its approvals follow the session.
+				defaultChat: ['autopilot', 'assisted'],
 				peer: ['plan', 'autoApprove'],
 				subagent: ['plan', 'autoApprove'],
 				persisted: { [SessionConfigKey.Mode]: 'plan', [SessionConfigKey.AutoApprove]: 'autoApprove' },
@@ -9432,7 +9433,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('restoring a session whose default chat\'s and peer\'s configs were completed before writes nothing, and publishes only what the default chat takes from its session', async () => {
+		test('with chats with their own agents on, restoring a session whose default chat\'s and peer\'s configs were completed before writes nothing, and publishes only what the default chat takes from its session', async () => {
 			const perSession = createPerSessionDataService();
 			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
 			const sdkMetadata = new Map<string, IAgentChatMetadata>();
@@ -9459,6 +9460,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			const creating = createService();
 			registerTestAgentProvider(creating, createAgent());
+			getConfigurationService(creating).updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
 			const session = await creating.createSession({ legacyChatUris: true, provider: 'copilotcli' });
 			const defaultChat = buildDefaultChatUri(session);
 			const state = getStateManager(creating);
@@ -9479,6 +9481,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const restarted = createService();
 			registerTestAgentProvider(restarted, createAgent());
+			getConfigurationService(restarted).updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
 			const restoredState = getStateManager(restarted);
 			const dispatched: string[] = [];
 			disposables.add(restoredState.onDidEmitEnvelope(envelope => {
@@ -9516,7 +9519,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('a subscriber of the default chat while its session is restoring ends with its complete config values', async () => {
+		test('with chats with their own agents on, a subscriber of the default chat while its session is restoring ends with its complete config values', async () => {
 			const perSession = createPerSessionDataService();
 			const orchestratorDb = new TestAgentHostOrchestratorDatabase();
 			const sdkMetadata = new Map<string, IAgentChatMetadata>();
@@ -9546,6 +9549,7 @@ suite('AgentService (node dispatcher)', () => {
 			}('copilotcli', sdkMetadata));
 			const creating = createService();
 			registerTestAgentProvider(creating, createAgent());
+			getConfigurationService(creating).updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
 			const session = await creating.createSession({ legacyChatUris: true, provider: 'copilotcli' });
 			const defaultChat = buildDefaultChatUri(session);
 			const state = getStateManager(creating);
@@ -9560,6 +9564,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const restarted = createService();
 			registerTestAgentProvider(restarted, createAgent());
+			getConfigurationService(restarted).updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
 			holdResolution = true;
 			const restoring = restarted.restoreSession(session);
 			await resolveStarted.p;
@@ -9650,8 +9655,8 @@ suite('AgentService (node dispatcher)', () => {
 				created: {
 					// The default chat's own values and the session's for the rest, not read-only or session-only ones.
 					fresh: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', [SessionConfigKey.Mode]: 'plan' } },
-					// A fork copies its source's own values, and its values are complete: the session's for the rest it may set.
-					fork: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', effectiveApprovalMode: 'autoApprove', [SessionConfigKey.Mode]: 'plan' } },
+					// A fork copies its source's own values.
+					fork: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', effectiveApprovalMode: 'autoApprove' } },
 				},
 				restoredDefaultChat: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', effectiveApprovalMode: 'autoApprove' } },
 				afterRestart: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', [SessionConfigKey.Mode]: 'plan' } },

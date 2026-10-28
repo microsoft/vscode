@@ -253,20 +253,32 @@ export function getCompleteChatConfigValues(session: SessionConfigState, overlay
 }
 
 /**
- * A chat's effective config. A chat's `values` are its complete config: the
- * session's config never changes them. A chat with its own `schema` (its agent
- * differs from its session's) is that schema with its values over the schema's
- * defaults. Any other chat uses the session's schema: its `chatMutable`
- * properties come from the chat's values, falling back to the schema's
- * `default`, and the other, session-wide properties from the session. A chat
- * without config is the session's.
+ * A chat's effective config. A chat with its own `schema` (its agent differs
+ * from its session's) is that schema with its values over the schema's defaults.
+ * A chat without config is the session's.
+ *
+ * Otherwise it depends on `completeValues`, whether the host publishes a chat's
+ * complete values (only while chats may use their own agents, the
+ * `multipleChatProviders.enabled` root config):
+ * - `false` (default; older hosts, and hosts with the setting off): the chat's
+ *   values are an overlay on its session's: the session's config with the
+ *   chat's own values applied over it (see {@link applyChatConfigLayers}), so a
+ *   property the chat didn't set follows its session.
+ * - `true`: the chat's values are its complete config, which the session's
+ *   config never changes: its `chatMutable` properties come from its values,
+ *   falling back to the schema's `default`, and the other, session-wide
+ *   properties from the session.
  */
-export function getEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined): SessionConfigState {
+export function getEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined, completeValues = false): SessionConfigState {
 	if (chat?.schema) {
 		return { schema: chat.schema, values: withChatSchemaDefaults(chat.schema, chat.values) };
 	}
 	if (!chat) {
 		return session;
+	}
+	if (!completeValues) {
+		const own = filterChatConfigValues(session.schema, chat.values);
+		return Object.keys(own).length === 0 ? session : { schema: session.schema, values: applyChatConfigLayers(session.values, [own]) };
 	}
 	const values: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(session.values)) {

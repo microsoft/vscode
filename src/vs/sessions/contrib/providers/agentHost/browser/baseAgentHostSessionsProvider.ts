@@ -78,7 +78,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostDownloadProgress } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostDownloadProgress.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { getAgentHostEffectiveChatConfig, hostAppliesSessionConfigToDefaultChat } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/applyAgentHostSessionConfig.js';
+import { getAgentHostEffectiveChatConfig, hostAppliesSessionConfigToDefaultChat, hostPublishesCompleteChatConfig } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/applyAgentHostSessionConfig.js';
 import { AgentHostBackgroundShellOutputs } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBackgroundShells.js';
 import type { IChatBackgroundShell } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -6149,17 +6149,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._keepSessionStateAlive(sessionId);
 		const config = this._runningSessionConfigs.get(sessionId);
-		const protocolVersion = this.connection?.initializeResult.get()?.protocolVersion;
+		const completeValues = hostPublishesCompleteChatConfig(this.connection?.rootState?.value);
 		// A chat whose agent differs from the session's has that agent's schema in its state; the session's config
 		// never applies to it, so it has none until its state arrives.
 		if (this._chatUsesOwnAgent(sessionId, chat)) {
 			const own = this._getChatOwnConfigValues(sessionId, chat);
-			return config && own?.schema ? getAgentHostEffectiveChatConfig(config, own, protocolVersion) : undefined;
+			return config && own?.schema ? getAgentHostEffectiveChatConfig(config, own, completeValues) : undefined;
 		}
 		// Only properties the session's schema lets a chat set are a chat's own, so a host without them reads as the session.
 		// Until the chat's values arrive this is the session's config, and isSessionConfigResolving reports it.
 		const own = config && hasChatConfigProperties(config.schema) ? this._getChatOwnConfigValues(sessionId, chat) : undefined;
-		return config && own ? getAgentHostEffectiveChatConfig(config, own, protocolVersion) : config;
+		return config && own ? getAgentHostEffectiveChatConfig(config, own, completeValues) : config;
 	}
 
 	/** Whether a running session's chat is backed by an agent other than the session's. */

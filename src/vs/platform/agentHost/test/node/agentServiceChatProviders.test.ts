@@ -341,6 +341,82 @@ suite('AgentService - chats with their own agent', () => {
 		});
 	});
 
+	test('with chats with their own agents off, a peer\'s values stay an overlay: it follows its session\'s mode, and nothing is completed, dispatched or written', async () => {
+		const { service } = createService(false);
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		await service.createChat(session, chat);
+		await timeout(0);
+		// A peer that set nothing itself, as an older build stored it.
+		await getTestSessionStateStore(service).chatRows.setChatConfig(session, chat, {});
+		const stateManager = getTestAgentStateManager(service);
+		stateManager.deleteSession(session.toString());
+		const dispatched: string[] = [];
+		const listener = stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChatConfigChanged) {
+				dispatched.push(envelope.channel);
+			}
+		});
+		try {
+			await service.restoreSession(session);
+			await timeout(0);
+			getTestAgentServiceComposition(service).configurationService.updateSessionConfig(session.toString(), { mode: 'ask' });
+			await timeout(0);
+		} finally {
+			listener.dispose();
+		}
+
+		assert.deepStrictEqual({
+			effective: getTestAgentServiceComposition(service).configurationService.getChatConfigValues({ session: session.toString(), chat: chat.toString() })?.mode,
+			published: stateManager.getChatConfig(chat.toString()),
+			stored: await getTestSessionStateStore(service).chatRows.getChatConfig(session, chat),
+			dispatched,
+		}, { effective: 'ask', published: { values: {} }, stored: {}, dispatched: [] });
+	});
+
+	test('turning chats with their own agents on completes a loaded peer\'s overlay; turning them off reads its complete values as an overlay again', async () => {
+		const { service } = createService(false);
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		await service.createChat(session, chat);
+		await timeout(0);
+		await getTestSessionStateStore(service).chatRows.setChatConfig(session, chat, {});
+		const stateManager = getTestAgentStateManager(service);
+		stateManager.deleteSession(session.toString());
+		await service.restoreSession(session);
+		await timeout(0);
+		const configuration = getTestAgentServiceComposition(service).configurationService;
+		configuration.updateSessionConfig(session.toString(), { mode: 'ask' });
+		const defaultChat = stateManager.getSessionState(session.toString())!.defaultChat!;
+		const read = async () => ({
+			defaultChat: stateManager.getChatConfig(defaultChat)?.values,
+			published: stateManager.getChatConfig(chat.toString())?.values,
+			effective: configuration.getChatConfigValues({ session: session.toString(), chat: chat.toString() })?.mode,
+			stored: await getTestSessionStateStore(service).chatRows.getChatConfig(session, chat),
+		});
+
+		configuration.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
+		await timeout(0);
+		await getTestSessionStateStore(service).whenIdle(undefined);
+		const on = await read();
+		configuration.updateSessionConfig(session.toString(), { mode: 'agent' });
+		const onAfterSessionChange = (await read()).effective;
+		configuration.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: false });
+		await timeout(0);
+		const off = await read();
+
+		assert.deepStrictEqual({ on, onAfterSessionChange, off }, {
+			// Completed from its session's values, and persisted so.
+			// The default chat publishes what it takes from its session.
+			on: { defaultChat: { mode: 'ask' }, published: { mode: 'ask' }, effective: 'ask', stored: { mode: 'ask' } },
+			// Its values are its complete config: a later session change doesn't reach it.
+			onAfterSessionChange: 'ask',
+			// Read as an overlay again, its complete values still decide every property it may set.
+			// The default chat publishes only its own values again, so it follows its session.
+			off: { defaultChat: {}, published: { mode: 'ask' }, effective: 'ask', stored: { mode: 'ask' } },
+		});
+	});
+
 	test('a restored session routes a chat with its own agent to that agent with its own config', async () => {
 		const { service, second } = createService(true);
 		const { session, chat } = await createSessionWithSecondChat(service);
