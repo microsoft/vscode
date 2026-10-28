@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -12,7 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { getArtifactDetailsDescription, getArtifactDetailsItemLabel, getArtifactThemeIcon } from '../../../../platform/artifactIntegrations/browser/artifactDetailsList.js';
-import { ArtifactActionView, ArtifactAvailability, ArtifactContributionSnapshot, ArtifactDetails, ArtifactRun, ArtifactSnapshot, artifactBindingId, IArtifactDetailsModel, isArtifactRunSettled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionView, ArtifactAvailability, ArtifactContributionSnapshot, ArtifactDetails, ArtifactDetailsItem, ArtifactItemActionDescriptor, ArtifactRun, ArtifactSnapshot, artifactBindingId, getArtifactMainContribution, IArtifactDetailsModel, isArtifactRunSettled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getChatPillEntryToolbarActions } from '../../../../workbench/browser/chatPills.js';
@@ -21,9 +22,12 @@ import { ArtifactAutopilotModel } from './artifactAutopilotModel.js';
 import { artifactViewKey as key, IArtifactActionViewData, IArtifactDetailsViewData, IArtifactListViewData, IArtifactSectionTarget } from './artifactDetailsView.js';
 import { ArtifactIntegrationPresentation } from './artifactIntegrationPresentation.js';
 
+/**
+ * Only lasting conditions are described. Loading and stale states are transient (a stale resource keeps showing its last
+ * known state while it refreshes, such as after every action or Autopilot change), so describing them would flicker.
+ */
 function availabilityText(availability: ArtifactAvailability | undefined): string {
-	return !availability || availability.kind === 'loading' ? localize('artifactDetailsLoading', "Loading details...")
-		: availability.kind === 'available' ? '' : availability.reason;
+	return !availability || availability.kind === 'loading' || availability.kind === 'stale' || availability.kind === 'available' ? '' : availability.reason;
 }
 
 function requiresAuthentication(contribution: ArtifactContributionSnapshot): boolean {
@@ -63,6 +67,13 @@ class ArtifactDetailsLease extends Disposable {
 		}
 		await this.model.value.loadMore(CancellationToken.None);
 	}
+
+	async runItemAction(itemId: string, actionId: string): Promise<void> {
+		if (!this.model.value?.runItemAction) {
+			throw new Error(localize('artifactItemActionUnavailable', "This action is no longer available for this item."));
+		}
+		await this.model.value.runItemAction(itemId, actionId, CancellationToken.None);
+	}
 }
 
 /** Owns the live details subscription and projects provider data into one renderable view model. */
@@ -71,6 +82,8 @@ export class ArtifactDetailsModel extends Disposable {
 	private readonly leasesChanged = observableSignal(this);
 	private readonly changed = observableSignal(this);
 	private readonly requests = new Map<string, string | undefined>();
+	/** Item actions in progress, which keeps their rows busy until the provider settles. */
+	private readonly pendingItemActions = new Set<string>();
 	private readonly autopilot: ArtifactAutopilotModel;
 	private readonly activities: ArtifactActivitiesModel;
 	readonly data: IObservable<IArtifactDetailsViewData>;
@@ -117,11 +130,13 @@ export class ArtifactDetailsModel extends Disposable {
 		this.changed.read(reader);
 		const snapshot = this.presentation.snapshot.read(reader);
 		const details = new Map([...this.leases].map(([id, lease]) => [id, lease.value.read(reader)]));
-		const contribution = snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId);
+		const contribution = getArtifactMainContribution(snapshot);
 		const main = contribution?.view.main;
 		const mainDetails = main && contribution ? details.get(key(contribution.integrationId, main.detailsId)) : undefined;
+		const loading = snapshot.contributions.some(contribution => contribution.view.availability.kind === 'loading')
+			|| !!(main && contribution && !requiresAuthentication(contribution) && (!mainDetails || mainDetails.availability.kind === 'loading'));
 		const title = mainDetails?.title || snapshot.artifact.label;
-		const description = (mainDetails ? getArtifactDetailsDescription(mainDetails) : '') || (mainDetails?.availability.kind === 'available' ? localize('artifactNoDescription', "No description provided.") : '');
+		const description = mainDetails ? getArtifactDetailsDescription(mainDetails) : '';
 		const message = [...new Set([
 			...snapshot.contributions.map(contribution => availabilityText(contribution.view.availability)),
 			...(main && contribution && !requiresAuthentication(contribution) ? [availabilityText(mainDetails?.availability)] : []),
@@ -144,15 +159,20 @@ export class ArtifactDetailsModel extends Disposable {
 				const detailKey = key(contribution.integrationId, reference.detailsId);
 				const value = details.get(detailKey);
 				const lease = this.leases.get(detailKey);
+				const loading = !value || value.availability.kind === 'loading';
 				const items = value?.items ?? [];
+				const itemActions = new Map(items.flatMap(item => {
+					const actions = this.itemActionButtons(detailKey, value?.itemActions ?? [], item);
+					return actions.length ? [[item.id, actions] as const] : [];
+				}));
 				listTargets.set(detailKey, id);
 				lists.push({
 					id, title: value?.title || reference.label,
 					icon: getArtifactThemeIcon(reference.icon ?? contribution.view.sections.find(section => section.detailsId === reference.detailsId)?.icon ?? Codicon.listFlat),
 					description: value ? getArtifactDetailsDescription(value) : '',
-					message: availabilityText(value?.availability) || (!items.length ? value?.completeness === 'partial'
+					message: availabilityText(value?.availability) || (!loading && !items.length ? value?.completeness === 'partial'
 						? localize('artifactListIncomplete', "This list is incomplete.") : localize('artifactListEmpty', "No items.") : ''),
-					loading: !value || value.availability.kind === 'loading', items,
+					loading, items, itemActions,
 					more: value?.completeness === 'partial' ? {
 						id: key(id, 'loadMore'), label: localize('artifactLoadMore', "Load More"), enabled: lease?.canLoadMore === true,
 						description: lease?.canLoadMore ? undefined : localize('artifactPartialList', "This list is incomplete. Open the resource to see all items."),
@@ -218,7 +238,7 @@ export class ArtifactDetailsModel extends Disposable {
 		const selectedList = lists.some(list => list.id === this.presentation.viewState.selectedList) ? this.presentation.viewState.selectedList : undefined;
 		return {
 			title, resource: snapshot.artifact.resource, icon: main ? getArtifactThemeIcon(main.icon) : entry?.icon,
-			titleDescription: main?.description ?? '', description, message, lists, selectedList, stateActions, generalActions, autopilot, activities, sections,
+			titleDescription: main?.description ?? '', description, message, loading, lists, selectedList, stateActions, generalActions, autopilot, activities, sections,
 			openResource: () => {
 				void this.presentation.run(async () => {
 					const entry = this.presentation.baseEntry;
@@ -236,7 +256,10 @@ export class ArtifactDetailsModel extends Disposable {
 			},
 			accessibleText: [
 				title, main?.description, description, message,
-				...lists.flatMap(list => [list.title, list.description, list.message, ...list.items.map(getArtifactDetailsItemLabel), list.more?.description]),
+				...lists.flatMap(list => [list.title, list.description, list.message, ...list.items.map(item => {
+					const actions = list.itemActions.get(item.id)?.map(action => action.label);
+					return actions?.length ? localize('artifactAccessibleItemActions', "{0} (actions: {1})", getArtifactDetailsItemLabel(item), actions.join(', ')) : getArtifactDetailsItemLabel(item);
+				}), list.more?.description]),
 				...[...stateActions, ...generalActions].map(action => action.enabled === false ? localize('artifactAccessibleDisabled', "{0}: unavailable. {1}", action.label, action.description ?? '') : action.label),
 				...autopilot.flatMap(group => [group.title, group.summary, ...group.rules.map(rule =>
 					localize('artifactAccessibleAutomation', "{0}: {1}. {2}", rule.label, rule.checked ? rule.policy?.label ?? localize('artifactAutomationOn', "On")
@@ -244,6 +267,45 @@ export class ArtifactDetailsModel extends Disposable {
 				...activities.items.length ? [localize('artifactActivities', "Activities"), activities.summary, ...activities.items.map(item => item.description), activities.message] : [],
 			].filter(Boolean).join('\n'),
 		};
+	}
+
+	/** Row actions for one details item, in the order the item lists them. */
+	private itemActionButtons(detailKey: string, descriptors: readonly ArtifactItemActionDescriptor[], item: ArtifactDetailsItem): IArtifactActionViewData[] {
+		return (item.actions ?? []).flatMap(actionId => {
+			const action = descriptors.find(action => action.id === actionId);
+			if (!action) {
+				return [];
+			}
+			const id = JSON.stringify([detailKey, item.id, action.id]);
+			const pending = this.pendingItemActions.has(id);
+			return [{
+				id, label: action.label, enabled: !pending,
+				description: pending ? localize('artifactItemActionRunning', "Running") : undefined,
+				icon: pending ? ThemeIcon.modify(Codicon.loading, 'spin') : getArtifactThemeIcon({ id: action.iconId }),
+				run: () => {
+					if (this.pendingItemActions.has(id)) {
+						return;
+					}
+					this.pendingItemActions.add(id);
+					this.changed.trigger(undefined);
+					void this.presentation.run(async () => {
+						try {
+							const lease = this.leases.get(detailKey);
+							if (!lease) {
+								throw new Error(localize('artifactListUnavailable', "This artifact list is no longer available."));
+							}
+							await lease.runItemAction(item.id, action.id);
+							status(localize('artifactItemActionCompleted', "{0} completed for {1}", action.label, item.label));
+						} finally {
+							this.pendingItemActions.delete(id);
+							if (!this._store.isDisposed) {
+								this.changed.trigger(undefined);
+							}
+						}
+					});
+				},
+			}];
+		});
 	}
 
 	private activity(snapshot: ArtifactSnapshot, integrationId: string, actionId: string): { run?: ArtifactRun; latest?: ArtifactRun; requested: boolean } {

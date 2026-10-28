@@ -11,6 +11,7 @@ applyTo: src/vs/**
 - Render actions inside a toolbar rather than by hand. Prefer `MenuWorkbenchToolBar` (`vs/platform/actions/browser/toolbar.ts`): give it a `MenuId` so actions can be contributed from anywhere (contributions, other components) without coupling.
 - Use `WorkbenchToolBar` when you need explicit control over which actions render and where separators go.
 - Never add a separator while rendering an action. Add separators with the existing `Separator` class (`vs/base/common/actions.ts`).
+- When adding or changing context menu entries (the `group`/`order` of menu contributions or hand-built context menu actions), follow the [`context-menus` skill](../skills/context-menus/SKILL.md) for group order and placement.
 - If a `MenuWorkbenchToolBar` lives in a widget/view that can be rendered multiple times at once, give the toolbar a scoped `IContextKeyService` which is scoped to the dom element of that widget/view and set the context keys per individual widget/view instance.
 
 ## Editor/Session Actions

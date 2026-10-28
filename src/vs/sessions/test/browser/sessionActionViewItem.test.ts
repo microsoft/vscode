@@ -10,7 +10,7 @@ import { ActionRunner } from '../../../base/common/actions.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
@@ -24,7 +24,7 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { TestExperimentTriggerTelemetryService } from '../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { ARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID } from '../../common/sessionCommands.js';
 import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SessionArchiveActionViewItem } from '../../browser/sessionActionViewItem.js';
 
 suite('SessionActionViewItem', () => {
@@ -46,7 +46,7 @@ suite('SessionActionViewItem', () => {
 		);
 	}
 
-	function createArchiveActionViewItem(run: () => Promise<void>): MenuEntryActionViewItem {
+	function createArchiveActionViewItem(run: () => Promise<void>, options: IMenuEntryActionViewItemOptions = { onClickAnimation: ClickAnimation.Confetti }): MenuEntryActionViewItem {
 		const action = new MenuItemAction(
 			{ id: ARCHIVE_SESSION_COMMAND_ID, title: ARCHIVE_SESSION_COMMAND_ID },
 			undefined,
@@ -65,7 +65,7 @@ suite('SessionActionViewItem', () => {
 		);
 		const viewItem = disposables.add(new MenuEntryActionViewItem(
 			action,
-			{ onClickAnimation: ClickAnimation.Confetti },
+			options,
 			new class extends mock<IKeybindingService>() { }(),
 			new TestNotificationService(),
 			new class extends mock<IContextKeyService>() { }(),
@@ -90,9 +90,11 @@ suite('SessionActionViewItem', () => {
 
 		assert.deepStrictEqual({
 			archive: provider(createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID), {}),
+			archiveGroup: provider(createMenuItemAction(ARCHIVE_SESSION_GROUP_COMMAND_ID), {}),
 			other: provider(createMenuItemAction('sessions.other'), {}),
 		}, {
 			archive: expected,
+			archiveGroup: expected,
 			other: undefined,
 		});
 	});
@@ -103,7 +105,10 @@ suite('SessionActionViewItem', () => {
 		instantiationService.stubInstance<SessionArchiveActionViewItem>(SessionArchiveActionViewItem, expected);
 		const provider = createSessionActionViewItemProvider(instantiationService, new TestConfigurationService());
 
-		assert.strictEqual(provider(createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID), {}), expected);
+		assert.deepStrictEqual([
+			provider(createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID), {}),
+			provider(createMenuItemAction(ARCHIVE_SESSION_GROUP_COMMAND_ID), {}),
+		], [expected, expected]);
 	});
 
 	for (const reducedMotion of [false, true]) {
@@ -178,6 +183,27 @@ suite('SessionActionViewItem', () => {
 			animationAfterFailure: null,
 		});
 	});
+
+	for (const confirmed of [false, true]) {
+		test(`checks animation eligibility against the original context after disposal (${confirmed})`, async () => {
+			const context = { confirmed };
+			const configurationService = new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: true });
+			let checkedContext: unknown;
+			const viewItem = createArchiveActionViewItem(async () => {
+				viewItem.dispose();
+				viewItem.setActionContext(undefined);
+			}, getSessionArchiveActionViewItemOptions({}, configurationService, value => {
+				checkedContext = value;
+				return value === context && confirmed;
+			}));
+			viewItem.setActionContext(context);
+			await viewItem.onClick(new MouseEvent('click'));
+			const overlay = document.body.querySelector('.animation-overlay');
+			overlay?.remove();
+
+			assert.deepStrictEqual({ context: checkedContext, animated: !!overlay }, { context, animated: confirmed });
+		});
+	}
 
 	test('keeps confetti at the original button position when archiving disposes the view item', async () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench'));

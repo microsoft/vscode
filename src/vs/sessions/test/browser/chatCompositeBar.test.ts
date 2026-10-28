@@ -33,7 +33,7 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts
 import { Menus } from '../../browser/menus.js';
 import { getSessionChatDragData, isSessionChatDrag } from '../../browser/dnd.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
-import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
@@ -1176,9 +1176,30 @@ suite('Sessions - ChatCompositeBar', () => {
 				labels: actions.map(action => action instanceof Separator ? 'separator' : action.label),
 				commandCalls: commandService.calls,
 			}, {
-				labels: ['Rename...'],
+				labels: ['Mark as Unread', 'separator', 'Rename...'],
 				commandCalls: [{ commandId: RENAME_SESSION_COMMAND_ID, args: [session] }],
 			});
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('runs the shared Close and read state commands from chat tab menus', async () => {
+		const { commandService, container, contextMenuService, session, tabs } = createHarness(disposables);
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			const run = async (tab: HTMLElement, id: string) => {
+				tab.dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
+				await contextMenuService.delegate?.getActions().find(action => action.id === id)?.run();
+			};
+			await run(tabs[0], MARK_SESSION_UNREAD_COMMAND_ID);
+			await run(tabs[1], CLOSE_CHAT_COMMAND_ID);
+
+			assert.deepStrictEqual(commandService.calls, [
+				{ commandId: MARK_SESSION_UNREAD_COMMAND_ID, args: [{ session, chat: session.visibleChatTabs.get()[0] }] },
+				{ commandId: CLOSE_CHAT_COMMAND_ID, args: [session, session.visibleChatTabs.get()[1]] },
+			]);
 		} finally {
 			container.remove();
 		}
@@ -1198,15 +1219,15 @@ suite('Sessions - ChatCompositeBar', () => {
 				main: menuLabels(tabs[0]),
 				secondary: menuLabels(tabs[1]),
 			}, {
-				main: [],
-				secondary: ['Rename...', 'separator', 'Delete Chat'],
+				main: ['Mark as Unread'],
+				secondary: ['Close', 'separator', 'Rename...', 'Delete...'],
 			});
 		} finally {
 			container.remove();
 		}
 	});
 
-	test('shows Copy Link at the bottom of the chat tab context menu', () => {
+	test('shows Copy Link between the state and manage actions of the chat tab context menu', () => {
 		const { container, contextMenuService, tabs } = createHarness(disposables, { isAgentHost: true });
 		mainWindow.document.body.appendChild(container);
 
@@ -1214,18 +1235,19 @@ suite('Sessions - ChatCompositeBar', () => {
 			tabs[1].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
 
 			assert.deepStrictEqual(contextMenuService.delegate?.getActions().map(action => action instanceof Separator ? 'separator' : action.label), [
-				'Rename...',
-				'separator',
-				'Delete Chat',
+				'Close',
 				'separator',
 				'Copy Link',
+				'separator',
+				'Rename...',
+				'Delete...',
 			]);
 		} finally {
 			container.remove();
 		}
 	});
 
-	test('groups Rename with archive or restore for manageable chat tabs', async () => {
+	test('separates archive or restore from Rename and Delete in chat tab menus', async () => {
 		const snapshots: { archived: boolean; actionId: string | undefined; menuIds: readonly string[]; commandIds: readonly string[] }[] = [];
 		for (const archived of [false, true]) {
 			const { commandService, container, contextMenuService, tabs } = createHarness(disposables, { secondaryArchived: archived, secondaryCanArchive: true });
@@ -1251,13 +1273,13 @@ suite('Sessions - ChatCompositeBar', () => {
 			{
 				archived: false,
 				actionId: ARCHIVE_CHAT_COMMAND_ID,
-				menuIds: [RENAME_CHAT_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, 'separator', 'sessionCompositeBar.deleteChat'],
+				menuIds: [CLOSE_CHAT_COMMAND_ID, 'separator', ARCHIVE_CHAT_COMMAND_ID, 'separator', RENAME_CHAT_COMMAND_ID, 'sessionCompositeBar.deleteChat'],
 				commandIds: [ARCHIVE_CHAT_COMMAND_ID],
 			},
 			{
 				archived: true,
 				actionId: UNARCHIVE_CHAT_COMMAND_ID,
-				menuIds: [RENAME_CHAT_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, 'separator', 'sessionCompositeBar.deleteChat'],
+				menuIds: [CLOSE_CHAT_COMMAND_ID, 'separator', UNARCHIVE_CHAT_COMMAND_ID, 'separator', RENAME_CHAT_COMMAND_ID, 'sessionCompositeBar.deleteChat'],
 				commandIds: [UNARCHIVE_CHAT_COMMAND_ID],
 			},
 		]);

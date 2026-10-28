@@ -110,12 +110,19 @@ for (const key of [ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfig
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
 	properties: {
+		[ChatConfiguration.AgentsPickerInAttachContextMenu]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			description: nls.localize('chat.agentsPickerInAttachContextMenu', "Controls whether the Agent picker appears in Add Context for chat inputs in the editor and Agents windows when the default agent is selected. While a non-default agent is selected, the picker appears in its usual position."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[ChatConfiguration.UnifiedWorkspacePicker]: {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: nls.localize('sessions.chat.unifiedWorkspacePicker.enabled', "Controls whether the Agents Window uses the unified workspace picker, which combines GitHub and remote workspaces, provides search, and, when supported, allows creating sessions with no workspace."),
-			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays]: {

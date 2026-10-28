@@ -801,6 +801,77 @@ suite('ListView', function () {
 		}
 	});
 
+	test('handles a reentrant shrink that leaves later probed indices out of bounds', function () {
+		const element = document.createElement('div');
+		element.style.height = '100px';
+		element.style.width = '200px';
+		document.body.appendChild(element);
+
+		type TestElement = { id: string; height: number };
+		const delegate: IListVirtualDelegate<TestElement> = {
+			getHeight() { return 100; },
+			getTemplateId() { return 'template'; },
+			hasDynamicHeight() { return true; }
+		};
+
+		const listViewRef: { value?: ListView<TestElement> } = {};
+		let shrinkOnRender: TestElement | undefined;
+		const renderer: IListRenderer<TestElement, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) {
+				Object.defineProperty(container, 'offsetHeight', {
+					configurable: true,
+					get: () => Number(container.dataset.testHeight)
+				});
+				return container;
+			},
+			renderElement(element, _index, templateData) {
+				templateData.dataset.testHeight = String(element.height);
+				if (shrinkOnRender === element) {
+					shrinkOnRender = undefined;
+					// Shrink mid-loop so the render range's end extends past the model while a later index is still pending.
+					listViewRef.value!.splice(1, listViewRef.value!.length - 1);
+				}
+			},
+			disposeTemplate() { }
+		};
+
+		const elements: TestElement[] = range(4).map(index => ({ id: String(index), height: 100 }));
+		const listView = listViewRef.value = new class extends ListView<TestElement> {
+			includeAll = false;
+
+			protected override getRenderRange(renderTop: number, renderHeight: number): IRange {
+				const renderRange = super.getRenderRange(renderTop, renderHeight);
+				if (this.includeAll) {
+					renderRange.end = this.length;
+				}
+				return renderRange;
+			}
+		}(element, delegate, [renderer], { supportDynamicHeights: true });
+		try {
+			listView.layout(100, 200);
+			listView.splice(0, 0, elements);
+			// Keep later indices in the probe range before row 1's new height is measured.
+			listView.includeAll = true;
+			elements[0].height = 20;
+			listView.domElement(0)!.dataset.testHeight = String(elements[0].height);
+			shrinkOnRender = elements[1];
+
+			listView.layout(100, 201);
+
+			assert.deepStrictEqual({
+				length: listView.length,
+				rowsInDom: element.querySelectorAll('.monaco-list-row').length
+			}, {
+				length: 1,
+				rowsInDom: 1
+			});
+		} finally {
+			listView.dispose();
+			element.remove();
+		}
+	});
+
 	test('publishes freshly measured dynamic heights', function () {
 		const element = document.createElement('div');
 		element.style.height = '200px';

@@ -20,6 +20,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -29,9 +30,10 @@ import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostCon
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatOriginKind, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -53,14 +55,18 @@ import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionO
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity, ChatModelSource, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
 import { SessionPullRequestPresentationModel } from '../../../../github/browser/pullRequestIconStatus.js';
 import { buildSessionPullRequestSections } from '../../../../chat/browser/sessionChatInputToolbar.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../chat/common/constants.js';
+import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../copilotChatSessions/common/copilotChatSessions.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -85,6 +91,7 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 
 class MockAgentConnection extends mock<IAgentConnection>() {
 	override measureWorktreeDiskUsage?: IAgentConnection['measureWorktreeDiskUsage'];
+	override sessionWorktreeCleanup?: IAgentConnection['sessionWorktreeCleanup'];
 	actionListenerCount = 0;
 	private readonly _onDidAction = new Emitter<ActionEnvelope>({
 		onDidAddListener: () => this.actionListenerCount++,
@@ -321,7 +328,9 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	}());
 	instantiationService.stub(IFileDialogService, overrides?.fileDialogService ?? {});
 	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
-	instantiationService.stub(IConfigurationService, overrides?.configurationService ?? new TestConfigurationService({ [DevContainerIdleTimeoutSettingId]: 300 }));
+	instantiationService.stub(IConfigurationService, overrides?.configurationService ?? new TestConfigurationService({
+		[DevContainerIdleTimeoutSettingId]: 300, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true,
+	}));
 	instantiationService.stub(INotificationService, { error: () => { } });
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return overrides?.workspaceTrusted ?? true; }
@@ -508,8 +517,231 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const host of [
+		{ address: 'localhost:4321', preferenceKey: 'ssh:build' },
+		{ address: 'tunnel:laptop', preferenceKey: undefined },
+		{ address: 'wsl:Ubuntu', preferenceKey: undefined },
+		{ address: 'ws://localhost:9000', preferenceKey: undefined },
+	]) {
+		test(`picker hidden preference preserves sessions and combines with availability (${host.preferenceKey ?? host.address})`, () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+			const key = getRemoteAgentHostPickerKey(host.preferenceKey ?? host.address);
+			preference.setHidden(key, true);
+			const available = observableValue('available', true);
+			const provider = createProvider(disposables, connection, { ...host, storageService }, { isVisibleInEnvironmentPicker: available });
+			provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+			provider.seedSessions([createSession('retained-session')]);
+			const beforeSessions = provider.getSessions();
+			const snapshot = () => ({ available: provider.isAvailableInEnvironmentPicker?.get(), visible: provider.isVisibleInEnvironmentPicker?.get(), entries: getSessionCreationEnvironments([provider]).length });
+			const hidden = snapshot();
+			provider.showInEnvironmentPicker();
+			const shown = snapshot();
+			available.set(false, undefined);
+			const offline = snapshot();
+			preference.setHidden(key, true);
+			available.set(true, undefined);
+			const hiddenAgain = snapshot();
+			provider.showInEnvironmentPicker();
+			assert.deepStrictEqual({
+				hidden, shown, offline, hiddenAgain, final: snapshot(),
+				sessionsUnchanged: provider.getSessions().length === beforeSessions.length && provider.getSessions()[0] === beforeSessions[0],
+				connectionStatus: provider.connectionStatus.get().kind,
+			}, {
+				hidden: { available: true, visible: false, entries: 0 }, shown: { available: true, visible: true, entries: 1 },
+				offline: { available: false, visible: false, entries: 0 }, hiddenAgain: { available: true, visible: false, entries: 0 },
+				final: { available: true, visible: true, entries: 1 }, sessionsUnchanged: true, connectionStatus: 'connected',
+			});
+		});
+	}
+
+	for (const host of [
+		{ address: 'localhost:4321', preferenceKey: 'ssh:build' },
+		{ address: 'tunnel:laptop' },
+		{ address: 'wsl:Ubuntu' },
+		{ address: 'ws://localhost:9000' },
+		{ address: 'cloudsandbox:desktop', pickerVisibilityKey: getRemoteAgentHostPickerKey('cloudsandbox:desktop', 'account-one') },
+	]) {
+		test(`management setting gates hidden preferences live without overriding availability (${host.address})`, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const configurationService = new TestConfigurationService();
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+			const key = host.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(host.preferenceKey ?? host.address);
+			preference.setHidden(key, true);
+			const available = observableValue('available', true);
+			const provider = createProvider(disposables, connection, { ...host, storageService, configurationService }, {
+				pickerVisibilityKey: host.pickerVisibilityKey, isVisibleInEnvironmentPicker: available,
+			});
+			const observed: boolean[] = [];
+			disposables.add(autorun(reader => observed.push(provider.isVisibleInEnvironmentPicker!.read(reader))));
+			const snapshot = () => ({ visible: provider.isVisibleInEnvironmentPicker!.get(), entries: getSessionCreationEnvironments([provider]).length, hidden: preference.isHidden(key) });
+			const setEnabled = async (enabled: boolean) => {
+				await configurationService.setUserConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER, affectedKeys: new Set([ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]),
+					change: { keys: [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING], overrides: [] },
+					affectsConfiguration: key => key === ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING,
+				});
+			};
+			const defaultOn = snapshot();
+			await setEnabled(true);
+			const enabled = snapshot();
+			await setEnabled(false);
+			provider.showInEnvironmentPicker();
+			const disabled = snapshot();
+			available.set(false, undefined);
+			const offline = snapshot();
+			available.set(true, undefined);
+			await setEnabled(true);
+			const restored = snapshot();
+			provider.showInEnvironmentPicker();
+			assert.deepStrictEqual({ defaultOn, enabled, disabled, offline, restored, shown: snapshot(), observed }, {
+				defaultOn: { visible: false, entries: 0, hidden: true },
+				enabled: { visible: false, entries: 0, hidden: true },
+				disabled: { visible: true, entries: 1, hidden: true },
+				offline: { visible: false, entries: 0, hidden: true },
+				restored: { visible: false, entries: 0, hidden: true },
+				shown: { visible: true, entries: 1, hidden: false },
+				observed: [false, true, false, true, false, true],
+			});
+		});
+	}
+
+	test('explicit reveal clears only this account preference without overriding offline availability', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+		const address = 'cloudsandbox:desktop';
+		const key = getRemoteAgentHostPickerKey(address, 'account-one');
+		const otherKey = getRemoteAgentHostPickerKey(address, 'account-two');
+		preference.setHidden(key, true);
+		preference.setHidden(otherKey, true);
+		const available = observableValue('available', false);
+		const provider = createProvider(disposables, connection, { address, storageService }, {
+			pickerVisibilityKey: key, isVisibleInEnvironmentPicker: available,
+		});
+		provider.showInEnvironmentPicker();
+		assert.deepStrictEqual({
+			hidden: preference.isHidden(key), otherAccountHidden: preference.isHidden(otherKey),
+			available: provider.isAvailableInEnvironmentPicker?.get(), visible: provider.isVisibleInEnvironmentPicker?.get(),
+		}, { hidden: false, otherAccountHidden: true, available: false, visible: false });
+	});
+
+	test('a hidden ordinary remote remains available when no availability signal is configured', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+		const address = 'wsl:Ubuntu';
+		preference.setHidden(getRemoteAgentHostPickerKey(address), true);
+		const provider = createProvider(disposables, connection, { address, storageService });
+		assert.deepStrictEqual({
+			available: provider.isAvailableInEnvironmentPicker?.get(), visible: provider.isVisibleInEnvironmentPicker?.get(),
+		}, { available: true, visible: false });
+	});
+
+	test('account-scoped picker preferences do not hide another account environment', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+		const address = 'cloudsandbox:desktop';
+		const key = getRemoteAgentHostPickerKey(address, 'account-one');
+		preference.setHidden(key, true);
+		const provider = createProvider(disposables, connection, { address, storageService }, {
+			pickerVisibilityKey: getRemoteAgentHostPickerKey(address, 'account-two'),
+		});
+		assert.strictEqual(provider.isVisibleInEnvironmentPicker?.get(), true);
+	});
+
+	for (const isWebPlatform of [false, true]) {
+		test(`cloud New Session targets the repository and logical provider (web: ${isWebPlatform})`, () => {
+			const provider = createProvider(disposables, connection, { ctor: CloudSandboxSessionsProvider, noConnection: true, isWebPlatform });
+			assert.ok(provider instanceof CloudSandboxSessionsProvider);
+			provider.seedSessions([createSession('cloud-session', {
+				project: { uri: URI.parse('https://github.com/owner/repo'), displayName: 'owner/repo' },
+				workingDirectory: URI.file('/workspaces/repo'),
+			})]);
+			const session = provider.getSessions()[0];
+			const target = provider.getNewSessionTarget(session.resource);
+			assert.deepStrictEqual({
+				providerId: target?.providerId, folderUri: target?.folderUri.toString(),
+				unknownSession: provider.getNewSessionTarget(URI.parse('remote-provider:/missing')),
+			}, {
+				providerId: isWebPlatform ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID,
+				folderUri: 'github-remote-file://github/owner/repo/HEAD', unknownSession: undefined,
+			});
+		});
+	}
+
+	test('cloud New Session uses repository metadata after the host supplies a filesystem workspace', () => {
+		const provider = createProvider(disposables, connection, { ctor: CloudSandboxSessionsProvider, noConnection: true, isWebPlatform: false });
+		assert.ok(provider instanceof CloudSandboxSessionsProvider);
+		provider.seedSessions([createSession('cloud-session', {
+			project: { uri: URI.file('/workspaces/repo'), displayName: 'repo' },
+			workingDirectory: URI.file('/workspaces/repo'),
+			_meta: {
+				'copilot.githubReferences': [{
+					referenceType: 'pr', repository: 'owner/repo', number: 1, title: 'Changes',
+					url: 'https://github.com/owner/repo/pull/1', relations: ['headBranch'],
+				}],
+			},
+		})]);
+		const target = provider.getNewSessionTarget(provider.getSessions()[0].resource);
+		assert.deepStrictEqual({ providerId: target?.providerId, folderUri: target?.folderUri.toString() }, {
+			providerId: COPILOT_PROVIDER_ID, folderUri: 'github-remote-file://github/owner/repo/HEAD',
+		});
+	});
+
+	test('cloud New Session does not mistake a remote filesystem path for a repository', () => {
+		const provider = createProvider(disposables, connection, { ctor: CloudSandboxSessionsProvider, noConnection: true });
+		assert.ok(provider instanceof CloudSandboxSessionsProvider);
+		provider.seedSessions([createSession('cloud-session', { workingDirectory: URI.file('/workspaces/repo') })]);
+		assert.strictEqual(provider.getNewSessionTarget(provider.getSessions()[0].resource), undefined);
+	});
+
+	for (const status of [ProtocolSessionStatus.Idle, ProtocolSessionStatus.InProgress, ProtocolSessionStatus.InputNeeded]) {
+		test(`forwards the advertised identity so the host decides whether all worktree owners are idle (${status})`, async () => {
+			connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } }, undefined);
+			const sessions: (string | undefined)[] = [];
+			connection.measureWorktreeDiskUsage = async (_root, _token, session) => {
+				sessions.push(session?.toString());
+				return 1234;
+			};
+			const provider = createProvider(disposables, connection);
+			const backendUri = URI.parse('other-host:/opaque/session');
+			provider.seedSessions([createSession('cached-size', {
+				session: backendUri,
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/cached-size'),
+				status,
+			})]);
+			await provider.getSessionWorktreeDiskUsage(provider.getSessions()[0].sessionId);
+			assert.deepStrictEqual(sessions, [backendUri.toString()]);
+		});
+	}
+
+	for (const availability of ['available', 'disconnected', 'unsupported', 'missing-method']) {
+		test(`distinguishes removed storage from unavailable worktree measurement (${availability})`, async () => {
+			let measurements = 0;
+			if (availability !== 'unsupported') {
+				connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } }, undefined);
+			}
+			if (availability !== 'missing-method') {
+				connection.measureWorktreeDiskUsage = async () => { measurements++; return undefined; };
+			}
+			const provider = createProvider(disposables, connection, { noConnection: availability === 'disconnected' });
+			provider.seedSessions([createSession('removed-worktree', {
+				session: URI.parse('other-host:/opaque/session'),
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/removed-worktree'),
+			})]);
+			assert.deepStrictEqual({
+				size: await provider.getSessionWorktreeDiskUsage(provider.getSessions()[0].sessionId),
+				measurements,
+			}, { size: availability === 'available' ? 0 : undefined, measurements: availability === 'available' ? 1 : 0 });
+		});
+	}
+
 	for (const sandbox of [false, true]) {
 		test(sandbox ? 'does not measure cloud sandbox worktrees' : 'continues measuring ordinary remote worktrees', async () => {
+			connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } }, undefined);
 			let resourceRequests = 0;
 			const aggregateRequests: URI[] = [];
 			connection.measureWorktreeDiskUsage = async root => {
@@ -524,6 +756,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				resourceRequests++;
 				return { entries: [] };
 			};
+			connection.addSession(createSession('worktree-session', {
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/worktree-session'),
+			}));
 			const provider = createProvider(disposables, connection, {
 				ctor: sandbox ? CloudSandboxSessionsProvider : RemoteAgentHostSessionsProvider,
 			});
@@ -534,20 +770,97 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const session = provider.getSessions()[0];
 
 			const sizeBytes = await provider.getSessionWorktreeDiskUsage(session.sessionId);
+			const exists = await provider.sessionWorktreeExists(session.sessionId);
 
 			assert.deepStrictEqual({
 				hasWorktree: session.workspace.get()?.folders.some(folder => !!folder.gitRepository?.workTreeUri),
 				sizeBytes,
+				exists,
 				aggregateRequests: aggregateRequests.map(root => root.toString()),
 				resourceRequests,
 			}, {
 				hasWorktree: true,
 				sizeBytes: sandbox ? undefined : 0,
+				exists: sandbox ? undefined : true,
 				aggregateRequests: sandbox ? [] : [URI.file('/repo.worktrees/worktree-session').toString()],
-				resourceRequests: 0,
+				resourceRequests: sandbox ? 0 : 1,
 			});
 		});
 	}
+
+	for (const result of ['exists', 'absent', 'permission', 'unavailable', 'unsupported', 'disconnected'] as const) {
+		test(`checks worktree existence through its owning host without a measurement extension (${result})`, async () => {
+			const requests: { uri: string; followSymlinks: boolean | undefined }[] = [];
+			connection.resourceResolve = async params => {
+				requests.push({ uri: params.uri, followSymlinks: params.followSymlinks });
+				if (result !== 'exists') {
+					throw new ProtocolError(result === 'absent' ? AhpErrorCodes.NotFound : result === 'permission' ? AhpErrorCodes.PermissionDenied : result === 'unavailable' ? JsonRpcErrorCodes.InternalError : JsonRpcErrorCodes.MethodNotFound, result);
+				}
+				return { uri: params.uri, type: ResourceType.Directory };
+			};
+			const provider = createProvider(disposables, connection, { noConnection: result === 'disconnected' });
+			provider.seedSessions([createSession('existence', {
+				session: URI.parse('other-host:/opaque/session'),
+				project: { uri: toAgentHostUri(URI.file('/repo'), 'test-host'), displayName: 'repo' },
+				workingDirectory: toAgentHostUri(URI.file('/repo.worktrees/existence'), 'test-host'),
+			})]);
+			const check = provider.sessionWorktreeExists(provider.getSessions()[0].sessionId);
+			if (result === 'permission' || result === 'unavailable' || result === 'unsupported') {
+				await assert.rejects(check, { code: result === 'permission' ? AhpErrorCodes.PermissionDenied : result === 'unavailable' ? JsonRpcErrorCodes.InternalError : JsonRpcErrorCodes.MethodNotFound });
+			} else {
+				assert.strictEqual(await check, result === 'disconnected' ? undefined : result === 'exists');
+			}
+			assert.deepStrictEqual(requests, result === 'disconnected' ? [] : [{ uri: 'file:///repo.worktrees/existence', followSymlinks: false }]);
+		});
+	}
+
+	for (const lastExists of [false, true]) {
+		test(`requires all worktree roots to be absent without listing contents (last root exists: ${lastExists})`, async () => {
+			const requests: string[] = [];
+			connection.resourceResolve = async params => {
+				requests.push(params.uri);
+				if (!lastExists || !params.uri.endsWith('/second')) {
+					throw new ProtocolError(AhpErrorCodes.NotFound, 'Missing');
+				}
+				return { uri: params.uri, type: ResourceType.Directory };
+			};
+			const provider = createProvider(disposables, connection);
+			provider.seedSessions([{
+				...createSession('multiple', { session: URI.parse('other-host:/opaque/multiple'), project: { uri: URI.file('/repo'), displayName: 'repo' } }),
+				workingDirectories: [URI.file('/repo.worktrees/first'), URI.file('/repo.worktrees/second'), URI.file('/repo.worktrees/first')],
+			}]);
+			assert.deepStrictEqual({
+				exists: await provider.sessionWorktreeExists(provider.getSessions()[0].sessionId),
+				requests,
+			}, { exists: lastExists, requests: ['file:///repo.worktrees/first', 'file:///repo.worktrees/second'] });
+		});
+	}
+
+	test('retries worktree cleanup through the owning connection without changing archive state', async () => {
+		const calls: { session: string; retry: boolean }[] = [];
+		connection.sessionWorktreeCleanup = async (session, retry) => {
+			calls.push({ session: session.toString(), retry });
+			return { state: retry ? 'pending' : 'failed', message: retry ? undefined : 'git failed' };
+		};
+		connection.addSession(createSession('cleanup', {
+			project: { uri: URI.file('/repo'), displayName: 'repo' },
+			workingDirectory: URI.file('/repo.worktrees/cleanup'),
+		}));
+		const provider = createProvider(disposables, connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const before = session.isArchived.get();
+		const status = await provider.sessionWorktreeCleanup(session.sessionId, false);
+		await provider.sessionWorktreeCleanup(session.sessionId, true);
+		assert.deepStrictEqual({ status, calls, unchanged: before === session.isArchived.get() }, {
+			status: { state: 'failed', message: 'git failed' },
+			calls: [
+				{ session: AgentSession.uri('copilotcli', 'cleanup').toString(), retry: false },
+				{ session: AgentSession.uri('copilotcli', 'cleanup').toString(), retry: true },
+			],
+			unchanged: true,
+		});
+	});
 
 	suite('Copilot head-branch PR metadata', () => {
 		const backend = URI.parse('ahp-session://tenant/opaque-session');
@@ -2065,7 +2378,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Session actions -------
 
-	test('opaque advertised default and peer chat mutations use host resources without native reconstruction', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('opaque advertised default and side chat mutations use host resources without native reconstruction', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const disposed: string[] = [];
 		const created: { session: string; forkSource?: string; sideChatSource?: string; title?: string }[] = [];
 		const backend = URI.parse('session-store://tenant/opaque/session?generation%3D2');
@@ -2074,7 +2387,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		let state: SessionState = {
 			provider: 'copilot', title: 'Opaque', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [],
 			defaultChat: defaultChat.toString(),
-			chats: [defaultChat, peer].map(resource => createChatState({ resource: resource.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString() })),
+			chats: [
+				createChatState({ resource: defaultChat.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString() }),
+				createChatState({ resource: peer.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString(), origin: { kind: ChatOriginKind.SideChat, chat: defaultChat.toString(), turnId: 'source-turn' } }),
+			],
 		};
 		const peerConnection = new class extends MockAgentConnection {
 			override readonly initializeResult = constObservable<InitializeResult>({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] });
@@ -2089,30 +2405,37 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		peerConnection.setAgents([{ provider: 'copilot', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
 		peerConnection.addSession({
 			session: backend, provider: 'copilot', startTime: 1000, modifiedTime: 2000, summary: 'Opaque',
-			chats: [{ chat: defaultChat, kind: 'default', summary: 'Default' }, { chat: peer, kind: 'peer', summary: 'Peer' }],
+			chats: [
+				{ chat: defaultChat, kind: 'default', summary: 'Default' },
+				{ chat: peer, kind: 'peer', summary: 'Peer', origin: { kind: ChatOriginKind.SideChat, chat: defaultChat.toString(), turnId: 'source-turn' } },
+			],
 		});
 		peerConnection.setChannelState(backend, state);
 		const provider = createProvider(disposables, peerConnection);
 		await timeout(0);
 		const session = provider.getSessions()[0];
 		const peerResource = session.resource.with({ fragment: peer.toString() });
+		const canArchive = getChatCapabilities(session.chats.get().find(chat => chat.resource.fragment === peer.toString())!, session, undefined).canArchive;
 		await provider.forkChat(session.sessionId, session.resource, 'source-turn', { title: 'Optional fork title' });
 		await provider.createSideChat(session.sessionId, peerResource, 'source-turn');
 		await provider.renameChat(session.sessionId, session.resource, 'Renamed default');
 		await provider.renameChat(session.sessionId, peerResource, 'Renamed peer');
 		await provider.archiveChat(session.sessionId, peerResource);
+		await provider.unarchiveChat(session.sessionId, peerResource);
 		await assert.rejects(provider.forkChat(session.sessionId, session.resource.with({ fragment: 'unknown-peer' }), 'source-turn'), /The chat could not be found/);
 		await assert.rejects(provider.createSideChat(session.sessionId, session.resource.with({ fragment: 'unknown-peer' }), 'source-turn'), /The chat could not be found/);
 		await provider.deleteChat(session.sessionId, peerResource, { skipConfirmation: true });
 		assert.deepStrictEqual({
+			canArchive,
 			titles: peerConnection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionTitleChanged).map(entry => entry.channel),
 			archives: peerConnection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatIsArchivedChanged).map(entry => entry.channel),
 			disposed,
 			created,
 			resource: session.resource.toString(),
 		}, {
+			canArchive: true,
 			titles: [backend.toString(), peer.toString()],
-			archives: [peer.toString()],
+			archives: [peer.toString(), peer.toString()],
 			disposed: [peer.toString()],
 			created: [
 				{ session: backend.toString(), forkSource: defaultChat.toString(), sideChatSource: undefined, title: 'Optional fork title' },

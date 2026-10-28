@@ -1310,7 +1310,7 @@ export class ChatService extends Disposable implements IChatService {
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			let progressDeferredForServerRequest = false;
 			if (providedSession.onDidStartServerRequest) {
-				const handleServerRequest = ({ id, prompt, metadata, variableData, modelId, modelConfiguration, timestamp, isSystemInitiated, requestSource, artifactRequest, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }: IChatSessionServerRequest) => {
+				const handleServerRequest = ({ id, prompt, metadata, variableData, modelId, modelConfiguration, timestamp, isSystemInitiated, requestSource, artifactRequest, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, replacesRequestId, origin }: IChatSessionServerRequest) => {
 					if (resume) {
 						const request = model.getRequests().find(request => request.id === id);
 						if (!request?.response) {
@@ -1326,6 +1326,12 @@ export class ChatService extends Disposable implements IChatService {
 					// Complete any in-flight request
 					if (streamingRequest?.response && !streamingRequest.response.isComplete) {
 						completeStreamingResponse(true);
+					}
+					// Requests are applied in order, so a replaced request that arrived just before is already in the model.
+					const replaced = replacesRequestId === undefined ? undefined : model.getRequests().find(request => request.id === replacesRequestId);
+					if (replaced?.response?.isComplete) {
+						// A replaced request without usage did not bill anything, so the session cost stays valid.
+						model.removeRequest(replaced.id, replaced.response.usage ? ChatRequestRemovalReason.Removal : ChatRequestRemovalReason.Replacement);
 					}
 
 					// Create a new request in the model
@@ -2143,10 +2149,18 @@ export class ChatService extends Disposable implements IChatService {
 					this.generateInitialChatTitleIfNeeded(model, requestProps, defaultAgent, token);
 					const pendingRequest = this._pendingRequests.get(sessionResource);
 					if (pendingRequest) {
+						let yieldForwardedRequestId: string | undefined;
 						store.add(autorun(reader => {
 							const yieldRequested = pendingRequest.yieldRequested.read(reader);
 							if (request) {
+								yieldForwardedRequestId = yieldRequested ? request.id : undefined;
 								this.chatAgentService.setYieldRequested(agent.id, request.id, yieldRequested);
+							}
+						}));
+						// Clear a forwarded yield when the request ends, including when the agent was never invoked
+						store.add(toDisposable(() => {
+							if (yieldForwardedRequestId) {
+								this.chatAgentService.setYieldRequested(agent.id, yieldForwardedRequestId, false);
 							}
 						}));
 						pendingRequest.requestId ??= requestProps.requestId;
@@ -2366,8 +2380,8 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		// Dequeue all consecutive steering requests and combine them into one
-		const steeringRequests = model.dequeueAllSteeringRequests();
+		// Dequeue consecutive steering requests from the same initiator and combine them into one
+		const steeringRequests = model.dequeueSteeringBatch();
 
 		// Then dequeue a single non-steering request if no steering was found
 		const nextQueued = steeringRequests.length === 0 ? model.dequeuePendingRequest() : undefined;
@@ -2450,6 +2464,10 @@ export class ChatService extends Disposable implements IChatService {
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
 		const responseState = this._sendRequestAsync(model, model.sessionResource, parsedRequest, firstRequest.request.attempt, !sendOptions.noCommandDetection, silentAgent ?? defaultAgent, location, sendOptions);
+		// Steering from the other initiator is still queued, so this request should yield to it.
+		if (steeringRequests.length > 0 && model.getPendingRequests().some(r => r.kind === ChatRequestQueueKind.Steering)) {
+			this.setYieldRequested(model.sessionResource);
+		}
 
 		const result: ChatSendResultSent = {
 			kind: 'sent',

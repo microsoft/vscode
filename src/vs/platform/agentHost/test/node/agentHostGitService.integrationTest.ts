@@ -1823,8 +1823,8 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
-	(hasGit ? test : test.skip)('fetch bounds an unresponsive remote to five seconds unless its caller overrides the timeout', async function () {
-		this.timeout(20_000);
+	(hasGit ? test : test.skip)('fetch bounds an unresponsive remote to thirty seconds unless its caller overrides the timeout', async function () {
+		this.timeout(60_000);
 		const dir = initRepo();
 		const sockets = new Set<Socket>();
 		const server = createServer(socket => {
@@ -1848,7 +1848,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		cp.execFileSync('git', ['remote', 'add', 'unresponsive', `git://127.0.0.1:${address.port}/repo`], { cwd: dir, env, stdio: 'pipe' });
 		const branch = { kind: GitRefType.RemoteHead as const, remote: 'unresponsive', name: 'unresponsive/main', ref: 'refs/remotes/unresponsive/main' };
 
-		await assert.rejects(svc!.fetch(URI.file(dir), branch), /git fetch timed out after 5000ms/);
+		await assert.rejects(svc!.fetch(URI.file(dir), branch), /git fetch timed out after 30000ms/);
 		await assert.rejects(svc!.fetch(URI.file(dir), branch, { timeout: 100 }), /git fetch timed out after 100ms/);
 	});
 

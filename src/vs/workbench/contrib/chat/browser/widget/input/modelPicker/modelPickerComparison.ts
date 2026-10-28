@@ -16,6 +16,7 @@ export interface IModelPickerComparison {
 	readonly summary: IObservable<string | undefined>;
 	readonly state: IObservable<IModelPickerComparisonState | undefined>;
 	readonly label: string;
+	readonly description?: IObservable<string>;
 	readonly startCommandId?: string;
 	readonly showPickerHint?: IObservable<boolean>;
 	start(): void;
