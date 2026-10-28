@@ -750,7 +750,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				const ref = await this._sessionDataService.tryOpenDatabase(detachedWorktreeRecordUri(handle));
 				if (ref) {
 					try {
-						const path = await ref.object.getMetadata(WORKTREE_META_PATH);
+						const path = (await readWorktreeMetadataFields(ref.object))[WORKTREE_META_PATH];
 						if (path) {
 							paths.push(URI.parse(path));
 						}
@@ -2393,8 +2393,8 @@ async function readPersistedWorktreeNotice(source: WorktreeMetadataSource, sessi
 	}
 }
 
-async function readWorktreeMetadataValues(reader: WorktreeMetadataReader, sessionUri: URI, logService: ILogService): Promise<IWorktreeMetadata | undefined> {
-	const values = await reader.getMetadataObject({
+function readWorktreeMetadataFields(reader: WorktreeMetadataReader) {
+	return reader.getMetadataObject({
 		[WORKTREE_META_BRANCH]: true,
 		[WORKTREE_META_PATH]: true,
 		[WORKTREE_META_REPOSITORY_ROOT]: true,
@@ -2402,6 +2402,10 @@ async function readWorktreeMetadataValues(reader: WorktreeMetadataReader, sessio
 		[WORKTREE_META_SYMLINK_SOURCE_ROOT]: true,
 		[LEGACY_WORKTREE_META_WORKING_DIRECTORY]: true,
 	});
+}
+
+async function readWorktreeMetadataValues(reader: WorktreeMetadataReader, sessionUri: URI, logService: ILogService): Promise<IWorktreeMetadata | undefined> {
+	const values = await readWorktreeMetadataFields(reader);
 	const branchName = values[WORKTREE_META_BRANCH];
 	const worktreePathRaw = values[WORKTREE_META_PATH];
 	const repositoryRootRaw = values[WORKTREE_META_REPOSITORY_ROOT];

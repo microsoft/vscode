@@ -1387,8 +1387,10 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const wtPath = join(dir, isWindows ? 'checkout with spaces' : 'checkout with\n"quotes"');
 		cp.execFileSync('git', ['worktree', 'add', '-b', 'agents/inventory', wtPath], { cwd: dir, env, stdio: 'pipe' });
 		writeFileSync(join(wtPath, 'keep.txt'), 'uncommitted work');
-		const repository = URI.file(realpathSync(dir));
-		const worktree = URI.file(realpathSync(wtPath));
+		// Git expands Windows short paths that Node's realpathSync can preserve.
+		const gitRoot = (cwd: string) => URI.file(cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, env, encoding: 'utf8' }).trim());
+		const repository = gitRoot(dir);
+		const worktree = gitRoot(wtPath);
 		const inventory = await svc!.getWorktrees(repository);
 		assert.deepStrictEqual({
 			inventory: inventory.map(entry => ({ path: entry.path.toString(), branch: entry.branchName })),
