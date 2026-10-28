@@ -27,6 +27,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILoggerService, ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IMcpServerInput, IInstallableMcpServer, InstallOptions, McpAccessValue, McpGalleryResolveStatus, mcpAccessConfig, TransportType } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { McpGalleryServerUrlError } from '../../../../../platform/mcp/common/mcpGalleryService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -68,6 +69,7 @@ class TestMcpGalleryService extends mock<IMcpGalleryService>() {
 	private readonly onDidRequestEmitter: Emitter<void>;
 	queryItems: IGalleryMcpServer[] = [];
 	queryBarrier: DeferredPromise<void> | undefined;
+	getMcpServerError: Error | undefined;
 	enabled = true;
 	autoResolve = false;
 	get requestCount(): number { return this.requests.length; }
@@ -107,6 +109,9 @@ class TestMcpGalleryService extends mock<IMcpGalleryService>() {
 	}
 
 	override async getMcpServer(url: string, _manifest?: IMcpGalleryManifest | null): Promise<IGalleryMcpServer | undefined> {
+		if (this.getMcpServerError) {
+			throw this.getMcpServerError;
+		}
 		return this.queryItems.find(server => server.galleryUrl === url);
 	}
 
@@ -1378,16 +1383,42 @@ suite('McpWorkbenchService', () => {
 	});
 
 	test('obsolete gallery URLs and empty name links open Browse with a warning', async () => {
-		const { service, openedEditors, marketplaceTargets, warnings } = await createFixture([]);
+		const { service, galleryService, openedEditors, marketplaceTargets, warnings, errors } = await createFixture([]);
+		galleryService.getMcpServerError = new McpGalleryServerUrlError();
 		const handled = await Promise.all([
 			service.handleURL(URI.parse('vscode:mcp/registry.example.test/obsolete')),
 			service.handleURL(URI.parse('vscode:mcp/by-name/')),
 		]);
-		assert.deepStrictEqual({ handled, opened: openedEditors.length, targets: marketplaceTargets, warnings: warnings.length }, {
+		assert.deepStrictEqual({ handled, opened: openedEditors.length, targets: marketplaceTargets, warnings: warnings.length, errors }, {
 			handled: [true, true],
 			opened: 0,
 			targets: Array.from({ length: 2 }, () => ({ section: AICustomizationManagementSection.McpServers, searchQuery: '@type:mcp', preserveFocus: undefined })),
 			warnings: 2,
+			errors: [],
+		});
+	});
+
+	test('gallery URL transport failures do not redirect to Browse', async () => {
+		const { service, galleryService, marketplaceTargets, warnings, errors } = await createFixture([]);
+		const error = new Error('registry unavailable');
+		galleryService.getMcpServerError = error;
+		await service.handleURL(URI.parse('vscode:mcp/registry.example.test/server'));
+		assert.deepStrictEqual({ targets: marketplaceTargets, warnings, errors }, {
+			targets: [],
+			warnings: [],
+			errors: [error],
+		});
+	});
+
+	test('by-name link skips gallery resolution when no gallery is configured', async () => {
+		const { service, galleryService, manifestService, marketplaceTargets, warnings } = await createFixture([]);
+		galleryService.enabled = false;
+		manifestService.manifest = null;
+		await service.handleURL(URI.parse('vscode:mcp/by-name/com.figma.mcp/mcp'));
+		assert.deepStrictEqual({ requests: galleryService.requestCount, targets: marketplaceTargets, warnings }, {
+			requests: 0,
+			targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: 'com.figma.mcp/mcp' } }],
+			warnings: [],
 		});
 	});
 

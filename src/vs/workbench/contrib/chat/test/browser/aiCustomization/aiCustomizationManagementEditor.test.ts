@@ -765,7 +765,7 @@ suite('aiCustomizationManagementEditor', () => {
 		showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void>;
 		goBackToList(): void;
 		onDidChangeSidebarSelection(e: IListEvent<{ readonly id: AICustomizationManagementSection }>): void;
-		showWelcomePage(options?: { resetFilters?: boolean }): void;
+		showWelcomePage(options?: { resetFilters?: boolean; preserveFocus?: boolean }): void;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
 		refreshCustomizationMigrationUi(): void;
@@ -805,7 +805,7 @@ suite('aiCustomizationManagementEditor', () => {
 		configureCustomizationMigrationLocations(id: CustomizationMigrationCategoryId, storage: PromptsStorage): Promise<void>;
 		chooseCustomizationMigrationDestination(destination: ICustomizationMigrationDashboardDestination): Promise<void>;
 		updateContentVisibility(): void;
-		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): void;
+		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): void;
 		rebuildVisibleSections(): void;
 		sectionBadges: Map<AICustomizationManagementSection, string>;
 		registerContributedSectionBadges(): void;
@@ -1417,10 +1417,12 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('marketplace deep links open type-filtered Discover only when it is enabled', async () => {
 		const { editor, configuration } = createGatedSectionEditor(true);
-		const marketplaceNavigations: { query: string; sourceId: string | undefined }[] = [];
+		const marketplaceNavigations: { query: string; sourceId: string | undefined; preserveFocus?: boolean }[] = [];
+		const welcomePreserveFocus: (boolean | undefined)[] = [];
 		Object.assign(editor, {
+			showWelcomePage(options?: { preserveFocus?: boolean }) { welcomePreserveFocus.push(options?.preserveFocus); },
 			welcomePage: {
-				showMarketplace(query: string, sourceId: string | undefined) { marketplaceNavigations.push({ query, sourceId }); },
+				showMarketplace(query: string, sourceId: string | undefined, preserveFocus?: boolean) { marketplaceNavigations.push({ query, sourceId, preserveFocus }); },
 			},
 		});
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
@@ -1429,19 +1431,20 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.selectSectionById(AICustomizationManagementSection.Skills, { showMarketplace: true });
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true, marketplaceSourceId: 'pluginMarketplaces.owner%2Fcatalog' });
 		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true });
-		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true, marketplaceSourceId: 'mcpGallery' });
+		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true, marketplaceSourceId: 'mcpGallery', preserveFocus: true });
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		editor.selectSectionById(AICustomizationManagementSection.Skills, { showMarketplace: true });
 		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true });
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		assert.deepStrictEqual(marketplaceNavigations, [
-			{ query: '@type:skill', sourceId: undefined },
-			{ query: '@type:plugin', sourceId: 'pluginMarketplaces.owner%2Fcatalog' },
-			{ query: '@type:mcp', sourceId: undefined },
-			{ query: '@type:mcp', sourceId: 'mcpGallery' },
-			{ query: '@type:plugin', sourceId: undefined },
+			{ query: '@type:skill', sourceId: undefined, preserveFocus: undefined },
+			{ query: '@type:plugin', sourceId: 'pluginMarketplaces.owner%2Fcatalog', preserveFocus: undefined },
+			{ query: '@type:mcp', sourceId: undefined, preserveFocus: undefined },
+			{ query: '@type:mcp', sourceId: 'mcpGallery', preserveFocus: true },
+			{ query: '@type:plugin', sourceId: undefined, preserveFocus: undefined },
 		]);
+		assert.deepStrictEqual(welcomePreserveFocus, [undefined, undefined, undefined, true, undefined]);
 	});
 
 	test('showing Discover from its navigation button resets its filters', () => {
@@ -1470,6 +1473,24 @@ suite('aiCustomizationManagementEditor', () => {
 			selected: true,
 			ariaCurrent: 'page',
 		});
+	});
+
+	test('showing Discover can preserve focus through reset', () => {
+		const { editor } = createContributedSectionEditor();
+		const resetFocus: (boolean | undefined)[] = [];
+		let focusCount = 0;
+		Object.assign(editor, {
+			welcomePage: {
+				container: $('div'),
+				setVisible() { },
+				reset(preserveFocus?: boolean) { resetFocus.push(preserveFocus); },
+				focus() { focusCount++; },
+			},
+		});
+
+		editor.showWelcomePage({ preserveFocus: true });
+
+		assert.deepStrictEqual({ resetFocus, focusCount }, { resetFocus: [true], focusCount: 0 });
 	});
 
 	test('a contributed section with no source settings remains hidden', () => {

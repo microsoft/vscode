@@ -3022,8 +3022,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.searchWidget.focus();
 	}
 
-	reset(): void {
-		this.focus();
+	reset(preserveFocus?: boolean): void {
+		if (!preserveFocus) {
+			this.focus();
+		}
 	}
 
 	resetFilters(): void {

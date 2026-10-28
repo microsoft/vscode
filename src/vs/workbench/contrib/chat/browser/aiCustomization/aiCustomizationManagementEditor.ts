@@ -3462,22 +3462,24 @@ export class AICustomizationManagementEditor extends EditorPane {
 			: localize('backToList', "Back to list");
 	}
 
-	private async restoreDetailOrigin(origin: CustomizationDetailOrigin | undefined): Promise<void> {
+	private async restoreDetailOrigin(origin: CustomizationDetailOrigin | undefined, preserveFocus?: boolean): Promise<void> {
 		if (!origin || origin.kind === 'discover') {
 			this.viewMode = 'list';
 			this.selectedSection = undefined;
 			this.sectionContextKey.set('');
 			this.storageService.remove(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, StorageScope.PROFILE);
-			this.welcomePage?.reset();
+			this.welcomePage?.reset(preserveFocus);
 			this.updateContentVisibility();
 			this.ensureSectionsListReflectsActiveSection(undefined);
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
-			if (origin?.marketplaceOrigin) {
-				this.welcomePage?.restoreMarketplaceItemFocus(origin.marketplaceOrigin);
-			} else {
-				this.welcomePage?.focus();
+			if (!preserveFocus) {
+				if (origin?.marketplaceOrigin) {
+					this.welcomePage?.restoreMarketplaceItemFocus(origin.marketplaceOrigin);
+				} else {
+					this.welcomePage?.focus();
+				}
 			}
 			return;
 		}
@@ -3490,12 +3492,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
-			this.migrationDashboard?.focus();
+			if (!preserveFocus) {
+				this.migrationDashboard?.focus();
+			}
 			return;
 		}
 
 		if (origin.kind === 'pluginDetail') {
-			await this.showEmbeddedPluginDetail(origin.item, origin.origin);
+			await this.showEmbeddedPluginDetail(origin.item, origin.origin, preserveFocus);
 			return;
 		}
 
@@ -3576,24 +3580,24 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/**
 	 * Navigates to the welcome page (no section selected).
 	 */
-	public showWelcomePage(options?: { resetFilters?: boolean }): void {
+	public showWelcomePage(options?: { resetFilters?: boolean; preserveFocus?: boolean }): void {
 		if (this.viewMode === 'marketplaceDetail') {
-			this.goBackFromMarketplaceDetail();
+			this.goBackFromMarketplaceDetail(options?.preserveFocus);
 		}
 		if (this.viewMode === 'editor') {
-			this.goBackToList();
+			this.goBackToList(options?.preserveFocus);
 		}
 		if (this.viewMode === 'migration') {
 			this.viewMode = 'list';
 		}
 		if (this.viewMode === 'mcpDetail') {
-			this.goBackFromMcpDetail();
+			this.goBackFromMcpDetail(options?.preserveFocus);
 		}
 		if (this.viewMode === 'connectorDetail') {
-			this.goBackFromConnectorDetail();
+			this.goBackFromConnectorDetail(options?.preserveFocus);
 		}
 		if (this.viewMode === 'pluginDetail') {
-			this.goBackFromPluginDetail();
+			this.goBackFromPluginDetail(options?.preserveFocus);
 		}
 		this.selectedSection = undefined;
 		this.sectionContextKey.set('');
@@ -3604,10 +3608,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (options?.resetFilters) {
 			this.welcomePage?.resetFilters();
 		}
-		this.welcomePage?.reset();
+		this.welcomePage?.reset(options?.preserveFocus);
 		this.updateContentVisibility();
 		this.ensureSectionsListReflectsActiveSection(undefined);
-		this.welcomePage?.focus();
+		if (!options?.preserveFocus) {
+			this.welcomePage?.focus();
+		}
 	}
 
 	private async createCustomization(section: AICustomizationManagementSection): Promise<void> {
@@ -4301,7 +4307,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (!type) {
 			return false;
 		}
-		this.showWelcomePage();
+		this.showWelcomePage({ preserveFocus: options.preserveFocus });
 		this.welcomePage?.showMarketplace(`@type:${type}`, options.marketplaceSourceId, options.preserveFocus);
 		return true;
 	}
@@ -4789,7 +4795,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 	}
 
-	private goBackToList(): void {
+	private goBackToList(preserveFocus?: boolean): void {
 		const returnViewMode = this.editorReturnViewMode;
 		const detailOrigin = this.currentCustomizationDetail ? this.customizationDetailOrigin : undefined;
 		this.editorReturnViewMode = 'list';
@@ -4833,7 +4839,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateMigrationDetailActions();
 		this.embeddedEditor?.setModel(null);
 		if (detailOrigin) {
-			void this.restoreDetailOrigin(detailOrigin);
+			void this.restoreDetailOrigin(detailOrigin, preserveFocus);
 		} else {
 			this.viewMode = returnViewMode;
 			this.updateContentVisibility();
@@ -4848,10 +4854,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
-			if (returnViewMode === 'migration') {
-				this.migrationDashboard?.focus();
-			} else {
-				this.listWidget?.focusSearch();
+			if (!preserveFocus) {
+				if (returnViewMode === 'migration') {
+					this.migrationDashboard?.focus();
+				} else {
+					this.listWidget?.focusSearch();
+				}
 			}
 		}
 
@@ -5659,7 +5667,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private goBackFromMarketplaceDetail(): void {
+	private goBackFromMarketplaceDetail(preserveFocus?: boolean): void {
 		const origin = this.marketplaceDetailOrigin;
 		this.marketplaceDetailOrigin = undefined;
 		this.marketplaceDetailResource = undefined;
@@ -5669,10 +5677,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		if (origin) {
-			this.welcomePage?.restoreMarketplaceItemFocus(origin);
-		} else {
-			this.welcomePage?.focus();
+		if (!preserveFocus) {
+			if (origin) {
+				this.welcomePage?.restoreMarketplaceItemFocus(origin);
+			} else {
+				this.welcomePage?.focus();
+			}
 		}
 	}
 
@@ -5766,7 +5776,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.focusDetailPage();
 	}
 
-	private goBackFromMcpDetail(): void {
+	private goBackFromMcpDetail(preserveFocus?: boolean): void {
 		const origin = this.mcpDetailOrigin;
 		this.mcpDetailOrigin = undefined;
 		this.currentMigrationDetail = undefined;
@@ -5774,7 +5784,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.mcpDetailInput = undefined;
 		this.embeddedMcpDetail?.clearInput();
 		this.updateMigrationDetailActions();
-		void this.restoreDetailOrigin(origin);
+		void this.restoreDetailOrigin(origin, preserveFocus);
 	}
 
 	/** Keeps an open MCP detail in sync when the agent host reports new metadata for its server. */
@@ -5929,14 +5939,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.focusDetailPage();
 	}
 
-	private goBackFromConnectorDetail(): void {
+	private goBackFromConnectorDetail(preserveFocus?: boolean): void {
 		this.embeddedConnectorDetail?.clearInput();
 		this.viewMode = 'list';
 		this.updateContentVisibility();
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		this.mcpListWidget?.focusSearch();
+		if (!preserveFocus) {
+			this.mcpListWidget?.focusSearch();
+		}
 	}
 
 	//#endregion
@@ -6042,7 +6054,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 	}
 
-	private async showEmbeddedPluginDetail(item: IAgentPluginItem, origin: CustomizationDetailBaseOrigin = this.getCurrentDetailBaseOrigin()): Promise<void> {
+	private async showEmbeddedPluginDetail(item: IAgentPluginItem, origin: CustomizationDetailBaseOrigin = this.getCurrentDetailBaseOrigin(), preserveFocus?: boolean): Promise<void> {
 		if (!this.embeddedPluginDetail) {
 			return;
 		}
@@ -6060,7 +6072,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		this.focusDetailPage();
+		if (!preserveFocus) {
+			this.focusDetailPage();
+		}
 	}
 
 	private updatePluginDetailBackButton(): void {
@@ -6124,7 +6138,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		await this.showEmbeddedPluginDetail(item);
 	}
 
-	private goBackFromPluginDetail(): void {
+	private goBackFromPluginDetail(preserveFocus?: boolean): void {
 		const origin = this.pluginDetailOrigin;
 		this.pluginDetailDisposables.clear();
 		this.embeddedPluginDetail?.clearInput();
@@ -6133,7 +6147,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.marketplaceDetailOrigin = undefined;
 		this.marketplaceDetailResource = undefined;
 		this.embeddedMarketplaceDetail?.clearInput();
-		void this.restoreDetailOrigin(origin);
+		void this.restoreDetailOrigin(origin, preserveFocus);
 	}
 
 	//#endregion

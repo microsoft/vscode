@@ -52,6 +52,7 @@ import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.
 import { autorun } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
+import { McpGalleryServerUrlError } from '../../../../platform/mcp/common/mcpGalleryService.js';
 
 interface IMcpServerStateProvider<T> {
 	(mcpWorkbenchServer: McpWorkbenchServer): T;
@@ -1010,7 +1011,12 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			await this.openGallery(gallery);
 		} catch (e) {
 			this.logService.error(e);
-			this.notificationService.error(e);
+			if (e instanceof McpGalleryServerUrlError && this.isMarketplaceEnabled) {
+				this.notificationService.warn(localize('mcpLinkOutsideGallery', "This MCP link is not part of the configured registry. Browse MCP servers to find an available server."));
+				await this.openSearch('');
+			} else {
+				this.notificationService.error(e);
+			}
 		}
 		return true;
 	}
@@ -1018,7 +1024,17 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	private async handleMcpServerByName(name: string): Promise<boolean> {
 		const registryGeneration = this.registryGeneration;
 		const manifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
-		const result = (await this.mcpGalleryService.resolveMcpServersFromGallery([{ name }], manifest ?? undefined)).get(name);
+		if (!manifest) {
+			if (this.isMarketplaceEnabled) {
+				await this.openMarketplace({ section: AICustomizationManagementSection.McpServers, mcpServer: { name } });
+			} else {
+				this.logService.info(`Cannot open MCP server '${name}': no MCP gallery configured`);
+				this.notificationService.warn(localize('mcpLinkGalleryNotConfigured', "The MCP gallery is not configured. Configure 'chat.mcp.gallery.serviceUrl' to open MCP server details."));
+			}
+			return true;
+		}
+
+		const result = (await this.mcpGalleryService.resolveMcpServersFromGallery([{ name }], manifest)).get(name);
 		if (result?.status === McpGalleryResolveStatus.Found) {
 			const gallery = result.server;
 			this.rememberGallerySource(gallery, registryGeneration);
@@ -1031,9 +1047,6 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				this.notificationService.warn(localize('mcpLegacyGalleryUnavailable', "The MCP registry could not be reached. Looking for this server in Customizations."));
 			}
 			await this.openMarketplace({ section: AICustomizationManagementSection.McpServers, mcpServer: { name, registryUrl: manifest?.url } });
-		} else if (!this.mcpGalleryService.isEnabled()) {
-			this.logService.info(`Cannot open MCP server '${name}': no MCP gallery configured`);
-			this.notificationService.warn(localize('mcpLinkGalleryNotConfigured', "The MCP gallery is not configured. Configure 'chat.mcp.gallery.serviceUrl' to open MCP server details."));
 		} else {
 			this.logService.info(`MCP server '${name}' not found`);
 			this.notificationService.warn(localize('mcpServerNotFound', "MCP server '{0}' was not found in the configured registry.", name));

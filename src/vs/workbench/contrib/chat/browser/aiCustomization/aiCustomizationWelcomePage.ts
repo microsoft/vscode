@@ -83,7 +83,7 @@ export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	setSearchQuery?(value: string, preserveFocus?: boolean): void;
 	showMarketplace?(query: string, sourceId: string | undefined, preserveFocus?: boolean): void;
 	resetFilters?(): void;
-	reset?(): void;
+	reset?(preserveFocus?: boolean): void;
 }
 
 /**
@@ -188,8 +188,8 @@ export class AICustomizationWelcomePage extends Disposable {
 		this.implementation.value?.focus();
 	}
 
-	reset(): void {
-		this.implementation.value?.reset?.();
+	reset(preserveFocus?: boolean): void {
+		this.implementation.value?.reset?.(preserveFocus);
 	}
 
 	resetFilters(): void {
