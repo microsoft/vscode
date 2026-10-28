@@ -275,6 +275,21 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return this.normalizeTrustUri(canonicalUri).with({ query: null, fragment: null });
 	}
 
+	private isCanonicalUriResolutionCurrent(providerVersion: number, uri: URI): boolean {
+		return providerVersion === this._canonicalUriProviderVersion || uri.scheme !== 'vscode-vfs' || !uri.authority.includes('+');
+	}
+
+	private getStoredTrustUri(uri: URI): URI | undefined {
+		const cleanUri = this.normalizeTrustUri(uri).with({ query: null, fragment: null });
+		const exactMatch = this._trustStateInfo.uriTrustInfo.find(info => this.uriIdentityService.extUri.isEqual(info.uri, cleanUri));
+		if (exactMatch) {
+			return exactMatch.uri;
+		}
+
+		const withoutTrailingSeparator = this.uriIdentityService.extUri.removeTrailingPathSeparator(cleanUri);
+		return this._trustStateInfo.uriTrustInfo.find(info => this.uriIdentityService.extUri.isEqual(info.uri, withoutTrailingSeparator))?.uri;
+	}
+
 	private async resolveCanonicalUris(): Promise<void> {
 		// Open editors
 		const filesToOpen: IPath[] = [];
@@ -730,18 +745,39 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return { trusted: true, uri };
 		}
 
-		const unresolvedWorkspace = this._canonicalUrisResolved && !this.isWorkspaceTrustSourceResolved();
-		const canonicalUri = await this.getCanonicalUri(uri);
-		if (unresolvedWorkspace && this._resolvedVirtualUris.has(uri.with({ query: null, fragment: null }))) {
-			await this.resolveWorkspaceTrust();
+		for (let attempt = 0; attempt < 2; attempt++) {
+			const providerVersion = this._canonicalUriProviderVersion;
+			const unresolvedWorkspace = this._canonicalUrisResolved && !this.isWorkspaceTrustSourceResolved();
+			const canonicalUri = await this.getCanonicalUri(uri);
+			if (unresolvedWorkspace && this._resolvedVirtualUris.has(uri.with({ query: null, fragment: null }))) {
+				await this.resolveWorkspaceTrust();
+			}
+			if (this.isCanonicalUriResolutionCurrent(providerVersion, uri)) {
+				return this.doGetUriTrustInfo(canonicalUri);
+			}
 		}
-		return this.doGetUriTrustInfo(canonicalUri);
+		this.logService.warn('Unable to verify resource trust because its provider changed', uri.toString());
+		return { trusted: false, uri: this.normalizeTrustUri(uri).with({ query: null, fragment: null }) };
 	}
 
 	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
-		const canonicalUris = await Promise.all(uris.map(uri => this.getCanonicalUri(uri)));
-		if (trusted && canonicalUris.some(uri => this._unresolvedVirtualUris.has(uri))) {
-			throw new Error(localize('unresolvedWorkspaceTrustSource', "The source of this workspace could not be determined. Continue in Restricted Mode until its source can be verified."));
+		const providerVersion = this._canonicalUriProviderVersion;
+		const urisToResolve: URI[] = [];
+		const canonicalUris = await Promise.all(uris.map(async uri => {
+			const existing = uri.scheme === 'vscode-vfs' ? this.getStoredTrustUri(uri) : undefined;
+			if (existing) {
+				return existing;
+			}
+
+			urisToResolve.push(uri);
+			const canonicalUri = await this.getCanonicalUri(uri);
+			if (trusted && this._unresolvedVirtualUris.has(canonicalUri)) {
+				throw new Error(localize('unresolvedWorkspaceTrustSource', "The source of this workspace could not be determined. Continue in Restricted Mode until its source can be verified."));
+			}
+			return canonicalUri;
+		}));
+		if (!urisToResolve.every(uri => this.isCanonicalUriResolutionCurrent(providerVersion, uri))) {
+			throw new Error(localize('workspaceTrustSourceChanged', "The repository source must be verified again before updating trust. Try again."));
 		}
 		await this.doSetUrisTrust(canonicalUris, trusted);
 	}
@@ -766,20 +802,26 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	async setTrustedUris(uris: URI[]): Promise<void> {
+		const providerVersion = this._canonicalUriProviderVersion;
+		const urisToResolve: URI[] = [];
 		const canonicalUris = await Promise.all(uris.map(async uri => {
-			const cleanUri = this.uriIdentityService.extUri.removeTrailingPathSeparator(this.normalizeTrustUri(uri).with({ query: null, fragment: null }));
-			const existing = this._trustStateInfo.uriTrustInfo.find(info => this.uriIdentityService.extUri.isEqual(info.uri, cleanUri));
+			const existing = this.getStoredTrustUri(uri);
 			if (existing) {
 				// Unchanged approvals are already canonical and do not require a live repository provider.
-				return existing.uri;
+				return existing;
 			}
 
+			urisToResolve.push(uri);
 			const canonicalUri = await this.getCanonicalUri(uri);
 			if (this._unresolvedVirtualUris.has(canonicalUri)) {
 				throw new Error(localize('unresolvedWorkspaceTrustSource', "The source of this workspace could not be determined. Continue in Restricted Mode until its source can be verified."));
 			}
 			return canonicalUri;
 		}));
+
+		if (!urisToResolve.every(uri => this.isCanonicalUriResolutionCurrent(providerVersion, uri))) {
+			throw new Error(localize('workspaceTrustSourceChanged', "The repository source must be verified again before updating trust. Try again."));
+		}
 
 		this._trustStateInfo.uriTrustInfo = [];
 		for (const canonicalUri of canonicalUris) {

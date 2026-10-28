@@ -431,6 +431,229 @@ suite('Workspace Trust', () => {
 				assert.strictEqual((await testObject.getUriTrustInfo(pullRequest)).uri.toString(), fork.toString());
 			});
 
+			test('public trust lookup rechecks a provider replaced after a cached resolution', async () => {
+				registerSource(base);
+				const testObject = await initializeTestObject();
+
+				queueMicrotask(() => registerSource(fork));
+				const result = await testObject.getUriTrustInfo(pullRequest);
+				await testObject.resolveWorkspaceTrust();
+
+				assert.deepStrictEqual({ trusted: result.trusted, uri: result.uri.toString() }, {
+					trusted: false,
+					uri: fork.toString(),
+				});
+			});
+
+			test('public trust lookup rechecks a provider replaced during workspace recovery', async () => {
+				let sourceAvailable = false;
+				store.add(canonicalUriService.registerCanonicalUriProvider({
+					scheme: 'vscode-vfs',
+					provideCanonicalUri: async () => sourceAvailable ? base : undefined,
+				}));
+				const recovering = new DeferredPromise<void>();
+				const resume = new DeferredPromise<void>();
+				let pauseRecovery = true;
+				const testObject = store.add(instantiationService.createInstance(class extends WorkspaceTrustManagementService {
+					override async resolveWorkspaceTrust(): Promise<void> {
+						await super.resolveWorkspaceTrust();
+						if (pauseRecovery) {
+							pauseRecovery = false;
+							recovering.complete();
+							await resume.p;
+						}
+					}
+				}));
+				await testObject.workspaceTrustInitialized;
+				sourceAvailable = true;
+
+				const lookup = testObject.getUriTrustInfo(pullRequest);
+				await recovering.p;
+				registerSource(fork);
+				resume.complete();
+				const result = await lookup;
+				await testObject.resolveWorkspaceTrust();
+
+				assert.deepStrictEqual({ trusted: result.trusted, uri: result.uri.toString() }, {
+					trusted: false,
+					uri: fork.toString(),
+				});
+			});
+
+			test('public trust lookup bounds retries when the provider keeps changing', async () => {
+				workspaceService.setWorkspace(new Workspace('base-repository', [toWorkspaceFolder(base)]));
+				let lookups = 0;
+				const warnings: string[] = [];
+				instantiationService.stub(ILogService, new class extends NullLogService {
+					override warn(message: string) {
+						warnings.push(message);
+					}
+				});
+				const registerChangingSource = () => {
+					store.add(canonicalUriService.registerCanonicalUriProvider({
+						scheme: 'vscode-vfs',
+						provideCanonicalUri: async () => {
+							lookups++;
+							queueMicrotask(registerChangingSource);
+							return base;
+						},
+					}));
+				};
+				registerChangingSource();
+				const testObject = await initializeTestObject();
+
+				const result = await testObject.getUriTrustInfo(pullRequest.with({ query: 'view=1', fragment: 'L1' }));
+				await testObject.resolveWorkspaceTrust();
+
+				assert.deepStrictEqual({
+					trusted: result.trusted,
+					uri: result.uri.toString(),
+					lookups,
+					warned: warnings.includes('Unable to verify resource trust because its provider changed'),
+				}, {
+					trusted: false,
+					uri: pullRequest.toString(),
+					lookups: 2,
+					warned: true,
+				});
+			});
+
+			for (const trusted of [true, false]) {
+				test(`public trust mutation rejects a provider change before ${trusted ? 'granting' : 'revoking'} trust`, async () => {
+					registerSource(fork);
+					const testObject = await initializeTestObject();
+					const local = URI.file('/trusted/local');
+					if (!trusted) {
+						await testObject.setUrisTrust([local, fork], true);
+					}
+					const previousUris = testObject.getTrustedUris().map(uri => uri.toString());
+					const previousStorage = storageService.get(WORKSPACE_TRUST_STORAGE_KEY, StorageScope.APPLICATION_SHARED);
+
+					queueMicrotask(() => registerSource(fork.with({ path: '/another-fork/project' })));
+					await assert.rejects(testObject.setUrisTrust([local, pullRequest], trusted), /source must be verified again/);
+					await testObject.resolveWorkspaceTrust();
+
+					assert.deepStrictEqual({
+						uris: testObject.getTrustedUris().map(uri => uri.toString()),
+						storage: storageService.get(WORKSPACE_TRUST_STORAGE_KEY, StorageScope.APPLICATION_SHARED),
+					}, { uris: previousUris, storage: previousStorage });
+				});
+			}
+
+			test('public trust-list replacement rejects a provider change without modifying approvals', async () => {
+				registerSource(fork);
+				const testObject = await initializeTestObject();
+				const previousStorage = storageService.get(WORKSPACE_TRUST_STORAGE_KEY, StorageScope.APPLICATION_SHARED);
+
+				queueMicrotask(() => registerSource(fork.with({ path: '/another-fork/project' })));
+				await assert.rejects(testObject.setTrustedUris([base, URI.file('/trusted/local'), pullRequest]), /source must be verified again/);
+				await testObject.resolveWorkspaceTrust();
+
+				assert.deepStrictEqual({
+					uris: testObject.getTrustedUris().map(uri => uri.toString()),
+					storage: storageService.get(WORKSPACE_TRUST_STORAGE_KEY, StorageScope.APPLICATION_SHARED),
+				}, { uris: [base.toString()], storage: previousStorage });
+			});
+
+			test('public trust mutations resolve a stable pull-request source for approval and revocation', async () => {
+				registerSource(fork);
+				const testObject = await initializeTestObject();
+
+				await testObject.setUrisTrust([pullRequest], true);
+				const afterGrant = testObject.getTrustedUris().map(uri => uri.toString());
+				await testObject.setUrisTrust([pullRequest], false);
+
+				assert.deepStrictEqual({
+					afterGrant,
+					afterRevocation: testObject.getTrustedUris().map(uri => uri.toString()),
+				}, {
+					afterGrant: [base.toString(), fork.toString()],
+					afterRevocation: [base.toString()],
+				});
+			});
+
+			for (const providerChanges of [false, true]) {
+				for (const trusted of [true, false]) {
+					test(`public trust mutations reuse a stored source when ${trusted ? 'approving' : 'revoking'} with a ${providerChanges ? 'changing' : 'stable'} provider`, async () => {
+						const enterpriseSource = fork.with({
+							authority: `github-enterprise+${encodeHex(VSBuffer.fromString(JSON.stringify({ v: 1, instanceUri: 'https://host-a.ghe.com' })))}`,
+						});
+						workspaceService.setWorkspace(new Workspace('base-repository', [toWorkspaceFolder(base)]));
+						storageService.store(WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify({
+							uriTrustInfo: [base, enterpriseSource].map(uri => ({ uri, trusted: true })),
+						}), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+						let lookups = 0;
+						const registerProvider = () => {
+							store.add(canonicalUriService.registerCanonicalUriProvider({
+								scheme: 'vscode-vfs',
+								provideCanonicalUri: async () => {
+									lookups++;
+									return enterpriseSource;
+								},
+							}));
+						};
+						registerProvider();
+						const testObject = await initializeTestObject();
+
+						if (providerChanges) {
+							await testObject.getUriTrustInfo(enterpriseSource);
+							lookups = 0;
+							queueMicrotask(registerProvider);
+						}
+						await testObject.setUrisTrust([enterpriseSource.with({ query: 'view=1', fragment: 'L1' })], trusted);
+						await testObject.resolveWorkspaceTrust();
+
+						assert.deepStrictEqual({
+							uris: testObject.getTrustedUris().map(uri => uri.toString()),
+							lookups,
+						}, {
+							uris: (trusted ? [base, enterpriseSource] : [base]).map(uri => uri.toString()),
+							lookups: 0,
+						});
+					});
+				}
+			}
+
+			for (const keepOtherEntry of [false, true]) {
+				test(`public trust revocation preserves exact trailing-separator identities ${keepOtherEntry ? 'with' : 'without'} a similar stored entry`, async () => {
+					const enterpriseSource = fork.with({
+						authority: `github-enterprise+${encodeHex(VSBuffer.fromString(JSON.stringify({ v: 1, instanceUri: 'https://host-a.ghe.com' })))}`,
+					});
+					const sourceWithSeparator = enterpriseSource.with({ path: enterpriseSource.path + '/' });
+					const remaining = keepOtherEntry ? [base, enterpriseSource] : [base];
+					workspaceService.setWorkspace(new Workspace('base-repository', [toWorkspaceFolder(base)]));
+					storageService.store(WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify({
+						uriTrustInfo: [...remaining, sourceWithSeparator].map(uri => ({ uri, trusted: true })),
+					}), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+					let lookups = 0;
+					const registerProvider = () => {
+						store.add(canonicalUriService.registerCanonicalUriProvider({
+							scheme: 'vscode-vfs',
+							provideCanonicalUri: async uri => {
+								lookups++;
+								return URI.revive(uri);
+							},
+						}));
+					};
+					registerProvider();
+					const testObject = await initializeTestObject();
+					await testObject.getUriTrustInfo(sourceWithSeparator);
+					lookups = 0;
+
+					queueMicrotask(registerProvider);
+					await testObject.setUrisTrust([sourceWithSeparator.with({ query: 'view=1', fragment: 'L1' })], false);
+					await testObject.resolveWorkspaceTrust();
+
+					assert.deepStrictEqual({
+						uris: testObject.getTrustedUris().map(uri => uri.toString()),
+						lookups,
+					}, {
+						uris: remaining.map(uri => uri.toString()),
+						lookups: 0,
+					});
+				});
+			}
+
 			test('keeps verified trust during a provider gap and rechecks its replacement', async () => {
 				const provider = registerSource(base);
 				const testObject = await initializeTestObject();
@@ -830,6 +1053,42 @@ suite('Workspace Trust', () => {
 
 				await testObject.setTrustedUris([editedLocal]);
 				assert.deepStrictEqual(testObject.getTrustedUris().map(uri => uri.toString()), [editedLocal.toString()]);
+			});
+
+			test('public trust operations ignore provider changes unrelated to their source resolution', async () => {
+				const local = URI.file('/trusted/local');
+				const enterpriseSource = fork.with({
+					authority: `github-enterprise+${encodeHex(VSBuffer.fromString(JSON.stringify({ v: 1, instanceUri: 'https://host-a.ghe.com' })))}`,
+				});
+				workspaceService.setWorkspace(new Workspace('base-repository', [toWorkspaceFolder(base)]));
+				storageService.store(WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify({
+					uriTrustInfo: [base, enterpriseSource].map(uri => ({ uri, trusted: true })),
+				}), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+				const testObject = await initializeTestObject();
+
+				queueMicrotask(() => registerSource(fork));
+				const baseTrusted = (await testObject.getUriTrustInfo(base)).trusted;
+				queueMicrotask(() => registerSource(fork));
+				await testObject.setUrisTrust([local], true);
+				const afterGrant = testObject.getTrustedUris().map(uri => uri.toString());
+				queueMicrotask(() => registerSource(fork));
+				await testObject.setUrisTrust([local], false);
+				const afterRevocation = testObject.getTrustedUris().map(uri => uri.toString());
+				queueMicrotask(() => registerSource(fork));
+				await testObject.setTrustedUris([base, enterpriseSource, local]);
+				await testObject.resolveWorkspaceTrust();
+
+				assert.deepStrictEqual({
+					baseTrusted,
+					afterGrant,
+					afterRevocation,
+					afterReplacement: testObject.getTrustedUris().map(uri => uri.toString()),
+				}, {
+					baseTrusted: true,
+					afterGrant: [base, enterpriseSource, local].map(uri => uri.toString()),
+					afterRevocation: [base, enterpriseSource].map(uri => uri.toString()),
+					afterReplacement: [base, enterpriseSource, local].map(uri => uri.toString()),
+				});
 			});
 		});
 
