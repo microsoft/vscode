@@ -31,6 +31,12 @@ interface IntentRow {
 	state: 'PENDING' | 'DONE';
 }
 
+interface IntentWithOperationRow extends IntentRow {
+	operationId: string | null;
+	operationState: PreparedOperationRow['state'] | null;
+	operationPayload: string | null;
+}
+
 interface PreparedOperationRow {
 	state: 'PREPARED' | 'TERMINAL' | 'ABORTED';
 	payload: string | null;
@@ -157,13 +163,16 @@ export class ExtensionManagementStoreCoordinator {
 			if (!target.length) {
 				throw this.corruptError();
 			}
-			const rows = await all<IntentRow>(database, 'SELECT id, target, state FROM intents');
+			const rows = await all<IntentWithOperationRow>(database, `SELECT intents.id, intents.target, intents.state,
+				operations.id AS operationId, operations.state AS operationState, operations.payload AS operationPayload
+				FROM intents LEFT JOIN operations ON operations.id = intents.id`);
 			const pending: string[] = [];
 			for (const row of rows) {
 				this.validateIntent(row);
-				if (!await this.operation(database, row.id)) {
+				if (row.operationId === null) {
 					throw this.corruptError();
 				}
+				this.validateOperation({ state: row.operationState!, payload: row.operationPayload });
 				if (row.target === target && row.state === 'PENDING') {
 					pending.push(row.id);
 				}
@@ -333,10 +342,16 @@ export class ExtensionManagementStoreCoordinator {
 	private async operation(database: Database, id: string): Promise<PreparedOperationRow | undefined> {
 		const rows = await all<PreparedOperationRow>(database, 'SELECT state, payload FROM operations WHERE id = ?', [id]);
 		const row = rows[0];
-		if (row && (!['PREPARED', 'TERMINAL', 'ABORTED'].includes(row.state) || (row.state === 'PREPARED' ? typeof row.payload !== 'string' : row.payload !== null))) {
-			throw new Error(localize('extensionCoordinationCorrupt', "Extension coordination data is invalid. Extension changes have been stopped."));
+		if (row) {
+			this.validateOperation(row);
 		}
 		return row;
+	}
+
+	private validateOperation(row: PreparedOperationRow): void {
+		if (!['PREPARED', 'TERMINAL', 'ABORTED'].includes(row.state) || (row.state === 'PREPARED' ? typeof row.payload !== 'string' : row.payload !== null)) {
+			throw this.corruptError();
+		}
 	}
 
 	private corruptError(): Error {

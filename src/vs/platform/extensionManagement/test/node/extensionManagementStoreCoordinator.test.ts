@@ -44,6 +44,16 @@ suite('ExtensionManagementStoreCoordinator', () => {
 		return coordinator;
 	}
 
+	async function executeSql(sql: string): Promise<void> {
+		const sqlite3 = await import('@vscode/sqlite3');
+		const database = new sqlite3.default.Database(join(directory, 'coordination.sqlite'));
+		try {
+			await new Promise<void>((resolve, reject) => database.exec(sql, error => error ? reject(error) : resolve()));
+		} finally {
+			await new Promise<void>((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
+		}
+	}
+
 	function child(script: string): { process: ChildProcessWithoutNullStreams; output: Promise<string> } {
 		const process = spawn(globalThis.process.execPath, ['--input-type=module', '-e', `
 			import { ExtensionManagementStoreCoordinator } from ${JSON.stringify(coordinatorModule)};
@@ -500,6 +510,61 @@ suite('ExtensionManagementStoreCoordinator', () => {
 		await assert.rejects(coordinator.prepareOperation('atomic', 'payload', 'opaque workspace target'), /prepared again/);
 		await assert.rejects(coordinator.commitOperation('atomic', async () => assert.fail('late commit')), /not prepared/);
 	});
+
+	test('recovery selects pending intents across completed history and preserves terminal fences', async () => {
+		const coordinator = create();
+		for (let index = 0; index < 200; index++) {
+			const id = `history-${index}`;
+			await coordinator.prepareOperation(id, 'old payload', index % 2 ? 'target' : 'other target');
+			if (index % 3) {
+				await coordinator.abortOperation(id);
+			} else {
+				await coordinator.commitOperation(id, async () => { });
+			}
+			await coordinator.acknowledgeOperation(id);
+		}
+		await coordinator.prepareOperation('prepared', 'payload', 'target');
+		await coordinator.reserve('prepared', async () => 'inventory');
+		await coordinator.prepareOperation('aborted', 'payload', 'target');
+		await coordinator.abortOperation('aborted');
+		await coordinator.prepareOperation('other', 'payload', 'other target');
+		const pending = await coordinator.pendingOperations('target');
+		assert.deepStrictEqual(pending.sort(), ['aborted', 'prepared']);
+		for (const id of pending) {
+			await coordinator.abortOperation(id);
+			await coordinator.release(id);
+			await coordinator.acknowledgeOperation(id);
+		}
+		await coordinator.close();
+		const reopened = create();
+		assert.deepStrictEqual(await reopened.pendingOperations('target'), []);
+		assert.deepStrictEqual(await reopened.pendingOperations('other target'), ['other']);
+		await assert.rejects(reopened.prepareOperation('history-0', 'replay', 'other target'), /prepared again/);
+		await assert.rejects(reopened.commitOperation('prepared', async () => assert.fail('replayed recovery operation')), /not prepared/);
+		await assert.rejects(reopened.reserve('aborted', async () => assert.fail('reacquired released operation')), /released/);
+	});
+
+	for (const corrupt of [
+		{ name: 'missing operation', sql: `DELETE FROM operations WHERE id = 'historical'` },
+		{ name: 'invalid operation state', sql: `UPDATE operations SET state = 'invalid' WHERE id = 'historical'` },
+		{ name: 'prepared operation without payload', sql: `UPDATE operations SET state = 'PREPARED', payload = NULL WHERE id = 'historical'` },
+		{ name: 'prepared operation with non-string payload', sql: `UPDATE operations SET state = 'PREPARED', payload = X'01' WHERE id = 'historical'` },
+		{ name: 'terminal operation with payload', sql: `UPDATE operations SET state = 'TERMINAL', payload = 'unexpected' WHERE id = 'historical'` },
+		{ name: 'aborted operation with payload', sql: `UPDATE operations SET payload = 'unexpected' WHERE id = 'historical'` },
+		{ name: 'invalid intent state', sql: `UPDATE intents SET state = 'invalid' WHERE id = 'historical'` },
+		{ name: 'non-string intent identifier', sql: `UPDATE intents SET id = X'01' WHERE id = 'historical'` },
+		{ name: 'empty intent target', sql: `UPDATE intents SET target = '' WHERE id = 'historical'` },
+	]) {
+		test(`completed history from another target fails closed for ${corrupt.name}`, async () => {
+			const coordinator = create();
+			await coordinator.prepareOperation('historical', 'payload', 'other target');
+			await coordinator.abortOperation('historical');
+			await coordinator.acknowledgeOperation('historical');
+			await coordinator.prepareOperation('current', 'payload', 'target');
+			await executeSql(`PRAGMA ignore_check_constraints = ON; ${corrupt.sql};`);
+			await assert.rejects(coordinator.pendingOperations('target'), /data is invalid/);
+		});
+	}
 
 	test('intent insertion failure rolls back the prepared operation', async () => {
 		const coordinator = create();
