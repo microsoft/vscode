@@ -34,6 +34,7 @@ import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationMarketplaceOpenTarget, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
@@ -878,12 +879,17 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			}
 
 			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | IAICustomizationMarketplaceOpenTarget): Promise<void> {
+				if (accessor.get(IChatEntitlementService).sentiment.hidden) {
+					return;
+				}
 				const editorService = accessor.get(IEditorService);
 				const input = AICustomizationManagementEditorInput.getOrCreate();
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (pane instanceof AICustomizationManagementEditor) {
 					const section = typeof target === 'string' ? target : target?.section ?? AICustomizationManagementSection.McpServers;
-					if (typeof target !== 'string' && target?.connectorName) {
+					if (typeof target !== 'string' && target?.mcpServer) {
+						await pane.showMcpMarketplaceDetail(target.mcpServer.name, target.mcpServer.registryUrl);
+					} else if (typeof target !== 'string' && target?.connectorName) {
 						const result = await pane.showCopilotConnectorDetail(target.connectorName, target.connectorDisplayName);
 						if (result === CopilotConnectorDetailOpenResult.NotFound) {
 							throw new Error(`Copilot connector '${target.connectorDisplayName ?? target.connectorName}' is not available`);

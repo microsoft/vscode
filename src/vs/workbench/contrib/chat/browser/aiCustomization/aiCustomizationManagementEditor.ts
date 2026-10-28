@@ -8,8 +8,10 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
-import { CustomizationMarketplaceIcon, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
+import { getGitHubMcpRegistryIdentity, getGitHubMcpRegistryResourceIdentity } from './githubMcpRegistryIcons.js';
 import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
@@ -4429,6 +4431,77 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.selectSectionById(AICustomizationManagementSection.McpServers);
 		this.showEmbeddedConnectorDetail(connector);
 		return CopilotConnectorDetailOpenResult.Opened;
+	}
+
+	public async showMcpMarketplaceDetail(name: string, registryUrl?: string): Promise<void> {
+		this.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true });
+		const navigationGeneration = this.contentNavigationGeneration;
+		const input = this.input;
+		const isCurrent = () => isCurrentConnectorDetailNavigation(navigationGeneration, this.contentNavigationGeneration, input, this.input);
+		const sources = getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources);
+		const githubRegistry = !registryUrl || URI.parse(registryUrl).authority === 'api.mcp.github.com';
+		const sourceIds = (githubRegistry
+			? [CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.McpGallery.id]
+			: [CustomizationMarketplaceSources.McpGallery.id])
+			.filter(id => sources.some(source => source.id === id));
+
+		for (const sourceId of sourceIds) {
+			const isSourceVisible = () => getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).some(source => source.id === sourceId);
+			let cursor: ICustomizationMarketplaceCursor | undefined;
+			do {
+				if (!isSourceVisible()) {
+					break;
+				}
+				let page: ICustomizationMarketplacePage;
+				try {
+					page = await this.marketplaceService.query({
+						query: name,
+						mediaType: CustomizationMarketplaceMediaType.McpServer,
+						sourceIds: [sourceId],
+						cursor,
+					}, CancellationToken.None);
+				} catch (error) {
+					if (!isCurrent()) {
+						return;
+					}
+					if (!isCancellationError(error)) {
+						this.notificationService.warn(localize('mcpLinkLookupFailed', "Could not search for the linked MCP server: {0}", getErrorMessage(error)));
+					}
+					break;
+				}
+				if (!isCurrent()) {
+					return;
+				}
+				if (!isSourceVisible()) {
+					break;
+				}
+				if (page.sourceErrors?.length) {
+					this.notificationService.warn(localize('mcpLinkSourceError', "Could not search for the linked MCP server: {0}", page.sourceErrors.map(error => error.message).join('\n')));
+				}
+				const resource = page.items.find(item => {
+					if (item.mediaType !== CustomizationMarketplaceMediaType.McpServer) {
+						return false;
+					}
+					const installation = item.installation;
+					if (sourceId === CustomizationMarketplaceSources.McpGallery.id) {
+						return installation?.kind === 'mcpGallery' && installation.name === name
+							&& (!registryUrl || normalizeMcpGalleryUrl(installation.registryUrl) === normalizeMcpGalleryUrl(registryUrl));
+					}
+					return (getGitHubMcpRegistryResourceIdentity(item.identifier)
+						?? getGitHubMcpRegistryIdentity(installation?.kind === 'providerCatalog' ? installation.itemUrl : undefined)) === name;
+				});
+				if (resource) {
+					this.showMarketplaceDetail(resource, { resourceKey: getCustomizationMarketplaceResourceKey(resource), mode: 'browse' });
+					return;
+				}
+				// Catalog searches can return broad matches; do not exhaust the feed before trying the registry.
+				cursor = sourceId === CustomizationMarketplaceSources.McpGallery.id ? page.nextCursor : undefined;
+			} while (cursor);
+		}
+		if (isCurrent()) {
+			this.setSearchQuery(name);
+			this.notificationService.info(localize('mcpLinkNotFound', "The MCP server '{0}' is not available in the enabled marketplace sources. You can browse MCP servers in Customizations.", name));
+		}
 	}
 
 	/**
