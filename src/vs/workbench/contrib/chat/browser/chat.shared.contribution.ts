@@ -1639,7 +1639,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostCopilotPolicyHelperSettingId]: {
 			type: ['object', 'null'],
-			markdownDescription: nls.localize('chat.agentHost.copilot.policyHelper', "Policy helper executable for the Copilot runtime, as an object with an absolute `path` and optional `args`. Device and server policies take precedence. Changes apply after reloading VS Code (**Developer: Reload Window**)."),
+			markdownDescription: nls.localize('chat.agentHost.copilot.policyHelper', "Policy helper executable for the Copilot runtime, as an object with an absolute `path` and optional `args`. Device and server policies take precedence. Changes apply only after you quit VS Code fully and relaunch it. **Developer: Reload Window** does not restart the Agent Host process."),
 			properties: {
 				path: { type: 'string' },
 				args: { type: 'array', items: { type: 'string' } },
@@ -1650,7 +1650,6 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			ignoreSync: true,
 			tags: ['experimental', 'advanced'],
-			included: false,
 			agentHost: {
 				key: CopilotCliConfigKey.PolicyHelper,
 				transform: normalizeCopilotPolicyHelperConfig,
