@@ -34,6 +34,7 @@ import { AHP_UNSUPPORTED_PROTOCOL_VERSION, JsonRpcErrorCodes, isJsonRpcRequest, 
 import { type IWSLAgentHostConfig, type IWSLConnectResult, type IWSLConnectProgress, type IWSLRemoteAgentHostMainService } from '../../common/wslRemoteAgentHost.js';
 import { IWSLRelayClientFactory, WSLRelayClientFactory, WSLRemoteAgentHostService } from '../../electron-browser/wslRemoteAgentHostServiceImpl.js';
 import { INativeHostService } from '../../../native/common/native.js';
+import { IRequestService } from '../../../request/common/request.js';
 
 class TestProtocolTransport extends Disposable implements IProtocolTransport {
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
@@ -246,6 +247,7 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INativeHostService, { lookupKerberosToken: async () => undefined });
+		instantiationService.stub(IRequestService, { resolveProxy: async () => undefined });
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IDefaultAccountService, { policyData: null, onDidChangePolicyData: Event.None });
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
