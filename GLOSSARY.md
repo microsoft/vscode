@@ -4,9 +4,16 @@ The vocabulary for moving between independent project workspaces and the shared 
 
 ## Language
 
+**Shared shell**:
+The persistent navigation surface shared by Agents and all project tabs. It contains the permanent Agents button and the project tab strip.
+
 **Project tab**:
 A top-level tab representing one independent workspace, which may contain a single folder or multiple folders. Its working state and running work are preserved when another view is selected.
 _Avoid_: Repository tab, file tab
+
+**Inactive project**:
+An open project whose tab is not currently selected. It remains a live workspace with its working state and running work.
+_Avoid_: Closed project, suspended project
 
 **Home workspace**:
 The single project workspace explicitly associated with a chat. It determines which Project Chats list contains that chat and which workspace its project navigation targets.
