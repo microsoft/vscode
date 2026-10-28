@@ -17,6 +17,7 @@
 	--vscode-quickInputList-focusBackground: var(--vscode-list-inactiveSelectionBackground);
 	--vscode-quickInputList-focusForeground: var(--vscode-list-inactiveSelectionForeground);
 	--vscode-quickInputList-focusIconForeground: var(--vscode-list-inactiveSelectionIconForeground);
+	--vscode-quickInputList-focusHighlightForeground: var(--vscode-list-highlightForeground);
 }
 
 .modern-ui.monaco-enable-motion .quick-input-widget:not(.quick-input-widget-overlay) {

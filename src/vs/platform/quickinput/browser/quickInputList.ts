@@ -851,6 +851,7 @@ export class QuickInputList extends Disposable {
 				alwaysConsumeMouseWheel: true
 			}
 		));
+		this._tree.setFocusNavigationFilter(node => !(node.element instanceof QuickPickSeparatorElement && node.element.isDivider));
 		this._tree.getHTMLElement().id = id;
 		this._register(this._itemRenderer.onDidDisposeFocusedElement(() => this._tree.domFocus()));
 		this._register(this._separatorRenderer.onDidDisposeFocusedElement(() => this._tree.domFocus()));

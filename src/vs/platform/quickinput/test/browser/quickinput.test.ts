@@ -397,6 +397,90 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		});
 	});
 
+	for (const palette of [
+		{ name: 'Light 2026', background: '#DADADA99', foreground: '#202020', highlight: '#0069CC', focusBackground: '#0069CC', expectedHighlight: 'rgb(0, 105, 204)' },
+		{ name: 'Dark 2026', background: '#2C2D2E', foreground: '#ededed', highlight: '#48A0C7', focusBackground: '#297AA0', expectedHighlight: 'rgb(72, 160, 199)' },
+	]) {
+		test(`neutral search matches retain the normal highlight color (${palette.name} palette)`, () => {
+			controller.layout({ height: 500, width: 600 }, 0);
+			fixture.style.setProperty('--vscode-quickInputList-focusBackground', palette.focusBackground);
+			fixture.style.setProperty('--vscode-quickInputList-focusHighlightForeground', '#ffffff');
+			fixture.style.setProperty('--vscode-list-inactiveSelectionBackground', palette.background);
+			fixture.style.setProperty('--vscode-list-inactiveSelectionForeground', palette.foreground);
+			fixture.style.setProperty('--vscode-list-highlightForeground', palette.highlight);
+			const picker = store.add(controller.createQuickPick());
+			picker.useNeutralSelection = true;
+			picker.items = [{ label: 'Red' }, { label: 'Green' }];
+			picker.value = 're';
+			picker.show();
+			const matches = () => Array.from(
+				fixture.querySelectorAll<HTMLElement>('.monaco-list-row .monaco-highlighted-label .highlight'),
+				element => ({ text: element.textContent, color: mainWindow.getComputedStyle(element).color })
+			);
+			const inputFocused = matches();
+			fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!.focus();
+			const listFocused = matches();
+			picker.hide();
+			const ordinary = store.add(controller.createQuickPick());
+			ordinary.items = picker.items;
+			ordinary.value = 're';
+			ordinary.show();
+			const neutral = [{ text: 'Re', color: palette.expectedHighlight }, { text: 're', color: palette.expectedHighlight }];
+			assert.deepStrictEqual({ inputFocused, listFocused, ordinary: matches() }, {
+				inputFocused: neutral,
+				listFocused: neutral,
+				ordinary: [{ text: 'Re', color: 'rgb(255, 255, 255)' }, { text: 're', color: palette.expectedHighlight }],
+			});
+		});
+	}
+
+	test('direct tree navigation skips decorative dividers while preserving action headers', async () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.widget = mainWindow.document.createElement('div');
+		const reset = { label: 'Reset to default' };
+		picker.items = [
+			{ type: 'separator' }, reset,
+			{ type: 'separator', label: 'Actions', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] },
+			{ type: 'separator' }, { label: 'Second' },
+		];
+		picker.show();
+		const list = fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!;
+		const tree = getRegisteredLists().find(widget => widget.getHTMLElement() === list);
+		if (!(tree instanceof ObjectTree)) {
+			throw new Error('Expected the Quick Input tree');
+		}
+		const states: { active: string[]; header: boolean }[] = [];
+		const record = () => states.push({
+			active: picker.activeItems.map(item => item.label),
+			header: !!list.querySelector('.monaco-list-row.focused .quick-input-list-separator-as-item.has-actions'),
+		});
+		tree.focusFirst();
+		record();
+		picker.activeItems = [reset];
+		tree.focusNext();
+		record();
+		tree.focusLast();
+		record();
+		tree.focusPrevious();
+		record();
+		tree.focusFirst();
+		record();
+		let accepted: string[] = [];
+		store.add(picker.onDidAccept(() => accepted = picker.activeItems.map(item => item.label)));
+		await controller.accept();
+		assert.deepStrictEqual({ states, accepted }, {
+			states: [
+				{ active: ['Reset to default'], header: false },
+				{ active: [], header: true },
+				{ active: ['Second'], header: false },
+				{ active: [], header: true },
+				{ active: ['Reset to default'], header: false },
+			],
+			accepted: ['Reset to default'],
+		});
+	});
+
 	test('labelled separators keep their inline labels and button separators keep their header height', () => {
 		controller.layout({ height: 500, width: 600 }, 0);
 		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
