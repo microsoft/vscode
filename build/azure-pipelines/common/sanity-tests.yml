@@ -157,10 +157,13 @@ jobs:
             echo ##vso[task.prependpath]!SIGNTOOL_ROOT!
           displayName: Install SignTool (Windows ARM64)
 
-      - task: UseNode@1
-        inputs:
-          version: '22.22.0'
-        displayName: Install Node.js
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - pwsh: build/azure-pipelines/common/install-node.ps1 -Version 22.22.0 -InstallDir "$(Agent.ToolsDirectory)/sanity-node"
+          displayName: Install Node.js
+
+      - ${{ else }}:
+        - bash: bash build/azure-pipelines/common/install-node.sh 22.22.0 "$(Agent.ToolsDirectory)/sanity-node"
+          displayName: Install Node.js
 
       - ${{ if eq(parameters.os, 'macOS') }}:
         - script: node build/azure-pipelines/common/captureDarwinMemory.ts
