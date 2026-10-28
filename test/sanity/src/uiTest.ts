@@ -519,7 +519,7 @@ export class UITest {
 		}
 
 		// After a cross-origin redirect (gallery to gallerycdn) Fetch sends `Origin: null`, so prefer the request's own value.
-		const origin = headers['origin'] ?? `${pageUrl.protocol}//${pageUrl.host}`;
+		const origin = headers.origin ?? `${pageUrl.protocol}//${pageUrl.host}`;
 		const args = [
 			'-sS', '-i', '--max-time', '30', '-X', 'OPTIONS',
 			'-H', `Origin: ${origin}`,
