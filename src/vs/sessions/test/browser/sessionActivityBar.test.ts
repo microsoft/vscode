@@ -731,6 +731,16 @@ suite('Sessions - Session Activity Bar', () => {
 		assert.deepStrictEqual(ran, ['test.browser']);
 	});
 
+	test('an entry acts on the chat window its strip is part of, which it is told by the id of that window', async () => {
+		const { label, ranWith, contextKeyService } = createActivityBar(store, [browser]);
+
+		ChatWindowIdContext.bindTo(contextKeyService).set(7);
+		label('Browser').click();
+		await timeout(0);
+
+		assert.deepStrictEqual(ranWith, [['test.browser', { chatWindowId: 7 }]]);
+	});
+
 	test('shows a checked entry as pressed and hides what it shows when it is clicked or activated by keyboard', async () => {
 		const files: ITestEntry = { id: 'test.files', title: 'Files', icon: Codicon.files, group: SessionActivityBarGroup.SidePanel, checked: true };
 		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel, checked: true };
