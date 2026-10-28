@@ -263,6 +263,10 @@ class QuickPickSeparatorElement extends BaseQuickPickItemElement {
 	 */
 	focusInsideSeparator = QuickPickSeparatorFocusReason.NONE;
 
+	get isDivider(): boolean {
+		return !this.separator.label && !this.separator.buttons?.length;
+	}
+
 	constructor(
 		index: number,
 		readonly fireSeparatorButtonTriggered: (event: IQuickPickSeparatorButtonEvent) => void,
@@ -276,7 +280,7 @@ class QuickInputItemDelegate implements IListVirtualDelegate<IQuickPickElement> 
 	getHeight(element: IQuickPickElement): number {
 
 		if (element instanceof QuickPickSeparatorElement) {
-			return 30;
+			return element.isDivider ? 8 : 30;
 		}
 		return element.saneDetail ? 44 : 22;
 	}
@@ -291,6 +295,36 @@ class QuickInputItemDelegate implements IListVirtualDelegate<IQuickPickElement> 
 }
 
 class QuickInputAccessibilityProvider implements IListAccessibilityProvider<IQuickPickElement> {
+	private readonly positions = new Map<IQuickPickElement, { position: number; size: number }>();
+
+	constructor(private readonly getSiblings: (element: IQuickPickElement) => readonly ITreeNode<IQuickPickElement | null, void>[]) { }
+
+	reset(): void {
+		this.positions.clear();
+	}
+
+	getSetSize(element: IQuickPickElement): number {
+		return this.getPosition(element).size;
+	}
+
+	getPosInSet(element: IQuickPickElement): number {
+		return this.getPosition(element).position;
+	}
+
+	private getPosition(element: IQuickPickElement): { position: number; size: number } {
+		if (!this.positions.has(element)) {
+			const siblings = this.getSiblings(element).filter(node => node.visible && node.element);
+			const size = siblings.filter(node => !(node.element instanceof QuickPickSeparatorElement && node.element.isDivider)).length;
+			let position = 0;
+			for (const sibling of siblings) {
+				if (!(sibling.element instanceof QuickPickSeparatorElement && sibling.element.isDivider)) {
+					position++;
+				}
+				this.positions.set(sibling.element!, { position: Math.max(1, position), size });
+			}
+		}
+		return this.positions.get(element)!;
+	}
 
 	getWidgetAriaLabel(): string {
 		return localize('quickInput', "Quick Input");
@@ -307,7 +341,7 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<IQui
 	}
 
 	getRole(element: IQuickPickElement) {
-		return element.hasCheckbox ? 'checkbox' : 'option';
+		return element instanceof QuickPickSeparatorElement && element.isDivider ? 'separator' : element.hasCheckbox ? 'checkbox' : 'option';
 	}
 
 	isChecked(element: IQuickPickElement): IValueWithChangeEvent<boolean> | undefined {
@@ -658,11 +692,12 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 			labelEscapeNewLines: true
 		};
 		data.entry.classList.add('quick-input-list-separator-as-item');
+		data.entry.classList.toggle('quick-input-list-separator-empty', element.isDivider);
 		data.label.setLabel(element.saneLabel, element.saneDescription, options);
 
 		// Separator
 		data.separator.style.display = 'none';
-		data.entry.classList.add('quick-input-list-separator-border');
+		data.entry.classList.toggle('quick-input-list-separator-border', !element.isDivider);
 
 		// Actions
 		const buttons = mainItem.buttons;
@@ -747,6 +782,7 @@ export class QuickInputList extends Disposable {
 
 	private readonly _container: HTMLElement;
 	private readonly _tree: WorkbenchObjectTree<IQuickPickElement, void>;
+	private readonly _accessibilityProvider: QuickInputAccessibilityProvider;
 	private readonly _separatorRenderer: QuickPickSeparatorElementRenderer;
 	private readonly _itemRenderer: QuickPickItemElementRenderer;
 	private _inputElements = new Array<QuickPickItem>();
@@ -770,6 +806,7 @@ export class QuickInputList extends Disposable {
 		this._container = dom.append(this.parent, $('.quick-input-list'));
 		this._separatorRenderer = this._register(instantiationService.createInstance(QuickPickSeparatorElementRenderer, hoverDelegate, this.styles.toggle));
 		this._itemRenderer = this._register(instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate, this.styles.toggle));
+		this._accessibilityProvider = new QuickInputAccessibilityProvider(element => this._tree.getNode(this._tree.getParentElement(element)).children);
 		this._tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<IQuickPickElement, void>,
 			'QuickInput',
@@ -778,12 +815,19 @@ export class QuickInputList extends Disposable {
 			[this._itemRenderer, this._separatorRenderer],
 			{
 				filter: {
-					filter(element) {
-						return element.hidden
-							? TreeVisibility.Hidden
-							: element instanceof QuickPickSeparatorElement
-								? TreeVisibility.Recurse
-								: TreeVisibility.Visible;
+					filter: element => {
+						if (element.hidden) {
+							return TreeVisibility.Hidden;
+						}
+						if (element instanceof QuickPickSeparatorElement) {
+							if (element.isDivider) {
+								return (element.index > 0 || this.hasCustomWidget) && element.children.some(child => !child.hidden)
+									? TreeVisibility.Visible
+									: TreeVisibility.Hidden;
+							}
+							return TreeVisibility.Recurse;
+						}
+						return TreeVisibility.Visible;
 					},
 				},
 				sorter: {
@@ -795,7 +839,7 @@ export class QuickInputList extends Disposable {
 						return compareEntries(element, otherElement, normalizedSearchValue);
 					},
 				},
-				accessibilityProvider: new QuickInputAccessibilityProvider(),
+				accessibilityProvider: this._accessibilityProvider,
 				setRowLineHeight: false,
 				multipleSelectionSupport: false,
 				hideTwistiesOfChildlessElements: true,
@@ -807,6 +851,7 @@ export class QuickInputList extends Disposable {
 				alwaysConsumeMouseWheel: true
 			}
 		));
+		this._tree.setFocusNavigationFilter(node => !(node.element instanceof QuickPickSeparatorElement && node.element.isDivider));
 		this._tree.getHTMLElement().id = id;
 		this._register(this._itemRenderer.onDidDisposeFocusedElement(() => this._tree.domFocus()));
 		this._register(this._separatorRenderer.onDidDisposeFocusedElement(() => this._tree.domFocus()));
@@ -1086,7 +1131,10 @@ export class QuickInputList extends Disposable {
 			const elementsWithoutSeparators = e.elements.filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement);
 			if (elementsWithoutSeparators.length !== e.elements.length) {
 				if (e.elements.length === 1 && e.elements[0] instanceof QuickPickSeparatorElement) {
-					this._tree.setFocus([e.elements[0].children[0]]);
+					const firstItem = this._getFirstVisibleItem(e.elements[0]);
+					if (firstItem) {
+						this._tree.setFocus([firstItem]);
+					}
 					this._tree.reveal(e.elements[0], 0);
 				}
 				this._tree.setSelection(elementsWithoutSeparators);
@@ -1119,7 +1167,7 @@ export class QuickInputList extends Disposable {
 		this._elementTree = inputElements.reduce((result, item, index) => {
 			let element: IQuickPickElement;
 			if (item.type === 'separator') {
-				if (!item.buttons) {
+				if (!item.buttons && item.label) {
 					// This separator will be rendered as a part of the list item
 					return result;
 				}
@@ -1132,7 +1180,7 @@ export class QuickInputList extends Disposable {
 			} else {
 				const previous = index > 0 ? inputElements[index - 1] : undefined;
 				let separator: IQuickPickSeparator | undefined;
-				if (previous && previous.type === 'separator' && !previous.buttons) {
+				if (previous && previous.type === 'separator' && !previous.buttons && previous.label) {
 					separator = previous;
 				}
 				const qpi = new QuickPickItemElement(
@@ -1273,7 +1321,7 @@ export class QuickInputList extends Disposable {
 						return false;
 					}
 					const parent = this._tree.getParentElement(e.element);
-					if (parent === null || (parent as QuickPickSeparatorElement).children[0] !== e.element) {
+					if (parent === null || this._getFirstVisibleItem(parent) !== e.element) {
 						this._tree.reveal(e.element);
 					} else {
 						// Only if we are the first child of a separator do we reveal the separator
@@ -1302,7 +1350,7 @@ export class QuickInputList extends Disposable {
 						return false;
 					}
 					const parent = this._tree.getParentElement(e.element);
-					if (parent === null || (parent as QuickPickSeparatorElement).children[0] !== e.element) {
+					if (parent === null || this._getFirstVisibleItem(parent) !== e.element) {
 						this._tree.reveal(e.element);
 					} else {
 						this._tree.reveal(parent);
@@ -1310,92 +1358,51 @@ export class QuickInputList extends Disposable {
 					return true;
 				});
 				break;
-			case QuickPickFocus.NextSeparator: {
-				let foundSeparatorAsItem = false;
-				const before = this._tree.getFocus()[0];
-				this._tree.focusNext(undefined, true, undefined, (e) => {
-					if (foundSeparatorAsItem) {
-						// This should be the index right after the separator so it
-						// is the item we want to focus.
-						return true;
-					}
-
-					if (e.element instanceof QuickPickSeparatorElement) {
-						foundSeparatorAsItem = true;
-						// If the separator is visible, then we should just reveal its first child so it's not as jarring.
-						if (this._separatorRenderer.isSeparatorVisible(e.element)) {
-							this._tree.reveal(e.element.children[0]);
-						} else {
-							// If the separator is not visible, then we should
-							// push it up to the top of the list.
-							this._tree.reveal(e.element, 0);
-						}
-					} else if (e.element instanceof QuickPickItemElement) {
-						if (e.element.separator) {
-							if (this._itemRenderer.isItemWithSeparatorVisible(e.element)) {
-								this._tree.reveal(e.element);
-							} else {
-								this._tree.reveal(e.element, 0);
-							}
-							return true;
-						} else if (e.element === this._elementTree[0]) {
-							// We should stop at the first item in the list if it's a regular item.
-							this._tree.reveal(e.element, 0);
-							return true;
-						}
-					}
-					return false;
-				});
-				const after = this._tree.getFocus()[0];
-				if (before === after) {
-					// If we didn't move, then we should just move to the end
-					// of the list.
-					this._tree.scrollTop = this._tree.scrollHeight;
-					this._tree.focusLast(undefined, (e) => e.element instanceof QuickPickItemElement);
-				}
-				break;
-			}
+			case QuickPickFocus.NextSeparator:
 			case QuickPickFocus.PreviousSeparator: {
-				let focusElement: IQuickPickElement | undefined;
-				// If we are already sitting on an inline separator, then we
-				// have already found the _current_ separator and need to
-				// move to the previous one.
-				let foundSeparator = !!this._tree.getFocus()[0]?.separator;
-				this._tree.focusPrevious(undefined, true, undefined, (e) => {
-					if (e.element instanceof QuickPickSeparatorElement) {
-						if (foundSeparator) {
-							if (!focusElement) {
-								if (this._separatorRenderer.isSeparatorVisible(e.element)) {
-									this._tree.reveal(e.element);
-								} else {
-									this._tree.reveal(e.element, 0);
-								}
-								focusElement = e.element.children[0];
-							}
-						} else {
-							foundSeparator = true;
+				const sections: { item: QuickPickItemElement; separator?: QuickPickSeparatorElement }[] = [];
+				const focused = this._tree.getFocus()[0];
+				const navigator = this._tree.navigate();
+				let separator: QuickPickSeparatorElement | undefined;
+				let startsSection = true;
+				let currentSection = -1;
+				for (let element = navigator.first(); element; element = navigator.next()) {
+					if (element instanceof QuickPickSeparatorElement) {
+						separator = element;
+						startsSection = true;
+						if (element === focused) {
+							currentSection = sections.length;
 						}
-					} else if (e.element instanceof QuickPickItemElement) {
-						if (!focusElement) {
-							if (e.element.separator) {
-								if (this._itemRenderer.isItemWithSeparatorVisible(e.element)) {
-									this._tree.reveal(e.element);
-								} else {
-									this._tree.reveal(e.element, 0);
-								}
-
-								focusElement = e.element;
-							} else if (e.element === this._elementTree[0]) {
-								// We should stop at the first item in the list if it's a regular item.
-								this._tree.reveal(e.element, 0);
-								return true;
-							}
+					} else if (element instanceof QuickPickItemElement) {
+						if (startsSection || element.separator) {
+							sections.push({ item: element, separator });
 						}
+						if (element === focused) {
+							currentSection = sections.length - 1;
+						}
+						startsSection = false;
+						separator = undefined;
 					}
-					return false;
-				});
-				if (focusElement) {
-					this._tree.setFocus([focusElement]);
+				}
+				if (!sections.length) {
+					break;
+				}
+				const next = what === QuickPickFocus.NextSeparator;
+				const atSectionStart = focused !== undefined && (focused instanceof QuickPickSeparatorElement || focused === sections[currentSection]?.item);
+				const delta = next ? 1 : atSectionStart ? -1 : 0;
+				const section = sections[(currentSection + delta + sections.length) % sections.length];
+				if (next && section.item === focused) {
+					this._tree.scrollTop = this._tree.scrollHeight;
+					this._tree.focusLast(undefined, element => element.element instanceof QuickPickItemElement);
+				} else {
+					this._tree.setFocus([section.item]);
+					if (section.separator && !this._separatorRenderer.isSeparatorVisible(section.separator)) {
+						this._tree.reveal(section.separator, 0);
+					} else if (section.item.separator && !this._itemRenderer.isItemWithSeparatorVisible(section.item)) {
+						this._tree.reveal(section.item, 0);
+					} else {
+						this._tree.reveal(section.item);
+					}
 				}
 				break;
 			}
@@ -1439,7 +1446,7 @@ export class QuickInputList extends Disposable {
 				element.hidden = false;
 				const previous = element.index && this._inputElements[element.index - 1];
 				if (element.item) {
-					element.separator = previous && previous.type === 'separator' && !previous.buttons ? previous : undefined;
+					element.separator = previous && previous.type === 'separator' && !previous.buttons && previous.label ? previous : undefined;
 				}
 			});
 		}
@@ -1480,7 +1487,7 @@ export class QuickInputList extends Disposable {
 				if (!this.sortByLabel) {
 					const previous = element.index && this._inputElements[element.index - 1] || undefined;
 					if (previous?.type === 'separator' && !previous.buttons) {
-						currentSeparator = previous;
+						currentSeparator = previous.label ? previous : undefined;
 					}
 					if (currentSeparator && !element.hidden) {
 						element.separator = currentSeparator;
@@ -1547,22 +1554,50 @@ export class QuickInputList extends Disposable {
 
 	//#region private methods
 
+	private _getFirstVisibleItem(separator: IQuickPickElement): QuickPickItemElement | undefined {
+		const navigator = this._tree.navigate(separator);
+		for (let element = navigator.next(); element; element = navigator.next()) {
+			if (element instanceof QuickPickItemElement) {
+				return element;
+			}
+		}
+		return undefined;
+	}
+
+	private hasCustomWidget = false;
+
+	setHasCustomWidget(hasCustomWidget: boolean): void {
+		if (this.hasCustomWidget !== hasCustomWidget) {
+			this.hasCustomWidget = hasCustomWidget;
+			this._accessibilityProvider.reset();
+			this._tree.refilter();
+		}
+	}
+
 	private _setElementsToTree(elements: IQuickPickElement[]) {
+		this._accessibilityProvider.reset();
 		const treeElements = new Array<IObjectTreeElement<IQuickPickElement>>();
+		let sectionChildren = treeElements;
 		for (const element of elements) {
 			if (element instanceof QuickPickSeparatorElement) {
+				if (element.isDivider) {
+					sectionChildren.push({ element });
+					sectionChildren.push(...element.children.map(child => ({ element: child })));
+					continue;
+				}
+				sectionChildren = element.children.map(e => ({
+					element: e,
+					collapsible: false,
+					collapsed: false,
+				}));
 				treeElements.push({
 					element,
 					collapsible: false,
 					collapsed: false,
-					children: element.children.map(e => ({
-						element: e,
-						collapsible: false,
-						collapsed: false,
-					})),
+					children: sectionChildren,
 				});
 			} else {
-				treeElements.push({
+				sectionChildren.push({
 					element,
 					collapsible: false,
 					collapsed: false,

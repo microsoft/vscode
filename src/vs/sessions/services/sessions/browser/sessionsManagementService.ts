@@ -25,10 +25,10 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ICopilotHomeService } from '../../../../workbench/services/environment/common/copilotHomeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { IChatDeletedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { IChatDeletedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot } from '../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -723,12 +723,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// `forceNew` skips reuse so callers can reset the composer right after
 		// sending a chat (which may still transiently report `Untitled`).
 		if (!options?.forceNew) {
-			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
+			// Reuse only a draft using the requested harness; a different harness needs a chat of its own.
+			const requestedHarness = options?.harness ?? session.harness;
+			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled && getChatHarness(session, c) === requestedHarness);
 			if (existingUntitled) {
 				return existingUntitled;
 			}
 		}
-		const created = await provider.createNewChat(session.sessionId);
+		const created = await provider.createNewChat(session.sessionId, undefined, options);
 		return created;
 	}
 
@@ -1316,12 +1318,40 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this._getProvider(session)?.getSessionWorktreeDiskUsage?.(session.sessionId, token) ?? Promise.resolve(undefined);
 	}
 
+	sessionWorktreeExists(session: ISession, token?: CancellationToken): Promise<boolean | undefined> {
+		return this._getProvider(session)?.sessionWorktreeExists?.(session.sessionId, token) ?? Promise.resolve(undefined);
+	}
+
 	async sessionWorktreeCleanup(session: ISession, retry: boolean) {
 		const provider = this._getProvider(session);
 		if (retry && !provider?.sessionWorktreeCleanup) {
 			throw new Error(localize('sessions.worktreeCleanupUnavailable', "Retrying worktree cleanup is unavailable for this session."));
 		}
 		return provider?.sessionWorktreeCleanup?.(session.sessionId, retry);
+	}
+
+	async listManagedWorktrees(knownWorktrees: readonly IManagedSessionWorktree[] = []): Promise<IManagedSessionWorktree[]> {
+		const inventories = await Promise.all(this.sessionsProvidersService.getProviders({ includeSessionBackends: true }).map(async provider => {
+			try {
+				return (await provider.listManagedWorktrees?.(knownWorktrees.filter(worktree => worktree.providerId === provider.id).map(worktree => URI.parse(worktree.repository))) ?? []).map(worktree => ({ ...worktree, providerId: provider.id }));
+			} catch (error) {
+				this.logService.warn(`[SessionsManagement] Failed to list managed worktrees for provider '${provider.id}'`, error);
+				return [];
+			}
+		}));
+		return inventories.flat();
+	}
+
+	async managedWorktreeExists(worktree: IManagedSessionWorktree): Promise<boolean | undefined> {
+		return this.sessionsProvidersService.getProvider(worktree.providerId)?.managedWorktreeExists?.(worktree);
+	}
+
+	async cleanupManagedWorktree(worktree: IManagedSessionWorktree): Promise<void> {
+		const provider = this.sessionsProvidersService.getProvider(worktree.providerId);
+		if (!provider?.cleanupManagedWorktree) {
+			throw new Error(localize('sessions.managedWorktreeCleanupUnavailable', "Connect to this worktree's host to clean it up."));
+		}
+		await provider.cleanupManagedWorktree(worktree);
 	}
 
 	async unarchiveSession(session: ISession): Promise<void> {

@@ -36,13 +36,37 @@ import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const { aiDisabled, hidden } of [{ aiDisabled: false, hidden: false }, { aiDisabled: true, hidden: false }, { aiDisabled: false, hidden: true }]) {
+		test(`documents View Mode only when AI is visible (disabled: ${aiDisabled}, hidden: ${hidden})`, () => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration);
+			instantiation.stub(IChatEntitlementService, { sentiment: { hidden } });
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const help = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			assert.deepStrictEqual({
+				modes: help.includes('View Mode to select Compact, Verbose, or Conversation'),
+				checked: help.includes('The active mode is checked'),
+				setting: help.includes('Selecting a mode updates chat.persistentProgressVerbosity'),
+				thinking: help.includes('only when a live section finishes with its header in view'),
+				noBackfill: help.includes('Opening a chat, returning to it, scrolling or expanding existing sections never generates titles'),
+			}, { modes: !aiDisabled && !hidden, checked: !aiDisabled && !hidden, setting: !aiDisabled && !hidden, thinking: !aiDisabled && !hidden, noBackfill: !aiDisabled && !hidden });
+		});
+	}
 
 	for (const remotesEnabled of [false, true]) {
 		for (const manageEnabled of [undefined, false, true]) {
@@ -487,6 +511,28 @@ suite('SessionsChatAccessibilityHelp', () => {
 			{ filter: true, defaults: true, submenuChoices: true, viewActions: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: false, keyboard: false },
 			{ filter: true, defaults: true, submenuChoices: true, viewActions: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: true, keyboard: true },
 		]);
+	});
+
+	test('describes listing automation sessions in the Sessions list only when Automations are enabled', () => {
+		const getAutomationHelp = (enabled: boolean) => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
+				.split('\n')
+				.filter(line => line.includes('Show in Sessions List'));
+		};
+
+		assert.deepStrictEqual({ disabled: getAutomationHelp(false), enabled: getAutomationHelp(true) }, {
+			disabled: [],
+			enabled: [`Automation sessions are listed in Automations rather than in the Sessions list. To also list one in the Sessions list, open its context menu<keybinding:editor.action.showContextMenu> in Automations and choose Show in Sessions List. The ${SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING} setting controls when automation sessions automatically also appear in the Sessions list: always, after you send a message in one, or never. To list it only in Automations again, open its context menu in the Sessions list and choose Hide from Sessions List; neither later messages nor the setting list it again.`],
+		});
 	});
 
 	test('describes picker shortcuts only when the unified workspace picker is enabled', () => {

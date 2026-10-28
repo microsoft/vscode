@@ -3482,6 +3482,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.recordVideoSkill.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.recordVideoSkill.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.codeGeneration.instructions": {
             "markdownDeprecationMessage": "%github.copilot.config.codeGeneration.instructions.deprecated%",
             "type": "array",
@@ -6745,6 +6754,13 @@
         "sessionTypes": [
           "local"
         ]
+      },
+      {
+        "path": "./assets/prompts/skills/record-video/SKILL.md",
+        "when": "config.github.copilot.chat.recordVideoSkill.enabled",
+        "sessionTypes": [
+          "copilotcli"
+        ]
       }
     ],
     "terminal": {
@@ -6834,7 +6850,7 @@
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.32.0",
     "@typescript-eslint/typescript-estree": "^8.26.1",
-    "@typescript/native": "npm:typescript@7.1.0-dev.20260818.1",
+    "@typescript/native": "npm:typescript@7.1.0-dev.20261027.1",
     "@vitest/coverage-v8": "^4.1.8",
     "@vitest/snapshot": "^1.5.0",
     "@vscode/debugadapter": "^1.68.0",

@@ -75,7 +75,7 @@ import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
 import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, OpenInAgentsTitleBarHoverVariant } from '../common/constants.js';
 import { agentsWindowHandoffConfigurationProperties } from './agentSessionsConfiguration.js';
-import { chatProgressConfigurationProperties } from './chatProgressConfiguration.js';
+import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from './chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties } from './aiCustomization/customizationMarketplaceConfiguration.js';
 import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
@@ -148,6 +148,7 @@ import { ChatDebugEditor } from './chatDebug/chatDebugEditor.js';
 import { ChatDebugEditorInput, ChatDebugEditorInputSerializer } from './chatDebug/chatDebugEditorInput.js';
 import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSummaryService.js';
 import { ChatUtilityModelService, IChatUtilityModelService } from '../common/chatUtilityModelService.js';
+import { ChatThinkingTitleService, IChatThinkingTitleService } from '../common/chatThinkingTitleService.js';
 import { CustomizationsTelemetryContribution, CustomizationsTelemetryService, ICustomizationsTelemetryService } from './aiCustomization/customizationsTelemetryService.js';
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
@@ -759,7 +760,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.permissions.default.autoApprove.description', "Start new chat sessions in Bypass Approvals mode."),
 				nls.localize('chat.permissions.default.autopilot.description', "Start new chat sessions in Autopilot mode."),
 			],
-			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Permissions."),
+			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If your organization disables auto approval, new sessions use Default Permissions."),
 			default: ChatPermissionLevel.Default,
 		},
 		[ChatConfiguration.DefaultConfiguration]: {
@@ -787,7 +788,7 @@ configurationRegistry.registerConfiguration({
 						nls.localize('chat.defaultConfiguration.approvals.allowAll', "Allow All — runs tool calls without asking."),
 					],
 					default: ChatDefaultPermissionLevel.Manual,
-					description: nls.localize('chat.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Manual permissions."),
+					description: nls.localize('chat.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If your organization disables auto approval, new sessions use Manual permissions."),
 				},
 			},
 			default: { mode: 'interactive', approvals: ChatDefaultPermissionLevel.Manual },
@@ -2348,42 +2349,7 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.tools.todos.showWidget', "Controls whether to show the todo list widget above the chat input. When enabled, the widget displays todo items created by the agent and updates as progress is made."),
 		},
-		[ChatConfiguration.ThinkingStyle]: {
-			type: 'string',
-			default: 'fixedScrolling',
-			enum: ['collapsed', 'collapsedPreview', 'fixedScrolling'],
-			enumDescriptions: [
-				nls.localize('chat.agent.thinkingMode.collapsed', "Thinking parts will be collapsed by default."),
-				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Thinking parts will be expanded first, then collapse once we reach a part that is not thinking."),
-				nls.localize('chat.agent.thinkingMode.fixedScrolling', "Show thinking in a fixed-height streaming panel that auto-scrolls; click header to expand to full height."),
-			],
-			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered. Read-only chats always use the collapsed preview style."),
-			tags: ['experimental'],
-		},
-		[ChatConfiguration.ThinkingGenerateTitles]: {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.agent.thinking.generateTitles', "Controls whether to use an LLM to generate summary titles for thinking sections."),
-			tags: ['experimental'],
-		},
-		'chat.agent.thinking.collapsedTools': {
-			type: 'string',
-			default: 'always',
-			enum: ['off', 'withThinking', 'always'],
-			enumDescriptions: [
-				nls.localize('chat.agent.thinking.collapsedTools.off', "Tool calls are shown separately, not collapsed into thinking."),
-				nls.localize('chat.agent.thinking.collapsedTools.withThinking', "Tool calls are collapsed into thinking sections when thinking is present."),
-				nls.localize('chat.agent.thinking.collapsedTools.always', "Tool calls are always collapsed, even without thinking."),
-			],
-			markdownDescription: nls.localize('chat.agent.thinking.collapsedTools', "Controls how tool calls are displayed in relation to thinking sections."),
-			tags: ['experimental'],
-		},
-		[ChatConfiguration.TerminalToolsInThinking]: {
-			type: 'boolean',
-			default: true,
-			markdownDescription: nls.localize('chat.agent.thinking.terminalTools', "When enabled, terminal tool calls are displayed inside the thinking dropdown with a simplified view."),
-			tags: ['experimental'],
-		},
+		...legacyChatThinkingConfigurationProperties,
 		[ChatConfiguration.SimpleTerminalCollapsible]: {
 			type: 'boolean',
 			default: true,
@@ -2403,30 +2369,6 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto'
 			}
-		},
-		[ChatConfiguration.ThinkingPhrases]: {
-			type: 'object',
-			default: {
-				mode: 'append',
-				phrases: []
-			},
-			properties: {
-				mode: {
-					type: 'string',
-					enum: ['replace', 'append'],
-					default: 'append',
-					description: nls.localize('chat.agent.thinking.phrases.mode', "'replace' replaces all default phrases entirely; 'append' adds your phrases to all default categories.")
-				},
-				phrases: {
-					type: 'array',
-					items: { type: 'string' },
-					default: [],
-					description: nls.localize('chat.agent.thinking.phrases.phrases', "Custom loading messages to show during thinking, working progress, terminal, and tool operations.")
-				}
-			},
-			additionalProperties: false,
-			markdownDescription: nls.localize('chat.agent.thinking.phrases', "Customize the loading messages shown during agent thinking and progress indicators. Use `\"mode\": \"replace\"` to use only your phrases, or `\"mode\": \"append\"` to add them to the defaults."),
-			tags: ['experimental'],
 		},
 		[ChatConfiguration.AutoExpandToolFailures]: {
 			type: 'boolean',
@@ -3509,6 +3451,7 @@ registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delay
 registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Delayed);
 registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);
 registerSingleton(IChatUtilityModelService, ChatUtilityModelService, InstantiationType.Delayed);
+registerSingleton(IChatThinkingTitleService, ChatThinkingTitleService, InstantiationType.Delayed);
 registerSingleton(IAgentNetworkFilterService, AgentNetworkFilterService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);

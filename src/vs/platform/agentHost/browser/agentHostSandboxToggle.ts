@@ -87,7 +87,7 @@ export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxT
 					? disabled
 						? localize('agentHostSandboxToggle.requiredTitle', "Sandboxing is required by your organization")
 						: localize('agentHostSandboxToggle.managedBypassTitle', "Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.")
-					: localize('agentHostSandboxToggle.title', "Run this session's terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored."),
+					: localize('agentHostSandboxToggle.title', "Run this session's terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against your organization's current requirements when restored."),
 		get checked() { return selection.checked; },
 		get disabled() { return disabled || (state.devContainerSandboxSupported === false && !selection.checked); },
 		onChange: enabled => {

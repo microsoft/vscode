@@ -1632,6 +1632,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view.updateElementHeight(index, size, null);
 	}
 
+	withScrollAnchorAtBottom(fn: () => void): void {
+		this.view.withScrollAnchorAtBottom(fn);
+	}
+
 	rerender(): void {
 		this.view.rerender();
 	}

@@ -208,16 +208,16 @@ suite('NewSessionViewV2Tour', () => {
 				{
 					id: 'workspacePicker',
 					title: 'Pick a project for this session',
-					description: 'Unlike a normal VS Code window, you aren\'t locked to one folder. Point this session at any repo or folder—or switch projects anytime without opening a new window.',
+					description: 'Unlike a normal VS Code window, you aren\'t locked to one folder. Point this session to any folder. Each session can work on a different folder without opening a new window.',
 					selectedContent: {
 						title: 'Pick a project for this session',
-						description: 'We\'ve selected your current project to get you started. You can point each new session at any repo or folder—all from this window.',
+						description: 'We\'ve selected your current project to get you started. You can point each new session to any folder without opening a new window.',
 					},
 				},
 				{
 					id: 'modelPicker',
 					title: 'All your favorite models, one place',
-					description: 'Claude, GPT, Gemini, and more—the best models from across the industry are ready to go. Pick your favorite or switch anytime.',
+					description: 'Claude, GPT, Gemini, and more. The best models from across the industry are ready to go. Pick your favorite or switch anytime.',
 					selectedContent: undefined,
 				},
 			],

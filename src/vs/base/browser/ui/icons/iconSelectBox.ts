@@ -228,7 +228,9 @@ export class IconSelectBox extends Disposable {
 
 		if (this.iconIdElement) {
 			if (renderedItem) {
-				this.iconIdElement.set(renderedItem.icon.id, renderedItem.highlightMatches);
+				const label = localize('iconSelect.iconName', "Icon name: {0}", renderedItem.icon.id);
+				const offset = label.indexOf(renderedItem.icon.id);
+				this.iconIdElement.set(label, renderedItem.highlightMatches?.map(match => ({ start: match.start + offset, end: match.end + offset })));
 			} else {
 				this.iconIdElement.set('');
 			}

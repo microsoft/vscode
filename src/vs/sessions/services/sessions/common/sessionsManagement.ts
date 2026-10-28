@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import type { IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
+import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
+
 import { IReference } from '../../../../base/common/lifecycle.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable } from '../../../../base/common/observable.js';
@@ -13,7 +14,11 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions } from './sessionsProvider.js';
+
+export interface IManagedSessionWorktree extends IAgentHostManagedWorktree {
+	readonly providerId: string;
+}
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -143,7 +148,7 @@ export interface ICreateNewSessionOptions {
 /**
  * Options for {@link ISessionsManagementService.createNewChatInSession}.
  */
-export interface ICreateNewChatInSessionOptions {
+export interface ICreateNewChatInSessionOptions extends ICreateNewChatOptions {
 	/**
 	 * Always create a fresh chat instead of reusing an existing untitled one.
 	 * Used to reset the composer right after a background send, where the
@@ -584,11 +589,17 @@ export interface ISessionsManagementService {
 	/** Permanently imports an external session through its provider without sending a message. */
 	importSession(session: ISession): Promise<void>;
 
-	/** Returns the current on-disk size of the session's isolated worktree. */
+	/** Returns the current on-disk size, zero for confirmed absent storage, or undefined when measurement is unavailable. */
 	getSessionWorktreeDiskUsage?(session: ISession, token?: CancellationToken): Promise<number | undefined>;
+
+	/** Cheaply checks the owning host's worktrees. False confirms all roots are absent; undefined means unavailable. */
+	sessionWorktreeExists?(session: ISession, token?: CancellationToken): Promise<boolean | undefined>;
 
 	/** Reports cleanup status, optionally retrying removal without restoring or deleting session history. */
 	sessionWorktreeCleanup?(session: ISession, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	listManagedWorktrees?(knownWorktrees?: readonly IManagedSessionWorktree[]): Promise<IManagedSessionWorktree[]>;
+	cleanupManagedWorktree?(worktree: IManagedSessionWorktree): Promise<void>;
+	managedWorktreeExists?(worktree: IManagedSessionWorktree): Promise<boolean | undefined>;
 
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;

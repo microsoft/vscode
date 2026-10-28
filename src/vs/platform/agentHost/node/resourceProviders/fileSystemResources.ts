@@ -309,10 +309,15 @@ export class FileSystemResources extends Disposable implements IAgentHostResourc
 			};
 			return result;
 		} catch (e) {
-			if (toFileOperationResult(e as Error) === FileOperationResult.FILE_PERMISSION_DENIED) {
+			const error = e instanceof Error ? e : new Error(String(e));
+			const result = toFileOperationResult(error);
+			if (result === FileOperationResult.FILE_NOT_FOUND) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${uri.toString()}`);
+			}
+			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
 			}
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${uri.toString()}`);
+			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to resolve resource: ${uri.toString()}: ${toErrorMessage(error)}`);
 		}
 	}
 

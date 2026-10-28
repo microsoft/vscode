@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { $, EventType } from '../../../../../../../base/browser/dom.js';
-import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -23,7 +23,7 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
-import { ChatThinkingContentPart, getFinishedThinkingTitle, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { getToolInvocationIcon } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { IChatExternalEdit, IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
@@ -31,6 +31,7 @@ import { IChatRendererContent, IChatResponseViewModel } from '../../../../common
 import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatUtilityModelService, IChatUtilityModelService } from '../../../../common/chatUtilityModelService.js';
+import { IChatThinkingTitleRequest } from '../../../../common/chatThinkingTitleService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -1091,11 +1092,11 @@ suite('ChatThinkingContentPart', () => {
 			}, {
 				scrollContainerPreserved: true,
 				firstRowPreserved: true,
-				rowTexts: ['Analyzing code fix and lifecycle nuances', 'Evaluating PR merge status'],
+				rowTexts: ['Evaluating issue and PR status', 'Analyzing code fix and lifecycle nuances', 'Evaluating PR merge status'],
 				hasLiteralMarkers: false,
 				initialTitle: 'Thinking',
-				streamingTitle: 'Thinking: Evaluating issue and PR status',
-				streamingAriaLabel: 'Thinking: Evaluating issue and PR status',
+				streamingTitle: 'Thinking',
+				streamingAriaLabel: 'Thinking',
 			});
 		});
 
@@ -1127,8 +1128,8 @@ suite('ChatThinkingContentPart', () => {
 				title: part.domNode.querySelector('.chat-used-context-label .monaco-button')?.textContent?.trim(),
 			}, {
 				hasScrollContainer: true,
-				rowTexts: ['Analyzing code fix and lifecycle nuances', 'Evaluating PR merge status'],
-				title: 'Evaluating issue and PR status',
+				rowTexts: ['Evaluating issue and PR status', 'Analyzing code fix and lifecycle nuances', 'Evaluating PR merge status'],
+				title: 'Finished thinking',
 			});
 		});
 
@@ -1294,12 +1295,12 @@ suite('ChatThinkingContentPart', () => {
 				rowTexts: rows.map(row => row.textContent?.trim()),
 				hasLiteralMarkers: part.domNode.textContent?.includes('**') ?? false,
 			}, {
-				rowTexts: ['Updating session token handling'],
+				rowTexts: ['Refactoring session policy and cleanup', 'Updating session token handling'],
 				hasLiteralMarkers: false,
 			});
 		});
 
-		test('should track multiple title extractions', () => {
+		test('keeps content usable as reasoning headings change', () => {
 			const content = createThinkingPart('**First title**');
 			const context = createMockRenderContext(false);
 
@@ -1322,8 +1323,8 @@ suite('ChatThinkingContentPart', () => {
 			part.updateThinking(createThinkingPart('**Second title**', content.id));
 			part.updateThinking(createThinkingPart('**Third title**', content.id));
 
-			// The part should track these titles for finalization
-			assert.ok(part.domNode, 'Part should still be valid');
+			part.finalizeTitleIfDefault();
+			assert.strictEqual(button.textContent, 'Third title');
 		});
 
 		test('should restore the descriptive title after expand and collapse', () => {
@@ -1417,14 +1418,12 @@ suite('ChatThinkingContentPart', () => {
 				rowTexts,
 				hasLiteralMarkers: part.domNode.textContent?.includes('**') ?? false,
 			}, {
-				// First block drops its title header ("Reviewing the plan"); the grouped
-				// block keeps both of its headers so neither is lost.
-				rowTexts: ['Weighing tradeoffs', 'Editing files', 'Verifying the change'],
+				rowTexts: ['Reviewing the plan', 'Weighing tradeoffs', 'Editing files', 'Verifying the change'],
 				hasLiteralMarkers: false,
 			});
 		});
 
-		test('renders each summary header as its own row and drops the leading header', () => {
+		test('renders every summary header as its own row', () => {
 			const rows = expandedSummaryRows([
 				'**Analyzing bold syntax with spaces**',
 				'**Examining special stripping logic**',
@@ -1436,7 +1435,7 @@ suite('ChatThinkingContentPart', () => {
 				hasLiteralMarkers: rows.some(row => row.textContent?.includes('**')),
 				anyRowBold: rows.some(row => !!row.querySelector('strong')),
 			}, {
-				rowTexts: ['Examining special stripping logic', 'Explaining Markdown bold whitespace nuances'],
+				rowTexts: ['Analyzing bold syntax with spaces', 'Examining special stripping logic', 'Explaining Markdown bold whitespace nuances'],
 				hasLiteralMarkers: false,
 				anyRowBold: false,
 			});
@@ -1449,7 +1448,7 @@ suite('ChatThinkingContentPart', () => {
 				strong: Array.from(row.querySelectorAll('strong'), element => element.textContent),
 				text: row.textContent?.replace(/\s+/g, ' ').trim(),
 			})), [
-				{ strong: [], text: 'Weigh the tradeoffs' },
+				{ strong: ['Reviewing the plan'], text: 'Reviewing the planWeigh the tradeoffs' },
 				{ strong: ['Applying the change'], text: 'Applying the changeEdit the file' },
 			]);
 		});
@@ -1468,7 +1467,7 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('surfaces the dropped leading header as the finalized title', () => {
+		test('preserves the leading header in the body after finalizing the duration', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
@@ -1492,12 +1491,12 @@ suite('ChatThinkingContentPart', () => {
 				title: titleButton?.textContent?.trim(),
 				rows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
 			}, {
-				title: 'Reviewing the plan',
-				rows: ['Weighing tradeoffs', 'Applying the change'],
+				title: 'Finished thinking',
+				rows: ['Reviewing the plan', 'Weighing tradeoffs', 'Applying the change'],
 			});
 		});
 
-		test('keeps the dropped header as the title over a restored content title', () => {
+		test('reuses a restored generated title without changing history or hiding headings', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
@@ -1521,13 +1520,13 @@ suite('ChatThinkingContentPart', () => {
 				rows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
 				generatedTitle: content.generatedTitle,
 			}, {
-				title: 'Reviewing the plan',
-				rows: ['Applying the change'],
-				generatedTitle: 'Reviewing the plan',
+				title: 'Reviewed implementation details',
+				rows: ['Reviewing the plan', 'Applying the change'],
+				generatedTitle: 'Reviewed implementation details',
 			});
 		});
 
-		test('keeps the dropped header as the title when a titled tool joins the group', () => {
+		test('reuses a previously titled tool when it joins the group', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
@@ -1575,12 +1574,12 @@ suite('ChatThinkingContentPart', () => {
 				title: titleButton?.textContent?.trim(),
 				summaryRows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
 			}, {
-				title: 'Analyzing the request',
-				summaryRows: ['Planning the edits'],
+				title: 'Edited implementation details',
+				summaryRows: ['Analyzing the request', 'Planning the edits'],
 			});
 		});
 
-		test('keeps the dropped header as the title over a cached title', () => {
+		test('defers persisted-cache lookup to viewport registration and retains every heading', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
@@ -1612,13 +1611,13 @@ suite('ChatThinkingContentPart', () => {
 				rows: Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim()),
 				generatedTitle: content.generatedTitle,
 			}, {
-				title: 'Analyzing the request',
-				rows: ['Verifying the result'],
-				generatedTitle: 'Analyzing the request',
+				title: 'Finished thinking',
+				rows: ['Analyzing the request', 'Verifying the result'],
+				generatedTitle: undefined,
 			});
 		});
 
-		test('surfaces the dropped header as the title when collapsed through completion', () => {
+		test('finalizes the fallback without expanding a collapsed section', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
@@ -1661,10 +1660,10 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			const titleButton = part.domNode.querySelector('.chat-used-context-label .monaco-button');
-			assert.strictEqual(titleButton?.textContent?.trim(), 'Analyzing the request');
+			assert.strictEqual(titleButton?.textContent?.trim(), 'Finished thinking');
 		});
 
-		test('tracks the dropped header off a later grouped block when the first has one header', () => {
+		test('uses a duration header for grouped reasoning blocks', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
@@ -1685,10 +1684,10 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			const titleButton = part.domNode.querySelector('.chat-used-context-label .monaco-button');
-			assert.strictEqual(titleButton?.textContent?.trim(), 'Analyzing the request');
+			assert.strictEqual(titleButton?.textContent?.trim(), 'Finished thinking');
 		});
 
-		test('does not drop a grouped block header that is not the tracked title', () => {
+		test('keeps grouped block headings after expanding a completed section', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
@@ -1713,10 +1712,9 @@ suite('ChatThinkingContentPart', () => {
 			const rows = Array.from(part.domNode.querySelectorAll<HTMLElement>('.chat-thinking-item.markdown-content'), row => row.textContent?.trim());
 			assert.deepStrictEqual({
 				title: titleButton?.textContent?.trim(),
-				// The later block's leading header is not the tracked title, so it is kept as a row.
 				keepsLaterHeader: rows.includes('Editing files'),
 			}, {
-				title: 'Analyzing the request',
+				title: 'Finished thinking',
 				keepsLaterHeader: true,
 			});
 		});
@@ -1742,7 +1740,7 @@ suite('ChatThinkingContentPart', () => {
 			};
 		}
 
-		test('promotes a streamed single heading only after completion and removes its body duplicate', () => {
+		test('uses a single extracted header after completion without changing streamed reasoning', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Evaluating code and'));
 			const initial = snapshot(part);
 			const wrapper = part.domNode.querySelector('.chat-thinking-collapsible');
@@ -1766,13 +1764,13 @@ suite('ChatThinkingContentPart', () => {
 				initialTitle: 'Thinking',
 				streaming: { title: 'Thinking', ariaLabel: 'Thinking', body: ['Evaluating code and build processes', 'Read the build documentation.'] },
 				collapsedTitle: 'Thinking',
-				completed: { title: 'Evaluating code and build processes', ariaLabel: 'Evaluating code and build processes', body: ['Read the build documentation.'] },
+				completed: { title: 'Evaluating code and build processes', ariaLabel: 'Evaluating code and build processes', body: ['Evaluating code and build processes', 'Read the build documentation.'] },
 				generatedTitle: 'Evaluating code and build processes',
 				sameWrapper: true,
 			});
 		});
 
-		test('a restored single heading replaces an old generated title and is not repeated on expansion', () => {
+		test('prefers a single extracted heading over an older generated title', () => {
 			const content = createThinkingPart('**Evaluating code and build processes**\n\nRead the build documentation.');
 			content.generatedTitle = 'An older summary';
 			const part = createPersistentReasoning(content, true);
@@ -1782,17 +1780,17 @@ suite('ChatThinkingContentPart', () => {
 			assert.deepStrictEqual(snapshot(part), {
 				title: 'Evaluating code and build processes',
 				ariaLabel: 'Evaluating code and build processes',
-				body: ['Read the build documentation.'],
+				body: ['Evaluating code and build processes', 'Read the build documentation.'],
 			});
 		});
 
-		test('preserves matching inline bold text when removing the promoted heading', () => {
+		test('preserves both inline bold text and matching reasoning headings', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Review** appears inline.\n\n**Review**\n\nCheck the renderer.'));
 			part.finalizeTitleIfDefault();
 			assert.deepStrictEqual(snapshot(part), {
 				title: 'Review',
 				ariaLabel: 'Review',
-				body: ['Review appears inline.', 'Check the renderer.'],
+				body: ['Review appears inline.', 'Review', 'Check the renderer.'],
 			});
 		});
 
@@ -1827,8 +1825,8 @@ suite('ChatThinkingContentPart', () => {
 					assert.deepStrictEqual({
 						title: snapshot(part).title,
 						code: Array.from(part.domNode.querySelectorAll('[data-code]'), element => element.textContent).join('\n'),
-						duplicateHeading: snapshot(part).body.includes(example.title),
-					}, { title: example.title, code: example.code, duplicateHeading: false });
+						hasHeading: snapshot(part).body.includes(example.title),
+					}, { title: example.title, code: example.code, hasHeading: example.title === 'Review' });
 				});
 			}
 		}
@@ -1853,7 +1851,7 @@ suite('ChatThinkingContentPart', () => {
 			}, { sameWrapper: true, reusedTargets: [true, true] });
 		});
 
-		test('preserves a focused heading link until focus moves into the body', () => {
+		test('preserves heading links and keyboard focus when reasoning completes', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Review `renderer.ts` and [tests](https://example.com/tests)**\n\nKeep the [build](https://example.com/build) in view.'));
 			const [headingLink, bodyLink] = part.domNode.querySelectorAll<HTMLAnchorElement>('.chat-thinking-item a');
 			assert.ok(headingLink && bodyLink);
@@ -1872,14 +1870,14 @@ suite('ChatThinkingContentPart', () => {
 				completed: {
 					title: 'Review renderer.ts and tests',
 					ariaLabel: 'Review renderer.ts and tests',
-					body: ['Keep the build in view.'],
+					body: ['Review renderer.ts and tests', 'Keep the build in view.'],
 				},
-				headingRemoved: true,
+				headingRemoved: false,
 				bodyFocusKept: true,
 			});
 		});
 
-		test('removes the owned header without relying on the markdown renderer markup', () => {
+		test('preserves headings and body focus with custom markdown markup', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Review [tests](https://example.com/tests)**\n\nKeep the [build](https://example.com/build) in view.'), false, {
 				render: (markdown, options, target) => renderMarkdown(markdown, {
 					...options,
@@ -1905,16 +1903,16 @@ suite('ChatThinkingContentPart', () => {
 				completed: {
 					title: 'Review tests',
 					ariaLabel: 'Review tests',
-					body: ['Keep the build in view.'],
+					body: ['Review tests', 'Keep the build in view.'],
 				},
-				headingRemoved: true,
+				headingRemoved: false,
 				bodyConnected: true,
 				bodyFocusKept: true,
 			});
 		});
 
 		for (const complete of [false, true]) {
-			test(`keeps grouped reasoning while promoting its only heading (restored=${complete})`, () => {
+			test(`keeps all grouped reasoning under its single extracted header (restored=${complete})`, () => {
 				const part = createPersistentReasoning(createThinkingPart('**Reviewing the implementation**\n\nCheck the renderer.', 'first'), complete);
 				part.setupThinkingContainer(createThinkingPart('Check the tests.', 'second'));
 				part.finalizeTitleIfDefault();
@@ -1922,12 +1920,12 @@ suite('ChatThinkingContentPart', () => {
 				assert.deepStrictEqual(snapshot(part), {
 					title: 'Reviewing the implementation',
 					ariaLabel: 'Reviewing the implementation',
-					body: ['Check the renderer.', 'Check the tests.'],
+					body: ['Reviewing the implementation', 'Check the renderer.', 'Check the tests.'],
 				});
 			});
 		}
 
-		test('a heading without a body becomes a non-expandable completed label', () => {
+		test('a heading without a body remains available through the completed disclosure', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Reviewed the implementation**'));
 			part.finalizeTitleIfDefault();
 			part.expandContent();
@@ -1937,22 +1935,17 @@ suite('ChatThinkingContentPart', () => {
 			}, {
 				title: 'Reviewed the implementation',
 				ariaLabel: 'Reviewed the implementation',
-				body: [],
-				expanded: 'false',
+				body: ['Reviewed the implementation'],
+				expanded: 'true',
 			});
 		});
 
 		for (const restoredTitle of ['none', 'content', 'cache'] as const) {
-			test(`summarizes every heading instead of promoting the first (restored title=${restoredTitle})`, async () => {
-				const title = new DeferredPromise<string>();
-				const prompts: string[] = [];
-				mockLanguageModelsService.selectLanguageModels = async () => ['utility'];
-				mockLanguageModelsService.sendChatRequest = async (_model, _extension, messages) => {
-					prompts.push(messages.flatMap(message => message.content.flatMap(part => part.type === 'text' ? [part.value] : [])).join('\n'));
-					return {
-						stream: (async function* () { yield { type: 'text' as const, value: await title.p }; })(),
-						result: Promise.resolve({}),
-					};
+			test(`reuses model titles while deferring missing titles until viewed (restored title=${restoredTitle})`, async () => {
+				let modelSelections = 0;
+				mockLanguageModelsService.selectLanguageModels = async () => {
+					modelSelections++;
+					return [];
 				};
 				const content = createThinkingPart('**Evaluating `code`**\n\nCheck the renderer.');
 				if (restoredTitle === 'content') {
@@ -1971,29 +1964,22 @@ suite('ChatThinkingContentPart', () => {
 				const streaming = snapshot(part);
 				part.finalizeTitleIfDefault();
 				await timeout(0);
-				const awaitingSummary = snapshot(part).title;
-				await title.complete('Reviewed code and build processes');
-				await timeout(0);
 
 				assert.deepStrictEqual({
 					streaming,
-					awaitingSummary,
 					completed: snapshot(part),
-					promptCount: prompts.length,
-					usedEveryHeading: prompts[0]?.endsWith('Content: Evaluating code, Reviewing build processes'),
+					modelSelections,
 					generatedTitle: content.generatedTitle,
 				}, {
 					streaming: { title: 'Thinking', ariaLabel: 'Thinking', body: ['Evaluating code', 'Check the renderer.', 'Reviewing build processes', 'Check the build.'] },
-					awaitingSummary: 'Thinking',
-					completed: { title: 'Reviewed code and build processes', ariaLabel: 'Reviewed code and build processes', body: ['Evaluating code', 'Check the renderer.', 'Reviewing build processes', 'Check the build.'] },
-					promptCount: 1,
-					usedEveryHeading: true,
-					generatedTitle: 'Reviewed code and build processes',
+					completed: { title: 'Finished thinking', ariaLabel: 'Finished thinking', body: ['Evaluating code', 'Check the renderer.', 'Reviewing build processes', 'Check the build.'] },
+					modelSelections: 0,
+					generatedTitle: restoredTitle === 'content' ? 'Evaluating `code`' : undefined,
 				});
 			});
 		}
 
-		test('restores a generated summary across separate thinking blocks without hiding any headings', () => {
+		test('reuses a generated summary across separate thinking blocks without hiding any headings', () => {
 			const content = createThinkingPart('**Evaluating code**\n\nCheck the renderer.', 'first');
 			content.generatedTitle = 'Reviewed code and build processes';
 			const part = createPersistentReasoning(content, true);
@@ -2024,40 +2010,30 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('shows the fallback title while a title is queued and caches a title that arrives after dispose', async () => {
-			const clock = sinon.useFakeTimers();
-			try {
-				const title = new DeferredPromise<string>();
-				mockLanguageModelsService.selectLanguageModels = async () => ['utility'];
-				mockLanguageModelsService.sendChatRequest = async () => ({
-					stream: (async function* () { yield { type: 'text' as const, value: await title.p }; })(),
-					result: Promise.resolve({}),
-				});
-				const content = createThinkingPart('**Evaluating code**\n\n**Reviewing build processes**');
-				const part = createPersistentReasoning(content);
+		test('does not request titles or read and rewrite the title cache while restoring large history', async () => {
+			mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, true);
+			const storage = instantiationService.get(IStorageService);
+			storage.store('chat.thinkingTitleCache', JSON.stringify(Object.fromEntries(
+				Array.from({ length: 1000 }, (_, index) => [`old-${index}`, { title: 'Old summary', storedAt: 0 }])
+			)), StorageScope.PROFILE, StorageTarget.MACHINE);
+			const reads = sinon.spy(storage, 'getObject');
+			const writes = sinon.spy(storage, 'store');
+			const requests = sinon.spy(instantiationService.get(IChatUtilityModelService), 'sendRequest');
+			const selections = sinon.spy(mockLanguageModelsService, 'selectLanguageModels');
+			const titles = new Set<string | undefined>();
+			for (let index = 0; index < 200; index++) {
+				const part = createPersistentReasoning(createThinkingPart('**Evaluating code**\n\n**Reviewing build processes**', `thinking-${index}`), true);
 				part.finalizeTitleIfDefault();
-				await clock.tickAsync(1999);
-				const beforeDelay = snapshot(part).title;
-				await clock.tickAsync(1);
-				const afterDelay = snapshot(part).title;
+				titles.add(snapshot(part).title);
 				part.dispose();
-				await title.complete('Reviewed code and build processes');
-				await clock.tickAsync(0);
-
-				const cacheKey = `${chatSessionResourceToId(createMockRenderContext().element.sessionResource)}:${content.id}`;
-				const cache = instantiationService.get(IStorageService).getObject<Record<string, { title: string }>>('chat.thinkingTitleCache', StorageScope.PROFILE);
-				assert.deepStrictEqual({ beforeDelay, afterDelay, generatedTitle: content.generatedTitle, cachedTitle: cache?.[cacheKey]?.title }, {
-					beforeDelay: 'Thinking',
-					afterDelay: 'Finished thinking',
-					generatedTitle: 'Reviewed code and build processes',
-					cachedTitle: 'Reviewed code and build processes',
-				});
-			} finally {
-				clock.restore();
 			}
+			await timeout(0);
+			assert.deepStrictEqual({ titles: [...titles], reads: reads.callCount, writes: writes.callCount, requests: requests.callCount, selections: selections.callCount }, {
+				titles: ['Finished thinking'], reads: 0, writes: 0, requests: 0, selections: 0,
+			});
 		});
 
-		test('uses a generic title when reasoning title generation fails', async () => {
+		test('finalizes reasoning without selecting a utility model', async () => {
 			let modelSelections = 0;
 			mockLanguageModelsService.selectLanguageModels = async () => {
 				modelSelections++;
@@ -2072,11 +2048,11 @@ suite('ChatThinkingContentPart', () => {
 				title: 'Finished thinking',
 				ariaLabel: 'Finished thinking',
 				body: ['Consider how to update the progress renderer.'],
-				modelSelections: 1,
+				modelSelections: 0,
 			});
 		});
 
-		test('reports how long reasoning took in the generic title', async () => {
+		test('does not use reasoning duration in the generic title', async () => {
 			const first = createThinkingPart('Consider how to update the progress renderer.', 'first');
 			first.reasoningStartedAt = 1000;
 			first.reasoningDurationMs = 1200;
@@ -2090,8 +2066,8 @@ suite('ChatThinkingContentPart', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual({ title: snapshot(part).title, ariaLabel: snapshot(part).ariaLabel }, {
-				title: 'Finished thinking after 3s',
-				ariaLabel: 'Finished thinking after 3s',
+				title: 'Finished thinking',
+				ariaLabel: 'Finished thinking',
 			});
 		});
 	});
@@ -2165,7 +2141,7 @@ suite('ChatThinkingContentPart', () => {
 					thinking: { title: 'Planning the fix', ariaLabel: 'Planning the fix', expanded: false },
 					reading: { title: 'Reading renderer.ts', ariaLabel: 'Reading renderer.ts', expanded: false },
 					thinkingAgain: { title: 'Thinking', ariaLabel: 'Thinking', expanded: false },
-					finished: { title: 'Finished thinking after 5s', ariaLabel: 'Finished thinking after 5s', expanded: false },
+					finished: { title: 'Planning the fix', ariaLabel: 'Planning the fix', expanded: false },
 					sectionClasses: ['chat-thinking-conversation'],
 					headerIcons: ['codicon-chevron-right-compact'],
 					body: ['Planning the fix', 'Check the renderer.', 'Read renderer.ts', 'Compare the results.'],
@@ -2364,7 +2340,7 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('finished sections report their elapsed time only when every step was timed', () => {
+		test('finished sections use the same fallback with or without recorded timing', () => {
 			type Case = { readonly reasoning: readonly { readonly startedAt?: number; readonly durationMs?: number; readonly text?: string }[]; readonly tools: readonly (readonly [startedAt?: number, completedAt?: number])[] };
 			const cases: Record<string, Case> = {
 				shortReasoning: { reasoning: [{ startedAt: 1000, durationMs: 400 }], tools: [] },
@@ -2394,12 +2370,12 @@ suite('ChatThinkingContentPart', () => {
 			}));
 
 			assert.deepStrictEqual(titles, {
-				shortReasoning: 'Finished thinking after 1s',
-				reasoningWithoutStart: 'Finished thinking after 2s',
-				textlessReasoning: 'Finished thinking after 2s',
-				textlessReasoningAndTools: 'Finished thinking after 3s',
-				toolsOnly: 'Finished thinking after 1m 5s',
-				reasoningAndTools: 'Finished thinking after 3s',
+				shortReasoning: 'Finished thinking',
+				reasoningWithoutStart: 'Finished thinking',
+				textlessReasoning: 'Finished thinking',
+				textlessReasoningAndTools: 'Finished thinking',
+				toolsOnly: 'Finished thinking',
+				reasoningAndTools: 'Finished thinking',
 				reasoningWithoutStartAndTools: 'Finished thinking',
 				unfinishedTool: 'Finished thinking',
 				restoredReasoning: 'Finished thinking',
@@ -2409,7 +2385,61 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('never generates a title or promotes a reasoning heading', async () => {
+		test('split array reasoning uses the same fallback regardless of timing', () => {
+			const cases: Record<string, { parts: IChatThinkingPart[]; title: string }> = {
+				equalDurations: {
+					parts: [
+						{ kind: 'thinking', value: ['First', 'Second'], reasoningDurationMs: 1200 },
+						{ kind: 'thinking', value: ['Third', 'Fourth'], reasoningDurationMs: 1200 },
+					],
+					title: 'Finished thinking',
+				},
+				knownSpan: {
+					parts: [
+						{ kind: 'thinking', value: ['First', 'Second'], reasoningStartedAt: 1000, reasoningDurationMs: 1200 },
+						{ kind: 'thinking', value: ['Third', 'Fourth'], reasoningStartedAt: 5000, reasoningDurationMs: 1200 },
+					],
+					title: 'Finished thinking',
+				},
+				unknownTiming: {
+					parts: [
+						{ kind: 'thinking', value: ['First', 'Second'], reasoningDurationMs: 1200 },
+						{ kind: 'thinking', value: ['Third', 'Fourth'] },
+					],
+					title: 'Finished thinking',
+				},
+			};
+			const titles = Object.fromEntries(Object.entries(cases).map(([name, { parts }]) => {
+				const [first, ...rest] = parts.flatMap(source => (Array.isArray(source.value) ? source.value : [source.value ?? ''])
+					.map(value => ({ source, rendered: { ...source, value } })));
+				const part = createConversationSection(first.rendered, true);
+				part.setThinkingPartSource(first.rendered, first.source);
+				for (const { rendered, source } of rest) {
+					part.setupThinkingContainer(rendered, source);
+				}
+				part.finalizeTitleIfDefault();
+				return [name, snapshot(part).title];
+			}));
+
+			assert.deepStrictEqual(titles, Object.fromEntries(Object.entries(cases).map(([name, { title }]) => [name, title])));
+		});
+
+		test('replacing a split reasoning fragment preserves the finished fallback', () => {
+			const source = { ...createThinkingPart(undefined, 'shared'), value: ['First', 'Second'], reasoningDurationMs: 1200 };
+			const first = { ...source, value: 'First' };
+			const part = createConversationSection(first);
+			part.setThinkingPartSource(first, source);
+			part.setupThinkingContainer({ ...source, value: 'Second' }, source);
+			part.updateThinking({ ...source, value: 'Second updated', reasoningDurationMs: 2500 });
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({ title: snapshot(part).title, ariaLabel: snapshot(part).ariaLabel }, {
+				title: 'Finished thinking',
+				ariaLabel: 'Finished thinking',
+			});
+		});
+
+		test('does not request a title without viewport registration or remove reasoning headings', async () => {
 			let modelSelections = 0;
 			mockLanguageModelsService.selectLanguageModels = async () => {
 				modelSelections++;
@@ -2431,23 +2461,168 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('formats finished thinking titles', () => {
-			assert.deepStrictEqual([undefined, 0, 400, 1000, 1999, 5200, 65_000, Number.NaN].map(getFinishedThinkingTitle), [
-				'Finished thinking',
-				'Finished thinking after 1s',
-				'Finished thinking after 1s',
-				'Finished thinking after 1s',
-				'Finished thinking after 1s',
-				'Finished thinking after 5s',
-				'Finished thinking after 1m 5s',
-				'Finished thinking',
-			]);
-		});
 	});
 
 	suite('Thinking group identity', () => {
 		setup(() => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
+		});
+
+		for (const layout of ['legacy', 'persistent', 'conversation']) {
+			test(`a single extracted header is the completed title without generation (${layout})`, () => {
+				let registrations = 0;
+				const content = createThinkingPart('**Reviewed implementation details**\n\nThe full reasoning remains here.');
+				const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, content, {
+					...createMockRenderContext(true),
+					suppressProgressShimmer: layout !== 'legacy',
+					isConversation: layout === 'conversation',
+					registerThinkingTitle: () => { registrations++; return toDisposable(() => { }); },
+				}, mockMarkdownRenderer, true));
+				part.finalizeTitleIfDefault();
+				part.expandContent();
+				part.collapseContent();
+				assert.deepStrictEqual({
+					title: part.domNode.querySelector('.monaco-button')?.textContent,
+					modelTitle: content.generatedTitle,
+					registrations,
+				}, { title: 'Reviewed implementation details', modelTitle: 'Reviewed implementation details', registrations: 0 });
+			});
+
+			test(`multiple extracted headers are the summary prompt, not the reasoning body (${layout})`, () => {
+				let prepare: (() => IChatThinkingTitleRequest) | undefined;
+				let eligible: boolean | undefined;
+				let accept: ((title: string) => void) | undefined;
+				const content = createThinkingPart('**Analyzing the request**\n\nDetailed reasoning.\n\n**Planning the edits**\n\nMore detailed reasoning.');
+				content.generatedTitle = 'Analyzing the request';
+				const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, content, {
+					...createMockRenderContext(false),
+					suppressProgressShimmer: layout !== 'legacy',
+					isConversation: layout === 'conversation',
+					registerThinkingTitle: (_header, getRequest, acceptTitle, newlyCompleted) => {
+						prepare = getRequest;
+						eligible = newlyCompleted;
+						accept = acceptTitle;
+						return toDisposable(() => { });
+					},
+				}, mockMarkdownRenderer, false));
+				part.finalizeTitleIfDefault();
+				const input = prepare?.();
+				const before = part.domNode.querySelector('.monaco-button')?.textContent;
+				assert.ok(accept);
+				accept('Analyzed the request and planned edits');
+				assert.deepStrictEqual({
+					before, eligible, input: input?.content,
+					reusesOnlyFirstHeader: input?.isValidTitle?.('Analyzing the request'),
+					title: part.domNode.querySelector('.monaco-button')?.textContent,
+				}, {
+					before: 'Finished thinking', eligible: true, input: 'Analyzing the request\nPlanning the edits',
+					reusesOnlyFirstHeader: false, title: 'Analyzed the request and planned edits',
+				});
+			});
+
+			test(`a live completion registers once and retains its generated title after expansion (${layout})`, () => {
+				let registered = 0;
+				let removed = 0;
+				let eligible: boolean | undefined;
+				let acceptTitle: ((title: string) => void) | undefined;
+				let prepare: (() => { readonly content: string }) | undefined;
+				const source: IChatThinkingPart = { ...createThinkingPart(undefined, 'array'), value: ['First reasoning', 'Second reasoning'] };
+				const first = { ...source, value: 'First reasoning' };
+				const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, first, {
+					...createMockRenderContext(false),
+					suppressProgressShimmer: layout !== 'legacy',
+					isConversation: layout === 'conversation',
+					registerThinkingTitle: (_header, getRequest, accept, newlyCompleted) => {
+						registered++;
+						eligible = newlyCompleted;
+						prepare = getRequest;
+						acceptTitle = accept;
+						return toDisposable(() => removed++);
+					},
+				}, mockMarkdownRenderer, false));
+				part.setThinkingPartSource(first, source);
+				part.setupThinkingContainer({ ...source, value: 'Second reasoning' }, source);
+				part.finalizeTitleIfDefault();
+				part.finalizeTitleIfDefault();
+				const initial = part.domNode.querySelector('.monaco-button')?.textContent;
+				assert.ok(acceptTitle);
+				acceptTitle('Reviewed both approaches');
+				part.expandContent();
+				part.collapseContent();
+				part.finalizeTitleIfDefault();
+				assert.deepStrictEqual({
+					initial, registered, removed, eligible, content: prepare?.().content,
+					title: part.domNode.querySelector('.monaco-button')?.textContent,
+					modelTitle: source.generatedTitle,
+				}, {
+					initial: 'Finished thinking', registered: 1, removed: 1, eligible: true, content: 'First reasoning\nSecond reasoning',
+					title: 'Reviewed both approaches', modelTitle: 'Reviewed both approaches',
+				});
+			});
+		}
+
+		for (const { responseComplete, sectionComplete } of [
+			{ responseComplete: true, sectionComplete: true },
+			{ responseComplete: true, sectionComplete: false },
+			{ responseComplete: false, sectionComplete: true },
+		]) {
+			test(`existing sections can only reuse titles (response complete=${responseComplete}, section complete=${sectionComplete})`, () => {
+				const eligibility: boolean[] = [];
+				const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, createThinkingPart('Existing reasoning'), {
+					...createMockRenderContext(responseComplete),
+					registerThinkingTitle: (_header, _getRequest, _accept, newlyCompleted) => {
+						eligibility.push(newlyCompleted);
+						return toDisposable(() => { });
+					},
+				}, mockMarkdownRenderer, sectionComplete));
+				part.finalizeTitleIfDefault();
+				part.finalizeTitleIfDefault();
+				assert.deepStrictEqual(eligibility, [false]);
+			});
+		}
+
+		test('reuses generated headers in every thinking and progress style without model requests', async () => {
+			let modelSelections = 0;
+			mockLanguageModelsService.selectLanguageModels = async () => {
+				modelSelections++;
+				return [];
+			};
+			mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, true);
+			const titles: (string | null | undefined)[] = [];
+			for (const thinkingStyle of Object.values(ThinkingDisplayMode)) {
+				mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, thinkingStyle);
+				for (const progress of ['legacy', 'persistent', 'conversation']) {
+					const context = {
+						...createMockRenderContext(true),
+						suppressProgressShimmer: progress !== 'legacy',
+						isConversation: progress === 'conversation',
+					};
+					for (const split of [false, true]) {
+						const values = ['**Reviewing code**\n\nDetails.', '**Planning tests**\n\nMore details.'];
+						const source: IChatThinkingPart = {
+							...createThinkingPart(),
+							value: split ? values : values.join('\n\n'),
+							reasoningDurationMs: 1200,
+							generatedTitle: 'Previously generated summary',
+						};
+						const content = split ? { ...source, value: values[0] } : source;
+						const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, content, context, mockMarkdownRenderer, true));
+						if (split) {
+							part.setThinkingPartSource(content, source);
+							part.setupThinkingContainer({ ...source, value: values[1] }, source);
+						}
+						part.finalizeTitleIfDefault();
+						part.expandContent();
+						part.collapseContent();
+						titles.push(part.domNode.querySelector('.monaco-button')?.textContent);
+					}
+				}
+			}
+			await timeout(0);
+			assert.deepStrictEqual({ titles, modelSelections }, {
+				titles: Array.from({ length: Object.values(ThinkingDisplayMode).length * 3 * 2 }, () => 'Previously generated summary'),
+				modelSelections: 0,
+			});
 		});
 
 		test('distinguishes reasoning from grouped tool content', () => {
@@ -2472,8 +2647,8 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(part.hasGroupedItems(), true);
 		});
 
-		test('adds elapsed time to finalized reasoning-only headers', () => {
-			const content = createThinkingPart('**Reviewed the implementation**');
+		test('shows Finished thinking in untitled finalized headers and accessible labels', () => {
+			const content = createThinkingPart('Reviewed the implementation');
 			content.reasoningDurationMs = 1200;
 			const part = store.add(instantiationService.createInstance(
 				ChatThinkingContentPart,
@@ -2492,17 +2667,17 @@ suite('ChatThinkingContentPart', () => {
 
 			assert.deepStrictEqual({
 				generatedTitle: content.generatedTitle,
-				labelHasDuration: /^Reviewed the implementation - \d+s$/.test(part.domNode.querySelector('.monaco-button')?.textContent ?? ''),
-				ariaLabelHasDuration: /^Reviewed the implementation - \d+s$/.test(button?.ariaLabel ?? ''),
+				label: part.domNode.querySelector('.monaco-button')?.textContent,
+				ariaLabel: button?.ariaLabel,
 			}, {
-				generatedTitle: 'Reviewed the implementation',
-				labelHasDuration: true,
-				ariaLabelHasDuration: true,
+				generatedTitle: undefined,
+				label: 'Finished thinking',
+				ariaLabel: 'Finished thinking',
 			});
 		});
 
-		test('restores the persisted duration when reasoning content is rehydrated', () => {
-			const content = createThinkingPart('**Reviewed the implementation**');
+		test('does not display persisted duration when reasoning content is rehydrated', () => {
+			const content = createThinkingPart('Reviewed the implementation');
 			content.reasoningDurationMs = 2300;
 			const part = store.add(instantiationService.createInstance(
 				ChatThinkingContentPart,
@@ -2516,12 +2691,12 @@ suite('ChatThinkingContentPart', () => {
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			part.finalizeTitleIfDefault();
 
-			assert.strictEqual(part.domNode.querySelector('.monaco-button')?.textContent, 'Reviewed the implementation - 3s');
+			assert.strictEqual(part.domNode.querySelector('.monaco-button')?.textContent, 'Finished thinking');
 		});
 
-		test('does not show zero or unknown reasoning duration', () => {
+		test('uses Finished thinking for zero or unavailable reasoning duration', () => {
 			const titles = [undefined, 0].map(reasoningDurationMs => {
-				const content = createThinkingPart('**Reviewed the implementation**');
+				const content = createThinkingPart('Reviewed the implementation');
 				content.reasoningDurationMs = reasoningDurationMs;
 				const part = store.add(instantiationService.createInstance(
 					ChatThinkingContentPart,
@@ -2534,13 +2709,37 @@ suite('ChatThinkingContentPart', () => {
 				return part.domNode.querySelector('.monaco-button')?.textContent;
 			});
 
-			assert.deepStrictEqual(titles, ['Reviewed the implementation', 'Reviewed the implementation']);
+			assert.deepStrictEqual(titles, ['Finished thinking', 'Finished thinking']);
 		});
 	});
 
 	suite('Tool invocation appending', () => {
 		setup(() => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
+		});
+
+		test('does not render intermediate titles or materialize tools in a completed collapsed group', () => {
+			const render = sinon.spy(mockMarkdownRenderer, 'render');
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart, createThinkingPart(), createMockRenderContext(false), mockMarkdownRenderer, true
+			));
+			let materialized = 0;
+			for (let index = 0; index < 200; index++) {
+				const tool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized', toolId: 'read_file', toolCallId: `read-${index}`,
+					invocationMessage: new MarkdownString(`Read \`file-${index}.ts\``),
+					source: ToolDataSource.Internal, isComplete: true, isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					originMessage: undefined, pastTenseMessage: undefined, presentation: undefined,
+				};
+				part.appendItem(() => {
+					materialized++;
+					return { domNode: $('div.test-tool') };
+				}, tool.toolId, tool);
+			}
+			part.finalizeTitleIfDefault();
+			assert.deepStrictEqual({ markdownRenders: render.callCount, materialized, title: part.domNode.querySelector('.monaco-button')?.textContent }, {
+				markdownRenders: 0, materialized: 0, title: 'Finished thinking',
+			});
 		});
 
 		for (const expanded of [false, true]) {
@@ -3180,7 +3379,7 @@ suite('ChatThinkingContentPart', () => {
 			assert.ok(part.domNode.classList.contains('chat-collapsible-content-animated'), 'Should enable content animation after finalization');
 		});
 
-		test('finalizeTitleIfDefault should retain initial thinking title', () => {
+		test('finalizeTitleIfDefault reuses and persists a single extracted heading', () => {
 			const content = createThinkingPart('**Reviewed renderer state**\nChecked completed response rendering');
 			const context = createMockRenderContext(true);
 
@@ -3209,7 +3408,7 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('finalizeTitleIfDefault should retain restored terminal title', () => {
+		test('finalizeTitleIfDefault reuses restored terminal summaries without a request', () => {
 			const content = createThinkingPart('');
 			const context = createMockRenderContext(true);
 
@@ -3261,7 +3460,7 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('finalizeTitleIfDefault should restore cached title for a reasoning-only block keyed by thinking part id', () => {
+		test('finalizeTitleIfDefault defers cached reasoning titles without viewport registration', () => {
 			const context = createMockRenderContext(true);
 			const thinkingId = 'reasoning-part-1';
 
@@ -3296,9 +3495,9 @@ suite('ChatThinkingContentPart', () => {
 				label: button.textContent,
 				ariaLabel: button.ariaLabel,
 			}, {
-				generatedTitle: 'Analyzed authentication flow',
-				label: 'Analyzed authentication flow',
-				ariaLabel: 'Analyzed authentication flow',
+				generatedTitle: undefined,
+				label: 'Finished thinking',
+				ariaLabel: 'Finished thinking',
 			});
 		});
 	});

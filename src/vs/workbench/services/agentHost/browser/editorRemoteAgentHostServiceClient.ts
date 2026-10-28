@@ -40,6 +40,9 @@ import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from
 import { agentHostAuthority, agentHostLabelFormatter, fromAgentHostUri, identityAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostFileSystemService } from '../common/agentHostFileSystemService.js';
 import { EditorRemoteAgentHostTransport } from '../common/editorRemoteAgentHostTransport.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IRequestService } from '../../../../platform/request/common/request.js';
+import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
 
 const REMOTE_NOT_SUPPORTED = (op: string) => new Error(`${op} is not supported when the agent host runs on a remote.`);
 const LOG_PREFIX = '[AgentHost:remote]';
@@ -84,6 +87,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		onDidApplyAction: Event.None,
 	};
 	private _connectStarted = false;
+	private _useHostProxy = false;
 
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -94,6 +98,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		@IAgentHostFileSystemService agentHostFileSystemService: IAgentHostFileSystemService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IRequestService requestService: IRequestService,
 	) {
 		super();
 
@@ -116,6 +122,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 				undefined,
 				AgentHostClientConnectionKind.RemoteExtensionHost,
 				async () => {
+					this._useHostProxy = (await this._remoteAgentService.getRawEnvironment())?.useHostProxy === true;
 					let resolverResult: ResolverResult;
 					try {
 						resolverResult = await remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
@@ -133,7 +140,15 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		);
 		const address = `vscode-remote://${connection.remoteAuthority}`;
 		const clientInfo = environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo;
-		this._protocolClient = this._register(instantiationService.createInstance(AgentHostProtocolClient, address, createTransport, { clientInfo }));
+		this._protocolClient = this._register(instantiationService.createInstance(AgentHostProtocolClient, address, createTransport, {
+			clientInfo,
+			clientCertificates: {
+				isEnabled: () => this._useHostProxy
+					&& ['wsl', 'dev-container', 'attached-container'].includes(getRemoteName(connection.remoteAuthority))
+					&& configurationService.getValue<boolean>('http.systemCertificates') === true,
+				loadCertificates: () => requestService.loadCertificates(),
+			},
+		}));
 		// Resources this client hands out (e.g. debug-log artifacts) are stamped with the
 		// address-derived authority, so register it for reads. The ambient `local` authority
 		// registered elsewhere covers a different URI namespace.

@@ -54,7 +54,7 @@ import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialo
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderConfiguration, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderConfiguration, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationService, ICreateAutomationOptions, IDeleteAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
@@ -83,7 +83,7 @@ import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/a
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
-import { MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
 
 
@@ -202,6 +202,13 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	createError: Error | undefined;
 	deleteError: Error | undefined;
 	canDelete = true;
+	historyChoice = false;
+	readonly deleteOptions: (IDeleteAutomationOptions | undefined)[] = [];
+	readonly historyStates = new Map<string, 'retained' | 'deleting'>();
+	readonly deleteHistoryCalls: string[] = [];
+	canDeleteHistory = true;
+
+	override supportsDeleteHistoryChoice(): boolean { return this.historyChoice; }
 	canUpdate = true;
 	publishCreates = true;
 	createdAutomation: IAutomationDescriptor | undefined;
@@ -288,18 +295,42 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return this.updateResult ?? { kind: 'updated', automation: await this.updateAutomation(id, patch) };
 	}
 
-	override async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
+	override async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard, options?: IDeleteAutomationOptions): Promise<void> {
 		mutationGuard?.();
+		this.deleteOptions.push(options);
 		this.deleteCalls.push(id);
 		if (this.deleteError) {
 			throw this.deleteError;
 		}
 		this.setAutomations(this.automationValue.get().filter(item => item.id !== id));
-		this.setRuns(this.runValue.get().filter(run => run.automationId !== id));
+		if (options?.deleteHistory !== false) {
+			this.setRuns(this.runValue.get().filter(run => run.automationId !== id));
+		}
 	}
 
 	override canDeleteAutomation(): boolean {
 		return this.canDelete;
+	}
+
+	override getAutomationHistoryName(id: string): string | undefined {
+		return this.historyStates.has(id) ? 'Daily review' : undefined;
+	}
+
+	override getAutomationHistoryState(id: string) {
+		return this.historyStates.get(id);
+	}
+
+	override canDeleteAutomationHistory(id: string): boolean {
+		return this.canDeleteHistory && this.historyStates.has(id);
+	}
+
+	override async deleteAutomationHistory(id: string): Promise<void> {
+		this.deleteHistoryCalls.push(id);
+		if (this.deleteError) {
+			throw this.deleteError;
+		}
+		this.historyStates.delete(id);
+		this.setRuns(this.runValue.get().filter(run => run.automationId !== id));
 	}
 
 	override canUpdateAutomation(): boolean {
@@ -460,6 +491,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	readonly isRead = observableValue<boolean>(this, false);
 	readonly secondIsRead = observableValue<boolean>(this, false);
 	readonly isArchived = observableValue<boolean>(this, false);
+	readonly isAutomation = observableValue<boolean>(this, false);
 	readonly sessionStatus = observableValue<SessionStatus>(this, SessionStatus.Completed);
 	readonly capabilities = observableValue(this, { supportsMultipleChats: false, supportsDelete: true, supportsRename: true });
 	readonly application = observableValue('application', getSessionApplication('vscode'));
@@ -480,6 +512,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 			isVirtualWorkspace: false,
 		}),
 		isQuickChat: constObservable(false),
+		isAutomation: this.isAutomation,
 		title: constObservable('Daily review'),
 		updatedAt: constObservable(new Date()),
 		isRead: this.isRead,
@@ -728,9 +761,11 @@ suite('AutomationsCardsWidget', () => {
 		const refreshErrors: string[] = [];
 		instantiationService.stub(INotificationService, { error: message => refreshErrors.push(String(message)) });
 		instantiationService.stub(ITelemetryService, telemetryService);
+		const shownAutomationSessionIds = new Set<string>();
 		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 			override readonly onDidChange = Event.None;
 			override isSessionPinned(): boolean { return false; }
+			override isSessionListed(session: ISession): boolean { return !session.isAutomation?.get() || shownAutomationSessionIds.has(session.sessionId); }
 			override getStatusIcon() { return Codicon.circleSmallFilled; }
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -759,7 +794,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
 	}
 
 	function renderRefreshButton({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>): HTMLElement {
@@ -3629,6 +3664,33 @@ suite('AutomationsCardsWidget', () => {
 		}]);
 	});
 
+	test('capable providers offer keeping history with its accessible owner name', async () => {
+		const { automationService, dialogService, instantiationService } = setup();
+		const source = automation();
+		automationService.setAutomations([source]);
+		automationService.setRuns([run({ automationId: source.id })]);
+		automationService.historyChoice = true;
+		dialogService.confirmResult = { confirmed: true, checkboxChecked: false };
+		const command = CommandsRegistry.getCommand('sessions.automations.delete');
+		assert.ok(command);
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		const accessible = buildAutomationsAccessibleContent([], automationService.runs.get(), 'ready', [], [], 'ready', [], () => source.name, () => 'retained', () => true);
+		assert.deepStrictEqual({
+			checkbox: dialogService.confirmations[0].checkbox,
+			options: automationService.deleteOptions,
+			runs: automationService.runs.get().length,
+			accessible: {
+				owner: accessible.includes('Daily review,'),
+				retained: accessible.includes('Run history for Daily review is retained. Use the run context menu to delete it.'),
+			},
+		}, {
+			checkbox: { label: 'Delete Run History', checked: true },
+			options: [{ deleteHistory: false }],
+			runs: 1,
+			accessible: { owner: true, retained: true },
+		});
+	});
+
 	test('delete context menu action confirms before deleting the automation and its history', async () => {
 		const { automationService, contextMenuService, dialogService, instantiationService, widget } = setup();
 		const source = automation();
@@ -4100,6 +4162,45 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('history context menu shows an automation run in the Sessions list or hides it again', async () => {
+		const { automationService, commandService, contextMenuService, sessionsManagementService, shownAutomationSessionIds, widget } = setup();
+		sessionsManagementService.isAutomation.set(true, undefined);
+		sessionsManagementService.setRead(true);
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run()]);
+		await waitForSessionActions();
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(row);
+		const openContextMenu = () => {
+			dispatchContextMenu(row);
+			const delegate = contextMenuService.delegate;
+			assert.ok(delegate);
+			return { delegate, actions: delegate.getActions() };
+		};
+
+		const unlisted = openContextMenu();
+		const show = unlisted.actions.find(action => action.id === SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID);
+		assert.ok(show);
+		await unlisted.delegate.actionRunner?.run(show, unlisted.delegate.getActionsContext?.());
+		unlisted.delegate.onHide?.(false);
+		shownAutomationSessionIds.add(sessionsManagementService.session.sessionId);
+		const listed = openContextMenu();
+		listed.delegate.onHide?.(false);
+
+		assert.deepStrictEqual({
+			unlisted: unlisted.actions.map(action => action.id),
+			listed: listed.actions.map(action => action.id),
+			commandCalls: commandService.calls.map(call => ({
+				commandId: call.commandId,
+				forwardsSession: Array.isArray(call.args[0]) && call.args[0].length === 1 && call.args[0][0] === sessionsManagementService.session,
+			})),
+		}, {
+			unlisted: [MARK_SESSION_UNREAD_COMMAND_ID, 'sessionsViewPane.archiveSession', 'vs.actions.separator', SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, 'vs.actions.separator', 'sessionsViewPane.renameSession'],
+			listed: [MARK_SESSION_UNREAD_COMMAND_ID, 'sessionsViewPane.archiveSession', 'vs.actions.separator', HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, 'vs.actions.separator', 'sessionsViewPane.renameSession'],
+			commandCalls: [{ commandId: SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, forwardsSession: true }],
+		});
+	});
+
 	test('history context menu only shows keybindings valid for the row context', async () => {
 		const { automationService, contextMenuService, keybindingService, widget } = setup();
 		automationService.setAutomations([automation()]);
@@ -4240,9 +4341,9 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('does not expose delete action on run history rows', async () => {
-		const { automationService, contextMenuService, widget } = setup();
-		automationService.setAutomations([automation()]);
+	test('retained history exposes confirmed deletion and interrupted deletion exposes retry', async () => {
+		const { automationService, contextMenuService, dialogService, widget } = setup();
+		automationService.historyStates.set('automation-1', 'retained');
 		automationService.setRuns([run()]);
 		await waitForSessionActions();
 
@@ -4251,9 +4352,79 @@ suite('AutomationsCardsWidget', () => {
 		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
 		assert.ok(row);
 		dispatchContextMenu(row);
-		const actionIds = (contextMenuService.delegate?.getActions() ?? []).map(a => a.id);
+		const delegate = contextMenuService.delegate;
+		const actions = delegate?.getActions() ?? [];
+		const deleteAction = actions.find(action => action.id === 'sessions.automations.deleteHistory');
+		assert.ok(deleteAction);
+		dialogService.confirmResult = { confirmed: true };
+		await delegate?.actionRunner?.run(deleteAction, delegate.getActionsContext?.());
+		delegate?.onHide?.(false);
+
+		automationService.historyStates.set('automation-1', 'deleting');
+		automationService.canDeleteHistory = false;
+		automationService.setRuns([run()]);
+		await waitForSessionActions();
+		const retryRow = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(retryRow);
+		dispatchContextMenu(retryRow);
+		const retryAction = (contextMenuService.delegate?.getActions() ?? []).find(action => action.id === 'sessions.automations.retryDeleteHistory');
+		assert.ok(retryAction);
 		contextMenuService.delegate?.onHide?.(false);
-		assert.ok(!actionIds.includes('sessions.automations.deleteRunSession'), 'delete absent from context menu');
+
+		assert.deepStrictEqual({
+			confirmation: dialogService.confirmations[0],
+			deleteHistoryCalls: automationService.deleteHistoryCalls,
+			retry: { label: retryAction.label, enabled: retryAction.enabled },
+			accessible: buildAutomationsAccessibleContent(
+				[], automationService.runs.get(), 'ready', [], [], 'ready', [],
+				() => 'Daily review', () => 'deleting', () => false,
+			).includes('Run history deletion for Daily review was interrupted. Retry is currently unavailable.'),
+		}, {
+			confirmation: {
+				message: 'Delete run history for "Daily review"?',
+				detail: 'This permanently deletes every retained run for this automation.',
+				primaryButton: 'Delete',
+			},
+			deleteHistoryCalls: ['automation-1'],
+			retry: { label: 'Retry Delete Run History...', enabled: false },
+			accessible: true,
+		});
+	});
+
+	test('retained history remains manageable without a surviving session row', async () => {
+		const { automationService, dialogService, widget } = setup();
+		automationService.historyStates.set('automation-1', 'retained');
+		automationService.setRuns([run({ sessionResource: undefined })]);
+		dialogService.confirmResult = { confirmed: true };
+		await timeout(0);
+
+		const owner = widget.element.querySelector<HTMLElement>('.automations-history-owner');
+		const button = owner?.querySelector<HTMLElement>('.monaco-button');
+		assert.ok(owner && button);
+		button.focus();
+		button.click();
+		await timeout(0);
+		const focusAfterDelete = document.activeElement === widget.element;
+
+		automationService.historyStates.set('automation-1', 'deleting');
+		automationService.canDeleteHistory = false;
+		automationService.setRuns([run({ sessionResource: undefined })]);
+		await timeout(0);
+		const retry = widget.element.querySelector<HTMLElement>('.automations-history-owner .monaco-button');
+
+		assert.deepStrictEqual({
+			ownerLabel: owner.getAttribute('aria-label'),
+			deleteHistoryCalls: automationService.deleteHistoryCalls,
+			focusAfterDelete,
+			retry: { label: retry?.textContent, disabled: retry?.classList.contains('disabled') },
+			sessionRows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+		}, {
+			ownerLabel: 'Daily review, Run history is retained.',
+			deleteHistoryCalls: ['automation-1'],
+			focusAfterDelete: true,
+			retry: { label: 'Retry Delete Run History', disabled: true },
+			sessionRows: 0,
+		});
 	});
 
 	test('edit conflict stays in the automation dialog', async () => {
@@ -4534,6 +4705,19 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider);
 		disposables.add(provider);
 		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
+	});
+
+	test('accessibility help explains showing run sessions in the Sessions list', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+		assert.ok(help);
+		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
+		assert.ok(provider);
+		disposables.add(provider);
+		assert.deepStrictEqual(provider.provideContent().split('\n').filter(line => line.includes('Show in Sessions List')), [
+			'Run sessions are listed here rather than in the Sessions list. Open a run\'s context menu and choose Show in Sessions List to also list its session there, or Hide from Sessions List to list it only here again, even after later messages. The sessions.list.showAutomationSessions setting controls when run sessions automatically also appear in the Sessions list: always, after you send a message in one, or never.',
+		]);
 	});
 
 	test('accessibility help explains the unified Trigger picker and local weekdays', () => {

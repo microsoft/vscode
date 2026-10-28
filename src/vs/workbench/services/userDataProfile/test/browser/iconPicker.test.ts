@@ -61,11 +61,13 @@ suite('Shared IconPicker', () => {
 				items: harness.quickPick.items,
 				hideInput: harness.quickPick.hideInput,
 				activation: harness.quickPick.itemActivation,
+				neutralSelection: harness.quickPick.useNeutralSelection,
 				embeddedLists: harness.grid().querySelectorAll('.quick-input-list, .monaco-button').length,
 			}, {
 				items: [{ type: 'separator' }, { label: 'Reset to default' }],
 				hideInput: true,
 				activation: ItemActivation.NONE,
+				neutralSelection: true,
 				embeddedLists: 0,
 			});
 			if (action === 'cancel') {
