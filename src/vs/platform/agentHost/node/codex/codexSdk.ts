@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname } from '../../../../base/common/path.js';
+import { dirname, join } from '../../../../base/common/path.js';
 import { AgentHostCodexAgentSdkRootEnvVar } from '../../common/agentService.js';
 import type { IAgentSdkPackage } from '../agentSdkDownloader.js';
 
@@ -80,4 +80,91 @@ async function defaultResolveCodexPackageJsonPath(): Promise<string> {
 	// for the same reason.
 	const { createRequire } = await import('node:module');
 	return createRequire(import.meta.url).resolve('@openai/codex/package.json');
+}
+
+/**
+ * Locates the executable Codex native binary within an SDK root directory.
+ * Supports hoisted, nested, global npm, pnpm, and direct vendor/bin layouts.
+ *
+ * @param root The directory containing the Codex package, node_modules, or binary.
+ * @param platform Target platform (defaults to process.platform).
+ * @param arch Target architecture (defaults to process.arch).
+ * @param accessFn Optional seam for testing file accessibility without disk I/O.
+ * @returns The absolute path to the executable binary, or undefined if not found.
+ */
+export async function findCodexBinaryPath(
+	root: string,
+	platform: NodeJS.Platform = process.platform,
+	arch: string = process.arch,
+	accessFn?: (path: string) => Promise<boolean>,
+): Promise<string | undefined> {
+	const target = codexPackageSuffix(platform, arch);
+	if (!target) {
+		return undefined;
+	}
+	const triple = codexBinaryTriple(target);
+	if (!triple) {
+		return undefined;
+	}
+	const binaryName = platform === 'win32' ? 'codex.exe' : 'codex';
+	const canExecute = accessFn ?? (async (candidate: string) => {
+		try {
+			const fs = await import('node:fs/promises');
+			await fs.access(candidate, (fs.constants?.X_OK ?? 1));
+			return true;
+		} catch {
+			return false;
+		}
+	});
+
+	// Candidate paths to check in order:
+	const candidates: string[] = [
+		// 1. Hoisted node_modules: <root>/node_modules/@openai/codex-<target>/vendor/<triple>/bin/codex
+		join(root, 'node_modules', '@openai', `codex-${target}`, 'vendor', triple, 'bin', binaryName),
+		// 2. Nested node_modules (e.g. npm global install): <root>/node_modules/@openai/codex/node_modules/@openai/codex-<target>/vendor/<triple>/bin/codex
+		join(root, 'node_modules', '@openai', 'codex', 'node_modules', '@openai', `codex-${target}`, 'vendor', triple, 'bin', binaryName),
+		// 3. Sibling platform package if root points at @openai/codex directly: <root>/../codex-<target>/vendor/<triple>/bin/codex
+		join(root, '..', `codex-${target}`, 'vendor', triple, 'bin', binaryName),
+		// 4. Nested inside @openai/codex if root points at @openai/codex directly: <root>/node_modules/@openai/codex-<target>/vendor/<triple>/bin/codex
+		join(root, 'node_modules', '@openai', `codex-${target}`, 'vendor', triple, 'bin', binaryName),
+		// 5. Directly under @openai: <root>/@openai/codex-<target>/vendor/<triple>/bin/codex
+		join(root, '@openai', `codex-${target}`, 'vendor', triple, 'bin', binaryName),
+		// 6. Direct vendor layout (e.g. within platform package or standalone): <root>/vendor/<triple>/bin/codex
+		join(root, 'vendor', triple, 'bin', binaryName),
+		// 7. Direct bin directory: <root>/bin/codex
+		join(root, 'bin', binaryName),
+		// 8. Binary directly in root: <root>/codex
+		join(root, binaryName),
+	];
+
+	for (const candidate of candidates) {
+		if (await canExecute(candidate)) {
+			return candidate;
+		}
+	}
+
+	// Dynamic resolution attempt via createRequire if available
+	try {
+		const { createRequire } = await import('node:module');
+		const requireRoots = [
+			join(root, 'node_modules', '@openai', 'codex', 'package.json'),
+			join(root, 'package.json'),
+		];
+		for (const reqRoot of requireRoots) {
+			try {
+				const req = createRequire(reqRoot);
+				const pkgJson = req.resolve(`@openai/codex-${target}/package.json`);
+				const candidate = join(dirname(pkgJson), 'vendor', triple, 'bin', binaryName);
+				if (await canExecute(candidate)) {
+					return candidate;
+				}
+			} catch {
+				// Continue to next candidate
+			}
+		}
+	} catch {
+		// Ignore dynamic import failure in non-node test environments
+	}
+
+	return undefined;
 }
