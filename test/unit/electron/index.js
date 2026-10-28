@@ -423,28 +423,35 @@ app.on('ready', async () => {
 		}
 	});
 
-	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots) => {
+	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots, options) => {
 		const [{ ProtocolMainService }, { URI }] = await Promise.all([
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/protocolMainService.js`)).href),
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/uri.js`)).href),
 		]);
-		// Preserve the production root registration and guard; replace only protocol registration and file transport.
+		// Preserve the production root registration and guard; replace only protocol registration.
 		class TestProtocolMainService extends ProtocolMainService {
 			handleProtocols() { }
-			async createFileResponse(_request, filePath) {
-				return new Response(filePath);
-			}
 		}
 		/** @type {string[]} */
 		const errors = [];
 		const service = new TestProtocolMainService(
-			{ ...roots, workspaceStorageHome: URI.file(roots.workspaceStorageHome), isBuilt: true },
+			{ ...roots, ...options, workspaceStorageHome: URI.file(roots.workspaceStorageHome), isBuilt: options?.isBuilt ?? true },
 			{ defaultProfile: { globalStorageHome: URI.file(roots.globalStorageHome) } },
 			{ error: message => errors.push(message) },
 		);
 		try {
-			const response = await service.handleResourceRequest(new Request(requestUrl));
-			return { status: response.status, path: response.ok ? await response.text() : undefined, errors };
+			return await new Promise(resolve => {
+				service.handleResourceRequest({ url: requestUrl, method: 'GET', headers: {}, referrer: '' }, response => {
+					const allowed = 'path' in response;
+					resolve({
+						status: allowed ? 200 : 0,
+						path: allowed ? response.path : undefined,
+						headers: allowed ? response.headers : undefined,
+						error: allowed ? undefined : response.error,
+						errors,
+					});
+				});
+			});
 		} finally {
 			service.dispose();
 		}
