@@ -997,6 +997,7 @@ suite('ChatWidget', () => {
 				value: {
 					getTemplateDataForRequestId: () => ({ currentElement: request, rowContainer, requestTimestampContainer }),
 					acquireAutoScrollHold: () => Disposable.None,
+					setStickyProgressContainer: () => { },
 				},
 			},
 		});
