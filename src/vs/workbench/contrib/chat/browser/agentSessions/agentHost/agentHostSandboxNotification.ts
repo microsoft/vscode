@@ -438,7 +438,7 @@ export class AgentHostSandboxNotification extends Disposable {
 					? localize('agentHost.sandboxRequiredUnavailable', "Sandboxing is required by your organization but isn't available on this machine")
 					: localize('agentHost.sandboxMayNotWorkAsExpected', "Sandboxing might not work as expected"),
 			description: requiredButUnavailable
-				? localize('agentHost.sandboxRequiredUnavailableDetail', "{0} Terminal commands can't run until this machine meets the sandbox requirements or your admin changes the policy.", reasons[0])
+				? localize('agentHost.sandboxRequiredUnavailableDetail', "Terminal commands can't run until this machine meets the sandbox requirements or your admin changes the policy. {0}", reasons[0])
 				: reasons?.[0],
 			actions,
 			dismissible: true,

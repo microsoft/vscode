@@ -1478,7 +1478,7 @@ suite('AgentHostSandboxNotification', () => {
 	};
 	const requiredUnavailable = {
 		message: 'Sandboxing is required by your organization but isn\'t available on this machine',
-		description: `${unavailableReason} Terminal commands can't run until this machine meets the sandbox requirements or your admin changes the policy.`,
+		description: `Terminal commands can't run until this machine meets the sandbox requirements or your admin changes the policy. ${unavailableReason}`,
 		actions: ['Troubleshooting Guide'],
 	};
 
