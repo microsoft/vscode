@@ -169,6 +169,11 @@ export interface IByokLmModelInfo {
 	readonly maxOutputTokens?: number;
 	/** Whether the model accepts image inputs, when known. */
 	readonly supportsVision?: boolean;
+	/**
+	 * Whether the model supports client-executed tool search, when the provider
+	 * declared it explicitly. `undefined` leaves the model-id heuristic in charge.
+	 */
+	readonly supportsToolSearch?: boolean;
 	/** Reasoning effort values advertised by the renderer model, when known. */
 	readonly supportedReasoningEfforts?: readonly string[];
 	/** Default reasoning effort advertised by the renderer model, when known. */

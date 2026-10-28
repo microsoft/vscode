@@ -18,6 +18,12 @@ declare module 'vscode' {
 		readonly apiType?: LanguageModelChatApiType;
 		/** Whether a Messages API model accepts adaptive thinking, including thinking from earlier user turns. */
 		readonly adaptiveThinking?: boolean;
+		/**
+		 * Whether the model supports client-executed tool search, letting the runtime defer
+		 * tools instead of sending every tool in each request. Set only when the provider
+		 * declares it explicitly; omit to leave the model-id heuristic in charge.
+		 */
+		readonly toolSearch?: boolean;
 	}
 
 	export interface LanguageModelChat {

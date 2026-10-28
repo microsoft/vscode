@@ -149,6 +149,85 @@ suite('ByokLmProxyService', () => {
 		});
 	});
 
+	test('does not cap tools for a model that declares tool search', async () => {
+		const bridgeToolCounts: (number | undefined)[] = [];
+		const capEvents: IByokLmToolsCappedEvent[] = [];
+		const tools = (count: number) => Array.from({ length: count }, (_, i) => ({ type: 'function', name: `tool_${i}`, parameters: { type: 'object' } }));
+		const registry = new ByokLmBridgeRegistry();
+		// The serving window advertises the requested model with `supportsToolSearch: true`,
+		// so the runtime defers tools and the request must pass through uncapped.
+		const registration = registry.register('client-1', servingConnection(
+			async (request) => {
+				bridgeToolCounts.push(request.tools?.length);
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] };
+			},
+			[{ vendor: 'acme', id: 'm', supportsToolSearch: true }],
+		));
+		const service = new ByokLmProxyService(new NullLogService(), registry);
+		const handle = await service.start();
+		try {
+			const listener = service.onDidCapTools(e => capEvents.push(e));
+			try {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({ model: 'm', input: 'hi', tools: tools(BYOK_MAX_TOOLS + 72) }),
+				});
+				assert.strictEqual(response.status, 200);
+				await response.text();
+			} finally {
+				listener.dispose();
+			}
+		} finally {
+			handle.dispose();
+			registration.dispose();
+			service.dispose();
+		}
+		assert.deepStrictEqual({ bridgeToolCounts, capEvents }, {
+			bridgeToolCounts: [BYOK_MAX_TOOLS + 72],
+			capEvents: [],
+		});
+	});
+
+	test('still caps tools for a tool-search model that is not the requested one', async () => {
+		const bridgeToolCounts: (number | undefined)[] = [];
+		const capEvents: IByokLmToolsCappedEvent[] = [];
+		const tools = (count: number) => Array.from({ length: count }, (_, i) => ({ type: 'function', name: `tool_${i}`, parameters: { type: 'object' } }));
+		const registry = new ByokLmBridgeRegistry();
+		// Only `searchy` declares tool search; the request targets `plain`, which must stay capped.
+		const registration = registry.register('client-1', servingConnection(
+			async (request) => {
+				bridgeToolCounts.push(request.tools?.length);
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] };
+			},
+			[{ vendor: 'acme', id: 'searchy', supportsToolSearch: true }, { vendor: 'acme', id: 'plain' }],
+		));
+		const service = new ByokLmProxyService(new NullLogService(), registry);
+		const handle = await service.start();
+		try {
+			const listener = service.onDidCapTools(e => capEvents.push(e));
+			try {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({ model: 'plain', input: 'hi', tools: tools(200) }),
+				});
+				assert.strictEqual(response.status, 200);
+				await response.text();
+			} finally {
+				listener.dispose();
+			}
+		} finally {
+			handle.dispose();
+			registration.dispose();
+			service.dispose();
+		}
+		assert.deepStrictEqual({ bridgeToolCounts, capEvents }, {
+			bridgeToolCounts: [BYOK_MAX_TOOLS],
+			capEvents: [{ sessionId, requestedToolCount: 200, sentToolCount: BYOK_MAX_TOOLS }],
+		});
+	});
+
 	test('forwards a Responses request to the bridge and returns JSON by default', async () => {
 		let captured: IByokLmChatRequest | undefined;
 		await withProxy(

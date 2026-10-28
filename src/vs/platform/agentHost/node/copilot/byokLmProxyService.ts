@@ -7,7 +7,7 @@ import type * as http from 'http';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import type { IByokLmChatResult } from '../../common/agentHostByokLm.js';
+import { getByokLmSelectionModelId, type IByokLmChatResult } from '../../common/agentHostByokLm.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { parseProxyBearer } from '../claude/claudeProxyAuth.js';
 import {
@@ -268,14 +268,21 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			modelOptions: { ...bridgeRequest.modelOptions, _conversationId: sessionId },
 		};
 
-		const capped = capBridgeTools(bridgeRequest);
-		if (capped.droppedToolNames.length > 0) {
-			const requestedToolCount = bridgeRequest.tools?.length ?? 0;
-			const sentToolCount = capped.request.tools?.length ?? 0;
-			this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: sending ${sentToolCount} of ${requestedToolCount} tools to ${vendor}/${bridgeRequest.modelId} (limit ${BYOK_MAX_TOOLS}); dropped ${capped.droppedToolNames.length} tool(s)`);
-			this._logService.trace(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: dropped tools: ${capped.droppedToolNames.join(', ')}`);
-			bridgeRequest = capped.request;
-			this._onDidCapTools.fire({ sessionId, requestedToolCount, sentToolCount });
+		// A model that supports tool search defers its tools behind the runtime's
+		// tool-search tool, so the request's tool list is already the deferred
+		// subset and must not be capped — the renderer's model metadata is the
+		// source of truth for the capability (an explicit declaration overrides
+		// the id heuristic there).
+		if (!this._modelSupportsToolSearch(vendor, bridgeRequest.modelId)) {
+			const capped = capBridgeTools(bridgeRequest);
+			if (capped.droppedToolNames.length > 0) {
+				const requestedToolCount = bridgeRequest.tools?.length ?? 0;
+				const sentToolCount = capped.request.tools?.length ?? 0;
+				this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: sending ${sentToolCount} of ${requestedToolCount} tools to ${vendor}/${bridgeRequest.modelId} (limit ${BYOK_MAX_TOOLS}); dropped ${capped.droppedToolNames.length} tool(s)`);
+				this._logService.trace(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: dropped tools: ${capped.droppedToolNames.join(', ')}`);
+				bridgeRequest = capped.request;
+				this._onDidCapTools.fire({ sessionId, requestedToolCount, sentToolCount });
+			}
 		}
 
 		const connection = this._bridgeRegistry.getServingConnection();
@@ -352,6 +359,20 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 
 	private _continuationScope(sessionId: string, vendor: string, modelId: string): string {
 		return JSON.stringify([sessionId, vendor, modelId]);
+	}
+
+	/**
+	 * Whether the renderer's model metadata declares tool search for the
+	 * vendor/selection-id pair a request addresses. The registry caches the
+	 * serving window's snapshot, so this is a synchronous lookup; a model that
+	 * left the snapshot (e.g. the renderer disconnected) simply caps as before.
+	 */
+	private _modelSupportsToolSearch(vendor: string, modelId: string): boolean {
+		return this._bridgeRegistry.getModels().some(model =>
+			model.vendor === vendor
+			&& (getByokLmSelectionModelId(model) === modelId || model.id === modelId)
+			&& model.supportsToolSearch === true,
+		);
 	}
 
 	private _findToolContinuation(state: ByokLmProxyState, scope: string, input: IResponsesRequest['input']): { readonly pending: IPendingToolContinuation; readonly input: IResponsesRequest['input'] } | undefined {

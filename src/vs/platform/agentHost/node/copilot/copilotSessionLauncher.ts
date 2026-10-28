@@ -19,7 +19,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
-import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { getByokLmSelectionModelId, isByokLmAgentModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
@@ -1161,6 +1161,25 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	/**
+	 * Whether the renderer's model metadata declares tool search for a BYOK
+	 * selection id (`vendor/[group/]id`). Non-BYOK ids never match — the registry
+	 * only holds renderer BYOK models — so this only widens the gate for models
+	 * the id heuristic cannot recognize.
+	 */
+	private _byokModelSupportsToolSearch(modelId: string | undefined): boolean {
+		if (!modelId || !isByokLmAgentModelId(modelId)) {
+			return false;
+		}
+		const vendor = modelId.slice(0, modelId.indexOf('/'));
+		const selectionId = modelId.slice(vendor.length + 1);
+		return this._byokLmBridgeRegistry.getModels().some(model =>
+			model.vendor === vendor
+			&& (getByokLmSelectionModelId(model) === selectionId || model.id === selectionId)
+			&& model.supportsToolSearch === true,
+		);
+	}
+
+	/**
 	 * Release the memoized BYOK loopback proxy handle (if any) and clear it so
 	 * the next session launch mints a fresh nonce. Idempotent.
 	 *
@@ -1323,7 +1342,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
 		const toolSearchActive = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
-			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
+			&& (agentHostModelSupportsToolSearch(effectiveModel?.id) || this._byokModelSupportsToolSearch(effectiveModel?.id))
 			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
 		const serverTools = runtime.createServerSdkTools(toolSearchActive);

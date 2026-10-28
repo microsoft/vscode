@@ -211,7 +211,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			if (m.capabilities.editTools) {
 				checkProposedApiEnabled(data.extension, 'chatProvider');
 			}
-			if (m.capabilities.apiType !== undefined || m.capabilities.adaptiveThinking !== undefined) {
+			if (m.capabilities.apiType !== undefined || m.capabilities.adaptiveThinking !== undefined || m.capabilities.toolSearch !== undefined) {
 				checkProposedApiEnabled(data.extension, 'languageModelCapabilities');
 			}
 
@@ -271,6 +271,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 						editTools: m.capabilities.editTools,
 						apiType: m.capabilities.apiType === undefined ? undefined : apiTypesFromApi.get(m.capabilities.apiType),
 						adaptiveThinking: m.capabilities.adaptiveThinking,
+						toolSearch: m.capabilities.toolSearch,
 						toolCalling: !!m.capabilities.toolCalling,
 						agentMode: !!m.capabilities.toolCalling
 					} : undefined,
