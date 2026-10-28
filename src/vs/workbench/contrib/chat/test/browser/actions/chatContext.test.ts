@@ -116,14 +116,14 @@ suite('ChatContext', () => {
 		let focusCount: number;
 		let pick: FileContextValuePick;
 
-		function createWidget(supportsFiles = true, supportsImages = true, vision: boolean | 'auto' = true): IChatWidget {
+		function createWidget(supportsFiles = true, supportsImages = true, vision: boolean | 'auto' | 'unknown' = true): IChatWidget {
 			return upcastPartial<IChatWidget>({
 				attachmentCapabilities: { supportsFileAttachments: supportsFiles, supportsImageAttachments: supportsImages },
 				input: upcastPartial<ChatInputPart>({
 					selectedLanguageModel: observableValue('test', upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
 						metadata: upcastPartial<ILanguageModelChatMetadata>({
 							id: vision === 'auto' ? AUTO_RAW_MODEL_ID : 'test',
-							capabilities: { vision: vision === true },
+							capabilities: vision === 'unknown' ? undefined : { vision: vision === true },
 						}),
 					})),
 				}),
@@ -205,28 +205,51 @@ suite('ChatContext', () => {
 			});
 		});
 
-		test('requires file attachment support, including after the dialog closes', async () => {
-			const widget = createWidget(false);
+		test('requires file or image attachment support, including after the dialog closes', async () => {
+			const widget = createWidget(false, false);
 			const attachments = await pick.asAttachment(widget);
 			assert.deepStrictEqual({ enabled: [pick.isEnabled(createWidget()), pick.isEnabled(widget)], attachments, resolved, warnings, focusCount }, {
 				enabled: [true, false],
 				attachments: undefined,
 				resolved: [],
-				warnings: ['File attachments are not supported in this chat.'],
+				warnings: ['File and image attachments are not supported in this chat.'],
 				focusCount: 1,
 			});
 		});
 
-		test('does not attach images when the chat or selected model does not support them', async () => {
-			const results = [];
-			for (const widget of [createWidget(true, false), createWidget(true, true, false)]) {
-				results.push((await pick.asAttachment(widget))?.map(attachment => attachment.kind));
-			}
-			assert.deepStrictEqual({ results, warnings, errors, focusCount }, {
-				results: [['file'], ['file']],
-				warnings: Array(2).fill('Could not attach screenshot.webp. Image attachments are not supported by the current chat or model.'),
+		test('does not attach images when the chat does not support them', async () => {
+			const attachments = await pick.asAttachment(createWidget(true, false));
+			assert.deepStrictEqual({ kinds: attachments?.map(attachment => attachment.kind), warnings, errors, focusCount }, {
+				kinds: ['file'],
+				warnings: ['Could not attach screenshot.webp. Image attachments are not supported in this chat.'],
 				errors: [],
-				focusCount: 2,
+				focusCount: 1,
+			});
+		});
+
+		for (const vision of [true, false, 'unknown', 'auto'] as const) {
+			test(`attaches image data in an image-only Cloud chat with vision metadata ${vision}, like paste`, async () => {
+				resources = [image];
+				const widget = createWidget(false, true, vision);
+				const attachments = await pick.asAttachment(widget);
+				assert.deepStrictEqual({ enabled: pick.isEnabled(widget), options, attachments, warnings, errors }, {
+					enabled: true,
+					options: {
+						title: 'Attach Files', openLabel: 'Attach', canSelectFiles: true, canSelectFolders: false, canSelectMany: true,
+						filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
+					},
+					attachments: [{ kind: 'image', id: image.toString(), name: 'screenshot.webp', value: new Uint8Array([1, 2, 3]) }],
+					warnings: [], errors: [],
+				});
+			});
+		}
+
+		test('does not attach ordinary files to an image-only Cloud chat', async () => {
+			const attachments = await pick.asAttachment(createWidget(false, true));
+			assert.deepStrictEqual({ kinds: attachments?.map(attachment => attachment.kind), warnings, errors }, {
+				kinds: ['image'],
+				warnings: ['Could not attach notes.txt. File attachments are not supported in this chat.'],
+				errors: [],
 			});
 		});
 

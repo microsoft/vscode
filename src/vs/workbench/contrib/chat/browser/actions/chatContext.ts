@@ -31,7 +31,7 @@ import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem,
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
-import { isAutoLanguageModel } from '../../common/languageModels.js';
+import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
@@ -147,7 +147,7 @@ export class FileContextValuePick implements IChatContextValueItem {
 	) { }
 
 	isEnabled(widget: IChatWidget): boolean {
-		return !!widget.attachmentCapabilities.supportsFileAttachments;
+		return !!(widget.attachmentCapabilities.supportsFileAttachments || widget.attachmentCapabilities.supportsImageAttachments);
 	}
 
 	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry[] | undefined> {
@@ -158,12 +158,15 @@ export class FileContextValuePick implements IChatContextValueItem {
 				canSelectFiles: true,
 				canSelectFolders: false,
 				canSelectMany: true,
+				...(!widget.attachmentCapabilities.supportsFileAttachments ? {
+					filters: [{ name: localize('chatContext.attachFiles.images', "Images"), extensions: Object.keys(CHAT_ATTACHABLE_IMAGE_MIME_TYPES) }],
+				} : {}),
 			});
 			if (!resources?.length) {
 				return undefined;
 			}
 			if (!this.isEnabled(widget)) {
-				this.notificationService.warn(localize('chatContext.attachFiles.unsupported', "File attachments are not supported in this chat."));
+				this.notificationService.warn(localize('chatContext.attachFiles.unsupported', "File and image attachments are not supported in this chat."));
 				return undefined;
 			}
 
@@ -175,9 +178,12 @@ export class FileContextValuePick implements IChatContextValueItem {
 						this.notificationService.warn(localize('chatContext.attachFiles.unresolved', "Could not attach {0}.", basename(resource)));
 						continue;
 					}
-					const model = widget.input.selectedLanguageModel.get();
-					if (attachment.kind === 'image' && (!widget.attachmentCapabilities.supportsImageAttachments || !(isAutoLanguageModel(model) || model?.metadata.capabilities?.vision))) {
-						this.notificationService.warn(localize('chatContext.attachFiles.imageUnsupported', "Could not attach {0}. Image attachments are not supported by the current chat or model.", basename(resource)));
+					if (attachment.kind === 'image' && !widget.attachmentCapabilities.supportsImageAttachments) {
+						this.notificationService.warn(localize('chatContext.attachFiles.imageUnsupported', "Could not attach {0}. Image attachments are not supported in this chat.", basename(resource)));
+						continue;
+					}
+					if (attachment.kind !== 'image' && !widget.attachmentCapabilities.supportsFileAttachments) {
+						this.notificationService.warn(localize('chatContext.attachFiles.fileUnsupported', "Could not attach {0}. File attachments are not supported in this chat.", basename(resource)));
 						continue;
 					}
 					attachments.push(attachment);
