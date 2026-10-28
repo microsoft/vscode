@@ -48,6 +48,7 @@ const QUICK_INPUT_MOTION_CLOSING_CLASS = 'quick-input-widget-closing';
 const QUICK_INPUT_OVERLAY_CLASS = 'quick-input-widget-overlay';
 const QUICK_INPUT_CLOSE_ANIMATION_DURATION = 150;
 const QUICK_INPUT_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'];
+const CONTEXT_VIEW_CLASS = 'context-view';
 
 type QuickInputViewState = {
 	readonly top?: number;
@@ -98,6 +99,7 @@ export class QuickInputController extends Disposable {
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
 	private readonly closeAnimation = this._register(new MutableDisposable<IDisposable>());
+	private readonly contextViewFocusOut = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
 	readonly alignment: IObservable<QuickInputAlignment> = this._alignment;
@@ -147,6 +149,53 @@ export class QuickInputController extends Disposable {
 		for (const event of [dom.EventType.KEY_DOWN, dom.EventType.KEY_UP, dom.EventType.MOUSE_DOWN]) {
 			disposables.add(dom.addDisposableListener(window, event, listener, true));
 		}
+	}
+
+	private handleFocusOut(): void {
+		this.contextViewFocusOut.clear();
+		if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
+			this.hide(QuickInputHideReason.Blur);
+		}
+		this.inQuickInputContext.set(false);
+		this.endOfQuickInputBoxContext.set(false);
+		this.previousFocusElement = undefined;
+	}
+
+	private deferFocusOutUntilContextViewBlur(contextView: HTMLElement): void {
+		const ui = this.getUI();
+		const disposables = new DisposableStore();
+		this.contextViewFocusOut.value = disposables;
+
+		// Reconcile on a later task so that the context menu had a chance
+		// to restore focus (it does so after notifying about being hidden)
+		let reconcileScheduled = false;
+		const scheduleReconcile = () => {
+			if (reconcileScheduled) {
+				return;
+			}
+			reconcileScheduled = true;
+			disposableTimeout(() => {
+				if (this.contextViewFocusOut.value !== disposables) {
+					return; // superseded
+				}
+
+				if (dom.isAncestorOfActiveElement(ui.container)) {
+					this.contextViewFocusOut.clear(); // focus returned to the quick input
+					return;
+				}
+
+				const otherContextView = dom.getActiveElement()?.closest(`.${CONTEXT_VIEW_CLASS}`);
+				if (dom.isHTMLElement(otherContextView)) {
+					this.deferFocusOutUntilContextViewBlur(otherContextView); // e.g. a submenu
+					return;
+				}
+
+				this.handleFocusOut();
+			}, 0, disposables);
+		};
+
+		disposables.add(dom.addDisposableListener(contextView, dom.EventType.FOCUS_OUT, scheduleReconcile));
+		disposables.add(this.contextMenuService.onDidHideContextMenu(scheduleReconcile));
 	}
 
 	private getUI(showInActiveContainer?: boolean): QuickInputUI {
@@ -345,15 +394,25 @@ export class QuickInputController extends Disposable {
 				return;
 			}
 			this.inQuickInputContext.set(true);
-			this.previousFocusElement = dom.isHTMLElement(e.relatedTarget) ? e.relatedTarget : undefined;
+			// Focus coming back from a context view (e.g. a context menu opened
+			// from within the quick input) must not replace the element that
+			// should receive focus once the quick input hides
+			if (!(dom.isHTMLElement(e.relatedTarget) && e.relatedTarget.closest(`.${CONTEXT_VIEW_CLASS}`))) {
+				this.previousFocusElement = dom.isHTMLElement(e.relatedTarget) ? e.relatedTarget : undefined;
+			}
 		}, true));
 		this._register(focusTracker.onDidBlur(() => {
 			if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
-				this.hide(QuickInputHideReason.Blur);
+				// A context menu opened from within the quick input takes focus.
+				// Defer the decision until focus leaves the context view again
+				// (https://github.com/microsoft/vscode/issues/153267)
+				const contextView = dom.getActiveElement()?.closest(`.${CONTEXT_VIEW_CLASS}`);
+				if (dom.isHTMLElement(contextView)) {
+					this.deferFocusOutUntilContextViewBlur(contextView);
+					return;
+				}
 			}
-			this.inQuickInputContext.set(false);
-			this.endOfQuickInputBoxContext.set(false);
-			this.previousFocusElement = undefined;
+			this.handleFocusOut();
 		}));
 		this._register(inputBox.onKeyDown(e => {
 			const value = this.getUI().inputBox.isSelectionAtEnd();
@@ -717,6 +776,7 @@ export class QuickInputController extends Disposable {
 
 	private show(controller: IQuickInput) {
 		this.completeCloseAnimation();
+		this.contextViewFocusOut.clear();
 		const anchorScope = this.quickInputAnchorScope;
 		if (controller.type === QuickInputType.QuickPick && controller.anchor === undefined && anchorScope && !anchorScope.consumed) {
 			anchorScope.consumed = true;
@@ -851,6 +911,7 @@ export class QuickInputController extends Disposable {
 		if (!controller) {
 			return;
 		}
+		this.contextViewFocusOut.clear();
 		controller.willHide(reason);
 
 		const container = this.ui?.container;
