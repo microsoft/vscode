@@ -700,9 +700,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.renderWorkspaceOptions();
 		const visible = this.getVisibleWorktrees();
 		const selectable = visible.filter(worktree => this.isManuallySelectable(worktree));
-		const isInMainList = (worktree: ISessionWorktree) => this.isManuallySelectable(worktree)
+		const isInMainList = (worktree: ISessionWorktree) => !this.requiresSessionRearchive(worktree) && (this.isManuallySelectable(worktree)
 			|| this.cleanupBatch.has(getWorktreeCleanupId(worktree))
-			|| (this.cleaningSessionIds.has(getWorktreeCleanupId(worktree)) && this.hasPendingCleanup(worktree));
+			|| (this.cleaningSessionIds.has(getWorktreeCleanupId(worktree)) && this.hasPendingCleanup(worktree)));
 		const unavailable = visible.filter(worktree => !isInMainList(worktree));
 		const estimatedBytes = getWorktreeCleanupDiskUsage(selectable);
 		const selectableWorktrees = selectable.reduce((total, worktree) => total + worktree.worktreeCount, 0);
@@ -1025,13 +1025,20 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		return batch ? localize('sessionWorktreeCleanup.unverifiedCleanup', "Cleanup has not been confirmed.") : undefined;
 	}
 
+	private requiresSessionRearchive(worktree: ISessionWorktree): boolean {
+		return worktree.session?.isArchived.get() === true && worktree.cleanupStatus?.state === 'failed'
+			&& /\bgit add exited with code 128\b/.test(worktree.cleanupStatus.message ?? '');
+	}
+
 	private getArchivedCleanupLabel(worktree: ISessionWorktree): string {
 		switch (worktree.cleanupStatus?.state) {
 			case 'pending': return localize('sessionWorktreeCleanup.scheduled', "Cleanup scheduled…");
 			case 'running': return localize('sessionWorktreeCleanup.cleaning', "Cleaning up…");
 			case 'inUse': return localize('sessionWorktreeCleanup.inUse', "Cleanup blocked: another session or chat uses this worktree.");
 			case 'skipped': return localize('sessionWorktreeCleanup.doneSkipped', "Cleanup deferred: the worktree could not be safely removed.");
-			case 'failed': return worktree.cleanupStatus.message
+			case 'failed': return this.requiresSessionRearchive(worktree)
+				? localize('sessionWorktreeCleanup.rearchiveRequired', "Unarchive and archive the session to remove this worktree.")
+				: worktree.cleanupStatus.message
 				? localize('sessionWorktreeCleanup.failedReason', "Cleanup failed: {0}", worktree.cleanupStatus.message)
 				: localize('sessionWorktreeCleanup.doneFailed', "Cleanup failed.");
 			default: return worktree.worktreeExists === true
@@ -1090,7 +1097,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private isManuallySelectable(worktree: ISessionWorktree): boolean {
 		const batch = this.cleanupBatch.get(getWorktreeCleanupId(worktree));
-		return worktree.worktreeExists !== false && batch?.state !== 'queued' && batch?.state !== 'pending' && batch?.state !== 'removed'
+		return worktree.worktreeExists !== false && !this.requiresSessionRearchive(worktree) && batch?.state !== 'queued' && batch?.state !== 'pending' && batch?.state !== 'removed'
 			&& (worktree.unlinkedWorktree
 				? !!worktree.unlinkedWorktree.branch && !worktree.cleanupStatusError && worktree.cleanupStatus?.state !== 'inUse' && !this.hasPendingCleanup(worktree)
 				: worktree.cleanupState === 'archived'

@@ -106,6 +106,62 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	});
 
+	test('moves archived git-add exit-128 failures to unavailable without hiding other retryable failures', async () => {
+		const { container, cleaned } = await openEditor([
+			{ ...createWorktree('blocked', '/repos/app', 'archived'), cleanupStatus: { state: 'failed', message: 'git add exited with code 128: remove the file manually to continue.' } },
+			{ ...createWorktree('retryable', '/repos/app', 'archived'), cleanupStatus: { state: 'failed', message: 'git timed out' } },
+			{
+				unlinkedWorktree: { providerId: 'test', repository: URI.file('/repos/app').toString(), worktree: URI.file('/repos/app.worktrees/unlinked').toString(), branch: 'agents/unlinked', cleanupStatus: { state: 'failed', message: 'git add exited with code 128' } },
+				sizeBytes: undefined, worktreeCount: 1, cleanupState: 'unlinked', cleanupStatus: { state: 'failed', message: 'git add exited with code 128' }, worktreeExists: true,
+			},
+		]);
+		const section = container.querySelector<HTMLDetailsElement>('details')!;
+		section.open = true;
+		section.dispatchEvent(new mainWindow.Event('toggle'));
+		assert.deepStrictEqual({
+			unavailable: section.querySelector('summary')?.textContent,
+			titles: [...section.querySelectorAll('.session-worktree-cleanup-session-link')].map(element => element.textContent),
+			reason: section.querySelector('.session-worktree-cleanup-reason')?.textContent,
+			selectable: section.querySelectorAll('[role="checkbox"]').length,
+			sessionlessReason: [...container.querySelectorAll('.session-worktree-cleanup-reason')].some(element => element.textContent === 'Cleanup failed: git add exited with code 128'),
+		}, {
+			unavailable: 'Unavailable for cleanup (1)',
+			titles: ['blocked'],
+			reason: 'Unarchive and archive the session to remove this worktree.',
+			selectable: 0,
+			sessionlessReason: true,
+		});
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
+		await timeout(0);
+		assert.deepStrictEqual(cleaned, [['retryable']]);
+	});
+
+	test('moves a git-add exit-128 failure out of an already submitted cleanup batch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const worktree = { ...createWorktree('blocked', '/repos/app', 'archived'), cleanupStatus: { state: 'unknown' as const } };
+		const failed = { ...worktree, cleanupStatus: { state: 'failed' as const, message: 'git add exited with code 128' } };
+		const { editor, container } = createEditor({
+			getWorktrees: async () => [worktree],
+			cleanupWorktrees: async (candidates, onProgress) => scheduleCleanup(candidates, onProgress),
+			refreshPendingCleanup: async () => [failed],
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
+		await timeout(2_100);
+		const section = container.querySelector<HTMLDetailsElement>('details')!;
+		section.open = true;
+		section.dispatchEvent(new mainWindow.Event('toggle'));
+		assert.deepStrictEqual({
+			unavailable: section.querySelector('summary')?.textContent,
+			reason: section.querySelector('.session-worktree-cleanup-reason')?.textContent,
+			retryDisabled: container.querySelector('.session-worktree-cleanup-retry')?.getAttribute('aria-disabled'),
+		}, {
+			unavailable: 'Unavailable for cleanup (1)',
+			reason: 'Unarchive and archive the session to remove this worktree.',
+			retryDisabled: 'true',
+		});
+	}));
+
 	test('finishes opening before worktree sessions load and then updates the results', async () => {
 		const worktrees = new DeferredPromise<readonly ISessionWorktree[]>();
 		const { editor, container } = createEditor({ getWorktrees: () => worktrees.p });
