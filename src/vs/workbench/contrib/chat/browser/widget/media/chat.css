@@ -2456,12 +2456,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-persistent-content > .chat-sticky-progress {
 	bottom: 100%;
-	padding: 0;
+	/* Match the transcript inset beyond the input part's margin. */
+	padding: 0 var(--vscode-spacing-size40);
 }
 
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content > .chat-sticky-progress {
 	position: absolute;
-	padding-inline: inherit;
 }
 
 /* Opted in via `IChatWidgetViewOptions.persistentContentHeight`: the content

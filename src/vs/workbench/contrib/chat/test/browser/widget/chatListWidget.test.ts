@@ -2707,6 +2707,61 @@ suite('ChatListWidget', () => {
 			});
 		});
 
+		test('switches between sticky progress and the progress border without duplicate indicators', async () => {
+			const { configurationService, session, container, widget, sticky } = await createTranscript();
+			const setProgressBorder = async (enabled: boolean) => {
+				await configurationService.setUserConfiguration(ChatConfiguration.ProgressBorder, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: section => section === ChatConfiguration.ProgressBorder,
+				}));
+				await waitForStableLayout(widget);
+			};
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const initialSticky = sticky.querySelectorAll('.chat-working-progress').length;
+			await setProgressBorder(true);
+			const borderEnabled = sticky.childElementCount;
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const normalInline = container.querySelectorAll('.chat-working-progress').length;
+			const normalAnchors = container.querySelectorAll('.chat-working-progress-anchor').length;
+			await setProgressBorder(false);
+			const restoredInline = container.querySelectorAll('.chat-working-progress-anchor > .chat-working-progress').length;
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				initialSticky, borderEnabled, normalInline, normalAnchors, restoredInline,
+				restoredSticky: sticky.querySelectorAll('.chat-working-progress').length,
+				copies: session.querySelectorAll('.chat-working-progress').length,
+			}, {
+				initialSticky: 1, borderEnabled: 0, normalInline: 1, normalAnchors: 0, restoredInline: 1,
+				restoredSticky: 1, copies: 1,
+			});
+		});
+
+		for (const pills of [false, true]) {
+			test(`keeps editor progress horizontally aligned during the sticky handoff (pills=${pills})`, async () => {
+				const { inputPart, widget, progress, sticky } = await createTranscript({ pills });
+				inputPart.style.margin = '';
+				inputPart.style.width = 'calc(100% - 24px)';
+				widget.layout(300, 500);
+				await waitForStableLayout(widget);
+				const positions = () => [
+					progress.getBoundingClientRect().left,
+					progress.querySelector('.chat-progress-icon')?.getBoundingClientRect().left,
+					progress.querySelector('.progress-step')?.getBoundingClientRect().left,
+				];
+				const inline = positions();
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				assert.strictEqual(progress.parentElement, sticky);
+				const pinned = positions();
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				assert.deepStrictEqual({ pinned, restored: positions() }, { pinned: inline, restored: inline });
+			});
+		}
+
 		test('can be disabled and re-enabled without a duplicate inline indicator', async () => {
 			const { configurationService, session, widget, progress, sticky } = await createTranscript();
 			const setAnimation = async (animation: ChatProgressAnimation) => {

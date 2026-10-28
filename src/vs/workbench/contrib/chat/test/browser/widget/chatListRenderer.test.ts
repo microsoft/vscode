@@ -2360,6 +2360,21 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	for (const progressBorder of [false, true]) {
+		test(`sticky progress respects the initial progress border setting (${progressBorder})`, () => {
+			const { configurationService, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurationService.setUserConfiguration(ChatConfiguration.ProgressBorder, progressBorder);
+			const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			renderer.setWorkingProgressContainer(sticky, () => true);
+			renderer.renderElement(node, 0, template);
+			assert.deepStrictEqual({
+				sticky: sticky.querySelectorAll('.chat-working-progress').length,
+				inline: template.value.querySelectorAll('.chat-working-progress').length,
+				copies: container.querySelectorAll('.chat-working-progress').length,
+			}, { sticky: progressBorder ? 0 : 1, inline: progressBorder ? 1 : 0, copies: 1 });
+		});
+	}
+
 	test('sticky progress relocation does not reannounce or recreate the working status', () => {
 		const { disposables, configurationService, container, renderer, template, node } = createPersistentProgressRenderer();
 		const announcements = dom.$('div');
@@ -6622,9 +6637,12 @@ suite('ChatListRenderer', () => {
 		]);
 		const showAll = observableValue('showAll', true);
 		const data = createSessionSubagentsPillData(subagents, { showAll, setShowAll: value => showAll.set(value, undefined) });
-		const { disposables, instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+		const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer({
 			rendererOptions: { backgroundActivityPillSections: { subagents: data.inProgressSections } },
 		});
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let pinned = false;
+		renderer.setWorkingProgressContainer(sticky, () => pinned);
 		let visible = false;
 		let onHide = () => { };
 		let selectFirst = () => { };
@@ -6668,12 +6686,15 @@ suite('ChatListRenderer', () => {
 		const activations = [];
 		for (const keyCode of [undefined, 13, 32]) {
 			button.focus();
+			pinned = keyCode !== undefined;
+			renderer.updateStickyProgress();
 			if (keyCode === undefined) {
 				button.click();
 			} else {
 				button.dispatchEvent(new KeyboardEvent('keydown', { keyCode, bubbles: true }));
 			}
 			activations.push({
+				inExpectedHost: (pinned ? sticky : template.value).contains(button),
 				sameWidget: menu?.id === pillMenu?.id,
 				labels: menu?.labels,
 				anchoredToStatus: menu?.anchor === button,
@@ -6714,7 +6735,7 @@ suite('ChatListRenderer', () => {
 			popup: 'listbox',
 			expanded: 'false',
 			activations: Array.from({ length: 3 }, () => ({
-				sameWidget: true, labels: ['Subagents: In Progress', 'Background review', 'Foreground review'], anchoredToStatus: true, expanded: 'true',
+				inExpectedHost: true, sameWidget: true, labels: ['Subagents: In Progress', 'Background review', 'Foreground review'], anchoredToStatus: true, expanded: 'true',
 			})),
 			pillLabels: ['Subagents: In Progress', 'Background review', 'Foreground review', '', 'Subagents: Completed', 'Finished review'],
 			filteredLabels: ['Subagents: In Progress', 'Background review', 'Foreground review'],
