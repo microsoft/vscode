@@ -99,8 +99,13 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 
 	/** Like the real service: the list is cleared before canonicalization is awaited, and the change event fires once saved. */
 	override async setTrustedUris(uris: URI[]): Promise<void> {
+		const previous = this.entries;
 		this.entries = [];
 		await this.completionGate;
+		if (this.failure) {
+			this.entries = previous;
+			throw this.failure;
+		}
 		this.entries = uris.map(uri => this.getCanonicalUri(uri));
 		this._onDidChangeTrustedFoldersEmitter.fire();
 	}
@@ -501,15 +506,15 @@ suite('WorkspaceTrustedUrisTable', () => {
 		test('a table rebuild ends the edit of a row that is kept', async () => {
 			const labelService = createTableWithUris([hostA, hostB]);
 			store.add(labelService.registerFormatter(formatter('ssh-remote+*', 'SSH')));
-			startEditing(hostB);
+			startEditing(hostB).value = '/home/typed';
 			await timeout(0);
 
 			trustService.addExternally(URI.parse('vscode-remote://ssh-remote+hostC/home/c'));
-			const afterRebuild = Array.from(container.querySelectorAll('.path.input-mode')).length;
+			const afterRebuild = { editors: container.querySelectorAll('.path.input-mode').length, value: getRow(hostB).querySelector<HTMLInputElement>('.path input')!.value };
 			store.add(labelService.registerFormatter(formatter('ssh-remote+hostB', 'SSH: hostB')));
 
 			assert.deepStrictEqual({ afterRebuild, hosts: getHostState().map(row => row.host) }, {
-				afterRebuild: 0,
+				afterRebuild: { editors: 0, value: '/home/b' },
 				hosts: ['SSH', 'SSH: hostB', 'SSH'],
 			});
 		});
@@ -526,17 +531,88 @@ suite('WorkspaceTrustedUrisTable', () => {
 			input.value = '/home/edited';
 			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 			input.dispatchEvent(new FocusEvent('blur'));
-			const whileSaving = { rows: getHostState().length, selected: getRow(hostB)?.getAttribute('aria-selected') };
+			const whileSaving = { rows: getHostState().length, selected: getRow(hostB)?.getAttribute('aria-selected'), focused: getRow(hostB)?.classList.contains('focused') };
 
 			gate.complete();
 			await timeout(0);
 
 			assert.deepStrictEqual({ whileSaving, after: getHostState() }, {
-				whileSaving: { rows: 2, selected: 'true' },
+				whileSaving: { rows: 2, selected: 'true', focused: true },
 				after: [
 					{ host: 'SSH: hostA', ariaLabel: '/home/a on SSH: hostA, trusted' },
 					{ host: 'SSH', ariaLabel: '/home/edited on SSH, trusted' },
 				],
+			});
+		});
+
+		test('reports a failed save and refreshes once it settles', async () => {
+			const labelService = createTableWithUris([hostA, hostB]);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+*', 'SSH')));
+			const input = startEditing(hostB);
+			await timeout(0);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+hostA', 'SSH: hostA')));
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+			trustService.failure = new Error('persistence failed');
+			const errors: unknown[] = [];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+			try {
+				input.value = '/home/edited';
+				input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				const whileSaving = getHostState().map(row => row.host);
+				gate.complete();
+				await timeout(0);
+				const afterFailure = getHostState().map(row => row.host);
+				store.add(labelService.registerFormatter(formatter('ssh-remote+hostB', 'SSH: hostB')));
+
+				assert.deepStrictEqual({ errors, whileSaving, afterFailure, later: getHostState().map(row => row.host), trusted: trustService.getTrustedUris().map(uri => uri.toString()) }, {
+					errors: [trustService.failure],
+					whileSaving: ['SSH', 'SSH'],
+					afterFailure: ['SSH: hostA', 'SSH'],
+					later: ['SSH: hostA', 'SSH: hostB'],
+					trusted: [hostA.toString(), hostB.toString()],
+				});
+			} finally {
+				errorHandler.setUnexpectedErrorHandler(previousHandler);
+			}
+		});
+
+		test('applies changes made while a save is in progress after it', async () => {
+			const hostC = URI.parse('vscode-remote://ssh-remote+hostC/home/c');
+			createTableWithUris([hostA, hostB, hostC]);
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+
+			table.acceptEdit({ uri: hostB, parentOfWorkspaceItem: false }, hostB.with({ path: '/home/b2' }));
+			table.acceptEdit({ uri: hostC, parentOfWorkspaceItem: false }, hostC.with({ path: '/home/c2' }));
+			const deletion = table.delete({ uri: hostA, parentOfWorkspaceItem: false });
+			gate.complete();
+			await deletion;
+
+			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.path), ['/home/b2', '/home/c2']);
+		});
+
+		test('opens an inline editor only after a pending save, so typing survives it', async () => {
+			const labelService = createTableWithUris([hostA, hostB]);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+*', 'SSH')));
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+			table.acceptEdit({ uri: hostA, parentOfWorkspaceItem: false }, hostA.with({ path: '/home/a2' }));
+
+			const editing = table.edit({ uri: hostB, parentOfWorkspaceItem: false });
+			await timeout(0);
+			const whileSaving = container.querySelectorAll('.path.input-mode').length;
+			gate.complete();
+			await editing;
+			const input = getRow(hostB).querySelector<HTMLInputElement>('.path input')!;
+			input.value = '/home/typed';
+			await timeout(0);
+
+			assert.deepStrictEqual({ whileSaving, editing: !!input.closest('.path.input-mode'), value: input.value }, {
+				whileSaving: 0,
+				editing: true,
+				value: '/home/typed',
 			});
 		});
 	});

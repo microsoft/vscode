@@ -13,6 +13,7 @@ import { Action, IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { debounce } from '../../../../base/common/decorators.js';
+import { Sequencer } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -93,7 +94,8 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 	private inlineEditItem: ITrustedUriItem | undefined;
 	private pendingLabelRefresh = false;
-	private pendingTrustUpdate: Promise<void> | undefined;
+	private readonly trustUpdates = new Sequencer();
+	private pendingTrustUpdates = 0;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -215,7 +217,7 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	private async addTrustedUri(uri: URI): Promise<void> {
-		await this.workspaceTrustManagementService.setUrisTrust([uri], true);
+		await this.updateTrust(() => this.workspaceTrustManagementService.setUrisTrust([uri], true));
 		if (this._store.isDisposed) {
 			return;
 		}
@@ -385,25 +387,36 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	acceptEdit(item: ITrustedUriItem, uri: URI) {
-		const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
-		const index = trustedFolders.findIndex(u => this.uriService.extUri.isEqual(u, item.uri));
+		this.updateTrust(() => {
+			const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
+			const index = trustedFolders.findIndex(u => this.uriService.extUri.isEqual(u, item.uri));
 
-		if (index >= trustedFolders.length || index === -1) {
-			trustedFolders.push(uri);
-		} else {
-			trustedFolders[index] = uri;
-		}
-
-		const update = this.pendingTrustUpdate = this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
-		const onDidUpdate = () => {
-			if (this.pendingTrustUpdate === update) {
-				this.pendingTrustUpdate = undefined;
-				this.refreshLabelsIfIdle();
+			if (index >= trustedFolders.length || index === -1) {
+				trustedFolders.push(uri);
+			} else {
+				trustedFolders[index] = uri;
 			}
-		};
-		update.then(onDidUpdate, onDidUpdate);
+
+			return this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
+		}).catch(onUnexpectedError);
 		this._onDidAcceptEdit.fire(item);
 		this.endInlineEdit();
+	}
+
+	/**
+	 * Runs this table's changes to the trusted folders one at a time: the trust service
+	 * clears its list while it saves, so a change must not read or write it before the
+	 * previous one is done. Label refreshes are deferred until all changes are saved.
+	 */
+	private updateTrust(task: () => Promise<void>): Promise<void> {
+		this.pendingTrustUpdates++;
+		const update = this.trustUpdates.queue(task);
+		const onDidUpdate = () => {
+			this.pendingTrustUpdates--;
+			this.refreshLabelsIfIdle();
+		};
+		update.then(onDidUpdate, onDidUpdate);
+		return update;
 	}
 
 	rejectEdit(item: ITrustedUriItem) {
@@ -417,7 +430,7 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	private refreshLabelsIfIdle(): void {
-		if (this.pendingLabelRefresh && !this.inlineEditItem && !this.pendingTrustUpdate && !this._store.isDisposed) {
+		if (this.pendingLabelRefresh && !this.inlineEditItem && !this.pendingTrustUpdates && !this._store.isDisposed) {
 			this.updateTable();
 		}
 	}
@@ -433,7 +446,7 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 		}
 		this.table.domFocus();
 
-		await this.workspaceTrustManagementService.setUrisTrust([item.uri], false);
+		await this.updateTrust(() => this.workspaceTrustManagementService.setUrisTrust([item.uri], false));
 		this._onDelete.fire(item);
 	}
 
@@ -460,15 +473,31 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 				this.rejectEdit(item);
 			}
 		} else {
+			if (this.pendingTrustUpdates) {
+				// The rows are rebuilt once the pending changes are saved, which would discard the edit.
+				await this.trustUpdates.queue(async () => { });
+				if (this._store.isDisposed) {
+					return;
+				}
+			}
+
 			this.selectTrustedUriEntry(item);
 			// Focusing the table can end another row's edit and rebuild the rows,
 			// so open the editor of the row that is rendered now.
 			const index = this.getIndexOfTrustedUriEntry(item);
-			const current = index === -1 ? item : this.table.row(index);
+			if (index === -1) {
+				return;
+			}
+			const current = this.table.row(index);
 			this.inlineEditItem = current;
 			this._onEdit.fire(current);
 		}
 	}
+}
+
+function setPathInputMode(templateData: ITrustedUriPathColumnTemplateData, enabled: boolean): void {
+	templateData.element.classList.toggle('input-mode', enabled);
+	templateData.element.parentElement!.style.paddingLeft = enabled ? '0px' : '5px';
 }
 
 class TrustedUriTableVirtualDelegate implements ITableVirtualDelegate<ITrustedUriItem> {
@@ -613,17 +642,15 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 
 		// Re-rendering resets the input, so it ends any edit shown in this template.
 		if (templateData.element.classList.contains('input-mode')) {
-			templateData.element.classList.remove('input-mode');
-			templateData.element.parentElement!.style.paddingLeft = '5px';
+			setPathInputMode(templateData, false);
 		}
 
 		this.currentItem = item;
 		templateData.renderDisposables.add(this.table.onEdit(async (e) => {
 			if (item === e) {
-				templateData.element.classList.add('input-mode');
+				setPathInputMode(templateData, true);
 				templateData.pathInput.focus();
 				templateData.pathInput.select();
-				templateData.element.parentElement!.style.paddingLeft = '0px';
 			}
 		}));
 
@@ -633,15 +660,13 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 		}));
 
 
-		const hideInputBox = () => {
-			templateData.element.classList.remove('input-mode');
-			templateData.element.parentElement!.style.paddingLeft = '5px';
-		};
+		const hideInputBox = () => setPathInputMode(templateData, false);
 
 		const accept = () => {
+			// Read the value first: hiding the input can blur it, which resets the value.
+			const pathToUse = templateData.pathInput.value;
 			hideInputBox();
 
-			const pathToUse = templateData.pathInput.value;
 			const uri = hasDriveLetter(pathToUse) ? item.uri.with({ path: posix.sep + toSlashes(pathToUse) }) : item.uri.with({ path: pathToUse });
 			templateData.pathLabel.innerText = this.formatPath(uri);
 
