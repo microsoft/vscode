@@ -107,7 +107,12 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 			this.entries = previous;
 			throw this.failure;
 		}
-		this.entries = uris.map(uri => this.getCanonicalUri(uri));
+		this.entries = [];
+		for (const uri of uris.map(uri => this.getCanonicalUri(uri))) {
+			if (!this.entries.some(entry => entry.toString() === uri.toString())) {
+				this.entries.push(uri);
+			}
+		}
 		this._onDidChangeTrustedFoldersEmitter.fire();
 	}
 
@@ -668,6 +673,21 @@ suite('WorkspaceTrustedUrisTable', () => {
 			await deletion;
 
 			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.path), ['/home/a']);
+		});
+
+		test('deletes the existing folder that an edited folder is normalized into', async () => {
+			const hostAOther = URI.parse('vscode-remote://ssh-remote+hostA/home/other');
+			createTableWithUris([hostA, hostAOther, hostB]);
+			normalizeTrailingSeparator();
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+
+			table.acceptEdit({ uri: hostAOther, parentOfWorkspaceItem: false }, hostA.with({ path: '/home/a/' }));
+			const deletion = table.delete({ uri: hostAOther, parentOfWorkspaceItem: false });
+			gate.complete();
+			await deletion;
+
+			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.toString()), [hostB.toString()]);
 		});
 
 		test('opens the editor of the latest edit only, after all queued saves', async () => {

@@ -404,11 +404,14 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 			await this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
 
-			// The service stores a canonical form of the URI, so find the entry it added for this
-			// edit, letting actions queued for this row act on the entry that is shown.
-			const added = this.workspaceTrustManagementService.getTrustedUris().filter(saved => !previousFolders.some(previous => this.uriService.extUri.isEqual(previous, saved)));
-			if (added.length === 1) {
-				this.editedUris.set(item.uri, added[0]);
+			// The service stores a canonical form of the URI and drops duplicates, so find the entry
+			// that this edit saved, letting actions queued for this row act on the entry that is shown.
+			const savedFolders = this.workspaceTrustManagementService.getTrustedUris();
+			const added = savedFolders.filter(saved => !previousFolders.some(previous => this.uriService.extUri.isEqual(previous, saved)));
+			const normalized = this.uriService.extUri.removeTrailingPathSeparator(uri);
+			const saved = added.length === 1 ? added[0] : savedFolders.find(folder => this.uriService.extUri.isEqual(folder, normalized));
+			if (saved) {
+				this.editedUris.set(item.uri, saved);
 			}
 		}).catch(onUnexpectedError);
 		this._onDidAcceptEdit.fire(item);
