@@ -13,10 +13,7 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { AgentsActivityService } from '../../../../services/activity/browser/agentsActivityService.js';
 import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { SessionsNavigation } from '../../../../services/sessions/browser/sessionNavigation.js';
 import { SessionsRecencyHistory } from '../../../../services/sessions/browser/sessionsRecencyHistory.js';
@@ -32,19 +29,14 @@ suite('InboxNotificationsCustomViewContribution', () => {
 		const configurationService = new TestConfigurationService({ [CHAT_INBOX_ENABLED_SETTING]: enabled });
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const sentiment = observableValue<IChatSentiment>('test.chatSentiment', {});
-		const events: string[] = [];
-		const activityService = disposables.add(new AgentsActivityService(upcastPartial<ITelemetryService>({
-			publicLog2: eventName => { events.push(eventName); },
-		}), upcastPartial<IHostService>({ hasFocus: true })));
 		const customViewService = disposables.add(new CustomViewService(new NullLogService(), storageService));
 		disposables.add(new InboxNotificationsCustomViewContribution(
 			configurationService,
 			upcastPartial<IChatEntitlementService>({ sentimentObs: sentiment }),
 			customViewService,
-			activityService,
 		));
 		return {
-			customViewService, activityService, sentiment, storageService, events,
+			customViewService, sentiment, storageService,
 			async setEnabled(value: boolean): Promise<void> {
 				await configurationService.setUserConfiguration(CHAT_INBOX_ENABLED_SETTING, value);
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
@@ -54,15 +46,13 @@ suite('InboxNotificationsCustomViewContribution', () => {
 		};
 	}
 
-	test('blocks explicit and history opens while disabled without enabling activity tracking', () => {
-		const { customViewService, activityService, events } = createFixture(false);
+	test('blocks explicit and history opens while disabled', () => {
+		const { customViewService } = createFixture(false);
 		customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID);
 		const explicit = customViewService.activeCustomView.get()?.id;
 		customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID, { source: 'history' });
-		activityService.reportActiveSurface('automations');
-		activityService.reportActiveSurface('customization');
-		assert.deepStrictEqual({ explicit, history: customViewService.activeCustomView.get()?.id, events }, {
-			explicit: undefined, history: undefined, events: [],
+		assert.deepStrictEqual({ explicit, history: customViewService.activeCustomView.get()?.id }, {
+			explicit: undefined, history: undefined,
 		});
 	});
 
@@ -107,17 +97,15 @@ suite('InboxNotificationsCustomViewContribution', () => {
 		}, { activeView: undefined, hasInboxHistory: false });
 	});
 
-	test('AI hiding blocks Inbox activation and disables activity without affecting another custom view', () => {
+	test('AI hiding blocks Inbox activation without affecting another custom view', () => {
 		const fixture = createFixture(true);
 		disposables.add(fixture.customViewService.registerCustomView({ id: 'other', ctor: new SyncDescriptor(InboxNotificationsView) }));
 		fixture.customViewService.showCustomView('other');
 		fixture.sentiment.set({ hidden: true }, undefined);
 		const otherView = fixture.customViewService.activeCustomView.get()?.id;
-		const eventCount = fixture.events.length;
-		fixture.activityService.reportActiveSurface('automations');
 		fixture.customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID, { source: 'history' });
-		assert.deepStrictEqual({ otherView, inboxView: fixture.customViewService.activeCustomView.get()?.id, newEvents: fixture.events.length - eventCount }, {
-			otherView: 'other', inboxView: 'other', newEvents: 0,
+		assert.deepStrictEqual({ otherView, inboxView: fixture.customViewService.activeCustomView.get()?.id }, {
+			otherView: 'other', inboxView: 'other',
 		});
 	});
 
@@ -126,9 +114,7 @@ suite('InboxNotificationsCustomViewContribution', () => {
 		previous.customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID);
 		previous.customViewService.dispose();
 		const restored = createFixture(false, previous.storageService);
-		assert.deepStrictEqual({ view: restored.customViewService.activeCustomView.get()?.id, events: restored.events }, {
-			view: undefined, events: [],
-		});
+		assert.strictEqual(restored.customViewService.activeCustomView.get()?.id, undefined);
 	});
 
 	test('restores Inbox while enabled', () => {

@@ -6,7 +6,7 @@
 import './inboxNotificationsAccessibility.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -19,7 +19,6 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IAgentsActivityService } from '../../../services/activity/browser/agentsActivityService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { InboxNotificationsView } from './inboxNotificationsView.js';
@@ -74,7 +73,6 @@ export class InboxNotificationsCustomViewContribution extends Disposable impleme
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ICustomViewService customViewService: ICustomViewService,
-		@IAgentsActivityService agentsActivityService: IAgentsActivityService,
 	) {
 		super();
 
@@ -82,10 +80,8 @@ export class InboxNotificationsCustomViewContribution extends Disposable impleme
 		const enabled = derived(this, reader => inboxEnabled.read(reader) && !chatEntitlementService.sentimentObs.read(reader).hidden);
 		const viewRegistration = this._register(new MutableDisposable());
 		let restore = enabled.get();
-		this._register(toDisposable(() => agentsActivityService.setEnabled(false)));
 		this._register(autorun(reader => {
 			const isEnabled = enabled.read(reader);
-			agentsActivityService.setEnabled(isEnabled);
 			if (isEnabled) {
 				viewRegistration.value = customViewService.registerCustomView({
 					id: INBOX_NOTIFICATIONS_VIEW_ID,

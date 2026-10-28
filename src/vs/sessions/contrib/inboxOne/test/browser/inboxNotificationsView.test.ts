@@ -33,7 +33,6 @@ import { ChatQuestionCarouselPart } from '../../../../../workbench/contrib/chat/
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { IAgentsActivityService } from '../../../../services/activity/browser/agentsActivityService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
@@ -114,10 +113,6 @@ suite('InboxNotificationsView', () => {
 		instantiationService.stub(ITelemetryService, {}, 'publicLog2', (event: string, data: NonNullable<typeof options.telemetry>[number]['data'] = {}) => {
 			options.events?.push(event);
 			options.telemetry?.push({ event, data });
-		});
-		instantiationService.stub(IAgentsActivityService, {
-			reportActiveSurface: () => { },
-			reportSurfaceBlurred: () => { },
 		});
 		const view = disposables.add(instantiationService.createInstance(InboxNotificationsView, options.intersectionObserver, options.resizeObserver));
 		const container = document.createElement('div');

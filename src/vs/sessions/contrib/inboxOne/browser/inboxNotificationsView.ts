@@ -78,7 +78,6 @@ import {
 	getInboxPullRequestMergeOperation,
 } from '../common/inboxNotificationsService.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
-import { IAgentsActivityService } from '../../../services/activity/browser/agentsActivityService.js';
 
 function isDismissibleQuestionCarousel(carousel: IChatQuestionCarousel): carousel is IChatQuestionCarousel & { dismiss(answers: Record<string, IChatQuestionAnswerValue> | undefined): void } {
 	return typeof (carousel as { dismiss?: unknown }).dismiss === 'function';
@@ -429,7 +428,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IAgentsActivityService private readonly agentsActivityService: IAgentsActivityService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -491,18 +489,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 			InboxNotificationsView.activeInstance = undefined;
 		}
 		super.dispose();
-	}
-
-	/** Non-identifying active-context for the inbox surface: the selected item's session, if any. */
-	private inboxSurfaceContext(): { agentSessionId?: string; providerId?: string; surfaceInstanceId: string } {
-		const selectedId = this.selectedItemId.get();
-		const item = selectedId ? this.getItemById(selectedId) : undefined;
-		const context = item ? this.inboxNotificationsService.getInteractionTelemetryContext(item) : undefined;
-		return {
-			agentSessionId: context?.agentSessionId,
-			providerId: context?.providerId,
-			surfaceInstanceId: this.inboxViewInstanceId,
-		};
 	}
 
 	/** Logs an inbox view lifecycle transition (opened/closed/focus/blur) for dwell and trajectory. */
@@ -581,14 +567,12 @@ export class InboxNotificationsView extends AbstractCustomView {
 			focusContext.set(true);
 			this.viewFocusedAtMs = Date.now();
 			this.logViewState('focus');
-			this.agentsActivityService.reportActiveSurface('inbox', this.inboxSurfaceContext());
 		}));
 		this._register(focusTracker.onDidBlur(() => {
 			focusContext.set(false);
 			const dwellMs = this.viewFocusedAtMs !== undefined ? Date.now() - this.viewFocusedAtMs : undefined;
 			this.viewFocusedAtMs = undefined;
 			this.logViewState('blur', dwellMs);
-			this.agentsActivityService.reportSurfaceBlurred('inbox');
 		}));
 		this.logViewState('opened');
 		// Discrete click trajectory only — never mousemove/hover/scroll, which would be too frequent.

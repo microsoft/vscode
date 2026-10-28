@@ -65,7 +65,6 @@ import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { IAgentsActivityService } from '../../../../services/activity/browser/agentsActivityService.js';
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../common/sessionConfig.js';
@@ -759,10 +758,6 @@ suite('AutomationsCardsWidget', () => {
 			override readonly activeCustomView = constObservable(undefined);
 			override registerCustomView() { return { dispose() { } }; }
 			override hideCustomView() { }
-		}());
-		instantiationService.stub(IAgentsActivityService, new class extends mock<IAgentsActivityService>() {
-			override reportActiveSurface(): void { }
-			override reportSurfaceBlurred(): void { }
 		}());
 		disposables.add(instantiationService.createInstance(AutomationsCustomViewContribution));
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));

@@ -39,7 +39,6 @@ import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automa
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
-import { IAgentsActivityService } from '../../../../services/activity/browser/agentsActivityService.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -230,7 +229,6 @@ export class AutomationsCardsWidget extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IAgentsActivityService private readonly agentsActivityService: IAgentsActivityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -239,17 +237,10 @@ export class AutomationsCardsWidget extends Disposable {
 		logAutomationViewShown(this.telemetryService);
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;
-		const surfaceInstanceId = generateUuid();
 		const focusContext = AutomationsCustomViewFocusContext.bindTo(contextKeyService);
 		const focusTracker = this._register(DOM.trackFocus(this.element));
-		this._register(focusTracker.onDidFocus(() => {
-			focusContext.set(true);
-			this.agentsActivityService.reportActiveSurface('automations', { surfaceInstanceId });
-		}));
-		this._register(focusTracker.onDidBlur(() => {
-			focusContext.set(false);
-			this.agentsActivityService.reportSurfaceBlurred('automations');
-		}));
+		this._register(focusTracker.onDidFocus(() => focusContext.set(true)));
+		this._register(focusTracker.onDidBlur(() => focusContext.set(false)));
 		this._register(toDisposable(() => focusContext.reset()));
 		const scrollContent = DOM.append(this.element, $('.automations-cards-scroll-content'));
 		this.cardsSection = this._register(instantiationService.createInstance(AutomationCardsSection, scrollContent, this.element));

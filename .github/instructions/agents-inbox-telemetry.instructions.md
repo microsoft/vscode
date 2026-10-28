@@ -4,12 +4,7 @@ description: Use when working on, analyzing, or reconstructing Sessions Inbox te
 
 # Agents window inbox telemetry
 
-The Sessions Inbox emits a family of `agents/inbox*` telemetry events that, together with the
-window-wide `agents/*` events, reconstruct a user's **attention trajectory** — an ordered,
-timestamped sequence of everything that happened around the inbox (which surface was focused, which
-inbox items appeared, what the user clicked, what they decided) with rich, bounded, non‑PII metadata.
-This is the data substrate for research on **adaptive, personalized meta‑routing for human‑agent
-systems**.
+The Sessions Inbox emits a family of `agents/inbox*` telemetry events describing which inbox items appeared, what the user clicked, and what they decided, with bounded, non‑PII metadata. Inbox view events describe focus and dwell within the Inbox; they do not track focus across other Agents-window surfaces.
 
 This document is inbox-centric: it explains how inbox events link and sequence within the whole
 Agents window, how to reconstruct a trajectory from either the **local telemetry log** or **Kusto**,
@@ -37,13 +32,11 @@ Every telemetry event (regardless of feature) is stamped by the core pipeline in
 
 1. Filter to one window session and `common.isAgentsWindow == true`.
 2. Order by `common.sequence` (exact) or `timestamp` (cross‑process).
-3. The active surface + dwell at any moment is the most recent `agents/activeContextChanged`
-   before the event.
+3. Use `agents/inboxViewState` for Inbox focus and dwell. Focus on other surfaces is not tracked.
 4. Link item‑level events to a session with `agentSessionId` (SHA‑1 of the session id — see the
    hashing note below) and `providerId`.
 
-The trajectory is **not** limited to the inbox: chats, automations, customization, session
-lifecycle, PR actions, and feedback all emit `agents/*` events and interleave by `common.sequence`.
+Existing session, automation, PR-action, and feedback events can be correlated with Inbox events by `common.sequence`; these events do not establish which surface held focus between interactions.
 
 ### Identity / hashing
 
@@ -57,11 +50,8 @@ without changing that shared primitive (and getting privacy/security sign‑off)
 
 ### Whole‑window / cross‑surface
 
-The Inbox contribution enables `agents/activeContextChanged` only while `chat.agentSessions.inbox.enabled` is true and AI features are visible. Disabling either resets the tracker and cancels pending blur events without emitting more activity; reenabling starts a fresh trajectory. Other existing Agents-window telemetry is unchanged.
-
 | Event | Emitted when | Key fields |
 |---|---|---|
-| `agents/activeContextChanged` | Focus moves between reported window surfaces | `fromSurface`, `toSurface` (inbox/automations/customization/other/none), `transitionCause`, `previousFocusedDwellMs`, `contextAgentSessionId` |
 | `agents/windowLayout`, `agents/windowSessionStart`, `agents/firstTimeWindowOpen` | Window lifecycle | layout / session context |
 | `agents/sessionOpen` | A session is opened | `source` (`notification` = from the inbox), `outcome`, durations |
 | `agents/requestSent`, `agents/session*`, `agents/*PullRequest`, `agents/commit*`, `agents/feedback*` | Session / PR / feedback actions | see [sessionsTelemetry.contribution.ts](../../src/vs/sessions/contrib/sessions/browser/sessionsTelemetry.contribution.ts) |
@@ -91,7 +81,7 @@ local **Telemetry** output channel — the same local‑logging path used by inl
    then open the **Output → Telemetry** channel.
 2. Each line is `<eventName> <json-payload>`; the payload includes the common properties above.
 3. Filter for `agents/` and order by the embedded `common.sequence` (or `timestamp`).
-4. Link session-scoped events through `agentSessionId`; active-context events use `contextAgentSessionId` instead. Order by `common.sequence` to reconstruct reported focus changes, impressions, clicks, interactions, and lifecycle. Untracked foreground surfaces are `other`; `none` is the tracker-start checkpoint or loss of window focus.
+4. Use `common.isAgentsWindow` and `common.sequence` to order events, and `agentSessionId` where available to correlate session-scoped events. The log describes Inbox focus, impressions, clicks, interactions, and lifecycle, not a complete cross-surface focus trajectory.
 
 > **Restricted events are in the local log too.** There is no client‑side split: `_log` in
 > [telemetryService.ts](../../src/vs/platform/telemetry/common/telemetryService.ts) forwards every
