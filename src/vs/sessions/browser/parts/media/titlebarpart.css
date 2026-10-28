@@ -189,7 +189,7 @@
 	align-items: center;
 }
 
-.monaco-workbench.mac:not(.web):not(.fullscreen) .part.titlebar > .sessions-titlebar-container > .titlebar-left > .window-controls-container + .left-toolbar-container {
+.monaco-workbench.mac:not(.web) .part.titlebar:not(.titlebar-fullscreen) > .sessions-titlebar-container > .titlebar-left > .window-controls-container + .left-toolbar-container {
 	padding-left: var(--vscode-spacing-size160);
 }
 
