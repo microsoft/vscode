@@ -247,16 +247,115 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		controller.layout({ height: 500, width: 600 }, 0);
 		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
 		picker.widget = mainWindow.document.createElement('div');
-		picker.items = [{ type: 'separator' }, { label: 'Reset to default' }];
+		const reset = { label: 'Reset to default' };
+		picker.items = [{ type: 'separator' }, reset];
+		picker.canSelectMany = true;
 		picker.show();
+		picker.activeItems = [reset];
+		picker.selectedItems = [reset];
 		const withContent = fixture.querySelectorAll('.quick-input-list-separator-empty').length;
+		const activeWithContent = picker.activeItems.map(item => item.label);
 		picker.widget = undefined;
 		assert.deepStrictEqual({
 			withContent,
+			activeWithContent,
 			withoutContent: fixture.querySelectorAll('.quick-input-list-separator-empty').length,
 			contentMarker: fixture.querySelector('.quick-input-widget')?.classList.contains('has-custom-widget'),
-		}, { withContent: 1, withoutContent: 0, contentMarker: false });
+			active: picker.activeItems.map(item => item.label),
+			selected: picker.selectedItems.map(item => item.label),
+		}, {
+			withContent: 1,
+			activeWithContent: ['Reset to default'],
+			withoutContent: 0,
+			contentMarker: false,
+			active: ['Reset to default'],
+			selected: ['Reset to default'],
+		});
 	});
+
+	test('custom content changes preserve filtered order, focus and checked items', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		const zap = { label: 'zap' };
+		const apple = { label: 'apple' };
+		picker.items = [{ type: 'separator' }, zap, { type: 'separator' }, apple];
+		picker.canSelectMany = true;
+		picker.value = 'a';
+		picker.show();
+		picker.activeItems = [zap];
+		picker.selectedItems = [apple];
+		const state = () => ({
+			items: [...fixture.querySelectorAll('.quick-input-list-entry .label-name')].map(label => label.textContent),
+			dividers: fixture.querySelectorAll('.quick-input-list-separator-empty').length,
+			active: picker.activeItems.map(item => item.label),
+			selected: picker.selectedItems.map(item => item.label),
+		});
+		const before = state();
+		picker.widget = mainWindow.document.createElement('div');
+		const withContent = state();
+		picker.widget = undefined;
+		const expected = { items: ['apple', 'zap'], dividers: 0, active: ['zap'], selected: ['apple'] };
+		assert.deepStrictEqual([before, withContent, state()], [expected, expected, expected]);
+	});
+
+	test('section navigation wraps across a hidden leading divider', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.items = [
+			{ type: 'separator' }, { label: 'First section' },
+			{ type: 'separator' }, { label: 'Second section' },
+		];
+		picker.show();
+		const active = [picker.activeItems.map(item => item.label)];
+		for (const direction of [QuickPickFocus.NextSeparator, QuickPickFocus.NextSeparator, QuickPickFocus.PreviousSeparator, QuickPickFocus.PreviousSeparator]) {
+			picker.focus(direction);
+			active.push(picker.activeItems.map(item => item.label));
+		}
+		assert.deepStrictEqual(active, [
+			['First section'], ['Second section'], ['First section'], ['Second section'], ['First section'],
+		]);
+	});
+
+	for (const canSelectMany of [false, true]) {
+		test(`dividers do not become keyboard parents (multi-select: ${canSelectMany})`, async () => {
+			controller.layout({ height: 500, width: 600 }, 0);
+			const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+			picker.items = [{ label: 'Red' }, { type: 'separator' }, { label: 'Reset to default' }];
+			picker.canSelectMany = canSelectMany;
+			picker.show();
+			picker.focus(QuickPickFocus.Last);
+			const list = fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!;
+			list.focus();
+			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true, cancelable: true }));
+			const context = instantiationService.get(IContextKeyService).getContext(list);
+			if (canSelectMany) {
+				controller.toggle();
+			}
+			let accepted: string[] = [];
+			store.add(picker.onDidAccept(() => accepted = picker.activeItems.map(item => item.label)));
+			await controller.accept();
+			const row = list.querySelector('.monaco-list-row.focused')!;
+			assert.deepStrictEqual({
+				hasParent: context.getValue('treeElementHasParent'),
+				canCollapse: context.getValue('treeElementCanCollapse'),
+				active: picker.activeItems.map(item => item.label),
+				selected: picker.selectedItems.map(item => item.label),
+				accepted,
+				position: row.getAttribute('aria-posinset'),
+				size: row.getAttribute('aria-setsize'),
+				level: row.getAttribute('aria-level'),
+			}, {
+				hasParent: false,
+				canCollapse: false,
+				active: ['Reset to default'],
+				selected: ['Reset to default'],
+				accepted: ['Reset to default'],
+				position: '3',
+				size: '3',
+				level: '1',
+			});
+		});
+	}
 
 	test('appearance picker selection is neutral without changing the next ordinary picker', () => {
 		controller.layout({ height: 500, width: 600 }, 0);
@@ -351,6 +450,28 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			filteredDividers: 0,
 			restoredDividers: 1,
 		});
+	});
+
+	test('dividers preserve action-bearing section membership', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.items = [
+			{ type: 'separator', label: 'Colors', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] },
+			{ label: 'Red' }, { type: 'separator' }, { label: 'Reset to default' },
+		];
+		picker.show();
+		picker.focus(QuickPickFocus.Last);
+		const list = fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!;
+		list.focus();
+		const row = list.querySelector('.monaco-list-row.focused')!;
+		assert.deepStrictEqual({
+			headers: fixture.querySelectorAll('.quick-input-list-separator-as-item:not(.quick-input-list-separator-empty)').length,
+			headerActive: fixture.querySelector('.quick-input-list-separator-as-item.has-actions')?.classList.contains('focus-inside'),
+			dividers: fixture.querySelectorAll('.quick-input-list-separator-empty').length,
+			hasParent: instantiationService.get(IContextKeyService).getContext(list).getValue('treeElementHasParent'),
+			level: row.getAttribute('aria-level'),
+			active: picker.activeItems.map(item => item.label),
+		}, { headers: 1, headerActive: true, dividers: 1, hasParent: true, level: '2', active: ['Reset to default'] });
 	});
 
 	test('close motion requires modern UI with motion enabled', () => {

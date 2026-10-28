@@ -783,12 +783,19 @@ export class QuickInputList extends Disposable {
 			[this._itemRenderer, this._separatorRenderer],
 			{
 				filter: {
-					filter(element) {
-						return element.hidden
-							? TreeVisibility.Hidden
-							: element instanceof QuickPickSeparatorElement
-								? TreeVisibility.Recurse
-								: TreeVisibility.Visible;
+					filter: element => {
+						if (element.hidden) {
+							return TreeVisibility.Hidden;
+						}
+						if (element instanceof QuickPickSeparatorElement) {
+							if (element.isDivider) {
+								return (element.index > 0 || this.hasCustomWidget) && element.children.some(child => !child.hidden)
+									? TreeVisibility.Visible
+									: TreeVisibility.Hidden;
+							}
+							return TreeVisibility.Recurse;
+						}
+						return TreeVisibility.Visible;
 					},
 				},
 				sorter: {
@@ -1318,6 +1325,7 @@ export class QuickInputList extends Disposable {
 			case QuickPickFocus.NextSeparator: {
 				let foundSeparatorAsItem = false;
 				const before = this._tree.getFocus()[0];
+				const firstElement = this._tree.navigate().first();
 				this._tree.focusNext(undefined, true, undefined, (e) => {
 					if (foundSeparatorAsItem) {
 						// This should be the index right after the separator so it
@@ -1343,7 +1351,7 @@ export class QuickInputList extends Disposable {
 								this._tree.reveal(e.element, 0);
 							}
 							return true;
-						} else if (e.element === this._elementTree[0]) {
+						} else if (e.element === firstElement) {
 							// We should stop at the first item in the list if it's a regular item.
 							this._tree.reveal(e.element, 0);
 							return true;
@@ -1362,10 +1370,11 @@ export class QuickInputList extends Disposable {
 			}
 			case QuickPickFocus.PreviousSeparator: {
 				let focusElement: IQuickPickElement | undefined;
+				const firstElement = this._tree.navigate().first();
 				// If we are already sitting on an inline separator, then we
 				// have already found the _current_ separator and need to
 				// move to the previous one.
-				let foundSeparator = !!this._tree.getFocus()[0]?.separator;
+				let foundSeparator = !!this._tree.getFocus()[0]?.separator || this._tree.getFocus()[0] === firstElement;
 				this._tree.focusPrevious(undefined, true, undefined, (e) => {
 					if (e.element instanceof QuickPickSeparatorElement) {
 						if (foundSeparator) {
@@ -1390,7 +1399,7 @@ export class QuickInputList extends Disposable {
 								}
 
 								focusElement = e.element;
-							} else if (e.element === this._elementTree[0]) {
+							} else if (e.element === firstElement) {
 								// We should stop at the first item in the list if it's a regular item.
 								this._tree.reveal(e.element, 0);
 								return true;
@@ -1557,30 +1566,33 @@ export class QuickInputList extends Disposable {
 	setHasCustomWidget(hasCustomWidget: boolean): void {
 		if (this.hasCustomWidget !== hasCustomWidget) {
 			this.hasCustomWidget = hasCustomWidget;
-			this._setElementsToTree(this._elementTree);
+			this._tree.refilter();
 		}
 	}
 
 	private _setElementsToTree(elements: IQuickPickElement[]) {
 		const treeElements = new Array<IObjectTreeElement<IQuickPickElement>>();
+		let sectionChildren = treeElements;
 		for (const element of elements) {
 			if (element instanceof QuickPickSeparatorElement) {
-				if (element.isDivider && element.index === 0 && !this.hasCustomWidget) {
-					treeElements.push(...element.children.map(child => ({ element: child })));
+				if (element.isDivider) {
+					sectionChildren.push({ element });
+					sectionChildren.push(...element.children.map(child => ({ element: child })));
 					continue;
 				}
+				sectionChildren = element.children.map(e => ({
+					element: e,
+					collapsible: false,
+					collapsed: false,
+				}));
 				treeElements.push({
 					element,
 					collapsible: false,
 					collapsed: false,
-					children: element.children.map(e => ({
-						element: e,
-						collapsible: false,
-						collapsed: false,
-					})),
+					children: sectionChildren,
 				});
 			} else {
-				treeElements.push({
+				sectionChildren.push({
 					element,
 					collapsible: false,
 					collapsed: false,
